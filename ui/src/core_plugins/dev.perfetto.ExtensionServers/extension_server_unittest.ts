@@ -351,7 +351,7 @@ describe('extension_server', () => {
       expect(mockApp.addSqlPackages).toHaveBeenCalledTimes(1);
       expect(mockApp.addProtoDescriptors).toHaveBeenCalledTimes(1);
 
-      const macros = await mockApp.getMacrosAdded()[0];
+      const macros = await mockApp.getMacrosAdded()[0]!;
       expect(macros.map((m) => m.id).sort()).toEqual([
         'test.android1',
         'test.default1',
@@ -399,7 +399,7 @@ describe('extension_server', () => {
         testExtServer({enabledModules: ['default', 'android']}),
       ]);
 
-      const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
+      const sqlPackages = await mockApp.getSqlPackagesAdded()[0]!;
       expect(sqlPackages).toHaveLength(1);
       expect(sqlPackages[0]?.name).toBe('test');
       expect(sqlPackages[0]?.modules.map((m) => m.name).sort()).toEqual([
@@ -434,7 +434,7 @@ describe('extension_server', () => {
       const mockApp = createMockAppImpl();
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
-      const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
+      const sqlPackages = await mockApp.getSqlPackagesAdded()[0]!;
       expect(sqlPackages).toHaveLength(1);
       expect(sqlPackages[0]?.name).toBe('myext');
       expect(sqlPackages[0]?.modules).toHaveLength(2);

@@ -446,6 +446,45 @@ function process(items: string[]): void { ... }
 function process(items: readonly string[]): void { ... }
 ```
 
+**Don't silence index accesses with `!`:**
+`noUncheckedIndexedAccess` is enabled, so `arr[i]` is typed `T | undefined`.
+Appending `!` makes the error go away but hides real bugs. Prefer constructs
+the type system can actually check:
+
+- Use `for...of` / `arr.entries()` instead of index loops.
+- Read, then check - rather than checking `length` and then indexing.
+- Use `ensureDefined()` / `assertDefined()` (from `base/assert.ts`) when an
+  invariant genuinely needs asserting, so it fails loudly instead of being
+  silently assumed.
+- Avoid indexing altogether where it isn't needed - e.g. use named values or
+  keep a direct reference instead of reading `arr[0]!`.
+- Use literal const-size arrays (tuples) where practical, and `mapTuple()`
+  (from `base/array_utils.ts`) to keep the tuple length through a map.
+- Use `ReadonlyNonEmpty<T>` (from `base/array_utils.ts`) for arrays that are
+  guaranteed non-empty, so `[0]` is typed `T`.
+- If `!` really must stay (e.g. a hot loop with a provably in-range index),
+  add a comment explaining why it's safe.
+
+```typescript
+// Bad
+for (let i = 0; i < items.length; i++) {
+  process(items[i]!);
+}
+if (items.length > 0) {
+  use(items[0]!);
+}
+
+// Good
+for (const item of items) {
+  process(item);
+}
+const first = items[0];
+if (first !== undefined) {
+  use(first);
+}
+const required = ensureDefined(items[0], 'items must not be empty');
+```
+
 **Use `classNames()` utility for building CSS class strings:**
 ```typescript
 import {classNames} from '../base/classnames';

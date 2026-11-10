@@ -59,26 +59,15 @@ INTERVAL INTERSECTION OF (
   c6.state_id AS state_id_6,
   c7.state_id AS state_id_7;
 
-CREATE PERFETTO TABLE _w_cpu_slices AS
-SELECT
-  ts,
-  dur,
-  cast_int!(l3_hit_rate * dur) AS l3_hit_count,
-  cast_int!(l3_miss_rate * dur) AS l3_miss_count,
-  suspended,
+-- One row per distinct CPU state combination, grouped natively by the
+-- pipeline rather than by sorting every interval in SQLite.
+CREATE PERFETTO TABLE _w_config_reps AS
+FROM _w_cpu_slices_raw
+|> AGGREGATE
+  COUNT(*) AS n
+GROUP BY
   dsu_freq,
-  hash(
-    state_id_0,
-    state_id_1,
-    state_id_2,
-    state_id_3,
-    state_id_4,
-    state_id_5,
-    state_id_6,
-    state_id_7,
-    dsu_freq,
-    suspended
-  ) AS config_hash,
+  suspended,
   state_id_0,
   state_id_1,
   state_id_2,
@@ -86,8 +75,7 @@ SELECT
   state_id_4,
   state_id_5,
   state_id_6,
-  state_id_7
-FROM _w_cpu_slices_raw;
+  state_id_7;
 
 -- Tiny (~400 row) L1/L2-cached lookup table decoding state_id into
 -- (freq, idle, curve_value, static) built directly from _adjusted_cpu_freq.
@@ -143,6 +131,43 @@ CREATE PERFETTO INDEX _cpu_state_lut_idx ON _cpu_state_lut(state_id);
 
 -- All UNIQUE configs of independent CPU data.
 CREATE PERFETTO TABLE _w_unique_configs AS
+WITH
+  reps AS MATERIALIZED (
+    SELECT
+      hash(
+        state_id_0,
+        state_id_1,
+        state_id_2,
+        state_id_3,
+        state_id_4,
+        state_id_5,
+        state_id_6,
+        state_id_7,
+        dsu_freq,
+        suspended
+      ) AS config_hash,
+      dsu_freq,
+      suspended,
+      state_id_0,
+      state_id_1,
+      state_id_2,
+      state_id_3,
+      state_id_4,
+      state_id_5,
+      state_id_6,
+      state_id_7,
+      CAST(_bitmask8!(
+        _is_cpu_active!(state_id_0),
+        _is_cpu_active!(state_id_1),
+        _is_cpu_active!(state_id_2),
+        _is_cpu_active!(state_id_3),
+        _is_cpu_active!(state_id_4),
+        _is_cpu_active!(state_id_5),
+        _is_cpu_active!(state_id_6),
+        _is_cpu_active!(state_id_7)
+      ) AS INTEGER) AS cpus_on_mask
+    FROM _w_config_reps
+  )
 SELECT
   reps.config_hash,
   d0.freq AS freq_0,
@@ -190,33 +215,7 @@ SELECT
   + iif(reps.cpus_on_mask & pm.m7, d7.static, 0) AS static_1d,
   reps.suspended
 FROM _policy_masks AS pm
-CROSS JOIN (
-  SELECT
-    config_hash,
-    dsu_freq,
-    suspended,
-    state_id_0,
-    state_id_1,
-    state_id_2,
-    state_id_3,
-    state_id_4,
-    state_id_5,
-    state_id_6,
-    state_id_7,
-    CAST(_bitmask8!(
-      _is_cpu_active!(state_id_0),
-      _is_cpu_active!(state_id_1),
-      _is_cpu_active!(state_id_2),
-      _is_cpu_active!(state_id_3),
-      _is_cpu_active!(state_id_4),
-      _is_cpu_active!(state_id_5),
-      _is_cpu_active!(state_id_6),
-      _is_cpu_active!(state_id_7)
-    ) AS INTEGER) AS cpus_on_mask
-  FROM _w_cpu_slices
-  GROUP BY
-    config_hash
-) AS reps
+CROSS JOIN reps
 CROSS JOIN _cpu_state_lut AS d0
   ON d0.state_id = reps.state_id_0
 CROSS JOIN _cpu_state_lut AS d1
@@ -235,15 +234,15 @@ CROSS JOIN _cpu_state_lut AS d7
   ON d7.state_id = reps.state_id_7;
 
 -- Per-interval CPU data with the configuration columns attached. Consumers
--- that only need the per-interval columns should read `_w_cpu_slices`
+-- that only need the per-interval columns should read `_w_cpu_slices_raw`
 -- directly, since this view has to join every interval back to its config.
 CREATE PERFETTO VIEW _w_independent_cpus_calc AS
 SELECT
   slices.ts,
   slices.dur,
-  slices.l3_hit_count,
-  slices.l3_miss_count,
-  slices.config_hash,
+  cast_int!(slices.l3_hit_rate * slices.dur) AS l3_hit_count,
+  cast_int!(slices.l3_miss_rate * slices.dur) AS l3_miss_count,
+  cfg.config_hash,
   cfg.freq_0,
   cfg.idle_0,
   cfg.freq_1,
@@ -272,8 +271,68 @@ SELECT
   slices.dsu_freq,
   cfg.policy_cpus_on_mask,
   cfg.static_1d
-FROM _w_cpu_slices AS slices
-JOIN _w_unique_configs AS cfg USING (config_hash);
+FROM _w_cpu_slices_raw AS slices
+JOIN _w_unique_configs AS cfg
+  ON cfg.config_hash
+  = hash(
+    slices.state_id_0,
+    slices.state_id_1,
+    slices.state_id_2,
+    slices.state_id_3,
+    slices.state_id_4,
+    slices.state_id_5,
+    slices.state_id_6,
+    slices.state_id_7,
+    slices.dsu_freq,
+    slices.suspended
+  );
+
+-- CPUs whose dependency CPUs and voting rule are the same get the same vote,
+-- so the vote is only computed for one representative CPU of each class.
+CREATE PERFETTO TABLE _cpu_dep_class AS
+WITH
+  sig AS (
+    SELECT d.cpu, v.vote_by_freq, group_concat(d.dep_cpu, ',') AS deps
+    FROM (SELECT cpu, dep_cpu FROM _cpu_lut_dependencies ORDER BY cpu, dep_cpu) AS d
+    JOIN _dev_vote_by_freq AS v USING (cpu)
+    GROUP BY
+      d.cpu
+  )
+SELECT
+  s.cpu,
+  (
+    SELECT min(s2.cpu)
+    FROM sig AS s2
+    WHERE
+      s2.deps = s.deps
+      AND s2.vote_by_freq = s.vote_by_freq
+  ) AS rep_cpu
+FROM sig AS s;
+
+CREATE PERFETTO TABLE _cpu_dep_rep_row AS
+SELECT
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 0) AS r0,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 1) AS r1,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 2) AS r2,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 3) AS r3,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 4) AS r4,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 5) AS r5,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 6) AS r6,
+  (SELECT rep_cpu FROM _cpu_dep_class WHERE cpu = 7) AS r7;
+
+-- The (cpu, dependency cpu) pairs to vote over, with everything about them
+-- that does not depend on the config. Joined once here rather than once per
+-- config.
+CREATE PERFETTO TABLE _cpu_dep_votes AS
+SELECT d.cpu, d.dep_cpu, v.vote_by_freq, p.policy
+FROM _cpu_lut_dependencies AS d
+JOIN _cpu_dep_class AS k
+  ON k.cpu = d.cpu
+  AND k.rep_cpu = d.cpu
+JOIN _dev_vote_by_freq AS v
+  ON d.cpu = v.cpu
+JOIN _dev_cpu_policy_map AS p
+  ON d.dep_cpu = p.cpu;
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS
@@ -302,7 +361,7 @@ WITH
       i.config_hash,
       d.cpu,
       -- Determine the scoring value (Frequency or Curve) based on device
-      CASE v.vote_by_freq
+      CASE d.vote_by_freq
         WHEN 1 THEN CASE d.dep_cpu
           WHEN 0 THEN i.freq_0
           WHEN 1 THEN i.freq_1
@@ -335,13 +394,9 @@ WITH
         WHEN 6 THEN i.freq_6
         WHEN 7 THEN i.freq_7
       END AS freq,
-      p.policy
+      d.policy
     FROM _w_unique_configs AS i
-    CROSS JOIN _cpu_lut_dependencies AS d
-    JOIN _dev_vote_by_freq AS v
-      ON d.cpu = v.cpu
-    JOIN _dev_cpu_policy_map AS p
-      ON d.dep_cpu = p.cpu
+    CROSS JOIN _cpu_dep_votes AS d
     WHERE
       CASE d.dep_cpu
         WHEN 0 THEN i.idle_0
@@ -366,23 +421,24 @@ WITH
   pivoted_results AS (
     SELECT
       config_hash,
-      max(CASE WHEN cpu = 0 THEN freq END) AS dep_freq_0,
-      max(CASE WHEN cpu = 0 THEN policy END) AS dep_policy_0,
-      max(CASE WHEN cpu = 1 THEN freq END) AS dep_freq_1,
-      max(CASE WHEN cpu = 1 THEN policy END) AS dep_policy_1,
-      max(CASE WHEN cpu = 2 THEN freq END) AS dep_freq_2,
-      max(CASE WHEN cpu = 2 THEN policy END) AS dep_policy_2,
-      max(CASE WHEN cpu = 3 THEN freq END) AS dep_freq_3,
-      max(CASE WHEN cpu = 3 THEN policy END) AS dep_policy_3,
-      max(CASE WHEN cpu = 4 THEN freq END) AS dep_freq_4,
-      max(CASE WHEN cpu = 4 THEN policy END) AS dep_policy_4,
-      max(CASE WHEN cpu = 5 THEN freq END) AS dep_freq_5,
-      max(CASE WHEN cpu = 5 THEN policy END) AS dep_policy_5,
-      max(CASE WHEN cpu = 6 THEN freq END) AS dep_freq_6,
-      max(CASE WHEN cpu = 6 THEN policy END) AS dep_policy_6,
-      max(CASE WHEN cpu = 7 THEN freq END) AS dep_freq_7,
-      max(CASE WHEN cpu = 7 THEN policy END) AS dep_policy_7
+      max(CASE WHEN cpu = r.r0 THEN freq END) AS dep_freq_0,
+      max(CASE WHEN cpu = r.r0 THEN policy END) AS dep_policy_0,
+      max(CASE WHEN cpu = r.r1 THEN freq END) AS dep_freq_1,
+      max(CASE WHEN cpu = r.r1 THEN policy END) AS dep_policy_1,
+      max(CASE WHEN cpu = r.r2 THEN freq END) AS dep_freq_2,
+      max(CASE WHEN cpu = r.r2 THEN policy END) AS dep_policy_2,
+      max(CASE WHEN cpu = r.r3 THEN freq END) AS dep_freq_3,
+      max(CASE WHEN cpu = r.r3 THEN policy END) AS dep_policy_3,
+      max(CASE WHEN cpu = r.r4 THEN freq END) AS dep_freq_4,
+      max(CASE WHEN cpu = r.r4 THEN policy END) AS dep_policy_4,
+      max(CASE WHEN cpu = r.r5 THEN freq END) AS dep_freq_5,
+      max(CASE WHEN cpu = r.r5 THEN policy END) AS dep_policy_5,
+      max(CASE WHEN cpu = r.r6 THEN freq END) AS dep_freq_6,
+      max(CASE WHEN cpu = r.r6 THEN policy END) AS dep_policy_6,
+      max(CASE WHEN cpu = r.r7 THEN freq END) AS dep_freq_7,
+      max(CASE WHEN cpu = r.r7 THEN policy END) AS dep_policy_7
     FROM max_voters
+    CROSS JOIN _cpu_dep_rep_row AS r
     GROUP BY
       config_hash
   ),

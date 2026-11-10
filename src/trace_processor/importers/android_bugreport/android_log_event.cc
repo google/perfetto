@@ -79,7 +79,7 @@ bool AndroidLogEvent::IsAndroidLogcat(const uint8_t* data, size_t size) {
       FindLines(data, std::min(size, kMaxGuessAndroidLogEventLookAhead));
 
   auto is_marker = [](base::StringView line) {
-    return line.StartsWith("--------");
+    return base::StartsWith(line, "--------");
   };
   auto it = std::find_if_not(lines.begin(), lines.end(), is_marker);
 

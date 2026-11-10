@@ -19,7 +19,7 @@ import m from 'mithril';
 import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
-import {ensureExists} from '../base/assert';
+import {ensureExists, ensureDefined} from '../base/assert';
 import type {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
@@ -368,7 +368,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           phase: 'beforeWrite',
           requires: ['computeStyles'],
           fn: ({state}) => {
-            state.styles.popper.width = `${state.rects.reference.width}px`;
+            ensureDefined(state.styles.popper).width =
+              `${state.rects.reference.width}px`;
           },
           effect: ({state}) => {
             const trigger = state.elements.reference as HTMLElement;

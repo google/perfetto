@@ -78,8 +78,8 @@ export class UnionNode implements QueryNode {
     };
     // Initialize connections from inputNodes
     if (inputNodes) {
-      for (let i = 0; i < inputNodes.length; i++) {
-        this.secondaryInputs.connections.set(i, inputNodes[i]);
+      for (const [i, node] of inputNodes.entries()) {
+        this.secondaryInputs.connections.set(i, node);
       }
     }
     this.nextNodes = [];
@@ -113,14 +113,13 @@ export class UnionNode implements QueryNode {
     const validPrevNodes = this.inputNodesList.filter(
       (node): node is QueryNode => node !== undefined,
     );
-    if (validPrevNodes.length === 0) {
+    const firstNode = validPrevNodes[0];
+    if (firstNode === undefined) {
       return [];
     }
-    let commonCols = validPrevNodes[0].finalCols.map((col) =>
-      newColumnInfo(col, true),
-    );
-    for (let i = 1; i < validPrevNodes.length; i++) {
-      const currentNodeCols = validPrevNodes[i].finalCols;
+    let commonCols = firstNode.finalCols.map((col) => newColumnInfo(col, true));
+    for (const node of validPrevNodes.slice(1)) {
+      const currentNodeCols = node.finalCols;
       commonCols = commonCols.filter((commonCol) =>
         currentNodeCols.some(
           (currentNodeCol) => currentNodeCol.name === commonCol.name,

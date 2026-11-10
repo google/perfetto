@@ -38,9 +38,12 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
+#include "protos/perfetto/common/trace_stats.gen.h"
+#include "protos/perfetto/config/process_stats/process_stats_config.gen.h"
 #include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -50,6 +53,7 @@ namespace perfetto {
 
 namespace {
 
+using ::testing::Contains;
 using ::testing::ContainsRegex;
 using ::testing::Each;
 using ::testing::ElementsAreArray;
@@ -582,6 +586,61 @@ TEST(PerfettoTracedIntegrationTest, TestShmemEmulation) {
     ASSERT_TRUE(packet.has_for_testing());
     ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
   }
+}
+#endif
+
+// Tracing v2 over IPC needs memfd, so this runs only on Linux and Android.
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS) &&         \
+    (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
+     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
+// A traced_probes data source that selects v2 writes through the ring buffer
+// of traced_probes.
+TEST(PerfettoTracedIntegrationTest, ProbesDataSourceUsesTracingV2) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  ProbesProducerThread probes(GetTestProducerSockName());
+  probes.Connect();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+  helper.WaitForDataSourceConnected("linux.process_stats");
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(1024);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  trace_config.set_duration_ms(200);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.process_stats");
+  ds_config->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
+  protos::gen::ProcessStatsConfig process_stats_config;
+  process_stats_config.set_scan_all_processes_on_start(true);
+  ds_config->set_process_stats_config_raw(
+      process_stats_config.SerializeAsString());
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  EXPECT_THAT(
+      helper.trace(),
+      Contains(Property(&protos::gen::TracePacket::has_process_tree, true)));
+
+  // Producer stats cover only producers with an attached ring buffer.
+  // The process tree writer is the only v2 writer, so chunks_read > 0 means
+  // its data came through the ring buffer.
+  const protos::gen::ExperimentalTracingV2ProducerStats* stats = nullptr;
+  for (const auto& packet : helper.full_trace()) {
+    if (packet.has_experimental_tracing_v2_producer_stats())
+      stats = &packet.experimental_tracing_v2_producer_stats();
+  }
+  ASSERT_NE(stats, nullptr);
+  EXPECT_EQ(stats->producer_name(), "perfetto.traced_probes");
+  EXPECT_GT(stats->chunks_read(), 0u);
 }
 #endif
 

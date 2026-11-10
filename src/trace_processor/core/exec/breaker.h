@@ -22,6 +22,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -31,14 +32,15 @@ namespace perfetto::trace_processor::core::exec {
 class Breaker : public Operator {
  public:
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
+    State() = default;
     ~State() override;
-    void Reset() override;
 
-    base::Status status = base::OkStatus();
-    bool filled = false;
     // What the columns served are filled in.
     Context* context = nullptr;
+
+    Held<base::Status> status{this};
+    // Whether Finalize() has run.
+    RunValue<bool> filled{this, false};
   };
 
   ~Breaker() override;

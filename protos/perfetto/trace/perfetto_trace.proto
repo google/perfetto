@@ -2093,6 +2093,272 @@ message InterceptorConfig {
 
 // End of protos/perfetto/config/interceptor_config.proto
 
+// Begin of protos/perfetto/config/linux/cgroup_config.proto
+
+// Config for the "linux.cgroup" data source, which records values reported by
+// cgroup v2 controllers. Only the memory controller (memcg) on android is
+// supported at the moment.
+//
+// Example:
+//
+// data_sources {
+//   config {
+//     name: "linux.cgroup"
+//     cgroup_config {
+//       memcg_config {
+//         field: MEMCG_CURRENT
+//         field: MEMCG_HIGH
+//         field: MEMCG_STAT_ALL
+//         field: MEMCG_EVENTS_LOCAL_HIGH
+//
+//         poll_period_ms: 1000
+//
+//         android_scope {
+//           level: LEVEL_UID
+//         }
+//         android_scope {
+//           target_cmdline: "surfaceflinger"
+//           level: LEVEL_PID
+//         }
+//       }
+//     }
+//   }
+// }
+message CgroupConfig {
+  // Memory controller (memcg).
+  optional MemcgConfig memcg_config = 1;
+}
+
+// Config for recording memory controller (memcg) values for a set of cgroups.
+message MemcgConfig {
+  // What values to record, the enum covers both single-valued files
+  // (e.g. memory.current) and files with multiple values (e.g. memory.stat).
+  // If unset, defaults to {MEMCG_CURRENT, MEMCG_STAT_ANON, MEMCG_STAT_FILE}.
+  repeated MemcgField field = 1;
+
+  // Android: Which cgroups to record. Can be specified multiple times. If
+  // scopes overlap, a given cgroup will be recorded at most once.
+  // If unset, defaults to uid-level for all uids.
+  repeated AndroidScope android_scope = 2;
+
+  // How often to poll the selected cgroups.
+  // If zero or unset, records values once.
+  // The implementation enforces a minimum on the period (100 ms at the time of
+  // writing).
+  optional uint32 poll_period_ms = 3;
+
+  // TODO(rsavitski): event-driven recording (inotify on memory.events*), either
+  // instead of or together with |poll_period_ms|:
+  // repeated MemcgEvent on_memcg_event = 4;
+
+  // Filters cgroups in the hierarchy created by android's libprocessgroup.
+  //
+  // Each scope maps onto a set of cgroup paths
+  // ({apps,system}/uid_<uid>/pid_<pid>) using the filters below, and |level|
+  // picks at which levels of the hierarchy the values are recorded. E.g. for
+  // an app "com.example.app" with uid 10123, and surfaceflinger running as pid
+  // 597 with uid 1000:
+  // * {package_name: "com.example.app", level: LEVEL_UID}
+  //     -> apps/uid_10123
+  // * {package_name: "com.example.app", level: LEVEL_PID}
+  //     -> apps/uid_10123/pid_* (all of the app's processes)
+  // * {target_cmdline: "surfaceflinger", level: LEVEL_PID}
+  //     -> system/uid_1000/pid_597
+  // * {target_cmdline: "surfaceflinger", level: LEVEL_UID}
+  //     -> system/uid_1000 (all of uid 1000, not just surfaceflinger)
+  // * {level: LEVEL_UID}
+  //     -> {apps,system}/uid_*
+  message AndroidScope {
+    enum Level {
+      LEVEL_UNSPECIFIED = 0;
+      // apps/, system/
+      LEVEL_TOP = 1;
+      // apps/uid_*, system/uid_*
+      LEVEL_UID = 2;
+      // apps/uid_*/pid_*, system/uid_*/pid_*
+      LEVEL_PID = 3;
+    }
+    // If empty, the implementation chooses a level corresponding to the
+    // narrowest scope filter below (e.g. target_cmdline -> LEVEL_PID).
+    repeated Level level = 1;
+
+    // Target filters. Multiple values of a given field are OR'd, and the
+    // filters in a scope are AND'd. If no filters are set, all cgroups are
+    // matched.
+
+    enum Group {
+      GROUP_UNSPECIFIED = 0;
+      // apps/
+      GROUP_APPS = 1;
+      // system/
+      GROUP_SYSTEM = 2;
+    }
+    // Matches the top-level groups.
+    repeated Group group = 2;
+
+    // Matches the uid cgroups of the given packages, resolved when the data
+    // source starts (packages installed later aren't matched). Note: a package
+    // matches in all users/profiles, e.g. both uid_10123 and uid_1010123 for a
+    // package with uid 10123.
+    repeated string package_name = 3;
+
+    // Matches the pid cgroups of processes whose /proc/<pid>/cmdline matches
+    // any of the patterns. The patterns follow the same rules as the
+    // |target_cmdline| of the profilers:
+    // * a pattern can contain a single wildcard (*).
+    // * if the pattern starts with a '/', it's matched against the first
+    //   segment of the cmdline (argv0). E.g. "/system/bin/surface*".
+    // * otherwise, it's matched against the binary name part of argv0. E.g.
+    //   "top" or "com.example.app:*".
+    repeated string target_cmdline = 4;
+
+    // Exact uid, without matching across users/profiles.
+    repeated uint32 uid = 5;
+
+    // Exact pid.
+    repeated uint32 pid = 6;
+  }
+
+  // Values to record, covering both single-valued files (such as
+  // memory.current) and keys within multi-valued files (such as memory.stat).
+  enum MemcgField {
+    MEMCG_UNSPECIFIED = 0;
+
+    // Single-valued files.
+    // memory.current
+    MEMCG_CURRENT = 1;
+    // memory.peak
+    MEMCG_PEAK = 2;
+    // memory.min
+    MEMCG_MIN = 3;
+    // memory.low
+    MEMCG_LOW = 4;
+    // memory.high
+    MEMCG_HIGH = 5;
+    // memory.max
+    MEMCG_MAX = 6;
+    // memory.swap.current
+    MEMCG_SWAP_CURRENT = 7;
+    // memory.swap.peak
+    MEMCG_SWAP_PEAK = 8;
+    // memory.swap.high
+    MEMCG_SWAP_HIGH = 9;
+    // memory.swap.max
+    MEMCG_SWAP_MAX = 10;
+    // memory.zswap.current
+    MEMCG_ZSWAP_CURRENT = 11;
+    // memory.zswap.max
+    MEMCG_ZSWAP_MAX = 12;
+
+    // memory.events (includes events of descendant cgroups).
+    // MEMCG_EVENTS_ALL is the same as listing all fields for the file.
+    MEMCG_EVENTS_ALL = 13;
+    MEMCG_EVENTS_LOW = 14;
+    MEMCG_EVENTS_HIGH = 15;
+    MEMCG_EVENTS_MAX = 16;
+    MEMCG_EVENTS_OOM = 17;
+    MEMCG_EVENTS_OOM_KILL = 18;
+    MEMCG_EVENTS_OOM_GROUP_KILL = 19;
+    MEMCG_EVENTS_SOCK_THROTTLED = 20;
+
+    // memory.events.local (this cgroup only).
+    // MEMCG_EVENTS_LOCAL_ALL is the same as listing all fields for the file.
+    MEMCG_EVENTS_LOCAL_ALL = 21;
+    MEMCG_EVENTS_LOCAL_LOW = 22;
+    MEMCG_EVENTS_LOCAL_HIGH = 23;
+    MEMCG_EVENTS_LOCAL_MAX = 24;
+    MEMCG_EVENTS_LOCAL_OOM = 25;
+    MEMCG_EVENTS_LOCAL_OOM_KILL = 26;
+    MEMCG_EVENTS_LOCAL_OOM_GROUP_KILL = 27;
+    MEMCG_EVENTS_LOCAL_SOCK_THROTTLED = 28;
+
+    // memory.swap.events
+    // MEMCG_SWAP_EVENTS_ALL is the same as listing all fields for the file.
+    MEMCG_SWAP_EVENTS_ALL = 29;
+    MEMCG_SWAP_EVENTS_HIGH = 30;
+    MEMCG_SWAP_EVENTS_MAX = 31;
+    MEMCG_SWAP_EVENTS_FAIL = 32;
+
+    // memory.stat (as of linux v7.3).
+    // MEMCG_STAT_ALL is the same as listing all fields for the file.
+    MEMCG_STAT_ALL = 33;
+    MEMCG_STAT_ANON = 34;
+    MEMCG_STAT_FILE = 35;
+    MEMCG_STAT_KERNEL = 36;
+    MEMCG_STAT_KERNEL_STACK = 37;
+    MEMCG_STAT_PAGETABLES = 38;
+    MEMCG_STAT_SEC_PAGETABLES = 39;
+    MEMCG_STAT_PERCPU = 40;
+    MEMCG_STAT_SOCK = 41;
+    MEMCG_STAT_VMALLOC = 42;
+    MEMCG_STAT_SHMEM = 43;
+    MEMCG_STAT_ZSWAP = 44;
+    MEMCG_STAT_ZSWAPPED = 45;
+    MEMCG_STAT_ZSWAP_INCOMP = 46;
+    MEMCG_STAT_FILE_MAPPED = 47;
+    MEMCG_STAT_FILE_DIRTY = 48;
+    MEMCG_STAT_FILE_WRITEBACK = 49;
+    MEMCG_STAT_SWAPCACHED = 50;
+    MEMCG_STAT_ANON_THP = 51;
+    MEMCG_STAT_FILE_THP = 52;
+    MEMCG_STAT_SHMEM_THP = 53;
+    MEMCG_STAT_INACTIVE_ANON = 54;
+    MEMCG_STAT_ACTIVE_ANON = 55;
+    MEMCG_STAT_INACTIVE_FILE = 56;
+    MEMCG_STAT_ACTIVE_FILE = 57;
+    MEMCG_STAT_UNEVICTABLE = 58;
+    MEMCG_STAT_SLAB_RECLAIMABLE = 59;
+    MEMCG_STAT_SLAB_UNRECLAIMABLE = 60;
+    MEMCG_STAT_SLAB = 61;
+    MEMCG_STAT_HUGETLB = 62;
+    MEMCG_STAT_WORKINGSET_REFAULT_ANON = 63;
+    MEMCG_STAT_WORKINGSET_REFAULT_FILE = 64;
+    MEMCG_STAT_WORKINGSET_ACTIVATE_ANON = 65;
+    MEMCG_STAT_WORKINGSET_ACTIVATE_FILE = 66;
+    MEMCG_STAT_WORKINGSET_RESTORE_ANON = 67;
+    MEMCG_STAT_WORKINGSET_RESTORE_FILE = 68;
+    MEMCG_STAT_WORKINGSET_NODERECLAIM = 69;
+    MEMCG_STAT_PGDEMOTE_KSWAPD = 70;
+    MEMCG_STAT_PGDEMOTE_DIRECT = 71;
+    MEMCG_STAT_PGDEMOTE_KHUGEPAGED = 72;
+    MEMCG_STAT_PGDEMOTE_PROACTIVE = 73;
+    MEMCG_STAT_PGSTEAL_KSWAPD = 74;
+    MEMCG_STAT_PGSTEAL_DIRECT = 75;
+    MEMCG_STAT_PGSTEAL_KHUGEPAGED = 76;
+    MEMCG_STAT_PGSTEAL_PROACTIVE = 77;
+    MEMCG_STAT_PGSCAN_KSWAPD = 78;
+    MEMCG_STAT_PGSCAN_DIRECT = 79;
+    MEMCG_STAT_PGSCAN_KHUGEPAGED = 80;
+    MEMCG_STAT_PGSCAN_PROACTIVE = 81;
+    MEMCG_STAT_PGREFILL = 82;
+    MEMCG_STAT_PGPROMOTE_SUCCESS = 83;
+    MEMCG_STAT_PGSCAN = 84;
+    MEMCG_STAT_PGSTEAL = 85;
+    MEMCG_STAT_PSWPIN = 86;
+    MEMCG_STAT_PSWPOUT = 87;
+    MEMCG_STAT_PGFAULT = 88;
+    MEMCG_STAT_PGMAJFAULT = 89;
+    MEMCG_STAT_PGACTIVATE = 90;
+    MEMCG_STAT_PGDEACTIVATE = 91;
+    MEMCG_STAT_PGLAZYFREE = 92;
+    MEMCG_STAT_PGLAZYFREED = 93;
+    MEMCG_STAT_SWPIN_ZERO = 94;
+    MEMCG_STAT_SWPOUT_ZERO = 95;
+    MEMCG_STAT_ZSWPIN = 96;
+    MEMCG_STAT_ZSWPOUT = 97;
+    MEMCG_STAT_ZSWPWB = 98;
+    MEMCG_STAT_THP_FAULT_ALLOC = 99;
+    MEMCG_STAT_THP_COLLAPSE_ALLOC = 100;
+    MEMCG_STAT_THP_SWPOUT = 101;
+    MEMCG_STAT_THP_SWPOUT_FALLBACK = 102;
+    MEMCG_STAT_NUMA_PAGES_MIGRATED = 103;
+    MEMCG_STAT_NUMA_PTE_UPDATES = 104;
+    MEMCG_STAT_NUMA_HINT_FAULTS = 105;
+  }
+}
+
+// End of protos/perfetto/config/linux/cgroup_config.proto
+
 // Begin of protos/perfetto/config/linux/journald_config.proto
 
 // Configuration for the "linux.systemd_journald" data source.
@@ -2266,7 +2532,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 28
+// Next id: 29
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -2386,6 +2652,17 @@ message HeapprofdConfig {
   // Do not profile processes whose anon RSS + swap < given value.
   // Introduced in Android 11.
   optional uint32 min_anonymous_memory_kb = 15;
+
+  // Android: If true, do not profile already-started processes that are
+  // frozen (e.g. cached apps frozen by the Android app freezer). Such frozen
+  // processes are prevented from running, so enqueuing a profiling signal is
+  // often wasteful.
+  // This is an opt-in rather than the default to match legacy behaviour. One
+  // case where you might leave the option unset is when you're setting up
+  // profiling for a frozen app that is about to be unfrozen.
+  //
+  // Added in perfetto v59.
+  optional bool skip_frozen_processes = 28;
 
   // Stop profile if heapprofd memory usage goes beyond the given value.
   // Introduced in Android 11.
@@ -2686,6 +2963,18 @@ message JavaHprofConfig {
 
   // Do not profile processes whose Java heap size < given value.
   optional uint32 min_java_heap_size_kb = 9;
+
+  // Android: If true, do not dump processes that are frozen (e.g. cached apps
+  // frozen by the Android app freezer). Such frozen processes are prevented
+  // from running, so enqueuing a dump signal is often wasteful. The state is
+  // checked right before each dump, so with continuous dumps, a process that
+  // gets unfrozen is still dumped at the next interval.
+  // This is an opt-in rather than the default to match legacy behaviour. One
+  // case where you might leave the option unset is when you're setting up a
+  // dump of a frozen app that is about to be unfrozen.
+  //
+  // Added in perfetto v59.
+  optional bool skip_frozen_processes = 11;
 
   // Include the process' /proc/self/smaps.
   // This only shows maps that:
@@ -4923,7 +5212,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 149
+// Next id: 152
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5240,6 +5529,9 @@ message DataSourceConfig {
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
 
+  // Data source name: linux.cgroup
+  optional CgroupConfig cgroup_config = 151 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -5267,6 +5559,7 @@ message DataSourceConfig {
 //
 // Next id: 51.
 message TraceConfig {
+  // Next id: 10.
   message BufferConfig {
     optional uint32 size_kb = 1;
 
@@ -5314,9 +5607,11 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // When true, uses the experimental TraceBufferV2 implementation for this
-    // buffer. This is for testing purposes only and may be removed in future
-    // versions.
+    // Deprecated: use |buffer_type| instead.
+    // Kept for backwards compatibility because older builds do not understand
+    // |buffer_type| and field configs use it to validate TRACE_BUFFER_V2. Set
+    // it alongside |buffer_type| to select the buffer type on older builds.
+    // TODO(sashwinbalaji): Remove this in 27Q2.
     enum ExperimentalMode {
       // Use the default V1 implementation.
       MODE_UNSPECIFIED = 0;
@@ -5328,12 +5623,38 @@ message TraceConfig {
       // V2 against V1.
       reserved 2;
     }
-    optional ExperimentalMode experimental_mode = 8;
+    optional ExperimentalMode experimental_mode = 8 [deprecated = true];
+
+    // Selects the trace buffer implementation, ignoring |experimental_mode|.
+    // The service picks the supported type with the highest field number, or V1
+    // if none is supported.
+    // If allocating the picked type fails, tracing fails without a fallback.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    message BufferTypeConfig {
+      message V1 {}
+      message V2 {}
+
+      // Stages chunks in a TraceBufferV2, then moves complete packets into
+      // compressed bundles in a second buffer.
+      // Design: RFC 0050, https://github.com/google/perfetto/discussions/7838.
+      message V3 {}
+
+      optional V1 v1 = 1;
+      optional V2 v2 = 2;
+      optional V3 v3 = 3;
+    }
+    optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
 
-  // Enables compaction after reads for this session's TraceBufferV2.
-  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  // Enables compaction after reads for this session's TraceBufferV2 and
+  // TraceBufferV3 buffers.
+  // Defaults to false and does not affect V1 or read-only V2 buffers.
+  // V3 also compacts staging after each bundling pass that reads all readable
+  // packets, even when this flag is false.
+  // A DISCARD buffer that stopped stays stopped.
   optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
@@ -6338,10 +6659,24 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 25.
+  // Next id: 27.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
+
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    enum BufferType {
+      BUFFER_TYPE_UNSPECIFIED = 0;
+      BUFFER_TYPE_V1 = 1;
+      BUFFER_TYPE_V2 = 2;
+      BUFFER_TYPE_V3 = 3;
+    }
+    // Reports the implementation actually used, which can differ from the
+    // requested type because the service skips unsupported implementations.
+    // Older services do not set this field, so an absent value means the type
+    // was not reported.
+    optional BufferType buffer_type = 25;
 
     // Num. bytes written into the circular buffer, including chunk headers.
     optional uint64 bytes_written = 1;
@@ -6414,7 +6749,8 @@ message TraceStats {
 
     // Number of completed TraceBufferV2 compactions.
     // Includes compactions that move no chunks and excludes calls that skip
-    // compaction, such as calls on DISCARD or read-only buffers.
+    // compaction, such as calls on read-only buffers.
+    // For TraceBufferV3, this counts staging compactions.
     //
     // Compaction moves remaining chunks to the front and clears the unused
     // tail.
@@ -6477,6 +6813,56 @@ message TraceStats {
     // four-byte length field. The packet can be valid. Loss is reported on the
     // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
+
+    // Experimental statistics for TraceBufferV3, subject to change.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    //
+    // Next id: 12.
+    message ExperimentalV3Stats {
+      // Bundles stored so far.
+      optional uint64 bundles_written = 1;
+
+      // Packet bytes in |bundles_written|, before compression.
+      // Includes each packet's header.
+      optional uint64 uncompressed_bytes_written = 2;
+
+      // Bytes |bundles_written| took in the buffer, after compression.
+      // Includes each bundle's header.
+      optional uint64 compressed_bytes_written = 3;
+
+      // Bundles overwritten in RING_BUFFER mode before they were read.
+      optional uint64 bundles_overwritten = 4;
+
+      // Packet bytes in |bundles_overwritten|, before compression.
+      optional uint64 uncompressed_bytes_overwritten = 11;
+
+      // Bundles dropped because their stored size exceeds
+      // |BufferStats.buffer_size| or their uncompressed size exceeds 32 bits.
+      optional uint64 bundles_too_large = 5;
+
+      // Longest bundling pass in microseconds, including compaction.
+      optional uint64 bundling_max_us = 6;
+
+      // Inclusive upper bound of each bucket of bundling pass durations, in
+      // microseconds.
+      repeated int64 bundling_time_us_histogram_def = 7 [packed = true];
+
+      // Number of bundling passes in each bucket.
+      // Has one more entry than |_def|, for passes above the last bound.
+      repeated uint64 bundling_time_us_histogram_counts = 8 [packed = true];
+
+      // Total duration of the bundling passes in each bucket, in microseconds.
+      // Has one more entry than |_def|, for passes above the last bound.
+      repeated int64 bundling_time_us_histogram_sum = 9 [packed = true];
+
+      // Bundling passes run before a write that might not fit in staging.
+      optional uint64 staging_space_passes = 10;
+    }
+
+    // Only set for TraceBufferV3.
+    optional ExperimentalV3Stats experimental_v3_stats = 26;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
@@ -6491,6 +6877,13 @@ message TraceStats {
 
     // The buffer index (0..N, as defined in the TraceConfig).
     optional uint32 buffer = 4;
+
+    // Which protocol carried this writer's chunks to the buffer.
+    // This is a bitmask of ProtocolAbiVersion (see producer_port.proto).
+    // The value is 1 for the SMB (v1) and 2 for the tracing v2 ring buffer.
+    // Both bits are set only if a v1 and a v2 writer of the same producer used
+    // the same writer ID which should NOT be happening.
+    optional uint32 protocol_abi_versions = 5;
 
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
@@ -10280,6 +10673,19 @@ message DrmSchedJobUnschedulableFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
 
+// Begin of protos/perfetto/trace/ftrace/gti.proto
+
+message GtiFieldSliceFtraceEvent {
+  optional uint32 track_event_type = 1;
+  optional string slice_name = 2;
+}
+message GtiFieldCounterFtraceEvent {
+  optional string track_name = 1;
+  optional int32 counter_value = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/gti.proto
+
 // Begin of protos/perfetto/trace/ftrace/hyp.proto
 
 message HypEnterFtraceEvent {}
@@ -13118,6 +13524,8 @@ message FtraceEvent {
     PsciDomainIdleEnterFtraceEvent psci_domain_idle_enter = 615;
     LongIrqFtraceEvent long_irq = 616;
     LongSoftirqFtraceEvent long_softirq = 617;
+    GtiFieldSliceFtraceEvent gti_field_slice = 618;
+    GtiFieldCounterFtraceEvent gti_field_counter = 619;
   }
 }
 
@@ -14338,6 +14746,66 @@ message StackSample {
     optional Scope scope = 7;
   }
 
+  // Describes a kind of error that stopped a sampler from taking a sample.
+  // Set `builtin` for the kinds trace processor knows about, or `name` to
+  // define your own.
+  message ErrorDescriptor {
+    // Error kinds known to trace processor. Append-only: never renumber or
+    // repurpose an existing value.
+    enum Builtin {
+      BUILTIN_UNSPECIFIED = 0;
+
+      // The sampler could not take the sample at all, e.g. it could not read
+      // the registers or the stack of the task.
+      BUILTIN_SAMPLE_FAILED = 1;
+
+      // The sample was taken but its stack could not be unwound, so there are
+      // no frames to report.
+      BUILTIN_UNWIND_FAILED = 2;
+    }
+
+    // How serious errors of a producer-defined kind are. Append-only: never
+    // renumber or repurpose an existing value.
+    enum Severity {
+      // Treated as SEVERITY_DATA_LOSS.
+      SEVERITY_UNSPECIFIED = 0;
+
+      // Worth knowing about, but no data is missing.
+      SEVERITY_INFO = 1;
+
+      // Data is missing from the trace, e.g. samples that were not taken.
+      SEVERITY_DATA_LOSS = 2;
+
+      // Something went wrong that makes the data unreliable.
+      SEVERITY_ERROR = 3;
+    }
+
+    // Interning key, used when this descriptor is emitted via
+    // InternedData.stack_sample_error_descriptors and referenced by
+    // StackSample.error_iid. Starts from 1; 0 is the same as "not set".
+    optional uint64 iid = 1;
+
+    // The kind of error: one known to trace processor, or one defined by the
+    // producer.
+    oneof kind {
+      // A kind known to trace processor.
+      Builtin builtin = 2;
+
+      // A producer-defined kind. Namespace it with a reverse-domain prefix,
+      // e.g. "com.example.profiler.mapping_not_found", so it does not collide
+      // with kinds defined by other producers.
+      string name = 3;
+    }
+
+    // How serious errors of a producer-defined kind are. Ignored for builtin
+    // kinds, which have a fixed severity. Absent means SEVERITY_DATA_LOSS.
+    optional Severity severity = 4;
+
+    // Free-form description of a producer-defined kind: what went wrong and
+    // what it means for the data. Ignored for builtin kinds.
+    optional string description = 5;
+  }
+
   // The task (thread / process / async context) this sample is attributed to.
   // Give it inline via `task_context` or reference an interned TaskContext via
   // `task_context_iid`.
@@ -14411,6 +14879,20 @@ message StackSample {
   repeated CounterDescriptor follower_descriptors = 12;
   repeated uint64 follower_descriptor_iids = 13 [packed = true];
   repeated uint64 follower_weights = 14 [packed = true];
+
+  // Set when the sampler could not take this sample: the error stands in for
+  // it. The timestamp and the task context still apply, but the sample must
+  // not have a callstack or an unwind error; trace processor ignores them, and
+  // every other field, when an error is set. Give it inline via `error` or
+  // reference an interned ErrorDescriptor via `error_iid`.
+  oneof error_field {
+    // Inline error descriptor.
+    ErrorDescriptor error = 15;
+
+    // Interned error descriptor, referencing
+    // InternedData.stack_sample_error_descriptors.
+    uint64 error_iid = 16;
+  }
 }
 
 // Per-sequence defaults for StackSample. Lets a producer declare the source and
@@ -15870,7 +16352,7 @@ message EventName {
 // Note: field IDs up to 15 should be used for frequent data only.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 51.
+// Next id: 54.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15888,6 +16370,9 @@ message InternedData {
   repeated InternedString debug_annotation_string_values = 29;
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
+  // Interned names, string values and display names of TrackDimensions (see
+  // TrackDimension.name_iid, string_value_iid and display_name_iid).
+  repeated InternedString track_dimension_strings = 52;
 
   //
   // == STABLE PUBLIC API: Callstacks and symbolization ==
@@ -15921,6 +16406,7 @@ message InternedData {
   repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
   repeated StackSample.AsyncContextDescriptor
       stack_sample_async_context_descriptors = 51;
+  repeated StackSample.ErrorDescriptor stack_sample_error_descriptors = 53;
 
   //
   // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
@@ -16056,6 +16542,168 @@ message SystemdJournaldEvent {
 }
 
 // End of protos/perfetto/trace/linux/journald_event.proto
+
+// Begin of protos/perfetto/trace/linux/memcg_stats.proto
+
+// Values read from the files of the cgroup v2 memory controller (memcg), as
+// recorded by the "linux.cgroup" data source.
+//
+// The values are as reported by the kernel: sizes are in bytes, and limits set
+// to "max" are UINT64_MAX. See Documentation/admin-guide/cgroup-v2.rst in the
+// kernel for their meaning.
+message MemcgStats {
+  // The top-level groups of the hierarchy created by Android's
+  // libprocessgroup.
+  enum Group {
+    GROUP_UNSPECIFIED = 0;
+    // apps/
+    GROUP_APPS = 1;
+    // system/
+    GROUP_SYSTEM = 2;
+  }
+
+  // memory.events and memory.events.local
+  message Events {
+    optional uint64 low = 1;
+    optional uint64 high = 2;
+    optional uint64 max = 3;
+    optional uint64 oom = 4;
+    optional uint64 oom_kill = 5;
+    optional uint64 oom_group_kill = 6;
+    optional uint64 sock_throttled = 7;
+  }
+
+  // memory.swap.events
+  message SwapEvents {
+    optional uint64 high = 1;
+    optional uint64 max = 2;
+    optional uint64 fail = 3;
+  }
+
+  // memory.stat (as of linux v7.3)
+  message Stat {
+    optional uint64 anon = 1;
+    optional uint64 file = 2;
+    optional uint64 kernel = 3;
+    optional uint64 kernel_stack = 4;
+    optional uint64 pagetables = 5;
+    optional uint64 sec_pagetables = 6;
+    optional uint64 percpu = 7;
+    optional uint64 sock = 8;
+    optional uint64 vmalloc = 9;
+    optional uint64 shmem = 10;
+    optional uint64 zswap = 11;
+    optional uint64 zswapped = 12;
+    optional uint64 zswap_incomp = 13;
+    optional uint64 file_mapped = 14;
+    optional uint64 file_dirty = 15;
+    optional uint64 file_writeback = 16;
+    optional uint64 swapcached = 17;
+    optional uint64 anon_thp = 18;
+    optional uint64 file_thp = 19;
+    optional uint64 shmem_thp = 20;
+    optional uint64 inactive_anon = 21;
+    optional uint64 active_anon = 22;
+    optional uint64 inactive_file = 23;
+    optional uint64 active_file = 24;
+    optional uint64 unevictable = 25;
+    optional uint64 slab_reclaimable = 26;
+    optional uint64 slab_unreclaimable = 27;
+    optional uint64 slab = 28;
+    optional uint64 hugetlb = 29;
+    optional uint64 workingset_refault_anon = 30;
+    optional uint64 workingset_refault_file = 31;
+    optional uint64 workingset_activate_anon = 32;
+    optional uint64 workingset_activate_file = 33;
+    optional uint64 workingset_restore_anon = 34;
+    optional uint64 workingset_restore_file = 35;
+    optional uint64 workingset_nodereclaim = 36;
+    optional uint64 pgdemote_kswapd = 37;
+    optional uint64 pgdemote_direct = 38;
+    optional uint64 pgdemote_khugepaged = 39;
+    optional uint64 pgdemote_proactive = 40;
+    optional uint64 pgsteal_kswapd = 41;
+    optional uint64 pgsteal_direct = 42;
+    optional uint64 pgsteal_khugepaged = 43;
+    optional uint64 pgsteal_proactive = 44;
+    optional uint64 pgscan_kswapd = 45;
+    optional uint64 pgscan_direct = 46;
+    optional uint64 pgscan_khugepaged = 47;
+    optional uint64 pgscan_proactive = 48;
+    optional uint64 pgrefill = 49;
+    optional uint64 pgpromote_success = 50;
+    optional uint64 pgscan = 51;
+    optional uint64 pgsteal = 52;
+    optional uint64 pswpin = 53;
+    optional uint64 pswpout = 54;
+    optional uint64 pgfault = 55;
+    optional uint64 pgmajfault = 56;
+    optional uint64 pgactivate = 57;
+    optional uint64 pgdeactivate = 58;
+    optional uint64 pglazyfree = 59;
+    optional uint64 pglazyfreed = 60;
+    optional uint64 swpin_zero = 61;
+    optional uint64 swpout_zero = 62;
+    optional uint64 zswpin = 63;
+    optional uint64 zswpout = 64;
+    optional uint64 zswpwb = 65;
+    optional uint64 thp_fault_alloc = 66;
+    optional uint64 thp_collapse_alloc = 67;
+    optional uint64 thp_swpout = 68;
+    optional uint64 thp_swpout_fallback = 69;
+    optional uint64 numa_pages_migrated = 70;
+    optional uint64 numa_pte_updates = 71;
+    optional uint64 numa_hint_faults = 72;
+  }
+
+  // The values of one cgroup.
+  message Cgroup {
+    // Identifies the cgroup in the hierarchy created by Android's
+    // libprocessgroup: {apps,system}/uid_<uid>/pid_<pid>.
+    optional Group android_group = 1;
+    optional uint32 uid = 2;
+    optional uint32 pid = 3;
+
+    // Single-valued files.
+    // memory.current
+    optional uint64 current = 4;
+    // memory.peak
+    optional uint64 peak = 5;
+    // memory.min (UINT64_MAX if "max")
+    optional uint64 min = 6;
+    // memory.low (UINT64_MAX if "max")
+    optional uint64 low = 7;
+    // memory.high (UINT64_MAX if "max")
+    optional uint64 high = 8;
+    // memory.max (UINT64_MAX if "max")
+    optional uint64 max = 9;
+    // memory.swap.current
+    optional uint64 swap_current = 10;
+    // memory.swap.peak
+    optional uint64 swap_peak = 11;
+    // memory.swap.high (UINT64_MAX if "max")
+    optional uint64 swap_high = 12;
+    // memory.swap.max (UINT64_MAX if "max")
+    optional uint64 swap_max = 13;
+    // memory.zswap.current
+    optional uint64 zswap_current = 14;
+    // memory.zswap.max (UINT64_MAX if "max")
+    optional uint64 zswap_max = 15;
+
+    // memory.events (including descendant cgroups).
+    optional Events events = 16;
+    // memory.events.local (only this exact cgroup).
+    optional Events events_local = 17;
+    // memory.swap.events
+    optional SwapEvents swap_events = 18;
+    // memory.stat
+    optional Stat stat = 19;
+  }
+
+  repeated Cgroup cgroup = 1;
+}
+
+// End of protos/perfetto/trace/linux/memcg_stats.proto
 
 // Begin of protos/perfetto/trace/memory_graph.proto
 
@@ -16363,6 +17011,106 @@ message TracingServiceEvent {
 }
 
 // End of protos/perfetto/trace/perfetto/tracing_service_event.proto
+
+// Begin of protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto
+
+// Stats for the tracing v2 ring buffer of one producer since connection.
+// The service emits one packet for each connected producer that has a data
+// source in the session and an attached ring buffer. A producer that only uses
+// the SMB has no stats packet. A cloned session keeps the stats from the time
+// of the clone.
+//
+// These stats include producer identity, so they are separate from TraceStats
+// and pass through the session's trace filter.
+//
+// Next id: 22.
+message ExperimentalTracingV2ProducerStats {
+  // The producer that owns the ring buffer.
+  optional uint32 producer_id = 1;
+  optional int32 pid = 2;
+  optional string producer_name = 3;
+
+  // Layout of the attached ring buffer.
+  optional uint32 chunk_size_bytes = 4;
+  optional uint32 num_chunks = 5;
+
+  // The service counts the fields below while it reads the ring buffer.
+
+  // Num. chunks that the service copied out of the ring buffer.
+  optional uint64 chunks_read = 6;
+
+  // Total size of the packet fragments in |chunks_read|. It excludes the
+  // chunk headers and the fragment sizes.
+  optional uint64 bytes_read = 7;
+
+  // Num. chunks discarded because their writer marked them as lossy.
+  // A writer marks the next chunk it gets after it dropped data, e.g. when
+  // the ring buffer was full.
+  optional uint64 data_loss_chunks = 8;
+
+  // Num. chunks discarded because the sizes of their fragments are invalid.
+  // Either a size cannot be decoded, or the fragments do not fit in the
+  // chunk. A nonzero value points to a writer bug or to corrupt memory.
+  optional uint64 malformed_chunks = 9;
+
+  // Num. chunks discarded because the service does not know their format.
+  optional uint64 unsupported_format_chunks = 10;
+
+  // The next three count chunks in |chunks_read| that no trace buffer
+  // stored.
+
+  // The chunk's writer ID was zero or out of range.
+  optional uint64 invalid_writer_chunks = 11;
+
+  // The chunk's target buffer is not a TraceBuffer that the producer can
+  // write to.
+  optional uint64 invalid_destination_chunks = 12;
+
+  // The trace buffer refused the chunk. Its BufferStats say why, in
+  // |abi_violations| or |chunks_discarded|.
+  optional uint64 trace_buffer_rejected_chunks = 13;
+
+  // Num. chunks that the service read while their writer was still filling
+  // them. The writer then moves its open fragment to another chunk.
+  optional uint64 rewrite_requests = 14;
+
+  // Num. ring buffer positions that gave no chunk to the service. They are
+  // positions that no writer claimed, chunks with no published fragment and
+  // the discarded chunks above.
+  optional uint64 positions_skipped = 15;
+
+  // Num. times the service read the ring buffer. It reads it when the
+  // producer sends a DrainV2RingBuffer request, on its own (e.g. on a
+  // flush), and to retry a pass that stopped early.
+  optional uint64 drain_passes = 16;
+
+  // Time that the service spent in |drain_passes|, measured with
+  // CLOCK_MONOTONIC. It does not count time when the device was suspended.
+  optional uint64 drain_time_ns = 17;
+
+  // Time of the longest of |drain_passes|, on the same clock. The service
+  // has one main thread, so a long pass delays every other producer and
+  // request.
+  optional uint64 drain_max_time_ns = 18;
+
+  // The producer's writers count the fields below in the ring buffer header.
+  // The service reports the values as it finds them, so a buggy or hostile
+  // producer can set anything here.
+
+  // Num. packets that the writers dropped before the packets reached a
+  // chunk. This includes packets dropped before the service attached the
+  // ring buffer. A writer adds its drops when it flushes or stops dropping,
+  // so the value can lag.
+  optional uint64 writer_dropped_packets = 19;
+
+  // Num. times a writer waited for a free chunk, and the total time of those
+  // waits. This is time that the app's threads were blocked. A writer checks
+  // again after about 100 ms, so a longer stall counts several times.
+  optional uint64 writer_stalls = 20;
+  optional uint64 writer_stall_time_ms = 21;
+}
+
+// End of protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto
 
 // Begin of protos/perfetto/common/android_energy_consumer_descriptor.proto
 
@@ -17981,6 +18729,98 @@ message StateDescriptor {}
 
 // End of protos/perfetto/trace/track_event/state_descriptor.proto
 
+// Begin of protos/perfetto/trace/track_event/track_dimension.proto
+
+// A named, typed key/value which is part of a track's identity.
+//
+// Producers can declare *custom* dimensions (`rank`, `shard`, `stage`, ...)
+// on a TrackDescriptor. Trace processor exposes their effective values in
+// `track.dimension_arg_set_id` as args with keys `custom_dimension.<name>`.
+// Presentation-only labels are stored in `track.source_arg_set_id` with keys
+// `custom_dimension_display_name.<name>`. When sibling descriptors merge, each
+// resulting track keeps the display labels from the descriptor that first
+// creates it. Built-in dimensions are available through track columns and the
+// other dimension args.
+//
+// Reserved names: the names of the well-known dimensions are reserved and
+// cannot be used for custom dimensions. They are:
+//  * `machine`: the machine the track belongs to.
+//  * `gpu`: the GPU the track belongs to.
+//  * `cpu`: the CPU the track belongs to.
+//  * `process`: the process the track belongs to.
+//  * `thread`: the thread the track belongs to.
+// Their values are derived by trace processor from the typed fields of the
+// TrackDescriptor (e.g. `process`, `thread`) and from import context, and mean
+// the same thing across data sources. A custom dimension using a reserved name
+// is ignored and trace processor records the
+// `track_descriptor_reserved_dimension_name` import error.
+//
+// A TrackDescriptor with `thread` set must also set
+// `disallow_merging_with_system_tracks` to declare custom dimensions. Otherwise
+// its declarations are ignored and trace processor reports
+// `track_descriptor_shared_thread_custom_dimensions`. Shared thread tracks
+// omit inherited dimensions, but inheritance continues through their
+// descriptors to child tracks. Thread-associated child descriptors without a
+// `thread` field may declare custom dimensions.
+//
+// A dimension has no scope field: it is declared on the track described by the
+// containing TrackDescriptor and applies to that track and its `parent_uuid`
+// descendants, whether it is a process, thread or any other track. In
+// particular, a dimension declared on a process track doesn't apply to the
+// threads of the process unless their tracks are `parent_uuid` descendants of
+// the process track.
+//
+// Declaring a *different* value for a dimension name which is already
+// inherited from an ancestor is invalid: trace processor records an import
+// error and keeps the inherited value.
+//
+// The dimensions declared on a TrackDescriptor (names and values; the order
+// and `display_name` don't matter) are part of the identity of that track:
+//  * they are fixed for the lifetime of the track, so every TrackDescriptor
+//    emitted for a given `uuid`, including the first one, must declare the
+//    same dimensions. A TrackDescriptor declaring different dimensions is
+//    rejected as a conflicting reservation and the first one is kept.
+//  * sibling tracks are only merged (see
+//    `TrackDescriptor.sibling_merge_behavior`) if they declare the same
+//    dimensions.
+message TrackDimension {
+  // The canonical dimension key, e.g. "rank". Must be non-empty and must not
+  // be one of the reserved names listed above.
+  oneof name_field {
+    string name = 1;
+    // Interned version of `name`: corresponds to the `track_dimension_strings`
+    // field in InternedData, looked up like `string_value_iid`.
+    uint64 name_iid = 7;
+  }
+
+  // The typed value of the dimension. This is the value used for SQL queries,
+  // track identity and (for well-known dimensions) merging, so it must be
+  // stable for the whole trace.
+  oneof value {
+    int64 int_value = 2;
+    string string_value = 3;
+    // Interned version of `string_value`: corresponds to the
+    // `track_dimension_strings` field in InternedData, looked up in the
+    // interned data of the sequence the TrackDescriptor is emitted on. The
+    // resolved string is the value, so an interned and an inline string with
+    // the same contents are the same value.
+    uint64 string_value_iid = 5;
+  }
+
+  // Optional human readable label for this *value*, e.g. "worker-east" for
+  // rank 7. Only affects presentation: the canonical typed value above is what
+  // SQL and merging use.
+  oneof display {
+    string display_name = 4;
+    // Interned version of `display_name`: corresponds to the
+    // `track_dimension_strings` field in InternedData, looked up like
+    // `string_value_iid`.
+    uint64 display_name_iid = 6;
+  }
+}
+
+// End of protos/perfetto/trace/track_event/track_dimension.proto
+
 // Begin of protos/perfetto/trace/track_event/track_descriptor.proto
 
 // Defines a track for TrackEvents. Slices and instant events on the same track
@@ -17996,7 +18836,7 @@ message StateDescriptor {}
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 21.
+// Next id: 22.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -18119,7 +18959,8 @@ message TrackDescriptor {
   //
   // Trace processor will merge events on a thread track with slice-type events
   // from other sources (e.g. ftrace) for the same thread into a single timeline
-  // view.
+  // view. Such shared root tracks do not support custom dimensions; set
+  // `disallow_merging_with_system_tracks` to use dimensions on this descriptor.
   optional ThreadDescriptor thread = 4;
   optional ChromeThreadDescriptor chrome_thread = 7;
 
@@ -18133,7 +18974,8 @@ message TrackDescriptor {
   optional StateDescriptor state = 18;
 
   // If true, forces Trace Processor to use separate tracks for track events
-  // and system events for the same thread.
+  // and system events for the same thread. Required for custom dimensions on
+  // descriptors with `thread` set.
   //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
@@ -18196,6 +19038,7 @@ message TrackDescriptor {
   //    `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`.
   // 3. Depending on the behavior, the corresponding key must match (e.g. `name`
   //    for `BY_TRACK_NAME`, `sibling_merge_key` for `BY_SIBLING_MERGE_KEY`).
+  // 4. All tracks must declare the same `dimensions`.
   //
   // Specifically:
   //   - in the UI, all tracks which are merged together will be
@@ -18339,6 +19182,29 @@ message TrackDescriptor {
     THREAD_ORDERING_EXPLICIT = 1;
   }
   optional ThreadOrdering thread_ordering = 20;
+
+  // Custom, producer-declared dimensions for this track. Repeated so that a
+  // track can carry more than one independent dimension (e.g. `rank` and
+  // `stage`).
+  //
+  // Dimensions declared here apply to this track and its `parent_uuid`
+  // descendants. A descriptor with `thread` set must also set
+  // `disallow_merging_with_system_tracks` to declare custom dimensions.
+  // Otherwise its declarations are ignored and trace processor reports
+  // `track_descriptor_shared_thread_custom_dimensions`. Shared thread tracks
+  // omit inherited dimensions, but their children still inherit through the
+  // descriptor hierarchy. See TrackDimension for the full resolution rules.
+  //
+  // Dimensions are part of the track's identity: every descriptor emitted for
+  // this `uuid` must declare the same dimensions, starting with the first one,
+  // and only siblings declaring the same dimensions are merged. See
+  // TrackDimension for details.
+  //
+  // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
+  // synthesized by trace processor from the typed fields above and from import
+  // context: their names are reserved and producers must *not* declare them
+  // here. See TrackDimension for the full list of reserved names.
+  repeated TrackDimension dimensions = 21;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
@@ -18406,6 +19272,12 @@ message Trigger {
   optional int32 trusted_producer_uid = 3;
   // The value of stop_delay_ms from the configuration.
   optional uint64 stop_delay_ms = 4;
+  // The effective trigger mode of the session that received the trigger.
+  // See TraceConfig.TriggerConfig.TriggerMode. This can differ from the
+  // TraceConfig: e.g. STOP_TRACING with use_clone_snapshot_if_available=true
+  // is reported as CLONE_SNAPSHOT.
+  // Introduced in v60.
+  optional int32 trigger_mode = 5;
 }
 
 // End of protos/perfetto/trace/trigger.proto
@@ -18471,7 +19343,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 139.
+// Next id: 142.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18544,6 +19416,8 @@ message TracePacket {
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
+    ExperimentalTracingV2ProducerStats experimental_tracing_v2_producer_stats =
+        139;
     ProfilePacket profile_packet = 37;
     StreamingAllocation streaming_allocation = 74;
     StreamingFree streaming_free = 75;
@@ -18642,6 +19516,17 @@ message TracePacket {
 
     Trigger clone_snapshot_trigger = 113;
 
+    // Written by the tracing service at most once per trace, together with the
+    // other initial packets that are never compressed. It is the trigger that
+    // caused this trace to be finalized:
+    // - For START_TRACING: the trigger that started the session.
+    // - For STOP_TRACING: the trigger that stopped the session.
+    // - For CLONE_SNAPSHOT: the trigger that caused the clone, which matches
+    //   clone_snapshot_trigger for backward compat reasons.
+    // A clone not caused by a trigger (e.g. bugreport) inherits the one of the
+    // source session, if any. Absent if the trace was not caused by a trigger.
+    Trigger authoritative_trigger = 141;
+
     KernelWakelockData kernel_wakelock_data = 115;
 
     CpuPerUidData cpu_per_uid_data = 119;
@@ -18653,6 +19538,10 @@ message TracePacket {
     // Injected into TracePacket by perfetto post-reboot recovery to record
     // recovered trace metadata.
     RecoveredTraceInfo recovered_trace_info = 138;
+
+    // Values of the cgroup v2 memory controller, from the "linux.cgroup" data
+    // source.
+    MemcgStats memcg_stats = 140;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

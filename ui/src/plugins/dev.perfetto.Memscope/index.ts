@@ -190,7 +190,7 @@ function parseMemoryOverviewSubpage(subpage?: string): MemoryOverviewSubpage {
   if (parts.length === 0) {
     return {tab: 'summary'};
   }
-  const upid = parseInt(parts[0], 10);
+  const upid = parseInt(parts[0]!, 10);
   const tab = parts[1] === 'smaps' ? 'smaps' : 'summary';
   return {
     upid: Number.isNaN(upid) ? Number.NaN : upid,

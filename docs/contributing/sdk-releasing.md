@@ -104,6 +104,9 @@ git push origin vX.Y
 6. Send an email with the CHANGELOG to perfetto-dev@ with perfetto-announce@
    bcc'ed (internal - make sure you have permissions before doing so) and to the
    [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).
+   Post the highlights in #announcements on
+   [Discord](https://discord.gg/35ShE3A) and click Publish so servers following
+   the channel receive it.
 
 ## Creating a GitHub release with prebuilts and SDK sources
 
@@ -144,5 +147,7 @@ git checkout vX.Y
 
 8. Send an email with the CHANGELOG to perfetto-dev@ (internal) and to the
    [public perfetto-dev](https://groups.google.com/forum/#!forum/perfetto-dev).
+   Post the highlights in #announcements on
+   [Discord](https://discord.gg/35ShE3A) and click Publish.
 
 9. Phew, you're done!

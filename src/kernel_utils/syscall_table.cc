@@ -40,6 +40,9 @@ SyscallTable::SyscallTable(Architecture arch) {
     case Architecture::kX86:
       *this = SyscallTable::Load<SyscallTable_x86>();
       break;
+    case Architecture::kS390x:
+      *this = SyscallTable::Load<SyscallTable_s390x>();
+      break;
     case Architecture::kUnknown:
       // The default field initializers take care of the null initialization.
       break;
@@ -56,6 +59,8 @@ Architecture SyscallTable::ArchFromString(base::StringView machine) {
     return Architecture::kX86_64;
   } else if (machine == "i686") {
     return Architecture::kX86;
+  } else if (machine == "s390x") {
+    return Architecture::kS390x;
   } else {
     return Architecture::kUnknown;
   }

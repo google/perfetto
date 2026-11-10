@@ -38,6 +38,8 @@ namespace cold_sort_internal {
 struct KeyedIndex {
   uint64_t key;
   uint32_t index;
+  // Carried along but never compared. It fills what would be padding.
+  uint32_t value;
 };
 using KeyedIndices = base::SmallVector<KeyedIndex, 64>;
 
@@ -67,7 +69,7 @@ void SortByKey(It begin, It end, Key key) {
   }
   KeyedIndices keys;
   for (uint32_t i = 0; i < size; ++i) {
-    keys.emplace_back(KeyedIndex{ToOrderedKey(key(begin[i])), i});
+    keys.emplace_back(KeyedIndex{ToOrderedKey(key(begin[i])), i, 0});
   }
   SortKeyedIndices(keys.data(), keys.data() + size);
   // Move each element to its sorted position by following the permutation's

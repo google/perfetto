@@ -41,6 +41,7 @@
 #include "src/tracing/service/dependencies.h"
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_factory.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -53,8 +54,9 @@ namespace perfetto {
 
 namespace protos {
 namespace gen {
+class ExperimentalTracingV2ProducerStats;
 enum TraceStats_FinalFlushOutcome : int;
-}
+}  // namespace gen
 namespace pbzero {
 class TracePacket;
 }
@@ -266,6 +268,12 @@ class TracingServiceImpl : public TracingService {
                          TracingSession::ClockSnapshotData,
                          std::vector<TracePacket>*);
   void EmitSyncMarker(std::vector<TracePacket>*);
+  void EmitTracingV2ProducerStats(TracingSession*, std::vector<TracePacket>*);
+  // Returns the tracing v2 stats of the connected producers that have a data
+  // source instance in the session.
+  // For a cloned session, returns the copy taken when it was cloned.
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2ProducerStats(const TracingSession&);
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
@@ -283,6 +291,8 @@ class TracingServiceImpl : public TracingService {
   void SetServiceTracePacketHeader(protos::pbzero::TracePacket*);
   void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitAuthoritativeTrigger(TracingSession*,
+                                     std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitRemoteClockSync(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitProtoVmInstances(TracingSession*, std::vector<TracePacket>*);
@@ -404,6 +414,8 @@ class TracingServiceImpl : public TracingService {
   // host/relay sessions, where service packets remain on the host machine.
   MachineID local_machine_id_ = kDefaultMachineID;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
+  // Creates all trace buffers and tracks the state they share.
+  TraceBufferFactory trace_buffer_factory_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
   std::map<std::string, int64_t> session_to_last_trace_s_;
 

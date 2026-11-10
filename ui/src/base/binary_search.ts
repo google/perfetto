@@ -23,11 +23,11 @@ function searchImpl<T extends Numeric>(
 ): number {
   if (i === j) return -1;
   if (i + 1 === j) {
-    return needle >= haystack[i] ? i : -1;
+    return needle >= haystack[i]! ? i : -1;
   }
 
   const mid = Math.floor((j - i) / 2) + i;
-  const midValue = haystack[mid];
+  const midValue = haystack[mid]!;
   if (needle < midValue) {
     return searchImpl(haystack, needle, i, mid);
   } else {
@@ -43,7 +43,7 @@ function searchRangeImpl<T extends Numeric>(
 ): Range {
   if (i === j) return [i, j];
   if (i + 1 === j) {
-    if (haystack[i] <= needle) {
+    if (haystack[i]! <= needle) {
       return [i, j];
     } else {
       return [i, i];
@@ -51,7 +51,7 @@ function searchRangeImpl<T extends Numeric>(
   }
 
   const mid = Math.floor((j - i) / 2) + i;
-  const midValue = haystack[mid];
+  const midValue = haystack[mid]!;
 
   if (needle < midValue) {
     return searchRangeImpl(haystack, needle, i, mid);

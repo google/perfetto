@@ -988,6 +988,44 @@ h3 {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     border-top: 3px solid #8bc34a;
   }
+  .railroad {
+    overflow-x: auto;
+    margin: 16px 0;
+    svg {
+      display: block;
+    }
+    path {
+      stroke-width: 2;
+      stroke: var(--color-text);
+      fill: none;
+    }
+    rect {
+      stroke-width: 2;
+      stroke: var(--color-text);
+      fill: var(--color-bg);
+    }
+    text {
+      font: 600 14px monospace;
+      text-anchor: middle;
+      fill: var(--color-text);
+    }
+    text.comment {
+      font: italic 12px monospace;
+    }
+    a:hover rect {
+      fill: var(--color-border-light);
+      stroke: var(--color-link);
+    }
+    .railroad-name {
+      font: italic 14px monospace;
+      color: var(--color-text-secondary);
+    }
+    // Terminals have rounded corners; non-terminals are square and italic.
+    g:has(> rect:not([rx])) > text {
+      font-style: italic;
+      font-weight: normal;
+    }
+  }
   .code-block-wrapper {
     position: relative;
     &:hover .code-copy-button,

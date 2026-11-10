@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -89,7 +90,7 @@ int64_t GProfileBuilder::StringTable::InternString(base::StringView str) {
   if (str.empty()) {
     return kEmptyStringIndex;
   }
-  auto hash = str.Hash();
+  auto hash = base::MurmurHashValue(str);
   auto it = seen_strings_.find(hash);
   if (it != seen_strings_.end()) {
     return it->second;
@@ -651,9 +652,6 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
     return {};
   }
 
-  using RowRef =
-      perfetto::trace_processor::tables::SymbolTable::ConstRowReference;
-  std::vector<RowRef> symbol_set;
   symbol_cursor_.SetFilterValueUnchecked(0, *symbol_set_id);
   symbol_cursor_.Execute();
 

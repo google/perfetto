@@ -14,8 +14,8 @@
 
 // The page-wide snapshot selection, shared between the composition timeline
 // (which drives it) and the sections below (which render relative to it).
-// Identified by absolute timestamp so each section — which loads its own
-// snapshots/dumps — can correlate by nearest ts.
+// Identified by absolute timestamp so each section - which loads its own
+// snapshots/dumps - can correlate by nearest ts.
 
 import type {time} from '../../../../base/time';
 
@@ -34,7 +34,7 @@ export function nearestByTs<T extends {ts: time}>(
 ): T | undefined {
   if (rows.length === 0) return undefined;
   if (ts === undefined) return rows[rows.length - 1];
-  let best = rows[0];
+  let best = rows[0]!;
   let bestDist = ts > best.ts ? ts - best.ts : best.ts - ts;
   for (const r of rows) {
     const dist = ts > r.ts ? ts - r.ts : r.ts - ts;

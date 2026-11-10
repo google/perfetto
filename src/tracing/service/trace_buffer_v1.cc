@@ -24,6 +24,7 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/proto_utils.h"
 
 #define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
@@ -479,6 +480,8 @@ void TraceBufferV1::RecordAbiViolation() {
   stats_.set_abi_violations(stats_.abi_violations() + 1);
 }
 
+void TraceBufferV1::OnWriteCheckpoint() {}
+
 void TraceBufferV1::BeginRead() {
   read_iter_ = GetReadIterForSequence(index_.begin());
 #if PERFETTO_DCHECK_IS_ON()
@@ -896,7 +899,7 @@ TraceBufferV1::ReadPacketResult TraceBufferV1::ReadNextPacketInChunk(
     stats_.set_chunks_read(stats_.chunks_read() + 1);
     stats_.set_bytes_read(stats_.bytes_read() + chunk_record->size);
     writer_stats_.Insert(producer_and_writer_id,
-                         chunk_meta->cur_fragment_offset);
+                         chunk_meta->cur_fragment_offset, kProtocolAbiV1);
   } else {
     // We have at least one more packet to parse. It should be within the chunk.
     if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=

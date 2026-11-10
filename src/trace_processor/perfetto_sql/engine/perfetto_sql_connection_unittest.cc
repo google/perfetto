@@ -699,6 +699,35 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL", "5,5,x"));
 
+  // A bare ts, dur or key is the region's, and an operand's other columns
+  // are found by their bare names too. So a star, or no stage at all, gives
+  // the region and what each operand carries, without the operands' own ts
+  // and dur.
+  const std::string kIntersection =
+      "INTERVAL INTERSECTION OF ("
+      "(SELECT ts, dur, name, n AS a_n FROM a) AS a, b AS b) PER name ";
+  for (const char* stage : {"", "|> SELECT *"}) {
+    SCOPED_TRACE(stage);
+    EXPECT_THAT(ColumnNames(kIntersection + stage),
+                testing::ElementsAre("ts", "dur", "name", "a_n", "n"));
+    rows = Rows(kIntersection + stage);
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL,3,2", "5,5,x,1,1"));
+  }
+  rows = Rows(kIntersection + "|> SELECT a_n, n, a.ts, b.ts AS b_ts");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,1,0,5", "3,2,0,5"));
+  // A new alias covers those same columns, so its ts is the region's.
+  rows = Rows(kIntersection + "|> AS u |> SELECT u.ts, u.a_n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("5,1", "5,3"));
+  // Two operands with a column of one name make that name ambiguous.
+  EXPECT_THAT(Rows("INTERVAL INTERSECTION OF (a AS a, b AS b) PER name "
+                   "|> SELECT n")
+                  .status()
+                  .message(),
+              testing::HasSubstr("column 'n' is ambiguous"));
+
   // A key that holds strings in one operand and numbers in another is an
   // error when the plan is lowered.
   EXPECT_THAT(Rows(R"(
@@ -851,10 +880,21 @@ TEST_F(PerfettoSqlConnectionPipelineTest, Aggregate) {
                   .status()
                   .message(),
               testing::HasSubstr("overflow"));
-  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu")
+  // As in any row, two columns can share a name, which is then ambiguous to
+  // refer to.
+  rows = Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,2", "2,2", "NULL,2"));
+  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu "
+                   "|> SELECT cpu")
                   .status()
                   .message(),
-              testing::HasSubstr("listed only once"));
+              testing::HasSubstr("column 'cpu' is ambiguous"));
+  // A key listed again groups nothing new, but is another output column.
+  rows = Rows(
+      "FROM spans AS s |> AGGREGATE COUNT(*) AS n GROUP BY cpu, s.cpu AS c");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,1,2", "2,2,2", "NULL,NULL,2"));
 }
 
 // Every alias in pipe syntax needs AS, so a keyword after a relation, like
@@ -898,12 +938,14 @@ TEST_F(PerfettoSqlConnectionPipelineTest, OrderBy) {
   EXPECT_THAT(*rows, testing::ElementsAre("3,40,40", "2,30,30", "1,60,100",
                                           "0,100,230"));
 
-  // A string key is refused where its type is known, and fails the run
-  // where it is not.
-  EXPECT_THAT(
-      Rows("FROM typed |> ORDER BY name").status().message(),
-      testing::HasSubstr("ordering by a string column is not supported yet"));
-  EXPECT_FALSE(Rows("FROM points |> ORDER BY name").ok());
+  // A string key sorts by its contents, whether its type is known when the
+  // pipeline compiles or only once it runs.
+  auto typed = Rows("FROM typed |> ORDER BY name DESC |> SELECT name", true);
+  ASSERT_TRUE(typed.ok()) << typed.status().message();
+  EXPECT_THAT(*typed, testing::ElementsAre("z", "y", "x", "w", "v"));
+  auto untyped = Rows("FROM points |> ORDER BY name |> SELECT name", true);
+  ASSERT_TRUE(untyped.ok()) << untyped.status().message();
+  EXPECT_THAT(*untyped, testing::ElementsAre("v", "w", "x", "y", "z"));
 
   // A key parses as an expression, but only a column is supported.
   for (const char* key : {"(a | b) DESC", "abs(a)"}) {

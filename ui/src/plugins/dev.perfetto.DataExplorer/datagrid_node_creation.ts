@@ -117,11 +117,10 @@ export function findMatchingAddColumnsNode(
   }
 
   // Check if the source node has exactly one child that's an AddColumnsNode with same join
-  if (
-    sourceNode.nextNodes.length === 1 &&
-    sourceNode.nextNodes[0].type === NodeType.kAddColumns
-  ) {
-    const existingAddColumnsNode = sourceNode.nextNodes[0] as AddColumnsNode;
+  const onlyChild =
+    sourceNode.nextNodes.length === 1 ? sourceNode.nextNodes[0] : undefined;
+  if (onlyChild !== undefined && onlyChild.type === NodeType.kAddColumns) {
+    const existingAddColumnsNode = onlyChild as AddColumnsNode;
     if (
       existingAddColumnsNode.attrs.leftColumn === joinidColumnName &&
       existingAddColumnsNode.attrs.rightColumn === targetJoinColumn
@@ -157,11 +156,10 @@ export async function addFilter(
   }
 
   // If the source node has exactly one child and it's a FilterNode, add to that
-  if (
-    sourceNode.nextNodes.length === 1 &&
-    sourceNode.nextNodes[0].type === NodeType.kFilter
-  ) {
-    const existingFilterNode = sourceNode.nextNodes[0];
+  const onlyChild =
+    sourceNode.nextNodes.length === 1 ? sourceNode.nextNodes[0] : undefined;
+  if (onlyChild !== undefined && onlyChild.type === NodeType.kFilter) {
+    const existingFilterNode = onlyChild;
     setFiltersOnNode(
       existingFilterNode,
       [

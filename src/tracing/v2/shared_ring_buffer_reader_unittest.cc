@@ -115,6 +115,8 @@ TEST(SharedRingBufferReaderTest, ConsumesCompleteChunk) {
   EXPECT_EQ(delegate.chunks[0].target_buffer, kBuffer);
   EXPECT_EQ(delegate.chunks[0].fragments,
             (std::vector<std::string>{"alpha", "beta"}));
+  EXPECT_EQ(reader.GetStats().chunks_read, 1u);
+  EXPECT_EQ(reader.GetStats().bytes_read, strlen("alpha") + strlen("beta"));
 
   // The chunk is now Free with the wrap count of its next position.
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
@@ -947,6 +949,7 @@ TEST(SharedRingBufferReaderTest, DiscardsAllPublishedFragmentsAfterLoss) {
     EXPECT_EQ(result.last_result, ConsumeResult::kPositionSkipped);
     EXPECT_TRUE(delegate.chunks.empty());
     EXPECT_EQ(delegate.writers_with_data_loss, std::vector<WriterID>{kWriterA});
+    EXPECT_EQ(reader.GetStats().data_loss_chunks, 1u);
 
     if (writer_is_appending) {
       const uint32_t word =
@@ -1025,6 +1028,8 @@ TEST(SharedRingBufferReaderTest, DataLossOnEmptyCompleteChunk) {
             ConsumeResult::kPositionSkipped);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterA}));
+  EXPECT_EQ(reader.GetStats().data_loss_chunks, 1u);
+  EXPECT_EQ(reader.GetStats().positions_skipped, 1u);
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
 

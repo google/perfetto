@@ -200,10 +200,10 @@ class NinjaLogImporter : public TraceImporter<NinjaLogImporter> {
   NinjaLogImporter() : TraceImporter(MakeDescriptor()) {}
   ~NinjaLogImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = "# ninja log";
     size_t n = sizeof(kMagic) - 1;
-    return size >= n && memcmp(data, kMagic, n) == 0;
+    return {size >= n && memcmp(data, kMagic, n) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

@@ -74,8 +74,7 @@ std::optional<const base::StringView> inline GetWindowContainerType(
 }
 }  // namespace
 
-inline base::StatusOr<const char* const> GetProtoName(
-    const std::string& table_name) {
+inline base::StatusOr<const char*> GetProtoName(const std::string& table_name) {
   if (table_name == tables::SurfaceFlingerLayerTable::Name()) {
     return ".com.android.internal.LayerProto";
   }

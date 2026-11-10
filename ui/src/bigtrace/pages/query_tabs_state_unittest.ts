@@ -15,23 +15,23 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
-  applyModeDefaults,
   applyPresetSetup,
   closeSettings,
   coerceDateFilter,
-  isTraceSelectionSetting,
-  parseTraceUuids,
-  setTraceUuidsActive,
-  TRACE_UUIDS_SETTING_ID,
-  traceUuidsActive,
+  DEFAULT_ROW_LIMIT,
   DEFAULT_TABLE_TTL_DAYS,
+  DEFAULT_TRACE_LIMIT,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
-  MODE_DEFAULTS,
+  isTraceSelectionSetting,
   openSettings,
+  parseTraceUuids,
   QueryTabsState,
   restoreTabConfig,
+  setTraceUuidsActive,
   snapshotTabConfig,
+  TRACE_UUIDS_SETTING_ID,
+  traceUuidsActive,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
@@ -57,10 +57,9 @@ function reg(
 
 function fakeTab(over: Partial<BigTraceEditorTab>): BigTraceEditorTab {
   return {
-    limit: MODE_DEFAULTS.ephemeral.rowLimit,
-    traceLimit: MODE_DEFAULTS.ephemeral.traceLimit,
+    limit: DEFAULT_ROW_LIMIT,
+    traceLimit: DEFAULT_TRACE_LIMIT,
     tableTtlDays: DEFAULT_TABLE_TTL_DAYS,
-    materialize: false,
     querySettings: [],
     traceFilters: [],
     traceMetadataColumns: [],
@@ -181,27 +180,21 @@ describe('boolean settings have no enable/disable concept', () => {
   });
 });
 
-describe('per-mode row and trace limits', () => {
+describe('row, trace, and table lifetime defaults', () => {
   beforeEach(() => {
     localStorage.clear();
     bigTraceSettingsStorage.clear();
   });
 
-  test('a new ephemeral tab gets the quick-look caps', () => {
-    const tabs = new QueryTabsState();
-    const tab = tabs.addNewTab(undefined, '', undefined, undefined, false);
-    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
-  });
-
-  test('a new persistent tab gets the full-sweep caps', () => {
+  test('a new tab gets the default caps and table lifetime', () => {
     const tabs = new QueryTabsState();
     const tab = tabs.addNewTab(undefined, '', undefined, undefined, true);
-    expect(tab.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
+    expect(tab.limit).toBe(DEFAULT_ROW_LIMIT);
+    expect(tab.traceLimit).toBe(DEFAULT_TRACE_LIMIT);
+    expect(tab.tableTtlDays).toBe(DEFAULT_TABLE_TTL_DAYS);
   });
 
-  test('caller-supplied caps win over the mode defaults', () => {
+  test('caller-supplied caps win over defaults', () => {
     const tabs = new QueryTabsState();
     const tab = tabs.addNewTab(
       undefined,
@@ -210,50 +203,15 @@ describe('per-mode row and trace limits', () => {
       undefined,
       true,
       undefined,
-      undefined,
       77,
     );
     expect(tab.limit).toBe(42);
     expect(tab.traceLimit).toBe(77);
   });
 
-  test('switching mode moves caps the user never touched', () => {
-    const tab = fakeTab({materialize: false});
-    applyModeDefaults(tab, true);
-    expect(tab.materialize).toBe(true);
-    expect(tab.limit).toBe(MODE_DEFAULTS.persistent.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
-    applyModeDefaults(tab, false);
-    expect(tab.limit).toBe(MODE_DEFAULTS.ephemeral.rowLimit);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.ephemeral.traceLimit);
-  });
-
-  test('switching mode leaves hand-edited caps alone', () => {
-    const tab = fakeTab({materialize: false, limit: 7});
-    tab.traceLimit = 25;
-    applyModeDefaults(tab, true);
-    expect(tab.limit).toBe(7);
-    expect(tab.traceLimit).toBe(25);
-  });
-
-  test('a cap that matches the new mode default still moves with the mode', () => {
-    // Explicitly set to the ephemeral default, then switch: it reads as
-    // untouched, which is the documented trade-off of the equality check.
-    const tab = fakeTab({materialize: false});
-    tab.traceLimit = MODE_DEFAULTS.ephemeral.traceLimit;
-    applyModeDefaults(tab, true);
-    expect(tab.traceLimit).toBe(MODE_DEFAULTS.persistent.traceLimit);
-  });
-
   test('the trace cap and the table lifetime round-trip through storage', () => {
     const tabs = new QueryTabsState();
-    const tab = tabs.addNewTab(
-      undefined,
-      'select 1',
-      undefined,
-      undefined,
-      true,
-    );
+    const tab = tabs.addNewTab(undefined, 'select 1');
     tab.limit = 0;
     tab.traceLimit = 0;
     tab.tableTtlDays = 45;
@@ -264,17 +222,6 @@ describe('per-mode row and trace limits', () => {
     expect(restored.limit).toBe(0);
     expect(restored.traceLimit).toBe(0);
     expect(restored.tableTtlDays).toBe(45);
-  });
-});
-
-describe('table lifetime (TTL)', () => {
-  test('switching mode leaves the lifetime alone', () => {
-    const tab = fakeTab({materialize: false});
-    tab.tableTtlDays = 7;
-    applyModeDefaults(tab, true);
-    expect(tab.tableTtlDays).toBe(7);
-    applyModeDefaults(tab, false);
-    expect(tab.tableTtlDays).toBe(7);
   });
 });
 
@@ -313,7 +260,6 @@ describe('cloneTab', () => {
     expect(clone.editorText).toBe('select * from slice');
     expect(clone.limit).toBe(src.limit);
     expect(clone.traceLimit).toBe(src.traceLimit);
-    expect(clone.materialize).toBe(true);
     expect(clone.configured).toBe(true);
     expect(clone.traceFilters).toEqual(src.traceFilters);
     expect(clone.traceMetadataColumns).toEqual(['device_name']);
@@ -353,7 +299,7 @@ describe('cloneTab', () => {
       },
     ];
     expect(src.traceFilters).toHaveLength(1);
-    expect(src.querySettings[0].values).toEqual(['/traces']);
+    expect(src.querySettings[0]!.values).toEqual(['/traces']);
   });
 
   test('an unknown id is a no-op', () => {
@@ -386,7 +332,6 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     return fakeTab({
       configured: true,
       editorText: 'select 1',
-      materialize: true,
       limit: 500,
       tableTtlDays: 45,
       traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
@@ -424,7 +369,6 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     tab.limit = 10;
     tab.traceLimit = 11;
     tab.tableTtlDays = 12;
-    tab.materialize = false;
     tab.experimentFilter = {
       experimentId: 999,
       controlId: 888,
@@ -458,7 +402,7 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     openSettings(tab);
     edit(tab);
     closeSettings(tab, {keep: true});
-    expect(tab.querySettings[0].values).toEqual(['/other']);
+    expect(tab.querySettings[0]!.values).toEqual(['/other']);
     expect(tab.traceFilters).toEqual([]);
     expect(tab.limit).toBe(10);
     expect(tab.traceLimit).toBe(11);
@@ -470,10 +414,10 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
   test('the snapshot is a copy: later mutation of the tab does not reach it', () => {
     const tab = workingTab();
     openSettings(tab);
-    tab.querySettings[0].values.push('/extra');
+    tab.querySettings[0]!.values.push('/extra');
     (tab.traceFilters as unknown[]).push({field: 'x', op: 'is null'});
     closeSettings(tab, {keep: false});
-    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    expect(tab.querySettings[0]!.values).toEqual(['/traces']);
     expect(tab.traceFilters).toHaveLength(1);
   });
 
@@ -481,8 +425,8 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
     const tab = workingTab();
     const snap = snapshotTabConfig(tab);
     restoreTabConfig(tab, snap);
-    tab.querySettings[0].values.push('/extra');
-    expect(snap.querySettings[0].values).toEqual(['/traces']);
+    tab.querySettings[0]!.values.push('/extra');
+    expect(snap.querySettings[0]!.values).toEqual(['/traces']);
   });
 
   test('a new tab starting its first query has no session and keeps its setup', () => {
@@ -496,13 +440,7 @@ describe('Settings session (Cancel restores, Apply keeps)', () => {
 
   test('the session is not persisted: a reload closes Settings with edits kept', () => {
     const tabs = new QueryTabsState();
-    const tab = tabs.addNewTab(
-      undefined,
-      'select 1',
-      undefined,
-      undefined,
-      true,
-    );
+    const tab = tabs.addNewTab(undefined, 'select 1');
     tab.configured = true;
     openSettings(tab);
     tab.limit = 42;
@@ -606,7 +544,7 @@ describe('trace UUID selection mode', () => {
     expect(traceUuidsActive(tab)).toBe(true);
     // Filter-mode configuration is hidden, not cleared...
     expect(tab.traceFilters).toHaveLength(1);
-    expect(tab.querySettings[0].values).toEqual(['/traces']);
+    expect(tab.querySettings[0]!.values).toEqual(['/traces']);
     // ...and an earlier stint's values survive re-entry.
     expect(
       tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
@@ -756,7 +694,6 @@ describe('experiment filter', () => {
             title: 'Query 1',
             editorText: 'select 1',
             limit: 1000,
-            materialize: true,
             configured: true,
           },
         ],
@@ -765,7 +702,7 @@ describe('experiment filter', () => {
     );
     const tabs = new QueryTabsState();
     expect(tabs.tabs).toHaveLength(1);
-    expect(tabs.tabs[0].experimentFilter).toBeUndefined();
+    expect(tabs.tabs[0]!.experimentFilter).toBeUndefined();
   });
 
   test('a preset naming an experiment runs the query over it', () => {
@@ -832,7 +769,6 @@ describe('date filter persistence', () => {
             title: 'Query 1',
             editorText: 'select 1',
             limit: 1000,
-            materialize: true,
             configured: true,
             dateFilter,
           },
@@ -881,18 +817,18 @@ describe('date filter persistence', () => {
 
   test('a stored range round-trips; a corrupt one re-defaults', () => {
     storeTab({kind: 'fixed', from: '2026-09-20', to: '2026-09-25'});
-    expect(new QueryTabsState().tabs[0].dateFilter).toEqual({
+    expect(new QueryTabsState().tabs[0]!.dateFilter).toEqual({
       kind: 'fixed',
       from: '2026-09-20',
       to: '2026-09-25',
     });
 
     storeTab(null);
-    expect(new QueryTabsState().tabs[0].dateFilter).toBeNull();
+    expect(new QueryTabsState().tabs[0]!.dateFilter).toBeNull();
 
     // A hand-edited or foreign-build entry must not reach the date math.
     storeTab({kind: 'fixed', from: 123});
-    const restored = new QueryTabsState().tabs[0].dateFilter;
+    const restored = new QueryTabsState().tabs[0]!.dateFilter;
     expect(restored).toBeUndefined();
     expect(() => describeDateFilter(restored, '2026-10-05')).not.toThrow();
   });

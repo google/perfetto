@@ -190,6 +190,27 @@ struct LogicalPlan {
   std::string ToString() const;
 };
 
+// The index serving the most of `all_specs` not already handled, and those
+// specs in the index's column order: an equality or IN on each of its
+// leading columns, ending at the first IN. Null if no index serves any, or
+// there are too few rows for one to help.
+struct BestIndex {
+  uint32_t best_index_idx;
+  std::vector<uint32_t> best_index_specs;
+};
+std::optional<BestIndex> GetBestIndexForFilterSpecs(
+    uint32_t max_row_count,
+    const std::vector<FilterSpec>& all_specs,
+    const std::vector<uint8_t>& spec_already_handled,
+    const std::vector<Index>& indexes);
+
+// How `op` on `col` is answered by searching the column rather than testing
+// its rows, if it can be: the column must be sorted and hold no nulls, and
+// `op` one which keeps a contiguous run of its rows. Each strategy narrows a
+// range of rows; see filter_kernels.h for the searches.
+std::optional<logical::FilterStrategy> SortedFilterStrategy(const Column& col,
+                                                            const Op& op);
+
 // Chooses how a query should be run and records that as a LogicalPlan.
 //
 // Everything this class decides -- the order filters are applied in, which

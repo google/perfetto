@@ -19,18 +19,21 @@ source_set("util") {
     "bit_vector.h",
     "flex_vector.h",
     "heap.h",
+    "interval_gaps.h",
     "ops.cc",
     "ops.h",
     "range.h",
+    "row_layout_sort.cc",
     "slab.h",
+    "sort.cc",
     "sort.h",
-    "span.h",
   ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
     "../../../base",
     "../../containers",
+    "../../util:cold_sort",
   ]
 }
 
@@ -40,10 +43,10 @@ perfetto_unittest_source_set("unittests") {
     "bit_vector_unittest.cc",
     "flex_vector_unittest.cc",
     "heap_unittest.cc",
+    "interval_gaps_unittest.cc",
     "ops_unittest.cc",
     "slab_unittest.cc",
     "sort_unittest.cc",
-    "span_unittest.cc",
   ]
   deps = [
     ":util",
@@ -64,6 +67,9 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
     ]
-    sources = [ "sort_benchmark.cc" ]
+    sources = [
+      "sort_benchmark.cc",
+      "sort_row_layout_benchmark.cc",
+    ]
   }
 }

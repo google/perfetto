@@ -133,7 +133,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           const value = node.getPivotValue(index);
           const renderedCell = (function () {
             if (value === undefined) return undefined;
-            return state.getPivots()[index].renderCell(value);
+            return state.getPivots()[index]!.renderCell(value);
           })();
           const content = [
             (status === 'collapsed' || status === 'expanded') &&

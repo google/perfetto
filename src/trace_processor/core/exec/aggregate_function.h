@@ -19,9 +19,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -35,6 +38,16 @@ struct AggregateCall {
   // The column aggregated; unused by COUNT(*).
   uint32_t column = 0;
 };
+
+// Adds the columns `aggregates` read to `out`.
+inline void DescribeAggregateReads(const std::vector<AggregateCall>& aggregates,
+                                   StepColumns* out) {
+  for (const AggregateCall& call : aggregates) {
+    if (call.function != AggregateCall::Function::kCountStar) {
+      out->reads.push_back(call.column);
+    }
+  }
+}
 
 // What an aggregate reads of one batch: a value a row, contiguous, and
 // which rows hold one.
@@ -58,6 +71,12 @@ class AggregateInputLoader {
             const uint32_t* rows,
             uint32_t count,
             AggregateInput* out);
+
+  // Ends a run (see RunHeld).
+  void EndRun() {
+    EndRunOf(&values_);
+    EndRunOf(&valid_);
+  }
 
  private:
   FlexVector<int64_t> values_;
@@ -84,6 +103,8 @@ class SeenBytes {
   // groups in all, whose input holds nulls if `nulls`.
   uint8_t* For(uint32_t groups, bool nulls);
   void Clear();
+  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  void EndRun();
 
  private:
   FlexVector<uint8_t> bytes_;
@@ -117,6 +138,12 @@ class AggregateFunction {
                       const uint32_t* groups,
                       GroupStates states,
                       bool* overflow) const = 0;
+  // As Update, with every row of `in` in group `group`, as without keys. A
+  // function can then fold the batch before touching the state.
+  virtual void UpdateGroup(const AggregateInput& in,
+                           uint32_t group,
+                           GroupStates states,
+                           bool* overflow) const = 0;
   // In order, for each of the `count` merges, adds the state of group
   // `from` into that of group `into`.
   virtual void Combine(const GroupMerge* merges,

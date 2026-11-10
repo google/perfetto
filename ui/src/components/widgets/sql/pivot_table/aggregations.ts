@@ -108,13 +108,13 @@ function sqlValueAsNumber(value: SqlValue): number | null {
 
 export function getAggregationValue(agg: Aggregation, row: Row): SqlValue {
   if (agg.op !== 'average') {
-    return row[aggregationId(agg)];
+    return row[aggregationId(agg)]!;
   }
   const sum = sqlValueAsNumber(
-    row[aggregationId({op: 'sum', column: agg.column})],
+    row[aggregationId({op: 'sum', column: agg.column})]!,
   );
   const count = sqlValueAsNumber(
-    row[aggregationId({op: 'count', column: agg.column})],
+    row[aggregationId({op: 'count', column: agg.column})]!,
   );
   if (sum === null || count === null) return null;
   return sum / count;

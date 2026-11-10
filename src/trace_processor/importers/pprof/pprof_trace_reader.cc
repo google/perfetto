@@ -440,8 +440,8 @@ class PprofImporter : public TraceImporter<PprofImporter> {
   PprofImporter() : TraceImporter(MakeDescriptor()) {}
   ~PprofImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return IsPprofProfile(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {IsPprofProfile(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

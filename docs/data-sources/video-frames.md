@@ -25,6 +25,9 @@ This guide covers:
 - [Viewing display video](#viewing-display-video): the timeline track,
   hovering to preview a frame, and playing the capture back with the
   timeline kept in sync.
+- [Linking frames to the frame timeline](#linking-frames-to-the-frame-timeline):
+  matching each captured frame to the SurfaceFlinger vsync that produced
+  it.
 
 ## How it works, and what it costs
 
@@ -147,7 +150,11 @@ A trace that contains display video shows a **Video Frames** group with
 one track per display (for a phone, typically a single **Built-in
 Screen**). Each slice on the track is one captured frame, labelled with a
 frame number. That number is just a sequential counter of captured frames
-— it has nothing to do with the vsync ids in the frame timeline.
+— it has nothing to do with the vsync ids in the frame timeline. A frame
+that is linked to the SurfaceFlinger composite that produced it is
+labelled with that composite's vsync id instead (e.g. `vsync 123456`);
+see [Linking frames to the frame
+timeline](#linking-frames-to-the-frame-timeline).
 
 ![The Perfetto timeline with the "Video Frames" group's "Built-in Screen" track pinned to the top — a row of coloured slices labelled Frame 30, Frame 57, and so on — above the CPU scheduling tracks.](../images/video_frames/03-track.png)
 
@@ -217,3 +224,59 @@ python3 python/tools/trace_video_conv.py before.perfetto-trace --compare after.p
 | `--query2` | Clip the `--compare` trace to a SQL-selected region. |
 | `--title`, `--title2` | Captions for the first and second videos (default: the file names). |
 | `--trace-processor` | Path to a local `trace_processor` build (otherwise one is downloaded). |
+
+## Linking frames to the frame timeline
+
+Each captured frame can be linked to the SurfaceFlinger composite that
+produced it, and through it to that vsync's
+[frame timeline](/docs/data-sources/frametimeline.md). The link comes from
+SurfaceFlinger's **android.surfaceflinger.virtualdisplay** data source,
+which emits one packet per composite queued to a virtual display, with the
+composite's vsync id and the present time stamped on the queued buffer.
+The encoder normally carries that present time through as the frame's
+presentation time, so trace_processor matches the two and stores the vsync
+id in the `frame_timeline_vsync_id` column of `__intrinsic_video_frames`.
+
+Enable it next to the capture, together with the frame timeline that the
+links point to:
+
+```
+data_sources {
+  config {
+    name: "android.display.video"
+  }
+}
+data_sources {
+  config {
+    name: "android.surfaceflinger.virtualdisplay"
+  }
+}
+data_sources {
+  config {
+    name: "android.surfaceflinger.frametimeline"
+  }
+}
+```
+
+The virtual display data source is only available on devices whose
+SurfaceFlinger has the
+`com.android.graphics.surfaceflinger.flags.virtual_display_composite_tracing`
+flag enabled. Without it, frames are captured as usual but stay unlinked.
+
+In the UI, linked frames are labelled with their vsync id on the video
+track. The video frame's details show the **Frame timeline vsync id**,
+which links to the SurfaceFlinger DisplayFrame on the frame timeline, and
+list the app frames composited into it, each linking to that app's frame.
+In the other direction, selecting a slice on an **Actual Timeline** track
+shows a **Display video** section with a **Jump to video frame** link when
+that vsync produced a captured frame.
+
+A frame stays unlinked when no composite has its presentation time, for
+example because the encoder adjusted the timestamps, or when composites
+with different vsync ids share it. The
+`android_video_vsync_composite_unmatched` stat counts composites with no
+matching video frame, and `android_video_vsync_present_time_ambiguous`
+counts present times that map to conflicting vsync ids and matched a
+frame. The display id in the composite packets is SurfaceFlinger's id for
+the virtual display, which is unrelated to the video stream's display id,
+so the present time is the only key the match can use.

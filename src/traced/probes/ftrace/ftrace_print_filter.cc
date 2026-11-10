@@ -18,6 +18,7 @@
 
 #include <string.h>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "src/traced/probes/ftrace/event_info_constants.h"
 
@@ -37,12 +38,12 @@ bool AtraceMessageMatches(const std::string& before_pid_part,
                           const char* start,
                           size_t size) {
   base::StringView s(start, size);
-  if (!s.StartsWith(base::StringView(before_pid_part))) {
+  if (!base::StartsWith(s, base::StringView(before_pid_part))) {
     return false;
   }
   s = s.substr(before_pid_part.size());
 
-  if (!s.StartsWith("|")) {
+  if (!base::StartsWith(s, "|")) {
     return false;
   }
   s = s.substr(1);

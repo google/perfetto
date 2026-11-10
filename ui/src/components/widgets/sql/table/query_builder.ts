@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../base/assert';
 import type {Filter} from './filters';
 import {
   type ColumnOrderClause,
@@ -130,8 +131,7 @@ class QueryBuilder {
       );
 
     // Check if this join is already present.
-    for (let i = 0; i < this.tables.length; ++i) {
-      const table = this.tables[i];
+    for (const [i, table] of this.tables.entries()) {
       if (
         table.table === column.source.table &&
         table.innerJoin === (column.source.innerJoin ?? false) &&
@@ -172,13 +172,12 @@ class QueryBuilder {
       }
       return `${this.tableAlias}.${column.column}`;
     }
-    const table = this.tables[column.sourceTableId];
+    const table = ensureDefined(this.tables[column.sourceTableId]);
     // Dependent tables are 0-indexed, but we want to display them as 1-indexed to reserve 0 for the primary table.
     return `${table.table}_${column.sourceTableId + 1}.${column.column}`;
   }
 
-  printJoin(joinIndex: number): string {
-    const join = this.tables[joinIndex];
+  printJoin(join: NormalisedSourceTable, joinIndex: number): string {
     const alias = `${join.table}_${joinIndex + 1}`;
     const clauses = Object.entries(join.joinOn).map(
       ([key, value]) => `${alias}.${key} = ${this.printReference(value)}`,
@@ -233,7 +232,7 @@ export function buildSqlQuery(args: {
       ? ''
       : `WHERE\n ${normalisedFilters.map(formatFilter).join('\n  AND ')}`;
   const joinClause = builder.tables
-    .map((_, index) => builder.printJoin(index))
+    .map((join, index) => builder.printJoin(join, index))
     .join('\n');
   const groupBys = normalisedGroupBy.map((column) =>
     builder.printReference(column),

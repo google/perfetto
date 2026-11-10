@@ -88,59 +88,6 @@ uint32_t FilterPreference(const FilterSpec& fs, const Column& col) {
   return kLeastPreferred;
 }
 
-struct BestIndex {
-  uint32_t best_index_idx;
-  std::vector<uint32_t> best_index_specs;
-};
-std::optional<BestIndex> GetBestIndexForFilterSpecs(
-    uint32_t max_row_count,
-    const std::vector<FilterSpec>& all_specs,
-    const std::vector<uint8_t>& spec_already_handled,
-    const std::vector<Index>& indexes) {
-  // If we have very few rows, there's no point in using an index.
-  if (max_row_count <= 1) {
-    return std::nullopt;
-  }
-  uint32_t best_index_idx = std::numeric_limits<uint32_t>::max();
-  std::vector<uint32_t> best_index_specs;
-  for (uint32_t i = 0; i < indexes.size(); ++i) {
-    const Index& index = indexes[i];
-    std::vector<uint32_t> current_specs_for_this_index;
-    for (uint32_t column : index.columns()) {
-      bool found_spec_for_column = false;
-      for (uint32_t spec_idx = 0; spec_idx < all_specs.size(); ++spec_idx) {
-        if (spec_already_handled[spec_idx]) {
-          continue;
-        }
-        const FilterSpec& current_spec = all_specs[spec_idx];
-        if (current_spec.col == column &&
-            (current_spec.op.Is<Eq>() || current_spec.op.Is<In>())) {
-          current_specs_for_this_index.push_back(spec_idx);
-          found_spec_for_column = true;
-          break;
-        }
-      }
-      if (!found_spec_for_column) {
-        break;
-      }
-      // An In filter produces non-contiguous output, breaking the sort
-      // invariant needed by subsequent columns' binary searches. So In
-      // must be terminal: stop matching further index columns.
-      if (all_specs[current_specs_for_this_index.back()].op.Is<In>()) {
-        break;
-      }
-    }
-    if (current_specs_for_this_index.size() > best_index_specs.size()) {
-      best_index_idx = i;
-      best_index_specs = std::move(current_specs_for_this_index);
-    }
-  }
-  if (best_index_idx == std::numeric_limits<uint32_t>::max()) {
-    return std::nullopt;
-  }
-  return BestIndex{best_index_idx, std::move(best_index_specs)};
-}
-
 // Builds the logical plan for one query.
 class Planner {
  public:
@@ -288,35 +235,16 @@ base::Status Planner::Filter(std::vector<FilterSpec>& specs) {
 }
 
 bool Planner::TrySortedFilter(FilterSpec& spec) {
-  auto non_null_op = spec.op.TryDowncast<NonNullOp>();
-  if (!non_null_op) {
-    return false;
-  }
-  const Column& col = GetColumn(spec.col);
-  const auto& nullability = col.null_storage.nullability();
-  if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
-    return false;
-  }
-  if (!non_null_op->TryDowncast<RangeOp>()) {
+  std::optional<logical::FilterStrategy> strategy =
+      SortedFilterStrategy(GetColumn(spec.col), spec.op);
+  if (!strategy) {
     return false;
   }
 
   // We should have ordered the constraints such that we only reach this
   // point with range indices.
   PERFETTO_CHECK(rows_are_range_);
-
-  StorageType ct = col.storage.type();
-  if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() &&
-      non_null_op->Is<Eq>()) {
-    AddFilter(spec, logical::SetIdSortedSearch{});
-    return true;
-  }
-  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
-      non_null_op->Is<Eq>()) {
-    AddFilter(spec, logical::SmallValueLookup{});
-    return true;
-  }
-  AddFilter(spec, logical::BinarySearch{});
+  AddFilter(spec, *strategy);
   return true;
 }
 
@@ -692,6 +620,80 @@ std::string LogicalPlan::ToString() const {
     }
   }
   return res;
+}
+
+std::optional<BestIndex> GetBestIndexForFilterSpecs(
+    uint32_t max_row_count,
+    const std::vector<FilterSpec>& all_specs,
+    const std::vector<uint8_t>& spec_already_handled,
+    const std::vector<Index>& indexes) {
+  // If we have very few rows, there's no point in using an index.
+  if (max_row_count <= 1) {
+    return std::nullopt;
+  }
+  uint32_t best_index_idx = std::numeric_limits<uint32_t>::max();
+  std::vector<uint32_t> best_index_specs;
+  for (uint32_t i = 0; i < indexes.size(); ++i) {
+    const Index& index = indexes[i];
+    std::vector<uint32_t> current_specs_for_this_index;
+    for (uint32_t column : index.columns()) {
+      bool found_spec_for_column = false;
+      for (uint32_t spec_idx = 0; spec_idx < all_specs.size(); ++spec_idx) {
+        if (spec_already_handled[spec_idx]) {
+          continue;
+        }
+        const FilterSpec& current_spec = all_specs[spec_idx];
+        if (current_spec.col == column &&
+            (current_spec.op.Is<Eq>() || current_spec.op.Is<In>())) {
+          current_specs_for_this_index.push_back(spec_idx);
+          found_spec_for_column = true;
+          break;
+        }
+      }
+      if (!found_spec_for_column) {
+        break;
+      }
+      // An In filter produces non-contiguous output, breaking the sort
+      // invariant needed by subsequent columns' binary searches. So In
+      // must be terminal: stop matching further index columns.
+      if (all_specs[current_specs_for_this_index.back()].op.Is<In>()) {
+        break;
+      }
+    }
+    if (current_specs_for_this_index.size() > best_index_specs.size()) {
+      best_index_idx = i;
+      best_index_specs = std::move(current_specs_for_this_index);
+    }
+  }
+  if (best_index_idx == std::numeric_limits<uint32_t>::max()) {
+    return std::nullopt;
+  }
+  return BestIndex{best_index_idx, std::move(best_index_specs)};
+}
+
+std::optional<logical::FilterStrategy> SortedFilterStrategy(const Column& col,
+                                                            const Op& op) {
+  auto non_null_op = op.TryDowncast<NonNullOp>();
+  if (!non_null_op) {
+    return std::nullopt;
+  }
+  const auto& nullability = col.null_storage.nullability();
+  if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
+    return std::nullopt;
+  }
+  if (!non_null_op->TryDowncast<RangeOp>()) {
+    return std::nullopt;
+  }
+  StorageType ct = col.storage.type();
+  if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() &&
+      non_null_op->Is<Eq>()) {
+    return logical::SetIdSortedSearch{};
+  }
+  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
+      non_null_op->Is<Eq>()) {
+    return logical::SmallValueLookup{};
+  }
+  return logical::BinarySearch{};
 }
 
 base::StatusOr<LogicalPlan> LogicalPlanner::Plan(

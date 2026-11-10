@@ -134,3 +134,18 @@ maven.install(
     ],
 )
 use_repo(maven, "perfetto_maven")
+
+# Pin rules_android's Maven deps: unpinned, coursier downloads all of them on
+# every fresh fetch, and Maven Central rate-limits CI on the largest jars.
+# To regenerate:
+#   tools/bazel run @@rules_jvm_external++maven+unpinned_rules_android_maven//:pin
+maven.install(
+    name = "rules_android_maven",
+    aar_import_bzl_label = "@rules_android//rules:rules.bzl",
+    lock_file = "//bazel:rules_android_maven_install.json",
+    repositories = [
+        "https://maven.google.com",
+        "https://repo1.maven.org/maven2",
+    ],
+    use_starlark_android_rules = True,
+)

@@ -156,6 +156,7 @@ source_set("storage_minimal") {
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
     "importers/proto:minimal",
+    "importers/proto:proto_to_args_parser",
     "importers/systrace:systrace_line",
     "sorter",
     "storage",
@@ -165,7 +166,6 @@ source_set("storage_minimal") {
     "util:clock",
     "util:decompressor",
     "util:descriptors",
-    "util:proto_to_args_parser",
     "util:trace_type",
   ]
   public_deps = [ "../../include/perfetto/trace_processor:storage" ]
@@ -311,7 +311,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       deps += [
         "plugins/winscope_importer",
         "plugins/winscope_proto_to_args_with_defaults",
-        "plugins/winscope_surfaceflinger_hierarchy_paths",
       ]
     }
 
@@ -474,6 +473,7 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "../perfetto_sql/analysis:unittests",
+      "../tools/pfsql:unittests",
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
       "perfetto_sql/pipeline:unittests",
@@ -495,6 +495,9 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_etm_importer) {
     deps += [ "importers/etm:unittests" ]
+  }
+  if (enable_perfetto_winscope) {
+    deps += [ "plugins/winscope_importer:unittests" ]
   }
 }
 

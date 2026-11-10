@@ -29,8 +29,7 @@ INTERVAL INTERSECTION OF (
 |> SELECT ts, dur, cpu, idle.group_id AS idle_group;
 
 -- Tasks that ran within each deep idle exit, keyed by the idle exit they belong
--- to. Materialized because the three aggregates in _idle_w_tasks below all read
--- it.
+-- to. Materialized because the three aggregates below all read it.
 CREATE PERFETTO TABLE _ii_idle_tasks AS
 SELECT ts, dur, cpu, utid, idle_group
 FROM _wattson_task_slices
@@ -39,42 +38,41 @@ WHERE
 UNION ALL
 SELECT ts, dur, cpu, 0 AS utid, idle_group FROM _ii_idle_swapper_gaps;
 
+-- Since sorted by time, MIN() is fast aggregate function that will return the
+-- first time slice, which will be the utid = 0 slice immediately succeeding the
+-- idle to active transition, and immediately preceding the active task
+CREATE PERFETTO TABLE _ii_first_swapper_slice AS
+SELECT ts, dur, cpu, idle_group, min(ts) AS min
+FROM _ii_idle_tasks
+WHERE
+  utid IN (SELECT utid FROM thread WHERE is_idle)
+GROUP BY
+  idle_group;
+
+-- MIN() here will give the first active task immediately succeeding the idle
+-- to active transition slice, which means this the the task that causes the
+-- idle exit
+CREATE PERFETTO TABLE _ii_first_non_swapper_slice AS
+SELECT idle_group, utid, min(ts) AS min, min(ts) + dur AS next_ts
+FROM _ii_idle_tasks
+WHERE
+  NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
+GROUP BY
+  idle_group;
+
+-- MAX() here will give the last time slice in the group. This will be the
+-- utid = 0 slice immediately preceding the active to idle transition.
+CREATE PERFETTO TABLE _ii_last_swapper_slice AS
+SELECT ts, dur, cpu, idle_group, max(ts) AS min
+FROM _ii_idle_tasks
+WHERE
+  utid IN (SELECT utid FROM thread WHERE is_idle)
+GROUP BY
+  idle_group;
+
 -- Gets the slices where the CPU transitions from deep idle to active, and the
 -- associated task that causes the idle exit
 CREATE PERFETTO TABLE _idle_w_tasks AS
-WITH
-  -- Since sorted by time, MIN() is fast aggregate function that will return the
-  -- first time slice, which will be the utid = 0 slice immediately succeeding the
-  -- idle to active transition, and immediately preceding the active task
-  first_swapper_slice AS (
-    SELECT ts, dur, cpu, idle_group, min(ts) AS min
-    FROM _ii_idle_tasks
-    WHERE
-      utid IN (SELECT utid FROM thread WHERE is_idle)
-    GROUP BY
-      idle_group
-  ),
-  -- MIN() here will give the first active task immediately succeeding the idle
-  -- to active transition slice, which means this the the task that causes the
-  -- idle exit
-  first_non_swapper_slice AS (
-    SELECT idle_group, utid, min(ts) AS min, min(ts) + dur AS next_ts
-    FROM _ii_idle_tasks
-    WHERE
-      NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
-    GROUP BY
-      idle_group
-  ),
-  -- MAX() here will give the last time slice in the group. This will be the
-  -- utid = 0 slice immediately preceding the active to idle transition.
-  last_swapper_slice AS (
-    SELECT ts, dur, cpu, idle_group, max(ts) AS min
-    FROM _ii_idle_tasks
-    WHERE
-      utid IN (SELECT utid FROM thread WHERE is_idle)
-    GROUP BY
-      idle_group
-  )
 SELECT
   swapper_info.ts,
   swapper_info.dur,
@@ -82,8 +80,8 @@ SELECT
   task_info.utid,
   md.upid,
   md.uid
-FROM first_non_swapper_slice AS task_info
-JOIN first_swapper_slice AS swapper_info USING (idle_group)
+FROM _ii_first_non_swapper_slice AS task_info
+JOIN _ii_first_swapper_slice AS swapper_info USING (idle_group)
 JOIN _wattson_task_metadata AS md USING (utid)
 UNION ALL
 -- Adds the last slice to idle transition attribution IF this is a singleton
@@ -98,8 +96,8 @@ SELECT
   task_info.utid,
   md.upid,
   md.uid
-FROM first_non_swapper_slice AS task_info
-JOIN last_swapper_slice AS swapper_info USING (idle_group)
+FROM _ii_first_non_swapper_slice AS task_info
+JOIN _ii_last_swapper_slice AS swapper_info USING (idle_group)
 JOIN _wattson_task_metadata AS md USING (utid)
 WHERE
   ts = next_ts;

@@ -23,7 +23,9 @@
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
-          AGGREGATE FILL GAPS.
+          AGGREGATE FILL GAPS GRAPH BFS DFS DOMINATOR NODES EDGES MERGE
+          OVERLAPPING CONSECUTIVE INTERVALS EVENTS STOP KEEPING OPEN CLOSING
+          AT.
 
 // ---------- Helper nonterminals ----------
 
@@ -200,6 +202,11 @@ perfetto_pipe_source(A) ::= LP select(S) RP perfetto_pipe_alias(Z). {
     A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
         S, Z);
 }
+perfetto_pipe_source(A) ::= LP perfetto_keyword_pipeline(S) RP
+                           perfetto_pipe_alias(Z). {
+    A = synq_parse_perfetto_pipe_source(pCtx, SYNQ_NO_SPAN, SYNQ_NO_SPAN,
+        S, Z);
+}
 
 %type perfetto_tree_direction {int}
 perfetto_tree_direction(A) ::= UP.   { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
@@ -288,8 +295,12 @@ perfetto_pipe_replace(A) ::= REPLACE LP perfetto_pipe_replace_list(L) RP. {
 // One item of a SELECT or EXTEND stage: a column, optionally qualified and
 // named, or a star.
 %type perfetto_pipe_select_item {uint32_t}
-perfetto_pipe_select_item(A) ::= perfetto_pipe_column(X). { A = X; }
-perfetto_pipe_select_item(A) ::= perfetto_pipe_named_column(X). { A = X; }
+perfetto_pipe_select_item(A) ::= expr(E). {
+    A = synq_parse_perfetto_pipe_expr_item(pCtx, E, SYNQ_NO_SPAN);
+}
+perfetto_pipe_select_item(A) ::= expr(E) AS nm(N). {
+    A = synq_parse_perfetto_pipe_expr_item(pCtx, E, synq_span_dequote(pCtx, N));
+}
 perfetto_pipe_select_item(A) ::= STAR perfetto_pipe_except(E)
                                  perfetto_pipe_replace(R). {
     A = synq_parse_perfetto_pipe_star(pCtx, SYNQ_NO_SPAN, E, R);
@@ -327,7 +338,7 @@ perfetto_pipe_rename_list(A) ::= perfetto_pipe_rename_list(L) COMMA
 
 // SET's list: `name = column, ...`.
 %type perfetto_pipe_set_item {uint32_t}
-perfetto_pipe_set_item(A) ::= nm(N) EQ perfetto_pipe_column(V). {
+perfetto_pipe_set_item(A) ::= nm(N) EQ expr(V). {
     A = synq_parse_perfetto_pipe_set_item(pCtx, synq_span_dequote(pCtx, N), V);
 }
 
@@ -409,8 +420,54 @@ perfetto_pipe_stage(A) ::= INTERVAL FILL GAPS WITH perfetto_pipe_source(B)
                            perfetto_per(P). {
     A = synq_parse_perfetto_interval_fill_gaps(pCtx, B, P);
 }
+perfetto_pipe_stage(A) ::= INTERVAL MERGE OVERLAPPING perfetto_per(P)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_interval_merge(pCtx,
+        SYNTAQLITE_PERFETTO_INTERVAL_MERGE_KIND_OVERLAPPING,
+        SYNTAQLITE_NULL_NODE, P, L);
+}
+perfetto_pipe_stage(A) ::= INTERVAL MERGE CONSECUTIVE BY
+                           perfetto_per_col_list(K) perfetto_per(P)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_interval_merge(pCtx,
+        SYNTAQLITE_PERFETTO_INTERVAL_MERGE_KIND_CONSECUTIVE, K, P, L);
+}
+perfetto_pipe_stage(A) ::= INTERVALS FROM EVENTS perfetto_per(P)
+                           perfetto_events_stop(S) KEEPING LAST OPEN. {
+    A = synq_parse_perfetto_intervals_from_events(pCtx, P, S,
+        SYNTAQLITE_PERFETTO_EVENTS_LAST_KEEP_OPEN, SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= INTERVALS FROM EVENTS perfetto_per(P)
+                           perfetto_events_stop(S)
+                           CLOSING LAST AT LP expr(E) RP. {
+    A = synq_parse_perfetto_intervals_from_events(pCtx, P, S,
+        SYNTAQLITE_PERFETTO_EVENTS_LAST_CLOSE_AT, E);
+}
+// [OR] makes a following ON bind to the join, as in SQLite's joins.
+perfetto_pipe_stage(A) ::= joinop(J) perfetto_pipe_source(S). [OR] {
+    if (J.join_type == SYNTAQLITE_JOIN_TYPE_COMMA) pCtx->error = 1;
+    A = synq_parse_perfetto_pipe_join(pCtx, J.join_type, S,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= joinop(J) perfetto_pipe_source(S) ON expr(E). {
+    if (J.join_type == SYNTAQLITE_JOIN_TYPE_COMMA) pCtx->error = 1;
+    A = synq_parse_perfetto_pipe_join(pCtx, J.join_type, S, E,
+        SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= joinop(J) perfetto_pipe_source(S)
+                           USING LP perfetto_pipe_name_list(L) RP. {
+    if (J.join_type == SYNTAQLITE_JOIN_TYPE_COMMA) pCtx->error = 1;
+    A = synq_parse_perfetto_pipe_join(pCtx, J.join_type, S,
+        SYNTAQLITE_NULL_NODE, L);
+}
 perfetto_pipe_stage(A) ::= ORDER BY perfetto_pipe_order_list(L). {
     A = synq_parse_perfetto_pipe_order_by(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= LIMIT expr(N). {
+    A = synq_parse_perfetto_pipe_limit(pCtx, N, SYNTAQLITE_NULL_NODE);
+}
+perfetto_pipe_stage(A) ::= LIMIT expr(N) OFFSET expr(O). {
+    A = synq_parse_perfetto_pipe_limit(pCtx, N, O);
 }
 perfetto_pipe_stage(A) ::= AGGREGATE perfetto_aggregate_list(L)
                            perfetto_pipe_group_by(G). {
@@ -458,19 +515,53 @@ perfetto_per_col_list(A) ::= perfetto_per_col_list(L) COMMA nm(N). {
 perfetto_per(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_per(A) ::= PER perfetto_per_col_list(L). { A = L; }
 
-%type perfetto_pipeline {uint32_t}
-perfetto_pipeline(A) ::= FROM perfetto_pipe_source(F)
-                         perfetto_pipe_stage_list(S). {
-    A = synq_parse_perfetto_pipeline(pCtx, F, SYNTAQLITE_NULL_NODE, S);
-}
-perfetto_pipeline(A) ::= INTERVAL INTERSECTION OF LP
-                         perfetto_pipe_source_list(L) RP perfetto_per(P)
-                         perfetto_pipe_stage_list(S). {
-    uint32_t src = synq_parse_perfetto_interval_intersection(pCtx, L, P);
-    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE, src, S);
+// The events which close an interval without opening one.
+%type perfetto_events_stop {uint32_t}
+perfetto_events_stop(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_events_stop(A) ::= STOP perfetto_pipe_source(S). { A = S; }
+
+%type perfetto_from_pipeline {uint32_t}
+perfetto_from_pipeline(A) ::= FROM perfetto_pipe_source(F)
+                              perfetto_pipe_stage_list(S). {
+    A = synq_parse_perfetto_pipeline(pCtx, F, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_NULL_NODE, S);
 }
 
-cmd(A) ::= perfetto_pipeline(P). { A = P; }
+%type perfetto_graph_tree_kind {int}
+perfetto_graph_tree_kind(A) ::= BFS. {
+    A = SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS;
+}
+perfetto_graph_tree_kind(A) ::= DFS. {
+    A = SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS;
+}
+perfetto_graph_tree_kind(A) ::= DOMINATOR. {
+    A = SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR;
+}
+
+// INTERVAL and GRAPH are not reserved, so `(interval` in SQL may be a column.
+// A pipeline starting with one is only accepted where a select could not start
+// there.
+// TODO(lalitm): accept it wherever a select is; see
+// https://github.com/google/perfetto/issues/8171.
+%type perfetto_keyword_pipeline {uint32_t}
+perfetto_keyword_pipeline(A) ::= INTERVAL INTERSECTION OF LP
+    perfetto_pipe_source_list(L) RP perfetto_per(P)
+    perfetto_pipe_stage_list(S). {
+    uint32_t src = synq_parse_perfetto_interval_intersection(pCtx, L, P);
+    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE, src,
+        SYNTAQLITE_NULL_NODE, S);
+}
+perfetto_keyword_pipeline(A) ::= GRAPH perfetto_graph_tree_kind(K) TREE
+    NODES perfetto_pipe_source(N) EDGES perfetto_pipe_source(E)
+    FROM perfetto_pipe_source(F) perfetto_pipe_stage_list(S). {
+    uint32_t src = synq_parse_perfetto_graph_tree(pCtx,
+        (SyntaqlitePerfettoGraphTreeKind)K, N, E, F);
+    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE,
+        SYNTAQLITE_NULL_NODE, src, S);
+}
+
+select(A) ::= perfetto_from_pipeline(P). { A = P; }
+cmd(A) ::= perfetto_keyword_pipeline(P). { A = P; }
 
 // ---------- PERFETTO PRAGMA ----------
 
@@ -492,16 +583,16 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        I, S, E, select_span, SYNTAQLITE_NULL_NODE);
+        I, S, E, select_span);
 }
 
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
            perfetto_table_impl(I) perfetto_table_schema(S)
-           AS perfetto_pipeline(P). {
+           AS perfetto_keyword_pipeline(P). {
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
         R ? SYNTAQLITE_BOOL_TRUE : SYNTAQLITE_BOOL_FALSE,
-        I, S, SYNTAQLITE_NULL_NODE, SYNQ_NO_SPAN, P);
+        I, S, P, SYNQ_NO_SPAN);
 }
 
 // ---------- CREATE PERFETTO VIEW ----------

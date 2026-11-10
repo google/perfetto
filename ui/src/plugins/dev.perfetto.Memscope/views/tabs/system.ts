@@ -19,7 +19,13 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {billboardBytes, maxSeriesKb, niceKbInterval} from '../../utils';
+import {
+  billboardBytes,
+  chartXWindow,
+  formatRelativeXValue,
+  maxSeriesKb,
+  niceKbInterval,
+} from '../../utils';
 import {formatBytesIec} from '../../../../base/bytes_format';
 import {Billboard, BillboardStrip} from '../../components/billboard';
 import {Panel} from '../../components/panel';
@@ -171,7 +177,7 @@ function buildSystemBillboards(
   const getLatest = (name: string): number => {
     const arr = data.systemCounters.get(name);
     if (arr === undefined || arr.length === 0) return 0;
-    return Math.round(arr[arr.length - 1].value / 1024);
+    return Math.round(arr[arr.length - 1]!.value / 1024);
   };
   const totalKb = getLatest('MemTotal');
   if (totalKb === 0) return undefined;
@@ -194,6 +200,11 @@ export function renderSystemTab(session: LiveSession): m.Children {
   const t0 = data.ts0;
   const bb = buildSystemBillboards(data);
   const chartData = buildSystemTimeSeries(data, t0);
+  // Fixed-width window ending at the latest sample; the chart clips points
+  // outside it and labels are relative to the latest sample (0s on the
+  // right, -60s on the left).
+  const xWindow = chartXWindow(data.xMax);
+  const formatX = formatRelativeXValue(data.xMax);
 
   return m.fragment({}, [
     bb !== undefined &&
@@ -229,10 +240,17 @@ export function renderSystemTab(session: LiveSession): m.Children {
       Panel,
       m(Panel.Header, {
         title: 'System Memory',
-        subtitle:
-          'Stacked areas partition MemTotal. Source: /proc/meminfo. ' +
-          'Anon = Active(anon) + Inactive(anon). Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
-          'Unaccounted = MemTotal \u2212 sum of all other categories.',
+        help: m.fragment({}, [
+          m('div', [
+            'Stacked areas partition MemTotal. Anon = Active(anon) + Inactive(anon). ' +
+              'Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
+              'Unaccounted = MemTotal \u2212 sum of all other categories.',
+          ]),
+          m('div', [
+            'Source: linux.sys_stats data source (traced_probes) polling /proc/meminfo; ' +
+              'DMA-BUF from the dma_heap_stat ftrace event.',
+          ]),
+        ]),
       }),
       m(
         Panel.Body,
@@ -240,15 +258,13 @@ export function renderSystemTab(session: LiveSession): m.Children {
           ? m(LineChartSvg, {
               data: chartData,
               height: 400,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Memory',
               showLegend: true,
               showPoints: false,
               stacked: true,
               gridLines: 'both',
-              xAxisMin: data.xMin,
-              xAxisMax: data.xMax,
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              formatXValue: formatX,
               formatYValue: (v: number) => formatBytesIec(v * 1024),
               yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
             })

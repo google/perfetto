@@ -55,11 +55,11 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     for (const n of groupNode.innerNodes) {
       if (
         n.nextNodes.length === 1 &&
-        singleNodeOperation(n.nextNodes[0].type) &&
-        n.nextNodes[0].primaryInput === n &&
-        innerSet.has(n.nextNodes[0].nodeId)
+        singleNodeOperation(n.nextNodes[0]!.type) &&
+        n.nextNodes[0]!.primaryInput === n &&
+        innerSet.has(n.nextNodes[0]!.nodeId)
       ) {
-        dockedIds.add(n.nextNodes[0].nodeId);
+        dockedIds.add(n.nextNodes[0]!.nodeId);
       }
     }
 
@@ -68,7 +68,7 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     // externalConnections array is ever reordered.
     const inputNodeIds = new Map<number, string>();
     for (let i = 0; i < groupNode.externalConnections.length; i++) {
-      const conn = groupNode.externalConnections[i];
+      const conn = groupNode.externalConnections[i]!;
       const inputId = `__input_${conn.groupPort}`;
       inputNodeIds.set(conn.groupPort, inputId);
 
@@ -138,7 +138,7 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     for (let i = 0; i < roots.length; i++) {
       nodes.push({
         ...buildReadOnlyNodeConfig(
-          roots[i],
+          roots[i]!,
           innerSet,
           connectedInputs,
           connectedOutputs,
@@ -151,7 +151,7 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     // Add "Input N" nodes for external connections.
     // Grey out disconnected inputs.
     for (let i = 0; i < groupNode.externalConnections.length; i++) {
-      const conn = groupNode.externalConnections[i];
+      const conn = groupNode.externalConnections[i]!;
       const isConnected = groupNode.secondaryInputs.connections.has(
         conn.groupPort,
       );

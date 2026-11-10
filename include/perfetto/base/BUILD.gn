@@ -16,6 +16,7 @@ import("../../../gn/perfetto.gni")
 
 source_set("base") {
   sources = [
+    "bits.h",
     "build_config.h",
     "compiler.h",
     "endian.h",

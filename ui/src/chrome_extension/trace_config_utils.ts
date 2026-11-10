@@ -45,7 +45,7 @@ export function browserAboveMinimumVersion(
 
   for (let index = 0; index < minVerArray.length; index++) {
     if (runVerArray[index] === minVerArray[index]) continue;
-    return runVerArray[index] > minVerArray[index];
+    return runVerArray[index]! > minVerArray[index]!;
   }
   return true; // Exact version match.
 }

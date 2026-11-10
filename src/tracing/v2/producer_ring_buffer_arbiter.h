@@ -74,8 +74,9 @@ class ProducerRingBufferArbiterTestPeer;
 // - Creation, state changes, posted tasks, flush callbacks and service
 //   requests run on the endpoint thread.
 //
-// The caller selects v2, then calls InitializeV2RingBuffer() on the endpoint
-// thread before it lets writers use the ring buffer.
+// The caller selects v2 with ShouldUseTracingV2(), then calls
+// InitializeV2RingBuffer() on the endpoint thread before it lets writers use
+// the ring buffer.
 // Time goes down.
 // "--->" is a direct call, and "===>" is an IPC message.
 //
@@ -201,6 +202,16 @@ class ProducerRingBufferArbiter {
   // included, or returns an error status on failure.
   using AllocateSharedMemoryFn =
       base::StatusOr<std::shared_ptr<SharedMemory>> (*)(size_t size);
+
+  // Picks v1 or v2 from |config|.
+  // - Returns false if the service did not set supports_tracing_v2.
+  // - Otherwise returns true with probability use_v2_probability_percent.
+  // Eligible data sources with the same probability get the same result
+  // within a process and tracing session.
+  // All writers of an instance must use the same version.
+  // On true, call the endpoint's InitializeV2RingBuffer() before
+  // CreateTraceWriterV2().
+  static bool ShouldUseTracingV2(const DataSourceConfig& config);
 
   // Sizes and allocates a ring buffer from |config|, then creates its arbiter
   // in kPending.

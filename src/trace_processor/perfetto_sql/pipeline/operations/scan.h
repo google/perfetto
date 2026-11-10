@@ -21,12 +21,16 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -55,22 +59,49 @@ struct SourceRelation {
   std::vector<NamedColumn> columns;
 };
 
+// A dataframe column a scan reads.
+struct ScanDataframeColumn {
+  uint32_t index = 0;
+  // Its name in the dataframe, which a view may have renamed. Only a compiled
+  // plan has this.
+  NameId name = 0;
+};
+
 // A dataframe read directly. Defined outside Scan because GCC only treats a
 // nested class's member initializers as parsed once the enclosing class is.
 struct ScanDataframe {
   std::string name;
-  // By scan column, the dataframe column it reads: its own name unless the
-  // view it is read through renames it.
-  std::vector<std::string> column_names;
-  // Resolved at compile time; only the selected columns are retained.
-  std::vector<std::shared_ptr<const dataframe::Column>> columns;
-  uint32_t row_count = 0;
+  // By scan column, the dataframe column it reads.
+  std::vector<ScanDataframeColumn> read;
+  // The stamp of the table's name and the columns read, as SerializePlan
+  // wrote it. Only a read plan has this.
+  uint64_t stamp = 0;
 };
 
 // The dataframe the plan is passed as its `index`-th argument when it runs.
 // SQLite builds it from a relation the plan read from SQL.
 struct ScanDataframeArg {
   uint32_t index = 0;
+};
+
+// The conditions of a WHERE directly on a scan which the scan answers by
+// searching its dataframe instead of testing every row. Made by Where::Rewrite
+// on a bound plan, so never serialized.
+struct ScanSearch {
+  enum class Kind : uint8_t {
+    // A condition no row can match, so nothing is read.
+    kEmpty,
+    // Searches of sorted columns, which narrow the rows to a range kept in
+    // table order.
+    kSorted,
+    // Equalities on an index's leading columns, read in index order.
+    kIndex,
+  };
+  Kind kind = Kind::kEmpty;
+  // For kIndex, which of the dataframe's indexes.
+  uint32_t index = 0;
+  // The conditions searched, in the order they are searched.
+  std::vector<WherePredicate> predicates;
 };
 
 // Reads all rows of a source. Always the first operation.
@@ -83,14 +114,37 @@ class Scan : public PlanOperation {
                                                       uint32_t source);
 
   // The name a source's columns can be qualified with, if it has one.
-  static std::optional<std::string> SourceQualifier(
+  static std::optional<NameId> SourceQualifier(
       Compiler*,
       const SyntaqlitePerfettoPipeSource& n);
-  std::unique_ptr<core::exec::Source> MakeSource() const;
 
-  // Intersection embeds a scan payload without a separate source tag.
-  static Available ReadPayload(PlanReader*, Scan*);
   const std::vector<NamedColumn>& columns() const { return columns_; }
+
+  // A WHERE condition on one of the scan's columns, with its value cast for
+  // the column's storage type.
+  struct Condition {
+    ColumnId column = 0;
+    core::Op op{core::Eq{}};
+    const core::exec::FilterValue* value = nullptr;
+  };
+  // How searching the dataframe would answer some of a WHERE's conditions.
+  struct SearchPlan {
+    ScanSearch::Kind kind = ScanSearch::Kind::kEmpty;
+    // For kIndex, which of the dataframe's indexes.
+    uint32_t index = 0;
+    // The conditions answered, in the order they are searched.
+    std::vector<uint32_t> answered;
+  };
+  // What of `conditions` the scan, bound to `data`, can answer by searching,
+  // choosing as the dataframe's own planner does: no rows at all if a
+  // condition can match none, else binary searches of sorted columns, else an
+  // index. nullopt if it can answer none.
+  std::optional<SearchPlan> PlanSearch(const std::vector<Condition>& conditions,
+                                       const Bindings::Dataframe& data) const;
+
+  // Makes the scan answer `search` instead of reading every row.
+  void SetSearch(ScanSearch search) { search_ = std::move(search); }
+  bool has_search() const { return search_.has_value(); }
 
  private:
   using Dataframe = ScanDataframe;
@@ -101,7 +155,7 @@ class Scan : public PlanOperation {
   using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
   // A column a dataframe scan reads, and the name it is read as.
   struct DataframeColumn {
-    std::string name;
+    NameId name;
     uint32_t index;
   };
 
@@ -113,17 +167,24 @@ class Scan : public PlanOperation {
   // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
+  OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
-  void Write(PlanWriter*, const PlanNode&, Available*) const override;
-  void MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) override;
-  base::Status ResolveDataframes(LogicalPlan*, const Catalog&) override;
+  void MoveSqlSourcesToDataframeArgs(const NameTable&,
+                                     std::vector<std::string>*) override;
+  void Serialize(PlanCodec&) override;
+  base::Status ResolveDataframes(const LogicalPlan&,
+                                 PlanNodeId self,
+                                 const Catalog&,
+                                 const PlanKey* key,
+                                 Bindings*) const override;
   base::Status BindDataframeArgs(
-      LogicalPlan*,
+      const LogicalPlan&,
+      PlanNodeId self,
       const std::vector<const dataframe::Dataframe*>&,
-      StringPool*) override;
+      StringPool*,
+      Bindings*) const override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
-  static void DecodePlan(PlanReader*, Available*);
 
   // The finalized dataframe a source names, if it can be read without SQLite.
   static const dataframe::Dataframe* FindDirectDataframe(
@@ -154,14 +215,20 @@ class Scan : public PlanOperation {
       Compiler*,
       uint32_t from,
       const perfetto_sql::analysis::RelationLineage& lineage);
-  static void AddScanColumn(Compiler*,
-                            Scan* scan,
-                            std::string name,
-                            PlanType type);
+  static void AddScanColumn(Compiler*, Scan* scan, NameId name, PlanType type);
+
+  // Sets a source answering `search_`.
+  void LowerSearch(Lowering*,
+                   const PlanNode&,
+                   const Bindings::Dataframe&) const;
+  // The position among the scan's columns of `column`.
+  uint32_t Position(ColumnId column) const;
 
   const OperationRegistration& registration() const override;
 
   Source source_;
+  // The conditions the scan answers by searching, set on a bound plan.
+  std::optional<ScanSearch> search_;
   // Bindings in source column order.
   std::vector<NamedColumn> columns_;
 };

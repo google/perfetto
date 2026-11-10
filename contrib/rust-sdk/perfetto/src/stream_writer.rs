@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::pb_msg::PB_MSG_ENCODING_LENGTH_DELIMITED;
 use perfetto_sdk_sys::*;
 use std::{cell::RefCell, ptr, slice};
 
@@ -171,9 +172,7 @@ impl Default for StreamWriter {
                 end: ptr::null_mut(),
                 write_ptr: ptr::null_mut(),
                 written_previously: 0,
-                // Standard length-delimited protobuf, the only encoding this
-                // SDK writes.
-                encoding: 0,
+                encoding: PB_MSG_ENCODING_LENGTH_DELIMITED,
             }),
         }
     }

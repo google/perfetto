@@ -402,7 +402,10 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
 
       const rows = this.relevantThreadTracks.map((track, i) => {
         let description = '';
-        if (i == 0 || track.thread != this.relevantThreadTracks[i - 1].thread) {
+        if (
+          i == 0 ||
+          track.thread != this.relevantThreadTracks[i - 1]!.thread
+        ) {
           description = track.causeDescription;
         }
         return [

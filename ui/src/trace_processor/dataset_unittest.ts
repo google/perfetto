@@ -421,7 +421,7 @@ test('union dataset batches large numbers of unions', () => {
   const inMatch = query.match(/IN \(([\d, ]+)\)/);
   expect(inMatch).toBeTruthy();
   if (inMatch) {
-    const values = inMatch[1].split(',');
+    const values = inMatch[1]!.split(',');
     expect(values.length).toBe(800);
   }
 });

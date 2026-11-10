@@ -152,7 +152,7 @@ export function pasteClipboardNodes(
   const updatedLayouts = new Map(state.nodeLayouts);
   clipboard.clipboardNodes.forEach((entry, index) => {
     if (!entry.isDocked) {
-      updatedLayouts.set(newNodes[index].nodeId, {
+      updatedLayouts.set(newNodes[index]!.nodeId, {
         x: entry.relativeX + pasteOffsetX,
         y: entry.relativeY + pasteOffsetY,
       });

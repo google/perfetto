@@ -278,7 +278,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       if (related.wakee === undefined || related.wakee.length == 0) {
         return null;
       }
-      const hasInterruptCtx = related.wakee[0].wakerInterruptCtx !== undefined;
+      const hasInterruptCtx = related.wakee[0]!.wakerInterruptCtx !== undefined;
       return m(
         TreeNode,
         {

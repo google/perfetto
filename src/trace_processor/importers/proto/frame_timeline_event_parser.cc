@@ -92,6 +92,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   if (jank_type &
       FrameTimelineEvent::JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS)
     jank_reasons.emplace_back("PowerModeChange in progress");
+  if (jank_type & FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY)
+    jank_reasons.emplace_back("DequeueBuffer Delay");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -101,34 +103,33 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   return context->storage->InternString(base::StringView(jank_str));
 }
 
-bool DisplayFrameJanky(int32_t jank_type) {
+bool IsSfJankType(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
       jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
       jank_type == FrameTimelineEvent::JANK_NONE)
     return false;
 
-  int32_t display_frame_jank_bitmask =
-      FrameTimelineEvent::JANK_SF_SCHEDULING |
-      FrameTimelineEvent::JANK_PREDICTION_ERROR |
-      FrameTimelineEvent::JANK_DISPLAY_HAL |
-      FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
-      FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED;
-  return (jank_type & display_frame_jank_bitmask) != 0;
+  int32_t sf_jank_bitmask = FrameTimelineEvent::JANK_SF_SCHEDULING |
+                            FrameTimelineEvent::JANK_PREDICTION_ERROR |
+                            FrameTimelineEvent::JANK_DISPLAY_HAL |
+                            FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED |
+                            FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED |
+                            FrameTimelineEvent::JANK_DEQUEUE_BUFFER_DELAY;
+  return (jank_type & sf_jank_bitmask) != 0;
 }
 
-bool SurfaceFrameJanky(int32_t jank_type) {
+bool IsAppJankType(int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED ||
       jank_type == FrameTimelineEvent::JANK_NONE ||
       jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
       jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON)
     return false;
 
-  int32_t surface_frame_jank_bitmask =
-      FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
-      FrameTimelineEvent ::JANK_APP_RESYNCED_JITTER |
-      FrameTimelineEvent::JANK_UNKNOWN;
-  return (jank_type & surface_frame_jank_bitmask) != 0;
+  int32_t app_jank_bitmask = FrameTimelineEvent::JANK_APP_DEADLINE_MISSED |
+                             FrameTimelineEvent ::JANK_APP_RESYNCED_JITTER |
+                             FrameTimelineEvent::JANK_UNKNOWN;
+  return (jank_type & app_jank_bitmask) != 0;
 }
 
 bool ValidatePredictionType(TraceProcessorContext* context,
@@ -275,11 +276,11 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
 
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [this, token](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
-      });
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id,
+                                 [this, token](ArgsInserter& inserter) {
+                                   inserter.AddArg(display_frame_token_id_,
+                                                   Variadic::Integer(token));
+                                 });
 }
 
 StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
@@ -287,7 +288,7 @@ StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
   StringId jank_tag;
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
     jank_tag = jank_tag_unspecified_id_;
-  } else if (DisplayFrameJanky(jank_type)) {
+  } else if (IsSfJankType(jank_type)) {
     jank_tag = jank_tag_self_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_SF_STUFFING) {
     jank_tag = jank_tag_sf_stuffing_id_;
@@ -379,38 +380,36 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
       CalculateDisplayFrameJankTag(event.jank_type_experimental());
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(present_delay_millis_id_,
-                         Variadic::Real(present_delay_millis));
-        inserter->AddArg(present_type_id_, Variadic::String(present_type));
-        inserter->AddArg(present_type_experimental_id_,
-                         Variadic::String(present_type_experimental));
-        inserter->AddArg(on_time_finish_id_,
-                         Variadic::Integer(event.on_time_finish()));
-        inserter->AddArg(gpu_composition_id_,
-                         Variadic::Integer(event.gpu_composition()));
-        inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
-        inserter->AddArg(jank_type_experimental_id_,
-                         Variadic::String(jank_type_experimental));
-        inserter->AddArg(jank_severity_type_id_,
-                         Variadic::String(jank_severity_type));
-        inserter->AddArg(jank_severity_score_id_,
-                         Variadic::Real(jank_severity_score));
-        inserter->AddArg(prediction_type_id_,
-                         Variadic::String(prediction_type));
-        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
-        inserter->AddArg(jank_tag_experimental_id_,
-                         Variadic::String(jank_tag_experimental));
-        inserter->AddArg(jank_debug_metadata_id_,
-                         Variadic::Real(jank_debug_metadata));
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(display_frame_token_id_, Variadic::Integer(token));
+        inserter.AddArg(present_delay_millis_id_,
+                        Variadic::Real(present_delay_millis));
+        inserter.AddArg(present_type_id_, Variadic::String(present_type));
+        inserter.AddArg(present_type_experimental_id_,
+                        Variadic::String(present_type_experimental));
+        inserter.AddArg(on_time_finish_id_,
+                        Variadic::Integer(event.on_time_finish()));
+        inserter.AddArg(gpu_composition_id_,
+                        Variadic::Integer(event.gpu_composition()));
+        inserter.AddArg(jank_type_id_, Variadic::String(jank_type));
+        inserter.AddArg(jank_type_experimental_id_,
+                        Variadic::String(jank_type_experimental));
+        inserter.AddArg(jank_severity_type_id_,
+                        Variadic::String(jank_severity_type));
+        inserter.AddArg(jank_severity_score_id_,
+                        Variadic::Real(jank_severity_score));
+        inserter.AddArg(prediction_type_id_, Variadic::String(prediction_type));
+        inserter.AddArg(jank_tag_id_, Variadic::String(jank_tag));
+        inserter.AddArg(jank_tag_experimental_id_,
+                        Variadic::String(jank_tag_experimental));
+        inserter.AddArg(jank_debug_metadata_id_,
+                        Variadic::Real(jank_debug_metadata));
         if (event.has_latched_unsignaled_count()) {
-          inserter->AddArg(latched_unsignaled_count_id_,
-                           Variadic::Integer(event.latched_unsignaled_count()));
+          inserter.AddArg(latched_unsignaled_count_id_,
+                          Variadic::Integer(event.latched_unsignaled_count()));
         }
         if (event.has_addressable_unsignaled_latch_count()) {
-          inserter->AddArg(
+          inserter.AddArg(
               addressable_unsignaled_latch_count_id_,
               Variadic::Integer(event.addressable_unsignaled_latch_count()));
         }
@@ -474,12 +473,11 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
   context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(display_frame_token_id_,
-                         Variadic::Integer(display_frame_token));
-        inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(surface_frame_token_id_, Variadic::Integer(token));
+        inserter.AddArg(display_frame_token_id_,
+                        Variadic::Integer(display_frame_token));
+        inserter.AddArg(layer_name_id_, Variadic::String(layer_name_id));
       });
 }
 
@@ -489,9 +487,9 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
   StringId jank_tag;
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED) {
     jank_tag = jank_tag_unspecified_id_;
-  } else if (SurfaceFrameJanky(jank_type)) {
+  } else if (IsAppJankType(jank_type)) {
     jank_tag = jank_tag_self_id_;
-  } else if (DisplayFrameJanky(jank_type)) {
+  } else if (IsSfJankType(jank_type)) {
     jank_tag = jank_tag_other_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_BUFFER_STUFFING) {
     jank_tag = jank_tag_buffer_stuffing_id_;
@@ -616,44 +614,42 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   }
 
   std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(display_frame_token_id_,
-                         Variadic::Integer(display_frame_token));
+      timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
+        inserter.AddArg(surface_frame_token_id_, Variadic::Integer(token));
+        inserter.AddArg(display_frame_token_id_,
+                        Variadic::Integer(display_frame_token));
         if (event.has_animation_time_millis()) {
-          inserter->AddArg(animation_time_millis_id_,
-                           Variadic::Real(animation_time_millis));
+          inserter.AddArg(animation_time_millis_id_,
+                          Variadic::Real(animation_time_millis));
         }
-        inserter->AddArg(present_delay_millis_id_,
-                         Variadic::Real(present_delay_millis));
-        inserter->AddArg(vsync_resynced_jitter_millis_id_,
-                         Variadic::Real(vsync_resynced_jitter_millis));
-        inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
-        inserter->AddArg(present_type_id_, Variadic::String(present_type));
-        inserter->AddArg(present_type_experimental_id_,
-                         Variadic::String(present_type_experimental));
-        inserter->AddArg(on_time_finish_id_,
-                         Variadic::Integer(event.on_time_finish()));
-        inserter->AddArg(gpu_composition_id_,
-                         Variadic::Integer(event.gpu_composition()));
-        inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
-        inserter->AddArg(jank_type_experimental_id_,
-                         Variadic::String(jank_type_experimental));
-        inserter->AddArg(jank_severity_type_id_,
-                         Variadic::String(jank_severity_type));
-        inserter->AddArg(jank_severity_score_id_,
-                         Variadic::Real(jank_severity_score));
-        inserter->AddArg(prediction_type_id_,
-                         Variadic::String(prediction_type));
-        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
-        inserter->AddArg(jank_tag_experimental_id_,
-                         Variadic::String(jank_tag_experimental));
-        inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
-        inserter->AddArg(jank_debug_metadata_id_,
-                         Variadic::Real(jank_debug_metadata));
+        inserter.AddArg(present_delay_millis_id_,
+                        Variadic::Real(present_delay_millis));
+        inserter.AddArg(vsync_resynced_jitter_millis_id_,
+                        Variadic::Real(vsync_resynced_jitter_millis));
+        inserter.AddArg(layer_name_id_, Variadic::String(layer_name_id));
+        inserter.AddArg(present_type_id_, Variadic::String(present_type));
+        inserter.AddArg(present_type_experimental_id_,
+                        Variadic::String(present_type_experimental));
+        inserter.AddArg(on_time_finish_id_,
+                        Variadic::Integer(event.on_time_finish()));
+        inserter.AddArg(gpu_composition_id_,
+                        Variadic::Integer(event.gpu_composition()));
+        inserter.AddArg(jank_type_id_, Variadic::String(jank_type));
+        inserter.AddArg(jank_type_experimental_id_,
+                        Variadic::String(jank_type_experimental));
+        inserter.AddArg(jank_severity_type_id_,
+                        Variadic::String(jank_severity_type));
+        inserter.AddArg(jank_severity_score_id_,
+                        Variadic::Real(jank_severity_score));
+        inserter.AddArg(prediction_type_id_, Variadic::String(prediction_type));
+        inserter.AddArg(jank_tag_id_, Variadic::String(jank_tag));
+        inserter.AddArg(jank_tag_experimental_id_,
+                        Variadic::String(jank_tag_experimental));
+        inserter.AddArg(is_buffer_id_, Variadic::String(is_buffer));
+        inserter.AddArg(jank_debug_metadata_id_,
+                        Variadic::Real(jank_debug_metadata));
         if (event.has_latched_fence_state()) {
-          inserter->AddArg(
+          inserter.AddArg(
               latched_fence_state_id_,
               Variadic::String(latched_fence_state_ids_[static_cast<size_t>(
                   event.latched_fence_state())]));

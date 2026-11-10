@@ -55,6 +55,12 @@ describe('checkHotkey', () => {
     expect(checkHotkey('Escape', {key: 'Escape'})).toBe(true);
   });
 
+  test('Space', () => {
+    expect(checkHotkey('Space', {key: ' '})).toBe(true);
+    expect(checkHotkey('Space', {key: 's'})).toBe(false);
+    expect(checkHotkey('Shift+Space', {key: ' ', shiftKey: true})).toBe(true);
+  });
+
   test('Shift+A', () => {
     const hotkey: Hotkey = 'Shift+A';
     expect(checkHotkey(hotkey, {key: 'a'})).toBe(false);

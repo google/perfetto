@@ -33,8 +33,10 @@ namespace trace_processor {
 // trace packet defaults.
 class PacketSequenceStateBuilder {
  public:
-  explicit PacketSequenceStateBuilder(TraceProcessorContext* context) {
-    generation_ = PacketSequenceStateGeneration::CreateFirst(context);
+  PacketSequenceStateBuilder(TraceProcessorContext* context,
+                             uint32_t trusted_packet_sequence_id) {
+    generation_ = PacketSequenceStateGeneration::CreateFirst(
+        context, trusted_packet_sequence_id);
   }
 
   // Intern a message into the current generation.

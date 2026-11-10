@@ -67,7 +67,7 @@ function renderArgsTree(
   }
   if (args !== null && typeof args === 'object') {
     if (Object.keys(args).length === 1) {
-      const [[childName, value]] = Object.entries(args);
+      const [childName, value] = Object.entries(args)[0]!;
       return renderArgsTree(
         trace,
         `${key}.${childName}`,

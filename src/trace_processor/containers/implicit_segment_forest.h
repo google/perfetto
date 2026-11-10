@@ -21,12 +21,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/bits.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-#include <immintrin.h>
-#endif
 
 namespace perfetto::trace_processor {
 

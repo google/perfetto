@@ -219,8 +219,7 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
         {}, true);
     if (!status.ok()) {
       context_->import_logs_tracker->RecordAnalysisLog(
-          stats::extra_parsing_descriptors_error,
-          [&](ArgsTracker::BoundInserter& ins) {
+          stats::extra_parsing_descriptors_error, [&](ArgsInserter& ins) {
             ins.AddArg(context_->storage->InternString("message"),
                        Variadic::String(
                            context_->storage->InternString(status.message())));
@@ -352,7 +351,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
-  auto* state = GetIncrementalState(scoped_state);
+  auto* state = GetIncrementalState(scoped_state, seq_id);
   if (sequence_flags &
       protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE) {
     if (!seq_id) {
@@ -375,8 +374,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       scoped_state->needs_incremental_state_skipped++;
       context_->import_logs_tracker->RecordTokenizationLog(
           stats::packet_skipped_seq_needs_incremental_state_invalid,
-          packet.offset(),
-          [this, seq_id](ArgsTracker::BoundInserter& inserter) {
+          packet.offset(), [this, seq_id](ArgsInserter& inserter) {
             inserter.AddArg(packet_sequence_id_key_id_,
                             Variadic::UnsignedInteger(seq_id));
           });
@@ -700,8 +698,7 @@ void ProtoTraceReader::ParseInternedData(
     uint32_t seq_id = packet_decoder.trusted_packet_sequence_id();
     context_->import_logs_tracker->RecordTokenizationLog(
         stats::interned_data_skipped_incremental_state_invalid,
-        interned_data.offset(),
-        [this, seq_id](ArgsTracker::BoundInserter& inserter) {
+        interned_data.offset(), [this, seq_id](ArgsInserter& inserter) {
           inserter.AddArg(packet_sequence_id_key_id_,
                           Variadic::UnsignedInteger(seq_id));
         });
@@ -1101,6 +1098,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         stats::traced_buf_buffer_size, buf_num,
         static_cast<int64_t>(buf.buffer_size()));
     context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_buffer_type, buf_num,
+        static_cast<int64_t>(buf.buffer_type()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_bytes_written, buf_num,
         static_cast<int64_t>(buf.bytes_written()));
     context_->stats_tracker->SetIndexedStats(
@@ -1166,6 +1166,53 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_oversized_packets_dropped, buf_num,
         static_cast<int64_t>(buf.oversized_packets_dropped()));
+    protos::pbzero::TraceStats::BufferStats::ExperimentalV3Stats::Decoder
+        v3_stats(buf.experimental_v3_stats());
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_written, buf_num,
+        static_cast<int64_t>(v3_stats.bundles_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_uncompressed_bytes_written, buf_num,
+        static_cast<int64_t>(v3_stats.uncompressed_bytes_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_compressed_bytes_written, buf_num,
+        static_cast<int64_t>(v3_stats.compressed_bytes_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_overwritten, buf_num,
+        static_cast<int64_t>(v3_stats.bundles_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_uncompressed_bytes_overwritten, buf_num,
+        static_cast<int64_t>(v3_stats.uncompressed_bytes_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_too_large, buf_num,
+        static_cast<int64_t>(v3_stats.bundles_too_large()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundling_max_us, buf_num,
+        static_cast<int64_t>(v3_stats.bundling_max_us()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_space_passes, buf_num,
+        static_cast<int64_t>(v3_stats.staging_space_passes()));
+
+    // The stats table holds one value per buffer, so sum the histogram buckets.
+    bool parse_error = false;
+    uint64_t bundling_passes = 0;
+    for (auto count = v3_stats.bundling_time_us_histogram_counts(&parse_error);
+         count; ++count) {
+      bundling_passes += *count;
+    }
+    uint64_t bundling_time_us = 0;
+    for (auto sum = v3_stats.bundling_time_us_histogram_sum(&parse_error); sum;
+         ++sum) {
+      bundling_time_us += static_cast<uint64_t>(*sum);
+    }
+    if (!parse_error) {
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bundling_passes, buf_num,
+          static_cast<int64_t>(bundling_passes));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bundling_time_us, buf_num,
+          static_cast<int64_t>(bundling_time_us));
+    }
   }
 
   struct BufStats {
@@ -1179,13 +1226,15 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     uint32_t data_loss_overwrite = 0;
     uint32_t data_loss_writer_abort = 0;
     uint32_t data_loss_smb_full = 0;
+    uint32_t protocol_v1_writers = 0;
+    uint32_t protocol_v2_writers = 0;
   };
   base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
     protos::pbzero::TraceStats::WriterStats::Decoder w(*it);
+    auto& stats = stats_per_buffer[static_cast<int32_t>(w.buffer())];
     auto seq_id = static_cast<uint32_t>(w.sequence_id());
     if (auto* s = sequence_state_.Find(seq_id)) {
-      auto& stats = stats_per_buffer[static_cast<int32_t>(w.buffer())];
       stats.packet_loss += s->previous_packet_dropped_count;
       stats.incremental_sequences_dropped +=
           s->needs_incremental_state_skipped > 0 &&
@@ -1202,6 +1251,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
       stats.data_loss_writer_abort += s->data_loss_writer_abort_count;
       stats.data_loss_smb_full += s->data_loss_smb_full_count;
     }
+    const uint32_t protocols = w.protocol_abi_versions();
+    stats.protocol_v1_writers += (protocols & (1u << 0)) != 0;
+    stats.protocol_v2_writers += (protocols & (1u << 1)) != 0;
   }
 
   for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
@@ -1233,6 +1285,10 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         v.data_loss_writer_abort);
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_data_loss_smb_full, buf, v.data_loss_smb_full);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_protocol_v1_writers, buf, v.protocol_v1_writers);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_protocol_v2_writers, buf, v.protocol_v2_writers);
   }
 }
 
@@ -1343,14 +1399,53 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+// Returns whether a packet of the proto trace starting with [data, data + size)
+// carries a ClockSnapshot, or compressed packets which may hide one (they are
+// not inflated). If not even the first packet fits in `size`, it may: traced
+// compresses whole batches of packets into one, often bigger than `size`, and
+// older versions put the first ClockSnapshot in there too. Malformed input is
+// not an error here: reading the file reports it.
+bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
+  using protos::pbzero::TracePacket;
+  protozero::ProtoDecoder trace(data, size);
+  for (auto p = trace.ReadField(); p.valid(); p = trace.ReadField()) {
+    if (p.id() != protos::pbzero::Trace::kPacketFieldNumber ||
+        p.type() != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+      return false;
+    }
+    protozero::ProtoDecoder packet(p.as_bytes());
+    for (auto f = packet.ReadField(); f.valid(); f = packet.ReadField()) {
+      // TODO(vibhuagarwal): compressed packets are not inflated, so a trace
+      // holding some counts as having a ClockSnapshot even when it has none,
+      // and sorts early. See https://github.com/google/perfetto/issues/8308.
+      if (f.id() == TracePacket::kClockSnapshotFieldNumber ||
+          f.id() == TracePacket::kCompressedPacketsFieldNumber ||
+          f.id() == TracePacket::kZstdCompressedPacketsFieldNumber) {
+        return true;
+      }
+    }
+  }
+  // ProtoDecoder stops at a packet cut off at `size`: was it the first one?
+  return trace.read_offset() == 0;
+}
+
 // Perfetto proto trace.
 class ProtoImporter : public TraceImporter<ProtoImporter> {
  public:
   ProtoImporter() : TraceImporter(MakeDescriptor()) {}
   ~ProtoImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return size > 0 && data[0] == kTracePacketTag;
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    if (size == 0 || data[0] != kTracePacketTag) {
+      return {};
+    }
+    // In an archive, traces with a ClockSnapshot near their start are read
+    // before those without: the first trace read on a machine is its primary
+    // trace, and traces without a ClockSnapshot of their own (e.g. in-process
+    // SDK traces) are converted through its clocks. Only the start is looked
+    // at, as traced writes its first ClockSnapshot there.
+    size_t lookahead = std::min(size, kContentPriorityLookahead);
+    return {true, TraceMayHaveClockSnapshot(data, lookahead) ? 0 : 1};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
@@ -1384,8 +1479,8 @@ class SymbolsImporter : public TraceImporter<SymbolsImporter> {
   SymbolsImporter() : TraceImporter(MakeDescriptor()) {}
   ~SymbolsImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
-    return IsProtoTraceWithSymbols(data, size);
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
+    return {IsProtoTraceWithSymbols(data, size)};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

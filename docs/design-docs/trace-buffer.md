@@ -428,7 +428,8 @@ for that sequence, sorted by ChunkID order.
 The "list" is actually a CircularQueue of offsets, which has O(1)
 `push_back()` and `pop_front()` operations.
 
-* TraceBuffer holds a hashmap of `ProducerAndWriterID` -> `SequenceState`.
+* TraceBuffer holds a `SequenceStateMap`, which is a hashmap of
+  `ProducerAndWriterID` -> `SequenceState`.
 * There is one `SequenceState` for each {Producer,Writer} active in the buffer.
 * `SequenceState` holds:
   * The identity of the producer (uid, pid, ...)
@@ -455,9 +456,10 @@ The lifetime of a `SequenceState` has a subtle tradeoff:
 * The problem here lies in the fact that `SequenceState` holds the
   `last_chunk_consumed` which is used to detect gaps in the chunk ids .
 
-TraceBufferV2 balances this using a lazy sweeping approach: it allows the most
-recently deleted `SequenceState`s to stay alive, up to
-`kKeepLastEmptySeq = 1024`. See `DeleteStaleEmptySequences()`.
+TraceBufferV2 balances this using a lazy sweeping approach: after every
+`kInsertsPerPrune = 256` new sequences, it deletes the least recently used empty
+`SequenceState`s and keeps the latest `kPrunableSequencesToKeep = 1024`. See
+`SequenceStateMap::MaybePrune()`.
 
 ### FragIterator
 
@@ -705,7 +707,7 @@ In order to deal with this we introduce a two layer walk in the readback code:
 * At every step, the inner layer proceeds in sequence order, as follows:
   * It takes the next chunk (B3 in the example above) that buffer-order visit
     found.
-  * It finds its SequenceState by doing a hash-lookup in the `sequences_` map.
+  * It finds its SequenceState by doing a hash-lookup in the `SequenceStateMap`.
   * It jumps to the first Chunk in the `SequenceState.chunks` ordered list.
   * It proceeds in sequence order until the target chunk (B3) has been reached.
 * The outer layer continues in buffer order and the story repeats.

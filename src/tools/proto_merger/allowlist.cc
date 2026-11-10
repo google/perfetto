@@ -16,6 +16,8 @@
 
 #include "src/tools/proto_merger/allowlist.h"
 
+#include <set>
+
 #include <google/protobuf/descriptor.pb.h>
 
 #include "perfetto/ext/base/string_utils.h"
@@ -68,6 +70,19 @@ void AllowlistEnum(const google::protobuf::EnumDescriptor& desc,
   containing.enums.emplace(name);
 }
 
+void AllowlistFieldAndContainingMessage(
+    const google::protobuf::FieldDescriptor& desc,
+    Allowlist& allowlist) {
+  auto& containing =
+      ResolveMessageForDescriptor(*desc.containing_type(), allowlist);
+  if (desc.containing_oneof()) {
+    containing.oneofs[std::string(desc.containing_oneof()->name())].emplace(
+        desc.number());
+  } else {
+    containing.fields.emplace(desc.number());
+  }
+}
+
 void AllowlistField(const google::protobuf::FieldDescriptor& desc,
                     Allowlist& allowlist) {
   auto& containing =
@@ -90,6 +105,8 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
   if (desc.is_map()) {
     const auto* val_field = desc.message_type()->field(1);
     if (val_field->type() == google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
+      // Make sure the value type is allowed even if it has no fields.
+      ResolveMessageForDescriptor(*val_field->message_type(), allowlist);
       for (int i = 0; i < val_field->message_type()->field_count(); ++i) {
         AllowlistField(*val_field->message_type()->field(i), allowlist);
       }
@@ -102,8 +119,10 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
 
   switch (desc.type()) {
     case google::protobuf::FieldDescriptor::TYPE_MESSAGE:
-      // For message types, we recursively allow all fields under it including
-      // any types those fields may depend on.
+      // For message types, we allow the message type itself (even if it has
+      // no fields, e.g. an empty marker message) and recursively allow all
+      // fields under it including any types those fields may depend on.
+      ResolveMessageForDescriptor(*desc.message_type(), allowlist);
       for (int i = 0; i < desc.message_type()->field_count(); ++i) {
         AllowlistField(*desc.message_type()->field(i), allowlist);
       }
@@ -149,6 +168,12 @@ base::Status AllowlistFromFieldList(
     const google::protobuf::Descriptor& desc,
     const std::vector<std::string>& allowed_fields,
     Allowlist& allowlist) {
+  // Fields on the path to an approved field (but not the approved field
+  // itself), without duplicates. These are added after all the approved
+  // fields: AllowlistField() stops early for fields which are already allowed,
+  // so adding a parent first would stop a later approved field with the same
+  // descriptor (e.g. {"a.b", "a"}) from allowing everything inside it.
+  std::set<const google::protobuf::FieldDescriptor*> path_fields;
   for (const auto& field_path : allowed_fields) {
     std::vector<std::string> pieces = SplitFieldPath(field_path);
     const auto* current = &desc;
@@ -170,10 +195,20 @@ base::Status AllowlistFromFieldList(
       if (field->type() != google::protobuf::FieldDescriptor::TYPE_MESSAGE) {
         return base::ErrStatus("Field %s in message %s has a non-message type",
                                std::string(field->name()).c_str(),
-                               std::string(desc.name()).c_str());
+                               std::string(current->name()).c_str());
       }
+      path_fields.insert(field);
       current = field->message_type();
     }
+  }
+
+  // Allow the fields on the path and their message types so that the approved
+  // fields are actually reachable from the root, but *not* everything inside
+  // those messages: only the fields on the path are approved.
+  for (const auto* field : path_fields) {
+    AllowlistFieldAndContainingMessage(*field, allowlist);
+    if (!field->is_map())
+      ResolveMessageForDescriptor(*field->message_type(), allowlist);
   }
   return base::OkStatus();
 }

@@ -148,7 +148,7 @@ describe('ConfigManager', () => {
   // dependency of cpu_sched) and nothing restored its settings.
   it('restores the settings of the probes not in the loaded config', () => {
     const cfgMgr = newConfigManager();
-    const defaultPreset = ANDROID_PRESETS[0];
+    const defaultPreset = ANDROID_PRESETS[0]!;
     cfgMgr.deserializeProbes(probesOf(defaultPreset));
     const pristine = dumpAllSettings(cfgMgr);
 

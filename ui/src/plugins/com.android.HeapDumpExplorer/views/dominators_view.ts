@@ -62,7 +62,7 @@ function buildQuery(activeDump: HeapDump): string {
     FROM heap_graph_dominator_tree d
     JOIN heap_graph_object o ON d.id = o.id
     JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
+    LEFT JOIN _heap_graph_object_min_depth_tree a ON a.id = o.id
     WHERE d.idom_id IS NULL
       AND ${dumpFilterSql(activeDump, 'o')}
   `;

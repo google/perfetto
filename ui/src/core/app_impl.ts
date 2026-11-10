@@ -269,7 +269,6 @@ export class AppImpl implements App {
         // - Continue with the trace loading logic (track decider, plugins, etc)
         // - Resolve the promise when everything is done.
         const trace = await loadTrace(this, src);
-        this.omnibox.reset(/* focus= */ false);
         // loadTrace() internally will call setActiveTrace() and change our
         // _currentTrace in the middle of its ececution. We cannot wait for
         // loadTrace to be finished before setting it because some internal
@@ -279,6 +278,7 @@ export class AppImpl implements App {
       } catch (error) {
         result.reject(error);
       } finally {
+        this.omnibox.reset(/* focus= */ false);
         this.isLoadingTrace = false;
         raf.scheduleFullRedraw();
       }

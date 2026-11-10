@@ -60,7 +60,7 @@ export interface CompositionTimelineAttrs {
   // Called when the user clicks a snapshot or brushes a range.
   readonly onSelect: (selection: MemSelection) => void;
   // Optional content rendered inside the panel, below the chart (e.g. the
-  // whole-trace "where the growth went" bar).
+  // whole-trace "memory delta" bar).
   readonly belowChart?: m.Children;
 }
 
@@ -100,14 +100,14 @@ export class CompositionTimeline implements m.ClassComponent<CompositionTimeline
     let baseIdx =
       selection?.base !== undefined ? idxOfTs(selection.base) : undefined;
     if (baseIdx === selIdx) baseIdx = undefined;
-    const snap = snaps[selIdx];
+    const snap = snaps[selIdx]!;
     const base = baseIdx !== undefined ? snaps[baseIdx] : undefined;
 
     // Index of the snapshot whose x is closest to a clicked/brushed time.
     const nearestSnap = (x: number) => {
       let bestIdx = 0;
       for (let i = 1; i < snaps.length; i++) {
-        if (Math.abs(snaps[i].x - x) < Math.abs(snaps[bestIdx].x - x)) {
+        if (Math.abs(snaps[i]!.x - x) < Math.abs(snaps[bestIdx]!.x - x)) {
           bestIdx = i;
         }
       }
@@ -118,18 +118,39 @@ export class CompositionTimeline implements m.ClassComponent<CompositionTimeline
       Panel,
       m(Panel.Header, {
         title: 'Composition over time',
-        subtitle:
-          'Resident memory by region, one point per smaps snapshot. Click ' +
-          'a snapshot to inspect it, or drag to compare two.',
-        controls: m('span.pf-memscope-memmap__badge', [
-          m(Icon, {icon: 'photo_camera'}),
-          base !== undefined && baseIdx !== undefined
-            ? [
-                `Snapshot #${baseIdx + 1} → #${selIdx + 1} · `,
-                deltaText(snap.total - base.total),
-              ]
-            : `Snapshot #${selIdx + 1} · ${formatBytes(snap.total)}`,
-        ]),
+        controls: [
+          m('span.pf-memscope-memmap__badge', [
+            m(Icon, {icon: 'photo_camera'}),
+            base !== undefined && baseIdx !== undefined
+              ? [
+                  `Snapshot #${baseIdx + 1} → #${selIdx + 1} - `,
+                  deltaText(snap.total - base.total),
+                ]
+              : `Snapshot #${selIdx + 1} - ${formatBytes(snap.total)}`,
+          ]),
+          m(
+            Stack,
+            {orientation: 'horizontal', wrap: true, spacing: 'small'},
+            snaps.map((s, i) =>
+              m(Chip, {
+                key: s.ts.toString(),
+                label: `#${i + 1}`,
+                rounded: true,
+                interactive: true,
+                // Match the chart's range markers: the selected end snapshot is
+                // green, the baseline (start) is red.
+                intent:
+                  i === selIdx
+                    ? Intent.Success
+                    : i === baseIdx
+                      ? Intent.Danger
+                      : Intent.None,
+                title: `t=${s.x.toFixed(1)}s - ${formatBytes(s.total)}`,
+                onclick: () => onSelect({sel: s.ts}),
+              }),
+            ),
+          ),
+        ],
       }),
       m(
         Panel.Body,
@@ -174,40 +195,19 @@ export class CompositionTimeline implements m.ClassComponent<CompositionTimeline
             selection:
               base !== undefined ? {start: base.x, end: snap.x} : undefined,
             onPointClick: (x: number) => {
-              onSelect({sel: snaps[nearestSnap(x)].ts});
+              onSelect({sel: snaps[nearestSnap(x)]!.ts});
             },
             onBrush: ({start, end}: {start: number; end: number}) => {
               const a = nearestSnap(start);
               const b = nearestSnap(end);
               onSelect(
                 a === b
-                  ? {sel: snaps[a].ts}
-                  : {sel: snaps[b].ts, base: snaps[a].ts},
+                  ? {sel: snaps[a]!.ts}
+                  : {sel: snaps[b]!.ts, base: snaps[a]!.ts},
               );
             },
           }),
           belowChart,
-          m(
-            Stack,
-            {orientation: 'horizontal', wrap: true, spacing: 'small'},
-            snaps.map((s, i) =>
-              m(Chip, {
-                label: `#${i + 1}`,
-                rounded: true,
-                compact: true,
-                // Match the chart's range markers: the selected end snapshot is
-                // green, the baseline (start) is red.
-                intent:
-                  i === selIdx
-                    ? Intent.Success
-                    : i === baseIdx
-                      ? Intent.Danger
-                      : Intent.None,
-                title: `t=${s.x.toFixed(1)}s · ${formatBytes(s.total)}`,
-                onclick: () => onSelect({sel: s.ts}),
-              }),
-            ),
-          ),
         ]),
       ),
     );

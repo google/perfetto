@@ -65,7 +65,8 @@ TEST_F(PacketSequenceStateGenerationTest,
        NoUseAfterFreeWhenIntermediateGenDies) {
   // Step 1: G1 + a CustomState allocated through it.
   RefPtr<PacketSequenceStateGeneration> g1 =
-      PacketSequenceStateGeneration::CreateFirst(&context_);
+      PacketSequenceStateGeneration::CreateFirst(
+          &context_, /*trusted_packet_sequence_id=*/1);
   TrackEventSequenceState* s = g1->GetCustomState<TrackEventSequenceState>();
   ASSERT_NE(s, nullptr);
 
@@ -96,7 +97,8 @@ TEST_F(PacketSequenceStateGenerationTest, TrackEventDeltasSaturate) {
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
   constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
   RefPtr<PacketSequenceStateGeneration> generation =
-      PacketSequenceStateGeneration::CreateFirst(&context_);
+      PacketSequenceStateGeneration::CreateFirst(
+          &context_, /*trusted_packet_sequence_id=*/1);
   TrackEventSequenceState* state =
       generation->GetCustomState<TrackEventSequenceState>();
 
@@ -116,7 +118,8 @@ TEST_F(PacketSequenceStateGenerationTest, TrackEventDeltasSaturate) {
 TEST_F(PacketSequenceStateGenerationTest,
        IncrementalStateClearedPreservesThreadDescriptor) {
   RefPtr<PacketSequenceStateGeneration> g1 =
-      PacketSequenceStateGeneration::CreateFirst(&context_);
+      PacketSequenceStateGeneration::CreateFirst(
+          &context_, /*trusted_packet_sequence_id=*/1);
   TrackEventSequenceState* s1 = g1->GetCustomState<TrackEventSequenceState>();
 
   RefPtr<PacketSequenceStateGeneration> g2 = g1->OnIncrementalStateCleared();
@@ -135,7 +138,8 @@ TEST_F(PacketSequenceStateGenerationTest,
 TEST_F(PacketSequenceStateGenerationTest,
        OnPacketLossDoesNotMutatePinnedGeneration) {
   RefPtr<PacketSequenceStateGeneration> g1 =
-      PacketSequenceStateGeneration::CreateFirst(&context_);
+      PacketSequenceStateGeneration::CreateFirst(
+          &context_, /*trusted_packet_sequence_id=*/1);
   RefPtr<PacketSequenceStateGeneration> g2 = g1->OnIncrementalStateCleared();
   EXPECT_TRUE(g2->IsIncrementalStateValid());
 
@@ -154,7 +158,8 @@ TEST_F(PacketSequenceStateGenerationTest,
 TEST_F(PacketSequenceStateGenerationTest,
        OnPacketLossPreservesPinnedOptInCustomState) {
   RefPtr<PacketSequenceStateGeneration> g1 =
-      PacketSequenceStateGeneration::CreateFirst(&context_);
+      PacketSequenceStateGeneration::CreateFirst(
+          &context_, /*trusted_packet_sequence_id=*/1);
   TrackEventSequenceState* s_pre =
       g1->GetCustomState<TrackEventSequenceState>();
   ASSERT_NE(s_pre, nullptr);
@@ -186,7 +191,8 @@ TEST_F(PacketSequenceStateGenerationTest,
 TEST_F(PacketSequenceStateGenerationTest,
        OnPacketLossSharesNonOptInCustomState) {
   RefPtr<PacketSequenceStateGeneration> g1 =
-      PacketSequenceStateGeneration::CreateFirst(&context_);
+      PacketSequenceStateGeneration::CreateFirst(
+          &context_, /*trusted_packet_sequence_id=*/1);
   // ProfilePacketSequenceState does not opt into ClearOnPacketLoss.
   ProfilePacketSequenceState* s =
       g1->GetCustomState<ProfilePacketSequenceState>();

@@ -347,7 +347,7 @@ type BenchmarkFn = (
 function shuffle<T>(array: T[]): T[] {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    [array[i], array[j]] = [array[j]!, array[i]!];
   }
   return array;
 }
@@ -360,9 +360,9 @@ function averageResults(results: BenchmarkResult[]): BenchmarkResult {
   if (n === 0) throw new Error('No results to average');
 
   return {
-    approach: results[0].approach,
-    trackCount: results[0].trackCount,
-    rowCount: results[0].rowCount,
+    approach: results[0]!.approach,
+    trackCount: results[0]!.trackCount,
+    rowCount: results[0]!.rowCount,
     queryBuildTimeMs:
       results.reduce((sum, r) => sum + r.queryBuildTimeMs, 0) / n,
     queryExecuteTimeMs:

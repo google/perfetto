@@ -103,6 +103,11 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   void Restart();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
+
+  // Creates the writer of a data source instance, and picks v1 or v2 for it.
+  // Each instance has exactly one writer, so call this once per instance.
+  std::unique_ptr<TraceWriter> CreateTraceWriter(const DataSourceConfig&);
+
   void OnDataSourceFlushComplete(FlushRequestID, DataSourceInstanceID);
   void OnFlushTimeout(FlushRequestID);
 

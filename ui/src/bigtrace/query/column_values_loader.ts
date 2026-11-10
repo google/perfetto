@@ -23,10 +23,10 @@ import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
   BigtraceHttpError,
   BigtraceQueryClient,
-  QueryCancelledError,
   toExperimentFilterSpec,
 } from './bigtrace_query_client';
 import {dateFilterToFilters} from './date_filter';
+import {withRetry} from './retry';
 
 // How many values a picker asks for per request; past that it tells the user
 // to type to narrow down rather than paging.
@@ -38,67 +38,6 @@ export type ColumnValuesLoader = (
   search: string,
   signal?: AbortSignal,
 ) => Promise<ReadonlyArray<string>>;
-
-// A value load that failed for a reason that may clear up on its own:
-// backend load shedding (429/5xx) or a dropped connection (fetch rejects
-// with a TypeError). Cancellations and 4xx answers are not; the latter won't
-// change by asking again.
-export function isTransientError(e: unknown): boolean {
-  if (e instanceof QueryCancelledError) return false;
-  if (e instanceof BigtraceHttpError) {
-    return e.status === 429 || e.status >= 500;
-  }
-  return e instanceof TypeError;
-}
-
-// How many more times a transient failure is tried before it is shown, and
-// the pause before the first of them (doubled each time, plus jitter so a
-// burst of pickers doesn't knock on a shedding backend in lockstep).
-export const RETRY_ATTEMPTS = 2;
-export const RETRY_BASE_MS = 500;
-
-export function retryDelayMs(attempt: number, random = Math.random): number {
-  const base = RETRY_BASE_MS * 2 ** attempt;
-  return base + random() * base * 0.5;
-}
-
-// Resolves after `ms`, or rejects with QueryCancelledError as soon as
-// `signal` aborts, so a facet or search change doesn't wait out a backoff.
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new QueryCancelledError());
-      return;
-    }
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new QueryCancelledError());
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    signal?.addEventListener('abort', onAbort, {once: true});
-  });
-}
-
-// Runs `attempt`, retrying transient failures up to RETRY_ATTEMPTS times
-// with backoff. Anything else (or an abort) is thrown straight away. `wait`
-// is injectable for tests.
-export async function withRetry<T>(
-  attempt: () => Promise<T>,
-  signal?: AbortSignal,
-  wait: (ms: number, signal?: AbortSignal) => Promise<void> = sleep,
-): Promise<T> {
-  for (let i = 0; ; i++) {
-    try {
-      return await attempt();
-    } catch (e) {
-      if (i >= RETRY_ATTEMPTS || !isTransientError(e)) throw e;
-      await wait(retryDelayMs(i), signal);
-    }
-  }
-}
 
 // What to tell the user about a failed load: a one-line reason (the
 // backend's own `error.message` when its body has the google.rpc shape, else

@@ -107,14 +107,14 @@ export class PivotTreeNode {
     for (const row of rows) {
       let node = root;
       for (const pivot of config.pivots) {
-        node = node.getOrCreateChild(row[pivotId(pivot)]);
+        node = node.getOrCreateChild(row[pivotId(pivot)]!);
       }
       // Update the raw values for the node.
       for (const agg of root.config.basicAggregations) {
         const id = aggregationId(agg);
         node.aggregationValuesSelf[id] = basicAggregations[agg.op](
-          node.aggregationValuesSelf[id],
-          row[aggregationId(agg)],
+          node.aggregationValuesSelf[id]!,
+          row[aggregationId(agg)]!,
         );
       }
     }
@@ -177,7 +177,7 @@ export class PivotTreeNode {
   // Get the value of the aggregation at the given index.
   getAggregationValue(index: number): SqlValue {
     return getAggregationValueImpl(
-      this.config.aggregations[index],
+      this.config.aggregations[index]!,
       this.aggregationValues,
     );
   }
@@ -240,7 +240,7 @@ export class PivotTreeNode {
 
   private getFilter(): Filter {
     return StandardFilters.valueEquals(
-      this.config.pivots[this.getPivotIndex()].column,
+      this.config.pivots[this.getPivotIndex()]!.column,
       ensureDefined(this.pivotValue),
     );
   }
@@ -249,7 +249,7 @@ export class PivotTreeNode {
   private getPivotId(): string | undefined {
     const index = this.getPivotIndex();
     if (index === -1) return undefined;
-    return pivotId(this.config.pivots[index]);
+    return pivotId(this.config.pivots[index]!);
   }
 
   private getOrCreateChild(value: SqlValue): PivotTreeNode {
@@ -274,7 +274,7 @@ export class PivotTreeNode {
         const id = aggregationId(agg);
         this.aggregationValues[id] = basicAggregations[agg.op](
           this.aggregationValues[id] ?? null,
-          child.aggregationValues[id],
+          child.aggregationValues[id]!,
         );
       }
     }

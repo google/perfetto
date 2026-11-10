@@ -157,7 +157,7 @@ function renderValue(name: string, value: Value): m.Children {
   } else if (isDict(value)) {
     const nodes: m.Children[] = [];
     for (const key of Object.keys(value.items)) {
-      nodes.push(renderValue(key, value.items[key]));
+      nodes.push(renderValue(key, value.items[key]!));
     }
     return m(TreeNode, {left, right: `dict`}, nodes);
   } else {
@@ -188,7 +188,7 @@ function renderValue(name: string, value: Value): m.Children {
 export function renderDict(dict: Dict): m.Child {
   const rows: m.Children[] = [];
   for (const key of Object.keys(dict.items)) {
-    rows.push(renderValue(key, dict.items[key]));
+    rows.push(renderValue(key, dict.items[key]!));
   }
   return m(Tree, rows);
 }

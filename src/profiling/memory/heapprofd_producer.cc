@@ -530,6 +530,11 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
 
   for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
     pid_t pid = *pid_it;
+    if (heapprofd_config.skip_frozen_processes() && IsProcessFrozen(pid)) {
+      PERFETTO_DLOG("Not profiling frozen pid %d", pid);
+      pid_it = pids.erase(pid_it);
+      continue;
+    }
     if (IsPidProfiled(pid)) {
       PERFETTO_LOG("Rejecting concurrent session for %" PRIdMAX,
                    static_cast<intmax_t>(pid));

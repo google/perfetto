@@ -174,7 +174,7 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                                 bool trace_id_is_process_scoped,
                                                 StringId source_scope,
                                                 AsyncSliceType slice_type) {
-  auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
+  auto args_fn = [&](ArgsInserter& inserter) {
     inserter.AddArg(source_key_, Variadic::String(chrome_source_))
         .AddArg(trace_id_is_process_scoped_key_,
                 Variadic::Boolean(trace_id_is_process_scoped))

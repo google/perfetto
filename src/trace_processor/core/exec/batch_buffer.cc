@@ -31,7 +31,8 @@ void BatchBuffer::Append(const RowBatch& in, Context& context) {
     PERFETTO_DCHECK(in.column_count() == columns_.size());
 #if PERFETTO_DCHECK_IS_ON()
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      PERFETTO_DCHECK(SameLogicalType(columns_[c].view, in.column(c)));
+      PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(columns_[c].view),
+                                      ColumnShape::Of(in.column(c))));
     }
 #endif
   } else {
@@ -43,7 +44,7 @@ void BatchBuffer::Append(const RowBatch& in, Context& context) {
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     Column& column = columns_[c];
     if (!column.packed) {
-      column.packed = context.TakeBuffer();
+      column.packed = context.TakeBuffer(ValueWidth(in.column(c)));
     }
     column.packed.chunk().CopyFrom(in, c, before);
     column.nullable |= in.column(c).validity() != nullptr;

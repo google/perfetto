@@ -55,8 +55,11 @@ export function percentile(values: number[], p: number): number {
   const idx = (p / 100) * (sorted.length - 1);
   const lower = Math.floor(idx);
   const upper = Math.ceil(idx);
-  if (lower === upper) return sorted[lower];
-  return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
+  const vLower = sorted[lower];
+  const vUpper = sorted[upper];
+  if (vLower === undefined || vUpper === undefined) return NaN;
+  if (lower === upper) return vLower;
+  return vLower + (vUpper - vLower) * (idx - lower);
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +100,8 @@ export function extractBrushRange(
     areas?: ReadonlyArray<{coordRange?: [number, number]}>;
   };
   const areas = p.areas;
-  if (areas !== undefined && areas.length > 0 && areas[0].coordRange) {
-    const [a, b] = areas[0].coordRange;
+  if (areas !== undefined && areas.length > 0 && areas[0]!.coordRange) {
+    const [a, b] = areas[0]!.coordRange;
     return [Math.min(a, b), Math.max(a, b)];
   }
   return undefined;
@@ -121,7 +124,7 @@ export function extractBrushRect(
   };
   const areas = p.areas;
   if (areas === undefined || areas.length === 0) return undefined;
-  const coordRange = areas[0].coordRange;
+  const coordRange = areas[0]!.coordRange;
   if (coordRange === undefined) return undefined;
   const [[x1, x2], [y1, y2]] = coordRange;
   return {

@@ -14,6 +14,7 @@
 /clang_format/
 /cpp-httplib/
 /d8/
+/debian_bullseye_s390x-sysroot/
 /debian_sid_arm-sysroot/
 /debian_sid_arm64-sysroot/
 /debian_sid_armel-sysroot/

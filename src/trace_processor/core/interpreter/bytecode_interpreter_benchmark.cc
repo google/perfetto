@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 namespace {
@@ -320,8 +320,9 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
   StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(3), storage_ptr);
 
-  Span<uint32_t> perm_span(setup.perm_slab.data(), setup.perm_slab.data() + n);
-  interpreter.SetRegisterValue(WriteHandle<Span<uint32_t>>(4), perm_span);
+  base::Span<uint32_t> perm_span(setup.perm_slab.data(),
+                                 setup.perm_slab.data() + n);
+  interpreter.SetRegisterValue(WriteHandle<base::Span<uint32_t>>(4), perm_span);
 
   Fetcher fetcher;
   for (uint32_t i = 0; i < k; ++i) {

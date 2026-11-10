@@ -131,7 +131,8 @@ export function getCommonColumns(
   columnArrays: ColumnInfo[][],
   options?: GetCommonColumnsOptions,
 ): string[] {
-  if (columnArrays.length === 0) {
+  const [firstArray, ...remainingArrays] = columnArrays;
+  if (firstArray === undefined) {
     return [];
   }
 
@@ -144,7 +145,6 @@ export function getCommonColumns(
   };
 
   // Start with columns from the first array
-  const firstArray = columnArrays[0];
   const commonColumns = new Set(
     firstArray
       .filter((c) => !excludedColumns.has(c.name) && !isTypeExcluded(c.type))
@@ -152,8 +152,8 @@ export function getCommonColumns(
   );
 
   // Intersect with columns from remaining arrays
-  for (let i = 1; i < columnArrays.length; i++) {
-    const colsMap = new Map(columnArrays[i].map((c) => [c.name, c.type]));
+  for (const columns of remainingArrays) {
+    const colsMap = new Map(columns.map((c) => [c.name, c.type]));
     for (const col of commonColumns) {
       const colType = colsMap.get(col);
       if (colType === undefined || isTypeExcluded(colType)) {

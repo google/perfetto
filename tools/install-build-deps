@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+import concurrent.futures
 import dataclasses as dc
 import hashlib
 import logging
@@ -515,41 +516,44 @@ BIGTRACE_DEPS = [
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-linux-x64.tar.gz',
-        'b55c12f33c07ae4dc16ae66520b4d12cfa8e4383fb3edf83ede16c7fd95241ef',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.13.3/syntaqlite-linux-x64.tar.gz',
+        'fa21e11003a1fe662f36c2855f8c5d9071e4d7a3b367ae8fe4002e1073fb229b',
         'linux', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-linux-arm64.tar.gz',
-        '49ac24b916db7eece63984d5141f9f4aa16d83f7d2f86a33d46eca647f7bba98',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.13.3/syntaqlite-linux-arm64.tar.gz',
+        'dada8d75ef49101f0319fd5276dada17a42e8d0440c0012d3b243afd19ff6256',
         'linux', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-macos-x64.tar.gz',
-        '6bd729aad0f89e0eac68cc52f8f85fc074e7d90c49aef9d668ff192470fa9c1a',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.13.3/syntaqlite-macos-x64.tar.gz',
+        '0e3d23ae39d3b1eaadfc6537cf9945775e8a8922a6d7b919f4b4870a61c513c7',
         'darwin', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-macos-arm64.tar.gz',
-        'c3ac266b2da0e7932a74e2d1bb222202b8a83db000195f4c7a5f1191eacf1934',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.13.3/syntaqlite-macos-arm64.tar.gz',
+        'f20863902a777c90bdf914dfcd2f40b44ec77a79488ec00d367a5e42fd8a713f',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-windows-x64.zip',
-        '56b31b499016d8135c4cc085c4ab7dc28f4ce220768db8a5452a4d667275dfd1',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.13.3/syntaqlite-windows-x64.zip',
+        'e441f036012718812125c4014e865d0dcc8a3daac6a26b3542640cac47951e23',
         'windows', 'x64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-windows-arm64.zip',
-        'f48a2ef7e683d15caca586976b61d1fc257bf4cd6aa407035a56a56c3f6d1400',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.13.3/syntaqlite-windows-arm64.zip',
+        '70bd450e9980fe4fe46aa44efe840e016b3db41239d1c793aed797b1d561f372',
         'windows', 'arm64'),
 ]
 
 # Dependencies to build Rust SDK.
+# Update the rustup-init.sh sha256 below when changing this.
+RUSTUP_VERSION = '1.29.2'
 BUILD_DEPS_RUST = [
     Dependency(
-        'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
-        '6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf',
+        'buildtools/rustup/rustup-init.sh',
+        f'https://raw.githubusercontent.com/rust-lang/rustup/{RUSTUP_VERSION}/rustup-init.sh',
+        '9502b514362a21096210d498f143b8cdacda365d3dfcf45e8f5541e089ccafc0',
         'all', 'all'),
 ]
 
@@ -591,7 +595,7 @@ JAVA_SDK_DEPS = [
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
-BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
+BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM = [
     Dependency(
         'buildtools/debian_sid_arm-sysroot.tgz',
         'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/11d6f690ca49e8ba01a1d8c5346cedad2cf308fd/debian_sid_arm_sysroot.tar.xz',
@@ -603,10 +607,18 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
         'e4389eab2fe363f3fbdfa4d3ce9d94457d78fd2c0e62171a7534867623eadc90',
         'linux', 'all'),
 ]
+BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X = [
+    Dependency(
+        'buildtools/debian_bullseye_s390x-sysroot.tgz',
+        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
+        '46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
+        'linux', 'all'),
+]
 
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
-    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X + TEST_DEPS_ANDROID +
     EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST + SYNTAQLITE_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -669,7 +681,9 @@ def MkdirRecursive(path):
   for part in path.split('/'):
     cwd = os.path.join(cwd, part)
     if not os.path.exists(cwd):
-      os.makedirs(cwd)
+      # exist_ok: git deps are checked out concurrently and may race to create
+      # the same parent directory.
+      os.makedirs(cwd, exist_ok=True)
     else:
       assert (os.path.isdir(cwd))
 
@@ -837,6 +851,7 @@ def InstallRustToolchain(force_clean=False):
   env = os.environ.copy()
   env['RUSTUP_HOME'] = RUSTUP_HOME
   env['CARGO_HOME'] = CARGO_HOME
+  env['RUSTUP_VERSION'] = RUSTUP_VERSION
   logging.info(f'Installing rust toolchain using `{" ".join(cmd)}`')
   subprocess.check_call(cmd, cwd=ROOT_DIR, env=env)
 
@@ -854,10 +869,11 @@ def CheckRustToolchain():
   env = os.environ.copy()
   env['RUSTUP_HOME'] = RUSTUP_HOME
   env['CARGO_HOME'] = CARGO_HOME
-  result = subprocess.run([RUSTUP_FILE, "check"],
+  result = subprocess.run([RUSTUP_FILE, "check", "--no-self-update"],
                           capture_output=True,
                           text=True,
-                          check=False)
+                          check=False,
+                          env=env)
   if result.returncode == 0:
     if "update available" not in result.stdout.lower(
     ) and "update available" not in result.stderr.lower():
@@ -962,6 +978,10 @@ def Main():
       action='store_true',
       help='Debian sysroots for target_os="linux" target_cpu="arm|arm64"')
   parser.add_argument(
+      '--linux-s390x',
+      action='store_true',
+      help='Debian sysroots for target_os="linux" target_cpu="s390x"')
+  parser.add_argument(
       '--ui',
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
@@ -1026,7 +1046,9 @@ def Main():
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID + EMULATOR_DEPS_ANDROID
   if args.linux_arm:
-    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM
+  if args.linux_s390x:
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X
   if args.ui:
     deps += UI_DEPS
   # TODO(b/360084012) Change the arg name to bigtrace
@@ -1044,19 +1066,40 @@ def Main():
   for old_dir in CLEANUP_OLD_DIRS:
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
-  for dep in deps:
+  def MatchesFilters(dep):
     target_arch = args.build_arch
     matches_os = dep.target_os == 'all' or target_os == dep.target_os
     matches_arch = dep.target_arch == 'all' or target_arch == dep.target_arch
     if not matches_os or not matches_arch:
-      continue
+      return False
     if args.filter and not any(f in dep.target_folder for f in args.filter):
+      return False
+    return True
+
+  deps = [dep for dep in deps if MatchesFilters(dep)]
+
+  # Git deps are independent of each other and their checkout time is dominated
+  # by network latency, so check them out concurrently while the archive deps
+  # below are processed.
+  def CheckoutGitDep(dep):
+    return CheckoutGitRepo(
+        os.path.join(ROOT_DIR, dep.target_folder), dep.source_url, dep.checksum,
+        args.check_only)
+
+  # ThreadPoolExecutor, unlike multiprocessing.pool, re-raises a SystemExit from
+  # a worker (e.g. the safety check in RmtreeIfExists()) from result() instead
+  # of hanging.
+  git_pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+  git_tasks = [
+      git_pool.submit(CheckoutGitDep, d)
+      for d in deps
+      if d.source_url.endswith('.git')
+  ]
+
+  for dep in deps:
+    if dep.source_url.endswith('.git'):
       continue
     local_path = os.path.join(ROOT_DIR, dep.target_folder)
-    if dep.source_url.endswith('.git'):
-      deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
-                                      args.check_only)
-      continue
     is_compressed = any(
         [local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
     compressed_target_dir = os.path.splitext(
@@ -1129,6 +1172,11 @@ def Main():
       with open(compressed_dir_stamp, 'w') as stamp_file:
         stamp_file.write(dep.checksum)
       os.remove(local_path)
+
+  # result() re-raises a failed checkout. Build the full list before any() so
+  # every task's result (and failure) is collected.
+  deps_updated |= any([task.result() for task in git_tasks])
+  git_pool.shutdown()
 
   if args.ui:
     # Needs to happen after nodejs is installed above.

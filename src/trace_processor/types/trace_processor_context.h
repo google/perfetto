@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/metadata_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 
@@ -44,7 +44,7 @@ class EventTracker;
 class FileIoTracker;
 class FlowTracker;
 class BlobPacketWriter;
-class GlobalArgsTracker;
+class ArgsTracker;
 class GlobalMetadataTracker;
 class GlobalStatsTracker;
 class ImportLogsTracker;
@@ -86,8 +86,8 @@ namespace perf_importer {
 class PerfTracker;
 }  // namespace perf_importer
 
-using MachineId = tables::MachineTable::Id;
-using TraceId = tables::TraceFileTable::Id;
+using MachineId = tables::MachineTable_Id;
+using TraceId = tables::TraceFileTable_Id;
 
 class TraceProcessorContext {
  public:
@@ -187,7 +187,7 @@ class TraceProcessorContext {
   // archive readers) can query per-type metadata without depending on the
   // reader registry header.
   TraceImporterRegistry* trace_importer_registry = nullptr;
-  GlobalPtr<GlobalArgsTracker> global_args_tracker;
+  GlobalPtr<ArgsTracker> args_tracker;
   GlobalPtr<GlobalMetadataTracker> global_metadata_tracker;
   GlobalPtr<GlobalStatsTracker> global_stats_tracker;
   GlobalPtr<TraceFileTracker> trace_file_tracker;

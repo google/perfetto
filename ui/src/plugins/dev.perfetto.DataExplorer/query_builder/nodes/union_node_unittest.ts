@@ -225,7 +225,7 @@ describe('UnionNode', () => {
 
       const finalCols = unionNode.finalCols;
       expect(finalCols.length).toBe(1);
-      expect(finalCols[0].name).toBe('id');
+      expect(finalCols[0]!.name).toBe('id');
     });
 
     it('should return empty array when no columns are checked', () => {
@@ -281,9 +281,9 @@ describe('UnionNode', () => {
 
       // Only 'id' should remain as it's the only common column
       expect(unionNode.attrs.selectedColumns.length).toBe(1);
-      expect(unionNode.attrs.selectedColumns[0].name).toBe('id');
+      expect(unionNode.attrs.selectedColumns[0]!.name).toBe('id');
       // 'id' should preserve its checked status (true)
-      expect(unionNode.attrs.selectedColumns[0].checked).toBe(true);
+      expect(unionNode.attrs.selectedColumns[0]!.checked).toBe(true);
     });
 
     it('should preserve checked status for columns that still exist', () => {
@@ -499,10 +499,10 @@ describe('UnionNode', () => {
       const cloned = unionNode.clone() as UnionNode;
 
       // Modify the cloned state
-      (cloned as UnionNode).attrs.selectedColumns[0].checked = false;
+      (cloned as UnionNode).attrs.selectedColumns[0]!.checked = false;
 
       // Original should not be affected
-      expect(unionNode.attrs.selectedColumns[0].checked).toBe(true);
+      expect(unionNode.attrs.selectedColumns[0]!.checked).toBe(true);
     });
   });
 
@@ -660,7 +660,7 @@ describe('UnionNode', () => {
         {},
       );
       expect(unionNode.attrs.selectedColumns.length).toBe(1);
-      expect(unionNode.attrs.selectedColumns[0].name).toBe('id');
+      expect(unionNode.attrs.selectedColumns[0]!.name).toBe('id');
     });
   });
 
@@ -672,7 +672,7 @@ describe('UnionNode', () => {
       );
 
       expect(node.attrs.selectedColumns.length).toBe(1);
-      expect(node.attrs.selectedColumns[0].name).toBe('id');
+      expect(node.attrs.selectedColumns[0]!.name).toBe('id');
     });
   });
 });

@@ -595,7 +595,7 @@ export class VisualisationNode implements QueryNode {
     );
     if (chartIndex === -1) return;
 
-    const config = this.attrs.chartConfigs[chartIndex];
+    const config = this.attrs.chartConfigs[chartIndex]!;
     this.attrs.chartConfigs[chartIndex] = {
       ...config,
       ...updates,
@@ -623,7 +623,7 @@ export class VisualisationNode implements QueryNode {
     );
     if (chartIndex === -1) return;
 
-    const original = this.attrs.chartConfigs[chartIndex];
+    const original = this.attrs.chartConfigs[chartIndex]!;
     const duplicate: ChartConfig = {
       ...original,
       id: generateChartId(),
@@ -656,7 +656,7 @@ export class VisualisationNode implements QueryNode {
       draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
 
     // Insert at new position
-    configs.splice(newTargetIndex, 0, draggedItem);
+    configs.splice(newTargetIndex, 0, draggedItem!);
 
     this.context.onchange?.();
   }
@@ -798,7 +798,7 @@ export class VisualisationNode implements QueryNode {
     if (!this.attrs.chartFilters || index >= this.attrs.chartFilters.length) {
       return;
     }
-    const filter = this.attrs.chartFilters[index];
+    const filter = this.attrs.chartFilters[index]!;
     this.attrs.chartFilters[index] = {
       ...filter,
       enabled: !(filter.enabled ?? true),

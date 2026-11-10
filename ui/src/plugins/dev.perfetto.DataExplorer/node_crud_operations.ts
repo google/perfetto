@@ -250,7 +250,7 @@ export async function addSourceNode(
     return;
   }
 
-  const lastNode = newNodes[newNodes.length - 1];
+  const lastNode = newNodes[newNodes.length - 1]!;
   deps.onStateUpdate((currentState) => ({
     ...currentState,
     rootNodes: [...currentState.rootNodes, ...newNodes],

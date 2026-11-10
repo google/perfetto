@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "What about bitmaps?" — reachable android.graphics.Bitmap instances grouped
-// by dimensions and storage backing, from the latest heap dump of one process.
+// "Bitmaps" - reachable android.graphics.Bitmap instances grouped by dimensions
+// and storage backing, from the latest heap dump of one process.
 // Self-contained: owns its query slot and loading logic.
 
 import m from 'mithril';
@@ -53,10 +53,7 @@ import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
-const TITLE = 'What about bitmaps?';
-const SUBTITLE =
-  'Usually the largest and most reducible cost on Android — pulled out on ' +
-  'their own.';
+const TITLE = 'Bitmaps';
 
 // One reachable-bitmap group at the latest dump: (dimensions, storage backing)
 // with its count and sizes. width/height are undefined on proto-format heap
@@ -156,7 +153,7 @@ async function loadBitmapsData(
       javaRetainedByTs.set(it.ts, Math.max(0, it.retained));
     }
   } catch {
-    // No heap-graph stats — leave the "of Java retained" card hidden.
+    // No heap-graph stats - leave the "of Java retained" card hidden.
   }
 
   const bitmapRetainer = await loadBitmapRetainer(trace, upid);
@@ -172,7 +169,7 @@ async function loadBitmapRetainer(
 ): Promise<string | undefined> {
   try {
     await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;',
     );
     const res = await trace.engine.query(`
       WITH RECURSIVE
@@ -205,13 +202,13 @@ async function loadBitmapRetainer(
       walk(seed_size, cur_id, depth) AS (
         SELECT ob.size, d.idom_id, 1
         FROM obj ob
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
+        JOIN heap_graph_dominator_tree d ON d.id = ob.id
         WHERE ob.class_name = 'android.graphics.Bitmap' AND d.idom_id IS NOT NULL
         UNION ALL
         SELECT w.seed_size, d.idom_id, w.depth + 1
         FROM walk w
         JOIN obj cur ON cur.id = w.cur_id
-        JOIN _raw_heap_graph_dominator_tree d ON d.id = w.cur_id
+        JOIN heap_graph_dominator_tree d ON d.id = w.cur_id
         WHERE cur.is_app = 0 AND d.idom_id IS NOT NULL AND w.depth < 24
       ),
       hits AS (
@@ -229,13 +226,13 @@ async function loadBitmapRetainer(
     const it = res.iter({retainer: STR});
     if (it.valid()) return it.retainer;
   } catch {
-    // No dominator tree — skip the retainer note.
+    // No dominator tree - skip the retainer note.
   }
   return undefined;
 }
 
 // Pixel bytes for non-heap backings (ashmem / hardware) are not part of
-// self/native size — estimate them as w*h*4 when dimensions are known.
+// self/native size - estimate them as w*h*4 when dimensions are known.
 function bytesOf(g: BitmapGroup): number {
   const estPixels =
     g.storage !== 'heap' && g.width !== undefined && g.height !== undefined
@@ -290,12 +287,11 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
       // }),
     }).data;
     if (data === undefined) {
-      return loadingPanel({title: TITLE, subtitle: SUBTITLE}); // Still loading.
+      return loadingPanel({title: TITLE}); // Still loading.
     }
     if (data.dumps.length === 0) {
       return emptyPanel({
         title: TITLE,
-        subtitle: SUBTITLE,
         message: 'No reachable bitmaps found',
         detail:
           'This trace has no Java heap graph, or the process allocated none.',
@@ -329,7 +325,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const bySize = dims.slice().sort((a, b) => b.bytes - a.bytes);
     const byCount = dims.slice().sort((a, b) => b.count - a.count);
     const hasDims = dims.some((d) => d.key !== 'unknown');
-    const largest = bySize[0];
+    const largest = bySize[0]!;
 
     const javaRetained = data.javaRetainedByTs.get(cur.ts) ?? 0;
     // Bitmap heap-self + registered-native bytes (excludes the estimated ashmem
@@ -380,7 +376,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           retainerNote,
         ]
       : [
-          'This trace format does not record bitmap dimensions — only ' +
+          'This trace format does not record bitmap dimensions - only ' +
             'counts and sizes are available.',
         ];
 
@@ -415,15 +411,10 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
         ];
       });
 
-    const tableSubtitle = comparing
-      ? 'grouped by dimensions · Δ vs baseline'
-      : 'grouped by dimensions';
-
     return m(
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        subtitle: SUBTITLE,
         controls: m(
           Anchor,
           {
@@ -463,7 +454,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
                       totalBytes - baseBytes,
                       `Δ ${formatDelta(totalBytes - baseBytes)} vs baseline`,
                     )
-                  : `${formatBytes(heapBytes)} heap · ${formatBytes(
+                  : `${formatBytes(heapBytes)} heap - ${formatBytes(
                       ashmemBytes,
                     )} ashmem (est.)`,
               },
@@ -496,7 +487,6 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
             m('.pf-memscope-tables', [
               topTable({
                 title: 'Largest bitmaps',
-                subtitle: tableSubtitle,
                 cols: [
                   {label: 'Dimensions'},
                   {label: 'Count', num: true},
@@ -507,7 +497,6 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
               }),
               topTable({
                 title: 'Most frequent bitmaps',
-                subtitle: tableSubtitle,
                 cols: [
                   {label: 'Dimensions'},
                   {label: 'Count', num: true},

@@ -16,6 +16,8 @@
 
 #include "perfetto/ext/base/type_set.h"
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -64,6 +66,17 @@ TEST(TypeSet, Index) {
   // Check that index values are preserved for same types in different sets
   TypeSet<C, B, A> c_first(A{});
   EXPECT_EQ(c_first.index(), 2u);
+}
+
+TEST(TypeSet, FromIndex) {
+  using ABC = TypeSet<A, B, C>;
+  for (ABC set : {ABC(A{}), ABC(B{}), ABC(C{})}) {
+    std::optional<ABC> read = ABC::FromIndex(set.index());
+    ASSERT_TRUE(read.has_value());
+    EXPECT_EQ(*read, set);
+  }
+  EXPECT_FALSE(ABC::FromIndex(3).has_value());
+  EXPECT_FALSE(ABC::FromIndex(static_cast<uint32_t>(-1)).has_value());
 }
 
 TEST(TypeSet, MapByIndex) {

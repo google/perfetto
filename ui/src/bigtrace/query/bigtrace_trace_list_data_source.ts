@@ -27,6 +27,7 @@ import {
   QueryCancelledError,
 } from './bigtrace_query_client';
 import {encodeFilters} from './filter_encoding';
+import {DistinctValues} from './distinct_values';
 import {FetchScheduler} from './fetch_scheduler';
 import m from 'mithril';
 
@@ -60,6 +61,7 @@ export class BigtraceTraceListDataSource implements DataSource {
   private loadedRows: Row[] = [];
   // Owns debouncing and cancellation; see FetchScheduler.
   private readonly scheduler: FetchScheduler;
+  private readonly distinctValues = new DistinctValues();
   private columns: string[] = [];
   private error: string | null = null;
   private hasInitialFetchCompleted = false;
@@ -212,6 +214,7 @@ export class BigtraceTraceListDataSource implements DataSource {
   // Settings page when a setting edit doesn't change the grid model, so
   // useRows change-detection wouldn't catch it.
   async refresh(): Promise<void> {
+    this.distinctValues.invalidate();
     const offset = this.loadedOffset;
     const limit = this.loadedLimit > 0 ? this.loadedLimit : 100;
     const settings = this.getSettings();
@@ -253,7 +256,12 @@ export class BigtraceTraceListDataSource implements DataSource {
         this.columns = [...result.columns];
       }
     } catch (e) {
-      if (e instanceof QueryCancelledError) return;
+      if (
+        e instanceof QueryCancelledError ||
+        !this.scheduler.isCurrent(controller)
+      ) {
+        return;
+      }
       console.error('[bigtrace] trace_metadata failed:', e);
       this.error = e instanceof Error ? e.message : String(e);
       // A 400 while the trace source is unset/unreadable is the common case
@@ -281,12 +289,30 @@ export class BigtraceTraceListDataSource implements DataSource {
     return {data: {}, isPending: false};
   }
 
+  // Values among the traces the grid shows (trace source, experiment arm and
+  // filters, upload dates included): a pick is AND-ed onto the grid's filters,
+  // so any other value would empty it.
   useDistinctValues(
-    _column: string | undefined,
+    column: string | undefined,
+    search = '',
   ): AsyncMemoResult<readonly SqlValue[]> {
-    // `data: []` (not undefined) keeps the column-filter "Equals" submenu from
-    // sticking on "Loading…"; cell-context-menu filtering still works.
-    return {data: [], isPending: false};
+    if (column === undefined) return {data: [], isPending: false};
+    const settings = this.getSettings();
+    const experimentFilter = this.getExperimentFilter?.();
+    const traceFilters = this.currentFilter;
+    const scope = JSON.stringify([
+      this.currentFilterKey,
+      traceSourceSettingsKey(settings),
+      experimentFilterKey(experimentFilter),
+    ]);
+    return this.distinctValues.use({column, search, scope}, (signal) =>
+      this.queryClient.listTraceMetadataColumnValues(
+        settings,
+        column,
+        {search, traceFilters, experimentFilter},
+        signal,
+      ),
+    );
   }
 
   useParameterKeys(

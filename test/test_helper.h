@@ -536,6 +536,15 @@ class Exec {
 #endif
   }
 
+  void SendSigint() {
+#ifdef SIGINT
+    kill(subprocess_.pid(), SIGINT);
+#else
+    if (subprocess_.pid())
+      PERFETTO_FATAL("SendSigint() not implemented on this platform");
+#endif
+  }
+
  private:
   base::Subprocess subprocess_;
   base::Pipe sync_pipe_;

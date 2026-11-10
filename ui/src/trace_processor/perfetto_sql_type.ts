@@ -173,8 +173,8 @@ export function parsePerfettoSqlTypeFromString(args: {
       return okResult({
         kind: 'joinid',
         source: {
-          table: match[1],
-          column: match[2],
+          table: match[1]!,
+          column: match[2]!,
         },
       });
     }
@@ -186,8 +186,8 @@ export function parsePerfettoSqlTypeFromString(args: {
       return okResult({
         kind: 'id',
         source: {
-          table: match[1],
-          column: match[2],
+          table: match[1]!,
+          column: match[2]!,
         },
       });
     }

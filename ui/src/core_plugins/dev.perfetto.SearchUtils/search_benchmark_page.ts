@@ -400,9 +400,9 @@ export class SearchBenchmarkPage implements m.ClassComponent<PageAttrs> {
     const results: SearchResultEvent[] = [];
     for (let i = 0; i < searchResults.totalResults; i++) {
       results.push({
-        id: searchResults.eventIds[i],
-        ts: searchResults.tses[i],
-        trackUri: searchResults.trackUris[i],
+        id: searchResults.eventIds[i]!,
+        ts: searchResults.tses[i]!,
+        trackUri: searchResults.trackUris[i]!,
       });
     }
 

@@ -22,6 +22,6 @@ export function openTraceFiles(files: ReadonlyArray<File>) {
   if (files.length > 1 && app.commands.hasCommand(OPEN_MULTIPLE_TRACES_CMD)) {
     app.commands.runCommand(OPEN_MULTIPLE_TRACES_CMD, files);
   } else if (files.length > 0) {
-    app.openTraceFromFile(files[0]);
+    app.openTraceFromFile(files[0]!);
   }
 }
