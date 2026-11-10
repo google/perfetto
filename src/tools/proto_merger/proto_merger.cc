@@ -328,15 +328,19 @@ bool IsAllowedTypeTransition(
   return false;
 }
 
-// Returns whether |from| -> |to|, an allowed type transition, is between bytes
-// and a message type.
-bool IsBytesMessageTransition(const std::string& from, const std::string& to) {
-  return (from == "bytes" && to != "string") ||
-         (to == "bytes" && from != "string");
+// Returns whether every value of type |from| is read back unchanged as type
+// |to|: only widening scalar transitions are.
+bool IsLosslessTypeTransition(const std::string& from, const std::string& to) {
+  return (from == "bool" && (to == "int32" || to == "uint32" || to == "int64" ||
+                             to == "uint64")) ||
+         (from == "int32" && to == "int64") ||
+         (from == "uint32" && (to == "int64" || to == "uint64")) ||
+         (from == "sint32" && to == "sint64");
 }
 
-// Merges |input| with its |upstream| version. A change between bytes and a
-// message type changes how stored data is read, so it is only taken from
+// Merges |input| with its |upstream| version. An allowed type transition which
+// is not lossless (e.g. narrowing, signedness, enum or bytes <-> message
+// changes) can change how stored data is read, so it is only taken from
 // upstream if the field is |allowlisted| (passthrough fields are not).
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
@@ -388,8 +392,8 @@ base::Status MergeField(const ProtoFile::Field& input,
                           ctx.allowlisted_options);
 
   if (input.packageless_type != upstream.packageless_type &&
-      (allowlisted || !IsBytesMessageTransition(input.packageless_type,
-                                                upstream.packageless_type))) {
+      (allowlisted || IsLosslessTypeTransition(input.packageless_type,
+                                               upstream.packageless_type))) {
     out.packageless_type = upstream.packageless_type;
     out.type = upstream.type;
   } else {

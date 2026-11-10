@@ -284,7 +284,9 @@ TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
   EXPECT_THAT(out, Not(HasSubstr("bool flag")));
 }
 
-TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
+// Bool -> enum is not lossless, so it needs the field and the enum to be
+// allowlisted; otherwise the field would use an enum missing from the output.
+TEST(ProtoFileSerializerTest, TypeTransitionEnumNeedsAllowlist) {
   ProtoFile input;
   {
     ProtoFile::Message message{};
@@ -309,12 +311,18 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
-  ASSERT_TRUE(status.ok()) << status.c_message();
-
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
   std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("bool state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields.insert(1);
+  allowlist.messages["Container"].enums.insert("MyEnum");
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, allowlist, merged).ok());
+  out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("bool state")));
+  EXPECT_THAT(out, HasSubstr("enum MyEnum {"));
 }
 
 // Merges a "Container" message whose field 1 changes type |from| -> |to|, and
@@ -340,10 +348,14 @@ std::string MergeContainerFieldType(const std::string& from,
   return merged.messages[1].fields[0].type;
 }
 
-TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageNotAllowlistedKept) {
+TEST(ProtoFileSerializerTest, TypeTransitionLossyNotAllowlistedKept) {
   EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", Allowlist{}),
             "Payload");
   EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", Allowlist{}), "bytes");
+  EXPECT_EQ(MergeContainerFieldType("int64", "int32", Allowlist{}), "int64");
+  EXPECT_EQ(MergeContainerFieldType("uint32", "int32", Allowlist{}), "uint32");
+  EXPECT_EQ(MergeContainerFieldType("string", "bytes", Allowlist{}), "string");
+  EXPECT_EQ(MergeContainerFieldType("int32", "int64", Allowlist{}), "int64");
 
   Allowlist passthrough;
   passthrough.messages["Container"].fields.insert(1);
@@ -352,11 +364,12 @@ TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageNotAllowlistedKept) {
             "Payload");
 }
 
-TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageAllowlistedTaken) {
+TEST(ProtoFileSerializerTest, TypeTransitionLossyAllowlistedTaken) {
   Allowlist allowlist;
   allowlist.messages["Container"].fields.insert(1);
   EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", allowlist), "bytes");
   EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", allowlist), "Payload");
+  EXPECT_EQ(MergeContainerFieldType("int64", "int32", allowlist), "int32");
 }
 
 // Builds a file with a "Container" message whose field 1 has |type|, |name|
