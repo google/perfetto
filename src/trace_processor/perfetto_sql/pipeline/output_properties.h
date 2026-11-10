@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -128,6 +129,10 @@ struct OutputProperties {
 
   // Set while a sort can still be undone.
   std::optional<OpenSort> open_sort;
+
+  // The scan the rows come from, in its order, if reading it backwards
+  // would reverse them.
+  std::optional<PlanNodeId> reversible_scan;
 };
 
 // What a node needs of the rows of one of its inputs. All of it is optional,
@@ -214,6 +219,9 @@ struct PlannedInput {
 // What is decided about a node before it is lowered.
 struct PlannedNode {
   std::vector<PlannedInput> inputs;
+  // For a scan: which way it reads its rows.
+  core::exec::ReadDirection scan_direction =
+      core::exec::ReadDirection::kForwards;
   OutputProperties output;
   // The programs of the expressions it computes, if any.
   std::vector<core::exec::ExprProgram> programs;
