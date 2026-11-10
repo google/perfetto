@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/layout_column.h"
+#include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -50,12 +51,14 @@ void AppendStrings(const ColumnView& column,
                    FlexVector<StringPool::Id>* ids,
                    BitVector* present,
                    StringRanks* ranks) {
+  FlatColumnReader<StringPool::Id> reader(column, selection);
   for (uint32_t row = 0; row < selection.size(); ++row) {
-    std::optional<StringPool::Id> id = ReadString(column, selection, row);
-    ids->push_back(id ? *id : StringPool::Id::Null());
-    present->push_back(id.has_value());
-    if (id) {
-      ranks->Add(*id);
+    StringPool::Id id = StringPool::Id::Null();
+    bool has = reader.Read(row, &id);
+    ids->push_back(id);
+    present->push_back(has);
+    if (has) {
+      ranks->Add(id);
     }
   }
 }

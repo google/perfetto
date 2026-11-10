@@ -30,7 +30,7 @@
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/string_ranks.h"
 #include "src/trace_processor/core/exec/column_view.h"
-#include "src/trace_processor/core/exec/layout_column.h"
+#include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 
@@ -120,14 +120,15 @@ int TopK::CompareToCutoff(const RowBatch& in,
     const RowLayout::Slot& slot = layout.slot(k);
     int c;
     if (s.rows->is_string(k)) {
-      std::optional<StringPool::Id> id =
-          ReadString(in.column(spec_.keys[k].column), in.selection(), row);
+      StringPool::Id id;
+      bool present = FlatColumnReader<StringPool::Id>(in, spec_.keys[k].column)
+                         .Read(row, &id);
       const std::optional<StringPool::Id>& cutoff = s.cutoff_strings[k];
-      if (!id || !cutoff) {
+      if (!present || !cutoff) {
         // Nulls come first, as in Sort.
-        c = int{id.has_value()} - int{cutoff.has_value()};
+        c = int{present} - int{cutoff.has_value()};
       } else {
-        c = StringRanks::Compare(*spec_.pool, *id, *cutoff);
+        c = StringRanks::Compare(*spec_.pool, id, *cutoff);
       }
       c = slot.descending ? -c : c;
     } else {
@@ -147,8 +148,8 @@ base::Status TopK::Prune(State& s) const {
   SortedRows& rows = *s.rows;
   rows.Sort();
   rows.order().resize(spec_.count);
+  RowBatch first;
   for (uint32_t at = 0; at < spec_.count;) {
-    RowBatch first;
     at += rows.Gather(&first, at, *s.context);
     RETURN_IF_ERROR(s.spare->Append(first, spec_.keys, spec_.pool, *s.context));
   }
