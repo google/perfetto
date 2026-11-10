@@ -49,6 +49,7 @@ void RemoveFieldNumbersFromExtensionRanges(ProtoFile::Message& message) {
 
 struct FieldParams {
   const std::set<int>& allowlist;
+  const std::set<int>& passthrough_fields;
   const std::unordered_set<int>& reserved_numbers;
   const std::unordered_set<std::string>& deleted_type_names;
 };
@@ -336,7 +337,7 @@ bool IsBytesMessageTransition(const std::string& from, const std::string& to) {
 
 // Merges |input| with its |upstream| version. A change between bytes and a
 // message type changes how stored data is read, so it is only taken from
-// upstream if the field is |allowlisted|.
+// upstream if the field is |allowlisted| (passthrough fields are not).
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
                         bool allowlisted,
@@ -417,9 +418,11 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 
     // Otherwise, merge the fields from the input and source of truth.
     ProtoFile::Field out_field;
-    base::Status status = MergeField(
-        *input_field, upstream_field,
-        params.allowlist.count(upstream_field.number) > 0, ctx, out_field);
+    base::Status status =
+        MergeField(*input_field, upstream_field,
+                   params.allowlist.count(upstream_field.number) > 0 &&
+                       !params.passthrough_fields.count(upstream_field.number),
+                   ctx, out_field);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_field));
@@ -442,6 +445,7 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 base::Status Merge(const ProtoFile::Oneof& input,
                    const ProtoFile::Oneof& upstream,
                    const Allowlist::Oneof& allowlist,
+                   const std::set<int>& passthrough_fields,
                    const MergeContext& ctx,
                    const std::unordered_set<std::string>& deleted_type_names,
                    ProtoFile::Oneof& out) {
@@ -464,8 +468,8 @@ base::Status Merge(const ProtoFile::Oneof& input,
 
   // Finish by merging the list of fields.
   const std::unordered_set<int> empty_reserved_numbers;
-  FieldParams field_params{allowlist, empty_reserved_numbers,
-                           deleted_type_names};
+  FieldParams field_params{allowlist, passthrough_fields,
+                           empty_reserved_numbers, deleted_type_names};
   return MergeFields(input.fields, upstream.fields, field_params, ctx,
                      out.fields);
 }
@@ -474,6 +478,7 @@ base::Status MergeOneofs(
     const std::vector<ProtoFile::Oneof>& input,
     const std::vector<ProtoFile::Oneof>& upstream,
     const std::map<std::string, Allowlist::Oneof>& allowlist_map,
+    const std::set<int>& passthrough_fields,
     const MergeContext& ctx,
     const std::unordered_set<std::string>& deleted_type_names,
     std::vector<ProtoFile::Oneof>& out) {
@@ -493,8 +498,8 @@ base::Status MergeOneofs(
 
     auto allowlist = opt_allowlist.value_or(Allowlist::Oneof{});
     ProtoFile::Oneof out_item;
-    auto status = Merge(input_or_fake, upstream_item, allowlist, ctx,
-                        deleted_type_names, out_item);
+    auto status = Merge(input_or_fake, upstream_item, allowlist,
+                        passthrough_fields, ctx, deleted_type_names, out_item);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_item));
@@ -608,14 +613,15 @@ base::Status Merge(const ProtoFile::Message& input,
     return status;
 
   // Merge any oneofs.
-  status = MergeOneofs(input.oneofs, upstream.oneofs, allowlist.oneofs, ctx,
-                       deleted_type_names, out.oneofs);
+  status = MergeOneofs(input.oneofs, upstream.oneofs, allowlist.oneofs,
+                       allowlist.passthrough_fields, ctx, deleted_type_names,
+                       out.oneofs);
   if (!status.ok())
     return status;
 
   // Finish by merging the list of fields.
-  FieldParams field_params{allowlist.fields, upstream.reserved_numbers,
-                           deleted_type_names};
+  FieldParams field_params{allowlist.fields, allowlist.passthrough_fields,
+                           upstream.reserved_numbers, deleted_type_names};
   status =
       MergeFields(input.fields, upstream.fields, field_params, ctx, out.fields);
   if (!status.ok())

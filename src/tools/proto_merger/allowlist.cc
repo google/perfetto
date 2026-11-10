@@ -84,7 +84,8 @@ void AllowlistFieldAndContainingMessage(
 }
 
 void AllowlistField(const google::protobuf::FieldDescriptor& desc,
-                    Allowlist& allowlist) {
+                    Allowlist& allowlist,
+                    bool passthrough = false) {
   auto& containing =
       ResolveMessageForDescriptor(*desc.containing_type(), allowlist);
 
@@ -101,6 +102,8 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
     if (!containing.fields.emplace(desc.number()).second)
       return;
   }
+  if (passthrough)
+    containing.passthrough_fields.insert(desc.number());
 
   if (desc.is_map()) {
     const auto* val_field = desc.message_type()->field(1);
@@ -108,7 +111,8 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
       // Make sure the value type is allowed even if it has no fields.
       ResolveMessageForDescriptor(*val_field->message_type(), allowlist);
       for (int i = 0; i < val_field->message_type()->field_count(); ++i) {
-        AllowlistField(*val_field->message_type()->field(i), allowlist);
+        AllowlistField(*val_field->message_type()->field(i), allowlist,
+                       passthrough);
       }
     } else if (val_field->type() ==
                google::protobuf::FieldDescriptor::TYPE_ENUM) {
@@ -124,7 +128,7 @@ void AllowlistField(const google::protobuf::FieldDescriptor& desc,
       // fields under it including any types those fields may depend on.
       ResolveMessageForDescriptor(*desc.message_type(), allowlist);
       for (int i = 0; i < desc.message_type()->field_count(); ++i) {
-        AllowlistField(*desc.message_type()->field(i), allowlist);
+        AllowlistField(*desc.message_type()->field(i), allowlist, passthrough);
       }
       break;
     case google::protobuf::FieldDescriptor::TYPE_ENUM:
@@ -147,7 +151,7 @@ void ProcessMessagePassthrough(
       const auto* upstream_field =
           upstream_desc.FindFieldByNumber(input_field->number());
       if (upstream_field) {
-        AllowlistField(*upstream_field, allowlist);
+        AllowlistField(*upstream_field, allowlist, /*passthrough=*/true);
       }
     }
   }
