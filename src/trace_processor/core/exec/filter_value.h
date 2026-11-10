@@ -91,16 +91,16 @@ void CastFilterValueFor(Fetcher& fetcher,
     } else {
       out->text.assign(text);
       out->value.value = out->text.c_str();
-    }
-    if (op.Is<Regex>()) {
-      // As the interpreter does, a pattern which does not compile matches
-      // nothing.
-      base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
-      if (!regex.ok()) {
-        out->value = filter::CastFilterValueResult::NoneMatch();
-        return;
+      if (op.Is<Regex>()) {
+        // As the interpreter does, a pattern which does not compile matches
+        // nothing.
+        base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
+        if (!regex.ok()) {
+          out->value = filter::CastFilterValueResult::NoneMatch();
+          return;
+        }
+        out->regex = std::move(*regex);
       }
-      out->regex = std::move(*regex);
     }
   } else {
     base::ignore_result(pool);
