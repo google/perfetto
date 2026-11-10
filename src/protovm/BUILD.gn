@@ -42,9 +42,9 @@ perfetto_component("protovm") {
     "vm.cc",
     "vm.h",
   ]
+  public_deps = [ "../../protos/perfetto/protovm:zero" ]
   deps = [
     "../../gn:default_deps",
-    "../../protos/perfetto/protovm:zero",
     "../base",
     "../protozero",
   ]

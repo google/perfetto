@@ -108,6 +108,7 @@ if (enable_perfetto_integration_tests) {
 source_set("ftrace") {
   public_deps = [
     "../../../../protos/perfetto/config/ftrace:cpp",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../tracing/core",
   ]
@@ -117,7 +118,6 @@ source_set("ftrace") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/common:zero",
-    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../android_internal:lazy_library_loader",

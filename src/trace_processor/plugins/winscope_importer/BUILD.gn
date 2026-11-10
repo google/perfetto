@@ -72,6 +72,10 @@ source_set("winscope_importer") {
     "winscope_transform_tracker.cc",
     "winscope_transform_tracker.h",
   ]
+  public_deps = [
+    "../../storage",
+    "../../types",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
@@ -94,9 +98,7 @@ source_set("winscope_importer") {
     "../../importers/proto:minimal",
     "../../importers/proto:packet_sequence_state_generation_hdr",
     "../../importers/proto:proto_importer_module",
-    "../../storage",
     "../../tables",
-    "../../types",
     "../../util:cold_sort",
   ]
 }

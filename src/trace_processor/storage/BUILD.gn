@@ -22,13 +22,13 @@ source_set("storage") {
     "trace_storage.cc",
     "trace_storage.h",
   ]
+  public_deps = [ "../tables" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
     "../core/dataframe",
-    "../tables",
     "../types",
   ]
 }

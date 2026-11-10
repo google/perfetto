@@ -15,7 +15,10 @@
 import("../../../../gn/test.gni")
 
 source_set("sys_stats") {
-  public_deps = [ "../../../tracing/core" ]
+  public_deps = [
+    "../../../../protos/perfetto/trace/sys_stats:zero",
+    "../../../tracing/core",
+  ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
@@ -24,7 +27,6 @@ source_set("sys_stats") {
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config/sys_stats:zero",
     "../../../../protos/perfetto/trace:zero",
-    "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../base",
     "../common",
   ]
