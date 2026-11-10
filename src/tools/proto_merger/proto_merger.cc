@@ -266,26 +266,39 @@ void CollectEnums(const std::vector<ProtoFile::Enum>& enums,
     CollectEnums(msg.enums, msg.nested_messages, prefix + msg.name + ".", out);
   }
 }
-// Protocol Buffers binary/wire-compatible type transitions.
-// Transitions are allowed between types within the same category as they share
-// the same wire format.
+bool IsPrimitiveType(const std::string& type) {
+  return type == "double" || type == "float" || type == "int64" ||
+         type == "uint64" || type == "int32" || type == "fixed64" ||
+         type == "fixed32" || type == "bool" || type == "string" ||
+         type == "bytes" || type == "uint32" || type == "sfixed32" ||
+         type == "sfixed64" || type == "sint32" || type == "sint64";
+}
+
+// Returns whether a field changes between bytes and a message type. This is
+// wire-compatible, but it changes how already stored data is read (a message
+// becomes an opaque blob, or the other way round), so it is only applied to
+// allowlisted fields.
+bool IsBytesMessageTransition(
+    const std::string& from,
+    const std::string& to,
+    const std::unordered_set<std::string>& known_enums) {
+  auto is_message = [&](const std::string& type) {
+    return !IsPrimitiveType(type) && !known_enums.count(type);
+  };
+  return (from == "bytes" && is_message(to)) ||
+         (is_message(from) && to == "bytes");
+}
+
+// Protocol Buffers binary/wire-compatible type transitions between plain
+// (scalar) types. Transitions are allowed between types within the same
+// category as they share the same wire format.
 bool IsAllowedTypeTransition(
     const std::string& from,
     const std::string& to,
     const std::unordered_set<std::string>& known_enums) {
-  auto is_primitive = [](const std::string& type) {
-    return type == "double" || type == "float" || type == "int64" ||
-           type == "uint64" || type == "int32" || type == "fixed64" ||
-           type == "fixed32" || type == "bool" || type == "string" ||
-           type == "bytes" || type == "uint32" || type == "sfixed32" ||
-           type == "sfixed64" || type == "sint32" || type == "sint64";
-  };
   auto is_varint = [&](const std::string& type) {
     return type == "int32" || type == "uint32" || type == "int64" ||
            type == "uint64" || type == "bool" || known_enums.count(type);
-  };
-  auto is_message = [&](const std::string& type) {
-    return !is_primitive(type) && !known_enums.count(type);
   };
 
   if (is_varint(from) && is_varint(to)) {
@@ -307,22 +320,29 @@ bool IsAllowedTypeTransition(
       (to == "string" || to == "bytes")) {
     return true;
   }
-  if ((from == "bytes" && is_message(to)) ||
-      (is_message(from) && to == "bytes")) {
-    return true;
-  }
   return false;
 }
 
+// Merges |input| with its |upstream| version. A change between bytes and a
+// message type is only taken from upstream if the field is |allowlisted|;
+// otherwise the field keeps its input type.
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
+                        bool allowlisted,
                         const MergeContext& ctx,
                         ProtoFile::Field& out) {
   PERFETTO_CHECK(input.number == upstream.number);
 
+  bool take_upstream_type = false;
   if (input.packageless_type != upstream.packageless_type) {
-    if (!IsAllowedTypeTransition(input.packageless_type,
+    if (IsBytesMessageTransition(input.packageless_type,
                                  upstream.packageless_type, ctx.known_enums)) {
+      take_upstream_type = allowlisted;
+    } else if (IsAllowedTypeTransition(input.packageless_type,
+                                       upstream.packageless_type,
+                                       ctx.known_enums)) {
+      take_upstream_type = true;
+    } else {
       return base::ErrStatus(
           "The type of field with id %d and name %s (source of truth name: %s) "
           "changed from %s to %s. Please resolve conflict manually before "
@@ -362,7 +382,7 @@ base::Status MergeField(const ProtoFile::Field& input,
   MergeAllowlistedOptions(upstream.options, out.options,
                           ctx.allowlisted_options);
 
-  if (input.packageless_type != upstream.packageless_type) {
+  if (take_upstream_type) {
     out.packageless_type = upstream.packageless_type;
     out.type = upstream.type;
   } else {
@@ -391,8 +411,9 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 
     // Otherwise, merge the fields from the input and source of truth.
     ProtoFile::Field out_field;
-    base::Status status =
-        MergeField(*input_field, upstream_field, ctx, out_field);
+    base::Status status = MergeField(
+        *input_field, upstream_field,
+        params.allowlist.count(upstream_field.number) > 0, ctx, out_field);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_field));
