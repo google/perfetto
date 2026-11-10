@@ -127,6 +127,10 @@ public final class PerfettoTrace {
           }
         }
       } catch (UnsatisfiedLinkError ignored) {
+        // Safe to ignore: the natives are unbound only when JNI_OnLoad failed,
+        // in which case it unregisters every Perfetto native. The category then
+        // stays unregistered (mPtr == 0), isEnabled() returns false and all
+        // trace events on it are no-ops.
       }
       return this;
     }
@@ -370,8 +374,9 @@ public final class PerfettoTrace {
    *
    * <p>The in-process backend is always registered. The system backend is registered only if
    * {@link TracingPolicy} allows this process; otherwise this is a no-op and Perfetto is left
-   * uninitialized. Callers must not register categories or emit events when this returns {@code
-   * false}.
+   * uninitialized. Also returns {@code false} without registering if the Perfetto JNI natives are
+   * unavailable (JNI_OnLoad failed). Callers must not register categories or emit events when this
+   * returns {@code false}.
    *
    * @return whether the process is registered with the requested backend
    */
@@ -380,10 +385,12 @@ public final class PerfettoTrace {
       if (!TracingPolicy.allowSystemBackend()) {
         return false;
       }
-      sAttemptedSystemRegistration.set(true);
     }
     try {
       native_register(isBackendInProcess);
+      if (!isBackendInProcess) {
+        sAttemptedSystemRegistration.set(true);
+      }
       sProcessTrackUuid = native_get_process_track_uuid();
     } catch (UnsatisfiedLinkError e) {
       // JNI registration failed (see JNI_OnLoad); tracing is disabled.

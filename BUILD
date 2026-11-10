@@ -7474,6 +7474,7 @@ perfetto_android_jni_library(
         "-llog",
     ],
     hdrs = [
+        ":include_perfetto_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
@@ -7499,6 +7500,7 @@ perfetto_filegroup(
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h",
         "src/android_sdk/jni/macros.h",
+        "src/android_sdk/jni/register_natives.h",
     ],
 )
 

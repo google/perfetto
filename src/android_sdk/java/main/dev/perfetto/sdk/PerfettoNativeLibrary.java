@@ -43,7 +43,11 @@ final class PerfettoNativeLibrary {
     boolean isFramework = className.startsWith(FRAMEWORK_PREFIX);
     try {
       System.loadLibrary(isFramework ? "perfetto_framework_jni" : "perfetto_jni");
-    } catch (UnsatisfiedLinkError ignored) {
+    } catch (UnsatisfiedLinkError e) {
+      // JNI_OnLoad failed or the library is missing. Don't fail class
+      // initialization: every native entry point in this package catches
+      // UnsatisfiedLinkError and degrades to a no-op instead.
+      System.err.println("Perfetto: failed to load JNI library, tracing disabled: " + e);
     }
   }
 }
