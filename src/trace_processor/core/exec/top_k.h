@@ -86,7 +86,6 @@ class TopK : public Breaker {
     CallScratch<FlexVector<uint8_t>> keys;
     CallScratch<FlexVector<uint32_t>> passing;
     CallScratch<RowBatch> passed;
-    // Readers of the batch's string keys, in key order.
     CallScratch<std::vector<FlatColumnReader<StringPool::Id>>> strings;
 
     RunValue<uint32_t> emitted{this};
