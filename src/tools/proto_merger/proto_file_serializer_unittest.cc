@@ -392,6 +392,109 @@ TEST(ProtoFileSerializerTest, TypeTransitionBytesToMessageAllowlistedSucceeds) {
   EXPECT_THAT(out, Not(HasSubstr("bytes payload")));
 }
 
+// Builds a file with a "Container" message whose field 1 has |type|, |name|
+// and |comment|, followed by |extra_fields|.
+ProtoFile MakeContainerFile(const std::string& type,
+                            const std::string& name,
+                            const std::string& comment,
+                            std::vector<ProtoFile::Field> extra_fields = {}) {
+  ProtoFile file;
+  ProtoFile::Message container{};
+  container.name = "Container";
+  ProtoFile::Field field = MakeField(type, name, 1);
+  field.leading_comments = {comment};
+  container.fields.push_back(field);
+  for (auto& extra_field : extra_fields)
+    container.fields.push_back(std::move(extra_field));
+  file.messages.push_back(container);
+  return file;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyKeepsNonAllowlistedFields) {
+  ProtoFile input = MakeContainerFile("int32", "old_name", "Input comment.");
+  ProtoFile upstream =
+      MakeContainerFile("uint32", "new_name", "Upstream comment.",
+                        {MakeField("string", "new_field", 2)});
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                                        {}, /*allowlisted_changes_only=*/true);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  EXPECT_EQ(ProtoFileToDotProto(merged), ProtoFileToDotProto(input));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyMergesAllowlistedFields) {
+  ProtoFile input =
+      MakeContainerFile("int32", "old_name", "Input comment.",
+                        {MakeField("int32", "not_allowlisted", 3)});
+  ProtoFile::Field upstream_not_allowlisted =
+      MakeField("int32", "renamed_upstream", 3);
+  ProtoFile upstream = MakeContainerFile(
+      "uint32", "new_name", "Upstream comment.",
+      {MakeField("string", "new_field", 2), upstream_not_allowlisted});
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields = {1, 2};
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, allowlist, merged, {},
+                                        /*allowlisted_changes_only=*/true);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Upstream comment."));
+  EXPECT_THAT(out, HasSubstr("uint32 new_name = 1;"));
+  EXPECT_THAT(out, HasSubstr("string new_field = 2;"));
+  EXPECT_THAT(out, HasSubstr("int32 not_allowlisted = 3;"));
+  EXPECT_THAT(out, Not(HasSubstr("Input comment.")));
+  EXPECT_THAT(out, Not(HasSubstr("renamed_upstream")));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyAddsAllowlistedMessage) {
+  ProtoFile input = MakeContainerFile("int32", "value", "Comment.");
+  ProtoFile upstream = MakeContainerFile("int32", "value", "Comment.",
+                                         {MakeField("Payload", "payload", 2)});
+  ProtoFile::Message payload{};
+  payload.name = "Payload";
+  payload.fields.push_back(MakeField("int32", "allowlisted", 1));
+  payload.fields.push_back(MakeField("int32", "not_allowlisted", 2));
+  upstream.messages.push_back(payload);
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields = {2};
+  allowlist.messages["Payload"].fields = {1};
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, allowlist, merged, {},
+                                        /*allowlisted_changes_only=*/true);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Payload payload = 2;"));
+  EXPECT_THAT(out, HasSubstr("message Payload {"));
+  EXPECT_THAT(out, HasSubstr("int32 allowlisted = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("not_allowlisted")));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyAddsAllowlistedEnum) {
+  ProtoFile input = MakeContainerFile("int32", "value", "Comment.");
+  ProtoFile upstream = MakeContainerFile("int32", "value", "Comment.");
+  ProtoFile::Enum en{};
+  en.name = "State";
+  en.values.push_back(MakeEnumValue("STATE_UNKNOWN", 0));
+  upstream.messages[0].enums.push_back(en);
+  Allowlist allowlist;
+  allowlist.messages["Container"].enums.insert("State");
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, allowlist, merged, {},
+                                        /*allowlisted_changes_only=*/true);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("enum State {"));
+  EXPECT_THAT(out, HasSubstr("STATE_UNKNOWN = 0;"));
+}
+
 TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {
   ProtoFile input;
   {

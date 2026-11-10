@@ -34,6 +34,19 @@ struct MergeContext {
   std::unordered_set<std::string> allowlisted_options;
 };
 
+// Cuts the numbers of |message|'s fields out of its `extensions` ranges, as new
+// upstream fields may fall inside the input's ranges.
+void RemoveFieldNumbersFromExtensionRanges(ProtoFile::Message& message) {
+  for (auto& statement : message.extensions_statements) {
+    for (const auto& field : message.fields)
+      statement.RemoveFieldNumber(field.number);
+    for (const auto& oneof : message.oneofs) {
+      for (const auto& field : oneof.fields)
+        statement.RemoveFieldNumber(field.number);
+    }
+  }
+}
+
 struct FieldParams {
   const std::set<int>& allowlist;
   const std::unordered_set<int>& reserved_numbers;
@@ -615,14 +628,140 @@ base::Status Merge(const ProtoFile::Message& input,
   if (!status.ok())
     return status;
 
-  // New upstream fields may fall inside the input's ranges; cut them out.
-  for (auto& statement : out.extensions_statements) {
-    for (const auto& field : out.fields)
-      statement.RemoveFieldNumber(field.number);
-    for (const auto& oneof : out.oneofs) {
-      for (const auto& field : oneof.fields)
-        statement.RemoveFieldNumber(field.number);
+  RemoveFieldNumbersFromExtensionRanges(out);
+  return base::OkStatus();
+}
+
+// Merges into |fields|, the input fields, the upstream fields whose number is
+// in |allowlist|: existing ones are merged, missing ones are added.
+base::Status ApplyAllowlistedFields(
+    const std::vector<ProtoFile::Field>& upstream,
+    const std::set<int>& allowlist,
+    const MergeContext& ctx,
+    std::vector<ProtoFile::Field>& fields) {
+  for (const auto& upstream_field : upstream) {
+    if (!allowlist.count(upstream_field.number))
+      continue;
+    auto it = std::find_if(fields.begin(), fields.end(),
+                           [&](const ProtoFile::Field& field) {
+                             return field.number == upstream_field.number;
+                           });
+    if (it == fields.end()) {
+      fields.push_back(upstream_field);
+      continue;
     }
+    ProtoFile::Field merged;
+    base::Status status =
+        MergeField(*it, upstream_field, /*allowlisted=*/true, ctx, merged);
+    if (!status.ok())
+      return status;
+    *it = std::move(merged);
+  }
+  return base::OkStatus();
+}
+
+// Merges into |enums|, the input enums, the upstream enums whose name is in
+// |allowlist|: existing ones are merged, missing ones are added.
+void ApplyAllowlistedEnums(const std::vector<ProtoFile::Enum>& upstream,
+                           const std::set<std::string>& allowlist,
+                           const MergeContext& ctx,
+                           std::vector<ProtoFile::Enum>& enums) {
+  for (const auto& upstream_enum : upstream) {
+    if (!allowlist.count(upstream_enum.name))
+      continue;
+    auto it = std::find_if(enums.begin(), enums.end(),
+                           [&](const ProtoFile::Enum& en) {
+                             return en.name == upstream_enum.name;
+                           });
+    if (it == enums.end()) {
+      enums.push_back(upstream_enum);
+    } else {
+      *it = MergeEnum(*it, upstream_enum, ctx.allowlisted_options);
+    }
+  }
+}
+
+// Applies to |message|, an input message, only the changes of the elements of
+// |upstream| that are in |allowlist|; everything else stays as in the input.
+// Messages missing from the input are merged like in the default mode, so only
+// their allowlisted elements are taken.
+base::Status ApplyAllowlistedChanges(
+    const std::vector<ProtoFile::Message>& upstream,
+    const std::map<std::string, Allowlist::Message>& allowlist,
+    const MergeContext& ctx,
+    std::vector<ProtoFile::Message>& messages);
+
+base::Status ApplyAllowlistedChanges(const ProtoFile::Message& upstream,
+                                     const Allowlist::Message& allowlist,
+                                     const MergeContext& ctx,
+                                     ProtoFile::Message& message) {
+  ApplyAllowlistedEnums(upstream.enums, allowlist.enums, ctx, message.enums);
+
+  base::Status status = ApplyAllowlistedChanges(upstream.nested_messages,
+                                                allowlist.nested_messages, ctx,
+                                                message.nested_messages);
+  if (!status.ok())
+    return status;
+
+  for (const auto& upstream_oneof : upstream.oneofs) {
+    auto oneof_allowlist = FindInMap(allowlist.oneofs, upstream_oneof.name);
+    if (!oneof_allowlist)
+      continue;
+    auto it = std::find_if(message.oneofs.begin(), message.oneofs.end(),
+                           [&](const ProtoFile::Oneof& oneof) {
+                             return oneof.name == upstream_oneof.name;
+                           });
+    if (it == message.oneofs.end()) {
+      ProtoFile::Oneof oneof;
+      oneof.name = upstream_oneof.name;
+      oneof.leading_comments = upstream_oneof.leading_comments;
+      oneof.trailing_comments = upstream_oneof.trailing_comments;
+      message.oneofs.push_back(std::move(oneof));
+      it = std::prev(message.oneofs.end());
+    }
+    status = ApplyAllowlistedFields(upstream_oneof.fields, *oneof_allowlist,
+                                    ctx, it->fields);
+    if (!status.ok())
+      return status;
+  }
+
+  status = ApplyAllowlistedFields(upstream.fields, allowlist.fields, ctx,
+                                  message.fields);
+  if (!status.ok())
+    return status;
+
+  RemoveFieldNumbersFromExtensionRanges(message);
+  return base::OkStatus();
+}
+
+base::Status ApplyAllowlistedChanges(
+    const std::vector<ProtoFile::Message>& upstream,
+    const std::map<std::string, Allowlist::Message>& allowlist,
+    const MergeContext& ctx,
+    std::vector<ProtoFile::Message>& messages) {
+  for (const auto& upstream_message : upstream) {
+    auto message_allowlist = FindInMap(allowlist, upstream_message.name);
+    if (!message_allowlist)
+      continue;
+    auto it = std::find_if(messages.begin(), messages.end(),
+                           [&](const ProtoFile::Message& message) {
+                             return message.name == upstream_message.name;
+                           });
+    base::Status status;
+    if (it != messages.end()) {
+      status = ApplyAllowlistedChanges(upstream_message, *message_allowlist,
+                                       ctx, *it);
+    } else {
+      ProtoFile::Message fake_input;
+      fake_input.name = upstream_message.name;
+      fake_input.extensions_statements = upstream_message.extensions_statements;
+      ProtoFile::Message added;
+      status =
+          Merge(fake_input, upstream_message, *message_allowlist, ctx, added);
+      messages.push_back(std::move(added));
+    }
+    if (!status.ok())
+      return status;
   }
   return base::OkStatus();
 }
@@ -657,7 +796,8 @@ base::Status MergeProtoFiles(
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::unordered_set<std::string>& allowlisted_options) {
+    const std::unordered_set<std::string>& allowlisted_options,
+    bool allowlisted_changes_only) {
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
@@ -679,6 +819,21 @@ base::Status MergeProtoFiles(
   for (const auto& msg : input.messages) {
     CollectEnums(msg.enums, msg.nested_messages, msg.name + ".",
                  ctx.known_enums);
+  }
+
+  if (allowlisted_changes_only) {
+    out = input;
+    ApplyAllowlistedEnums(upstream.enums, allowlist.enums, ctx, out.enums);
+    base::Status status = ApplyAllowlistedChanges(
+        upstream.messages, allowlist.messages, ctx, out.messages);
+    if (!status.ok())
+      return status;
+    if (!out.is_proto2) {
+      for (auto& msg : out.messages) {
+        ConvertOptionsForEditions(msg);
+      }
+    }
+    return base::OkStatus();
   }
 
   // Compute all the enums and messages present in the input but deleted in the

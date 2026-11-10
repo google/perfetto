@@ -38,12 +38,19 @@ namespace proto_merger {
 //   additions, updates, and removals).
 // * Changing the type of an existing field is not supported (even if its
 //   just a move); this needs to be handled manually.
+//
+// If |allowlisted_changes_only| is true, |out| is |input| with only the
+// upstream changes of the elements in |allowlist| applied: allowlisted
+// messages, fields and enums are added or merged as above, while everything
+// else (including comments, names and types of the other fields) is kept as in
+// |input|.
 base::Status MergeProtoFiles(
     const ProtoFile& input,
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::unordered_set<std::string>& allowlisted_options = {});
+    const std::unordered_set<std::string>& allowlisted_options = {},
+    bool allowlisted_changes_only = false);
 
 }  // namespace proto_merger
 }  // namespace perfetto
