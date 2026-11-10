@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/common/filter_kernels.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -37,7 +38,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/util/glob.h"
-#include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/sorted_search.h"
 
 namespace perfetto::trace_processor::core::filter {
@@ -341,7 +341,7 @@ uint32_t* StringFilterRegex(const StringPool* string_pool,
 }
 
 void SortRowIndices(uint32_t* begin, uint32_t* end) {
-  SortByKey(begin, end, [](uint32_t row) { return row; });
+  std::sort(begin, end);
 }
 
 }  // namespace perfetto::trace_processor::core::filter
