@@ -113,6 +113,9 @@ void Compare(const ColumnView& column,
                                      std::not_equal_to<>>;
       kept = filter::Filter(reinterpret_cast<const uint32_t*>(data), begin, end,
                             begin, cast.string_id.raw_id(), Cmp());
+    } else if constexpr (std::is_same_v<O, Regex>) {
+      kept = filter::StringFilterRegex(&pool, data, *cast.regex, begin, end,
+                                       begin);
     } else {
       kept = filter::FilterStringCompare<O>(&pool, data, begin, end, begin,
                                             cast.text.c_str());
@@ -171,6 +174,11 @@ void CompareByOp(const Op& op,
         return Compare<T, Glob>(column, cast, pool, r);
       }
       break;
+    case Op::GetTypeIndex<Regex>():
+      if constexpr (std::is_same_v<T, String>) {
+        return Compare<T, Regex>(column, cast, pool, r);
+      }
+      break;
     default:
       break;
   }
@@ -225,7 +233,7 @@ Filter::Filter(std::vector<Condition> conditions, const StringPool* pool)
     : conditions_(std::move(conditions)), pool_(pool) {
   for (const Condition& c : conditions_) {
     PERFETTO_CHECK(c.op.IsAnyOf<NonStringOp>() || c.op.IsAnyOf<NullOp>() ||
-                   c.op.Is<In>() || c.op.Is<Glob>());
+                   c.op.Is<In>() || c.op.IsAnyOf<OnlyStringOp>());
   }
 }
 
