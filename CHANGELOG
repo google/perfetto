@@ -34,6 +34,10 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+  Tools:
+    * Removed the standalone `traceconv` binary. The `traceconv` build
+      target now builds `trace_processor_shell` running its
+      traceconv-compatible CLI, so existing invocations keep working.
   Misc:
     * Added s390x cross-compilation support.
 
