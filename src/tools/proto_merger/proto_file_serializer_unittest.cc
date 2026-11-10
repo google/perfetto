@@ -317,79 +317,40 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
   EXPECT_THAT(out, Not(HasSubstr("bool state")));
 }
 
-// Builds a file with a "Payload" message and a "Container" message whose field
-// 1 has |container_field_type|.
-ProtoFile MakeBytesOrMessageFile(const std::string& container_field_type) {
-  ProtoFile file;
-  ProtoFile::Message payload{};
-  payload.name = "Payload";
-  payload.fields.push_back(MakeField("int32", "value", 1));
-  file.messages.push_back(payload);
-
-  ProtoFile::Message container{};
-  container.name = "Container";
-  container.fields.push_back(MakeField(container_field_type, "payload", 1));
-  file.messages.push_back(container);
-  return file;
+// Merges a "Container" message whose field 1 changes type |from| -> |to|, and
+// returns the type of field 1 in the output.
+std::string MergeContainerFieldType(const std::string& from,
+                                    const std::string& to,
+                                    const Allowlist& allowlist) {
+  auto make_file = [](const std::string& type) {
+    ProtoFile file;
+    ProtoFile::Message payload{};
+    payload.name = "Payload";
+    file.messages.push_back(payload);
+    ProtoFile::Message container{};
+    container.name = "Container";
+    container.fields.push_back(MakeField(type, "payload", 1));
+    file.messages.push_back(container);
+    return file;
+  };
+  ProtoFile merged;
+  base::Status status =
+      MergeProtoFiles(make_file(from), make_file(to), allowlist, merged);
+  EXPECT_TRUE(status.ok()) << status.c_message();
+  return merged.messages[1].fields[0].type;
 }
 
-// Returns an allowlist with field 1 of "Container".
-Allowlist MakeContainerFieldAllowlist() {
+TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageNotAllowlistedKept) {
+  EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", Allowlist{}),
+            "Payload");
+  EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", Allowlist{}), "bytes");
+}
+
+TEST(ProtoFileSerializerTest, TypeTransitionBytesMessageAllowlistedTaken) {
   Allowlist allowlist;
   allowlist.messages["Container"].fields.insert(1);
-  return allowlist;
-}
-
-// Bytes <-> message is wire-compatible but changes how the stored data is read,
-// so it is only applied to allowlisted fields.
-TEST(ProtoFileSerializerTest,
-     TypeTransitionMessageToBytesNotAllowlistedKeepsType) {
-  ProtoFile merged;
-  base::Status status =
-      MergeProtoFiles(MakeBytesOrMessageFile("Payload"),
-                      MakeBytesOrMessageFile("bytes"), Allowlist{}, merged);
-  ASSERT_TRUE(status.ok()) << status.c_message();
-
-  std::string out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("Payload payload = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("bytes payload")));
-}
-
-TEST(ProtoFileSerializerTest,
-     TypeTransitionBytesToMessageNotAllowlistedKeepsType) {
-  ProtoFile merged;
-  base::Status status =
-      MergeProtoFiles(MakeBytesOrMessageFile("bytes"),
-                      MakeBytesOrMessageFile("Payload"), Allowlist{}, merged);
-  ASSERT_TRUE(status.ok()) << status.c_message();
-
-  std::string out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("bytes payload = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("Payload payload")));
-}
-
-TEST(ProtoFileSerializerTest, TypeTransitionMessageToBytesAllowlistedSucceeds) {
-  ProtoFile merged;
-  base::Status status = MergeProtoFiles(MakeBytesOrMessageFile("Payload"),
-                                        MakeBytesOrMessageFile("bytes"),
-                                        MakeContainerFieldAllowlist(), merged);
-  ASSERT_TRUE(status.ok()) << status.c_message();
-
-  std::string out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("bytes payload = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("Payload payload")));
-}
-
-TEST(ProtoFileSerializerTest, TypeTransitionBytesToMessageAllowlistedSucceeds) {
-  ProtoFile merged;
-  base::Status status = MergeProtoFiles(MakeBytesOrMessageFile("bytes"),
-                                        MakeBytesOrMessageFile("Payload"),
-                                        MakeContainerFieldAllowlist(), merged);
-  ASSERT_TRUE(status.ok()) << status.c_message();
-
-  std::string out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("Payload payload = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("bytes payload")));
+  EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", allowlist), "bytes");
+  EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", allowlist), "Payload");
 }
 
 TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {
