@@ -133,6 +133,7 @@ class Fuchsia(TestSuite):
           value,
           name
         FROM counters
+        WHERE name = 'cpu_usage:average_cpu_percentage:0'
         LIMIT 10;
         """,
         out=Csv("""
@@ -174,23 +175,18 @@ class Fuchsia(TestSuite):
         trace=DataPath('fuchsia_trace.fxt'),
         query="""
         SELECT
-          id,
-          name
+          type,
+          name,
+          count(*) AS count
         FROM track
-        LIMIT 10;
+        GROUP BY type, name
+        ORDER BY type, name;
         """,
         out=Csv("""
-        "id","name"
-        0,"[NULL]"
-        1,"[NULL]"
-        2,"[NULL]"
-        3,"[NULL]"
-        4,"[NULL]"
-        5,"cpu_usage:average_cpu_percentage:0"
-        6,"[NULL]"
-        7,"[NULL]"
-        8,"[NULL]"
-        9,"[NULL]"
+        "type","name","count"
+        "cpu_idle","cpuidle",4
+        "fuchsia_counter","cpu_usage:average_cpu_percentage:0",1
+        "thread_execution","[NULL]",16
         """))
 
   # Smoke test a high-CPU trace.
@@ -291,3 +287,100 @@ class Fuchsia(TestSuite):
         trace=DataPath('fuchsia_trace_sched_with_waker.fxt'),
         query=Path('fuchsia_critical_path.sql'),
         out=Path('fuchsia_critical_path.out'))
+
+  # Every core emitting a valid "power" / "cpu_frequency" event gets a standard
+  # cpufreq track. Cores 1, 2 and 6 only emit events violating the contract, so
+  # they get no track.
+  def test_fuchsia_cpu_frequency_tracks(self):
+    return DiffTestBlueprint(
+        trace=Path('fuchsia_cpu_frequency.py'),
+        query="""
+        SELECT cpu, name, type
+        FROM cpu_counter_track
+        WHERE type = 'cpu_frequency'
+        ORDER BY cpu;
+        """,
+        out=Csv("""
+        "cpu","name","type"
+        0,"cpufreq","cpu_frequency"
+        3,"cpufreq","cpu_frequency"
+        4,"cpufreq","cpu_frequency"
+        5,"cpufreq","cpu_frequency"
+        """))
+
+  # The counters on a cpufreq track carry the emitted kHz values, whether the
+  # driver encoded them as an integer or as a double.
+  def test_fuchsia_cpu_frequency_counter_values(self):
+    return DiffTestBlueprint(
+        trace=Path('fuchsia_cpu_frequency.py'),
+        query="""
+        SELECT t.cpu, c.ts, c.value
+        FROM counter AS c
+        JOIN cpu_counter_track AS t ON c.track_id = t.id
+        WHERE t.type = 'cpu_frequency'
+        ORDER BY t.cpu, c.ts;
+        """,
+        out=Csv("""
+        "cpu","ts","value"
+        0,1000,1996800.000000
+        0,3000,1190400.000000
+        3,2000,2688000.000000
+        4,5000,1804800.000000
+        5,4000,2800000.000000
+        """))
+
+  # Frequencies which are negative, non-finite or not numbers, and records
+  # naming no core, an out of range core or repeating an argument, are dropped
+  # and counted rather than silently disappearing.
+  def test_fuchsia_cpu_frequency_invalid_events(self):
+    return DiffTestBlueprint(
+        trace=Path('fuchsia_cpu_frequency.py'),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name = 'fuchsia_invalid_event';
+        """,
+        out=Csv("""
+        "name","value"
+        "fuchsia_invalid_event",11
+        """))
+
+  # Every core context-switching to and from the idle thread gets a standard
+  # cpuidle track.
+  def test_fuchsia_cpu_idle_tracks(self):
+    return DiffTestBlueprint(
+        trace=DataPath('fuchsia_trace_sched.fxt'),
+        query="""
+        SELECT cpu, name, type
+        FROM cpu_counter_track
+        WHERE type = 'cpu_idle'
+        ORDER BY cpu;
+        """,
+        out=Csv("""
+        "cpu","name","type"
+        0,"cpuidle","cpu_idle"
+        1,"cpuidle","cpu_idle"
+        2,"cpuidle","cpu_idle"
+        3,"cpuidle","cpu_idle"
+        """))
+
+  # Entering idle pushes 0 and leaving idle pushes 0xFFFFFFFF, for both the
+  # weighted (CPU 2) and the legacy (CPU 5) context switch encoding. Switches
+  # which do not change the idle state of the core push nothing.
+  def test_fuchsia_cpu_idle_counter_values(self):
+    return DiffTestBlueprint(
+        trace=Path('fuchsia_cpu_idle.py'),
+        query="""
+        SELECT t.cpu, c.ts, c.value
+        FROM counter AS c
+        JOIN cpu_counter_track AS t ON c.track_id = t.id
+        WHERE t.type = 'cpu_idle'
+        ORDER BY t.cpu, c.ts;
+        """,
+        out=Csv("""
+        "cpu","ts","value"
+        2,1000,4294967295.000000
+        2,3000,0.000000
+        5,4000,4294967295.000000
+        5,5000,0.000000
+        """))

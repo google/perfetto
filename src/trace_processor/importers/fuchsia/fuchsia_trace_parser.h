@@ -91,6 +91,19 @@ class FuchsiaTraceParser
             uint32_t cpu,
             std::optional<UniqueTid> waker_utid = std::nullopt,
             std::optional<uint64_t> waker_tid = std::nullopt);
+  // Routes a "power" / "cpu_frequency" counter record to the per-core cpufreq
+  // track named by its "cpu" argument, using the kHz frequency carried in its
+  // "value" argument. Records violating that contract are dropped and counted
+  // in stats::fuchsia_invalid_event.
+  void ParseCpuFrequencyCounter(int64_t ts, const std::vector<Arg>& args);
+  // Synthesizes a CPU idle counter event for the given CPU core matching
+  // Linux/Android cpuidle conventions: entering idle pushes the idle state,
+  // leaving idle pushes the exit-idle active state. Context switches which do
+  // not change the idle state of the core push nothing.
+  void MaybePushCpuIdleTransition(int64_t ts,
+                                  uint32_t cpu,
+                                  bool outgoing_is_idle,
+                                  bool incoming_is_idle);
 
   StringId IdForOutgoingThreadState(uint32_t state);
 
@@ -101,6 +114,12 @@ class FuchsiaTraceParser
   const StringId waker_id_;
   const StringId incoming_weight_id_;
   const StringId outgoing_weight_id_;
+
+  // Interned string ids for the CPU frequency counter trace contract.
+  const StringId cpu_frequency_category_id_;
+  const StringId cpu_frequency_name_id_;
+  const StringId cpu_frequency_cpu_arg_id_;
+  const StringId cpu_frequency_value_arg_id_;
 
   // Interned string ids for the relevant thread states.
   const StringId running_string_id_;
