@@ -42,9 +42,10 @@ inline std::vector<uint8_t> Serialize(
     const StringPool& pool,
     ArrowSerializer::IdColumnMode id_column_mode =
         ArrowSerializer::IdColumnMode::kOmit,
-    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand) {
+    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand,
+    ArrowCompression compression = ArrowCompression::kNone) {
   dataframe.Finalize();
-  ArrowSerializer serializer(id_column_mode, sparse_columns);
+  ArrowSerializer serializer(id_column_mode, sparse_columns, compression);
   auto prepared_size = serializer.Prepare(dataframe, pool);
   EXPECT_OK(prepared_size);
   if (!prepared_size.ok()) {
@@ -102,9 +103,11 @@ Dataframe RoundTrip(
     const Spec& spec,
     Dataframe& source,
     StringPool* pool,
-    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand) {
-  std::vector<uint8_t> bytes = Serialize(
-      source, *pool, ArrowSerializer::IdColumnMode::kOmit, sparse_columns);
+    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand,
+    ArrowCompression compression = ArrowCompression::kNone) {
+  std::vector<uint8_t> bytes =
+      Serialize(source, *pool, ArrowSerializer::IdColumnMode::kOmit,
+                sparse_columns, compression);
   auto result =
       Deserialize(bytes, pool, source.CreateSpec(), 0, sparse_columns);
   EXPECT_OK(result);
