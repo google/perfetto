@@ -744,7 +744,6 @@ perfetto_cc_library(
                ":src_trace_processor_util_simple_json_parser",
                ":src_trace_processor_util_sort",
            ] + PERFETTO_CONFIG.deps.sqlite +
-           PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
@@ -1101,7 +1100,6 @@ perfetto_cc_library(
            ] + PERFETTO_CONFIG.deps.linenoise +
            PERFETTO_CONFIG.deps.protobuf_full +
            PERFETTO_CONFIG.deps.sqlite +
-           PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
@@ -12452,7 +12450,6 @@ perfetto_cc_library(
                ":src_trace_processor_util_simple_json_parser",
                ":src_trace_processor_util_sort",
            ] + PERFETTO_CONFIG.deps.sqlite +
-           PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
@@ -12809,7 +12806,6 @@ perfetto_cc_binary(
                ":src_traceconv_gen_cc_android_extension_descriptor",
                ":src_traceconv_gen_cc_trace_descriptor",
            ] + PERFETTO_CONFIG.deps.sqlite +
-           PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.zstd +
            PERFETTO_CONFIG.deps.demangle_wrapper,
