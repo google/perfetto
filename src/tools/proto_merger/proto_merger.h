@@ -36,8 +36,9 @@ namespace proto_merger {
 // * Non-allowlisted options for fields and enums are taken from |input|, while
 //   options in |allowlisted_options| are synced from |upstream| (including
 //   additions, updates, and removals).
-// * Changing the type of an existing field is not supported (even if its
-//   just a move); this needs to be handled manually.
+// * Only lossless type changes of existing fields (e.g. int32 -> int64) are
+//   applied; other wire-compatible ones (e.g. int64 -> int32, bytes -> message)
+//   keep the |input| type, and wire-incompatible ones fail the merge.
 base::Status MergeProtoFiles(
     const ProtoFile& input,
     const ProtoFile& upstream,
