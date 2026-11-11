@@ -1,0 +1,11 @@
+# Files of the perfetto skill that host "ui" does not
+# get, and the actions it lacks for each. Written by
+# tools/gen_skill_bundle.py --drop-report.
+infra-references/recording_android_traces.md: record
+infra-references/recording_linux_traces.md: record
+infra-references/trace_config_reference.md: record
+workflows/android_memory/heap_dump_cluster.md: python
+workflows/android_memory/heap_dump_diff.md: multi_trace, python
+workflows/android_memory/heap_profile_diff.md: multi_trace, python
+workflows/android_memory/recording_memory_signals.md: record
+workflows/android_memory/system_trace_memory_compare.md: multi_trace

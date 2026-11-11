@@ -35,7 +35,7 @@ SKILL_DIR = os.path.join(SKILLS_DIR, 'perfetto')
 # The bundler keys off these exact source paths; keep this list in sync with
 # build_ai_agents.py (SKILL_TEMPLATE).
 SKILL_TEMPLATE = os.path.join(SKILL_DIR, 'SKILL-template.md')
-SETUP_MD = os.path.join(SKILL_DIR, 'environment-references', 'setup.md')
+CLI_ADAPTER = os.path.join(SKILL_DIR, 'environment-references', 'cli.md')
 # Before the first prebuilt roll the manifests carry the dev sentinel;
 # roll-prebuilts stamps the release version (vX.Y) in place. Accept either.
 VERSION_SENTINEL = '0.0.0-dev'
@@ -124,9 +124,9 @@ def _check_skill_source() -> List[str]:
   if os.path.isfile(os.path.join(SKILL_DIR, 'SKILL.md')):
     errors.append('ai/skills/perfetto/SKILL.md: source tree must not contain a '
                   'loadable SKILL.md; the entry point is SKILL-template.md')
-  if not os.path.isfile(SETUP_MD):
-    errors.append('ai/skills/perfetto/environment-references/setup.md: '
-                  'environment setup file is missing')
+  if not os.path.isfile(CLI_ADAPTER):
+    errors.append('ai/skills/perfetto/environment-references/cli.md: '
+                  'CLI adapter is missing')
   return errors
 
 
