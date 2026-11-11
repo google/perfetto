@@ -29,6 +29,7 @@ import {exists, getOrCreate} from '../base/utils';
 import type {TrackManagerImpl} from './track_manager';
 import type {Engine} from '../trace_processor/engine';
 import type {ScrollHelper} from './scroll_helper';
+import {carryOwner} from './ownership';
 import type {NoteManagerImpl} from './note_manager';
 import type {SearchResult} from '../public/search';
 import {AsyncLimiter} from '../base/async_limiter';
@@ -527,23 +528,27 @@ export class SelectionManagerImpl implements SelectionManager {
   }
 
   registerAreaSelectionTab(tab: AreaSelectionTab): void {
-    this.registerSelectionTab({
-      id: tab.id,
-      name: tab.name,
-      priority: tab.priority,
-      render: (selection) =>
-        selection.kind === 'area' ? tab.render(selection) : undefined,
-    });
+    this.registerSelectionTab(
+      carryOwner<SelectionTab>(tab, {
+        id: tab.id,
+        name: tab.name,
+        priority: tab.priority,
+        render: (selection) =>
+          selection.kind === 'area' ? tab.render(selection) : undefined,
+      }),
+    );
   }
 
   registerTrackEventSelectionTab(tab: TrackEventSelectionTab): void {
-    this.registerSelectionTab({
-      id: tab.id,
-      name: tab.name,
-      priority: tab.priority,
-      render: (selection) =>
-        selection.kind === 'track_event' ? tab.render(selection) : undefined,
-    });
+    this.registerSelectionTab(
+      carryOwner<SelectionTab>(tab, {
+        id: tab.id,
+        name: tab.name,
+        priority: tab.priority,
+        render: (selection) =>
+          selection.kind === 'track_event' ? tab.render(selection) : undefined,
+      }),
+    );
   }
 
   get currentSelectionSubTab(): string | undefined {
