@@ -368,7 +368,7 @@ ProtoFile MakeContainerFile(const std::string& type,
 TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyKeepsNonAllowlistedFields) {
   ProtoFile input = MakeContainerFile("int32", "old_name", "Input comment.");
   ProtoFile upstream =
-      MakeContainerFile("uint32", "new_name", "Upstream comment.",
+      MakeContainerFile("int64", "new_name", "Upstream comment.",
                         {MakeField("string", "new_field", 2)});
 
   ProtoFile merged;
@@ -405,17 +405,33 @@ TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyMergesAllowlistedFields) {
   EXPECT_THAT(out, Not(HasSubstr("renamed_upstream")));
 }
 
+// Lossy type changes are not trivial, so they are applied to all the fields.
 TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyAppliesLossyTypeChange) {
-  ProtoFile input = MakeContainerFile("int64", "value", "Comment.");
-  ProtoFile upstream = MakeContainerFile("int32", "value", "Comment.");
+  ProtoFile input = MakeContainerFile("int64", "value", "Input comment.");
+  ProtoFile upstream = MakeContainerFile("int32", "value", "Upstream comment.");
   Allowlist allowlist;
-  allowlist.messages["Container"].fields = {1};
 
   ProtoFile merged;
   base::Status status = MergeProtoFiles(input, upstream, allowlist, merged, {},
                                         /*allowlisted_changes_only=*/true);
   ASSERT_TRUE(status.ok()) << status.c_message();
-  EXPECT_THAT(ProtoFileToDotProto(merged), HasSubstr("int32 value = 1;"));
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("int32 value = 1;"));
+  EXPECT_THAT(out, HasSubstr("Input comment."));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedChangesOnlySkipsTypeMissingInOutput) {
+  ProtoFile input = MakeContainerFile("bytes", "value", "Comment.");
+  ProtoFile upstream = MakeContainerFile("NewMessage", "value", "Comment.");
+  ProtoFile::Message new_message{};
+  new_message.name = "NewMessage";
+  upstream.messages.push_back(new_message);
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                                        {}, /*allowlisted_changes_only=*/true);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+  EXPECT_EQ(ProtoFileToDotProto(merged), ProtoFileToDotProto(input));
 }
 
 TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyAddsAllowlistedMessage) {

@@ -628,6 +628,73 @@ base::Status Merge(const ProtoFile::Message& input,
   return base::OkStatus();
 }
 
+// Returns the packageless names of the messages and enums defined in |file|.
+std::unordered_set<std::string> DefinedTypes(const ProtoFile& file) {
+  std::unordered_set<std::string> types;
+  std::vector<std::pair<std::string, const ProtoFile::Message*>> stack;
+  for (const auto& en : file.enums)
+    types.insert(en.name);
+  for (const auto& msg : file.messages)
+    stack.emplace_back(msg.name, &msg);
+  while (!stack.empty()) {
+    auto [name, msg] = stack.back();
+    stack.pop_back();
+    types.insert(name);
+    for (const auto& en : msg->enums)
+      types.insert(name + "." + en.name);
+    for (const auto& nested : msg->nested_messages)
+      stack.emplace_back(name + "." + nested.name, &nested);
+  }
+  return types;
+}
+
+// Applies to |fields|, the input fields, the allowed but not lossless type
+// changes of their |upstream| version, which the default mode skips. Changes to
+// a type in |missing_types| (not defined in the output) are skipped.
+void ApplyLossyTypeChanges(const std::vector<ProtoFile::Field>& upstream,
+                           const MergeContext& ctx,
+                           const std::unordered_set<std::string>& missing_types,
+                           std::vector<ProtoFile::Field>& fields) {
+  for (auto& field : fields) {
+    const auto* upstream_field = FindByNumber(upstream, field.number);
+    if (upstream_field &&
+        !missing_types.count(upstream_field->packageless_type) &&
+        field.packageless_type != upstream_field->packageless_type &&
+        IsAllowedTypeTransition(field.packageless_type,
+                                upstream_field->packageless_type,
+                                ctx.known_enums) &&
+        !IsLosslessTypeTransition(field.packageless_type,
+                                  upstream_field->packageless_type)) {
+      field.packageless_type = upstream_field->packageless_type;
+      field.type = upstream_field->type;
+    }
+  }
+}
+
+// Applies ApplyLossyTypeChanges() to all the fields of |messages|, the input
+// messages, recursively.
+void ApplyLossyTypeChanges(const std::vector<ProtoFile::Message>& upstream,
+                           const MergeContext& ctx,
+                           const std::unordered_set<std::string>& missing_types,
+                           std::vector<ProtoFile::Message>& messages) {
+  for (auto& message : messages) {
+    const auto* upstream_message = FindByName(upstream, message.name);
+    if (!upstream_message)
+      continue;
+    ApplyLossyTypeChanges(upstream_message->fields, ctx, missing_types,
+                          message.fields);
+    for (auto& oneof : message.oneofs) {
+      if (const auto* upstream_oneof =
+              FindByName(upstream_message->oneofs, oneof.name)) {
+        ApplyLossyTypeChanges(upstream_oneof->fields, ctx, missing_types,
+                              oneof.fields);
+      }
+    }
+    ApplyLossyTypeChanges(upstream_message->nested_messages, ctx, missing_types,
+                          message.nested_messages);
+  }
+}
+
 // Merges into |fields|, the input fields, the upstream fields whose number is
 // in |allowlist|: existing ones are merged, missing ones are added.
 base::Status ApplyAllowlistedFields(
@@ -824,6 +891,10 @@ base::Status MergeProtoFiles(
         upstream.messages, allowlist.messages, ctx, out.messages);
     if (!status.ok())
       return status;
+    std::unordered_set<std::string> missing_types = DefinedTypes(upstream);
+    for (const auto& type : DefinedTypes(out))
+      missing_types.erase(type);
+    ApplyLossyTypeChanges(upstream.messages, ctx, missing_types, out.messages);
     if (!out.is_proto2) {
       for (auto& msg : out.messages) {
         ConvertOptionsForEditions(msg);
