@@ -28,6 +28,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -231,6 +232,14 @@ uint32_t* StringFilterGlob(const StringPool* string_pool,
 uint32_t* StringFilterRegex(const StringPool* string_pool,
                             const StringPool::Id* data,
                             const char* pattern,
+                            const uint32_t* begin,
+                            const uint32_t* end,
+                            uint32_t* output);
+
+// Keeps the strings which `regex` matches part of.
+uint32_t* StringFilterRegex(const StringPool* string_pool,
+                            const StringPool::Id* data,
+                            const base::Regex& regex,
                             const uint32_t* begin,
                             const uint32_t* end,
                             uint32_t* output);

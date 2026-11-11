@@ -144,8 +144,8 @@ class PhysicalPlanTest : public ::testing::Test {
                             catalog_));
     RETURN_IF_ERROR(
         BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
-    RunBoundPasses(&bound, {&pool_});
-    return Lower(bound, {&pool_});
+    RETURN_IF_ERROR(RunBoundPasses(&bound, {&pool_}));
+    return Lower(&bound, {&pool_});
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -204,38 +204,12 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
 
   auto bound = ResolveCompiledPlan(*original, catalog_);
   ASSERT_TRUE(bound.ok()) << bound.status().message();
-  RunBoundPasses(&*bound, {&pool_});
-  auto physical = Lower(*bound, {&pool_});
-  ASSERT_TRUE(physical.ok()) << physical.status().message();
-  auto rows = Run(**physical, "total");
+  ASSERT_TRUE(RunBoundPasses(&*bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&*bound, {&pool_});
+  auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-}
-
-// Each node's output is described from its inputs': a table read in order
-// keeps its sorted columns sorted, and a fold leaves the rows walking the tree
-// in its direction.
-TEST_F(PhysicalPlanTest, OutputsAreDerivedFromInputs) {
-  CreateDataframeTree();
-  auto plan = Compile(
-      "FROM df |> ORDER BY id |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  auto bound = ResolveCompiledPlan(std::move(*plan), catalog_);
-  ASSERT_TRUE(bound.ok()) << bound.status().message();
-  RunBoundPasses(&*bound, {&pool_});
-  const LogicalPlan& logical = bound->plan;
-  const PlanNode& fold = logical.nodes()[logical.root()];
-  const PlanNode& sort = logical.nodes()[fold.children()[0]];
-  const OutputProperties& sorted = bound->outputs[logical.IdOf(sort)];
-  ASSERT_EQ(sorted.arrangements.size(), 1u);
-  EXPECT_TRUE(sorted.arrangements[0].grouped_by.empty());
-  ASSERT_EQ(sorted.arrangements[0].sorted_by.size(), 1u);
-  EXPECT_FALSE(sorted.tree);
-  const OutputProperties& folded = bound->outputs[logical.root()];
-  EXPECT_TRUE(folded.arrangements.empty());
-  ASSERT_TRUE(folded.tree);
-  EXPECT_EQ(folded.tree->walk, TreeDirection::kUp);
 }
 
 TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
@@ -305,6 +279,49 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
             "HashAggregate(keys: #1; COUNT(*)) | Sort(#0)");
 }
 
+// Rows a scan keeps sorted by a column are read backwards to sort them the
+// other way, with rows which tie in reverse. Only steps taking each row on its
+// own may come between, as reading backwards must just reverse their output.
+TEST_F(PhysicalPlanTest, ScansBackwardsToSortTheOtherWay) {
+  Exec("CREATE TABLE t(ts INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 4), (2, 2), (2, 3), (5, 1)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC"),
+            "main: DataframeScan(backwards)");
+  EXPECT_EQ(plan("FROM t |> WHERE n > 1 |> EXTEND n + 1 AS m |> SELECT ts, m "
+                 "|> ORDER BY ts DESC"),
+            "main: DataframeScan(backwards) | Filter(#1 > ?0) | "
+            "Compute((#1 + 1))");
+  EXPECT_EQ(plan("FROM t |> WHERE ts > 0 |> ORDER BY ts DESC"),
+            "main: SortedScan(backwards)");
+  // A LIMIT keeps the first rows, which reading backwards would change.
+  EXPECT_EQ(plan("FROM t |> LIMIT 2 |> ORDER BY ts DESC"),
+            "main: DataframeScan | Limit(2) | CombineBatches | Sort(#0 desc)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC, n"),
+            "main: DataframeScan | Sort(#0 desc, #1)");
+
+  auto lowered = Plan("FROM t |> ORDER BY ts DESC");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  uint32_t n = 0;
+  for (const PhysicalPlan::Column& column : (*lowered)->columns()) {
+    if (column.name == "n") {
+      n = column.index;
+    }
+  }
+  std::vector<int64_t> values;
+  RowCursor cursor((*lowered)->source());
+  for (bool row = cursor.Open((*lowered)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, n));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(1, 3, 2, 4));
+}
+
 // Small batches are combined only after a step that may output them, and only
 // before an operator that works best on full batches.
 TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
@@ -336,6 +353,56 @@ TEST_F(PhysicalPlanTest, ReordersHoldOnlyColumnsReadAfterThem) {
   auto rows = Run(**plan, "ts");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 60), Pair(3, 70)));
+}
+
+// A LIMIT straight after a sort makes the sort output only the rows the LIMIT
+// reads, so with no offset the LIMIT needs no operator of its own. Steps
+// keeping every row may come between; a WHERE may not, as rows it drops would
+// have to be replaced.
+TEST_F(PhysicalPlanTest, ALimitKeepsOnlyTheRowsItReadsFromASort) {
+  Exec("CREATE TABLE t(id INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 5), (2, 3), (3, 4), (4, 1), (5, 2)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1"),
+            "main: DataframeScan | TopK(#1; 3) | Limit(2 offset 1)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> EXTEND n + 1 AS m |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2) | Compute((#1 + 1))");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> WHERE id > 1 |> LIMIT 2"),
+            "main: DataframeScan | Sort(#1) | Filter(#0 > ?0) | Limit(2)");
+
+  auto lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  auto rows = Run(**lowered, "n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(2, 3), Pair(5, 2)));
+
+  lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  rows = Run(**lowered, "n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(4, 1), Pair(5, 2)));
+}
+
+// A sort drops a key nothing after it reads, as it lays the key out when rows
+// arrive. A TopK holds it: pruning appends the rows it keeps again.
+TEST_F(PhysicalPlanTest, ATopKHoldsItsKeys) {
+  Exec("CREATE TABLE t(id INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 5), (2, 3), (3, 4), (4, 1), (5, 2)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id"),
+            "main: DataframeScan | Sort(#1; drops #1)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2)");
 }
 
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped
@@ -378,8 +445,8 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   EXPECT_THAT(values, ElementsAre(5, 7));
 }
 
-// WHERE also compares strings, matches GLOB patterns, keeps the rows whose
-// value an IN list holds and tests for nulls.
+// WHERE also compares strings, matches GLOB and REGEXP patterns, keeps the
+// rows whose value an IN list holds and tests for nulls.
 TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
   Exec(
@@ -405,14 +472,37 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("name != 'absent'"), ElementsAre(1, 2, 4, 5));
   EXPECT_THAT(ids("name < 'foo'"), ElementsAre(2));
   EXPECT_THAT(ids("name GLOB 'fo*'"), ElementsAre(1, 5));
+  EXPECT_THAT(ids("name REGEXP 'o+d$'"), ElementsAre(5));
+  EXPECT_THAT(ids("name REGEXP 'ba|it'"), ElementsAre(2, 4));
   EXPECT_THAT(ids("name IN ('bar', 'food', 'absent')"), ElementsAre(2, 5));
   EXPECT_THAT(ids("v IN (10, 40.0, 99)"), ElementsAre(1, 4));
   EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
   EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
   EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
-  // Numbers sort before strings, as in SQL.
-  EXPECT_THAT(ids("name > 5"), ElementsAre(1, 2, 4, 5));
-  EXPECT_THAT(ids("v = 'foo'"), ElementsAre());
+}
+
+// A REGEXP pattern which does not compile is an error, as it is in SQL.
+TEST_F(PhysicalPlanTest, WhereRefusesARegexpWhichDoesNotCompile) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT)");
+  Exec("INSERT INTO t VALUES (1, 'foo')");
+  auto plan = Plan("FROM t |> WHERE name REGEXP '('");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a regular expression which compiles"));
+}
+
+// A string is never a number, so comparing the two is refused.
+TEST_F(PhysicalPlanTest, WhereRefusesStringsMeetingNumbers) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 'foo', 10)");
+  auto plan = Plan("FROM t |> WHERE name > 5");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a string to compare with a string column"));
+  plan = Plan("FROM t |> WHERE v = 'foo'");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a number to compare with a numeric column"));
 }
 
 // WHERE on a table's sorted columns searches them instead of testing each row;
@@ -453,6 +543,35 @@ TEST_F(PhysicalPlanTest, WhereLooksUpAnIndexWithUnreadColumns) {
   auto rows = Run(**plan, "w");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
+}
+
+// A condition the scan cannot answer does not stop it answering the others.
+TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  auto plan = Plan("FROM ix |> WHERE v IS NOT NULL AND k = 7 |> SELECT id, v");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: IndexScan | Filter(#2 IS NOT NULL)");
+  auto rows = Run(**plan, "v");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
+}
+
+// A column of only nulls needs no check, however many types it is made to hold.
+TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");
+  Exec("INSERT INTO a VALUES (0, 10, NULL)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, k REAL)");
+  Exec("INSERT INTO b VALUES (5, 10, 1.5)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF ((FROM a |> WHERE k = 1) AS p, b AS q) PER k "
+      "|> SELECT ts, dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(PhysicalPlanToString(**plan),
+              HasSubstr("NullColumn(#2 as Int64) | Filter(#2 = ?0) | "
+                        "NullColumn(#2 as Double)"));
 }
 
 // A condition no row can match leaves nothing to read.
@@ -664,12 +783,11 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   PlanKey key(0, 0);
   auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  RunBoundPasses(&*read, {&pool_});
-  auto lowered = Lower(*read, {&pool_});
-  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
-  EXPECT_THAT(Names(**lowered),
+  ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> lowered = Lower(&*read, {&pool_});
+  EXPECT_THAT(Names(*lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
-  auto rows = Run(**lowered, "copy");
+  auto rows = Run(*lowered, "copy");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));

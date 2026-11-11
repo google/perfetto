@@ -276,6 +276,19 @@ Diagram(Choice(0,
 
 ---
 
+## Expressions {#expressions}
+
+`SELECT`, `EXTEND` and `SET` can compute values from:
+
+- Columns, `NULL`, and number and string literals.
+- `+`, `-`, `*`, `/` and `%` on numbers. Any null operand gives null, and division
+  or remainder by zero gives null, as in SQLite. An integer overflow fails the
+  query where SQLite would answer with a double.
+
+Anything else, such as a comparison or calling a function, is not supported yet.
+
+---
+
 ## Stages
 
 ### `WHERE` {#where}
@@ -291,6 +304,7 @@ Diagram(
       Choice(0,
         Sequence(NonTerminal('op'), NonTerminal('literal')),
         Sequence(Terminal('GLOB'), NonTerminal('string')),
+        Sequence(Terminal('REGEXP'), NonTerminal('string')),
         Sequence(Terminal('IN'), Terminal('('),
                  OneOrMore(NonTerminal('literal'), Terminal(',')),
                  Terminal(')')),
@@ -302,13 +316,18 @@ Diagram(
 
 - `<op>` is one of `=`, `==`, `!=`, `<>`, `<`, `<=`, `>` and `>=`.
 - `<literal>` is an integer, floating-point or string literal.
-- `GLOB` matches only string columns.
-- `NULL` never matches a comparison, `GLOB` or `IN`. Integers compare with
-  fractions as in SQL, and numbers sort before strings. A string is never
-  converted to a number, so `dur = '5'` matches nothing, as in a filter on a
-  Perfetto table.
+- `GLOB` and `REGEXP` match only string columns.
+- `REGEXP` matches part of a string unless the pattern is anchored, as SQL's
+  `REGEXP` does. A pattern which does not compile is an error.
+- `NULL` never matches a comparison, `GLOB`, `REGEXP` or `IN`. Integers compare
+  with fractions as in SQL.
+- A string is never converted to a number or a number to a string. Comparing a
+  numeric column with a string, or a string column with a number, is an error:
+  `dur = '5'` fails with `expected a number to compare with a numeric column,
+  but got a string`. Plain SQL over a Perfetto table does not fail here: it
+  matches nothing.
 - Keeps all columns and aliases.
-- Not supported yet: `OR`, `NOT`, `NOT IN`, `NOT GLOB`, `LIKE`, `REGEXP`,
+- Not supported yet: `OR`, `NOT`, `NOT IN`, `NOT GLOB`, `NOT REGEXP`, `LIKE`,
   parentheses, functions, arithmetic, and a literal on the left. Filter in the
   source subquery instead.
 
@@ -529,8 +548,8 @@ Diagram(Choice(0,
   NonTerminal('star')))
 ```
 
-- **A column.** Without `AS`, it keeps its name. Other expressions parse, but
-  fail with `a computed column is not supported yet`.
+- **A column.** Without `AS`, it keeps its name.
+- **An expression** (see [Expressions](#expressions)) with `AS` and a name.
 - **A `<star>`:**
 
 ```railroad star
@@ -624,8 +643,8 @@ Diagram(
 ```
 
 - Each `<target>` must be one column found by bare name, listed once.
-- Each `<column>` is looked up in the row before the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. Other
-  expressions fail with `a computed column is not supported yet`.
+- Each `<column>` is looked up in the row before the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. It can
+  also be an [expression](#expressions).
 - Aliases keep the old values. An alias with the same name as a target is
   removed.
 

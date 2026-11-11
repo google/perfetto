@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include <memory>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -39,7 +40,16 @@
 
 static struct PerfettoDs custom = PERFETTO_DS_INIT();
 
-#define BENCHMARK_CATEGORIES(C) C(benchmark_cat, "benchmark", "")
+#define BENCHMARK_CATEGORIES(C)     \
+  C(benchmark_cat, "benchmark", "") \
+  C(multi_cat0, "multi0", "")       \
+  C(multi_cat1, "multi1", "")       \
+  C(multi_cat2, "multi2", "")       \
+  C(multi_cat3, "multi3", "")       \
+  C(multi_cat4, "multi4", "")       \
+  C(multi_cat5, "multi5", "")       \
+  C(multi_cat6, "multi6", "")       \
+  C(multi_cat7, "multi7", "")
 
 PERFETTO_TE_CATEGORIES_DEFINE(BENCHMARK_CATEGORIES)
 
@@ -213,6 +223,55 @@ void BM_Shlib_TeNestedThreadTrack(benchmark::State& state) {
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_INSTANT("Event"),
                 PERFETTO_TE_NESTED_TRACKS(PERFETTO_TE_NESTED_TRACK_THREAD()));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeDynamicCategory(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT("Event"),
+                PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dynamic"));
+    benchmark::ClobberMemory();
+  }
+}
+
+// Each event uses the next of 8 registered categories, so the seen-category
+// lookup does not always hit the same id.
+void BM_Shlib_TeEightCategories(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  uint32_t i = 0;
+  while (state.KeepRunning()) {
+    switch (i++ & 7) {
+      case 0:
+        PERFETTO_TE(multi_cat0, PERFETTO_TE_INSTANT("Event"));
+        break;
+      case 1:
+        PERFETTO_TE(multi_cat1, PERFETTO_TE_INSTANT("Event"));
+        break;
+      case 2:
+        PERFETTO_TE(multi_cat2, PERFETTO_TE_INSTANT("Event"));
+        break;
+      case 3:
+        PERFETTO_TE(multi_cat3, PERFETTO_TE_INSTANT("Event"));
+        break;
+      case 4:
+        PERFETTO_TE(multi_cat4, PERFETTO_TE_INSTANT("Event"));
+        break;
+      case 5:
+        PERFETTO_TE(multi_cat5, PERFETTO_TE_INSTANT("Event"));
+        break;
+      case 6:
+        PERFETTO_TE(multi_cat6, PERFETTO_TE_INSTANT("Event"));
+        break;
+      default:
+        PERFETTO_TE(multi_cat7, PERFETTO_TE_INSTANT("Event"));
+        break;
+    }
     benchmark::ClobberMemory();
   }
 }
@@ -447,6 +506,8 @@ BENCHMARK(BM_Shlib_TeBasicNoIntern);
 BENCHMARK(BM_Shlib_TeDebugAnnotations);
 BENCHMARK(BM_Shlib_TeCustomProto);
 BENCHMARK(BM_Shlib_TeNestedThreadTrack);
+BENCHMARK(BM_Shlib_TeDynamicCategory);
+BENCHMARK(BM_Shlib_TeEightCategories);
 BENCHMARK(BM_Shlib_TeLlBasic);
 BENCHMARK(BM_Shlib_TeLlBasicNoIntern);
 BENCHMARK(BM_Shlib_TeLlDebugAnnotations);

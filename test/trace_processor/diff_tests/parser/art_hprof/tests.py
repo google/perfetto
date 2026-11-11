@@ -98,8 +98,8 @@ class ArtHprofParser(TestSuite):
           1740172787560,16396,0,1,"app","[NULL]",2
           1740172787560,8204,0,1,"app","[NULL]",4
           1740172787560,3300,0,1,"app","[NULL]",1
-          1740172787560,2388,0,1,"app","STICKY_CLASS",0
-          1740172787560,1444,0,1,"app","STICKY_CLASS",0
+          1740172787560,2388,0,1,"app","ROOT_STICKY_CLASS",0
+          1740172787560,1444,0,1,"app","ROOT_STICKY_CLASS",0
           1740172787560,1412,0,1,"app","[NULL]",1
           1740172787560,1264,0,1,"app","[NULL]",1
           1740172787560,1248,0,1,"app","[NULL]",1
@@ -120,6 +120,27 @@ class ArtHprofParser(TestSuite):
           "KIND_PHANTOM_REFERENCE",4
           "KIND_SOFT_REFERENCE",2
           "KIND_WEAK_REFERENCE",9
+        '''))
+
+  def test_art_hprof_root_types(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT root_type, count(*) AS cnt FROM heap_graph_object
+          WHERE root_type IS NOT NULL
+          GROUP BY root_type ORDER BY root_type
+        """,
+        out=Csv('''
+          "root_type","cnt"
+          "ROOT_DEBUGGER",19
+          "ROOT_INTERNED_STRING",245
+          "ROOT_JAVA_FRAME",11
+          "ROOT_JNI_GLOBAL",3
+          "ROOT_JNI_LOCAL",2
+          "ROOT_NATIVE_STACK",2
+          "ROOT_STICKY_CLASS",1106
+          "ROOT_THREAD_OBJECT",7
+          "ROOT_VM_INTERNAL",7
         '''))
 
   def test_art_hprof_reference_count_smoke(self):

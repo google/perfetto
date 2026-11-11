@@ -47,6 +47,7 @@
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
+#include "src/trace_processor/core/exec/top_k.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -180,6 +181,9 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
     case ExprOp::kColumn:
       return "#" + std::to_string(step.a);
     case ExprOp::kConstant:
+      if (step.type == ExprType::kString) {
+        return "string(" + std::to_string(step.int_value) + ")";
+      }
       return step.type == ExprType::kDouble ? std::to_string(step.double_value)
                                             : std::to_string(step.int_value);
     case ExprOp::kNull:
@@ -218,7 +222,10 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline) {
 
 std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<DataframeScan>()) {
-    return "DataframeScan";
+    return static_cast<const DataframeScan&>(source).direction_ ==
+                   ReadDirection::kBackwards
+               ? "DataframeScan(backwards)"
+               : "DataframeScan";
   }
   if (source.Is<EmptySource>()) {
     return "EmptySource";
@@ -247,7 +254,10 @@ std::string PipelineFormatter::SourceString(const Source& source) {
     return "Pipeline";
   }
   if (source.Is<SortedScan>()) {
-    return "SortedScan";
+    return static_cast<const SortedScan&>(source).direction_ ==
+                   ReadDirection::kBackwards
+               ? "SortedScan(backwards)"
+               : "SortedScan";
   }
   if (source.Is<IndexScan>()) {
     return "IndexScan";
@@ -320,6 +330,11 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
   if (op.Is<Sort>()) {
     const auto& sort = static_cast<const Sort&>(op);
     return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
+  }
+  if (op.Is<TopK>()) {
+    const auto& top = static_cast<const TopK&>(op);
+    return "TopK(" + Keys(top.spec_.keys) + "; " +
+           std::to_string(top.spec_.count) + Unread(top.unread_) + ")";
   }
   if (op.Is<GroupedSort>()) {
     const auto& sort = static_cast<const GroupedSort&>(op);

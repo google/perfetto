@@ -73,6 +73,13 @@
   > .pf-split-panel {
     height: 100%;
   }
+
+  &__split--sidebar-hidden {
+    > .pf-resize-handle,
+    > .pf-split-panel__second {
+      display: none;
+    }
+  }
 }
 
 .pf-bt-query-page__editor-tabs {
@@ -242,11 +249,6 @@
 
 .pf-bt-query-page__toolbar {
   container-type: inline-size;
-
-  // Without nowrap, "Persistent" wraps under its toggle when squeezed.
-  .pf-checkbox {
-    white-space: nowrap;
-  }
 }
 
 @container (max-width: 520px) {
@@ -283,28 +285,22 @@
   margin-right: 16px;
 }
 
-.pf-bt-status-bar--running {
-  .pf-bt-status-bar-stat--traces,
-  .pf-bt-status-bar-stat-label,
-  .pf-bt-status-bar-stat-value {
-    display: none;
-  }
+.pf-bt-status-bar-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 16px;
+}
+
+.pf-bt-status-bar-stage {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  white-space: nowrap;
 }
 
 .pf-bt-status-bar-refresh {
   position: relative;
   display: inline-block;
-}
-
-.pf-bt-status-bar-notif {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--pf-color-success);
-  z-index: 10;
 }
 
 .pf-bt-status-bar-stat {
@@ -331,7 +327,6 @@
   display: inline-block;
   width: 140px;
   height: 6px;
-  margin-left: 6px;
   border-radius: 2px;
   border: 1px solid var(--pf-color-border);
   // Theme-aware track; hardcoded white rgba vanished on the light theme.
@@ -348,9 +343,23 @@
   will-change: width;
 }
 
+.pf-bt-inline-progress--indeterminate .pf-bt-inline-progress-fill {
+  width: 35%;
+  animation: pf-bt-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes pf-bt-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
 // ---------- Query history ----------
 
-// Fixed kind filter above a scrolling list (the panel itself never scrolls).
+// Fixed toolbar above a scrolling list (the panel itself never scrolls).
 .pf-query-history {
   display: flex;
   flex-direction: column;
@@ -360,22 +369,10 @@
 .pf-bt-history-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 4px;
   padding: 4px 6px;
   border-bottom: 1px solid var(--pf-color-border);
-}
-
-// Two kind checkboxes; tight enough for a ~280px sidebar.
-.pf-bt-history-filter {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--pf-font-size-s);
-
-  .pf-checkbox {
-    gap: 4px;
-  }
 }
 
 .pf-bt-history-actions {
@@ -536,20 +533,11 @@
   flex-shrink: 0;
 }
 
-// Ephemeral / Persistent marker — the list mixes both kinds.
-.pf-bt-history-item-kind {
-  flex-shrink: 0;
-  font-size: var(--pf-font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.75;
-}
-
 .pf-bt-history-item-date {
   text-align: right;
 }
 
-// Materialized-only band between the meta header and the SQL pre.
+// Band between the meta header and the SQL pre.
 .pf-bt-history-item-details {
   background: var(--pf-color-background-secondary);
   padding: 4px 8px;
@@ -711,6 +699,93 @@ pre.pf-bt-history-item-query--standalone {
 .pf-bt-results-container > .pf-data-grid {
   flex: 1;
   min-height: 0;
+}
+
+.pf-bt-results-container .pf-tabs__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pf-bt-results-container .pf-tabs__content > .pf-data-grid {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.pf-bt-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  background: color-mix(
+    in srgb,
+    var(--pf-color-primary) 10%,
+    var(--pf-color-background)
+  );
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--pf-color-primary) 30%, var(--pf-color-border));
+  color: var(--pf-color-text);
+  flex: 0 0 auto;
+
+  .pf-icon {
+    font-size: 16px;
+    color: var(--pf-color-primary);
+  }
+
+  &--warn {
+    background: color-mix(
+      in srgb,
+      var(--pf-color-warning) 12%,
+      var(--pf-color-background)
+    );
+    border-bottom-color: color-mix(
+      in srgb,
+      var(--pf-color-warning) 38%,
+      var(--pf-color-border)
+    );
+
+    .pf-icon {
+      color: var(--pf-color-warning);
+    }
+  }
+
+  &--err {
+    background: color-mix(
+      in srgb,
+      var(--pf-color-danger) 11%,
+      var(--pf-color-background)
+    );
+    border-bottom-color: color-mix(
+      in srgb,
+      var(--pf-color-danger) 38%,
+      var(--pf-color-border)
+    );
+
+    .pf-icon {
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &__link {
+    margin-left: auto;
+    color: var(--pf-color-primary);
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+    white-space: nowrap;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+
+    &:focus-visible {
+      outline: 2px solid var(--pf-color-primary);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+  }
 }
 
 // ---------- Query settings form ----------

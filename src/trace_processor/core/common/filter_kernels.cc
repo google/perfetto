@@ -335,8 +335,17 @@ uint32_t* StringFilterRegex(const StringPool* string_pool,
   if (!regex.ok()) {
     return output;
   }
-  return Filter(data, begin, end, output, regex.value(),
-                RegexComparator{string_pool});
+  return StringFilterRegex(string_pool, data, regex.value(), begin, end,
+                           output);
+}
+
+uint32_t* StringFilterRegex(const StringPool* string_pool,
+                            const StringPool::Id* data,
+                            const base::Regex& regex,
+                            const uint32_t* begin,
+                            const uint32_t* end,
+                            uint32_t* output) {
+  return Filter(data, begin, end, output, regex, RegexComparator{string_pool});
 }
 
 }  // namespace perfetto::trace_processor::core::filter

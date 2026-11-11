@@ -18,10 +18,16 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -42,6 +48,267 @@ std::vector<SortKey> Without(const std::vector<SortKey>& keys,
   }
   return kept;
 }
+
+ColumnId NewPlanColumn(BoundPlan* bound, PlanNodeId node) {
+  PlannedNode& planned = bound->planned[node];
+  if (planned.new_columns_used < planned.new_columns.size()) {
+    return planned.new_columns[planned.new_columns_used++];
+  }
+  LogicalPlan& plan = bound->plan;
+  auto id = static_cast<ColumnId>(plan.columns().size());
+  plan.columns().push_back({plan.names().Intern("$number"), core::Uint32{}});
+  planned.new_columns.push_back(id);
+  planned.new_columns_used++;
+  return id;
+}
+
+void Fail(BoundPlan* bound, base::Status status) {
+  if (bound->status.ok()) {
+    bound->status = std::move(status);
+  }
+}
+
+// Works out how one input of a node meets the node's needs.
+class InputPlanner {
+ public:
+  InputPlanner(BoundPlan* bound,
+               PlanNodeId node,
+               uint32_t input,
+               const OutputProperties& rows)
+      : bound_(bound), node_(node), input_(input) {
+    out_.rows = rows;
+  }
+
+  const OutputProperties& rows() const { return out_.rows; }
+
+  void Convert(ColumnId column, const PlanType& type) {
+    OutputProperties& rows = out_.rows;
+    OutputProperties::Column& from = rows.columns[*rows.PositionOf(column)];
+    if (!type.storage() ||
+        (from.type.storage() && *from.type.storage() == *type.storage())) {
+      return;
+    }
+    out_.steps.push_back(
+        input_step::Convert{column, *type.storage(), from.all_null});
+    from.type = type;
+  }
+
+  void Meet(const InputNeeds& needs) {
+    Types(needs.types_first);
+    if (needs.arranged) {
+      Arrange(needs.arranged->grouped_by, needs.arranged->sorted_by);
+      if (needs.group_numbers && !needs.arranged->grouped_by.empty() &&
+          !out_.rows.GroupNumbersOf(needs.arranged->grouped_by)) {
+        // The rows are grouped but have no group numbers. Grouping them again
+        // adds the numbers.
+        Group(needs.arranged->grouped_by, {});
+      }
+    }
+    if (needs.tree_walk) {
+      WalkTree(*needs.tree_walk);
+    }
+    Types(needs.types_then);
+    if (needs.full_batches && !out_.rows.full_batches) {
+      out_.steps.push_back(input_step::CombineBatches{});
+      out_.rows.full_batches = true;
+    }
+  }
+
+  PlannedInput Take() { return std::move(out_); }
+
+ private:
+  void Types(const std::vector<InputNeeds::Type>& types) {
+    for (const InputNeeds::Type& need : types) {
+      if (!need.if_unknown || !out_.rows.TypeOf(need.column).storage()) {
+        RequireType(need.column, need.type);
+      }
+    }
+  }
+
+  void RequireType(ColumnId column, core::StorageType type) {
+    std::optional<PlanType> common =
+        CommonType(out_.rows.TypeOf(column), PlanType(type));
+    if (!common || !common->storage() || !(*common->storage() == type)) {
+      const char* what = type.Is<core::String>()   ? "strings"
+                         : type.Is<core::Double>() ? "numbers"
+                                                   : "integers";
+      const LogicalPlan& plan = bound_->plan;
+      Fail(bound_,
+           base::ErrStatus(
+               "column '%s' must hold %s",
+               plan.names().text(plan.columns()[column].name).c_str(), what));
+      return;
+    }
+    Convert(column, type);
+  }
+
+  // A sort key of unknown type must hold integers.
+  void RequireSortKeyTypes(const std::vector<SortKey>& keys) {
+    for (const SortKey& key : keys) {
+      if (!out_.rows.TypeOf(key.column).storage()) {
+        RequireType(key.column, core::Int64{});
+      }
+    }
+  }
+
+  void Arrange(const std::vector<ColumnId>& keys,
+               const std::vector<SortKey>& sorted_by) {
+    OutputProperties& rows = out_.rows;
+    if (rows.IsArranged(keys, sorted_by) ||
+        (DropOpenSort() && rows.IsArranged(keys, sorted_by))) {
+      return;
+    }
+    if (keys.empty() && ReadBackwards(sorted_by)) {
+      return;
+    }
+    if (keys.empty()) {
+      Sort(sorted_by);
+      return;
+    }
+    // Grouping is stable, so if the rows are already sorted by `sorted_by`,
+    // grouping them is enough.
+    Group(keys,
+          rows.IsArranged({}, sorted_by) ? std::vector<SortKey>() : sorted_by);
+  }
+
+  // Reads the scan the rows come from backwards, if that sorts them by
+  // `sorted_by`. Rows which tie come out in the reverse of the scan's order.
+  bool ReadBackwards(const std::vector<SortKey>& sorted_by) {
+    OutputProperties& rows = out_.rows;
+    if (!rows.reversible_scan) {
+      return false;
+    }
+    OutputProperties backwards = rows;
+    for (OutputProperties::Arrangement& arrangement : backwards.arrangements) {
+      for (SortKey& key : arrangement.sorted_by) {
+        key.descending = !key.descending;
+      }
+    }
+    if (!backwards.IsArranged({}, sorted_by)) {
+      return false;
+    }
+    bound_->planned[*rows.reversible_scan].scan_direction =
+        core::exec::ReadDirection::kBackwards;
+    backwards.reversible_scan.reset();
+    if (backwards.tree) {
+      backwards.tree->walk.reset();
+    }
+    rows = std::move(backwards);
+    return true;
+  }
+
+  bool DropOpenSort() {
+    OutputProperties& rows = out_.rows;
+    if (!rows.open_sort) {
+      return false;
+    }
+    OutputProperties::OpenSort sort = std::move(*rows.open_sort);
+    rows.open_sort.reset();
+    std::vector<InputStep>& steps =
+        bound_->planned[sort.node].inputs[sort.input].steps;
+    // Batches were combined for the sort, which what was planned since assumes.
+    if (std::get<input_step::Sort>(steps[sort.step]).combine_first) {
+      steps[sort.step] = input_step::CombineBatches{};
+    } else {
+      steps.erase(steps.begin() + static_cast<ptrdiff_t>(sort.step));
+    }
+    rows.arrangements = std::move(sort.arrangements);
+    if (rows.tree) {
+      rows.tree->walk = sort.walk;
+    }
+    return true;
+  }
+
+  void Sort(const std::vector<SortKey>& keys) {
+    RequireSortKeyTypes(keys);
+    OutputProperties& rows = out_.rows;
+    OutputProperties::OpenSort sort;
+    sort.node = node_;
+    sort.input = input_;
+    sort.step = out_.steps.size();
+    sort.arrangements = std::move(rows.arrangements);
+    if (rows.tree) {
+      sort.walk = rows.tree->walk;
+      rows.tree->walk.reset();
+    }
+    out_.steps.push_back(input_step::Sort{keys, !rows.full_batches});
+    rows.reversible_scan.reset();
+    rows.full_batches = true;
+    rows.arrangements = {{{}, keys}};
+    rows.open_sort = std::move(sort);
+  }
+
+  void Group(const std::vector<ColumnId>& keys,
+             const std::vector<SortKey>& sorted_by) {
+    RequireSortKeyTypes(sorted_by);
+    OutputProperties& rows = out_.rows;
+    ColumnId numbers = NewPlanColumn(bound_, node_);
+    out_.steps.push_back(
+        input_step::Group{keys, sorted_by, numbers, !rows.full_batches});
+    rows.columns.push_back({numbers, core::Uint32{}});
+    rows.full_batches = true;
+    rows.open_sort.reset();
+    rows.reversible_scan.reset();
+    std::vector<OutputProperties::Arrangement> kept;
+    if (sorted_by.empty()) {
+      // An order known within groups of a subset of `keys` still holds within
+      // the new groups.
+      for (const OutputProperties::Arrangement& arrangement :
+           rows.arrangements) {
+        if (std::all_of(
+                arrangement.grouped_by.begin(), arrangement.grouped_by.end(),
+                [&](ColumnId column) { return Contains(keys, column); })) {
+          kept.push_back({keys, arrangement.sorted_by});
+        }
+      }
+    }
+    kept.push_back({keys, sorted_by});
+    rows.arrangements = std::move(kept);
+    if (rows.tree) {
+      rows.tree->walk.reset();
+    }
+    rows.group_numbers.push_back({keys, numbers});
+  }
+
+  void WalkTree(const InputNeeds::TreeWalk& walk) {
+    OutputProperties& rows = out_.rows;
+    if (rows.TreeWalk(walk.node, walk.parent) == walk.direction) {
+      return;
+    }
+    bool same_tree = rows.tree && rows.tree->node == walk.node &&
+                     rows.tree->parent == walk.parent;
+    if (same_tree && DropOpenSort() &&
+        rows.TreeWalk(walk.node, walk.parent) == walk.direction) {
+      return;
+    }
+    if (!same_tree) {
+      ColumnId node_number = NewPlanColumn(bound_, node_);
+      ColumnId parent_number = NewPlanColumn(bound_, node_);
+      out_.steps.push_back(input_step::NumberTree{walk.node, walk.parent,
+                                                  node_number, parent_number});
+      rows.columns.push_back({node_number, core::Uint32{}});
+      rows.columns.push_back({parent_number, core::Uint32{}});
+      rows.tree = OutputProperties::Tree{walk.node, walk.parent, std::nullopt,
+                                         node_number, parent_number};
+    }
+    // Walking up holds every row, and outputs full batches. Walking down
+    // outputs rows as their parents arrive, so batches can be small.
+    bool up = walk.direction == TreeDirection::kUp;
+    out_.steps.push_back(
+        input_step::WalkTree{rows.tree->node_number, rows.tree->parent_number,
+                             walk.direction, up && !rows.full_batches});
+    rows.full_batches = up;
+    rows.open_sort.reset();
+    rows.reversible_scan.reset();
+    rows.arrangements.clear();
+    rows.tree->walk = walk.direction;
+  }
+
+  BoundPlan* bound_;
+  PlanNodeId node_;
+  uint32_t input_;
+  PlannedInput out_;
+};
 
 }  // namespace
 
@@ -85,7 +352,7 @@ bool OutputProperties::IsArranged(const std::vector<ColumnId>& keys,
 }
 
 std::vector<SortKey> OutputProperties::SortedBy(
-    const std::vector<ColumnId>& columns) const {
+    const std::vector<ColumnId>& allowed) const {
   std::vector<SortKey> longest;
   for (const Arrangement& arrangement : arrangements) {
     if (!arrangement.grouped_by.empty()) {
@@ -93,7 +360,7 @@ std::vector<SortKey> OutputProperties::SortedBy(
     }
     std::vector<SortKey> keys;
     for (const SortKey& key : arrangement.sorted_by) {
-      if (!Contains(columns, key.column)) {
+      if (!Contains(allowed, key.column)) {
         break;
       }
       keys.push_back(key);
@@ -113,143 +380,134 @@ std::optional<TreeDirection> OutputProperties::TreeWalk(ColumnId node,
   return tree->walk;
 }
 
-void OutputProperties::Sort(const std::vector<SortKey>& keys) {
-  std::optional<TreeDirection> walk;
-  if (tree) {
-    walk = tree->walk;
-    tree->walk.reset();
+std::optional<uint32_t> OutputProperties::PositionOf(ColumnId column) const {
+  auto it = std::find_if(columns.begin(), columns.end(),
+                         [&](const Column& c) { return c.id == column; });
+  if (it == columns.end()) {
+    return std::nullopt;
   }
-  before_open_sort = BeforeOpenSort{std::move(arrangements), walk};
-  arrangements = {{{}, keys}};
+  return static_cast<uint32_t>(it - columns.begin());
 }
 
-bool OutputProperties::DropOpenSort() {
-  if (!before_open_sort) {
-    return false;
-  }
-  arrangements = std::move(before_open_sort->arrangements);
-  if (tree) {
-    tree->walk = before_open_sort->walk;
-  }
-  before_open_sort.reset();
-  return true;
+const PlanType& OutputProperties::TypeOf(ColumnId column) const {
+  std::optional<uint32_t> position = PositionOf(column);
+  PERFETTO_CHECK(position);
+  return columns[*position].type;
 }
 
-void OutputProperties::CloseOpenSort() {
-  before_open_sort.reset();
-}
-
-void OutputProperties::Group(const std::vector<ColumnId>& keys,
-                             const std::vector<SortKey>& sorted_by) {
-  CloseOpenSort();
-  std::vector<Arrangement> kept;
-  if (sorted_by.empty()) {
-    // An order known within groups of a subset of `keys` still holds within
-    // the new groups.
-    for (const Arrangement& arrangement : arrangements) {
-      if (std::all_of(
-              arrangement.grouped_by.begin(), arrangement.grouped_by.end(),
-              [&](ColumnId column) { return Contains(keys, column); })) {
-        kept.push_back({keys, arrangement.sorted_by});
-      }
+std::optional<ColumnId> OutputProperties::GroupNumbersOf(
+    const std::vector<ColumnId>& keys) const {
+  for (const GroupNumbers& numbers : group_numbers) {
+    if (std::is_permutation(numbers.keys.begin(), numbers.keys.end(),
+                            keys.begin(), keys.end())) {
+      return numbers.column;
     }
   }
-  kept.push_back({keys, sorted_by});
-  arrangements = std::move(kept);
-  if (tree) {
-    tree->walk.reset();
-  }
-  group_numbers.push_back({keys, column_count++});
-}
-
-void OutputProperties::WalkTree(ColumnId node,
-                                ColumnId parent,
-                                TreeDirection direction) {
-  NumberTree(node, parent);
-  CloseOpenSort();
-  arrangements.clear();
-  tree->walk = direction;
-}
-
-void OutputProperties::NumberTree(ColumnId node, ColumnId parent) {
-  if (tree && tree->node == node && tree->parent == parent) {
-    return;
-  }
-  uint32_t node_position = column_count++;
-  uint32_t parent_position = column_count++;
-  tree = Tree{node, parent, std::nullopt, node_position, parent_position};
-}
-
-uint32_t OutputProperties::AddColumn(ColumnId id) {
-  positions[id] = column_count;
-  return column_count++;
-}
-
-uint32_t OutputProperties::AddTemporaryColumn() {
-  return column_count++;
-}
-
-void OutputProperties::Reset() {
-  column_count = 0;
-  positions.assign(positions.size(), kNoPosition);
-  full_batches = true;
-  arrangements.clear();
-  tree.reset();
-  group_numbers.clear();
-  before_open_sort.reset();
+  return std::nullopt;
 }
 
 void OutputProperties::DropRows() {
-  CloseOpenSort();
+  open_sort.reset();
   full_batches = false;
   tree.reset();
 }
 
-OutputProperties OutputProperties::Empty(size_t plan_columns) {
-  OutputProperties empty;
-  empty.positions.assign(plan_columns, kNoPosition);
-  return empty;
+const OutputProperties& DeriveContext::input(uint32_t i) const {
+  return bound_->planned[self_].inputs[i].rows;
 }
 
-OutputProperties::RequiredSteps OutputProperties::RequireSorted(
-    const std::vector<SortKey>& keys) {
-  RequiredSteps steps;
-  if (IsArranged({}, keys)) {
-    return steps;
+OutputProperties::Column DeriveContext::ColumnOf(ColumnId id) const {
+  for (const PlannedInput& input : bound_->planned[self_].inputs) {
+    if (std::optional<uint32_t> pos = input.rows.PositionOf(id)) {
+      return input.rows.columns[*pos];
+    }
   }
-  steps.drop_open_sort = DropOpenSort();
-  if (steps.drop_open_sort && IsArranged({}, keys)) {
-    return steps;
-  }
-  steps.combine_batches = !full_batches;
-  steps.reorder = true;
-  full_batches = true;
-  Sort(keys);
-  return steps;
+  const PlanType& type = bound_->bindings.types[id];
+  return {id, type, type.is_null()};
 }
 
-OutputProperties::RequiredSteps OutputProperties::RequireTreeWalk(
-    ColumnId node,
-    ColumnId parent,
-    TreeDirection direction) {
-  RequiredSteps steps;
-  if (TreeWalk(node, parent) == direction) {
-    return steps;
+OutputProperties::Column DeriveContext::NewColumn() {
+  return {NewPlanColumn(bound_, self_), core::Uint32{}};
+}
+
+void DeriveContext::SetPrograms(std::vector<core::exec::ExprProgram> programs) {
+  bound_->planned[self_].programs = std::move(programs);
+}
+
+std::vector<std::optional<core::exec::FilterValue>>&
+DeriveContext::filter_values() {
+  return bound_->planned[self_].filter_values;
+}
+
+void DeriveContext::LimitSort(const OutputProperties::OpenSort& sort,
+                              uint32_t rows) {
+  std::get<input_step::Sort>(
+      bound_->planned[sort.node].inputs[sort.input].steps[sort.step])
+      .keep = rows;
+}
+
+void DeriveContext::Fail(base::Status status) {
+  pipeline::Fail(bound_, std::move(status));
+}
+
+InputNeeds IntervalLaneNeeds(ColumnId ts,
+                             ColumnId dur,
+                             const std::vector<ColumnId>& keys) {
+  InputNeeds needs;
+  needs.types_first.push_back({ts, core::Int64{}, false});
+  needs.types_first.push_back({dur, core::Int64{}, false});
+  needs.arranged = OutputProperties::Arrangement{keys, {{ts, false}}};
+  needs.group_numbers = true;
+  return needs;
+}
+
+void PlanNodeInputs(BoundPlan* bound,
+                    PlanNodeId id,
+                    const LoweringContext& context) {
+  bound->planned[id].new_columns_used = 0;
+  const PlanNode& node = bound->plan.nodes()[id];
+  const PlanOperation& op = node.operation();
+  std::vector<InputPlanner> planners;
+  for (uint32_t i = 0; i < node.children().size(); ++i) {
+    planners.emplace_back(bound, id, i,
+                          bound->planned[node.children()[i]].output);
   }
-  bool same_tree = tree && tree->node == node && tree->parent == parent;
-  steps.drop_open_sort = same_tree && DropOpenSort();
-  if (steps.drop_open_sort && TreeWalk(node, parent) == direction) {
-    return steps;
+  for (const std::vector<InputColumn>& same : op.CommonTypes()) {
+    PlanType common = PlanType::Null();
+    for (const InputColumn& side : same) {
+      std::optional<PlanType> next =
+          CommonType(common, planners[side.input].rows().TypeOf(side.column));
+      if (!next) {
+        const LogicalPlan& plan = bound->plan;
+        Fail(
+            bound,
+            base::ErrStatus(
+                "column '%s' holds strings in one input and numbers in another",
+                plan.names().text(plan.columns()[side.column].name).c_str()));
+        return;
+      }
+      common = *next;
+    }
+    for (const InputColumn& side : same) {
+      planners[side.input].Convert(side.column, common);
+    }
   }
-  bool up = direction == TreeDirection::kUp;
-  steps.number_tree = !same_tree;
-  // Walking up holds every row, and outputs full batches. Walking down outputs
-  // rows as their parents arrive, so batches can be small.
-  steps.combine_batches = up && !full_batches;
-  steps.reorder = true;
-  full_batches = up;
-  WalkTree(node, parent, direction);
-  return steps;
+  std::vector<PlannedInput> inputs;
+  for (uint32_t i = 0; i < planners.size(); ++i) {
+    planners[i].Meet(op.Needs(i));
+    inputs.push_back(planners[i].Take());
+  }
+  bound->planned[id].inputs = std::move(inputs);
+  if (!op.IsRowWise()) {
+    // Only a row-wise operation's output is reversed by reading its input
+    // backwards.
+    for (PlannedInput& input : bound->planned[id].inputs) {
+      input.rows.reversible_scan.reset();
+    }
+  }
+  DeriveContext derive(bound, id, context);
+  OutputProperties output = op.Derive(derive);
+  bound->planned[id].output = std::move(output);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

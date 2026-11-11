@@ -31,12 +31,6 @@ class Lowering;
 class PlanNode;
 struct BoundPlan;
 
-// Runs two independent folds over one tree in the order its rows already walk
-// it, so only one of them reorders the rows: a fold directly on a fold in the
-// opposite direction over the same tree, reading none of its outputs. `id` and
-// everything below it in `bound->outputs` must be derived but for `id` itself.
-void ReorderTreeFold(BoundPlan* bound, PlanNodeId id);
-
 // `|> TREE ACCUMULATE UP | DOWN agg AS name, ...`. Appends one column per
 // aggregate.
 class TreeAccumulate : public PlanOperation {
@@ -50,7 +44,14 @@ class TreeAccumulate : public PlanOperation {
   // PlanOperation implementation. Dispatch goes through the base interface.
   std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
-  OutputProperties Derive(const BoundPlan&, PlanNodeId self) const override;
+  // Runs two independent folds over one tree in the order its rows already walk
+  // it, so only one of them reorders the rows: a fold directly on a fold in the
+  // opposite direction over the same tree, reading none of its outputs.
+  void Rewrite(BoundPlan*,
+               PlanNodeId self,
+               const LoweringContext&) const override;
+  InputNeeds Needs(uint32_t input) const override;
+  OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
 
@@ -60,8 +61,6 @@ class TreeAccumulate : public PlanOperation {
   // walk the same tree in opposite directions and this reads none of
   // `below`'s outputs.
   bool CommutesWith(const TreeAccumulate& below) const;
-
-  friend void ReorderTreeFold(BoundPlan*, PlanNodeId);
 
   const OperationRegistration& registration() const override;
 

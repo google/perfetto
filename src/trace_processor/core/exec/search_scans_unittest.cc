@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -216,13 +217,15 @@ class SearchScansDiffTest : public ::testing::Test {
     return rows;
   }
 
-  // Lowers a filter-only logical plan to a scan and a Filter.
+  // Lowers a filter-only logical plan to a scan and a Filter, reading the
+  // scan in `direction`. An index is only read forwards.
   struct ExecPlan {
     std::unique_ptr<Source> scan;
     std::unique_ptr<Pipeline> pipeline;
     std::vector<std::optional<FilterValueCaster<Values>>> casters;
   };
-  std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan) {
+  std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan,
+                                ReadDirection direction) {
     std::vector<std::shared_ptr<const dataframe::Column>> columns;
     for (uint32_t i = 0; i < df_->column_names().size(); ++i) {
       columns.push_back(df_->shared_column(i));
@@ -293,8 +296,12 @@ class SearchScansDiffTest : public ::testing::Test {
     uint32_t rows = empty ? 0 : df_->row_count();
     if (empty) {
       // Provably empty, whatever else the plan does.
-      out.scan = std::make_unique<DataframeScan>(std::move(columns), 0);
+      out.scan =
+          std::make_unique<DataframeScan>(std::move(columns), 0, direction);
     } else if (index) {
+      if (direction == ReadDirection::kBackwards) {
+        return std::nullopt;
+      }
       // Through an index, any search of a sorted column is left to the Filter.
       conditions.insert(conditions.end(), searches_as_conditions.begin(),
                         searches_as_conditions.end());
@@ -302,10 +309,11 @@ class SearchScansDiffTest : public ::testing::Test {
                                              std::move(equalities), &pool_);
       ++index_scans_;
     } else if (searches.empty()) {
-      out.scan = std::make_unique<DataframeScan>(std::move(columns), rows);
+      out.scan =
+          std::make_unique<DataframeScan>(std::move(columns), rows, direction);
     } else {
-      out.scan = std::make_unique<SortedScan>(std::move(columns), rows,
-                                              std::move(searches), &pool_);
+      out.scan = std::make_unique<SortedScan>(
+          std::move(columns), rows, std::move(searches), &pool_, direction);
       ++sorted_scans_;
     }
     std::vector<Pipeline::Step> steps;
@@ -334,6 +342,7 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
                                 Gt{}, Ge{}, IsNull{}, IsNotNull{}};
   uint32_t compared = 0;
   uint32_t found = 0;
+  uint32_t compared_backwards = 0;
   for (uint32_t table = 0; table < 8; ++table) {
     // Small tables, and tables spanning several batches.
     Build(table % 2 ? 1 + rng_() % 50 : kMaxBatchRows * 2 + rng_() % 3000);
@@ -367,12 +376,19 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
       auto logical = df_->PlanQueryLogicalForTesting(planned, {}, {}, {},
                                                      uint64_t{1} << kMaybe);
       ASSERT_TRUE(logical.ok());
-      std::optional<ExecPlan> exec = Lower(*logical);
+      std::optional<ExecPlan> exec = Lower(*logical, ReadDirection::kForwards);
       if (!exec) {
         continue;
       }
       // Reuse one cursor across runs, as a query does.
       RowCursor cursor(*exec->pipeline);
+      // Read backwards, the same rows come out in reverse.
+      std::optional<ExecPlan> backwards =
+          Lower(*logical, ReadDirection::kBackwards);
+      std::unique_ptr<RowCursor> backwards_cursor;
+      if (backwards) {
+        backwards_cursor = std::make_unique<RowCursor>(*backwards->pipeline);
+      }
       for (uint32_t run = 0; run < 3; ++run) {
         std::vector<Value> by_source;
         for (const auto& [col, op] : shape) {
@@ -417,11 +433,25 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
         ASSERT_EQ(actual, expected) << logical->ToString();
         ++compared;
         found += !expected.empty();
+        if (!backwards_cursor) {
+          continue;
+        }
+        std::vector<uint32_t> reversed;
+        for (bool ok = backwards_cursor->Open(base::Span<const FilterValue>(
+                 moved.data(), moved.data() + moved.size()));
+             ok; ok = backwards_cursor->Next()) {
+          reversed.push_back(backwards_cursor->Value<uint32_t>(kId));
+        }
+        ASSERT_TRUE(backwards_cursor->status().ok());
+        std::reverse(reversed.begin(), reversed.end());
+        ASSERT_EQ(reversed, expected) << "backwards " << logical->ToString();
+        ++compared_backwards;
       }
     }
   }
   // Check the comparison was meaningful.
   EXPECT_GT(found, compared / 4);
+  EXPECT_GT(compared_backwards, compared / 2);
   EXPECT_GT(binary_searches_, 0u);
   EXPECT_GT(setid_searches_, 0u);
   EXPECT_GT(small_value_searches_, 0u);

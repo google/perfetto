@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -249,8 +250,10 @@ class Evaluator {
       Register& out = constants_[i];
       if (step.type == ExprType::kDouble) {
         Fill(Alloc<double>(out), step.double_value);
+      } else if (step.type == ExprType::kString) {
+        Fill(Alloc<StringPool::Id>(out),
+             StringPool::Id::Raw(static_cast<uint32_t>(step.int_value)));
       } else {
-        PERFETTO_DCHECK(step.type == ExprType::kInt64);
         Fill(Alloc<int64_t>(out), step.int_value);
       }
       if (step.op == Op::kNull) {

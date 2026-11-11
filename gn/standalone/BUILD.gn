@@ -269,7 +269,7 @@ config("default") {
   libs = []
 
   if ((is_android || is_linux || is_qnx) && !is_wasm) {
-    if (current_cpu == "ppc64") {
+    if (current_cpu == "ppc64" || (is_linux && current_cpu == "arm64")) {
       _max_page_size = "65536"
     } else {
       _max_page_size = "16384"

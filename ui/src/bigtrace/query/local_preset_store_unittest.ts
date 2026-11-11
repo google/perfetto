@@ -42,7 +42,6 @@ function fakeTab(over: Partial<BigTraceEditorTab> = {}): BigTraceEditorTab {
   return {
     editorText: 'select 1',
     limit: 1000,
-    materialize: false,
     querySettings: [],
     traceFilters: [],
     traceMetadataColumns: null,
@@ -173,7 +172,6 @@ describe('presetFromTab', () => {
     const tab = fakeTab({
       editorText: 'select count(*) from slice',
       limit: 10000,
-      materialize: true,
       traceOrderBy: 'size_bytes desc',
       traceFilters: [{field: 'file_name', op: 'glob', value: '*.pftrace'}],
       querySettings: [

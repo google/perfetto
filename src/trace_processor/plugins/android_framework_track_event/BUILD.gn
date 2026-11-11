@@ -35,6 +35,7 @@ source_set("android_framework_track_event") {
     "../../../base",
     "../../../protozero",
     "../../core/plugin",
+    "../../importers/android",
     "../../importers/common",
     "../../importers/proto:minimal",
     "../../importers/proto:proto_importer_module",

@@ -535,6 +535,118 @@ class PerfettoPipeline(TestSuite):
         1,5
         """))
 
+  # A string is never a number: comparing the two is a mistake to report rather
+  # than a filter which keeps no rows, or every row.
+  def test_where_refuses_a_string_for_a_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE n = '5';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_where_refuses_an_order_against_a_string_for_a_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE n < 'a';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_where_refuses_a_number_for_a_string_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE s = 5;
+        """,
+        out=ExpectedError(
+            'expected a string to compare with a string column, but got a number'
+        ))
+
+  def test_where_refuses_a_string_in_an_in_list_for_a_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> WHERE n IN (5, 'a');
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  # The type of a SQL source's column is only known once it has run.
+  def test_where_refuses_a_string_for_a_number_column_of_sql(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 5 AS n) |> WHERE n = '5';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  def test_where_refuses_a_string_for_a_computed_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        FROM t |> EXTEND n + 1 AS m |> WHERE m = 'a';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  # A condition on an indexed column must not be answered by searching instead.
+  def test_where_refuses_a_string_for_an_indexed_number_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 'x' AS s;
+        CREATE PERFETTO INDEX t_n ON t(n);
+        FROM t |> WHERE n = '5' AND s = 'x';
+        """,
+        out=ExpectedError(
+            'expected a number to compare with a numeric column, but got a string'
+        ))
+
+  # What a comparison with a literal of the column's kind does is unchanged, as
+  # are GLOB and IS NULL, which do not compare values.
+  def test_where_keeps_conditions_of_the_column_kind(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 5 AS n, 'x' AS s UNION ALL SELECT 7, NULL;
+        CREATE PERFETTO TABLE a AS FROM t |> WHERE n = 5 AND s = 'x';
+        CREATE PERFETTO TABLE b AS FROM t |> WHERE n > 5.5;
+        CREATE PERFETTO TABLE c AS FROM t |> WHERE s GLOB 'x*';
+        CREATE PERFETTO TABLE d AS FROM t |> WHERE s IS NULL;
+        SELECT
+          (SELECT count(*) FROM a) AS a,
+          (SELECT count(*) FROM b) AS b,
+          (SELECT count(*) FROM c) AS c,
+          (SELECT count(*) FROM d) AS d;
+        """,
+        out=Csv("""
+        "a","b","c","d"
+        1,1,1,1
+        """))
+
   # Must match SQL's WHERE and DISTINCT, including comparing an integer
   # column with a fraction.
   def test_where_and_distinct_match_sql(self):
@@ -563,6 +675,34 @@ class PerfettoPipeline(TestSuite):
         out=Csv("""
         "rows","expected_rows","mismatches"
         126,126,0
+        """))
+
+  # Must match SQL's REGEXP, which matches part of a string unless anchored.
+  def test_where_regexp_matches_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT id, name FROM slice)
+        |> WHERE name REGEXP 'Pipeline' AND name REGEXP '(Swap|line)$'
+        |> SELECT id;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT id FROM slice
+        WHERE name REGEXP 'Pipeline' AND name REGEXP '(Swap|line)$';
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (SELECT count(*) FROM expected) AS expected_rows,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM expected))
+          + (SELECT count(*) FROM (
+            SELECT * FROM expected EXCEPT SELECT * FROM piped)) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","expected_rows","mismatches"
+        10151,10151,0
         """))
 
   # Must match SQL's WHERE on strings, GLOB, IN and IS NOT NULL.
@@ -1564,6 +1704,74 @@ class PerfettoPipeline(TestSuite):
         "rows","extra","missing"
         74228,0,0
         """))
+
+  # A string literal is a value like any other: later stages can compare, group
+  # and sort by it, including a string no table holds.
+  def test_computed_string_literals(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id UNION ALL SELECT 2;
+        FROM t
+        |> EXTEND 'only in this query' AS s, 'it''s' AS q, '' AS empty
+        |> WHERE s = 'only in this query'
+        |> ORDER BY id DESC;
+        """,
+        out=Csv("""
+        "id","s","q","empty"
+        2,"only in this query","it's",""
+        1,"only in this query","it's",""
+        """))
+
+  def test_computed_string_literal_groups(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id UNION ALL SELECT 2;
+        CREATE PERFETTO TABLE p AS
+        FROM t |> EXTEND 'a' AS s |> AGGREGATE COUNT(*) AS n GROUP BY s;
+        SELECT * FROM p;
+        """,
+        out=Csv("""
+        "s","n"
+        "a",2
+        """))
+
+  def test_computed_number_literals_are_unchanged(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id;
+        FROM t
+        |> EXTEND 0x10 AS h, -5 AS n, 2.5 AS d, -2.5 AS e, -0x8000000000000000 AS m;
+        """,
+        out=Csv("""
+        "id","h","n","d","e","m"
+        1,16,-5,2.500000,-2.500000,-9223372036854775808
+        """))
+
+  def test_computed_string_refuses_arithmetic(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id;
+        FROM t |> EXTEND 'a' + 1 AS s;
+        """,
+        out=ExpectedError('numbers, not strings, in arithmetic'))
+
+  def test_computed_string_refuses_negation(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 1 AS id;
+        FROM t |> EXTEND -'a' AS s;
+        """,
+        out=ExpectedError('a negated string'))
 
   # A computed column's type is only known once the source's is, so later
   # stages must see it then.

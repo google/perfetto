@@ -21,18 +21,12 @@ import {Editor} from '../../widgets/editor';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {getBigtraceEndpoint} from '../settings/endpoint_storage';
-import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import {formatPerfettoSql} from '../query/sql_formatter';
-import {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import type {QueryRunner} from '../query/query_runner';
 import {
   type BigTraceEditorTab,
   type QueryTabsState,
-  applyModeDefaults,
   hasQueryText,
   effectiveTabSettings,
 } from './query_tabs_state';
@@ -56,12 +50,12 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
   view({attrs}: m.Vnode<EditorTabViewAttrs>): m.Children {
     const {tab, tabsState, runner, useBigtraceBackend} = attrs;
 
-    // Tabs reopened from history wire up their dataSource on first render.
+    // Tabs restored from localStorage rehydrate their execution on first render.
     if (tab.queryUuid && !tab.dataSource) {
-      attachAsyncDataSource(tab, runner);
+      void runner.rehydrateTab(tab);
     }
 
-    if (tab.dataSource && tab.queryResult && tab.materialize && tab.execution) {
+    if (tab.dataSource && tab.queryResult && tab.execution) {
       tab.queryResult.totalRowCount = tab.execution.processedRows;
     }
 
@@ -95,7 +89,9 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
           runner,
           useBigtraceBackend,
         ),
-        secondPanel: renderResultsPanel(tab, tabsState),
+        secondPanel: renderResultsPanel(tab, tabsState, () =>
+          runner.refreshStatus(tab),
+        ),
       }),
     ]);
   }
@@ -159,13 +155,6 @@ function buildTabBindings(
       tab.limit = limit;
       tabsState.markDirty();
     },
-    getMaterialize: () => tab.materialize,
-    setMaterialize: (materialize) => {
-      // Same path as the toolbar switch: caps the user never touched follow
-      // the mode.
-      applyModeDefaults(tab, materialize);
-      tabsState.markDirty();
-    },
     getExperimentFilter: () => tab.experimentFilter,
     setExperimentFilter: (filter) => {
       tab.experimentFilter = filter;
@@ -208,8 +197,7 @@ async function formatTabQuery(
 }
 
 // ---------------------------------------------------------------------------
-// Editor panel: toolbar (Run/Cancel + limit + save-to-table switch) and the
-// editor.
+// Editor panel: toolbar (Run/Cancel + row limit + settings) and the editor.
 // ---------------------------------------------------------------------------
 
 function renderEditorPanel(
@@ -279,28 +267,13 @@ function renderEditorPanel(
   ]);
 }
 
-// Mode switch, the row cap, and the gear opening the query-settings modal
-// (the trace cap and every non-trace-selection setting). The gear is always
-// there: the trace cap is a universal request field, whatever the backend
-// declares.
+// Row cap and the gear opening the query-settings modal (the trace cap and
+// every non-trace-selection setting).
 function renderRunControls(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
 ): m.Children {
   return [
-    m(Switch, {
-      label: 'Save results to table',
-      title:
-        'ON: results saved to a table you can reopen from History. ' +
-        'OFF: results shown inline and discarded when the tab closes.',
-      checked: tab.materialize,
-      disabled: tab.isLoading,
-      onchange: (e: Event) => {
-        applyModeDefaults(tab, (e.target as HTMLInputElement).checked);
-        tabsState.markDirty();
-      },
-    }),
-    m('span.pf-bt-divider', {'aria-hidden': 'true'}),
     m('span', 'Rows:'),
     m(TextInput, {
       type: 'number',
@@ -330,44 +303,4 @@ function renderRunControls(
         ),
     }),
   ];
-}
-
-// ---------------------------------------------------------------------------
-// Lazily build the data source for tabs restored from localStorage.
-// ---------------------------------------------------------------------------
-
-function attachAsyncDataSource(
-  tab: BigTraceEditorTab,
-  runner: QueryRunner,
-): void {
-  if (!tab.queryUuid) return;
-  const queryClient = new BigtraceQueryClient(getBigtraceEndpoint());
-  tab.queryClient = queryClient;
-  if (!tab.materialize) {
-    tab.dataSource = new InMemoryDataSource([]);
-    return;
-  }
-  tab.dataSource = new BigtraceAsyncDataSource(
-    tab.queryUuid,
-    queryClient,
-    () => tab.execution?.processedRows ?? 0,
-    tab.lifecycle.signal,
-    () => tab.execution?.schema,
-  );
-  tab.isLoading = true;
-  runner.startPolling(tab);
-
-  if (tab.queryResult === undefined) {
-    tab.queryResult = {
-      rows: [],
-      columns: [],
-      error: undefined,
-      totalRowCount: 0,
-      durationMs: 0,
-      statementWithOutputCount: 0,
-      statementCount: 1,
-      lastStatementSql: tab.editorText,
-      query: tab.editorText,
-    };
-  }
 }

@@ -113,6 +113,9 @@ std::string OpString(const WherePredicate::Op& op) {
   if (op.Is<core::Glob>()) {
     return "GLOB";
   }
+  if (op.Is<core::Regex>()) {
+    return "REGEXP";
+  }
   if (op.Is<core::In>()) {
     return "IN";
   }
@@ -158,10 +161,12 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
   switch (node.op) {
     case Op::kColumn:
       return "#" + std::to_string(node.a);
-    case Op::kConstant:
-      return node.type == core::exec::ExprType::kDouble
-                 ? std::to_string(node.double_value)
-                 : std::to_string(node.int_value);
+    case Op::kConstant: {
+      const Literal& l = e.literals[node.a];
+      return l.is_string()   ? "'" + l.text + "'"
+             : l.is_double() ? std::to_string(l.double_value)
+                             : std::to_string(l.int_value);
+    }
     case Op::kNull:
       return "NULL";
     case Op::kAdd:
@@ -346,19 +351,10 @@ std::string LogicalPlanFormatter::WhereString(const Where& where) {
     out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op);
     std::vector<std::string> literals;
     for (uint32_t j = 0; j < p.literal_count; ++j) {
-      const WhereLiteral& l = where.literals_[p.first_literal + j];
-      switch (l.type) {
-        case WhereLiteral::Type::kInt64:
-          literals.push_back(std::to_string(l.int_value));
-          break;
-        case WhereLiteral::Type::kDouble:
-          literals.push_back(std::to_string(l.double_value));
-          break;
-        case WhereLiteral::Type::kString:
-          literals.push_back(
-              "'" + where.strings_[static_cast<size_t>(l.int_value)] + "'");
-          break;
-      }
+      const Literal& l = where.literals_[p.first_literal + j];
+      literals.push_back(l.is_string()   ? "'" + l.text + "'"
+                         : l.is_double() ? std::to_string(l.double_value)
+                                         : std::to_string(l.int_value));
     }
     if (p.op.Is<core::In>()) {
       out += " (" + base::Join(literals, ", ") + ")";
