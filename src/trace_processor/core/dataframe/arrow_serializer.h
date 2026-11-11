@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,7 +31,10 @@
 
 namespace perfetto::trace_processor {
 class StringPool;
+namespace util {
+class ZstdStreamCompressor;
 }
+}  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -39,6 +43,12 @@ enum class ArrowSparseColumns : uint8_t {
   // A "<name>.__validity" Boolean column, then "<name>.__values" holding the
   // stored values followed by nulls. Only DeserializeFromArrow reads it back.
   kSplit,
+};
+
+enum class ArrowCompression : uint8_t {
+  kNone,
+  // Requires a build with zstd support.
+  kZstd,
 };
 
 // Serializes a Dataframe as a standard Arrow file containing one record batch.
@@ -63,13 +73,15 @@ class ArrowSerializer {
   using WriteFn = std::function<base::Status(const uint8_t*, size_t)>;
 
   explicit ArrowSerializer(IdColumnMode = IdColumnMode::kOmit,
-                           ArrowSparseColumns = ArrowSparseColumns::kExpand);
+                           ArrowSparseColumns = ArrowSparseColumns::kExpand,
+                           ArrowCompression = ArrowCompression::kNone);
   ~ArrowSerializer();
 
   // Computes Arrow buffer metadata and the exact output size for a finalized
   // dataframe. Arrow places buffer lengths before buffer contents, so
   // variable-width strings must be measured here before Write() can stream the
-  // file. This retains only metadata; it does not materialize column contents.
+  // file. This retains only metadata, unless compressing: compressed sizes are
+  // only known after compressing, so the compressed body is kept instead.
   base::StatusOr<size_t> Prepare(const Dataframe&, const StringPool&);
 
   // Streams the dataframe prepared by the preceding Prepare() call using
@@ -117,6 +129,7 @@ class ArrowSerializer {
                                  const PreparedColumn&,
                                  const WriteFn&);
   base::Status WriteBody(const Dataframe&, const WriteFn&);
+  base::Status CompressBodies(const Dataframe&, const StringPool&, BodyPlan*);
 
   std::vector<uint8_t> header_;
   std::vector<uint8_t> batch_header_;
@@ -130,6 +143,9 @@ class ArrowSerializer {
   uint64_t prepared_mutations_ = 0;
   IdColumnMode id_column_mode_;
   ArrowSparseColumns sparse_columns_;
+  bool compress_;
+  std::vector<uint8_t> compressed_body_;
+  std::unique_ptr<util::ZstdStreamCompressor> zstd_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

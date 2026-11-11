@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/flatbuffer_reader.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 #include "test/gtest_and_gmock.h"
@@ -645,6 +646,72 @@ TEST(ArrowDeserializerTest, RoundTripSplitMixedColumns) {
   EXPECT_EQ((dst.GetCellUnchecked<4>(kMixedNullability, 0)), 1.5);
   EXPECT_FALSE((dst.GetCellUnchecked<4>(kMixedNullability, 1)).has_value());
   EXPECT_FALSE((dst.GetCellUnchecked<5>(kMixedNullability, 0)).has_value());
+}
+
+Dataframe MakeMixedDataframe(StringPool* pool, uint32_t rows) {
+  auto a = pool->InternString(base::StringView("a"));
+  auto src = Dataframe::CreateFromTypedSpec(kMixedNullability, pool);
+  for (uint32_t i = 0; i < rows; ++i) {
+    src.InsertUnchecked(
+        kMixedNullability, std::monostate{}, int64_t{i} * 10,
+        i % 3 ? std::optional<int32_t>{static_cast<int32_t>(i)}
+              : std::optional<int32_t>{},
+        i % 2 ? std::optional<StringPool::Id>{a}
+              : std::optional<StringPool::Id>{},
+        i % 5 ? std::optional<double>{i * 0.5} : std::optional<double>{},
+        std::optional<int64_t>{});
+  }
+  return src;
+}
+
+TEST(ArrowDeserializerTest, RoundTripCompressed) {
+  if (!util::IsZstdSupported()) {
+    GTEST_SKIP() << "zstd not supported";
+  }
+  StringPool pool;
+  Dataframe src = MakeMixedDataframe(&pool, 1000);
+  std::vector<uint8_t> compressed =
+      Serialize(src, pool, ArrowSerializer::IdColumnMode::kOmit,
+                ArrowSparseColumns::kSplit, ArrowCompression::kZstd);
+  std::vector<uint8_t> uncompressed =
+      Serialize(src, pool, ArrowSerializer::IdColumnMode::kOmit,
+                ArrowSparseColumns::kSplit);
+  EXPECT_LT(compressed.size(), uncompressed.size());
+
+  // Small chunks split compressed buffers across pieces.
+  for (size_t chunk_size : {size_t{0}, size_t{7}}) {
+    auto dst = Deserialize(compressed, &pool, src.CreateSpec(), chunk_size,
+                           ArrowSparseColumns::kSplit);
+    ASSERT_OK(dst);
+    EXPECT_EQ(Serialize(*dst, pool), Serialize(src, pool));
+  }
+}
+
+TEST(ArrowDeserializerTest, RejectsWrongUncompressedLength) {
+  if (!util::IsZstdSupported()) {
+    GTEST_SKIP() << "zstd not supported";
+  }
+  StringPool pool;
+  Dataframe src = MakeMixedDataframe(&pool, 100);
+  std::vector<uint8_t> bytes =
+      Serialize(src, pool, ArrowSerializer::IdColumnMode::kOmit,
+                ArrowSparseColumns::kSplit, ArrowCompression::kZstd);
+
+  TestBlock block = ReadBlock(bytes);
+  auto buffers =
+      MutableRecordBatch(&bytes).VecScalar<TestArrowBuffer>(/*buffers=*/2);
+  ASSERT_GT(buffers.size(), 1u);
+  // Buffer 1 holds the ts values.
+  size_t prefix = static_cast<size_t>(block.offset + block.metadata_length +
+                                      buffers[1].offset);
+  int64_t length;
+  memcpy(&length, bytes.data() + prefix, sizeof(length));
+  ++length;
+  memcpy(bytes.data() + prefix, &length, sizeof(length));
+
+  EXPECT_THAT(Deserialize(bytes, &pool, src.CreateSpec(), 0,
+                          ArrowSparseColumns::kSplit),
+              IsError());
 }
 
 TEST(ArrowDeserializerTest, RoundTripEmptyDataframe) {

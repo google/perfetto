@@ -105,7 +105,18 @@ namespace record_batch_field {
 constexpr uint32_t kLength = 0;
 constexpr uint32_t kNodes = 1;
 constexpr uint32_t kBuffers = 2;
+constexpr uint32_t kCompression = 3;
 }  // namespace record_batch_field
+
+namespace body_compression_field {
+constexpr uint32_t kCodec = 0;
+constexpr uint32_t kMethod = 1;
+}  // namespace body_compression_field
+
+constexpr uint8_t kCompressionZstd = 1;
+constexpr uint8_t kCompressionMethodBuffer = 0;
+// Length prefix of a compressed-format buffer whose bytes are stored as is.
+constexpr int64_t kUncompressedBuffer = -1;
 namespace footer_field {
 constexpr uint32_t kVersion = 0;
 constexpr uint32_t kSchema = 1;

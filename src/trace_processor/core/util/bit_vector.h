@@ -106,6 +106,16 @@ struct BitVector {
     return BitVector(std::move(words), size);
   }
 
+  // Takes |words|, holding bit i at bit i % 64 of word i / 64, as a BitVector
+  // of |size| bits.
+  static BitVector CreateFromWords(FlexVector<uint64_t> words, uint64_t size) {
+    PERFETTO_DCHECK(words.size() == (size + 63u) / 64u);
+    if (size % 64u != 0u) {
+      words.back() &= (1ull << (size % 64u)) - 1ull;
+    }
+    return BitVector(std::move(words), size);
+  }
+
   // The words holding the bits, bit i at bit i % 64 of word i / 64.
   const uint64_t* data() const { return words_.data(); }
 
