@@ -269,6 +269,39 @@ TEST(ArrowSerializerTest, WritesNoDictionaryForAllNullStringColumn) {
   EXPECT_FALSE(static_cast<bool>(fields[0].Table(field_field::kDictionary)));
 }
 
+TEST(ArrowSerializerTest, WritesSplitSparseColumnAsValidityAndPackedValues) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto source =
+      MakeDataframe(kInt32Sparse, &pool, std::optional<int32_t>{11},
+                    std::optional<int32_t>{}, std::optional<int32_t>{33});
+  std::vector<uint8_t> bytes =
+      Serialize(source, pool, ArrowSerializer::IdColumnMode::kOmit,
+                ArrowSparseColumns::kSplit);
+  auto batch = ReadRecordBatch(bytes);
+
+  auto fields = ReadSchema(bytes).VecTable(schema_field::kFields);
+  ASSERT_EQ(fields.size(), 2u);
+  EXPECT_EQ(fields[0].String(field_field::kName), "val.__validity");
+  EXPECT_EQ(fields[0].Scalar<uint8_t>(field_field::kTypeType), kTypeBool);
+  EXPECT_FALSE(fields[0].Scalar<bool>(field_field::kNullable));
+  EXPECT_EQ(fields[1].String(field_field::kName), "val.__values");
+  EXPECT_EQ(fields[1].Scalar<uint8_t>(field_field::kTypeType), kTypeInt);
+  EXPECT_TRUE(fields[1].Scalar<bool>(field_field::kNullable));
+
+  ASSERT_TRUE(batch);
+  ASSERT_EQ(batch->nodes.size(), 2u);
+  EXPECT_EQ(batch->nodes[0].null_count, 0);
+  EXPECT_EQ(batch->nodes[1].null_count, 1);
+  ASSERT_EQ(batch->buffers.size(), 4u);
+  EXPECT_EQ(batch->buffers[0].length, 0);
+  EXPECT_EQ(ReadBodyValue<uint8_t>(bytes, *batch, 1, 0), 0b00000101);
+  EXPECT_EQ(ReadBodyValue<uint8_t>(bytes, *batch, 2, 0), 0b00000011);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 3, 0), 11);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 3, 1), 33);
+  EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 3, 2), 0);
+}
+
 TEST(ArrowSerializerTest, WritesDictionaryIndicesAndValues) {
   StringPool pool;
   auto hello = pool.InternString(base::StringView("hello"));

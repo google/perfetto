@@ -34,12 +34,19 @@ class StringPool;
 
 namespace perfetto::trace_processor::core::dataframe {
 
+enum class ArrowSparseColumns : uint8_t {
+  kExpand,
+  // A "<name>.__validity" Boolean column, then "<name>.__values" holding the
+  // stored values followed by nulls. Only DeserializeFromArrow reads it back.
+  kSplit,
+};
+
 // Serializes a Dataframe as a standard Arrow file containing one record batch.
 // The output can be read by full Arrow implementations such as PyArrow.
 //
 // Columns whose every row is null are written with Arrow's Null type, which
-// has no buffers. Other sparse columns are expanded to Arrow's dense logical
-// layout. String columns are dictionary encoded, with the values written as a
+// has no buffers. Other sparse columns are laid out as ArrowSparseColumns
+// says. String columns are dictionary encoded, with the values written as a
 // dictionary batch ahead of the record batch. Input dataframes must be
 // finalized so their column storage remains stable across the Prepare() and
 // Write() passes.
@@ -55,7 +62,8 @@ class ArrowSerializer {
 
   using WriteFn = std::function<base::Status(const uint8_t*, size_t)>;
 
-  explicit ArrowSerializer(IdColumnMode = IdColumnMode::kOmit);
+  explicit ArrowSerializer(IdColumnMode = IdColumnMode::kOmit,
+                           ArrowSparseColumns = ArrowSparseColumns::kExpand);
   ~ArrowSerializer();
 
   // Computes Arrow buffer metadata and the exact output size for a finalized
@@ -72,13 +80,19 @@ class ArrowSerializer {
  private:
   struct BodyPlan;
   struct DictionaryPlan;
+  enum class Layout : uint8_t {
+    kValues,
+    kAllNull,
+    kSparseValidity,
+    kSparseValues,
+  };
   struct PreparedColumn {
     uint32_t dataframe_column;
     std::string name;
     bool nullable;
     StorageType storage_type;
     uint32_t dictionary = 0;
-    bool all_null = false;
+    Layout layout = Layout::kValues;
   };
 
   void Reset();
@@ -98,6 +112,10 @@ class ArrowSerializer {
                                       const BitVector*,
                                       const DictionaryPlan&,
                                       const WriteFn&);
+  base::Status WritePackedValues(uint32_t rows,
+                                 const Column&,
+                                 const PreparedColumn&,
+                                 const WriteFn&);
   base::Status WriteBody(const Dataframe&, const WriteFn&);
 
   std::vector<uint8_t> header_;
@@ -111,6 +129,7 @@ class ArrowSerializer {
   const StringPool* prepared_string_pool_ = nullptr;
   uint64_t prepared_mutations_ = 0;
   IdColumnMode id_column_mode_;
+  ArrowSparseColumns sparse_columns_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -43,6 +43,7 @@ constexpr uint8_t kTypeNull = 1;
 constexpr uint8_t kTypeInt = 2;
 constexpr uint8_t kTypeFloatingPoint = 3;
 constexpr uint8_t kTypeUtf8 = 5;
+constexpr uint8_t kTypeBool = 6;
 constexpr int16_t kPrecisionDouble = 2;
 constexpr int16_t kEndiannessLittle = 0;
 
