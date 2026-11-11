@@ -39,10 +39,6 @@ struct Allowlist {
     std::map<std::string, Oneof> oneofs;
     std::set<int> fields;
 
-    // Numbers of the fields (including oneof fields) which are only allowed
-    // because they are inside a passthrough field.
-    std::set<int> passthrough_fields;
-
     // Needs to be a std::map as std::unordered_map causes complaints about
     // self-referentiality from GCC.
     std::map<std::string, Message> nested_messages;

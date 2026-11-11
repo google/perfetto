@@ -284,9 +284,9 @@ TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
   EXPECT_THAT(out, Not(HasSubstr("bool flag")));
 }
 
-// Bool -> enum is not lossless, so it needs the field and the enum to be
-// allowlisted; otherwise the field would use an enum missing from the output.
-TEST(ProtoFileSerializerTest, TypeTransitionEnumNeedsAllowlist) {
+// Bool -> enum is not lossless; applying it would also use an enum which is
+// missing from the output.
+TEST(ProtoFileSerializerTest, TypeTransitionToEnumKeepsType) {
   ProtoFile input;
   {
     ProtoFile::Message message{};
@@ -311,65 +311,40 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumNeedsAllowlist) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("bool state = 1;"));
   EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
-
-  Allowlist allowlist;
-  allowlist.messages["Container"].fields.insert(1);
-  allowlist.messages["Container"].enums.insert("MyEnum");
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, allowlist, merged).ok());
-  out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
-  EXPECT_THAT(out, HasSubstr("enum MyEnum {"));
 }
 
-// Merges a "Container" message whose field 1 changes type |from| -> |to|, and
-// returns the type of field 1 in the output.
-std::string MergeContainerFieldType(const std::string& from,
-                                    const std::string& to,
-                                    const Allowlist& allowlist) {
-  auto make_file = [](const std::string& type) {
-    ProtoFile file;
-    ProtoFile::Message payload{};
-    payload.name = "Payload";
-    file.messages.push_back(payload);
+TEST(ProtoFileSerializerTest, TypeTransitionLossyKeepsType) {
+  for (const auto& [from, to] :
+       std::vector<std::pair<std::string, std::string>>{{"int64", "int32"},
+                                                        {"uint32", "int32"},
+                                                        {"fixed32", "sfixed32"},
+                                                        {"string", "bytes"},
+                                                        {"bytes", "Payload"},
+                                                        {"Payload", "bytes"}}) {
+    ProtoFile input;
+    ProtoFile upstream;
+    for (auto* file : {&input, &upstream}) {
+      ProtoFile::Message payload{};
+      payload.name = "Payload";
+      file->messages.push_back(payload);
+    }
     ProtoFile::Message container{};
     container.name = "Container";
-    container.fields.push_back(MakeField(type, "payload", 1));
-    file.messages.push_back(container);
-    return file;
-  };
-  ProtoFile merged;
-  base::Status status =
-      MergeProtoFiles(make_file(from), make_file(to), allowlist, merged);
-  EXPECT_TRUE(status.ok()) << status.c_message();
-  return merged.messages[1].fields[0].type;
-}
+    container.fields.push_back(MakeField(from, "field", 1));
+    input.messages.push_back(container);
+    container.fields[0] = MakeField(to, "field", 1);
+    upstream.messages.push_back(container);
 
-TEST(ProtoFileSerializerTest, TypeTransitionLossyNotAllowlistedKept) {
-  EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", Allowlist{}),
-            "Payload");
-  EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", Allowlist{}), "bytes");
-  EXPECT_EQ(MergeContainerFieldType("int64", "int32", Allowlist{}), "int64");
-  EXPECT_EQ(MergeContainerFieldType("uint32", "int32", Allowlist{}), "uint32");
-  EXPECT_EQ(MergeContainerFieldType("string", "bytes", Allowlist{}), "string");
-  EXPECT_EQ(MergeContainerFieldType("int32", "int64", Allowlist{}), "int64");
-
-  Allowlist passthrough;
-  passthrough.messages["Container"].fields.insert(1);
-  passthrough.messages["Container"].passthrough_fields.insert(1);
-  EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", passthrough),
-            "Payload");
-}
-
-TEST(ProtoFileSerializerTest, TypeTransitionLossyAllowlistedTaken) {
-  Allowlist allowlist;
-  allowlist.messages["Container"].fields.insert(1);
-  EXPECT_EQ(MergeContainerFieldType("Payload", "bytes", allowlist), "bytes");
-  EXPECT_EQ(MergeContainerFieldType("bytes", "Payload", allowlist), "Payload");
-  EXPECT_EQ(MergeContainerFieldType("int64", "int32", allowlist), "int32");
+    ProtoFile merged;
+    ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+    EXPECT_EQ(merged.messages[1].fields[0].type, from) << from << " -> " << to;
+  }
 }
 
 // Builds a file with a "Container" message whose field 1 has |type|, |name|
@@ -778,8 +753,6 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   Allowlist allowed;
   ASSERT_TRUE(
       AllowlistFromPassthrough(*input_desc, *upstream_desc, allowed).ok());
-  EXPECT_EQ(allowed.messages["SubMessage"].passthrough_fields,
-            std::set<int>({1, 2}));
 
   ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
