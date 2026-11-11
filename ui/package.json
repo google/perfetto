@@ -27,7 +27,7 @@
     "hsluv": "^0.1.0",
     "immer": "^10.1.1",
     "jsbn-rsa": "^1.0.4",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.1",
     "mithril": "^2.2.2",
     "noice-json-rpc": "^1.2.0",
     "pako": "^2.1.0",
