@@ -338,11 +338,12 @@ bool IsLosslessTypeTransition(const std::string& from, const std::string& to) {
 }
 
 // Merges |input| with its |upstream| version. Allowed type transitions which
-// are not lossless (e.g. int64 -> int32, int32 -> enum, bytes -> message) are
-// not applied, as they change how stored data is read: the field keeps its
-// input type.
+// are not lossless (e.g. int64 -> int32, int32 -> enum, bytes -> message)
+// change how stored data is read, so they are only applied if the field is
+// |allowlisted|; otherwise the field keeps its input type.
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
+                        bool allowlisted,
                         const MergeContext& ctx,
                         ProtoFile::Field& out) {
   PERFETTO_CHECK(input.number == upstream.number);
@@ -389,7 +390,8 @@ base::Status MergeField(const ProtoFile::Field& input,
   MergeAllowlistedOptions(upstream.options, out.options,
                           ctx.allowlisted_options);
 
-  if (IsLosslessTypeTransition(input.packageless_type,
+  if ((allowlisted && input.packageless_type != upstream.packageless_type) ||
+      IsLosslessTypeTransition(input.packageless_type,
                                upstream.packageless_type)) {
     out.packageless_type = upstream.packageless_type;
     out.type = upstream.type;
@@ -419,8 +421,8 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
 
     // Otherwise, merge the fields from the input and source of truth.
     ProtoFile::Field out_field;
-    base::Status status =
-        MergeField(*input_field, upstream_field, ctx, out_field);
+    base::Status status = MergeField(*input_field, upstream_field,
+                                     /*allowlisted=*/false, ctx, out_field);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_field));

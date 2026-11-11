@@ -405,6 +405,19 @@ TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyMergesAllowlistedFields) {
   EXPECT_THAT(out, Not(HasSubstr("renamed_upstream")));
 }
 
+TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyAppliesLossyTypeChange) {
+  ProtoFile input = MakeContainerFile("int64", "value", "Comment.");
+  ProtoFile upstream = MakeContainerFile("int32", "value", "Comment.");
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields = {1};
+
+  ProtoFile merged;
+  base::Status status = MergeProtoFiles(input, upstream, allowlist, merged, {},
+                                        /*allowlisted_changes_only=*/true);
+  ASSERT_TRUE(status.ok()) << status.c_message();
+  EXPECT_THAT(ProtoFileToDotProto(merged), HasSubstr("int32 value = 1;"));
+}
+
 TEST(ProtoFileSerializerTest, AllowlistedChangesOnlyAddsAllowlistedMessage) {
   ProtoFile input = MakeContainerFile("int32", "value", "Comment.");
   ProtoFile upstream = MakeContainerFile("int32", "value", "Comment.",
