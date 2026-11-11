@@ -878,6 +878,9 @@ std::optional<TraceProcessor::ExportFormat> Rpc::ParseExportFormat(
   if (format == protos::pbzero::ExportArgs::ARROW_TAR) {
     return TraceProcessor::ExportFormat::kArrowTar;
   }
+  if (format == protos::pbzero::ExportArgs::ARROW_ZSTD_TAR) {
+    return TraceProcessor::ExportFormat::kArrowZstdTar;
+  }
   if (format == protos::pbzero::ExportArgs::SQLITE) {
     return TraceProcessor::ExportFormat::kSqlite;
   }

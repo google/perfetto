@@ -136,15 +136,17 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
   if (format == TraceProcessor::ExportFormat::kSqlite) {
     return base::ErrStatus("SQLite export must use random-access output");
   }
-  if (format == TraceProcessor::ExportFormat::kPerfetto &&
+  bool compressed = format == TraceProcessor::ExportFormat::kArrowZstdTar;
+  if ((compressed || format == TraceProcessor::ExportFormat::kPerfetto) &&
       !util::IsZstdSupported()) {
     return base::ErrStatus(
-        "perfetto export requires a build of trace processor with zstd "
-        "support");
+        "%s export requires a build of trace processor with zstd support",
+        compressed ? "arrow_zstd_tar" : "perfetto");
   }
 
   util::TarWriter tar(std::make_unique<ExportTarWriterSink>(output));
   if (format == TraceProcessor::ExportFormat::kArrowTar ||
+      format == TraceProcessor::ExportFormat::kArrowZstdTar ||
       format == TraceProcessor::ExportFormat::kPerfetto) {
     bool perfetto = format == TraceProcessor::ExportFormat::kPerfetto;
     std::vector<const PluginDataframe*> tables;
@@ -167,8 +169,8 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
                  : core::dataframe::ArrowSerializer::IdColumnMode::kInclude,
         perfetto ? core::dataframe::ArrowSparseColumns::kSplit
                  : core::dataframe::ArrowSparseColumns::kExpand,
-        perfetto ? core::dataframe::ArrowCompression::kZstd
-                 : core::dataframe::ArrowCompression::kNone);
+        perfetto || compressed ? core::dataframe::ArrowCompression::kZstd
+                               : core::dataframe::ArrowCompression::kNone);
     for (const PluginDataframe* table : tables) {
       RETURN_IF_ERROR(WriteArrowTable(&tar, *table, pool, &serializer));
     }

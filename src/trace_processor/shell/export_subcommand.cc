@@ -47,6 +47,9 @@ Supported formats:
   arrow_tar   Exports static tables as a cross-version-compatible tar of Arrow
               files for external consumers. It cannot be loaded back into Trace
               Processor.
+  arrow_zstd_tar
+              Like arrow_tar, with every Arrow buffer compressed with zstd
+              using Arrow's standard buffer compression.
   perfetto    Exports static tables that a fresh Trace Processor instance from
               the same version can load. A different version may also load the
               archive, but this is not guaranteed.
@@ -68,14 +71,16 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   // First positional arg is the format.
   if (ctx.positional_args.empty()) {
     return base::ErrStatus(
-        "export: must specify format (sqlite, arrow_tar, or perfetto)");
+        "export: must specify format (sqlite, arrow_tar, arrow_zstd_tar, or "
+        "perfetto)");
   }
   const std::string& format = ctx.positional_args[0];
 
-  if (format != "sqlite" && format != "arrow_tar" && format != "perfetto") {
+  if (format != "sqlite" && format != "arrow_tar" &&
+      format != "arrow_zstd_tar" && format != "perfetto") {
     return base::ErrStatus(
-        "export: unknown format '%s' (expected sqlite, arrow_tar, or "
-        "perfetto)",
+        "export: unknown format '%s' (expected sqlite, arrow_tar, "
+        "arrow_zstd_tar, or perfetto)",
         format.c_str());
   }
 
@@ -101,6 +106,8 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
     export_format = TraceProcessor::ExportFormat::kSqlite;
   } else if (format == "arrow_tar") {
     export_format = TraceProcessor::ExportFormat::kArrowTar;
+  } else if (format == "arrow_zstd_tar") {
+    export_format = TraceProcessor::ExportFormat::kArrowZstdTar;
   } else {
     export_format = TraceProcessor::ExportFormat::kPerfetto;
   }
