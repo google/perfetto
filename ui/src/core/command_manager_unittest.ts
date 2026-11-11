@@ -19,6 +19,7 @@ import {
   remapHotkeys,
 } from './command_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
+import {getOwner} from './ownership';
 
 describe('remapHotkeys', () => {
   test('single layer', () => {
@@ -209,6 +210,17 @@ describe('CommandManagerImpl macro execution', () => {
 
     await commandManager.runCommand('user.macro.test');
     expect(calls).toEqual(['step1:foo', 'step2:bar']);
+  });
+
+  test('macro command is owned by CoreCommands', () => {
+    commandManager.registerMacro({
+      id: 'user.macro.owned',
+      name: 'Owned Macro',
+      run: [],
+    });
+
+    const cmd = commandManager.getCommand('user.macro.owned');
+    expect(getOwner(cmd!)).toBe('dev.perfetto.CoreCommands');
   });
 
   test('handles unregistered command in macro gracefully by showing modal', async () => {
