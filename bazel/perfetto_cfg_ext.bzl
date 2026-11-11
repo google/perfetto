@@ -19,15 +19,17 @@ PERFETTO_CONFIG struct used throughout the build.
 """
 
 def _perfetto_cfg_repository_impl(repository_ctx):
-    # Create a symlink to the standalone configuration
-    repository_ctx.symlink(
-        repository_ctx.path(Label("@perfetto//bazel/standalone:perfetto_cfg.bzl")),
+    # Copy the standalone configuration.
+    repository_ctx.file(
         "perfetto_cfg.bzl",
+        repository_ctx.read(Label("@perfetto//bazel/standalone:perfetto_cfg.bzl")),
     )
     repository_ctx.file("BUILD.bazel", """
 # Auto-generated BUILD file for perfetto_cfg repository
 exports_files(["perfetto_cfg.bzl"])
 """)
+
+    return repository_ctx.repo_metadata(reproducible = True)
 
 _perfetto_cfg_repository = repository_rule(
     implementation = _perfetto_cfg_repository_impl,
