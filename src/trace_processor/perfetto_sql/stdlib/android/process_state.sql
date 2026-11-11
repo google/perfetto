@@ -160,6 +160,37 @@ LEFT JOIN android_process_metadata AS m USING (upid)
 LEFT JOIN _android_process_state_rank AS r ON r.state = c.state
 LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid);
 
+-- Intervals of Android framework process states: one per stretch of time a
+-- process spent in a state, with consecutive reports of the same state merged.
+-- States are the ProcessStateEnum names without the PROCESS_STATE_ prefix
+-- (e.g. TOP, CACHED_EMPTY), or the numeric value when the name is unknown.
+-- NONEXISTENT covers the time before the first state of a process started
+-- during the trace, and the synthetic EXITED the time after its death.
+CREATE PERFETTO VIEW android_process_state_intervals(
+  -- Unique id of the interval.
+  id ID,
+  -- When the process entered the state. The first interval of a process
+  -- instead starts at the process start, or at the trace start when that is
+  -- unknown or earlier.
+  ts TIMESTAMP,
+  -- Time spent in the state, or -1 if the process was still in it at the end
+  -- of the trace.
+  dur DURATION,
+  -- Upid of the process.
+  upid JOINID(process.id),
+  -- Pid of the process.
+  pid LONG,
+  -- Name of the process.
+  process_name STRING,
+  -- Framework process state.
+  state STRING,
+  -- State the process came from, NULL on its first interval in the trace.
+  prev_state STRING
+)
+AS
+SELECT id, ts, dur, upid, pid, process_name, state, prev_state
+FROM _android_process_state_intervals;
+
 -- Number of processes concurrently in each framework process state over time.
 CREATE PERFETTO TABLE _android_process_state_concurrency AS
 SELECT
