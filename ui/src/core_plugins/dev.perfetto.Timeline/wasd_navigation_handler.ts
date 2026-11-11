@@ -38,7 +38,7 @@ const DEFAULT_ANIMATION_DURATION = 700;
 const ZOOM_RATIO_PER_FRAME = 0.008;
 const KEYBOARD_PAN_PX_PER_FRAME = 8;
 
-enum Pan {
+export enum Pan {
   None = 0,
   Left = -1,
   Right = 1,
@@ -80,20 +80,26 @@ export class KeyboardNavigationHandler implements Disposable {
   private element: HTMLElement;
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
+  private onPanKey?: (direction: Pan.Left | Pan.Right) => boolean;
   private trash: DisposableStack;
 
   constructor({
     element,
     onPanned,
     onZoomed,
+    onPanKey,
   }: {
     element: HTMLElement;
     onPanned: (movedPx: number) => void;
     onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
+    // Called on every pan key press, including auto-repeats. Returns true if
+    // the press was handled, in which case the pan animation is skipped.
+    onPanKey?: (direction: Pan.Left | Pan.Right) => boolean;
   }) {
     this.element = element;
     this.onPanned = onPanned;
     this.onZoomed = onZoomed;
+    this.onPanKey = onPanKey;
     this.trash = new DisposableStack();
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
@@ -158,6 +164,9 @@ export class KeyboardNavigationHandler implements Disposable {
       if (elementIsEditable(e.target)) return;
 
       if (e.ctrlKey || e.metaKey) return;
+
+      const pan = keyToPan(e);
+      if (pan !== Pan.None && this.onPanKey?.(pan)) return;
 
       if (keyToPan(e) !== Pan.None) {
         if (this.panning !== keyToPan(e)) {
