@@ -28,8 +28,12 @@ using Result = SystraceParseResult;
 TEST(SystraceParserTest, SystraceEvent) {
   SystraceTracePoint result{};
   ASSERT_EQ(ParseSystraceTracePoint("", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("abcdef", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("  ", &result), Result::kFailure);
+  // Text with no recognised phase byte was never an attempt at a systrace
+  // tracepoint (e.g. it could be free-form text some other writer put into
+  // the same ftrace trace_marker channel), so it's unsupported, not a
+  // failure.
+  ASSERT_EQ(ParseSystraceTracePoint("abcdef", &result), Result::kUnsupported);
+  ASSERT_EQ(ParseSystraceTracePoint("  ", &result), Result::kUnsupported);
   ASSERT_EQ(ParseSystraceTracePoint("|", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("||", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("|||", &result), Result::kFailure);
