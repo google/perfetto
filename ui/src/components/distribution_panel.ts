@@ -35,11 +35,14 @@ import {CopyToClipboardButton} from '../widgets/copy_to_clipboard_button';
 import {DetailsShell} from '../widgets/details_shell';
 import {Icon} from '../widgets/icon';
 import {Section} from '../widgets/section';
+import {SplitPanel} from '../widgets/split_panel';
 import {Spinner} from '../widgets/spinner';
 import {Tooltip} from '../widgets/tooltip';
+import type {TreeExplorerOptionalAction} from '../widgets/tree_explorer';
 import {Tree, TreeNode} from '../widgets/tree';
 import {extensions} from './extensions';
 import {DurationWidget} from './widgets/duration';
+import {SliceFlamegraph} from './slice_flamegraph';
 import {HistogramSvg} from './widgets/charts_svg/histogram_svg';
 import {
   type HistogramData,
@@ -115,6 +118,16 @@ export const HISTOGRAM_HELP =
   'investigating. The stats below summarize the same values; brushing a ' +
   'range on the chart focuses both the stats and the instances list on ' +
   'that subset.';
+
+export const FLAMEGRAPH_HELP =
+  'A slice flamegraph of the matched slices in the brushed duration range, ' +
+  'aggregated by their nested slice tree and weighted by self duration, so ' +
+  'you can see where the time inside them goes. It also folds in function ' +
+  'tracing recorded on another track of the same thread (kernel funcgraph, ' +
+  'ART method tracing), chopped to the part that ran inside the matched ' +
+  'slices. Brush a range (bucket) on the histogram to build it; up to a few ' +
+  'hundred of the longest instances in the range are used, so it stays fast ' +
+  'even for very common slice names.';
 
 export const INSTANCES_HELP =
   'Every individual slice that matches the filter, one row per ' +
@@ -364,6 +377,30 @@ export interface DistributionPanelAttrs extends DistributionInputs {
   >;
 
   readonly title?: string;
+
+  // Optional: when provided, adds a "Flamegraph" pane showing a slice
+  // flamegraph of the rows currently matched by the panel (scope + name +
+  // brushed range). Given the materialized source table, its id/value columns
+  // and the active brush, it returns the node-set SQL (yielding
+  // (id, dur, name, parent_id) rows) that feeds the flamegraph.
+  readonly flamegraphNodesSql?: (ctx: {
+    readonly sourceTable: string;
+    readonly idColumn: string;
+    readonly valueColumn: string;
+    readonly brush?: {readonly start: number; readonly end: number};
+  }) => string;
+
+  // Optional: run once before `flamegraphNodesSql`, for whatever that query
+  // depends on (typically `include perfetto module ...` statements).
+  readonly flamegraphDependencySql?: string;
+
+  // Optional: drill-down actions offered on each flamegraph node. Given the
+  // region's node-set SQL (built from a stable source query so it outlives this
+  // panel), it returns the actions -- e.g. open the clicked node's slices in a
+  // new tab, or add them to the timeline as a debug track.
+  readonly flamegraphNodeActions?: (ctx: {
+    readonly nodesSql: string;
+  }) => ReadonlyArray<TreeExplorerOptionalAction>;
 }
 
 // Two-pane "value distribution" tab: instances grid + histogram summary,
@@ -389,10 +426,87 @@ export class DistributionPanel implements m.ClassComponent<DistributionPanelAttr
         fillHeight: true,
         buttons: this.renderButtons(attrs),
       },
+      m('.pf-distribution-panel', this.renderBody(attrs, tableEntity)),
+    );
+  }
+
+  // Instances + histogram on top; the flamegraph, when configured, sits below
+  // behind a draggable divider so the user can grow either half.
+  private renderBody(
+    attrs: DistributionPanelAttrs,
+    tableEntity: DisposableSqlEntity | undefined,
+  ): m.Children {
+    const top = m(
+      '.pf-distribution-panel__top',
+      this.renderInstancesPane(attrs, tableEntity),
+      this.renderHistogramPane(attrs, tableEntity),
+    );
+    const flamegraph = this.renderFlamegraphPane(attrs, tableEntity);
+    if (flamegraph === undefined) return top;
+    return m(SplitPanel, {
+      direction: 'vertical',
+      initialSplit: {percent: 62},
+      minSize: 80,
+      firstPanel: top,
+      secondPanel: flamegraph,
+    });
+  }
+
+  private renderFlamegraphPane(
+    attrs: DistributionPanelAttrs,
+    tableEntity: DisposableSqlEntity | undefined,
+  ): m.Children {
+    const nodesSqlFn = attrs.flamegraphNodesSql;
+    if (nodesSqlFn === undefined) return undefined;
+    const brush = this.brush;
+    return m(
+      '.pf-distribution-panel__flamegraph',
       m(
-        '.pf-distribution-panel',
-        this.renderInstancesPane(attrs, tableEntity),
-        this.renderHistogramPane(attrs, tableEntity),
+        Section,
+        {title: titleWithHelp('Flamegraph', FLAMEGRAPH_HELP)},
+        // Only build the flamegraph once the user has brushed a range: an
+        // unbounded expansion over every matched slice is the case that never
+        // settles, so brushing (a bounded subset) is made the entry point.
+        tableEntity === undefined
+          ? m(Spinner, {easing: true})
+          : brush === undefined
+            ? m(
+                '.pf-distribution-panel__flamegraph-hint',
+                'Brush a duration range on the histogram to build a slice ' +
+                  'flamegraph of those instances — it aggregates their nested ' +
+                  'slices (and any function tracing recorded on another track ' +
+                  'of the same thread) to show where the time inside them goes.',
+              )
+            : m(SliceFlamegraph, {
+                trace: attrs.trace,
+                dependencySql: attrs.flamegraphDependencySql,
+                // The flamegraph reads the already-materialized source table
+                // (fast, same lifecycle as this panel)...
+                nodesSql: nodesSqlFn({
+                  sourceTable: tableEntity.name,
+                  idColumn: attrs.idColumn,
+                  valueColumn: attrs.valueColumn,
+                  brush,
+                }),
+                // ...but drill-downs open independent tabs/tracks, so their
+                // node set is rebuilt from the same stable, *filtered* source
+                // query that backs the materialized table (buildSourceQuery,
+                // which applies the name/scope filter) rather than the ephemeral
+                // table this panel owns. Using the raw dataset here would drop
+                // the filter and desync the drill from the flamegraph.
+                optionalActions: attrs.flamegraphNodeActions?.({
+                  nodesSql: nodesSqlFn({
+                    sourceTable: `(${buildSourceQuery(attrs, [
+                      attrs.idColumn,
+                      attrs.valueColumn,
+                      ...attrs.displayColumns,
+                    ])})`,
+                    idColumn: attrs.idColumn,
+                    valueColumn: attrs.valueColumn,
+                    brush,
+                  }),
+                }),
+              }),
       ),
     );
   }
