@@ -99,7 +99,7 @@ source_set("winscope_importer") {
     "../../importers/proto:packet_sequence_state_generation_hdr",
     "../../importers/proto:proto_importer_module",
     "../../tables",
-    "../../util:cold_sort",
+    "../../util:sort",
   ]
 }
 

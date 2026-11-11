@@ -39,6 +39,7 @@ source_set("sorter") {
     "../importers/systrace:systrace_line",
     "../types",
     "../util:bump_allocator",
+    "../util:sort",
     "../util:trace_type",
   ]
 }
