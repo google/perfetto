@@ -37,10 +37,12 @@ namespace perfetto::trace_processor::core::dataframe {
 // Serializes a Dataframe as a standard Arrow file containing one record batch.
 // The output can be read by full Arrow implementations such as PyArrow.
 //
-// Sparse columns are expanded to Arrow's dense logical layout. String columns
-// are dictionary encoded, with the values written as a dictionary batch ahead
-// of the record batch. Input dataframes must be finalized so their column
-// storage remains stable across the Prepare() and Write() passes.
+// Columns whose every row is null are written with Arrow's Null type, which
+// has no buffers. Other sparse columns are expanded to Arrow's dense logical
+// layout. String columns are dictionary encoded, with the values written as a
+// dictionary batch ahead of the record batch. Input dataframes must be
+// finalized so their column storage remains stable across the Prepare() and
+// Write() passes.
 class ArrowSerializer {
  public:
   enum class IdColumnMode {
@@ -76,6 +78,7 @@ class ArrowSerializer {
     bool nullable;
     StorageType storage_type;
     uint32_t dictionary = 0;
+    bool all_null = false;
   };
 
   void Reset();

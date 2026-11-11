@@ -19,6 +19,9 @@ Unreleased:
      `track.source_arg_set_id` under `custom_dimension_display_name.<name>`.
    * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
      socket sessions.
+   * `arrow_tar` and `perfetto` exports now write columns which are null in
+     every row with the Arrow Null type, which stores no data. On large
+     traces this makes exports up to 23% smaller.
    * Python query results can now be converted to typed Arrow tables with
      `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
      can be passed straight to pyarrow, polars and DuckDB.

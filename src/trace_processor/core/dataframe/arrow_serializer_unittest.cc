@@ -68,6 +68,11 @@ inline constexpr auto kInt32Sparse = CreateTypedDataframeSpec(
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
     CreateTypedColumnSpec(Int32{}, SparseNull{}, Unsorted{}));
 
+inline constexpr auto kStringSparse = CreateTypedDataframeSpec(
+    {"_auto_id", "str"},
+    CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
+    CreateTypedColumnSpec(String{}, SparseNull{}, Unsorted{}));
+
 inline constexpr auto kIdOnly = CreateTypedDataframeSpec(
     {"_auto_id"},
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}));
@@ -229,6 +234,39 @@ TEST(ArrowSerializerTest, WritesValidityAndDensifiesSparseNumericBuffer) {
   EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 0), 11);
   EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 1), 0);
   EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 2), 33);
+}
+
+TEST(ArrowSerializerTest, WritesAllNullColumnAsNullType) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto source = MakeDataframe(kInt32Sparse, &pool, std::optional<int32_t>{},
+                              std::optional<int32_t>{});
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+  auto batch = ReadRecordBatch(bytes);
+
+  ASSERT_TRUE(batch);
+  ASSERT_EQ(batch->nodes.size(), 1u);
+  EXPECT_EQ(batch->nodes[0].length, 2);
+  EXPECT_EQ(batch->nodes[0].null_count, 2);
+  EXPECT_EQ(batch->buffers.size(), 0u);
+  auto fields = ReadSchema(bytes).VecTable(schema_field::kFields);
+  ASSERT_EQ(fields.size(), 1u);
+  EXPECT_EQ(fields[0].Scalar<uint8_t>(field_field::kTypeType), kTypeNull);
+  EXPECT_TRUE(fields[0].Scalar<bool>(field_field::kNullable));
+}
+
+TEST(ArrowSerializerTest, WritesNoDictionaryForAllNullStringColumn) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto source =
+      MakeDataframe(kStringSparse, &pool, std::optional<StringPool::Id>{});
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+
+  EXPECT_FALSE(ReadDictionaryBatch(bytes, 0));
+  auto fields = ReadSchema(bytes).VecTable(schema_field::kFields);
+  ASSERT_EQ(fields.size(), 1u);
+  EXPECT_EQ(fields[0].Scalar<uint8_t>(field_field::kTypeType), kTypeNull);
+  EXPECT_FALSE(static_cast<bool>(fields[0].Table(field_field::kDictionary)));
 }
 
 TEST(ArrowSerializerTest, WritesDictionaryIndicesAndValues) {
