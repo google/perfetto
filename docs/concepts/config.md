@@ -262,8 +262,8 @@ the target file (or stdout) using the following TraceConfig fields:
   bytes have been written. Used to cap the size of the trace.
 
 - `persist_trace_across_reboots (bool)`: When true, keeps the trace file on disk
-  if the device reboots or shuts down mid-session and uploads it on the next boot.
-  Requires `--upload` and `write_into_file: true`. Android only (v59 / Android 26Q4+).
+  if the device reboots or shuts down mid-session so it can be recovered on the
+  next boot. Requires `write_into_file: true`. Android only (v59 / Android 26Q4+).
   See [Persisting Traces Across Reboots](/docs/learning-more/android.md#persisting-traces-across-reboots).
 
 For a complete example of a working trace config in long-tracing mode see
