@@ -439,6 +439,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_importers_android_android",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
@@ -769,6 +770,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_importers_android_android",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
@@ -2788,6 +2790,15 @@ perfetto_filegroup(
         "src/trace_processor/core/util/slab.h",
         "src/trace_processor/core/util/sort.cc",
         "src/trace_processor/core/util/sort.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/android:android
+perfetto_filegroup(
+    name = "src_trace_processor_importers_android_android",
+    srcs = [
+        "src/trace_processor/importers/android/unknown_process_logger.cc",
+        "src/trace_processor/importers/android/unknown_process_logger.h",
     ],
 )
 
@@ -12141,6 +12152,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_importers_android_android",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
@@ -12506,6 +12518,7 @@ perfetto_cc_binary(
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_importers_android_android",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":src_trace_processor_importers_android_bugreport_android_log_event",
