@@ -218,6 +218,8 @@ describe('state serialization', () => {
       name: 'Group A',
       collapsed: false,
       isSummary: true,
+      subtitle: 'example.com',
+      chips: ['debuggable'],
     });
     const child = new TrackNode({
       name: 'Track 1',
@@ -231,6 +233,8 @@ describe('state serialization', () => {
     expect(serialized.name).toBe('Group A');
     expect(serialized.collapsed).toBe(false);
     expect(serialized.isSummary).toBe(true);
+    expect(serialized.subtitle).toBe('example.com');
+    expect(serialized.chips).toEqual(['debuggable']);
     expect(serialized.children).toHaveLength(1);
     expect(serialized.children![0]!.name).toBe('Track 1');
     expect(serialized.children![0]!.uri).toBe('test.track.1');
@@ -239,6 +243,8 @@ describe('state serialization', () => {
     expect(deserialized.name).toBe('Group A');
     expect(deserialized.collapsed).toBe(false);
     expect(deserialized.isSummary).toBe(true);
+    expect(deserialized.subtitle).toBe('example.com');
+    expect(deserialized.chips).toEqual(['debuggable']);
     expect(deserialized.children).toHaveLength(1);
     expect(deserialized.children[0]!.name).toBe('Track 1');
     expect(deserialized.children[0]!.uri).toBe('test.track.1');

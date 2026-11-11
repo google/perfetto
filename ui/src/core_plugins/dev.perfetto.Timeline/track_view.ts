@@ -123,7 +123,7 @@ export class TrackView {
     trace: TraceImpl,
     node: TrackNode,
     top: number,
-    showHeadless = false,
+    private readonly showHeadless = false,
   ) {
     this.trace = trace;
     this.node = node;
@@ -186,6 +186,17 @@ export class TrackView {
       });
     }
 
+    const chips = Array.from(
+      new Set([
+        ...(node.chips ?? []),
+        ...this.trace.trackDimensionIndex.getChips(
+          node,
+          (uri) => tracks.getTrack(uri),
+          this.showHeadless,
+        ),
+      ]),
+    );
+
     return m(
       TrackShell,
       {
@@ -195,7 +206,7 @@ export class TrackView {
         ref: node.fullPath.join('/'),
         heightPx: height,
         error: renderer?.getError(),
-        chips: node.chips,
+        chips: chips.length === 0 ? undefined : chips,
         buttons,
         scrollToOnCreate: scrollToOnCreate || scrollIntoView,
         collapsible: collapsible && node.hasChildren,
