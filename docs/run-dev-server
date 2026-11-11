@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Runs the dev server to test locally
 set -eu
 CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
 $CUR_DIR/../infra/perfetto.dev/run-dev-server
