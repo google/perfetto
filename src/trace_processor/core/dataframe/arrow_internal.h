@@ -39,6 +39,7 @@ constexpr int16_t kMetadataV5 = 4;
 constexpr uint8_t kHeaderSchema = 1;
 constexpr uint8_t kHeaderDictionaryBatch = 2;
 constexpr uint8_t kHeaderRecordBatch = 3;
+constexpr uint8_t kTypeNull = 1;
 constexpr uint8_t kTypeInt = 2;
 constexpr uint8_t kTypeFloatingPoint = 3;
 constexpr uint8_t kTypeUtf8 = 5;

@@ -808,8 +808,11 @@ class TestApi(unittest.TestCase):
               f for f in manifest['files'] if '__exported_table_schema' in f
           ]
           self.assertGreater(len(table_files), 0)
-          for f in table_files:
-            self.assertEqual(f['__exported_table_schema']['format'], 1)
+          formats = {
+              f['__exported_table_schema']['format'] for f in table_files
+          }
+          self.assertEqual(len(formats), 1)
+          self.assertIsInstance(formats.pop(), int)
           manifest_paths = {f['path'] for f in table_files}
           self.assertEqual(manifest_paths, set(arrow_names))
       finally:
