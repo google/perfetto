@@ -1460,7 +1460,12 @@ bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
   }
 
   if (chunk == nullptr) {
-    stats_.set_patches_failed(stats_.patches_failed() + 1);
+    // A late patch can target a chunk already read or evicted. Only count
+    // missing chunks newer than the last consumed chunk, or with no history.
+    if (!seq->last_chunk_consumed.has_value() ||
+        ChunkIdCompare(chunk_id, seq->last_chunk_consumed->chunk_id) > 0) {
+      stats_.set_patches_failed(stats_.patches_failed() + 1);
+    }
     return false;
   }
 
