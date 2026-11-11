@@ -536,6 +536,7 @@ if (enable_perfetto_integration_tests) {
         "rpc",
         "sqlite",
         "trace_summary:integrationtests",
+        "util:decompressor",
       ]
       if (enable_perfetto_zstd) {
         deps += [ "../../gn:zstd" ]

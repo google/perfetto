@@ -818,6 +818,25 @@ class TestApi(unittest.TestCase):
       finally:
         os.unlink(output_path)
 
+  def test_export_arrow_zstd_tar(self):
+    import tarfile
+    with create_tp(trace=example_android_trace_path()) as tp:
+      with tempfile.TemporaryDirectory() as directory:
+        paths = {}
+        for export_format in ('arrow_tar', 'arrow_zstd_tar'):
+          paths[export_format] = os.path.join(directory, export_format)
+          tp.export(paths[export_format], export_format)
+
+        with tarfile.open(paths['arrow_tar']) as tf:
+          uncompressed_names = tf.getnames()
+        with tarfile.open(paths['arrow_zstd_tar']) as tf:
+          self.assertEqual(tf.getnames(), uncompressed_names)
+          for name in tf.getnames():
+            self.assertEqual(tf.extractfile(name).read(6), b'ARROW1', name)
+        self.assertLess(
+            os.path.getsize(paths['arrow_zstd_tar']),
+            os.path.getsize(paths['arrow_tar']))
+
 
 class TestApiUnixSession(unittest.TestCase):
   """Tests TraceProcessor(remote=...) against a real `server unix` session."""

@@ -321,6 +321,7 @@ class TraceProcessor:
     The exact contents exported are defined by `export_format`. `arrow_tar` is
     a tar of standard Arrow files with cross-version compatibility guarantees
     for external consumers, but it cannot be loaded back into Trace Processor.
+    `arrow_zstd_tar` is the same with every Arrow buffer compressed with zstd.
     `perfetto` can be loaded by a fresh Trace Processor instance from the same
     version. Loading it in a different version may work but is not guaranteed.
     `sqlite` writes all SQL-visible tables and views into a standard SQLite
@@ -331,9 +332,11 @@ class TraceProcessor:
 
     Args:
       output_path: Path to write the export to.
-      export_format: Either `arrow_tar`, `perfetto` or `sqlite`.
+      export_format: One of `arrow_tar`, `arrow_zstd_tar`, `perfetto` or
+        `sqlite`.
     """
-    if export_format not in ('arrow_tar', 'perfetto', 'sqlite'):
+    if export_format not in ('arrow_tar', 'arrow_zstd_tar', 'perfetto',
+                             'sqlite'):
       raise ValueError(f'Unknown export format: {export_format}')
     with open(output_path, 'wb') as f:
       self._backend.export(f, export_format)

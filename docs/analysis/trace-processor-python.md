@@ -319,7 +319,8 @@ with TraceProcessor(trace='trace.perfetto-trace') as tp:
 ### Export
 
 The `export()` function writes the parsed trace data to a file, streaming
-directly to disk. The format is one of `arrow_tar`, `perfetto` or `sqlite`:
+directly to disk. The format is one of `arrow_tar`, `arrow_zstd_tar`,
+`perfetto` or `sqlite`:
 
 ```python
 from perfetto.trace_processor import TraceProcessor
@@ -331,13 +332,19 @@ tp.export('archive.tar', 'perfetto')
 
 # Static tables as a tar of standard Arrow files.
 tp.export('tables.tar', 'arrow_tar')
+
+# The same, with zstd-compressed Arrow buffers.
+tp.export('tables_zstd.tar', 'arrow_zstd_tar')
 ```
 
 `perfetto` can be loaded back by a fresh trace processor instance from the
 same version (a different version may load it, but this is not guaranteed).
 `arrow_tar` produces one standard [Apache Arrow](https://arrow.apache.org/)
 file per statically registered table, for analysis with pandas, Polars or
-pyarrow; it cannot be loaded back into trace processor. `sqlite` writes all
+pyarrow; it cannot be loaded back into trace processor. `arrow_zstd_tar` is
+the same with every Arrow buffer compressed with zstd, typically 4-6x
+smaller; pyarrow, pandas, Polars and DuckDB read it directly, while Apache
+Arrow JS needs a zstd codec registered first. `sqlite` writes all
 SQL-visible tables and views into a standard SQLite database, like the
 [`export` shell subcommand](/docs/reference/trace-processor-cli.md#subcommand-export).
 

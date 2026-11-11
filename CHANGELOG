@@ -24,6 +24,8 @@ Unreleased:
      traces this makes exports up to 23% smaller.
    * `perfetto` exports are now zstd compressed using Arrow's per-buffer
      compression, making them 5-12x smaller on large traces.
+   * Added the `arrow_zstd_tar` export format: `arrow_tar` with every Arrow
+     buffer compressed with zstd, typically 4-6x smaller.
    * Python query results can now be converted to typed Arrow tables with
      `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
      can be passed straight to pyarrow, polars and DuckDB.

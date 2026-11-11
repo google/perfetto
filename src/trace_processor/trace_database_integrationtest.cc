@@ -51,6 +51,7 @@
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "src/trace_processor/local_file_system.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/util/decompressor.h"
 
 #include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
@@ -1540,6 +1541,35 @@ TEST_F(TraceProcessorIntegrationTest, ExportArrowTar) {
     EXPECT_EQ(tar.substr(member.data_offset, 6), "ARROW1") << member.name;
     EXPECT_NE(member.name, "runtime_export_test.arrow");
   }
+  EXPECT_EQ(tar.find("perfetto_manifest.json"), std::string::npos);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportArrowZstdTar) {
+  ASSERT_OK(LoadTrace("track_event_callstack_weights.pftrace"));
+  if (!util::IsZstdSupported()) {
+    EXPECT_THAT(Processor()->Export(TraceProcessor::ExportFormat::kArrowZstdTar,
+                                    nullptr),
+                IsError());
+    return;
+  }
+
+  std::string tar =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kArrowZstdTar);
+  std::string uncompressed =
+      ExportToString(Processor(), TraceProcessor::ExportFormat::kArrowTar);
+  std::vector<TarMember> members = ReadTarMembers(tar);
+  std::vector<TarMember> uncompressed_members = ReadTarMembers(uncompressed);
+  ASSERT_EQ(members.size(), uncompressed_members.size());
+  for (size_t i = 0; i < members.size(); ++i) {
+    EXPECT_EQ(members[i].name, uncompressed_members[i].name);
+    ASSERT_GE(members[i].size, 6u);
+    EXPECT_EQ(tar.substr(members[i].data_offset, 6), "ARROW1")
+        << members[i].name;
+  }
+  EXPECT_LT(tar.size(), uncompressed.size());
   EXPECT_EQ(tar.find("perfetto_manifest.json"), std::string::npos);
 
   auto reimport = TraceProcessor::CreateInstance(Config());
