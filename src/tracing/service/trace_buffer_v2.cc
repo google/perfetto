@@ -907,7 +907,7 @@ void TraceBufferV2::CopyChunkUntrusted(
       // Either we found less fragments than what the header said, or some
       // fragment is out of bounds. The exception is a TraceWriter that
       // deliberately aborted the packet (kPacketSizeDropPacket), which is not
-      // an ABI violation and is accounted via trace_writer_packet_loss.
+      // an ABI violation and is reported via DATA_LOSS_WRITER_ABORT.
       if (!frag_iter.trace_writer_data_drop()) {
         stats_.set_abi_violations(stats_.abi_violations() + 1);
         PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
@@ -956,7 +956,6 @@ void TraceBufferV2::CopyChunkUntrusted(
     return;
   }
   if (trace_writer_data_drop) {
-    stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() + 1);
     seq->AddDataLoss(DataLossReason::DATA_LOSS_WRITER_ABORT);
   }
 

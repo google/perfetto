@@ -1686,7 +1686,6 @@ TEST_F(TraceBufferV3Test, SpacePassAccountsInputOnce) {
     chunk.CopyIntoTraceBuffer();
     EXPECT_GT(v3_stats().bundles_written(), 0u);
     EXPECT_EQ(stats().abi_violations(), writer_abort ? 0u : 1u);
-    EXPECT_EQ(stats().trace_writer_packet_loss(), writer_abort ? 1u : 0u);
     EXPECT_EQ(stats().chunks_written(), 65u);
     EXPECT_EQ(stats().chunks_overwritten(), 0u);
     uint64_t inputs = 0;

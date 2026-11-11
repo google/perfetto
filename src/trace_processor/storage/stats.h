@@ -399,9 +399,10 @@ namespace perfetto::trace_processor::stats {
       "in traced_buf_chunks_discarded. A high count means write batches "      \
       "often outgrow staging, so use a larger buffer."),                       \
   F(traced_buf_trace_writer_packet_loss,  kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
-      "The tracing service observed packet loss for this buffer during this "  \
-      "tracing session. This also counts packet loss that happened before "    \
-      "the RING_BUFFER start or after the DISCARD buffer end."),               \
+      "TraceBufferV1 only: the tracing service observed packet loss for this " \
+      "buffer during this tracing session. This also counts packet loss that " \
+      "happened before the RING_BUFFER start or after the "                    \
+      "DISCARD buffer end."),                                                  \
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
       "The number of groups of consecutive packets lost in each sequence for " \
       "this buffer"),                                                          \

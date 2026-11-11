@@ -793,19 +793,22 @@ TEST_F(TraceBufferV2Test, Fragments_DiscardedOnPacketSizeDropPacket) {
 TEST_F(TraceBufferV2Test, Fragments_PacketSizeDropPacketIsNotAbiViolation) {
   ResetBuffer(4096);
   // A TraceWriter aborting a packet with kPacketSizeDropPacket is legitimate
-  // behaviour since Android R. It must be accounted as a trace writer data
-  // loss and not as an ABI violation.
+  // behaviour since Android R. Report it via DATA_LOSS_WRITER_ABORT.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(10, 'a')
       // Var-int encoded TraceWriterImpl::kPacketSizeDropPacket.
       .AddPacket({0xff, 0xff, 0xff, 0x7f})
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+  uint32_t loss = 0;
+  ASSERT_THAT(ReadPacket(nullptr, &loss),
+              ElementsAre(FakePacketFragment(10, 'a')));
+  EXPECT_EQ(static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
+                                  DataLossReason::DATA_LOSS_WRITER_ABORT),
+            loss);
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
   EXPECT_EQ(0u, trace_buffer()->stats().abi_violations());
-  EXPECT_EQ(1u, trace_buffer()->stats().trace_writer_packet_loss());
 }
 
 TEST_F(TraceBufferV2Test, Fragments_IncompleteChunkNeedsPatching) {
