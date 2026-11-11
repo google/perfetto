@@ -20,8 +20,10 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+
 #include "perfetto/base/status.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -35,6 +37,11 @@ struct CommonMmapRecordFields {
   uint64_t len;
   uint64_t pgoff;
 };
+
+inline CommonMmapRecordFields ByteSwap(CommonMmapRecordFields v) {
+  return {ByteSwap(v.pid), ByteSwap(v.tid), ByteSwap(v.addr), ByteSwap(v.len),
+          ByteSwap(v.pgoff)};
+}
 
 struct MmapRecord : public CommonMmapRecordFields {
   std::string filename;
@@ -66,6 +73,20 @@ struct BaseMmap2Record : public CommonMmapRecordFields {
   uint32_t prot;
   uint32_t flags;
 };
+
+inline BaseMmap2Record ByteSwap(BaseMmap2Record v) {
+  static_cast<CommonMmapRecordFields&>(v) =
+      ByteSwap(static_cast<CommonMmapRecordFields>(v));
+  // The union member depends on the record header; see Mmap2Record::Parse().
+  v.prot = ByteSwap(v.prot);
+  v.flags = ByteSwap(v.flags);
+  return v;
+}
+
+inline BaseMmap2Record::InodeFields ByteSwap(BaseMmap2Record::InodeFields v) {
+  return {ByteSwap(v.maj), ByteSwap(v.min), ByteSwap(v.ino),
+          ByteSwap(v.ino_generation)};
+}
 
 struct Mmap2Record : public BaseMmap2Record {
   std::string filename;

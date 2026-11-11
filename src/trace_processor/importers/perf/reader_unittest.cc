@@ -19,6 +19,7 @@
 #include <stddef.h>
 #include <cstdint>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "test/gtest_and_gmock.h"
@@ -32,6 +33,9 @@ using ::testing::SizeIs;
 
 template <typename T>
 TraceBlobView TraceBlobViewFromVector(std::vector<T> nums) {
+  for (T& n : nums) {
+    n = base::HostToLE(n);
+  }
   size_t data_size = sizeof(T) * nums.size();
   auto blob = TraceBlob::Allocate(data_size);
   memcpy(blob.mutable_data(), nums.data(), data_size);
@@ -40,7 +44,7 @@ TraceBlobView TraceBlobViewFromVector(std::vector<T> nums) {
 
 TEST(ReaderUnittest, Read) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  Reader reader(std::move(tbv), ByteOrder::kLittleEndian);
   uint64_t val;
   reader.Read(val);
   EXPECT_EQ(val, 2u);
@@ -48,7 +52,7 @@ TEST(ReaderUnittest, Read) {
 
 TEST(ReaderUnittest, ReadOptional) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  Reader reader(std::move(tbv), ByteOrder::kLittleEndian);
   std::optional<uint64_t> val;
   reader.ReadOptional(val);
   EXPECT_EQ(val, 2u);
@@ -57,7 +61,7 @@ TEST(ReaderUnittest, ReadOptional) {
 TEST(ReaderUnittest, ReadVector) {
   TraceBlobView tbv =
       TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8, 16, 32});
-  Reader reader(std::move(tbv));
+  Reader reader(std::move(tbv), ByteOrder::kLittleEndian);
 
   std::vector<uint64_t> res(3);
   reader.ReadVector(res);
@@ -68,7 +72,7 @@ TEST(ReaderUnittest, ReadVector) {
 
 TEST(ReaderUnittest, Skip) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  Reader reader(std::move(tbv), ByteOrder::kLittleEndian);
 
   reader.Skip<uint64_t>();
 

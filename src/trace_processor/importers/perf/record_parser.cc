@@ -283,7 +283,7 @@ std::optional<CallsiteId> RecordParser::InternCallchain(
 }
 
 base::Status RecordParser::ParseComm(Record record) {
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
   uint32_t pid;
   uint32_t tid;
   std::string comm;
@@ -301,7 +301,7 @@ base::Status RecordParser::ParseComm(Record record) {
 }
 
 base::Status RecordParser::ParseFork(int64_t, Record record) {
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
   uint32_t pid;
   uint32_t ppid;
   uint32_t tid;
@@ -325,7 +325,7 @@ base::Status RecordParser::ParseFork(int64_t, Record record) {
 }
 
 base::Status RecordParser::ParseExit(int64_t ts, Record record) {
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
   uint32_t pid;
   uint32_t ppid;
   uint32_t tid;
