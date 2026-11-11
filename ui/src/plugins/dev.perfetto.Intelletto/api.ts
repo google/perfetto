@@ -16,8 +16,25 @@
 // IntellettoPlugin and reach this surface via
 // `ctx.plugins.getPlugin(IntellettoPlugin)` to contribute their own tools - the
 // assistant doesn't need to know a feature exists, only that a tool drives it.
+//
+// This module also owns the side-panel and command ids other plugins use to
+// open the assistant without depending on IntellettoPlugin (which would be a
+// dependency cycle, since Intelletto depends on them). It has no runtime
+// imports, so importing it never creates a cycle.
 
 import type {z, ZodObject, ZodRawShape} from 'zod';
+
+// URI of the Intelletto chat tab in the side panel. Opens the assistant via
+// `trace.sidePanel.showTab(INTELLETTO_SIDE_PANEL_URI)`; a no-op with a warning
+// if the Intelletto plugin is inactive.
+export const INTELLETTO_SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
+
+// Id of the `Intelletto: Open assistant` command. Prefer
+// `trace.commands.runCommand(INTELLETTO_OPEN_COMMAND_ID, initialPrompt?)` over
+// showTab directly: it also prefills the chat input when given a non-empty
+// string (without clobbering text the user already typed). Gate UI entry
+// points with `trace.commands.hasCommand(INTELLETTO_OPEN_COMMAND_ID)`.
+export const INTELLETTO_OPEN_COMMAND_ID = 'dev.perfetto.Intelletto#Open';
 
 // What a plugin provides to register a tool the assistant can call. The model
 // decides *whether* to call it (from `description`) and *how* (from `shape`);
