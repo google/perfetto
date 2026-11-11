@@ -26,6 +26,10 @@
 
 name: Enforce 2 Google org member reviews for fork PRs
 
+# NOTE: we deliberately NOT have a "pull_request_review" trigger. That would do
+# the wrong thing security-wise as it would run the PR's copy of the workflow
+# (so a malicious author could just replace it with exit 0). The workflow must
+# be manually retriggered by reviewers using Github's UI.
 on:
   pull_request_target:
     types: [opened, synchronize, labeled, edited, auto_merge_enabled, auto_merge_disabled]
