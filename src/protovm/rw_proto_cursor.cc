@@ -247,14 +247,16 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     auto it = message->field_id_to_node.Find(field.id());
 
     bool del_if_src_empty = (flags & kDelIfSrcEmpty) != 0;
-    if (it && del_if_src_empty &&
+    if (del_if_src_empty &&
         field.type() ==
             protozero::proto_utils::ProtoWireType::kLengthDelimited &&
         field.size() == 0) {
       // Implements remove submessage semantics: empty src field means delete
       // the dst field
-      message->field_id_to_node.Remove(*it);
-      allocator_->Delete(&*it);
+      if (it) {
+        message->field_id_to_node.Remove(*it);
+        allocator_->Delete(&*it);
+      }
       continue;
     }
 
