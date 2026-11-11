@@ -19,8 +19,16 @@ import {queryStore, TERMINAL_STATUSES} from './query_store';
 import {makeQueryResponse} from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
 
-const POLL_INTERVAL_MS = 3000;
-const POLL_RETRY_MS = 1000;
+// Poll delay grows 1.5x per tick (2s, 3s, 4.5s, ...) up to 10s, so short runs
+// stay responsive and long ones don't poll every few seconds. Failed polls
+// advance the same backoff instead of retrying faster.
+const POLL_BASE_MS = 2000;
+const POLL_MAX_MS = 10000;
+const POLL_FACTOR = 1.5;
+
+export function pollDelayMs(polls: number): number {
+  return Math.min(POLL_MAX_MS, POLL_BASE_MS * POLL_FACTOR ** polls);
+}
 
 export interface PollingCallbacks {
   readonly redraw: () => void;
@@ -38,6 +46,7 @@ export class PollingController {
     if (!tab.queryUuid) return;
 
     const generation = ++tab.pollGeneration;
+    let polls = 0;
 
     const poll = async () => {
       if (tab.pollGeneration !== generation) return;
@@ -62,7 +71,7 @@ export class PollingController {
           await this.finalize(tab, status!, generation);
         } else if (tab.pollInterval !== undefined) {
           tab.isLoading = true;
-          tab.pollInterval = window.setTimeout(poll, POLL_INTERVAL_MS);
+          tab.pollInterval = window.setTimeout(poll, pollDelayMs(polls++));
         }
         this.cb.redraw();
       } catch (e) {
@@ -72,7 +81,7 @@ export class PollingController {
         }
         console.error('Poll failed:', e);
         if (tab.pollInterval !== undefined) {
-          tab.pollInterval = window.setTimeout(poll, POLL_RETRY_MS);
+          tab.pollInterval = window.setTimeout(poll, pollDelayMs(polls++));
         }
         this.cb.redraw();
       }
