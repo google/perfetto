@@ -243,6 +243,9 @@ function renderTimestamp(
     case TimestampFormat.Microseconds:
       ctx.fillText(Time.formatMicroseconds(time), x, y, minWidth);
       break;
+    case TimestampFormat.Compact:
+      ctx.fillText(Time.formatCompact(time), x, y, minWidth);
+      break;
     default:
       assertUnreachable(fmt);
   }

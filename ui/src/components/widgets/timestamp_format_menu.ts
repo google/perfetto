@@ -49,6 +49,7 @@ export class TimestampFormatMenuItem implements m.ClassComponent<TimestampFormat
       renderMenuItem(TF.Seconds, 'Seconds'),
       renderMenuItem(TF.Milliseconds, 'Milliseconds'),
       renderMenuItem(TF.Microseconds, 'Microseconds'),
+      renderMenuItem(TF.Compact, 'Compact'),
       renderMenuItem(TF.TraceNs, 'Raw'),
       renderMenuItem(TF.TraceNsLocale, 'Raw (with locale-specific formatting)'),
       m(
