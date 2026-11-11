@@ -645,6 +645,38 @@ TEST_F(TraceBufferV3Test, FragmentsWaitForPatches) {
   EXPECT_EQ(stats().patches_succeeded(), 1u);
 }
 
+TEST_F(TraceBufferV3Test, Patching_MissingBundledChunks) {
+  ResetBuffer(4096, kOneBundlePerPacket);
+  WriteChunk(1, 1, 0, {Packet("P")});
+  WriteChunk(1, 1, 1, {Packet("Q")});
+  trace_buffer_->OnWriteCheckpoint();
+  ASSERT_EQ(staging()->stats().chunks_read(), 2u);
+
+  // Bundling has consumed both chunks from staging. A late patch for either
+  // chunk is a soft failure, even though its packet remains in a bundle.
+  const TraceBuffer::Patch patch{6, {'r', 'e', 'a', 'd'}};
+  for (ChunkID id : {ChunkID(0), ChunkID(1)}) {
+    EXPECT_FALSE(
+        trace_buffer_->TryPatchChunkContents(1, 1, id, &patch, 1, false));
+    EXPECT_EQ(stats().patches_failed(), 0u);
+  }
+  // Missing newer chunks still count as failures.
+  EXPECT_FALSE(trace_buffer_->TryPatchChunkContents(1, 1, 2, &patch, 1, false));
+  EXPECT_EQ(stats().patches_failed(), 1u);
+
+  // A chunk still in staging must retain bounds checks and accept valid
+  // patches. The string starts after the fragment header and protobuf prefix.
+  WriteChunk(1, 1, 2, {Packet("XXXX")});
+  const TraceBuffer::Patch invalid_patch{100, {'r', 'e', 'a', 'd'}};
+  EXPECT_FALSE(
+      trace_buffer_->TryPatchChunkContents(1, 1, 2, &invalid_patch, 1, false));
+  EXPECT_EQ(stats().patches_failed(), 2u);
+  ASSERT_TRUE(trace_buffer_->TryPatchChunkContents(1, 1, 2, &patch, 1, false));
+  EXPECT_EQ(stats().patches_succeeded(), 1u);
+  trace_buffer_->OnWriteCheckpoint();
+  EXPECT_THAT(Strs(ReadAll()), ElementsAre("P", "Q", "read"));
+}
+
 // A scrape bundles completed chunks before their commit arrives.
 // The late commit must not duplicate those packets or report loss.
 TEST_F(TraceBufferV3Test, LateCommitAfterScrapeAndBundling) {
