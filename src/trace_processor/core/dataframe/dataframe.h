@@ -45,6 +45,7 @@ class TraceBlobViewReader;
 
 namespace perfetto::trace_processor::core::dataframe {
 
+enum class ArrowSparseColumns : uint8_t;
 struct QueryPlanImpl;
 struct LogicalPlan;
 
@@ -449,7 +450,8 @@ class Dataframe {
   friend base::StatusOr<Dataframe> DeserializeFromArrow(
       const util::TraceBlobViewReader&,
       StringPool*,
-      const DataframeSpec&);
+      const DataframeSpec&,
+      ArrowSparseColumns);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
