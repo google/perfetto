@@ -26,17 +26,19 @@ source_set("record") {
     "reader.h",
     "record.h",
   ]
+  public_deps = [
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../common",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
     "../../../../include/perfetto/trace_processor",
     "../../../../protos/perfetto/common:zero",
-    "../../../../protos/perfetto/trace/profiling:zero",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
-    "../common",
     "../common:parser_types",
   ]
 }
@@ -80,14 +82,17 @@ source_set("perf") {
     "time_conv_record.h",
     "util.h",
   ]
-  public_deps = [ ":record" ]
+  public_deps = [
+    ":record",
+    "../../../../protos/third_party/simpleperf:zero",
+    "../../sorter",
+    "../common",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
-    "../../../../protos/third_party/simpleperf:zero",
-    "../../sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
@@ -95,7 +100,6 @@ source_set("perf") {
     "../../util:sort",
     "../../util:trace_blob_view_reader",
     "../../util:trace_type",
-    "../common",
     "../proto:minimal",
   ]
 }

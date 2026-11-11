@@ -129,10 +129,10 @@ source_set("clock") {
     "clock_synchronizer.cc",
     "clock_synchronizer.h",
   ]
+  public_deps = [ "../../../protos/perfetto/common:zero" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
-    "../../../protos/perfetto/common:zero",
   ]
 }
 
@@ -418,12 +418,12 @@ source_set("profile_builder") {
     "profile_builder.cc",
     "profile_builder.h",
   ]
+  public_deps = [ "../../../protos/third_party/pprof:zero" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/trace_processor:demangle",
     "../../../include/perfetto/protozero",
     "../../../protos/perfetto/trace_processor:zero",
-    "../../../protos/third_party/pprof:zero",
     "../../base",
     "../containers",
     "../core/dataframe",

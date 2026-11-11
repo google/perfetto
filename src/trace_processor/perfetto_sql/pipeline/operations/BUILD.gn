@@ -49,6 +49,7 @@ source_set("operations") {
     "..:plan",
     "../../../../../gn:default_deps",
     "../../../../base",
+    "../../../../base/regex",
     "../../../../perfetto_sql/analysis",
     "../../../../perfetto_sql/syntaqlite",
     "../../../containers",

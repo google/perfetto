@@ -20,9 +20,9 @@ source_set("generator") {
     "structured_query_generator.cc",
     "structured_query_generator.h",
   ]
+  public_deps = [ "../../../../protos/perfetto/perfetto_sql:zero" ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../protos/perfetto/perfetto_sql:zero",
     "../../../base",
     "../../../protozero",
     "../../sqlite",

@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -46,16 +47,16 @@ namespace ex = core::exec;
 namespace {
 
 static constexpr char kOperators[] =
-    "an operator other than =, !=, <, <=, >, >=, GLOB, IN, BETWEEN and "
-    "IS [NOT] NULL";
+    "an operator other than =, !=, <, <=, >, >=, GLOB, REGEXP, IN, BETWEEN "
+    "and IS [NOT] NULL";
 
 // What `p` should compare with to suit a column of storage `type`, if a literal
 // of it is a string where the column holds numbers, or the other way around.
-// GLOB and IS [NOT] NULL do not compare values.
+// GLOB, REGEXP and IS [NOT] NULL do not compare values.
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
                                            const std::vector<Literal>& literals,
                                            core::StorageType type) {
-  if (p.op.IsAnyOf<core::NullOp>() || p.op.Is<core::Glob>()) {
+  if (p.op.IsAnyOf<core::NullOp>() || p.op.IsAnyOf<core::OnlyStringOp>()) {
     return std::nullopt;
   }
   bool string_column = type.Is<core::String>();
@@ -113,14 +114,33 @@ class Parser {
   }
 
   base::Status Like(uint32_t expr, const SyntaqliteLikeExpr& node) {
-    if (node.keyword != SYNTAQLITE_LIKE_KEYWORD_GLOB) {
-      return c_->Unsupported(expr, kOperators);
+    core::Op op = core::Glob{};
+    switch (static_cast<int>(node.keyword)) {
+      case SYNTAQLITE_LIKE_KEYWORD_GLOB:
+        break;
+      case SYNTAQLITE_LIKE_KEYWORD_REGEXP:
+        op = core::Regex{};
+        break;
+      default:
+        return c_->Unsupported(expr, kOperators);
     }
     if (node.negated) {
-      return c_->Unsupported(expr, "NOT GLOB");
+      return c_->Unsupported(expr,
+                             op.Is<core::Glob>() ? "NOT GLOB" : "NOT REGEXP");
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    return Add(expr, column, core::Glob{}, {node.pattern});
+    RETURN_IF_ERROR(Add(expr, column, op, {node.pattern}));
+    const Literal& pattern = literals_->back();
+    if (op.Is<core::Regex>() && pattern.is_string()) {
+      // As the SQL function is, a pattern which does not compile is an error.
+      base::StatusOr<base::Regex> regex = base::Regex::Create(pattern.text);
+      if (!regex.ok()) {
+        return c_->Expected(
+            node.pattern, std::string("a regular expression which compiles: ") +
+                              regex.status().c_message());
+      }
+    }
+    return base::OkStatus();
   }
 
   base::Status In(uint32_t expr, const SyntaqliteInExpr& node) {
@@ -235,7 +255,7 @@ std::optional<core::StorageType> TypeForLiterals(
   if (p.op.IsAnyOf<core::NullOp>()) {
     return std::nullopt;
   }
-  if (p.op.Is<core::Glob>()) {
+  if (p.op.IsAnyOf<core::OnlyStringOp>()) {
     return core::String{};
   }
   core::StorageType type = core::Int64{};
@@ -277,12 +297,13 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
 InputNeeds Where::Needs(uint32_t) const {
   // Filter reads only columns of one type, but for IS [NOT] NULL. A column of
   // no known type carries a type per row, so it is converted to the literals'
-  // type. GLOB matches only strings.
+  // type. GLOB and REGEXP match only strings.
   InputNeeds needs;
   for (const WherePredicate& p : predicates_) {
     if (std::optional<core::StorageType> wanted =
             TypeForLiterals(p, literals_)) {
-      needs.types_first.push_back({p.column, *wanted, !p.op.Is<core::Glob>()});
+      needs.types_first.push_back(
+          {p.column, *wanted, !p.op.IsAnyOf<core::OnlyStringOp>()});
     }
   }
   return needs;
@@ -338,7 +359,7 @@ void Where::Rewrite(BoundPlan* bound,
     std::optional<core::StorageType> type =
         bound->planned[scan_id].output.TypeOf(p.column).storage();
     if (!type || p.op.IsAnyOf<core::NullOp>() ||
-        (p.op.Is<core::Glob>() && !type->Is<core::String>()) ||
+        (p.op.IsAnyOf<core::OnlyStringOp>() && !type->Is<core::String>()) ||
         LiteralMismatch(p, where.literals_, *type)) {
       continue;
     }

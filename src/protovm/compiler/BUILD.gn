@@ -23,13 +23,15 @@ source_set("compiler") {
     "instruction_emitter.cc",
     "instruction_emitter.h",
   ]
+  public_deps = [
+    "../../../protos/perfetto/protovm:compile_config_zero",
+    "../../../protos/perfetto/protovm:zero",
+  ]
   deps = [
     ":gen_cc_compile_config_descriptor",
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
     "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/protovm:compile_config_zero",
-    "../../../protos/perfetto/protovm:zero",
     "../../base",
     "../../protozero",
     "../../protozero/text_to_proto",

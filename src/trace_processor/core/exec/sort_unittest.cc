@@ -97,6 +97,23 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
 
 // Strings sort by their contents, not by the order the pool interned them,
 // with nulls first ascending and last descending.
+// Rows sorted within one batch held are served where they are held, not
+// copied.
+TEST(SortTest, ServesRowsWhereTheyAreHeld) {
+  std::vector<int64_t> values = {3, 1, 2};
+  Sort sort(SortSpec{{{0, false}}});
+  auto state = sort.MakeState(test::TestContext());
+  RowBatch in;
+  RowBatch out;
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  in.SetRowCount(3);
+  ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_EQ(sort.Finish(out, *state), OpResult::kHaveMoreOutput);
+  EXPECT_EQ(out.column(0).data(), values.data());
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3));
+}
+
 TEST(SortTest, StringsSortByTheirContents) {
   StringPool pool;
   std::vector<StringPool::Id> strings = {

@@ -87,13 +87,16 @@ source_set("trace_redaction") {
     "verify_integrity.cc",
     "verify_integrity.h",
   ]
+  public_deps = [
+    "../../protos/perfetto/trace:non_minimal_zero",
+    "../trace_processor/util:clock",
+  ]
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/protozero",
     "../../include/perfetto/trace_processor:util",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:minimal_zero",
-    "../../protos/perfetto/trace:non_minimal_zero",
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/perfetto:zero",
@@ -103,7 +106,6 @@ source_set("trace_redaction") {
     "../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../base",
     "../trace_processor/util:blob",
-    "../trace_processor/util:clock",
   ]
 }
 

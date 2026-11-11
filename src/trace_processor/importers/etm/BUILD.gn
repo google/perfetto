@@ -66,6 +66,7 @@ source_set("etm") {
   public_deps = [
     ":etm_header",
     "../../../../gn:open_csd",
+    "../../storage",
   ]
 
   deps = [
@@ -73,7 +74,6 @@ source_set("etm") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base",
     "../../core/dataframe",
-    "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",

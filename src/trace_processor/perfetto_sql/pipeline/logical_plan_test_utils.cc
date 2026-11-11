@@ -113,6 +113,9 @@ std::string OpString(const WherePredicate::Op& op) {
   if (op.Is<core::Glob>()) {
     return "GLOB";
   }
+  if (op.Is<core::Regex>()) {
+    return "REGEXP";
+  }
   if (op.Is<core::In>()) {
     return "IN";
   }
