@@ -17,6 +17,7 @@ import type {Trace} from '../../public/trace';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {runQueryForModel} from './query';
 import type {ToolRegistry} from './tools';
+import {guides} from '../../virtual/guides';
 
 /**
  * Register the core tools (run_query, get_schema, get_selection, show_query,
@@ -104,6 +105,43 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
     callback: async ({page}) => {
       trace.navigate(page);
       return 'OK';
+    },
+  });
+
+  reg.registerTool({
+    name: 'read_guide',
+    description:
+      'Read a Perfetto trace-analysis guide: expert instructions, guided ' +
+      'workflows, references, and queries (memory leak debugging, GPU ' +
+      'performance analysis, etc.). The PERFETTO TRACE ANALYSIS GUIDES ' +
+      'section of the system prompt lists the paths to pass here and says ' +
+      'which one applies; guides reference further files by path as you go.',
+    shape: {
+      path: z
+        .string()
+        .describe(
+          'Path of the guide to read, relative to the guide tree root, ' +
+            'e.g. "workflows/android_memory/heap_dump.md".',
+        ),
+    },
+    callback: async ({path}) => {
+      let normalized = path;
+      if (normalized.startsWith('$SKILL_ROOT/')) {
+        normalized = normalized.slice('$SKILL_ROOT/'.length);
+      } else if (normalized.startsWith('/')) {
+        normalized = normalized.slice(1);
+      }
+
+      const content = guides[normalized];
+      if (content === undefined) {
+        return (
+          `Error: guide "${path}" not found. Available guides:\n` +
+          Object.keys(guides)
+            .map((k) => `- ${k}`)
+            .join('\n')
+        );
+      }
+      return content;
     },
   });
 }
