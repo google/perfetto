@@ -25,16 +25,18 @@ source_set("sorter") {
     "trace_token_buffer.cc",
     "trace_token_buffer.h",
   ]
+  public_deps = [
+    "../importers/common:parser_types",
+    "../storage",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
     "../core/util",
-    "../importers/common:parser_types",
     "../importers/common:stats_tracker",
     "../importers/proto:packet_sequence_state_generation_hdr",
     "../importers/systrace:systrace_line",
-    "../storage",
     "../types",
     "../util:bump_allocator",
     "../util:trace_type",

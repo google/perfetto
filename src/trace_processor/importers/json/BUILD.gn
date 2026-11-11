@@ -21,6 +21,7 @@ source_set("json") {
     "json_trace_tokenizer.cc",
     "json_trace_tokenizer.h",
   ]
+  public_deps = [ "../common" ]
   deps = [
     "../../../../gn:default_deps",
     "../../containers",
@@ -32,7 +33,6 @@ source_set("json") {
     "../../util:json_parser",
     "../../util:simple_json_parser",
     "../../util:trace_type",
-    "../common",
     "../common:parser_types",
     "../common:v8_profile_parser",
     "../systrace:full",
