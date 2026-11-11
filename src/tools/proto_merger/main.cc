@@ -81,9 +81,10 @@ const char kUsage[] =
 -O, --allowlisted-option:    Option/annotation key that should be preserved
                               from upstream (can be repeated).
 --allowlisted-changes-only:  Only apply the upstream changes of the elements in
-                              the allowlist; everything else is kept exactly as
-                              in the input proto. Passthrough fields are not
-                              added to the allowlist in this mode.
+                              the allowlist and the type changes which are not
+                              lossless; everything else is kept exactly as in
+                              the input proto. Passthrough fields are not added
+                              to the allowlist in this mode.
 
 Example usage:
 
