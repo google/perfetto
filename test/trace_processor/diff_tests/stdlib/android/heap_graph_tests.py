@@ -454,6 +454,7 @@ class HeapGraph(TestSuite):
         out=Csv("""
           "graph_sample_ts","proxy_class_name","holder_class_name","holder_field_name","death_recipient_count","death_recipient_class_name","proxy_id_matches","holder_id_matches"
           10,"[NULL]","com.example.BindRecord","com.example.BindRecord.binder",0,"[NULL]",1,1
+          10,"[NULL]","com.example.Reg","com.example.Reg.mListeners",0,"[NULL]",1,1
           10,"[NULL]","com.example.Svc","com.example.Svc.mMap",2,"com.example.RecA",1,1
           10,"[NULL]","java.lang.Class<com.example.Mgr>","com.example.Mgr.sCache",0,"[NULL]",1,1
           10,"com.example.IAlpha$Stub$Proxy","com.example.Svc","[NULL]",0,"[NULL]",1,1

@@ -42,6 +42,11 @@ packet {
   #          -> 0x92 BinderProxy -> mDeathRecipients -> 0x95 d (ObfDeathRec)
   #  13.     0xA0 Svc -> {0xA1 IZed$Stub$Proxy, 0xA2 IAlpha$Stub$Proxy}
   #          -> 0xA3 BinderProxy (MIN by proxy class name -> IAlpha$Stub$Proxy)
+  #  14.     0xB0 Reg.mListeners -> 0xB1 Reg$1 (anonymous RemoteCallbackList
+  #          subclass) -> 0xB2 ArrayMap -> 0xB3 Object[]
+  #          -> 0xB4 RemoteCallbackList$Interface -> 0xB5 BinderProxy
+  #          (Reg$1 -> RemoteCallbackList via 0xB7 Class<Reg$1>.superClass
+  #          -> 0xB6 Class<RemoteCallbackList>)
   [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
     pid: 2
     roots {
@@ -58,6 +63,7 @@ packet {
       object_ids: 0x81
       object_ids: 0x90
       object_ids: 0xA0
+      object_ids: 0xB0
     }
     roots {
       root_type: ROOT_JNI_GLOBAL
@@ -493,6 +499,61 @@ packet {
       self_size: 40
     }
 
+    # Case 14: Reg.mListeners -> Reg$1 (extends RemoteCallbackList) -> ArrayMap
+    #          -> Object[] -> RemoteCallbackList$Interface -> BinderProxy
+    objects {
+      id: 0xB0
+      type_id: 30
+      self_size: 24
+      reference_field_id: 29
+      reference_object_id: 0xB1
+    }
+    objects {
+      id: 0xB1
+      type_id: 31
+      self_size: 32
+      reference_field_id: 11
+      reference_object_id: 0xB2
+    }
+    objects {
+      id: 0xB2
+      type_id: 5
+      self_size: 24
+      reference_field_id: 12
+      reference_object_id: 0xB3
+    }
+    objects {
+      id: 0xB3
+      type_id: 3
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0xB4
+    }
+    objects {
+      id: 0xB4
+      type_id: 11
+      self_size: 16
+      reference_field_id: 13
+      reference_object_id: 0xB5
+    }
+    objects {
+      id: 0xB5
+      type_id: 2
+      self_size: 40
+    }
+    objects {
+      id: 0xB6
+      type_id: 32
+      self_size: 40
+    }
+    objects {
+      id: 0xB7
+      type_id: 33
+      self_size: 40
+      reference_field_id: 30
+      reference_object_id: 0xB6
+    }
+
     types {
       id: 1
       location_id: 1
@@ -639,6 +700,26 @@ packet {
       location_id: 1
       class_name: "d"
     }
+    types {
+      id: 30
+      location_id: 1
+      class_name: "com.example.Reg"
+    }
+    types {
+      id: 31
+      location_id: 1
+      class_name: "com.example.Reg$1"
+    }
+    types {
+      id: 32
+      location_id: 1
+      class_name: "java.lang.Class<android.os.RemoteCallbackList>"
+    }
+    types {
+      id: 33
+      location_id: 1
+      class_name: "java.lang.Class<com.example.Reg$1>"
+    }
 
     field_names {
       iid: 1
@@ -751,6 +832,14 @@ packet {
     field_names {
       iid: 28
       str: "com.example.Svc.mZed"
+    }
+    field_names {
+      iid: 29
+      str: "com.example.Reg.mListeners"
+    }
+    field_names {
+      iid: 30
+      str: "java.lang.Class.superClass"
     }
     location_names {
       iid: 1
