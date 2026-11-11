@@ -233,25 +233,13 @@ uint32_t RowStore::Gather(RowBatch* out,
   uint32_t first = rows[0];
   PERFETTO_DCHECK(first < size_);
   uint32_t batch = Find(first);
-  const RowBatch& held = *batches_[batch];
-  uint32_t start = batch ? ends_[batch - 1] : 0;
-  bool run = held.selection().prefix() && first + count <= ends_[batch];
+  bool run =
+      batches_[batch]->selection().prefix() && first + count <= ends_[batch];
   for (uint32_t r = 1; run && r < count; ++r) {
     run = rows[r] == first + r;
   }
   if (run) {
-    for (uint32_t c = 0; c < shape_.column_count(); ++c) {
-      uint32_t stored = stored_column_[c];
-      if (stored == kNotHeld) {
-        out->AddColumn(shape_.column(c), shape_.buffer(c));
-        continue;
-      }
-      ColumnView view = held.column(stored);
-      view.set_start(view.start() + (first - start));
-      out->AddColumn(view, held.buffer(stored));
-    }
-    out->SetRowCount(count);
-    return count;
+    return ViewRun(out, batch, first, count);
   }
   // Which batch each row is in, and which row of it: found once for every
   // column. Rows taken out of order rarely come in runs from one batch, so
@@ -275,6 +263,67 @@ uint32_t RowStore::Gather(RowBatch* out,
     chunk.Gather(like, sources_[stored].data(), batches.data(),
                  batch_rows.data(), count, nullable_[stored]);
     out->AddColumn(chunk.View(like, nullable_[stored]), std::move(buffer));
+  }
+  out->SetRowCount(count);
+  return count;
+}
+
+uint32_t RowStore::GatherInPlace(RowBatch* out,
+                                 base::Span<const uint32_t> rows,
+                                 Context& context) {
+  auto count =
+      static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
+  if (!count) {
+    return Gather(out, rows, context);
+  }
+  Flush();
+  uint32_t batch = Find(rows[0]);
+  bool run = true;
+  for (uint32_t r = 1; r < count; ++r) {
+    if (Find(rows[r]) != batch) {
+      return Gather(out, rows, context);
+    }
+    run &= rows[r] == rows[0] + r;
+  }
+  const RowBatch& held = *batches_[batch];
+  out->Reset();
+  if (run && held.selection().prefix()) {
+    // Viewed as a run, which readers take in one go.
+    return ViewRun(out, batch, rows[0], count);
+  }
+  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+    uint32_t stored = stored_column_[c];
+    if (stored == kNotHeld) {
+      out->AddColumn(shape_.column(c), shape_.buffer(c));
+      continue;
+    }
+    out->AddColumn(held.column(stored), held.buffer(stored));
+  }
+  std::array<uint32_t, kMaxBatchRows> batch_rows;
+  for (uint32_t r = 0; r < count; ++r) {
+    batch_rows[r] = RowInBatch(rows[r], batch);
+  }
+  out->SetRowCount(held.selection().rows());
+  out->mutable_selection().Reorder(
+      base::Span<const uint32_t>(batch_rows.data(), batch_rows.data() + count));
+  return count;
+}
+
+uint32_t RowStore::ViewRun(RowBatch* out,
+                           uint32_t batch,
+                           uint32_t first,
+                           uint32_t count) const {
+  const RowBatch& held = *batches_[batch];
+  uint32_t start = batch ? ends_[batch - 1] : 0;
+  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+    uint32_t stored = stored_column_[c];
+    if (stored == kNotHeld) {
+      out->AddColumn(shape_.column(c), shape_.buffer(c));
+      continue;
+    }
+    ColumnView view = held.column(stored);
+    view.set_start(view.start() + (first - start));
+    out->AddColumn(view, held.buffer(stored));
   }
   out->SetRowCount(count);
   return count;

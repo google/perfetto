@@ -33,6 +33,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
+#include "src/trace_processor/core/exec/top_k.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
 
@@ -77,17 +78,21 @@ void SetUnreadColumns(uint32_t source_columns,
     const ex::StepColumns& step = columns[i];
     bool keeps_all = step.keeps == ex::StepColumns::Keeps::kAll;
     auto* op = std::get_if<std::unique_ptr<ex::Operator>>(&(*steps)[i]);
+    // Now by column of the step's input.
+    if (keeps_all) {
+      read.resize(widths[i]);
+    } else {
+      read.assign(widths[i], false);
+    }
+    for (uint32_t column : step.held_reads) {
+      read[column] = true;
+    }
     if (op && keeps_all) {
       std::vector<bool> unread(widths[i]);
       for (uint32_t c = 0; c < widths[i]; ++c) {
         unread[c] = !read[c];
       }
       (*op)->SetUnreadColumns(std::move(unread));
-    }
-    if (keeps_all) {
-      read.resize(widths[i]);
-    } else {
-      read.assign(widths[i], false);
     }
     for (uint32_t column : step.reads) {
       read[column] = true;
@@ -159,16 +164,37 @@ void Lowering::LowerInput(const PlanNode& node, uint32_t input) {
   }
 }
 
+core::exec::ReadDirection Lowering::QueryScanDirection(
+    const PlanNode& node) const {
+  return plan_->bound_.planned[plan().IdOf(node)].scan_direction;
+}
+
+std::optional<uint32_t> Lowering::QuerySortKeep() const {
+  const std::optional<OutputProperties::OpenSort>& sort = rows_->open_sort;
+  if (!sort) {
+    return std::nullopt;
+  }
+  return std::get<input_step::Sort>(plan_->bound_.planned[sort->node]
+                                        .inputs[sort->input]
+                                        .steps[sort->step])
+      .keep;
+}
+
 void Lowering::Apply(const input_step::Sort& step) {
-  ex::SortSpec sort;
-  sort.pool = context().pool;
+  std::vector<ex::SortKey> keys;
   for (const SortKey& key : step.keys) {
-    sort.keys.push_back({QueryPosition(key.column), key.descending});
+    keys.push_back({QueryPosition(key.column), key.descending});
   }
   if (step.combine_first) {
     AddOperator(std::make_unique<ex::CombineBatches>());
   }
-  AddOperator(std::make_unique<ex::Sort>(std::move(sort)));
+  if (step.keep) {
+    AddOperator(std::make_unique<ex::TopK>(
+        ex::TopKSpec{std::move(keys), context().pool, *step.keep}));
+    return;
+  }
+  AddOperator(std::make_unique<ex::Sort>(
+      ex::SortSpec{std::move(keys), context().pool}));
 }
 
 void Lowering::Apply(const input_step::Group& step) {
