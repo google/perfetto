@@ -130,7 +130,7 @@ void RunExecutor(benchmark::State& state,
   const dataframe::Dataframe& df = s.df();
   Filter filter({{1, op, 0}}, &s.pool());
   DataframeScan scan({df.shared_column(kId), df.shared_column(column)},
-                     df.row_count());
+                     df.row_count(), ReadDirection::kForwards);
   FilterValueCaster<OneValue> caster =
       GetFilterValueCaster<OneValue>(df.column_type(column), op);
   OneValue fetcher(value);

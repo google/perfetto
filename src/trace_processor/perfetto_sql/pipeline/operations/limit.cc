@@ -91,6 +91,11 @@ std::optional<uint32_t> Limit::Prune(std::vector<bool>*) {
 
 OutputProperties Limit::Derive(DeriveContext& c) const {
   OutputProperties out = c.input(0);
+  if (count_ >= 0 && out.open_sort) {
+    // The sort just before only needs to output the rows read here.
+    c.LimitSort(*out.open_sort, Clamp(int64_t{Clamp(count_)} +
+                                      Clamp(std::max<int64_t>(offset_, 0))));
+  }
   out.DropRows();
   return out;
 }
@@ -100,6 +105,10 @@ void Limit::Lower(Lowering* c, const PlanNode& node) const {
   std::optional<uint32_t> count;
   if (count_ >= 0) {
     count = Clamp(count_);
+  }
+  // A sort which outputs only the rows read here leaves nothing to drop.
+  if (count && offset_ <= 0 && c->QuerySortKeep() == count) {
+    return;
   }
   // Rows kept stay in their input order, so any known arrangement survives.
   c->AddOperator(

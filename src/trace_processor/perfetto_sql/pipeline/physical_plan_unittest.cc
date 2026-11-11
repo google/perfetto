@@ -279,6 +279,49 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
             "HashAggregate(keys: #1; COUNT(*)) | Sort(#0)");
 }
 
+// Rows a scan keeps sorted by a column are read backwards to sort them the
+// other way, with rows which tie in reverse. Only steps taking each row on its
+// own may come between, as reading backwards must just reverse their output.
+TEST_F(PhysicalPlanTest, ScansBackwardsToSortTheOtherWay) {
+  Exec("CREATE TABLE t(ts INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 4), (2, 2), (2, 3), (5, 1)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC"),
+            "main: DataframeScan(backwards)");
+  EXPECT_EQ(plan("FROM t |> WHERE n > 1 |> EXTEND n + 1 AS m |> SELECT ts, m "
+                 "|> ORDER BY ts DESC"),
+            "main: DataframeScan(backwards) | Filter(#1 > ?0) | "
+            "Compute((#1 + 1))");
+  EXPECT_EQ(plan("FROM t |> WHERE ts > 0 |> ORDER BY ts DESC"),
+            "main: SortedScan(backwards)");
+  // A LIMIT keeps the first rows, which reading backwards would change.
+  EXPECT_EQ(plan("FROM t |> LIMIT 2 |> ORDER BY ts DESC"),
+            "main: DataframeScan | Limit(2) | CombineBatches | Sort(#0 desc)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC, n"),
+            "main: DataframeScan | Sort(#0 desc, #1)");
+
+  auto lowered = Plan("FROM t |> ORDER BY ts DESC");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  uint32_t n = 0;
+  for (const PhysicalPlan::Column& column : (*lowered)->columns()) {
+    if (column.name == "n") {
+      n = column.index;
+    }
+  }
+  std::vector<int64_t> values;
+  RowCursor cursor((*lowered)->source());
+  for (bool row = cursor.Open((*lowered)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, n));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(1, 3, 2, 4));
+}
+
 // Small batches are combined only after a step that may output them, and only
 // before an operator that works best on full batches.
 TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
@@ -310,6 +353,56 @@ TEST_F(PhysicalPlanTest, ReordersHoldOnlyColumnsReadAfterThem) {
   auto rows = Run(**plan, "ts");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 60), Pair(3, 70)));
+}
+
+// A LIMIT straight after a sort makes the sort output only the rows the LIMIT
+// reads, so with no offset the LIMIT needs no operator of its own. Steps
+// keeping every row may come between; a WHERE may not, as rows it drops would
+// have to be replaced.
+TEST_F(PhysicalPlanTest, ALimitKeepsOnlyTheRowsItReadsFromASort) {
+  Exec("CREATE TABLE t(id INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 5), (2, 3), (3, 4), (4, 1), (5, 2)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1"),
+            "main: DataframeScan | TopK(#1; 3) | Limit(2 offset 1)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> EXTEND n + 1 AS m |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2) | Compute((#1 + 1))");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> WHERE id > 1 |> LIMIT 2"),
+            "main: DataframeScan | Sort(#1) | Filter(#0 > ?0) | Limit(2)");
+
+  auto lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  auto rows = Run(**lowered, "n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(2, 3), Pair(5, 2)));
+
+  lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2");
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  rows = Run(**lowered, "n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(4, 1), Pair(5, 2)));
+}
+
+// A sort drops a key nothing after it reads, as it lays the key out when rows
+// arrive. A TopK holds it: pruning appends the rows it keeps again.
+TEST_F(PhysicalPlanTest, ATopKHoldsItsKeys) {
+  Exec("CREATE TABLE t(id INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (1, 5), (2, 3), (3, 4), (4, 1), (5, 2)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id"),
+            "main: DataframeScan | Sort(#1; drops #1)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id |> LIMIT 2"),
+            "main: DataframeScan | TopK(#1; 2)");
 }
 
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped
@@ -352,8 +445,8 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   EXPECT_THAT(values, ElementsAre(5, 7));
 }
 
-// WHERE also compares strings, matches GLOB patterns, keeps the rows whose
-// value an IN list holds and tests for nulls.
+// WHERE also compares strings, matches GLOB and REGEXP patterns, keeps the
+// rows whose value an IN list holds and tests for nulls.
 TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   Exec("CREATE TABLE t(id INTEGER, name TEXT, v INTEGER)");
   Exec(
@@ -379,11 +472,23 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
   EXPECT_THAT(ids("name != 'absent'"), ElementsAre(1, 2, 4, 5));
   EXPECT_THAT(ids("name < 'foo'"), ElementsAre(2));
   EXPECT_THAT(ids("name GLOB 'fo*'"), ElementsAre(1, 5));
+  EXPECT_THAT(ids("name REGEXP 'o+d$'"), ElementsAre(5));
+  EXPECT_THAT(ids("name REGEXP 'ba|it'"), ElementsAre(2, 4));
   EXPECT_THAT(ids("name IN ('bar', 'food', 'absent')"), ElementsAre(2, 5));
   EXPECT_THAT(ids("v IN (10, 40.0, 99)"), ElementsAre(1, 4));
   EXPECT_THAT(ids("name IS NULL"), ElementsAre(3));
   EXPECT_THAT(ids("v IS NOT NULL AND v NOTNULL"), ElementsAre(1, 3, 4, 5));
   EXPECT_THAT(ids("v BETWEEN 20 AND 45"), ElementsAre(3, 4));
+}
+
+// A REGEXP pattern which does not compile is an error, as it is in SQL.
+TEST_F(PhysicalPlanTest, WhereRefusesARegexpWhichDoesNotCompile) {
+  Exec("CREATE TABLE t(id INTEGER, name TEXT)");
+  Exec("INSERT INTO t VALUES (1, 'foo')");
+  auto plan = Plan("FROM t |> WHERE name REGEXP '('");
+  ASSERT_FALSE(plan.ok());
+  EXPECT_THAT(plan.status().message(),
+              HasSubstr("a regular expression which compiles"));
 }
 
 // A string is never a number, so comparing the two is refused.
