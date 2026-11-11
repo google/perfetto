@@ -78,6 +78,7 @@ export class VirtualCanvas implements Disposable {
   private _layoutShiftListener?: LayoutShiftListener;
   private _canvasResizeListener?: CanvasResizeListener;
   private _dpr?: number;
+  private readonly _updateCanvas: () => boolean;
 
   /**
    * @param targetElement The element to turn into a virtual canvas. The
@@ -171,7 +172,9 @@ export class VirtualCanvas implements Disposable {
       }
 
       repaintRequired && this._layoutShiftListener?.(canvas, canvasRect);
+      return repaintRequired;
     };
+    this._updateCanvas = updateCanvas;
 
     containerElement.addEventListener('scroll', updateCanvas, {
       passive: true,
@@ -232,6 +235,14 @@ export class VirtualCanvas implements Disposable {
    */
   setCanvasResizeListener(cb: CanvasResizeListener) {
     this._canvasResizeListener = cb;
+  }
+
+  /**
+   * Synchronize the floating canvas with the current layout immediately.
+   * Returns whether this caused the canvas to move or resize.
+   */
+  update(): boolean {
+    return this._updateCanvas();
   }
 
   /**
