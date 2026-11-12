@@ -61,7 +61,7 @@ export async function alertDownloadFailed(
 // Serializes an inner error cause into a collapsible <details><pre> block
 // when one is present, so technical details are available without cluttering
 // the message or requiring DevTools.
-function renderErrorDetails(error: {
+export function renderErrorDetails(error: {
   readonly type: string;
   readonly cause?: unknown;
 }): m.Children {
@@ -99,7 +99,7 @@ function serializeCause(cause: unknown): unknown {
 
 // Explains, for the user, why connecting to their Google account did not
 // succeed.
-function describeAuthFailure(auth: AuthError): string {
+export function describeAuthFailure(auth: AuthError): string {
   switch (auth.type) {
     case 'popup_blocked':
       return 'The Google authentication popup was blocked.';

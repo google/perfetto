@@ -20,6 +20,7 @@ import {
 } from '../dialogs';
 import type {DriveClient} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
+import {gdriveTraceArgs} from '../trace_args';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -70,5 +71,7 @@ export async function openFileFromSidebar(
     // ACL-protected Drive traces must not be re-uploaded to the public
     // perfetto-ui-data GCS bucket via permalinks or crash reports.
     shareable: false,
+    // Lets onTraceLoad() know which Drive file this trace is.
+    pluginArgs: gdriveTraceArgs(file.id),
   });
 }

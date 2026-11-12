@@ -24,6 +24,7 @@ import {
 import type {
   DriveClient,
   DriveError,
+  GDriveOpenFileRequest,
   GoogleDriveFileMeta,
   PickerResult,
 } from '../google/drive_client';
@@ -47,11 +48,10 @@ const AUTHORIZE_PROMPT = 'GoogleDriveAuthNeeded';
 const TOKEN = 'token';
 const FILE_ID = 'file123';
 const RESOURCE_KEY = 'rk-1';
-const STATE = JSON.stringify({
-  ids: [FILE_ID],
-  action: 'open',
-  resourceKeys: {[FILE_ID]: RESOURCE_KEY},
-});
+const REQUEST: GDriveOpenFileRequest = {
+  fileId: FILE_ID,
+  resourceKey: RESOURCE_KEY,
+};
 const CONTENTS = new ArrayBuffer(8);
 const PICKED_FILE = {
   id: FILE_ID,
@@ -104,12 +104,12 @@ function setup(outcomes: Outcomes = {}) {
     async (args) => outcomes.prompts?.[args.key ?? ''] as never,
   );
 
-  const run = (state = STATE) =>
+  const run = () =>
     openFileFromDeeplink(
       {openTraceFromBuffer} as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {getMeta, openFile, requestFileAccess} as unknown as DriveClient,
-      state,
+      REQUEST,
       {get: () => outcomes.hideAuthDialog ?? false} as Setting<boolean>,
     );
 
@@ -157,7 +157,7 @@ describe('openFileFromDeeplink', () => {
       expectNoAlerts();
     });
 
-    test('downloads the file named by the state, with its resource key', async () => {
+    test('downloads the requested file, with its resource key', async () => {
       const t = setup();
       await t.run();
 
@@ -186,22 +186,6 @@ describe('openFileFromDeeplink', () => {
           title: 'Google Drive file',
         }),
       );
-      expectNoAlerts();
-    });
-  });
-
-  describe('an invalid state parameter', () => {
-    test.each([
-      ['not JSON', 'not-json'],
-      ['no file ID', JSON.stringify({ids: []})],
-      ['an unsafe file ID', JSON.stringify({ids: ['../secret']})],
-    ])('is ignored silently: %s', async (_name, state) => {
-      const t = setup();
-      await t.run(state);
-
-      expect(t.authenticate).not.toHaveBeenCalled();
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
-      expect(promptsShown()).toEqual([]);
       expectNoAlerts();
     });
   });

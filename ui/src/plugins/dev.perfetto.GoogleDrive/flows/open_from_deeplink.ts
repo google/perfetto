@@ -19,32 +19,27 @@ import {
   alertDownloadFailed,
   alertPickerFailed,
 } from '../dialogs';
-import type {DriveClient} from '../google/drive_client';
-import {parseGDriveStateParam} from '../google/drive_client';
+import type {DriveClient, GDriveOpenFileRequest} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
 import {promptModal} from '../../../widgets/modal';
+import {gdriveTraceArgs} from '../trace_args';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
-// Opens the file named by Google Drive's "Open with" deep link, given the value
-// of its `state` parameter. This is the whole flow, start to finish: each step
-// either moves on to the next or tells the user why it could not.
+// Opens the Drive file named by a link: either Google Drive's "Open with" deep
+// link (its parsed `state` parameter), or a "Copy link" share link from the
+// "Share to Google Drive" dialog. This is the whole flow, start to finish: each
+// step either moves on to the next or tells the user why it could not.
 export async function openFileFromDeeplink(
   app: App,
   oauth: GoogleOAuthClient,
   drive: DriveClient,
-  state: string,
+  request: GDriveOpenFileRequest,
   hideAuthDialogSetting: Setting<boolean>,
 ) {
-  // Parse the incoming state parameter from the "Open with" deep link.
-  const parsed = parseGDriveStateParam(state);
-  if (!parsed.ok) {
-    // Failed to parse state parameter; ignore.
-    return;
-  }
-  const {fileId, resourceKey} = parsed.value;
+  const {fileId, resourceKey} = request;
 
   // Authenticate with the oauth client and obtain an access token. Nothing was
   // clicked to get here, so the browser may block Google's popup. If it does,
@@ -65,10 +60,11 @@ export async function openFileFromDeeplink(
   }
   const oauthToken = auth.value;
 
-  // We are committed to opening this file now, so consume the 'state' query
-  // param. The router will append ?local_cache_key=xxx to the hash once the
-  // trace finishes loading, so that a reload reopens the trace from the
-  // browser's cache rather than from Drive.
+  // We are committed to opening this file now, so consume the "Open with"
+  // deep link's 'state' query param (a share link has none, so this does
+  // nothing for one). The router will append ?local_cache_key=xxx to the hash
+  // once the trace finishes loading, so that a reload reopens the trace from
+  // the browser's cache rather than from Drive.
   removeStateParamFromUrl();
 
   // Attempt to download the file and look up its name in parallel.
@@ -122,6 +118,8 @@ export async function openFileFromDeeplink(
     // ACL-protected Drive traces must not be re-uploaded to the public
     // perfetto-ui-data GCS bucket via permalinks or crash reports.
     shareable: false,
+    // Lets onTraceLoad() know which Drive file this trace is.
+    pluginArgs: gdriveTraceArgs(fileId),
   });
 }
 
