@@ -31,6 +31,7 @@ Unreleased:
       visualizing Android framework process states and freezer state per
       process and per state, with residency and transition breakdowns for area
       selections.
+    * Added a Google Drive plugin (disabled by default).
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.

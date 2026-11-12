@@ -14,12 +14,13 @@
 
 import m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
+import type {DriveError, PickerError} from './google/gdrive_client';
 import type {AuthError} from './google/oauth_client';
 import {alertModal} from '../../widgets/modal';
 
-// The alerts shared by the plugin's flows. Each one only tells the user what
-// went wrong, and resolves once it is dismissed: what happens next is up to
-// the flow.
+// The alerts shared by the flows that open a trace from Google Drive. Each
+// one only tells the user what went wrong, and resolves once it is dismissed:
+// what happens next is up to the flow.
 
 // Tells the user that connecting to their Google account did not succeed.
 export async function alertConnectFailed(auth: AuthError): Promise<void> {
@@ -27,6 +28,33 @@ export async function alertConnectFailed(auth: AuthError): Promise<void> {
     key: 'GoogleDriveConnectFailed',
     title: "Couldn't connect to Google Drive",
     content: [m('p', describeAuthFailure(auth)), renderErrorDetails(auth)],
+  });
+}
+
+// Tells the user that the file picker could not be shown.
+export async function alertPickerFailed(error: PickerError): Promise<void> {
+  await alertModal({
+    key: 'GoogleDrivePickerFailed',
+    title: "Couldn't open the Google Drive file picker",
+    content: [
+      m('p', 'The Google Drive file picker could not be opened.'),
+      renderErrorDetails(error),
+    ],
+  });
+}
+
+// Tells the user that a file could not be downloaded.
+export async function alertDownloadFailed(
+  error: DriveError,
+  filename?: string,
+): Promise<void> {
+  await alertModal({
+    key: 'GoogleDriveDownloadFailed',
+    title: `Couldn't open ${filename ?? 'file'} from Google Drive`,
+    content: [
+      m('p', 'The file could not be downloaded from Google Drive.'),
+      renderErrorDetails(error),
+    ],
   });
 }
 
