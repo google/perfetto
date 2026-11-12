@@ -16,6 +16,7 @@ import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import {debounce} from '../../base/rate_limiters';
+import {arrayEquals} from '../../base/array_utils';
 import {shortUuid} from '../../base/uuid';
 import type {
   BigtraceQueryClient,
@@ -26,6 +27,7 @@ import {queryStore, type QueryExecution} from '../query/query_store';
 import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+import {convertFromWireValues} from '../settings/tab_bound_setting';
 import type {DateFilterState} from '../query/date_filter';
 import {
   formatSharedTraceListSql,
@@ -386,6 +388,31 @@ export function restoreTabConfig(
   tab.tableTtlDays = snap.tableTtlDays;
 }
 
+// On Apply in the gear: query options changed there, values and on/off
+// switches, become the global values that new tabs start with. Only changes
+// count, so applying other edits in an old run's tab doesn't overwrite them.
+export function rememberQueryOptions(
+  tab: BigTraceEditorTab,
+  before: TabConfigSnapshot,
+): void {
+  const valuesOf = (
+    config: Pick<TabConfigSnapshot, 'querySettings'>,
+    id: string,
+  ) => config.querySettings.find((s) => s.settingId === id)?.values;
+  for (const setting of bigTraceSettingsStorage.getAllSettings()) {
+    if (isTraceSelectionSetting(setting)) continue;
+    const off = tab.disabledSettings.includes(setting.id);
+    if (off !== before.disabledSettings.includes(setting.id)) {
+      setting.setDisabled(off);
+    }
+    const values = valuesOf(tab, setting.id);
+    const was = valuesOf(before, setting.id);
+    if (values === undefined) continue;
+    if (was !== undefined && arrayEquals(values, was)) continue;
+    setting.set(convertFromWireValues(values, setting) ?? setting.defaultValue);
+  }
+}
+
 // Open Settings on a tab that already has a configuration: the launcher takes
 // the tab over on its settings form, and the configuration on entry is kept so
 // that leaving with Cancel restores it while Apply keeps the edits.
@@ -556,7 +583,8 @@ export class QueryTabsState {
     const derivedTitle = title;
     // Seed the per-tab settings snapshot. Restored tabs use the persisted
     // one; history-reopen tabs start empty (the runner rehydrates from
-    // /query_executions/{uuid}); fresh tabs start from the backend defaults.
+    // /query_executions/{uuid}); fresh tabs start from the global values
+    // (see rememberQueryOptions).
     const isFromStorage = stored !== undefined;
     const isFromHistory = queryUuid !== undefined && !isFromStorage;
     const querySettings: SettingFilter[] = isFromStorage
@@ -594,8 +622,9 @@ export class QueryTabsState {
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)
       : null;
-    // Per-tab enable/disable. Fresh tabs mirror what the backend declares
-    // disabled, then diverge; restored tabs use their persisted set.
+    // Per-tab enable/disable. Fresh tabs start from the global on/off state
+    // (see rememberQueryOptions), then diverge; restored tabs use their
+    // persisted set.
     const disabledSettings: string[] = isFromStorage
       ? [...(stored?.disabledSettings ?? [])]
       : isFromHistory

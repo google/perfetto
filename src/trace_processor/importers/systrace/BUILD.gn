@@ -27,12 +27,12 @@ source_set("systrace_parser") {
     "systrace_parser.cc",
     "systrace_parser.h",
   ]
+  public_deps = [ "../../types" ]
   deps = [
     "../../../../gn:default_deps",
     "../../containers",
     "../../storage",
     "../../tables",
-    "../../types",
     "../common",
   ]
 }

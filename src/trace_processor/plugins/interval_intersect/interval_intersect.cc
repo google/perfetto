@@ -53,7 +53,7 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::interval_intersect {
 namespace {
@@ -165,10 +165,10 @@ base::StatusOr<uint32_t> PushPartition(
     // Sort `tables_order` from the smallest to the biggest.
     std::vector<uint32_t> tables_order(tables_count);
     std::iota(tables_order.begin(), tables_order.end(), 0);
-    ColdSortByKey(tables_order.begin(), tables_order.end(),
-                  [&intervals_in_table](uint32_t idx) {
-                    return intervals_in_table[idx]->intervals.size();
-                  });
+    SortByKey(tables_order.begin(), tables_order.end(),
+              [&intervals_in_table](uint32_t idx) {
+                return intervals_in_table[idx]->intervals.size();
+              });
     uint32_t idx_of_smallest_part = tables_order.front();
     PERFETTO_DCHECK(
         !intervals_in_table[idx_of_smallest_part]->intervals.empty());

@@ -17,7 +17,9 @@
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h"
 
 #include <optional>
+#include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_extractor.h"
@@ -27,6 +29,8 @@
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers::test {
 
 namespace {
+using VisibilityReason = com::android::internal::pbzero::VisibilityReason;
+
 Layer MakeVisibleLayer() {
   return Layer()
       .SetColor(Color{0, 0, 0, 1})
@@ -341,5 +345,96 @@ TEST(SfVisibilityComputation, VisibleNotOpaque) {
             static_cast<size_t>(0));
 
   CheckLayerVisible(result, 2);
+}
+
+TEST(SfVisibilityComputation, VisibleFromFrontEnd) {
+  // No buffer or effect TP knows of, e.g. a box shadow.
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddLayer(Layer()
+                        .SetColor(Color{-1, 0, 0, 1})
+                        .SetScreenBounds(geometry::Rect(0, 0, 1080, 2400))
+                        .SetBounds(geometry::Rect(0, 0, 1080, 2400))
+                        .AddVisibleRegionRect(geometry::Rect(0, 0, 1080, 2400))
+                        .SetVisibilityReason(
+                            VisibilityReason::VISIBILITY_REASON_VISIBLE))
+          .Build();
+  StringPool pool;
+
+  auto result = ComputeVisibility(snapshot, &pool);
+  CheckLayerVisible(result, 1);
+}
+
+TEST(SfVisibilityComputation, NotVisibleFromFrontEnd) {
+  const std::vector<std::pair<int32_t, std::string>> reasons = {
+      {VisibilityReason::VISIBILITY_REASON_NOTHING_TO_DRAW,
+       "does not have a buffer, color fill or effect"},
+      {99, "unknown reason"},
+  };
+  for (const auto& [reason, expected] : reasons) {
+    const auto snapshot =
+        SnapshotProtoBuilder()
+            .AddLayer(MakeVisibleLayer().SetVisibilityReason(reason))
+            .Build();
+    StringPool pool;
+
+    auto result = ComputeVisibility(snapshot, &pool);
+    CheckLayerNotVisibleInIsolation(result, {expected}, pool);
+  }
+}
+
+TEST(SfVisibilityComputation, NotVisibleOccludedFromFrontEnd) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddLayer(MakeVisibleLayer().SetVisibilityReason(
+              VisibilityReason::VISIBILITY_REASON_OCCLUDED))
+          .AddLayer(MakeVisibleLayer().SetIsOpaque(true).SetVisibilityReason(
+              VisibilityReason::VISIBILITY_REASON_VISIBLE))
+          .AddLayer(MakeVisibleLayer().SetIsOpaque(true).SetLayerStack(1))
+          .AddLayer(MakeVisibleLayer().SetVisibilityReason(
+              VisibilityReason::VISIBILITY_REASON_VISIBLE))
+          .Build();
+  StringPool pool;
+
+  auto result = ComputeVisibility(snapshot, &pool);
+
+  const auto& layer1_properties = result.at(1);
+  ASSERT_FALSE(layer1_properties.is_visible);
+  ASSERT_EQ(layer1_properties.occluding_layers, std::vector<int32_t>{2});
+  ASSERT_EQ(layer1_properties.partially_occluding_layers.size(),
+            static_cast<size_t>(0));
+  ASSERT_EQ(layer1_properties.covering_layers.size(), static_cast<size_t>(0));
+  CheckReasons(layer1_properties, {"occluded"}, pool);
+}
+
+TEST(SfVisibilityComputation, VisibleFromFrontEndUnderOpaqueLayer) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddLayer(MakeVisibleLayer().SetIsOpaque(true).SetVisibilityReason(
+              VisibilityReason::VISIBILITY_REASON_VISIBLE))
+          .AddLayer(MakeVisibleLayer().SetIsOpaque(true).SetVisibilityReason(
+              VisibilityReason::VISIBILITY_REASON_VISIBLE))
+          .Build();
+  StringPool pool;
+
+  auto result = ComputeVisibility(snapshot, &pool);
+
+  const auto& layer1_properties = result.at(1);
+  ASSERT_TRUE(layer1_properties.is_visible);
+  ASSERT_EQ(layer1_properties.partially_occluding_layers,
+            std::vector<int32_t>{2});
+  ASSERT_EQ(layer1_properties.occluding_layers.size(), static_cast<size_t>(0));
+}
+
+TEST(SfVisibilityComputation, NotVisibleUnspecifiedFrontEndReason) {
+  const auto snapshot =
+      SnapshotProtoBuilder()
+          .AddLayer(MakeVisibleLayer().SetFlags(1).SetVisibilityReason(
+              VisibilityReason::VISIBILITY_REASON_UNSPECIFIED))
+          .Build();
+  StringPool pool;
+
+  auto result = ComputeVisibility(snapshot, &pool);
+  CheckLayerNotVisibleInIsolation(result, {"flag is hidden"}, pool);
 }
 }  // namespace perfetto::trace_processor::winscope::surfaceflinger_layers::test

@@ -677,6 +677,34 @@ class PerfettoPipeline(TestSuite):
         126,126,0
         """))
 
+  # Must match SQL's REGEXP, which matches part of a string unless anchored.
+  def test_where_regexp_matches_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT id, name FROM slice)
+        |> WHERE name REGEXP 'Pipeline' AND name REGEXP '(Swap|line)$'
+        |> SELECT id;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT id FROM slice
+        WHERE name REGEXP 'Pipeline' AND name REGEXP '(Swap|line)$';
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (SELECT count(*) FROM expected) AS expected_rows,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM expected))
+          + (SELECT count(*) FROM (
+            SELECT * FROM expected EXCEPT SELECT * FROM piped)) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","expected_rows","mismatches"
+        10151,10151,0
+        """))
+
   # Must match SQL's WHERE on strings, GLOB, IN and IS NOT NULL.
   def test_where_strings_match_sql(self):
     return DiffTestBlueprint(

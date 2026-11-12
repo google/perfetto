@@ -23,10 +23,16 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/util/sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::core {
 namespace {
+
+// Strings are ranked, and compared, by these bytes.
+std::string_view View(const StringPool& pool, StringPool::Id id) {
+  base::StringView view = pool.Get(id);
+  return {view.data(), view.size()};
+}
 
 struct StringSortToken {
   std::string_view str_view;
@@ -49,20 +55,25 @@ void StringRanks::Rank(const StringPool& pool) {
       new StringSortToken[ranks_.size()]);
   uint32_t i = 0;
   for (auto it = ranks_.GetIterator(); it; ++it) {
-    base::StringView str_view = pool.Get(it.key());
-    ids_to_sort[i++] = StringSortToken{
-        std::string_view(str_view.data(), str_view.size()),
-        it.key(),
-    };
+    ids_to_sort[i++] = StringSortToken{View(pool, it.key()), it.key()};
   }
   auto* sorted =
-      core::MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + ranks_.size(),
-                         scratch.get(), StringSortKey{});
+      MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + ranks_.size(),
+                   scratch.get(), StringSortKey{});
   for (uint32_t rank = 0; rank < ranks_.size(); ++rank) {
     uint32_t* it = ranks_.Find(sorted[rank].id);
     PERFETTO_DCHECK(it);
     *it = rank;
   }
+}
+
+int StringRanks::Compare(const StringPool& pool,
+                         StringPool::Id a,
+                         StringPool::Id b) {
+  if (a == b) {
+    return 0;
+  }
+  return View(pool, a).compare(View(pool, b));
 }
 
 }  // namespace perfetto::trace_processor::core
