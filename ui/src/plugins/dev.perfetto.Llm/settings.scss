@@ -101,6 +101,12 @@
     flex: 1;
   }
 
+  // The context-window input is a short number; don't let it flex like the
+  // label/name inputs.
+  &__context-window.pf-text-input {
+    flex: 0 0 12em;
+  }
+
   &__roles {
     display: flex;
     gap: 8px;

@@ -28,6 +28,7 @@ import {Combobox} from '../../widgets/combobox';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 import type {LlmGateway} from './gateway';
+import type {AvailableModel} from './protocol';
 import {
   MODEL_ROLES,
   type Model,
@@ -40,7 +41,7 @@ import {assertIsInstance} from '../../base/assert';
 import {AsyncMemo} from '../../base/async_memo';
 
 type ModelFetchResult =
-  | {readonly status: 'done'; readonly models: readonly string[]}
+  | {readonly status: 'done'; readonly models: readonly AvailableModel[]}
   // 'unsupported' = the protocol can't list models; fall back to free text with
   // no suggestions. 'error' = it tried and failed (bad key, unreachable, ...).
   | {readonly status: 'unsupported'}
@@ -59,7 +60,7 @@ async function fetchAvailableModels(
     if (models === undefined) {
       return {status: 'unsupported'};
     } else {
-      return {status: 'done', models: models.map((mm) => mm.name)};
+      return {status: 'done', models};
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -159,7 +160,7 @@ function ProviderEditor(): m.Component<ProviderEditorAttrs> {
       });
 
       let status: m.Children = null;
-      let modelsToPick: readonly string[] = [];
+      let modelsToPick: readonly AvailableModel[] = [];
       const models = availableModels.data;
       if (!models) {
         status = m('span.pf-llm-models-status', 'fetching available models…');
@@ -293,7 +294,7 @@ function renderModelRow(
   setting: Setting<ProvidersSetting>,
   provider: Provider,
   model: Model,
-  availableModels: readonly string[],
+  availableModels: readonly AvailableModel[],
 ): m.Children {
   const patchModel = (fn: (m: Model) => Model) =>
     patchProvider(setting, provider.id, (p) => ({
@@ -327,9 +328,33 @@ function renderModelRow(
       className: 'pf-llm-model__name',
       value: model.modelName,
       placeholder: 'Backend model name, e.g. gemini-2.5-flash',
-      suggestions: availableModels,
+      suggestions: availableModels.map((am) => am.name),
+      // If the picked name matches a model the backend advertised, auto-fill
+      // its context window (where reported); otherwise keep the current value.
       onChange: (value: string) =>
-        patchModel((mdl) => ({...mdl, modelName: value})),
+        patchModel((mdl) => {
+          const picked = availableModels.find((am) => am.name === value);
+          return {
+            ...mdl,
+            modelName: value,
+            contextWindow: picked?.contextWindow ?? mdl.contextWindow,
+          };
+        }),
+    }),
+    m(TextInput, {
+      className: 'pf-llm-model__context-window',
+      type: 'number',
+      min: 1,
+      value: model.contextWindow ?? '',
+      placeholder: 'Context window (tokens)',
+      title: 'Context window size in tokens',
+      oninput: (e: Event) => {
+        const n = parseInt((e.target as HTMLInputElement).value, 10);
+        patchModel((mdl) => ({
+          ...mdl,
+          contextWindow: Number.isFinite(n) && n > 0 ? n : undefined,
+        }));
+      },
     }),
     m(
       '.pf-llm-model__roles',
