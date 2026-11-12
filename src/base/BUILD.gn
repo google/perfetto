@@ -233,6 +233,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "atomic_file_unittest.cc",
     "base64_unittest.cc",
+    "bit_vector_unittest.cc",
     "bits_unittest.cc",
     "circular_queue_unittest.cc",
     "ctrl_c_handler_unittest.cc",
@@ -344,6 +345,7 @@ if (enable_perfetto_benchmarks) {
       "regex",
     ]
     sources = [
+      "bit_vector_benchmark.cc",
       "flat_set_benchmark.cc",
       "regex/regex_benchmark.cc",
       "rt_mutex_benchmark.cc",
