@@ -280,6 +280,8 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     });
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    // The RPC stream is binary, but the CRT defaults to text mode, which
+    // rewrites \n as \r\n on output and treats Ctrl-Z as EOF on input.
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
 #endif
