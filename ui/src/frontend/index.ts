@@ -159,6 +159,13 @@ function setupContentSecurityPolicy() {
       // and SQL formatter) without enabling JavaScript eval().
       `'wasm-unsafe-eval'`,
       'https://www.googletagmanager.com',
+      // The Google Drive plugin's scripts. Each entry names the one script, or
+      // script directory, that is needed rather than its whole host. These
+      // paths narrow the policy but are not a hard boundary: CSP ignores query
+      // strings, and stops checking the path once a request is redirected. See
+      // "Content Security Policy" in the plugin's README before changing them.
+      // - Google Identity Services, for connecting to a Google account.
+      'https://accounts.google.com/gsi/client',
     ],
     'object-src': [`'none'`],
     'connect-src': [
