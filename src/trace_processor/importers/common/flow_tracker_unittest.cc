@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -46,6 +47,8 @@ class FlowTrackerTest : public ::testing::Test {
     context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(context_.storage.get());
+    context_.args_tracker =
+        std::make_unique<ArgsTracker>(context_.storage.get());
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(context_.storage.get());
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
@@ -350,6 +353,39 @@ TEST_F(FlowTrackerTest, FlowDirectionCorrectedByTimestamp) {
   f = flows[1];
   EXPECT_EQ(f.slice_out(), second_slice_id);  // Earlier timestamp (100)
   EXPECT_EQ(f.slice_in(), third_slice_id);    // Later timestamp (300)
+}
+
+TEST_F(FlowTrackerTest, InsertFlowWithCategoryAndName) {
+  auto& slice_tracker = context_.slice_tracker;
+  FlowTracker tracker(&context_);
+
+  TrackId track_1(1);
+  TrackId track_2(2);
+
+  slice_tracker->Begin(100, track_1, StringId::Raw(1), StringId::Raw(1));
+  SliceId out_slice_id = slice_tracker->GetTopmostSliceOnTrack(track_1).value();
+  slice_tracker->End(120, track_1, StringId::Raw(1), StringId::Raw(1));
+
+  slice_tracker->Begin(140, track_2, StringId::Raw(2), StringId::Raw(2));
+  SliceId in_slice_id = slice_tracker->GetTopmostSliceOnTrack(track_2).value();
+  slice_tracker->End(160, track_2, StringId::Raw(2), StringId::Raw(2));
+
+  StringId cat_id = context_.storage->InternString("expected_frame");
+  StringId name_id = context_.storage->InternString("Expected Frame");
+  tracker.InsertFlow(out_slice_id, in_slice_id, cat_id, name_id);
+
+  const auto& flows = context_.storage->flow_table();
+  EXPECT_EQ(flows.row_count(), 1u);
+
+  auto f = flows[0];
+  EXPECT_EQ(f.slice_out(), out_slice_id);
+  EXPECT_EQ(f.slice_in(), in_slice_id);
+  EXPECT_TRUE(f.arg_set_id().has_value());
+
+  const auto& args = context_.storage->arg_table();
+  EXPECT_EQ(args.row_count(), 2u);
+  EXPECT_EQ(args[0].string_value(), name_id);
+  EXPECT_EQ(args[1].string_value(), cat_id);
 }
 
 }  // namespace

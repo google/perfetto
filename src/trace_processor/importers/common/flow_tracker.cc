@@ -172,5 +172,21 @@ void FlowTracker::InsertFlow(SliceId slice_out_id, SliceId slice_in_id) {
   context_->storage->mutable_flow_table()->Insert(row);
 }
 
+void FlowTracker::InsertFlow(SliceId slice_out_id,
+                             SliceId slice_in_id,
+                             StringId cat,
+                             StringId name) {
+  tables::FlowTable::Row row(slice_out_id, slice_in_id, std::nullopt,
+                             std::nullopt);
+  auto id = context_->storage->mutable_flow_table()->Insert(row).id;
+  auto inserter = context_->args_tracker->AddArgsTo(id);
+  if (name != kNullStringId) {
+    inserter.AddArg(name_key_id_, Variadic::String(name));
+  }
+  if (cat != kNullStringId) {
+    inserter.AddArg(cat_key_id_, Variadic::String(cat));
+  }
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
