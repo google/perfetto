@@ -345,33 +345,63 @@ jobs:
           workload_identity_provider: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
-      - name: Clean up stale releases from staging repo
+      - name: Clean up failed staging attempt for this exact version (if any)
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          packages=$(gcloud artifacts packages list \
+          set -euo pipefail
+          PKG_VER="${VERSION#v}"
+          set +e
+          gcloud artifacts versions describe "${PKG_VER}" \
+            --package="perfetto" \
+            --project="oss-exit-gate-prod" \
+            --location="us" \
+            --repository="perfetto--pypi" \
+            --format="value(name)" > /dev/null 2> describe.err
+          DESC_RC=$?
+          set -e
+          if [ $DESC_RC -eq 0 ]; then
+            echo "Deleting incomplete staged version ${PKG_VER} before retry..."
+            gcloud artifacts versions delete "${PKG_VER}" \
+              --package="perfetto" \
               --project="oss-exit-gate-prod" \
               --location="us" \
               --repository="perfetto--pypi" \
-              --format="value(name)" 2>/dev/null)
-          echo "${packages}" | xargs -r -I {} sh -c '
-              package_name=$(basename "{}")
-              echo "Deleting package: $package_name..."
-              gcloud artifacts packages delete "{}" \
-                  --project="oss-exit-gate-prod" \
-                  --location="us" \
-                  --repository="perfetto--pypi" \
-                  --quiet
-          '
+              --quiet
+          elif grep -qi "NOT_FOUND\|not found\|404" describe.err; then
+            echo "Version ${PKG_VER} not present in staging repository — proceeding with fresh upload"
+          else
+            cat describe.err >&2
+            exit $DESC_RC
+          fi
       - name: Stage distributions to OSS Exit Gate and upload manifest
         env:
+          VERSION: ${{ inputs.version }}
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
+          set -euo pipefail
+          PKG_VER="${VERSION#v}"
           python -m pip install --upgrade twine
           python -m twine upload \
             --repository-url "https://us-python.pkg.dev/oss-exit-gate-prod/perfetto--pypi/" \
             -u oauth2accesstoken \
             -p "$(gcloud auth print-access-token)" \
             python/dist/*
-          echo '{"publish_all": true}' > manifest.json
+          cat <<EOF > manifest.json
+          {
+            "publish_all": false,
+            "publishing_groups": [
+              {
+                "packages": [
+                  {
+                    "name": "perfetto",
+                    "version": "${PKG_VER}"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
           gcloud storage cp manifest.json \
-            "gs://oss-exit-gate-prod-projects-bucket/perfetto/pypi/manifests/manifest-${RUN_ID}-${RUN_ATTEMPT}.json"
+            "gs://oss-exit-gate-prod-projects-bucket/perfetto/pypi/manifests/manifest-${PKG_VER}-${RUN_ID}-${RUN_ATTEMPT}.json"
