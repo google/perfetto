@@ -15,7 +15,7 @@
 import type {time} from '../base/time';
 
 export interface TraceInfo {
-  readonly traceTitle: string; // File name and size of the current trace.
+  readonly traceTitle: string; // File name of the current trace.
   readonly fileSizeBytes?: number; // (Optional) Size of the trace in bytes.
   readonly traceUrl: string; // URL of the Trace.
 
