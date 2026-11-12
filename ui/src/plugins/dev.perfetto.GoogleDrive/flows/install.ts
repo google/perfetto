@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {alertConnectFailed} from './dialogs';
-import type {GoogleOAuthClient} from './gdrive/oauth_client';
-import {alertModal} from '../../widgets/modal';
+import {alertConnectFailed} from '../dialogs';
+import type {GoogleOAuthClient} from '../google/oauth_client';
+import {alertModal} from '../../../widgets/modal';
 
 // The OAuth scope that lets Perfetto be offered in Google Drive's "Open with"
 // menu. It gives no access to any file.

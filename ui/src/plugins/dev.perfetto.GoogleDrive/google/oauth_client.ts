@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type {ReadonlyNonEmpty} from '../../../base/array_utils';
+import {defer} from '../../../base/deferred';
 import {loadScript} from '../../../base/dom_utils';
 import {errResult, okResult, type Result} from '../../../base/result';
 
@@ -38,7 +39,7 @@ interface CachedToken {
   readonly accessToken: string;
   readonly expiresAtMs: number;
   // The raw GIS response, passed to hasGrantedAllScopes() on cache checks.
-  readonly tokenResponse: GDriveTokenResponse;
+  readonly tokenResponse: GisTokenResponse;
 }
 
 // Obtains OAuth access tokens for the user's Google account, through Google
@@ -52,7 +53,10 @@ export class GoogleOAuthClient {
   >();
   private cached: CachedToken | undefined;
 
-  private constructor(private readonly clientId: string) {}
+  private constructor(
+    private readonly oauth2: GisOauth2,
+    private readonly clientId: string,
+  ) {}
 
   // Loads Google Identity Services and returns a ready-to-use client. Rejects
   // if it cannot be loaded.
@@ -63,10 +67,11 @@ export class GoogleOAuthClient {
     readonly clientId: string;
   }): Promise<GoogleOAuthClient> {
     await loadScript(GSI_CLIENT_URL, LOAD_TIMEOUT_MS);
-    if (window.google?.accounts?.oauth2 === undefined) {
+    const oauth2 = window.google?.accounts?.oauth2;
+    if (oauth2 === undefined) {
       throw new Error('Google Identity Services is not available');
     }
-    return new GoogleOAuthClient(args.clientId);
+    return new GoogleOAuthClient(oauth2, args.clientId);
   }
 
   // Returns an access token that covers `scopes`, asking the user to connect
@@ -83,11 +88,11 @@ export class GoogleOAuthClient {
     scopes: ReadonlyNonEmpty<string>,
   ): Promise<Result<string, AuthError>> {
     const cached = this.cached;
-    const oauth2 = window.google?.accounts?.oauth2;
+    const oauth2 = this.oauth2;
     if (
       cached !== undefined &&
       Date.now() < cached.expiresAtMs &&
-      oauth2?.hasGrantedAllScopes(cached.tokenResponse, ...scopes) === true
+      oauth2.hasGrantedAllScopes(cached.tokenResponse, ...scopes)
     ) {
       return Promise.resolve(okResult(cached.accessToken));
     }
@@ -110,66 +115,64 @@ export class GoogleOAuthClient {
   private requestToken(
     scopes: ReadonlyNonEmpty<string>,
   ): Promise<Result<string, AuthError>> {
-    return new Promise<Result<string, AuthError>>((resolve) => {
-      const fail = (cause: unknown) =>
-        resolve(errResult({type: 'error', cause}));
+    const oauth2 = this.oauth2;
+    const deferred = defer<Result<string, AuthError>>();
+    const fail = (cause: unknown) =>
+      deferred.resolve(errResult({type: 'error', cause}));
 
-      // The google.accounts.oauth2 token client is typed via the Window
-      // augmentation in ./types/google_identity.d.ts.
-      const oauth2 = window.google?.accounts?.oauth2;
-      if (oauth2 === undefined) {
-        fail('Google Identity Services is not available');
+    const onTokenResponse = (tokenResponse: GisTokenResponse) => {
+      const error = tokenResponse.error;
+      if (typeof error === 'string' && error !== '') {
+        fail(error);
         return;
       }
-
-      // Google's library is not expected to throw, but if it did this promise
-      // would reject, so report that as an error like any other.
-      try {
-        const tokenClient: GDriveTokenClient = oauth2.initTokenClient({
-          client_id: this.clientId,
-          scope: scopes.join(' '),
-          callback: (tokenResponse: GDriveTokenResponse) => {
-            const error = tokenResponse.error;
-            if (typeof error === 'string' && error !== '') {
-              fail(error);
-              return;
-            }
-            const accessToken = tokenResponse.access_token;
-            if (typeof accessToken !== 'string') {
-              fail('No access token returned');
-              return;
-            }
-            // Google reports the scopes it actually granted. That can be
-            // fewer than were asked for, if the user unticked some.
-            if (!oauth2.hasGrantedAllScopes(tokenResponse, ...scopes)) {
-              resolve(errResult({type: 'missing_scopes'}));
-              return;
-            }
-            const parsedExpires = Number(tokenResponse.expires_in);
-            const expiresInSec = Number.isFinite(parsedExpires)
-              ? parsedExpires
-              : 3600;
-            this.cached = {
-              accessToken,
-              expiresAtMs: Date.now() + Math.max(0, expiresInSec - 60) * 1000,
-              tokenResponse,
-            };
-            resolve(okResult(accessToken));
-          },
-          error_callback: (error: GDriveTokenClientError) => {
-            if (error.type === 'popup_failed_to_open') {
-              resolve(errResult({type: 'popup_blocked'}));
-            } else if (error.type === 'popup_closed') {
-              resolve(errResult({type: 'popup_closed'}));
-            } else {
-              fail(`Google reported an error: ${error.type}`);
-            }
-          },
-        });
-        tokenClient.requestAccessToken({prompt: ''});
-      } catch (e) {
-        fail(e);
+      const accessToken = tokenResponse.access_token;
+      if (typeof accessToken !== 'string') {
+        fail('No access token returned');
+        return;
       }
-    });
+      // Google reports the scopes it actually granted. That can be fewer than
+      // were asked for, if the user unticked some.
+      if (!oauth2.hasGrantedAllScopes(tokenResponse, ...scopes)) {
+        deferred.resolve(errResult({type: 'missing_scopes'}));
+        return;
+      }
+      const parsedExpires = Number(tokenResponse.expires_in);
+      const expiresInSec = Number.isFinite(parsedExpires)
+        ? parsedExpires
+        : 3600;
+      this.cached = {
+        accessToken,
+        expiresAtMs: Date.now() + Math.max(0, expiresInSec - 60) * 1000,
+        tokenResponse,
+      };
+      deferred.resolve(okResult(accessToken));
+    };
+
+    const onError = (error: GisTokenClientError) => {
+      if (error.type === 'popup_failed_to_open') {
+        deferred.resolve(errResult({type: 'popup_blocked'}));
+      } else if (error.type === 'popup_closed') {
+        deferred.resolve(errResult({type: 'popup_closed'}));
+      } else {
+        fail(`Google reported an error: ${error.type}`);
+      }
+    };
+
+    // Google's library is not expected to throw, but if it did this would
+    // throw too, so report that as an error like any other.
+    try {
+      const tokenClient: GisTokenClient = oauth2.initTokenClient({
+        client_id: this.clientId,
+        scope: scopes.join(' '),
+        callback: onTokenResponse,
+        error_callback: onError,
+      });
+      tokenClient.requestAccessToken({prompt: ''});
+    } catch (e) {
+      fail(e);
+    }
+
+    return deferred;
   }
 }

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
-import type {AuthError} from './gdrive/oauth_client';
+import type {AuthError} from './google/oauth_client';
 import {alertModal} from '../../widgets/modal';
 
 // The alerts shared by the plugin's flows. Each one only tells the user what

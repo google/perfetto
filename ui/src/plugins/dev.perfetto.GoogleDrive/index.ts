@@ -15,9 +15,9 @@
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
-import {GoogleOAuthClient} from './gdrive/oauth_client';
+import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
-import {installPerfettoAsDriveApp} from './install';
+import {installPerfettoAsDriveApp} from './flows/install';
 import {alertModal} from '../../widgets/modal';
 
 export interface GDriveClients {

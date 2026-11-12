@@ -23,11 +23,11 @@
 declare global {
   // The GSI OAuth2 token client returned by google.accounts.oauth2
   // .initTokenClient().
-  interface GDriveTokenClient {
+  interface GisTokenClient {
     requestAccessToken(options?: {prompt?: string}): void;
   }
 
-  interface GDriveTokenResponse {
+  interface GisTokenResponse {
     readonly error?: string;
     readonly access_token?: string;
     readonly expires_in?: string;
@@ -35,8 +35,22 @@ declare global {
     readonly scope?: string;
   }
 
-  interface GDriveTokenClientError {
+  interface GisTokenClientError {
     readonly type?: string;
+  }
+
+  interface GisOauth2 {
+    initTokenClient(params: {
+      client_id: string;
+      scope: string;
+      callback?: (response: GisTokenResponse) => void;
+      error_callback?: (error: GisTokenClientError) => void;
+    }): GisTokenClient;
+    hasGrantedAllScopes(
+      tokenResponse: GisTokenResponse,
+      firstScope: string,
+      ...restScopes: string[]
+    ): boolean;
   }
 
   // The GSI scripts attach everything to window.google. We type the oauth2
@@ -44,19 +58,7 @@ declare global {
   interface Window {
     google?: {
       accounts?: {
-        oauth2?: {
-          initTokenClient(params: {
-            client_id: string;
-            scope: string;
-            callback?: (response: GDriveTokenResponse) => void;
-            error_callback?: (error: GDriveTokenClientError) => void;
-          }): GDriveTokenClient;
-          hasGrantedAllScopes(
-            tokenResponse: GDriveTokenResponse,
-            firstScope: string,
-            ...restScopes: string[]
-          ): boolean;
-        };
+        oauth2?: GisOauth2;
       };
     };
   }

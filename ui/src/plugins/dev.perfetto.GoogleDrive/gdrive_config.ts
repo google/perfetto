@@ -29,11 +29,11 @@ const GDRIVE_CONFIG_SCHEMA = z.object({
   appId: z.string(),
 });
 
-export type GoogleDriveConfig = z.infer<typeof GDRIVE_CONFIG_SCHEMA>;
+export type GDriveConfig = z.infer<typeof GDRIVE_CONFIG_SCHEMA>;
 
 // Fetches and validates the config, throwing on any error (network failure,
 // timeout, bad status, or schema mismatch).
-export async function loadGDriveConfig(): Promise<GoogleDriveConfig> {
+export async function loadGDriveConfig(): Promise<GDriveConfig> {
   try {
     const response = await fetch(CONFIG_URL, {
       signal: AbortSignal.timeout(CONFIG_LOAD_TIMEOUT_MS),
