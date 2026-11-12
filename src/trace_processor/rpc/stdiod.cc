@@ -28,9 +28,6 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
-#else
-#include <fcntl.h>
-#include <io.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
@@ -41,13 +38,6 @@
 namespace perfetto::trace_processor {
 
 base::Status RunStdioRpcServer(Rpc& rpc) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // The RPC stream is binary. In the CRT's default text mode, writes expand
-  // '\n' (0x0A, the framing tag of every message) into "\r\n" and reads treat
-  // 0x1A (Ctrl-Z) as end-of-file, corrupting the stream in both directions.
-  _setmode(STDIN_FILENO, _O_BINARY);
-  _setmode(STDOUT_FILENO, _O_BINARY);
-#endif
   constexpr size_t kReadSize = 4096;
   // stdin/stdout is a single pipe with a single peer, hence one stream.
   Rpc::Stream stream(rpc, [](const void* ptr, uint32_t size) {
