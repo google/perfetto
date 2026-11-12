@@ -1214,6 +1214,8 @@ function computeRenderNodes(
   });
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
+  // Hot path (all nodes, on every redraw): indexed iteration avoids the
+  // per-iteration pair allocation of `.entries()`. `i` is provably in range.
   for (let i = 0; i < nodes.length; i++) {
     const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
     assertTrue(depth !== 0);
