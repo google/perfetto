@@ -21,19 +21,21 @@ import {alertModal} from '../../widgets/modal';
 // menu. It gives no access to any file.
 const DRIVE_INSTALL_SCOPE = 'https://www.googleapis.com/auth/drive.install';
 
-// Adds Perfetto to the "Open with" menu in the user's Google Drive, and tells
-// them how it went. This is the whole flow, start to finish.
-export async function installGDriveSupport(oauth: GoogleOAuthClient) {
-  // Ask for the install scope only: granting it is what adds Perfetto to the
-  // menu, and this needs no access to the user's files. This opens Google's
-  // popup unless there is already a valid token that covers the scope, so it
-  // needs to run from a user gesture.
+// Installs Perfetto as a Google Drive "app". This adds Perfetto to Drive's
+// "Open with" menu for trace files (e.g. .trace, .pftrace, .perfetto-trace, and
+// .gz variants). The supported extensions are configured in the perfetto-ui GCP
+// project's Drive UI Integration settings, not here.
+export async function installPerfettoAsDriveApp(oauth: GoogleOAuthClient) {
+  // Ask for the install scope only; granting it is what adds Perfetto to the
+  // menu. Note: This opens Google's popup unless there is already a valid
+  // token, so it needs to run from a user gesture.
   const auth = await oauth.authenticate([DRIVE_INSTALL_SCOPE]);
   if (!auth.ok) {
     await alertConnectFailed(auth.error);
     return;
   }
 
+  // If we get here - the installation succeeded.
   await alertModal({
     key: 'GoogleDriveInstalled',
     title: 'Google Drive support installed',

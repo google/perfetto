@@ -17,7 +17,7 @@ import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {GoogleOAuthClient} from './gdrive/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
-import {installGDriveSupport} from './install';
+import {installPerfettoAsDriveApp} from './install';
 import {alertModal} from '../../widgets/modal';
 
 export interface GDriveClients {
@@ -44,7 +44,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           alertGDriveNotAvailable();
           return;
         }
-        await installGDriveSupport(clients.oauth);
+        await installPerfettoAsDriveApp(clients.oauth);
       },
     });
   }
