@@ -49,9 +49,37 @@ message GpuCounterDescriptor {
     RAY_TRACING = 7;
   }
 
+  // Cross-vendor counter categories for portable tooling and SQL queries.
+  // Producers keep their native counter_id, name, and descriptions on the
+  // GpuCounterSpec and tag the matching spec with standard_counter.
+  enum StandardCounter {
+    STANDARD_COUNTER_UNSPECIFIED = 0;
+    // Active cycles on the primary GPU clock over the interval.
+    STANDARD_COUNTER_GPU_ACTIVE_CYCLES = 1;
+    // Input primitives submitted to geometry assembly before culling.
+    STANDARD_COUNTER_INPUT_PRIMITIVES = 2;
+    // Fragments dispatched to fragment shader execution after early
+    // depth/stencil tests.
+    STANDARD_COUNTER_SHADED_FRAGMENTS = 3;
+    // Percentage saturation of shader arithmetic capacity while shader cores
+    // are active.
+    STANDARD_COUNTER_ALU_UTILIZATION = 4;
+    // Percentage of active shader-core cycles processing texture sampling or
+    // filtering requests.
+    STANDARD_COUNTER_TEXTURE_UTILIZATION = 5;
+    // Percentage of GPU L2 cache read lookups satisfied by L2 cache hits.
+    STANDARD_COUNTER_L2_CACHE_READ_HIT_RATIO = 6;
+    // External memory read throughput in bytes per second across GPU clients.
+    STANDARD_COUNTER_MEMORY_READ_BANDWIDTH = 7;
+    // External memory write throughput in bytes per second across GPU clients.
+    STANDARD_COUNTER_MEMORY_WRITE_BANDWIDTH = 8;
+  }
+
   message GpuCounterSpec {
     optional uint32 counter_id = 1;
     optional string name = 2;
+    // Full description of the counter. May use Markdown to explain hardware
+    // semantics, interpretation, and bottlenecks for users and AI agents.
     optional string description = 3;
     // MeasureUnit unit (deprecated)
     reserved 4;
@@ -92,6 +120,67 @@ message GpuCounterDescriptor {
       VALUE_DIRECTION_FORWARDS_LOOKING = 2;
     }
     optional ValueDirection value_direction = 11;
+
+    // Concise plain-text summary for counter selection dialogs and compact UI
+    // lists.
+    optional string short_description = 12;
+
+    // How to aggregate the samples of this counter.
+    enum ValueType {
+      VALUE_TYPE_UNSPECIFIED = 0;
+      // Count since the previous sample.
+      VALUE_TYPE_INCREMENTAL_SUM = 1;
+      // Rate per second over the interval.
+      VALUE_TYPE_PER_TIME_RATE = 2;
+      // Percentage (0 to 100) of the interval.
+      VALUE_TYPE_PERCENT = 3;
+    }
+    optional ValueType value_type = 13;
+
+    message Derivation {
+      // Tools can use the formula to recompute the value over a different time
+      // range. Then dt_s is the duration of that range.
+      //
+      // How this derived counter is computed for each sample interval, either
+      // as a math expression or as the exact string "OPAQUE":
+      //
+      // 1. Math expression (evaluated as double; division by zero yields 0.0):
+      //    - $<counter_id> : sample value of counter <counter_id> (e.g. $246)
+      //    - dt_s          : sample interval duration in seconds
+      //    - OPAQUE        : one per-sample value that only the driver knows
+      //    - Numbers       : integer, decimal, or scientific (100, 4.0, 1e-9)
+      //    - Operators     : +, -, *, /, unary +/-, parentheses (...)
+      //    - Functions     : min(a, b), max(a, b)
+      //    Examples:
+      //      "100.0 * ($246 / ($246 + $247))"   // percentage from two counters
+      //      "($195 * 64.0) / dt_s"             // bytes/sec from 64B beats
+      //      "min(100.0, max(0.0, $12 - $15))"  // clamped difference
+      //      "100.0 * OPAQUE / $123"            // driver-only count over $123
+      //    Every $<counter_id> in the expression MUST match source_counter_ids
+      //    (same set of IDs, none extra or missing).
+      //    OPAQUE appears at most once, as a factor of the whole expression
+      //    (never in a divisor). The rest of that expression uses only
+      //    $<counter_id>, dt_s, numbers, *, /, and parentheses, so tools can
+      //    solve for OPAQUE in each sample.
+      //
+      // 2. "OPAQUE" (exact string as the whole formula; nothing is exposed):
+      //    Use when the calculation depends on internal driver state, lookup
+      //    tables, multi-sample smoothing, or unsupported operations. Explain
+      //    the metric in `description`.
+      optional string formula = 1;
+
+      // Unique counter_id values (raw or derived) from this
+      // GpuCounterDescriptor that feed this counter. Must have no
+      // self-references or dependency cycles. Still lists any exposed input
+      // counters when formula == "OPAQUE" (empty only if no inputs are exposed
+      // counters).
+      repeated uint32 source_counter_ids = 2;
+    }
+    // Set on counters that the producer computes from other counters or state.
+    optional Derivation derivation = 14;
+
+    // Optional cross-vendor counter identity mapped 1-to-1 to this spec.
+    optional StandardCounter standard_counter = 15;
   }
   repeated GpuCounterSpec specs = 1;
 
@@ -151,7 +240,7 @@ message GpuCounterDescriptor {
   // GpuCounterConfig.counter_names for matching multiple counters by name.
   optional bool supports_counter_name_globs = 8;
 
-  // next id: 41
+  // next id: 42
   enum MeasureUnit {
     NONE = 0;
 
@@ -205,6 +294,8 @@ message GpuCounterDescriptor {
     PERCENT = 37;
 
     INSTRUCTION = 40;
+    // Clock cycles.
+    CYCLE = 41;
   }
 }
 
@@ -14063,7 +14154,7 @@ message GpuMemTotalEvent {
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
-// next id: 23
+// next id: 25
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -14113,9 +14204,17 @@ message GpuRenderStageEvent {
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
 
-  // optional. An ID for the render pass instance. This is used to correlate
-  // different events on different queues produced by the same Vulkan render
-  // pass instance.
+  // Identifies one render pass execution (vkCmdBeginRenderPass or
+  // vkCmdBeginRendering). All stages of that execution that have a standard
+  // value (BINNING + RENDER, tile flushes, subpasses, suspended/resumed
+  // rendering) share the same value. A stage outside a render pass (for
+  // example COMPUTE, a copy or blit, an acceleration structure build, OTHER)
+  // leaves it unset. Optional on a CUSTOM stage; when set, it is the value of
+  // the render pass execution that the stage belongs to.
+  // Unique within one submission (submission_id). Values follow the command
+  // buffer order in the submission, then the recording order inside each
+  // command buffer. A later submission can repeat the same values, so tools
+  // use (submission_id, render_pass_instance_id) as the key.
   optional uint64 render_pass_instance_id = 16;
 
   // optional. A bit mask representing which render subpasses contributed to
@@ -14189,6 +14288,31 @@ message GpuRenderStageEvent {
   // `context`. See GpuTrackDescriptor.logical_queue_id.
   optional uint64 logical_queue_id = 22;
 
+  // event_id of the parent stage of a child stage. The child is a CUSTOM
+  // stage that divides the work of its parent, or a stage that a CUSTOM
+  // wrapper groups. Both shapes can nest. A stage with a standard value is
+  // never inside another stage with a standard value (see StandardStage).
+  // In both shapes, the child lies inside the time range of its parent: it
+  // does not start before its parent starts and does not end after its parent
+  // ends.
+  optional uint64 parent_event_id = 23;
+
+  // GPU action commands that this stage serves, for stages other than BINNING
+  // and RENDER stages (dispatch, ray tracing dispatch, data graph dispatch,
+  // acceleration structure command, copy, fill, blit, resolve, clear, other
+  // recorded command, or a CUSTOM child stage of any parent). BINNING and
+  // RENDER stages correlate via render_pass_instance_id and leave
+  // command_instance_id empty.
+  // Each value is unique within one submission (submission_id). Values follow
+  // the command buffer order in the submission, then the recording order
+  // inside each command buffer. A later submission can repeat the same values,
+  // so tools use (submission_id, value) as the key.
+  // A stage of one command has one value, and all stages that the command
+  // emits share it. A stage that serves several commands lists each of them.
+  // Empty on pass-level stages or when served commands are unknown. Optional
+  // on a CUSTOM stage; when set, the same rules apply to the values.
+  repeated uint64 command_instance_id = 24 [packed = true];
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -14228,6 +14352,70 @@ message GpuRenderStageEvent {
   extensions 100;
 }
 
+// Classification rule for stages with a standard value (any value except
+// UNSPECIFIED and CUSTOM):
+// 1. Work inside a render pass is BINNING or RENDER. This includes clear
+//    commands, attachment clears, and resolve attachments of the pass.
+// 2. Work that a recorded command outside a render pass produces gets the
+//    value of that command, even when the GPU runs it on a different engine.
+// 3. Work that no single recorded command requests is PRESENT when it is
+//    present work, ACCELERATION_STRUCTURE when it builds acceleration
+//    structures for several commands, and DRIVER_INTERNAL otherwise (for
+//    example, a driver shader that computes constants for many commands).
+// A stage with a standard value is work, and tools add its time. It is never
+// inside another stage with a standard value, at any depth of
+// parent_event_id. Tools do not add the time of a CUSTOM stage on its own:
+// time in a CUSTOM wrapper that is in no stage with a standard value is not
+// counted as work.
+enum StandardStage {
+  // Not classified. Same as an unset field; a producer does not write this
+  // value.
+  STANDARD_STAGE_UNSPECIFIED = 0;
+  // Separate pre-raster pass: vertex/position shading, primitive setup, tile
+  // binning.
+  STANDARD_STAGE_BINNING = 1;
+  // Raster/fragment work and any vertex work in the same pass: IMR or direct-
+  // mode draws, TBDR tile pass (incl. per-tile vertex replay and tile
+  // load/store), clears and resolve attachments of the pass.
+  STANDARD_STAGE_RENDER = 2;
+  // Compute dispatches (direct and indirect).
+  STANDARD_STAGE_COMPUTE = 3;
+  // Ray tracing dispatches (direct and indirect).
+  STANDARD_STAGE_RAY_TRACING = 4;
+  // Acceleration structure builds (also builds batched across commands),
+  // copies, and serialization.
+  STANDARD_STAGE_ACCELERATION_STRUCTURE = 5;
+  // Neural network and ML dispatches: data graph and tensor dispatches (for
+  // example VK_ARM_data_graph).
+  STANDARD_STAGE_NEURAL = 6;
+  // Buffer and image copies, buffer updates, query result copies.
+  STANDARD_STAGE_TRANSFER = 7;
+  // Image clears and buffer fills outside a render pass.
+  STANDARD_STAGE_CLEAR = 8;
+  // Resolve commands outside a render pass.
+  STANDARD_STAGE_RESOLVE = 9;
+  // Image blits, including scaling and format conversion.
+  STANDARD_STAGE_BLIT = 10;
+  // Present work that the driver or window system adds: pre-rotation, format-
+  // conversion present blits.
+  STANDARD_STAGE_PRESENT = 11;
+  // Other work that no single recorded command requests: decompression, fast-
+  // clear eliminate, driver shaders that serve many commands.
+  STANDARD_STAGE_DRIVER_INTERNAL = 12;
+  // Work of a recorded command that no other value describes: queries, video
+  // coding. Not a vendor value: the stage is linked to its command with
+  // command_instance_id as for the values above, and its time counts.
+  STANDARD_STAGE_OTHER = 13;
+  // Vendor stage. Tools do not add its time on its own. Use it for:
+  // - a child stage that divides the work of its parent, for example a
+  //   draw call in a RENDER stage (parent_event_id set);
+  // - a wrapper that groups other stages, for example the stages of one
+  //   render pass or of one submission.
+  // render_pass_instance_id and command_instance_id are optional. When
+  // set, they follow the rules of those fields.
+  STANDARD_STAGE_CUSTOM = 14;
+}
+
 // Interned data.
 
 // The iid is the numeric value of either the GL Context or the VkDevice
@@ -14257,6 +14445,11 @@ message InternedGpuRenderStageSpecification {
     COMPUTE = 2;
   }
   optional RenderStageCategory category = 4;
+
+  // Standard category of this stage. Stages with a standard value follow the
+  // rule in StandardStage; CUSTOM marks a vendor child stage or a vendor
+  // wrapper.
+  optional StandardStage standard_stage = 5;
 }
 
 message InternedComputeKernel {

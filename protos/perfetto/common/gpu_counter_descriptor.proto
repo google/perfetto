@@ -36,9 +36,37 @@ message GpuCounterDescriptor {
     RAY_TRACING = 7;
   }
 
+  // Cross-vendor counter categories for portable tooling and SQL queries.
+  // Producers keep their native counter_id, name, and descriptions on the
+  // GpuCounterSpec and tag the matching spec with standard_counter.
+  enum StandardCounter {
+    STANDARD_COUNTER_UNSPECIFIED = 0;
+    // Active cycles on the primary GPU clock over the interval.
+    STANDARD_COUNTER_GPU_ACTIVE_CYCLES = 1;
+    // Input primitives submitted to geometry assembly before culling.
+    STANDARD_COUNTER_INPUT_PRIMITIVES = 2;
+    // Fragments dispatched to fragment shader execution after early
+    // depth/stencil tests.
+    STANDARD_COUNTER_SHADED_FRAGMENTS = 3;
+    // Percentage saturation of shader arithmetic capacity while shader cores
+    // are active.
+    STANDARD_COUNTER_ALU_UTILIZATION = 4;
+    // Percentage of active shader-core cycles processing texture sampling or
+    // filtering requests.
+    STANDARD_COUNTER_TEXTURE_UTILIZATION = 5;
+    // Percentage of GPU L2 cache read lookups satisfied by L2 cache hits.
+    STANDARD_COUNTER_L2_CACHE_READ_HIT_RATIO = 6;
+    // External memory read throughput in bytes per second across GPU clients.
+    STANDARD_COUNTER_MEMORY_READ_BANDWIDTH = 7;
+    // External memory write throughput in bytes per second across GPU clients.
+    STANDARD_COUNTER_MEMORY_WRITE_BANDWIDTH = 8;
+  }
+
   message GpuCounterSpec {
     optional uint32 counter_id = 1;
     optional string name = 2;
+    // Full description of the counter. May use Markdown to explain hardware
+    // semantics, interpretation, and bottlenecks for users and AI agents.
     optional string description = 3;
     // MeasureUnit unit (deprecated)
     reserved 4;
@@ -79,6 +107,67 @@ message GpuCounterDescriptor {
       VALUE_DIRECTION_FORWARDS_LOOKING = 2;
     }
     optional ValueDirection value_direction = 11;
+
+    // Concise plain-text summary for counter selection dialogs and compact UI
+    // lists.
+    optional string short_description = 12;
+
+    // How to aggregate the samples of this counter.
+    enum ValueType {
+      VALUE_TYPE_UNSPECIFIED = 0;
+      // Count since the previous sample.
+      VALUE_TYPE_INCREMENTAL_SUM = 1;
+      // Rate per second over the interval.
+      VALUE_TYPE_PER_TIME_RATE = 2;
+      // Percentage (0 to 100) of the interval.
+      VALUE_TYPE_PERCENT = 3;
+    }
+    optional ValueType value_type = 13;
+
+    message Derivation {
+      // Tools can use the formula to recompute the value over a different time
+      // range. Then dt_s is the duration of that range.
+      //
+      // How this derived counter is computed for each sample interval, either
+      // as a math expression or as the exact string "OPAQUE":
+      //
+      // 1. Math expression (evaluated as double; division by zero yields 0.0):
+      //    - $<counter_id> : sample value of counter <counter_id> (e.g. $246)
+      //    - dt_s          : sample interval duration in seconds
+      //    - OPAQUE        : one per-sample value that only the driver knows
+      //    - Numbers       : integer, decimal, or scientific (100, 4.0, 1e-9)
+      //    - Operators     : +, -, *, /, unary +/-, parentheses (...)
+      //    - Functions     : min(a, b), max(a, b)
+      //    Examples:
+      //      "100.0 * ($246 / ($246 + $247))"   // percentage from two counters
+      //      "($195 * 64.0) / dt_s"             // bytes/sec from 64B beats
+      //      "min(100.0, max(0.0, $12 - $15))"  // clamped difference
+      //      "100.0 * OPAQUE / $123"            // driver-only count over $123
+      //    Every $<counter_id> in the expression MUST match source_counter_ids
+      //    (same set of IDs, none extra or missing).
+      //    OPAQUE appears at most once, as a factor of the whole expression
+      //    (never in a divisor). The rest of that expression uses only
+      //    $<counter_id>, dt_s, numbers, *, /, and parentheses, so tools can
+      //    solve for OPAQUE in each sample.
+      //
+      // 2. "OPAQUE" (exact string as the whole formula; nothing is exposed):
+      //    Use when the calculation depends on internal driver state, lookup
+      //    tables, multi-sample smoothing, or unsupported operations. Explain
+      //    the metric in `description`.
+      optional string formula = 1;
+
+      // Unique counter_id values (raw or derived) from this
+      // GpuCounterDescriptor that feed this counter. Must have no
+      // self-references or dependency cycles. Still lists any exposed input
+      // counters when formula == "OPAQUE" (empty only if no inputs are exposed
+      // counters).
+      repeated uint32 source_counter_ids = 2;
+    }
+    // Set on counters that the producer computes from other counters or state.
+    optional Derivation derivation = 14;
+
+    // Optional cross-vendor counter identity mapped 1-to-1 to this spec.
+    optional StandardCounter standard_counter = 15;
   }
   repeated GpuCounterSpec specs = 1;
 
@@ -138,7 +227,7 @@ message GpuCounterDescriptor {
   // GpuCounterConfig.counter_names for matching multiple counters by name.
   optional bool supports_counter_name_globs = 8;
 
-  // next id: 41
+  // next id: 42
   enum MeasureUnit {
     NONE = 0;
 
@@ -192,5 +281,7 @@ message GpuCounterDescriptor {
     PERCENT = 37;
 
     INSTRUCTION = 40;
+    // Clock cycles.
+    CYCLE = 41;
   }
 }

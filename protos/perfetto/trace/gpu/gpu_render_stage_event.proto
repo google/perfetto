@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// next id: 23
+// next id: 25
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -68,9 +68,17 @@ message GpuRenderStageEvent {
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
 
-  // optional. An ID for the render pass instance. This is used to correlate
-  // different events on different queues produced by the same Vulkan render
-  // pass instance.
+  // Identifies one render pass execution (vkCmdBeginRenderPass or
+  // vkCmdBeginRendering). All stages of that execution that have a standard
+  // value (BINNING + RENDER, tile flushes, subpasses, suspended/resumed
+  // rendering) share the same value. A stage outside a render pass (for
+  // example COMPUTE, a copy or blit, an acceleration structure build, OTHER)
+  // leaves it unset. Optional on a CUSTOM stage; when set, it is the value of
+  // the render pass execution that the stage belongs to.
+  // Unique within one submission (submission_id). Values follow the command
+  // buffer order in the submission, then the recording order inside each
+  // command buffer. A later submission can repeat the same values, so tools
+  // use (submission_id, render_pass_instance_id) as the key.
   optional uint64 render_pass_instance_id = 16;
 
   // optional. A bit mask representing which render subpasses contributed to
@@ -144,6 +152,31 @@ message GpuRenderStageEvent {
   // `context`. See GpuTrackDescriptor.logical_queue_id.
   optional uint64 logical_queue_id = 22;
 
+  // event_id of the parent stage of a child stage. The child is a CUSTOM
+  // stage that divides the work of its parent, or a stage that a CUSTOM
+  // wrapper groups. Both shapes can nest. A stage with a standard value is
+  // never inside another stage with a standard value (see StandardStage).
+  // In both shapes, the child lies inside the time range of its parent: it
+  // does not start before its parent starts and does not end after its parent
+  // ends.
+  optional uint64 parent_event_id = 23;
+
+  // GPU action commands that this stage serves, for stages other than BINNING
+  // and RENDER stages (dispatch, ray tracing dispatch, data graph dispatch,
+  // acceleration structure command, copy, fill, blit, resolve, clear, other
+  // recorded command, or a CUSTOM child stage of any parent). BINNING and
+  // RENDER stages correlate via render_pass_instance_id and leave
+  // command_instance_id empty.
+  // Each value is unique within one submission (submission_id). Values follow
+  // the command buffer order in the submission, then the recording order
+  // inside each command buffer. A later submission can repeat the same values,
+  // so tools use (submission_id, value) as the key.
+  // A stage of one command has one value, and all stages that the command
+  // emits share it. A stage that serves several commands lists each of them.
+  // Empty on pass-level stages or when served commands are unknown. Optional
+  // on a CUSTOM stage; when set, the same rules apply to the values.
+  repeated uint64 command_instance_id = 24 [packed = true];
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -183,6 +216,70 @@ message GpuRenderStageEvent {
   extensions 100;
 }
 
+// Classification rule for stages with a standard value (any value except
+// UNSPECIFIED and CUSTOM):
+// 1. Work inside a render pass is BINNING or RENDER. This includes clear
+//    commands, attachment clears, and resolve attachments of the pass.
+// 2. Work that a recorded command outside a render pass produces gets the
+//    value of that command, even when the GPU runs it on a different engine.
+// 3. Work that no single recorded command requests is PRESENT when it is
+//    present work, ACCELERATION_STRUCTURE when it builds acceleration
+//    structures for several commands, and DRIVER_INTERNAL otherwise (for
+//    example, a driver shader that computes constants for many commands).
+// A stage with a standard value is work, and tools add its time. It is never
+// inside another stage with a standard value, at any depth of
+// parent_event_id. Tools do not add the time of a CUSTOM stage on its own:
+// time in a CUSTOM wrapper that is in no stage with a standard value is not
+// counted as work.
+enum StandardStage {
+  // Not classified. Same as an unset field; a producer does not write this
+  // value.
+  STANDARD_STAGE_UNSPECIFIED = 0;
+  // Separate pre-raster pass: vertex/position shading, primitive setup, tile
+  // binning.
+  STANDARD_STAGE_BINNING = 1;
+  // Raster/fragment work and any vertex work in the same pass: IMR or direct-
+  // mode draws, TBDR tile pass (incl. per-tile vertex replay and tile
+  // load/store), clears and resolve attachments of the pass.
+  STANDARD_STAGE_RENDER = 2;
+  // Compute dispatches (direct and indirect).
+  STANDARD_STAGE_COMPUTE = 3;
+  // Ray tracing dispatches (direct and indirect).
+  STANDARD_STAGE_RAY_TRACING = 4;
+  // Acceleration structure builds (also builds batched across commands),
+  // copies, and serialization.
+  STANDARD_STAGE_ACCELERATION_STRUCTURE = 5;
+  // Neural network and ML dispatches: data graph and tensor dispatches (for
+  // example VK_ARM_data_graph).
+  STANDARD_STAGE_NEURAL = 6;
+  // Buffer and image copies, buffer updates, query result copies.
+  STANDARD_STAGE_TRANSFER = 7;
+  // Image clears and buffer fills outside a render pass.
+  STANDARD_STAGE_CLEAR = 8;
+  // Resolve commands outside a render pass.
+  STANDARD_STAGE_RESOLVE = 9;
+  // Image blits, including scaling and format conversion.
+  STANDARD_STAGE_BLIT = 10;
+  // Present work that the driver or window system adds: pre-rotation, format-
+  // conversion present blits.
+  STANDARD_STAGE_PRESENT = 11;
+  // Other work that no single recorded command requests: decompression, fast-
+  // clear eliminate, driver shaders that serve many commands.
+  STANDARD_STAGE_DRIVER_INTERNAL = 12;
+  // Work of a recorded command that no other value describes: queries, video
+  // coding. Not a vendor value: the stage is linked to its command with
+  // command_instance_id as for the values above, and its time counts.
+  STANDARD_STAGE_OTHER = 13;
+  // Vendor stage. Tools do not add its time on its own. Use it for:
+  // - a child stage that divides the work of its parent, for example a
+  //   draw call in a RENDER stage (parent_event_id set);
+  // - a wrapper that groups other stages, for example the stages of one
+  //   render pass or of one submission.
+  // render_pass_instance_id and command_instance_id are optional. When
+  // set, they follow the rules of those fields.
+  STANDARD_STAGE_CUSTOM = 14;
+}
+
 // Interned data.
 
 // The iid is the numeric value of either the GL Context or the VkDevice
@@ -212,6 +309,11 @@ message InternedGpuRenderStageSpecification {
     COMPUTE = 2;
   }
   optional RenderStageCategory category = 4;
+
+  // Standard category of this stage. Stages with a standard value follow the
+  // rule in StandardStage; CUSTOM marks a vendor child stage or a vendor
+  // wrapper.
+  optional StandardStage standard_stage = 5;
 }
 
 message InternedComputeKernel {
