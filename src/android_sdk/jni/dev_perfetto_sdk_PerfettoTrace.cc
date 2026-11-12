@@ -137,17 +137,16 @@ static jbyteArray dev_perfetto_sdk_PerfettoTrace_stop_session(
   return bytes;
 }
 
-// Lets Java probe whether the Perfetto natives are bound: if JNI registration
-// fails, every native (including this one) is unregistered and calling it
-// throws UnsatisfiedLinkError.
-static jboolean dev_perfetto_sdk_PerfettoNativeLibrary_is_available(
-    PERFETTO_JNI_HOST_PARAMS) {
-  return JNI_TRUE;
-}
+// Lets Java probe whether the Perfetto natives are bound: it is registered
+// last, only once every other native is bound, and unregistered (like every
+// other native) if registration fails, in which case calling it throws
+// UnsatisfiedLinkError.
+static void dev_perfetto_sdk_PerfettoNativeLibrary_probe(
+    PERFETTO_JNI_HOST_PARAMS) {}
 
 static const JNINativeMethod gNativeLibraryMethods[] = {
-    {"native_is_available", "()Z",
-     (void*)dev_perfetto_sdk_PerfettoNativeLibrary_is_available},
+    {"native_probe", "()V",
+     (void*)dev_perfetto_sdk_PerfettoNativeLibrary_probe},
 };
 
 static const JNINativeMethod gCategoryMethods[] = {
@@ -181,11 +180,11 @@ static const NativeClass kTraceClasses[] = {
      gCategoryMethods, NELEM(gCategoryMethods)},
 };
 
-bool register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
+static bool register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
   return RegisterNativeClassesMayFail(env, kTraceClasses, NELEM(kTraceClasses));
 }
 
-void unregister_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
+static void unregister_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
   UnregisterNativeClasses(env, kTraceClasses, NELEM(kTraceClasses));
 }
 

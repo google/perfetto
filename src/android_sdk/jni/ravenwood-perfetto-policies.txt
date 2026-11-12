@@ -3,7 +3,7 @@
 class com.android.internal.dev.perfetto.sdk.PerfettoCategories keepclass
 class com.android.internal.dev.perfetto.sdk.PerfettoNativeLibrary keepclass
     method loadLibrary ignore
-    method native_is_available ignore # return false
+    method native_probe ignore
 class com.android.internal.dev.perfetto.sdk.PerfettoTrace keepclass
     method native_get_process_track_uuid ignore
     method native_activate_trigger ignore

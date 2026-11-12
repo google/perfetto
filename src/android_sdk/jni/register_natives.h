@@ -22,7 +22,6 @@
 
 #include <cstddef>
 
-#include "perfetto/base/compiler.h"
 #include "src/android_sdk/nativehelper/scoped_local_ref.h"
 
 namespace perfetto {
@@ -44,7 +43,7 @@ struct NativeClass {
 // startup of every process (including zygote), so an abort there turns into a
 // device bootloop. Callers must propagate the failure (e.g. by returning
 // JNI_ERR from JNI_OnLoad) so that tracing is cleanly disabled instead.
-PERFETTO_WARN_UNUSED_RESULT inline bool RegisterNativeMethodsMayFail(
+[[nodiscard]] inline bool RegisterNativeMethodsMayFail(
     JNIEnv* env,
     const char* class_name,
     const JNINativeMethod* methods,
@@ -80,7 +79,7 @@ inline void UnregisterNativeMethods(JNIEnv* env, const char* class_name) {
 
 // Registers every class in |classes|. Attempts all of them, even after a
 // failure, so that every failing class gets logged.
-PERFETTO_WARN_UNUSED_RESULT inline bool RegisterNativeClassesMayFail(
+[[nodiscard]] inline bool RegisterNativeClassesMayFail(
     JNIEnv* env,
     const NativeClass* classes,
     size_t num_classes) {

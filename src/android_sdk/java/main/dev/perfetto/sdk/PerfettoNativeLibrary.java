@@ -45,58 +45,44 @@ final class PerfettoNativeLibrary {
   private static final boolean sIsAvailable;
 
   static {
-    sIsAvailable = loadLibrary() && probeNatives();
-  }
-
-  /** Ensures the JNI library is loaded. Repeat calls are no-ops. */
-  static void load() {
-    // Loading happens in the static initializer; calling this just triggers it.
+    boolean available;
+    try {
+      loadLibrary();
+      // JNI_OnLoad / JNI_OnLoad_Perfetto registers native_probe() last, only once every other
+      // Perfetto native is bound, and unregisters everything on any failure. So if this call
+      // succeeds, all of them are bound. This works the same way for every build variant,
+      // including Libcore where Java cannot observe the result of JNI_OnLoad_Perfetto directly.
+      native_probe();
+      available = true;
+    } catch (UnsatisfiedLinkError e) {
+      // The library is missing or JNI registration failed. Don't fail class initialization;
+      // report the SDK as unavailable instead.
+      System.err.println("Perfetto: JNI natives unavailable, tracing disabled: " + e);
+      available = false;
+    }
+    sIsAvailable = available;
   }
 
   /**
-   * Returns whether the Perfetto natives are bound. When this is false, callers must skip every
-   * native call in this package and act as no-ops: on device the natives are unbound and would
-   * throw UnsatisfiedLinkError, and on Ravenwood they are stubbed out.
+   * Returns whether the Perfetto natives are bound. When this is false every native call in this
+   * package would throw UnsatisfiedLinkError, so callers must skip them and act as no-ops.
    */
   static boolean isAvailable() {
     return sIsAvailable;
   }
 
   @CriticalNative
-  private static native boolean native_is_available();
+  private static native void native_probe();
 
-  // Returns false if the JNI library could not be loaded, in which case there is no point in
-  // probing the natives.
-  private static boolean loadLibrary() {
+  // Throws UnsatisfiedLinkError if the library is missing or its JNI_OnLoad fails.
+  private static void loadLibrary() {
     String className = PerfettoNativeLibrary.class.getName();
     if (className.startsWith(LIBCORE_PREFIX)) {
       // In Libcore, native methods are statically linked into the runtime
       // and registered at startup.
-      return true;
+      return;
     }
     boolean isFramework = className.startsWith(FRAMEWORK_PREFIX);
-    try {
-      System.loadLibrary(isFramework ? "perfetto_framework_jni" : "perfetto_jni");
-      return true;
-    } catch (UnsatisfiedLinkError e) {
-      // JNI_OnLoad failed or the library is missing. Don't fail class
-      // initialization; report the SDK as unavailable instead.
-      System.err.println("Perfetto: failed to load JNI library, tracing disabled: " + e);
-      return false;
-    }
-  }
-
-  // JNI_OnLoad / JNI_OnLoad_Perfetto registers native_is_available() last, only once every other
-  // Perfetto native is bound, and unregisters everything on any failure. So a bound probe means
-  // all of them are bound.
-  // This works the same way for every build variant, including Libcore where Java cannot observe
-  // the result of JNI_OnLoad_Perfetto directly.
-  private static boolean probeNatives() {
-    try {
-      return native_is_available();
-    } catch (UnsatisfiedLinkError e) {
-      System.err.println("Perfetto: JNI natives unavailable, tracing disabled: " + e);
-      return false;
-    }
+    System.loadLibrary(isFramework ? "perfetto_framework_jni" : "perfetto_jni");
   }
 }
