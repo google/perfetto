@@ -139,7 +139,8 @@
     "cmd": [
       "python3",
       "tools/install-build-deps",
-      "--linux-arm"
+      "--linux-arm",
+      "--linux-x64"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -167,7 +168,7 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/linux-amd64",
-      "--args=is_clang=true monolithic_binaries=true is_debug=false enable_perfetto_etm_importer=false target_os=\"linux\" target_cpu=\"x64\""
+      "--args=is_clang=true monolithic_binaries=true is_debug=false enable_perfetto_etm_importer=false target_os=\"linux\" target_cpu=\"x64\" sysroot=\"[CACHE]/builder/perfetto/buildtools/debian_bullseye_amd64-sysroot\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
