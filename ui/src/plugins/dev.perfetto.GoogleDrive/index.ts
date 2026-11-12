@@ -18,17 +18,11 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import {GoogleOAuthClient} from './gdrive/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installGDriveSupport} from './install';
-import {alertModal} from './modal_prompt';
+import {alertModal} from '../../widgets/modal';
 
 export interface GDriveClients {
   readonly oauth: GoogleOAuthClient;
 }
-
-// The OAuth scopes to ask for when connecting to the user's Google account:
-// reading files the user has opened or picked with the app (drive.file), and
-// being offered in Drive's "Open with" menu (drive.install).
-const GDRIVE_SCOPES =
-  'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.install';
 
 export default class GoogleDrivePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.GoogleDrive';
@@ -38,12 +32,11 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
     // Google clients are odd - we must run them as external scripts so loading
     // their code naturally is asynchronous. We don't want to delay startup so
     // kick off the load async.
-    const clientsPromise = initGDrive();
+    const clientsPromise = initGDriveClients();
 
-    // Connects Perfetto to the user's Google account, which also adds it to
-    // Google Drive's "Open with" menu.
+    // Adds Perfetto to the "Open with" menu in the user's Google Drive.
     app.commands.registerCommand({
-      id: `${GoogleDrivePlugin.id}#Install`,
+      id: `dev.perfetto.GoogleDriveInstall`,
       name: 'Install Google Drive support',
       callback: async () => {
         const clients = await clientsPromise;
@@ -73,12 +66,11 @@ async function alertGDriveNotAvailable() {
 // error only): it runs on every page load, including for users who are offline
 // or block Google's scripts. The command reports that Google Drive is
 // unavailable.
-async function initGDrive(): Promise<GDriveClients | undefined> {
+async function initGDriveClients(): Promise<GDriveClients | undefined> {
   try {
     const config = await loadGDriveConfig();
     const oauth = await GoogleOAuthClient.create({
       clientId: config.clientId,
-      scope: GDRIVE_SCOPES,
     });
     return {oauth};
   } catch (e) {

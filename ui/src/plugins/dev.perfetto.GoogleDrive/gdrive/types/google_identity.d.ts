@@ -51,6 +51,11 @@ declare global {
             callback?: (response: GDriveTokenResponse) => void;
             error_callback?: (error: GDriveTokenClientError) => void;
           }): GDriveTokenClient;
+          hasGrantedAllScopes(
+            tokenResponse: GDriveTokenResponse,
+            firstScope: string,
+            ...restScopes: string[]
+          ): boolean;
         };
       };
     };

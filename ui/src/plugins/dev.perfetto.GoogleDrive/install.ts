@@ -15,15 +15,20 @@
 import m from 'mithril';
 import {alertConnectFailed} from './dialogs';
 import type {GoogleOAuthClient} from './gdrive/oauth_client';
-import {alertModal} from './modal_prompt';
+import {alertModal} from '../../widgets/modal';
 
-// Connects Perfetto to the user's Google account, and tells them how it went.
-// Granting access is also what adds Perfetto to the "Open with" menu in the
-// user's Google Drive. This is the whole flow, start to finish.
+// The OAuth scope that lets Perfetto be offered in Google Drive's "Open with"
+// menu. It gives no access to any file.
+const DRIVE_INSTALL_SCOPE = 'https://www.googleapis.com/auth/drive.install';
+
+// Adds Perfetto to the "Open with" menu in the user's Google Drive, and tells
+// them how it went. This is the whole flow, start to finish.
 export async function installGDriveSupport(oauth: GoogleOAuthClient) {
-  // Authenticate with the oauth client. This opens Google's popup unless there
-  // is already a valid token, so it needs to run from a user gesture.
-  const auth = await oauth.authenticate();
+  // Ask for the install scope only: granting it is what adds Perfetto to the
+  // menu, and this needs no access to the user's files. This opens Google's
+  // popup unless there is already a valid token that covers the scope, so it
+  // needs to run from a user gesture.
+  const auth = await oauth.authenticate([DRIVE_INSTALL_SCOPE]);
   if (!auth.ok) {
     await alertConnectFailed(auth.error);
     return;
@@ -32,6 +37,9 @@ export async function installGDriveSupport(oauth: GoogleOAuthClient) {
   await alertModal({
     key: 'GoogleDriveInstalled',
     title: 'Google Drive support installed',
-    content: m('p', 'Perfetto is connected to your Google account.'),
+    content: m(
+      'p',
+      'Perfetto has been added to the "Open with" menu in your Google Drive.',
+    ),
   });
 }

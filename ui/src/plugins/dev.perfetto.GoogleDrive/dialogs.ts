@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
 import type {AuthError} from './gdrive/oauth_client';
-import {alertModal} from './modal_prompt';
+import {alertModal} from '../../widgets/modal';
 
 // The alerts shared by the plugin's flows. Each one only tells the user what
 // went wrong, and resolves once it is dismissed: what happens next is up to
@@ -77,6 +77,8 @@ function describeAuthFailure(auth: AuthError): string {
       return 'The Google authentication popup was blocked.';
     case 'popup_closed':
       return 'The Google window was closed before the connection was completed.';
+    case 'missing_scopes':
+      return 'Perfetto was not granted all the permissions it asked for.';
     case 'error':
       return `Connecting to Google Drive failed: ${getErrorMessage(auth.cause)}`;
   }

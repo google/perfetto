@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {ReadonlyNonEmpty} from '../../../base/array_utils';
 import {loadScript} from '../../../base/dom_utils';
 import {errResult, okResult, type Result} from '../../../base/result';
 
@@ -25,64 +26,90 @@ const LOAD_TIMEOUT_MS = 30000;
 
 // Why getting an access token did not succeed.
 export interface AuthError {
-  readonly type: 'popup_blocked' | 'popup_closed' | 'error';
+  // 'missing_scopes' means the user connected but did not grant every scope
+  // that was asked for. Google lets users untick scopes when an app asks for
+  // more than one at a time.
+  readonly type: 'popup_blocked' | 'popup_closed' | 'missing_scopes' | 'error';
   readonly cause?: unknown;
+}
+
+// The most recent access token, and what it is good for.
+interface CachedToken {
+  readonly accessToken: string;
+  readonly expiresAtMs: number;
+  // The raw GIS response, passed to hasGrantedAllScopes() on cache checks.
+  readonly tokenResponse: GDriveTokenResponse;
 }
 
 // Obtains OAuth access tokens for the user's Google account, through Google
 // Identity Services, and holds the current one in memory. It knows nothing
 // about what the token is used for.
 export class GoogleOAuthClient {
-  private pendingToken: Promise<Result<string, AuthError>> | undefined;
-  private token: string | undefined;
-  private tokenExpiresAtMs = 0;
+  // The requests in flight, keyed by the scope they ask for.
+  private readonly pending = new Map<
+    string,
+    Promise<Result<string, AuthError>>
+  >();
+  private cached: CachedToken | undefined;
 
-  private constructor(
-    private readonly clientId: string,
-    private readonly scope: string,
-  ) {}
+  private constructor(private readonly clientId: string) {}
 
   // Loads Google Identity Services and returns a ready-to-use client. Rejects
   // if it cannot be loaded.
-  //
-  // `scope` is a space separated list of the OAuth scopes to ask for.
   //
   // Nothing here opens a popup or needs a user gesture; only authenticate()
   // does.
   static async create(args: {
     readonly clientId: string;
-    readonly scope: string;
   }): Promise<GoogleOAuthClient> {
     await loadScript(GSI_CLIENT_URL, LOAD_TIMEOUT_MS);
     if (window.google?.accounts?.oauth2 === undefined) {
       throw new Error('Google Identity Services is not available');
     }
-    return new GoogleOAuthClient(args.clientId, args.scope);
+    return new GoogleOAuthClient(args.clientId);
   }
 
-  // Returns an access token, asking the user to connect their Google account
-  // if there is no valid one. That opens a Google popup, which browsers only
-  // allow from a user gesture, so nothing is awaited here before the popup is
-  // requested.
+  // Returns an access token that covers `scopes`, asking the user to connect
+  // their Google account if there is no valid token that does. That opens a
+  // Google popup, which browsers only allow from a user gesture, so nothing is
+  // awaited here before the popup is requested.
+  //
+  // Ask only for what the action at hand needs. Google shows tick boxes when
+  // several scopes are requested together, and the user can refuse any of
+  // them; a single scope is simply allowed or cancelled.
   //
   // This never rejects: every failure is returned via Result.
-  authenticate(): Promise<Result<string, AuthError>> {
-    if (this.token !== undefined && Date.now() < this.tokenExpiresAtMs) {
-      return Promise.resolve(okResult(this.token));
+  authenticate(
+    scopes: ReadonlyNonEmpty<string>,
+  ): Promise<Result<string, AuthError>> {
+    const cached = this.cached;
+    const oauth2 = window.google?.accounts?.oauth2;
+    if (
+      cached !== undefined &&
+      Date.now() < cached.expiresAtMs &&
+      oauth2?.hasGrantedAllScopes(cached.tokenResponse, ...scopes) === true
+    ) {
+      return Promise.resolve(okResult(cached.accessToken));
     }
 
-    // Share a single request between concurrent callers, and forget it once it
-    // settles so that a later call can try again.
-    if (this.pendingToken === undefined) {
-      this.pendingToken = this.requestToken().finally(() => {
-        this.pendingToken = undefined;
+    // Share a single request between concurrent callers asking for the same
+    // thing, and forget it once it settles so that a later call can try again.
+    const scopeKey = [...scopes].sort().join(' ');
+    let request = this.pending.get(scopeKey);
+    if (request === undefined) {
+      request = this.requestToken(scopes).finally(() => {
+        this.pending.delete(scopeKey);
       });
+      this.pending.set(scopeKey, request);
     }
-    return this.pendingToken;
+    return request;
   }
 
-  // Asks Google for a new token. Like authenticate(), this never rejects.
-  private requestToken(): Promise<Result<string, AuthError>> {
+  // Asks Google for a new token covering `scopes`. Like authenticate(), this
+  // never rejects.
+  private requestToken(
+    scopes: ReadonlyNonEmpty<string>,
+  ): Promise<Result<string, AuthError>> {
     return new Promise<Result<string, AuthError>>((resolve) => {
       const fail = (cause: unknown) =>
         resolve(errResult({type: 'error', cause}));
@@ -100,7 +127,7 @@ export class GoogleOAuthClient {
       try {
         const tokenClient: GDriveTokenClient = oauth2.initTokenClient({
           client_id: this.clientId,
-          scope: this.scope,
+          scope: scopes.join(' '),
           callback: (tokenResponse: GDriveTokenResponse) => {
             const error = tokenResponse.error;
             if (typeof error === 'string' && error !== '') {
@@ -112,13 +139,21 @@ export class GoogleOAuthClient {
               fail('No access token returned');
               return;
             }
+            // Google reports the scopes it actually granted. That can be
+            // fewer than were asked for, if the user unticked some.
+            if (!oauth2.hasGrantedAllScopes(tokenResponse, ...scopes)) {
+              resolve(errResult({type: 'missing_scopes'}));
+              return;
+            }
             const parsedExpires = Number(tokenResponse.expires_in);
             const expiresInSec = Number.isFinite(parsedExpires)
               ? parsedExpires
               : 3600;
-            this.token = accessToken;
-            this.tokenExpiresAtMs =
-              Date.now() + Math.max(0, expiresInSec - 60) * 1000;
+            this.cached = {
+              accessToken,
+              expiresAtMs: Date.now() + Math.max(0, expiresInSec - 60) * 1000,
+              tokenResponse,
+            };
             resolve(okResult(accessToken));
           },
           error_callback: (error: GDriveTokenClientError) => {

@@ -2,9 +2,9 @@
 
 Connects Perfetto to a Google account, as the first step towards opening
 traces from Google Drive. For now it only adds one command, "Install Google
-Drive support", which asks the user to grant Perfetto access. Granting access
-also adds Perfetto to the "Open with" menu in the user's Google Drive, but
-nothing handles opening a file from there yet.
+Drive support", which asks the user for permission to add Perfetto to the
+"Open with" menu in their Google Drive. Nothing handles opening a file from
+there yet.
 
 The plugin is not enabled by default.
 
@@ -12,25 +12,43 @@ The plugin is not enabled by default.
 
 ### Authenticate step (GoogleOAuthClient authenticate)
 
-The command runs this. It never throws: every outcome is
-returned as a Result.
+The command runs this, asking for the scope it needs. It never throws: every
+outcome is returned as a Result.
 
 ```mermaid
 graph TD
-    A[Authenticate called] --> B{Cached token exists}
+    A[Authenticate called with a scope] --> B{Cached token covers the scope}
     B -->|Yes| C{Token expired}
     C -->|No| D[Return cached token]
-    C -->|Yes| E{Token request already in flight}
+    C -->|Yes| E{Request for this scope already in flight}
     B -->|No| E
     E -->|Yes| F[Wait for that request and share its result]
     E -->|No| G[Ask Google for a token via popup]
     G --> H{Google response}
-    H -->|Token| I[Store token with expiry of expires_in minus 60 seconds]
+    H -->|Token| N{Every requested scope granted}
+    N -->|Yes| I[Store token with its granted scopes and expiry of expires_in minus 60 seconds]
     I --> J[Return new token]
+    N -->|No| O[Return error missing_scopes]
     H -->|Popup failed to open| K[Return error popup_blocked]
     H -->|Popup closed| L[Return error popup_closed]
     H -->|Other error| M[Return error with cause]
 ```
+
+### Scopes
+
+Each action passes the OAuth scope it needs to `authenticate()`, one at a
+time. There is no default:
+
+| Scope | What it allows | Asked for by |
+| --- | --- | --- |
+| `drive.install` | Perfetto is offered in Drive's "Open with" menu. No access to files | The "Install Google Drive support" command |
+| `drive.file` | Reading and creating the files the user opens or picks with Perfetto | Nothing yet: the flows that open files will ask for it |
+
+Asking for one scope at a time matters. When an app asks for several together,
+Google's consent screen shows a tick box for each and the user can refuse any
+of them, and there is no way to mark one as required. A single scope is simply
+allowed or cancelled. The client still checks which scopes were granted, and
+returns `missing_scopes` if any that were asked for are missing.
 
 ## Content Security Policy
 
@@ -85,14 +103,15 @@ hand.
 
 ### Install Google Drive support
 
-The "Install Google Drive support" command connects Perfetto to a Google
-account without opening anything. Granting access is what adds Perfetto to
-that account's "Open with" menu in Google Drive.
+The "Install Google Drive support" command asks for permission to add
+Perfetto to the "Open with" menu in the user's Google Drive. It does not ask
+for access to any files.
 
 1. Open the command palette (Ctrl/Cmd+Shift+P) and run "Install Google Drive
    support".
-2. Complete the Google popup. A "Google Drive support installed" dialog should
-   appear.
+2. Complete the Google popup. It should ask only for permission to connect
+   Perfetto to Google Drive, with no tick boxes and no mention of files. A
+   "Google Drive support installed" dialog should appear.
 3. Run the command again without reloading: the dialog should appear straight
    away, with no Google popup.
 4. Reload, run the command and close the Google popup instead of completing
