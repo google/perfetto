@@ -94,11 +94,14 @@ export interface StepAreaBuffers {
   readonly xs: Float32Array;
   // X positions for the next data point
   readonly xnext: Float32Array;
-  // Y positions for fill top and horizontal stroke line
+  // Y positions for fill top and horizontal stroke line. NaN omits the fill and
+  // horizontal stroke for that segment (creating a gap).
   readonly ys: Float32Array;
-  // Minimum Y of the range indicator at each transition
+  // Minimum Y of the range indicator at each transition. If either minYs[i] or
+  // maxYs[i] is NaN, the vertical range indicator at xs[i] is omitted.
   readonly minYs: Float32Array;
-  // Maximum Y of the range indicator at each transition
+  // Maximum Y of the range indicator at each transition. If either minYs[i] or
+  // maxYs[i] is NaN, the vertical range indicator at xs[i] is omitted.
   readonly maxYs: Float32Array;
   // Fill alpha per segment (0 = transparent, 1 = filled)
   readonly fillAlpha: Float32Array;

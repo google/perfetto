@@ -118,3 +118,47 @@ class StdlibCounterIntervals(TestSuite):
         "name","parent_matches","parent_name"
         "child_counter",1,"parent_track"
         """))
+
+  def test_counter_mipmap_nulls(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE VIRTUAL TABLE mipmap USING __intrinsic_counter_mipmap((
+          WITH data(ts, value) AS (
+            VALUES
+              (100, 10.0),
+              (200, 25.0),
+              (300, NULL),
+              (400, 18.0),
+              (500, NULL)
+          )
+          SELECT ts, value FROM data
+        ));
+
+        CREATE VIRTUAL TABLE empty_mipmap USING __intrinsic_counter_mipmap((
+          SELECT 0 AS ts, 0.0 AS value WHERE 0
+        ));
+
+        SELECT 'fine' AS mode, min_value, max_value, last_ts, last_value
+        FROM mipmap(0, 600, 100)
+        UNION ALL
+        SELECT 'coarse' AS mode, min_value, max_value, last_ts, last_value
+        FROM mipmap(0, 600, 300)
+        UNION ALL
+        SELECT 'global' AS mode, min_value, max_value, last_ts, last_value
+        FROM mipmap(0, 1000, 1000)
+        UNION ALL
+        SELECT 'empty' AS mode, min_value, max_value, last_ts, last_value
+        FROM empty_mipmap(0, 1000, 1000);
+        """,
+        out=Csv("""
+        "mode","min_value","max_value","last_ts","last_value"
+        "fine",10.000000,10.000000,100,10.000000
+        "fine",25.000000,25.000000,200,25.000000
+        "fine","[NULL]","[NULL]",300,"[NULL]"
+        "fine",18.000000,18.000000,400,18.000000
+        "fine","[NULL]","[NULL]",500,"[NULL]"
+        "coarse",10.000000,25.000000,200,25.000000
+        "coarse",18.000000,18.000000,500,"[NULL]"
+        "global",10.000000,25.000000,500,"[NULL]"
+        """))
