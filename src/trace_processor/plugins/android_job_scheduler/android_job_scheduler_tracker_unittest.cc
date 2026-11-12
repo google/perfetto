@@ -259,6 +259,88 @@ TEST_F(AndroidJobSchedulerTrackerTest, ParseAndroidJobSchedulerJob_Defaults) {
   EXPECT_FALSE(rr.periodic_job_interval_ms().has_value());
   EXPECT_FALSE(rr.periodic_job_flex_interval_ms().has_value());
   EXPECT_FALSE(rr.num_reschedules_due_to_abandonment().has_value());
+  EXPECT_FALSE(rr.pending_queue_wait_ms().has_value());
+  EXPECT_FALSE(rr.outside_pending_queue_ms().has_value());
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingQueueTimes) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 202);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_STARTED);
+  job->AppendVarInt(ProtoJob::kJobStartLatencyMsFieldNumber, 4000);
+  job->AppendVarInt(ProtoJob::kPendingQueueWaitMsFieldNumber, 1700);
+  job->AppendVarInt(ProtoJob::kOutsidePendingQueueMsFieldNumber, 300);
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 1000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 1000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+  auto rr = table[tables::AndroidJobSchedulerTrackEventTable::Id{0}];
+  EXPECT_EQ(rr.job_start_latency_ms(), 4000);
+  EXPECT_EQ(rr.pending_queue_wait_ms(), 1700);
+  EXPECT_EQ(rr.outside_pending_queue_ms(), 300);
+}
+
+TEST_F(AndroidJobSchedulerTrackerTest,
+       ParseAndroidJobSchedulerJob_PendingQueueTimes_NeverQueued) {
+  protozero::HeapBuffered<protozero::Message> job;
+  using ProtoJob = ::com::android::internal::pbzero::AndroidJobSchedulerJob;
+  job->AppendVarInt(ProtoJob::kJobIdFieldNumber, 303);
+  job->AppendVarInt(ProtoJob::kSourceUidFieldNumber, 1000);
+  job->AppendVarInt(ProtoJob::kStateFieldNumber, ProtoJob::JOB_STATE_CANCELLED);
+  // -1 means the job never entered the pending queue. int64 fields encode
+  // negative values as 10-byte varints of their two's complement.
+  job->AppendVarInt(ProtoJob::kPendingQueueWaitMsFieldNumber, int64_t{-1});
+  job->AppendVarInt(ProtoJob::kOutsidePendingQueueMsFieldNumber, int64_t{-1});
+
+  std::vector<uint8_t> blob = job.SerializeAsArray();
+
+  protozero::Field field;
+  field.initialize(AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId,
+                   static_cast<uint8_t>(
+                       protozero::proto_utils::ProtoWireType::kLengthDelimited),
+                   reinterpret_cast<uint64_t>(blob.data()),
+                   static_cast<uint32_t>(blob.size()));
+  TrackEventExtensionField extension_field(field);
+
+  tables::SliceTable::Row slice_row;
+  slice_row.ts = 1000;
+  auto slice_id = context.storage->mutable_slice_table()->Insert(slice_row).id;
+
+  TrackEventFieldContext event;
+  event.ts = 1000;
+  event.row_kind = TrackEventFieldContext::RowKind::kSlice;
+  event.row_id = slice_id.value;
+  tracker->OnTrackEventField(extension_field, event);
+
+  const auto& table =
+      context.storage->android_job_scheduler_track_event_table();
+  ASSERT_EQ(table.row_count(), 1u);
+  auto rr = table[tables::AndroidJobSchedulerTrackEventTable::Id{0}];
+  EXPECT_EQ(rr.pending_queue_wait_ms(), -1);
+  EXPECT_EQ(rr.outside_pending_queue_ms(), -1);
 }
 
 TEST_F(AndroidJobSchedulerTrackerTest,

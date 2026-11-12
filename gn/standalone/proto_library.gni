@@ -293,7 +293,7 @@ template("proto_library") {
         configs += [ ":$config_name" ]
       }
 
-      public_deps = []
+      public_deps = [ ":$action_name" ]
       if (generate_cc) {
         public_deps += [ "//gn:protobuf_lite" ]
       }
@@ -301,7 +301,7 @@ template("proto_library") {
         public_deps += invoker.link_public_deps
       }
 
-      deps = [ ":$action_name" ]
+      deps = []
       if (defined(invoker.deps)) {
         deps += invoker.deps
       }

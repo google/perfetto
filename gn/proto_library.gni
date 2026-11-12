@@ -79,11 +79,11 @@ template("protozero_library") {
       component_build_force_source_set = true
     }
 
-    # Convert deps to link_deps: the proto_library rule requires that C++ files
-    # are passed in as link_deps wheras in Perfetto, we always works with deps.
+    # Generated .pbzero.h headers can include headers from proto dependencies,
+    # so those dependencies must be public.
     link_deps = []
     if (defined(invoker.deps)) {
-      link_deps += invoker.deps
+      link_public_deps = invoker.deps
     }
 
     # omit_protozero_dep is intended to be used when protozero_library
@@ -241,11 +241,10 @@ if (enable_perfetto_grpc) {
       link_deps = [ "$perfetto_root_path/buildtools/grpc:grpc++" ]
       public_configs = [ "$perfetto_root_path/buildtools:grpc_gen_config" ]
 
-      # Convert deps to link_deps: the proto_library rule requires that C++
-      # files are passed in as link_deps wheras in Perfetto, we always works
-      # with deps.
+      # Generated .grpc.pb.h headers include .pb.h headers from proto
+      # dependencies, so those dependencies must be public.
       if (defined(invoker.deps)) {
-        link_deps += invoker.deps
+        link_public_deps = invoker.deps
       }
       forward_variables_from(invoker,
                              [
@@ -385,8 +384,8 @@ template("perfetto_proto_library") {
       }
     }
 
-    # The distinction between deps and public_deps does not matter for GN
-    # but Bazel cares about the difference so we distinguish between the two.
+    # We make both deps and public_deps public in GN, but tools/gen_bazel
+    # needs to distinguish them.
     if (defined(invoker.public_deps)) {
       foreach(dep, invoker.public_deps) {
         all_deps_ += [ string_replace(dep, expansion_token, gen_type) ]
@@ -444,7 +443,7 @@ template("perfetto_proto_library") {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generate_python = false
-        link_deps = all_deps_
+        link_public_deps = all_deps_
         cc_generator_options = "lite=true:"
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
