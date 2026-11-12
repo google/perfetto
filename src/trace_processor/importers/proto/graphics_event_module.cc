@@ -261,4 +261,8 @@ void GraphicsEventModule::ParseField(const ParseFieldArgs& args) {
   }
 }
 
+void GraphicsEventModule::OnEventsFullyExtracted() {
+  parser_.OnEventsFullyExtracted();
+}
+
 }  // namespace perfetto::trace_processor

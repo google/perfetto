@@ -108,8 +108,7 @@ SELECT
   ct.description,
   args.int_value AS cpu
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
   args.key = 'cpu';
 
@@ -142,7 +141,25 @@ CREATE PERFETTO TABLE gpu_counter_track(
   -- The unique GPU identifier (ugpu) from the gpu table.
   ugpu LONG,
   -- The raw GPU number.
-  gpu_id LONG
+  gpu_id LONG,
+  -- The id that the producer gave to this counter. Samples and the formulas
+  -- of derived counters refer to a counter through this id. The formula and
+  -- the source counter ids of a derived counter are the track args
+  -- `derivation.formula` and `derivation.source_counter_ids`. NULL for GPU
+  -- counter tracks that do not come from a GpuCounterSpec (`gpu_frequency`,
+  -- `gpu_memory`, and `process_gpu_memory`).
+  counter_id LONG,
+  -- A short description of this counter, for places where the full
+  -- description does not fit. NULL if the producer did not set it.
+  short_description STRING,
+  -- How to read the samples of this counter, as the name of the
+  -- GpuCounterSpec.ValueType proto enum value (for example
+  -- VALUE_TYPE_PERCENT). NULL if the producer did not set it.
+  value_type STRING,
+  -- The cross-vendor counter that this counter implements, as the name of the
+  -- GpuCounterDescriptor.StandardCounter proto enum value (for example
+  -- STANDARD_COUNTER_GPU_ACTIVE_CYCLES). NULL if the producer did not set it.
+  standard_counter STRING
 )
 AS
 SELECT
@@ -155,10 +172,13 @@ SELECT
   ct.unit,
   ct.description,
   extract_arg(ct.dimension_arg_set_id, 'ugpu') AS ugpu,
-  extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id
+  extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id,
+  extract_arg(ct.source_arg_set_id, 'counter_id') AS counter_id,
+  extract_arg(ct.source_arg_set_id, 'short_description') AS short_description,
+  extract_arg(ct.source_arg_set_id, 'value_type') AS value_type,
+  extract_arg(ct.source_arg_set_id, 'standard_counter') AS standard_counter
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
   args.key = 'ugpu';
 
@@ -203,8 +223,7 @@ SELECT
   ct.description,
   args.int_value AS upid
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
   args.key = 'upid';
 
@@ -249,8 +268,7 @@ SELECT
   ct.description,
   args.int_value AS utid
 FROM counter_track AS ct
-JOIN args
-  ON ct.dimension_arg_set_id = args.arg_set_id
+JOIN args ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
   args.key = 'utid';
 
@@ -334,7 +352,6 @@ CREATE PERFETTO VIEW counters(
 AS
 SELECT v.*, t.name, t.unit
 FROM counter AS v
-JOIN counter_track AS t
-  ON v.track_id = t.id
+JOIN counter_track AS t ON v.track_id = t.id
 ORDER BY
   ts;

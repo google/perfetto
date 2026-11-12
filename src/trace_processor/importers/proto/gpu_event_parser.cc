@@ -151,6 +151,15 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       upid_id_(context->storage->InternString("upid")),
       pid_id_(context_->storage->InternString("pid")),
       tid_id_(context_->storage->InternString("tid")),
+      counter_id_id_(context->storage->InternString("counter_id")),
+      short_description_id_(
+          context->storage->InternString("short_description")),
+      value_type_id_(context->storage->InternString("value_type")),
+      standard_counter_id_(context->storage->InternString("standard_counter")),
+      derivation_formula_id_(
+          context->storage->InternString("derivation.formula")),
+      derivation_source_counter_ids_id_(
+          context->storage->InternString("derivation.source_counter_ids")),
       category_id_(context->storage->InternString("render_stage_category")),
       stage_name_id_(context->storage->InternString("render_stage_name")),
       kernel_name_id_(context->storage->InternString("kernel_name")),
@@ -168,6 +177,12 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
           context->storage->InternString("launch.workgroup_size.z")),
       description_id_(context->storage->InternString("description")),
       correlation_id_(context->storage->InternString("correlation_id")),
+      standard_stage_id_(context->storage->InternString("standard_stage")),
+      parent_stage_id_id_(context->storage->InternString("parent_stage_id")),
+      render_pass_instance_id_id_(
+          context->storage->InternString("render_pass_instance_id")),
+      command_instance_id_id_(
+          context->storage->InternString("command_instance_id")),
       tag_id_(context_->storage->InternString("tag")),
       log_message_id_(context->storage->InternString("message")),
       log_severity_ids_{{context_->storage->InternString("UNSPECIFIED"),
@@ -267,6 +282,8 @@ const char* MeasureUnitToString(int32_t unit) {
       return "%";
     case MU::INSTRUCTION:
       return "Instruction";
+    case MU::CYCLE:
+      return "Cycle";
     default:
       return "Unknown";
   }
@@ -288,6 +305,17 @@ const char* GraphicsApiToString(int32_t api) {
     default:
       return "UNDEFINED";
   }
+}
+
+void AddProtoEnumArg(TraceStorage* storage,
+                     ArgsInserter& inserter,
+                     StringId key,
+                     const char* name) {
+  std::string_view enum_name(name);
+  if (enum_name == "PBZERO_UNKNOWN_ENUM_VALUE") {
+    return;
+  }
+  inserter.AddArg(key, Variadic::String(storage->InternString(enum_name)));
 }
 
 }  // namespace
@@ -333,8 +361,53 @@ TrackId GpuEventParser::InternGpuCounterTrack(
       tracks::DynamicName(name_id),
       [&, this](ArgsInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(desc_id));
+        inserter.AddArg(counter_id_id_,
+                        Variadic::UnsignedInteger(spec.counter_id()));
+        if (spec.has_short_description()) {
+          inserter.AddArg(short_description_id_,
+                          Variadic::String(context_->storage->InternString(
+                              spec.short_description())));
+        }
+        if (spec.has_value_type() &&
+            spec.value_type() !=
+                GpuCounterDescriptor::GpuCounterSpec::VALUE_TYPE_UNSPECIFIED) {
+          using ValueType = GpuCounterDescriptor::GpuCounterSpec::ValueType;
+          AddProtoEnumArg(context_->storage.get(), inserter, value_type_id_,
+                          GpuCounterDescriptor::GpuCounterSpec::ValueType_Name(
+                              static_cast<ValueType>(spec.value_type())));
+        }
+        if (spec.has_standard_counter() &&
+            spec.standard_counter() !=
+                GpuCounterDescriptor::STANDARD_COUNTER_UNSPECIFIED) {
+          using StandardCounter = GpuCounterDescriptor::StandardCounter;
+          AddProtoEnumArg(
+              context_->storage.get(), inserter, standard_counter_id_,
+              GpuCounterDescriptor::StandardCounter_Name(
+                  static_cast<StandardCounter>(spec.standard_counter())));
+        }
+        if (spec.has_derivation()) {
+          ParseCounterDerivation(spec.derivation(), &inserter);
+        }
       },
       tracks::DynamicUnit(unit_id));
+}
+
+void GpuEventParser::ParseCounterDerivation(protozero::ConstBytes bytes,
+                                            ArgsInserter* inserter) {
+  GpuCounterDescriptor::GpuCounterSpec::Derivation::Decoder derivation(bytes);
+  if (derivation.has_formula()) {
+    inserter->AddArg(derivation_formula_id_,
+                     Variadic::String(context_->storage->InternString(
+                         derivation.formula())));
+  }
+  uint32_t source_counter_index = 0;
+  for (auto it = derivation.source_counter_ids(); it; ++it) {
+    base::StackString<64> array_key("derivation.source_counter_ids[%u]",
+                                    source_counter_index++);
+    inserter->AddArg(derivation_source_counter_ids_id_,
+                     context_->storage->InternString(array_key.string_view()),
+                     Variadic::UnsignedInteger(*it));
+  }
 }
 
 GpuEventParser::GroupMetadataMap GpuEventParser::BuildGroupMetadata(
@@ -822,101 +895,153 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     } else {
       name_id = GetFullStageName(sequence_state, event);
     }
-    auto opt_slice_id = context_->slice_tracker->Scoped(
-        ts, track_id, kNullStringId, name_id,
-        static_cast<int64_t>(event.duration()), [&](ArgsInserter& inserter) {
-          if (event.has_stage_iid()) {
-            auto stage_iid = static_cast<size_t>(event.stage_iid());
-            auto* decoder = sequence_state->LookupInternedMessage<
-                protos::pbzero::InternedData::kGpuSpecificationsFieldNumber,
-                protos::pbzero::InternedGpuRenderStageSpecification>(stage_iid);
-            if (decoder) {
-              inserter.AddArg(
-                  category_id_,
-                  Variadic::Integer(static_cast<int64_t>(decoder->category())));
-              inserter.AddArg(description_id_,
-                              Variadic::String(context_->storage->InternString(
-                                  decoder->description())));
-              // A named event's slice takes the event's name, so the stage
-              // (kernel, memory transfer, ...) survives only here.
-              inserter.AddArg(stage_name_id_,
-                              Variadic::String(context_->storage->InternString(
-                                  decoder->name())));
-            }
-          } else if (event.has_stage_id()) {
-            size_t stage_id = static_cast<size_t>(event.stage_id());
-            if (stage_id < gpu_render_stage_ids_.size()) {
-              inserter.AddArg(
-                  stage_name_id_,
-                  Variadic::String(gpu_render_stage_ids_[stage_id].first));
-              auto description = gpu_render_stage_ids_[stage_id].second;
-              if (description != kNullStringId) {
-                inserter.AddArg(description_id_, Variadic::String(description));
-              }
-            }
-          }
-
-          if (event.has_kernel_iid()) {
-            ParseComputeKernel(sequence_state, event.kernel_iid(), &inserter);
-          }
-
-          if (event.has_launch()) {
-            ParseComputeKernelLaunch(sequence_state, event.launch(), &inserter);
-          }
-
-          if (event.render_pass_instance_id()) {
-            base::StackString<512> id_str("rp:#%" PRIu64,
-                                          event.render_pass_instance_id());
-            inserter.AddArg(correlation_id_,
-                            Variadic::String(context_->storage->InternString(
-                                id_str.string_view())));
-          }
-
-          for (auto it = event.extra_data(); it; ++it) {
-            protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
-            StringId name_id = context_->storage->InternString(datum.name());
-            StringId value = context_->storage->InternString(
-                datum.has_value() ? datum.value() : base::StringView());
-            inserter.AddArg(name_id, Variadic::String(value));
-          }
-
-          inserter.AddArg(context_id_id_,
-                          Variadic::UnsignedInteger(event.context()));
-          inserter.AddArg(render_target_id_, Variadic::UnsignedInteger(
-                                                 event.render_target_handle()));
+    auto populate_args = [&](ArgsInserter& inserter) {
+      if (event.has_stage_iid()) {
+        auto stage_iid = static_cast<size_t>(event.stage_iid());
+        auto* decoder = sequence_state->LookupInternedMessage<
+            protos::pbzero::InternedData::kGpuSpecificationsFieldNumber,
+            protos::pbzero::InternedGpuRenderStageSpecification>(stage_iid);
+        if (decoder) {
           inserter.AddArg(
-              render_target_name_id_,
-              Variadic::String(FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER,
-                                             event.render_target_handle())));
-          inserter.AddArg(render_pass_id_, Variadic::UnsignedInteger(
-                                               event.render_pass_handle()));
+              category_id_,
+              Variadic::Integer(static_cast<int64_t>(decoder->category())));
+          inserter.AddArg(description_id_,
+                          Variadic::String(context_->storage->InternString(
+                              decoder->description())));
+          // A named event's slice takes the event's name, so the stage
+          // (kernel, memory transfer, ...) survives only here.
+          inserter.AddArg(stage_name_id_,
+                          Variadic::String(context_->storage->InternString(
+                              decoder->name())));
+          if (decoder->has_standard_stage() &&
+              decoder->standard_stage() !=
+                  protos::pbzero::STANDARD_STAGE_UNSPECIFIED) {
+            AddProtoEnumArg(context_->storage.get(), inserter,
+                            standard_stage_id_,
+                            protos::pbzero::StandardStage_Name(
+                                static_cast<protos::pbzero::StandardStage>(
+                                    decoder->standard_stage())));
+          }
+        }
+      } else if (event.has_stage_id()) {
+        size_t stage_id = static_cast<size_t>(event.stage_id());
+        if (stage_id < gpu_render_stage_ids_.size()) {
           inserter.AddArg(
-              render_pass_name_id_,
-              Variadic::String(FindDebugName(VK_OBJECT_TYPE_RENDER_PASS,
-                                             event.render_pass_handle())));
-          inserter.AddArg(render_subpasses_id_,
-                          Variadic::String(ParseRenderSubpasses(event)));
-          inserter.AddArg(
-              command_buffer_id_,
-              Variadic::UnsignedInteger(event.command_buffer_handle()));
-          inserter.AddArg(
-              command_buffer_name_id_,
-              Variadic::String(FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
-                                             event.command_buffer_handle())));
-          inserter.AddArg(submission_id_id_,
-                          Variadic::Integer(event.submission_id()));
-          inserter.AddArg(hw_queue_id_id_,
-                          Variadic::UnsignedInteger(hw_queue_id));
-          inserter.AddArg(
-              upid_id_,
-              Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
-                  static_cast<uint32_t>(pid))));
-        });
+              stage_name_id_,
+              Variadic::String(gpu_render_stage_ids_[stage_id].first));
+          auto description = gpu_render_stage_ids_[stage_id].second;
+          if (description != kNullStringId) {
+            inserter.AddArg(description_id_, Variadic::String(description));
+          }
+        }
+      }
+
+      if (event.has_kernel_iid()) {
+        ParseComputeKernel(sequence_state, event.kernel_iid(), &inserter);
+      }
+
+      if (event.has_launch()) {
+        ParseComputeKernelLaunch(sequence_state, event.launch(), &inserter);
+      }
+
+      if (event.render_pass_instance_id()) {
+        base::StackString<512> id_str("rp:#%" PRIu64,
+                                      event.render_pass_instance_id());
+        inserter.AddArg(correlation_id_,
+                        Variadic::String(context_->storage->InternString(
+                            id_str.string_view())));
+      }
+      if (event.has_render_pass_instance_id()) {
+        inserter.AddArg(
+            render_pass_instance_id_id_,
+            Variadic::UnsignedInteger(event.render_pass_instance_id()));
+      }
+
+      bool command_instance_id_parse_error = false;
+      uint32_t command_instance_index = 0;
+      for (auto it =
+               event.command_instance_id(&command_instance_id_parse_error);
+           it; ++it) {
+        base::StackString<64> array_key("command_instance_id[%u]",
+                                        command_instance_index++);
+        inserter.AddArg(
+            command_instance_id_id_,
+            context_->storage->InternString(array_key.string_view()),
+            Variadic::UnsignedInteger(*it));
+      }
+      if (command_instance_id_parse_error) {
+        context_->stats_tracker->IncrementStats(
+            stats::gpu_render_stage_parser_errors);
+      }
+
+      for (auto it = event.extra_data(); it; ++it) {
+        protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
+        StringId name_id = context_->storage->InternString(datum.name());
+        StringId value = context_->storage->InternString(
+            datum.has_value() ? datum.value() : base::StringView());
+        inserter.AddArg(name_id, Variadic::String(value));
+      }
+
+      inserter.AddArg(context_id_id_,
+                      Variadic::UnsignedInteger(event.context()));
+      inserter.AddArg(render_target_id_,
+                      Variadic::UnsignedInteger(event.render_target_handle()));
+      inserter.AddArg(
+          render_target_name_id_,
+          Variadic::String(FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER,
+                                         event.render_target_handle())));
+      inserter.AddArg(render_pass_id_,
+                      Variadic::UnsignedInteger(event.render_pass_handle()));
+      inserter.AddArg(render_pass_name_id_, Variadic::String(FindDebugName(
+                                                VK_OBJECT_TYPE_RENDER_PASS,
+                                                event.render_pass_handle())));
+      inserter.AddArg(render_subpasses_id_,
+                      Variadic::String(ParseRenderSubpasses(event)));
+      inserter.AddArg(command_buffer_id_,
+                      Variadic::UnsignedInteger(event.command_buffer_handle()));
+      inserter.AddArg(
+          command_buffer_name_id_,
+          Variadic::String(FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
+                                         event.command_buffer_handle())));
+      inserter.AddArg(submission_id_id_,
+                      Variadic::Integer(event.submission_id()));
+      inserter.AddArg(hw_queue_id_id_, Variadic::UnsignedInteger(hw_queue_id));
+      inserter.AddArg(
+          upid_id_,
+          Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
+              static_cast<uint32_t>(pid))));
+    };
+
+    std::optional<SliceId> opt_slice_id;
+    if (event.has_parent_event_id() &&
+        event.parent_event_id() != event.event_id()) {
+      // Defer arg insertion until OnEventsFullyExtracted so parent_stage_id
+      // is added to the same ArgSet once all render stage event_ids are known.
+      opt_slice_id = context_->slice_tracker->Scoped(
+          ts, track_id, kNullStringId, name_id,
+          static_cast<int64_t>(event.duration()));
+      if (opt_slice_id) {
+        auto inserter = context_->args_tracker->AddArgsTo(*opt_slice_id);
+        populate_args(inserter);
+        pending_parent_stages_.push_back(
+            PendingParentStage{*opt_slice_id, event.parent_event_id(),
+                               std::move(inserter).ToCompactArgSet()});
+      }
+    } else {
+      opt_slice_id = context_->slice_tracker->Scoped(
+          ts, track_id, kNullStringId, name_id,
+          static_cast<int64_t>(event.duration()), populate_args);
+    }
 
     if (opt_slice_id) {
       SliceId slice_id = *opt_slice_id;
 
       if (event.has_event_id()) {
+        auto [it, inserted] = render_stage_event_id_to_slice_id_.Insert(
+            event.event_id(), slice_id);
+        if (!inserted) {
+          *it = slice_id;
+        }
         context_->gpu_tracker->AddGpuRenderStageSlice(event.event_id(),
                                                       slice_id);
       }
@@ -1272,6 +1397,23 @@ void GpuEventParser::ParseGpuMemTotalEvent(int64_t ts, ConstBytes blob) {
   }
   context_->event_tracker->PushCounter(
       ts, static_cast<double>(gpu_mem_total.size()), track);
+}
+
+void GpuEventParser::OnEventsFullyExtracted() {
+  for (const auto& pending : pending_parent_stages_) {
+    auto inserter = context_->args_tracker->AddArgsTo(pending.slice_id);
+    for (const auto& arg : pending.args) {
+      inserter.AddArg(arg.flat_key, arg.key, arg.value, arg.update_policy);
+    }
+    if (auto* parent_slice_id =
+            render_stage_event_id_to_slice_id_.Find(pending.parent_event_id);
+        parent_slice_id && *parent_slice_id != pending.slice_id) {
+      inserter.AddArg(parent_stage_id_id_,
+                      Variadic::Integer(parent_slice_id->value));
+    }
+  }
+  pending_parent_stages_.clear();
+  render_stage_event_id_to_slice_id_.Clear();
 }
 
 }  // namespace perfetto::trace_processor

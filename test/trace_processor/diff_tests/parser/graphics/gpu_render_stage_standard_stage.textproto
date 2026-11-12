@@ -1,0 +1,266 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    gpu_specifications {
+      iid: 1
+      name: "queue"
+    }
+    gpu_specifications {
+      iid: 2
+      name: "unspecified"
+      standard_stage: STANDARD_STAGE_UNSPECIFIED
+    }
+    gpu_specifications {
+      iid: 3
+      name: "binning"
+      standard_stage: STANDARD_STAGE_BINNING
+    }
+    gpu_specifications {
+      iid: 4
+      name: "render"
+      standard_stage: STANDARD_STAGE_RENDER
+    }
+    gpu_specifications {
+      iid: 5
+      name: "compute"
+      standard_stage: STANDARD_STAGE_COMPUTE
+    }
+    gpu_specifications {
+      iid: 6
+      name: "ray_tracing"
+      standard_stage: STANDARD_STAGE_RAY_TRACING
+    }
+    gpu_specifications {
+      iid: 7
+      name: "acceleration_structure"
+      standard_stage: STANDARD_STAGE_ACCELERATION_STRUCTURE
+    }
+    gpu_specifications {
+      iid: 8
+      name: "neural"
+      standard_stage: STANDARD_STAGE_NEURAL
+    }
+    gpu_specifications {
+      iid: 9
+      name: "transfer"
+      standard_stage: STANDARD_STAGE_TRANSFER
+    }
+    gpu_specifications {
+      iid: 10
+      name: "clear"
+      standard_stage: STANDARD_STAGE_CLEAR
+    }
+    gpu_specifications {
+      iid: 11
+      name: "resolve"
+      standard_stage: STANDARD_STAGE_RESOLVE
+    }
+    gpu_specifications {
+      iid: 12
+      name: "blit"
+      standard_stage: STANDARD_STAGE_BLIT
+    }
+    gpu_specifications {
+      iid: 13
+      name: "present"
+      standard_stage: STANDARD_STAGE_PRESENT
+    }
+    gpu_specifications {
+      iid: 14
+      name: "driver_internal"
+      standard_stage: STANDARD_STAGE_DRIVER_INTERNAL
+    }
+    gpu_specifications {
+      iid: 15
+      name: "other"
+      standard_stage: STANDARD_STAGE_OTHER
+    }
+    gpu_specifications {
+      iid: 16
+      name: "custom"
+      standard_stage: STANDARD_STAGE_CUSTOM
+    }
+    gpu_specifications {
+      iid: 17
+      name: "unset"
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  gpu_render_stage_event {
+    event_id: 1
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 2
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  gpu_render_stage_event {
+    event_id: 2
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 3
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 300
+  gpu_render_stage_event {
+    event_id: 3
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 4
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 400
+  gpu_render_stage_event {
+    event_id: 4
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 5
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 500
+  gpu_render_stage_event {
+    event_id: 5
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 6
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 600
+  gpu_render_stage_event {
+    event_id: 6
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 7
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 700
+  gpu_render_stage_event {
+    event_id: 7
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 8
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 800
+  gpu_render_stage_event {
+    event_id: 8
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 9
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 900
+  gpu_render_stage_event {
+    event_id: 9
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 10
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  gpu_render_stage_event {
+    event_id: 10
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 11
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1100
+  gpu_render_stage_event {
+    event_id: 11
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 12
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1200
+  gpu_render_stage_event {
+    event_id: 12
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 13
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1300
+  gpu_render_stage_event {
+    event_id: 13
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 14
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1400
+  gpu_render_stage_event {
+    event_id: 14
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 15
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1500
+  gpu_render_stage_event {
+    event_id: 15
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 16
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1600
+  gpu_render_stage_event {
+    event_id: 16
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 17
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}

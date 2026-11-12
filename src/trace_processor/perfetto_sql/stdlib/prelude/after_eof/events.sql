@@ -128,8 +128,7 @@ SELECT
   extract_arg(s.arg_set_id, 'acquire_to_latch_time') AS acquire_to_latch_time,
   extract_arg(s.arg_set_id, 'latch_to_present_time') AS latch_to_present_time
 FROM slice AS s
-JOIN track AS t
-  ON s.track_id = t.id
+JOIN track AS t ON s.track_id = t.id
 WHERE
   t.type = 'graphics_frame_event';
 
@@ -178,7 +177,20 @@ CREATE PERFETTO VIEW gpu_slice(
   -- Render subpasses.
   render_subpasses STRING,
   -- Render stage category (0=OTHER, 1=GRAPHICS, 2=COMPUTE).
-  render_stage_category LONG
+  render_stage_category LONG,
+  -- The cross-vendor category of the render stage, as the name of the
+  -- StandardStage proto enum value (for example STANDARD_STAGE_RENDER). NULL
+  -- if the producer did not set it.
+  standard_stage STRING,
+  -- The render stage slice that is the parent of this render stage. NULL for
+  -- a render stage without `parent_event_id` and for a `parent_event_id` that
+  -- matches no render stage in the trace.
+  parent_stage_id JOINID(slice.id),
+  -- The id of the render pass execution that this render stage belongs to.
+  -- The id is unique within one submission only, so use it together with
+  -- `submission_id`. The served command ids of a render stage are the slice
+  -- args with the flat key `command_instance_id`.
+  render_pass_instance_id LONG
 )
 AS
 SELECT
@@ -203,10 +215,12 @@ SELECT
   extract_arg(s.arg_set_id, 'hw_queue_id') AS hw_queue_id,
   extract_arg(s.arg_set_id, 'upid') AS upid,
   extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses,
-  extract_arg(s.arg_set_id, 'render_stage_category') AS render_stage_category
+  extract_arg(s.arg_set_id, 'render_stage_category') AS render_stage_category,
+  extract_arg(s.arg_set_id, 'standard_stage') AS standard_stage,
+  extract_arg(s.arg_set_id, 'parent_stage_id') AS parent_stage_id,
+  extract_arg(s.arg_set_id, 'render_pass_instance_id') AS render_pass_instance_id
 FROM slice AS s
-JOIN track AS t
-  ON s.track_id = t.id
+JOIN track AS t ON s.track_id = t.id
 WHERE
   t.type IN ('gpu_render_stage', 'vulkan_events', 'gpu_log');
 
@@ -256,8 +270,7 @@ SELECT
   t.upid,
   extract_arg(s.arg_set_id, 'Layer name') AS layer_name
 FROM slice AS s
-JOIN process_track AS t
-  ON s.track_id = t.id
+JOIN process_track AS t ON s.track_id = t.id
 WHERE
   t.type = 'android_expected_frame_timeline'
 ORDER BY
@@ -350,8 +363,7 @@ SELECT
   extract_arg(s.arg_set_id, 'Addressable unsignaled latch count') AS addressable_unsignaled_latch_count,
   extract_arg(s.arg_set_id, 'Latched fence state') AS latched_fence_state
 FROM slice AS s
-JOIN process_track AS t
-  ON s.track_id = t.id
+JOIN process_track AS t ON s.track_id = t.id
 WHERE
   t.type = 'android_actual_frame_timeline'
 ORDER BY
