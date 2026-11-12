@@ -49,7 +49,7 @@ PERFETTO_WARN_UNUSED_RESULT inline bool RegisterNativeMethodsMayFail(
     const char* class_name,
     const JNINativeMethod* methods,
     int num_methods) {
-  ScopedLocalRef clazz(env, env->FindClass(class_name));
+  ScopedLocalRef<jclass> clazz(env, env->FindClass(class_name));
   if (clazz.get() == nullptr) {
     env->ExceptionClear();
     __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
@@ -69,7 +69,7 @@ PERFETTO_WARN_UNUSED_RESULT inline bool RegisterNativeMethodsMayFail(
 
 // Unregisters native methods from |class_name| without throwing or asserting.
 inline void UnregisterNativeMethods(JNIEnv* env, const char* class_name) {
-  ScopedLocalRef clazz(env, env->FindClass(class_name));
+  ScopedLocalRef<jclass> clazz(env, env->FindClass(class_name));
   if (clazz.get() == nullptr) {
     env->ExceptionClear();
     return;

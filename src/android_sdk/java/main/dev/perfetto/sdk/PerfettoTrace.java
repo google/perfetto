@@ -111,26 +111,24 @@ public final class PerfettoTrace {
 
     /** Create the native category object and register it. */
     public synchronized Category register() {
-      try {
-        if (mPtr == 0) {
-          long ptr = native_init(mName, mTags.toArray(new String[0]));
-          sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
-          native_register(ptr);
-          // There is not much sense in the created, but not yet registered category,
-          // so we make the `ptr` visible to other threads only after registration.
-          mPtr = ptr;
+      if (!PerfettoNativeLibrary.isAvailable()) {
+        // JNI registration failed, so tracing is disabled: leave the category unregistered
+        // (mPtr == 0), which makes isEnabled() false and every trace event on it a no-op.
+        return this;
+      }
+      if (mPtr == 0) {
+        long ptr = native_init(mName, mTags.toArray(new String[0]));
+        sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
+        native_register(ptr);
+        // There is not much sense in the created, but not yet registered category,
+        // so we make the `ptr` visible to other threads only after registration.
+        mPtr = ptr;
+        mIsRegistered = true;
+      } else {
+        if (!mIsRegistered) {
+          native_register(mPtr);
           mIsRegistered = true;
-        } else {
-          if (!mIsRegistered) {
-            native_register(mPtr);
-            mIsRegistered = true;
-          }
         }
-      } catch (UnsatisfiedLinkError ignored) {
-        // Safe to ignore: the natives are unbound only when JNI_OnLoad failed,
-        // in which case it unregisters every Perfetto native. The category then
-        // stays unregistered (mPtr == 0), isEnabled() returns false and all
-        // trace events on it are no-ops.
       }
       return this;
     }
@@ -186,8 +184,15 @@ public final class PerfettoTrace {
     // Ravenwood uses mPtr == 0 for open sessions, so track closure separately.
     private boolean mIsClosed;
 
-    /** Session ctor. */
+    /**
+     * Session ctor. If the Perfetto JNI natives are unavailable this creates a no-op session whose
+     * {@link #close()} returns an empty trace.
+     */
     public Session(boolean isBackendInProcess, byte[] config) {
+      if (!PerfettoNativeLibrary.isAvailable()) {
+        mPtr = 0;
+        return;
+      }
       mPtr = native_start_session(isBackendInProcess, config);
     }
 
@@ -201,6 +206,9 @@ public final class PerfettoTrace {
         throw new IllegalStateException("The session is already closed.");
       }
       mIsClosed = true;
+      if (!PerfettoNativeLibrary.isAvailable()) {
+        return new byte[0];
+      }
       return native_stop_session(mPtr);
     }
   }
@@ -347,12 +355,10 @@ public final class PerfettoTrace {
     if (uuid != 0) {
       return uuid;
     }
-    try {
-      return native_get_process_track_uuid();
-    } catch (UnsatisfiedLinkError e) {
-      // JNI registration failed (see JNI_OnLoad); tracing is disabled.
+    if (!PerfettoNativeLibrary.isAvailable()) {
       return 0;
     }
+    return native_get_process_track_uuid();
   }
 
   /** Given a thread tid, returns the thread track uuid that can be used as a parent track uuid. */
@@ -363,10 +369,10 @@ public final class PerfettoTrace {
 
   /** Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. */
   public static void activateTrigger(String triggerName, int ttlMs) {
-    try {
-      native_activate_trigger(triggerName, ttlMs);
-    } catch (UnsatisfiedLinkError ignored) {
+    if (!PerfettoNativeLibrary.isAvailable()) {
+      return;
     }
+    native_activate_trigger(triggerName, ttlMs);
   }
 
   /**
@@ -381,21 +387,19 @@ public final class PerfettoTrace {
    * @return whether the process is registered with the requested backend
    */
   public static boolean register(boolean isBackendInProcess) {
+    if (!PerfettoNativeLibrary.isAvailable()) {
+      return false;
+    }
     if (!isBackendInProcess) {
       if (!TracingPolicy.allowSystemBackend()) {
         return false;
       }
     }
-    try {
-      native_register(isBackendInProcess);
-      if (!isBackendInProcess) {
-        sAttemptedSystemRegistration.set(true);
-      }
-      sProcessTrackUuid = native_get_process_track_uuid();
-    } catch (UnsatisfiedLinkError e) {
-      // JNI registration failed (see JNI_OnLoad); tracing is disabled.
-      return false;
+    native_register(isBackendInProcess);
+    if (!isBackendInProcess) {
+      sAttemptedSystemRegistration.set(true);
     }
+    sProcessTrackUuid = native_get_process_track_uuid();
     return true;
   }
 
