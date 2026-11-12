@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import {assertExists, assertNonEmpty} from '../../../base/assert';
 import {defer} from '../../../base/deferred';
 import {loadScript} from '../../../base/dom_utils';
@@ -53,6 +54,23 @@ export interface PickerError {
 
 export type PickerResult = Result<google.picker.DocumentObject, PickerError>;
 
+export interface GoogleDriveFileMeta {
+  readonly name: string;
+}
+
+const FILE_META_SCHEMA = z.object({name: z.string()});
+
+// The resource key (from the "Open with" state payload) is required to access
+// some link-shared files the user has not opened before. Drive expects it in
+// the X-Goog-Drive-Resource-Keys header as "<fileId>/<resourceKey>".
+function resourceKeyHeaders(
+  fileId: string,
+  resourceKey: string | undefined,
+): Record<string, string> {
+  if (resourceKey === undefined) return {};
+  return {'X-Goog-Drive-Resource-Keys': `${fileId}/${resourceKey}`};
+}
+
 export interface DriveError {
   // 'access_denied' is true if Drive refused access to the file (HTTP 403 or
   // 404). Drive reports a file the app has not been granted access to as "not
@@ -87,6 +105,23 @@ export class DriveClient {
     return new DriveClient(config);
   }
 
+  // Request access to a specific file by ID via the picker API. Never rejects.
+  async requestFileAccess(
+    oauthToken: string,
+    fileId: string,
+  ): Promise<Result<google.picker.DocumentObject, PickerError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS);
+    view.setMode(google.picker.DocsViewMode.LIST);
+    view.setFileIds(fileId);
+    return this.picker(oauthToken, {view});
+  }
+
   // Open the Google Drive file picker to select a file.
   async pickFile(oauthToken: string): Promise<PickerResult> {
     const view = new google.picker.DocsView(google.picker.ViewId.DOCS);
@@ -98,6 +133,7 @@ export class DriveClient {
   async openFile(
     oauthToken: string,
     fileId: string,
+    resourceKey?: string,
   ): Promise<Result<ArrayBuffer, DriveError>> {
     // 'alt=media' asks for the file's contents rather than its metadata. The
     // response is read straight into an ArrayBuffer, avoiding extra copies of
@@ -106,7 +142,29 @@ export class DriveClient {
       oauthToken,
       fileId,
       {alt: 'media'},
+      resourceKey,
       async (response) => okResult(await response.arrayBuffer()),
+    );
+  }
+
+  // Fetches a file's metadata (currently just its name). Never rejects.
+  async getMeta(
+    oauthToken: string,
+    fileId: string,
+    resourceKey?: string,
+  ): Promise<Result<GoogleDriveFileMeta, DriveError>> {
+    return this.fetchFileResult(
+      oauthToken,
+      fileId,
+      {fields: 'name'},
+      resourceKey,
+      async (response) => {
+        const meta = FILE_META_SCHEMA.safeParse(await response.json());
+        if (!meta.success) {
+          return errResult({type: 'error', cause: meta.error});
+        }
+        return okResult(meta.data);
+      },
     );
   }
 
@@ -116,6 +174,7 @@ export class DriveClient {
     oauthToken: string,
     fileId: string,
     params: Record<string, string>,
+    resourceKey: string | undefined,
     parse: (response: Response) => Promise<Result<T, DriveError>>,
   ): Promise<Result<T, DriveError>> {
     if (!isValidDriveId(fileId)) {
@@ -124,8 +183,19 @@ export class DriveClient {
         cause: 'Invalid Google Drive file ID',
       });
     }
+    if (resourceKey !== undefined && !isValidDriveId(resourceKey)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive resource key',
+      });
+    }
     try {
-      const response = await this.fetchFile(oauthToken, fileId, params);
+      const response = await this.fetchFile(
+        oauthToken,
+        fileId,
+        params,
+        resourceKey,
+      );
       if (!response.ok) {
         return errResult(httpDriveError(response.status));
       }
@@ -140,6 +210,7 @@ export class DriveClient {
     oauthToken: string,
     fileId: string,
     params: Record<string, string>,
+    resourceKey: string | undefined,
   ): Promise<Response> {
     const url = new URL(`${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}`);
     for (const [key, value] of Object.entries(params)) {
@@ -148,6 +219,7 @@ export class DriveClient {
     return await fetch(url, {
       headers: {
         Authorization: `Bearer ${oauthToken}`,
+        ...resourceKeyHeaders(fileId, resourceKey),
       },
     });
   }
@@ -208,4 +280,61 @@ export class DriveClient {
 
     return deferred;
   }
+}
+
+// Google Drive's "Open with" deep link. When a user opens a file with Perfetto
+// from the Drive UI, Drive loads our registered URL with ?state=<json> naming
+// the file. This relies on the app being registered with Google Drive as an
+// "Open with" app, with a redirect URI such as
+// https://perfetto.dev/?state={...}.
+
+// The shape of the JSON blob Google Drive passes as ?state=<url-encoded-json>.
+const GDRIVE_OPEN_STATE_SCHEMA = z.object({
+  // The IDs of the file(s) being opened.
+  ids: z.array(z.string()).optional(),
+  // The action being performed; 'open' for the "Open with" flow.
+  action: z.string().optional(),
+  // Maps file id -> resource key. The resource key is required to access a
+  // file via the Drive API when the app is not a collaborator on it.
+  resourceKeys: z.record(z.string(), z.string()).optional(),
+});
+
+export interface GDriveOpenFileRequest {
+  readonly fileId: string;
+  readonly resourceKey?: string;
+}
+
+export function parseGDriveStateParam(
+  stateParam: string,
+): Result<GDriveOpenFileRequest> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stateParam);
+  } catch {
+    // Not a GDrive "Open with" payload; ignore.
+    return errResult('Invalid JSON');
+  }
+
+  const parsed = GDRIVE_OPEN_STATE_SCHEMA.safeParse(raw);
+  if (!parsed.success) {
+    return errResult('Invalid GDrive state');
+  }
+
+  const fileId = parsed.data.ids?.[0];
+
+  if (!fileId) {
+    return errResult('No file IDs provided');
+  }
+
+  if (!isValidDriveId(fileId)) {
+    return errResult('Invalid file ID');
+  }
+
+  const resourceKey = parsed.data.resourceKeys?.[fileId];
+
+  if (resourceKey !== undefined && !isValidDriveId(resourceKey)) {
+    return errResult('Invalid resource key');
+  }
+
+  return okResult({fileId, resourceKey});
 }

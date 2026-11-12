@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DriveClient, isValidDriveId} from './drive_client';
+import {
+  DriveClient,
+  isValidDriveId,
+  parseGDriveStateParam,
+} from './drive_client';
 
 // DriveClient.create() loads Google's scripts before returning a client.
 // Replace the loaders so a client can be built without the network.
@@ -131,6 +135,103 @@ describe('isValidDriveId', () => {
     expect(isValidDriveId('abc\r\nX-Injected: true')).toBe(false);
     expect(isValidDriveId('abc\ndef')).toBe(false);
     expect(isValidDriveId('abc def')).toBe(false);
+  });
+});
+
+describe('parseGDriveStateParam', () => {
+  test('parses valid state with file ID only', () => {
+    expect(
+      parseGDriveStateParam(
+        JSON.stringify({ids: ['file_123'], action: 'open'}),
+      ),
+    ).toEqual({
+      ok: true,
+      value: {fileId: 'file_123', resourceKey: undefined},
+    });
+  });
+
+  test('parses valid state with matching resource key', () => {
+    expect(
+      parseGDriveStateParam(
+        JSON.stringify({
+          ids: ['file_123', 'other_456'],
+          resourceKeys: {file_123: 'rk-ABC_9'},
+        }),
+      ),
+    ).toEqual({
+      ok: true,
+      value: {fileId: 'file_123', resourceKey: 'rk-ABC_9'},
+    });
+  });
+
+  test('ignores resource keys for other file IDs', () => {
+    expect(
+      parseGDriveStateParam(
+        JSON.stringify({
+          ids: ['file_123'],
+          resourceKeys: {other_456: 'bad/key'},
+        }),
+      ),
+    ).toEqual({
+      ok: true,
+      value: {fileId: 'file_123', resourceKey: undefined},
+    });
+  });
+
+  test('rejects invalid JSON', () => {
+    expect(parseGDriveStateParam('not-json')).toEqual({
+      ok: false,
+      error: 'Invalid JSON',
+    });
+  });
+
+  test('rejects payloads not matching schema', () => {
+    expect(parseGDriveStateParam(JSON.stringify({ids: 'file_123'}))).toEqual({
+      ok: false,
+      error: 'Invalid GDrive state',
+    });
+    expect(parseGDriveStateParam(JSON.stringify([]))).toEqual({
+      ok: false,
+      error: 'Invalid GDrive state',
+    });
+  });
+
+  test('rejects missing or empty file IDs', () => {
+    expect(parseGDriveStateParam(JSON.stringify({}))).toEqual({
+      ok: false,
+      error: 'No file IDs provided',
+    });
+    expect(parseGDriveStateParam(JSON.stringify({ids: []}))).toEqual({
+      ok: false,
+      error: 'No file IDs provided',
+    });
+    expect(parseGDriveStateParam(JSON.stringify({ids: ['']}))).toEqual({
+      ok: false,
+      error: 'No file IDs provided',
+    });
+  });
+
+  test('rejects invalid file ID', () => {
+    expect(parseGDriveStateParam(JSON.stringify({ids: ['../secret']}))).toEqual(
+      {
+        ok: false,
+        error: 'Invalid file ID',
+      },
+    );
+  });
+
+  test('rejects invalid resource key', () => {
+    expect(
+      parseGDriveStateParam(
+        JSON.stringify({
+          ids: ['file_123'],
+          resourceKeys: {file_123: 'bad\r\nheader'},
+        }),
+      ),
+    ).toEqual({
+      ok: false,
+      error: 'Invalid resource key',
+    });
   });
 });
 
