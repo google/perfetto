@@ -202,7 +202,10 @@ external_deps = {
     '//gn:protoc_lib': ['PERFETTO_CONFIG.deps.protoc_lib'],
     '//gn:protoc': ['PERFETTO_CONFIG.deps.protoc'],
     '//gn:re2': ['PERFETTO_CONFIG.deps.re2'],
-    '//gn:sqlite': ['PERFETTO_CONFIG.deps.sqlite'],
+    '//gn:sqlite': [
+        'PERFETTO_CONFIG.deps.sqlite',
+        'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
+    ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
     '//gn:zstd': ['PERFETTO_CONFIG.deps.zstd'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],

@@ -50,6 +50,7 @@ PERFETTO_CONFIG = struct(
         expat = ["@perfetto_dep_expat//:expat"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
         sqlite = ["@perfetto_dep_sqlite//:sqlite"],
+        sqlite_ext_percentile = [],
         protoc = ["@com_google_protobuf//:protoc"],
         protoc_lib = ["@com_google_protobuf//:protoc_lib"],
         protobuf_lite = ["@com_google_protobuf//:protobuf_lite"],
