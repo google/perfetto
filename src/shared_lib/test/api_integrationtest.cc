@@ -1714,10 +1714,11 @@ TEST_F(SharedLibDataSourceTest, GetTimestamp) {
 
   struct PerfettoTeTimestamp te_ts = PerfettoTeGetTimestamp();
   EXPECT_EQ(te_ts.clock_id, ts.clock_id);
-  // Values should be very close (within 1ms) as they are taken in quick
-  // succession from the same underlying clock.
+  // Values should be very close as they are taken in quick succession from the
+  // same underlying clock. Still, add some slack (10ms) to account for
+  // possible preemption between the reads on loaded CI runners.
   EXPECT_NEAR(static_cast<double>(te_ts.value), static_cast<double>(ts.value),
-              1e6);
+              1e7);
 }
 
 TEST_F(SharedLibDataSourceTest, ProtoVm) {

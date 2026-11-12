@@ -19,13 +19,13 @@ source_set("full") {
     "syscall_tracker.cc",
     "syscall_tracker.h",
   ]
+  public_deps = [ "../common" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../kernel_utils:syscall_table",
     "../../containers",
     "../../storage",
     "../../types",
-    "../common",
   ]
 }
 

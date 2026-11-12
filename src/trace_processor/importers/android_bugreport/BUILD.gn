@@ -55,6 +55,7 @@ source_set("android_bugreport") {
     "chunked_line_reader.cc",
     "chunked_line_reader.h",
   ]
+  public_deps = [ "../../sorter" ]
   deps = [
     ":android_dumpstate_event",
     ":android_log_event",
@@ -64,11 +65,10 @@ source_set("android_bugreport") {
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../base",
-    "../../sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
-    "../../util:cold_sort",
+    "../../util:sort",
     "../../util:trace_type",
     "../../util:zip_reader",
     "../common",

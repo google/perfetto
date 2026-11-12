@@ -34,7 +34,6 @@ source_set("rpc") {
     "..:metatrace",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
-    "../../../protos/perfetto/trace_processor:zero",
     "../../../protos/perfetto/trace_summary:zero",
     "../../base",
     "../../base:version",
@@ -43,6 +42,7 @@ source_set("rpc") {
   ]
   public_deps = [
     "../../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
+    "../../../protos/perfetto/trace_processor:zero",
   ]
 }
 

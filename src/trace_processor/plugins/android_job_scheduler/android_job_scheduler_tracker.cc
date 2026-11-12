@@ -150,6 +150,12 @@ TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
                      ? std::make_optional(job.back_off_policy_type())
                      : std::nullopt,
                  ProtoJob::BACKOFF_POLICY_UNKNOWN),
+      job.has_pending_queue_wait_ms()
+          ? std::make_optional(job.pending_queue_wait_ms())
+          : std::nullopt,
+      job.has_outside_pending_queue_ms()
+          ? std::make_optional(job.outside_pending_queue_ms())
+          : std::nullopt,
   });
 
   if (job.has_job_state_flags()) {
