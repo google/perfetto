@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {defer} from '../../../base/deferred';
 import {loadScript} from '../../../base/dom_utils';
 import {errResult, okResult, type Result} from '../../../base/result';
 import {loadGapiModules} from './gapi';
 
-// The Google API loader script, loaded once by GDriveClient.create().
+// The Google API loader script, loaded once by DriveClient.create().
 const GAPI_LOADER_URL = 'https://apis.google.com/js/api.js';
 
 // The Drive REST API endpoint for files.
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 
-// How long to wait for each network step of GDriveClient.create() before
+// How long to wait for each network step of DriveClient.create() before
 // giving up. Without this a stalled request would never settle.
 const INIT_STEP_TIMEOUT_MS = 30000;
 
@@ -34,7 +35,7 @@ export function isValidDriveId(id: string): boolean {
   return DRIVE_ID_RE.test(id);
 }
 
-export interface GDriveClientConfig {
+export interface DriveClientConfig {
   readonly apiKey: string;
   readonly appId: string;
 }
@@ -50,6 +51,8 @@ export interface PickerError {
   readonly type: 'cancelled' | 'invalid_id' | 'error';
   readonly cause?: unknown;
 }
+
+export type PickerResult = Result<google.picker.DocumentObject, PickerError>;
 
 export interface DriveError {
   // 'access_denied' is true if Drive refused access to the file (HTTP 403 or
@@ -67,8 +70,8 @@ function httpDriveError(status: number): DriveError {
 }
 
 // Talks to Google Drive: shows its file picker and downloads files.
-export class GDriveClient {
-  private constructor(private readonly config: GDriveClientConfig) {}
+export class DriveClient {
+  private constructor(private readonly config: DriveClientConfig) {}
 
   // Loads everything the client needs and returns a ready-to-use client:
   // Google's API loader and its picker module, for the file picker. Rejects if
@@ -79,16 +82,14 @@ export class GDriveClient {
   //
   // Nothing here opens a popup or needs a user gesture, so this can run at
   // startup.
-  static async create(config: GDriveClientConfig): Promise<GDriveClient> {
+  static async create(config: DriveClientConfig): Promise<DriveClient> {
     await loadScript(GAPI_LOADER_URL, INIT_STEP_TIMEOUT_MS);
     await loadGapiModules('picker', INIT_STEP_TIMEOUT_MS);
-    return new GDriveClient(config);
+    return new DriveClient(config);
   }
 
   // Open the Google Drive file picker to select a file. Never rejects.
-  async pickFile(
-    oauthToken: string,
-  ): Promise<Result<google.picker.DocumentObject, PickerError>> {
+  async pickFile(oauthToken: string): Promise<PickerResult> {
     return this.picker(oauthToken, {
       createView: () =>
         new google.picker.DocsView(google.picker.ViewId.DOCS).setMode(
@@ -155,62 +156,62 @@ export class GDriveClient {
     });
   }
 
+  // Opens the Google Drive Picker in an iframe, returning the picked file or an
+  // error. This allows the user to browse and select a file from their Google
+  // Drive without leaving the current page nor requiring Perfetto access to the
+  // file list.
   private picker(
     oauthToken: string,
     config: PickerConfig,
-  ): Promise<Result<google.picker.DocumentObject, PickerError>> {
-    return new Promise<Result<google.picker.DocumentObject, PickerError>>(
-      (resolve) => {
-        try {
-          const pickerBuilder = new google.picker.PickerBuilder()
-            .setAppId(this.config.appId)
-            .setOAuthToken(oauthToken)
-            .setDeveloperKey(this.config.apiKey)
-            .setOrigin(window.location.origin)
-            .addView(config.createView())
-            .setCallback((data) => {
-              // Anything thrown in here would otherwise be lost, leaving the
-              // promise pending for ever.
-              try {
-                switch (data.action) {
-                  case google.picker.Action.PICKED: {
-                    const file = data.docs?.[0];
-                    if (file === undefined) {
-                      resolve(errResult({type: 'cancelled'}));
-                    } else {
-                      resolve(okResult(file));
-                    }
-                    break;
-                  }
-                  case google.picker.Action.CANCEL:
-                    resolve(errResult({type: 'cancelled'}));
-                    break;
-                  case google.picker.Action.ERROR:
-                    resolve(
-                      errResult({
-                        type: 'error',
-                        cause: new Error(
-                          'Something went wrong with the picker',
-                        ),
-                      }),
-                    );
-                    break;
-                }
-              } catch (e) {
-                resolve(errResult({type: 'error', cause: e}));
-              }
-            });
+  ): Promise<PickerResult> {
+    const deferred = defer<PickerResult>();
 
-          if (config.title !== undefined) {
-            pickerBuilder.setTitle(config.title);
+    function pickerCallback(data: google.picker.ResponseObject) {
+      switch (data.action) {
+        case google.picker.Action.PICKED: {
+          const file = data.docs?.[0];
+          if (file === undefined) {
+            deferred.resolve(errResult({type: 'cancelled'}));
+          } else {
+            deferred.resolve(okResult(file));
           }
-
-          const picker = pickerBuilder.build();
-          picker.setVisible(true);
-        } catch (e) {
-          resolve(errResult({type: 'error', cause: e}));
+          break;
         }
-      },
-    );
+        case google.picker.Action.CANCEL:
+          deferred.resolve(errResult({type: 'cancelled'}));
+          break;
+        case google.picker.Action.ERROR:
+          deferred.resolve(
+            errResult({
+              type: 'error',
+              cause: new Error('Something went wrong with the picker'),
+            }),
+          );
+          break;
+        default:
+          // Ignore other actions (e.g., 'loaded')
+          break;
+      }
+    }
+
+    try {
+      const pickerBuilder = new google.picker.PickerBuilder()
+        .setAppId(this.config.appId)
+        .setOAuthToken(oauthToken)
+        .setDeveloperKey(this.config.apiKey)
+        .setOrigin(window.location.origin)
+        .addView(config.createView())
+        .setCallback(pickerCallback);
+
+      if (config.title !== undefined) {
+        pickerBuilder.setTitle(config.title);
+      }
+
+      pickerBuilder.build().setVisible(true);
+    } catch (e) {
+      deferred.resolve(errResult({type: 'error', cause: e}));
+    }
+
+    return deferred;
   }
 }

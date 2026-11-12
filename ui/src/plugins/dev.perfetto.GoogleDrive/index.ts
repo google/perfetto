@@ -16,7 +16,7 @@ import m from 'mithril';
 import {assertDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
-import {GDriveClient} from './google/gdrive_client';
+import {DriveClient} from './google/drive_client';
 import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
@@ -25,7 +25,7 @@ import {openFileFromSidebar} from './open_from_sidebar';
 
 export interface GDriveClients {
   readonly oauth: GoogleOAuthClient;
-  readonly drive: GDriveClient;
+  readonly drive: DriveClient;
 }
 
 export default class GoogleDrivePlugin implements PerfettoPlugin {
@@ -124,7 +124,7 @@ async function initGDrive(app: App): Promise<GDriveClients | undefined> {
     const oauth = await GoogleOAuthClient.create({
       clientId: config.clientId,
     });
-    const drive = await GDriveClient.create({
+    const drive = await DriveClient.create({
       appId: config.appId,
       apiKey: config.apiKey,
     });

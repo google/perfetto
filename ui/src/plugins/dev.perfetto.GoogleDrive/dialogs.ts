@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
-import type {DriveError, PickerError} from './google/gdrive_client';
+import type {DriveError, PickerError} from './google/drive_client';
 import type {AuthError} from './google/oauth_client';
 import {alertModal} from '../../widgets/modal';
 

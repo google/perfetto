@@ -18,7 +18,7 @@ import {
   alertDownloadFailed,
   alertPickerFailed,
 } from './dialogs';
-import type {GDriveClient} from './google/gdrive_client';
+import type {DriveClient} from './google/drive_client';
 import type {GoogleOAuthClient} from './google/oauth_client';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -29,7 +29,7 @@ const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export async function openFileFromSidebar(
   app: App,
   oauth: GoogleOAuthClient,
-  drive: GDriveClient,
+  drive: DriveClient,
 ) {
   // Authenticate with the oauth client and obtain an access token. This runs
   // from the sidebar button's click, and nothing is awaited before this call,
