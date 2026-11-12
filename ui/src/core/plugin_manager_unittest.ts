@@ -203,5 +203,56 @@ describe('PluginManagerImpl', () => {
       const mode = AppImpl.instance.omnibox.registeredModes.get('^');
       expect(getOwner(mode!)).toBe(id);
     });
+
+    test('records the plugin as the owner of its bottom tabs', async () => {
+      const id = await runPlugin({
+        onTraceLoad: (trace) =>
+          trace.tabs.registerTab({
+            uri: 'test#BottomTab',
+            content: {render: () => '', getTitle: () => 'Bottom tab'},
+          }),
+      });
+      const tab = AppImpl.instance.trace!.tabs.resolveTab('test#BottomTab');
+      expect(getOwner(tab!)).toBe(id);
+    });
+
+    test('records the plugin as the owner of its selection tabs', async () => {
+      const content = {isLoading: false, content: ''};
+      const id = await runPlugin({
+        onTraceLoad: (trace) => {
+          trace.selection.registerSelectionTab({
+            id: 'test.SelectionTab',
+            name: 'Selection tab',
+            render: () => content,
+          });
+          trace.selection.registerAreaSelectionTab({
+            id: 'test.AreaTab',
+            name: 'Area tab',
+            render: () => content,
+          });
+          trace.selection.registerTrackEventSelectionTab({
+            id: 'test.TrackEventTab',
+            name: 'Track event tab',
+            render: () => content,
+          });
+        },
+      });
+      const tabs = AppImpl.instance.trace!.selection.selectionTabs;
+      expect(tabs.map((tab) => [tab.id, getOwner(tab)])).toEqual([
+        ['test.SelectionTab', id],
+        ['test.AreaTab', id],
+        ['test.TrackEventTab', id],
+      ]);
+    });
+
+    test('records the plugin as the owner of its status bar items', async () => {
+      const item = {renderItem: () => ({label: 'Status'})};
+      const id = await runPlugin({
+        onTraceLoad: (trace) => trace.statusbar.registerItem(item),
+      });
+      const items = AppImpl.instance.trace!.statusbar.statusBarItems;
+      expect(items).toContain(item);
+      expect(getOwner(item)).toBe(id);
+    });
   });
 });

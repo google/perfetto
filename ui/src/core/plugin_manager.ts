@@ -306,6 +306,38 @@ function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
     get omnibox() {
       return createOmniboxProxy(trace.omnibox, pluginId);
     },
+    get tabs() {
+      return createProxy(trace.tabs, {
+        registerTab(desc) {
+          setOwner(desc, pluginId);
+          return trace.tabs.registerTab(desc);
+        },
+      });
+    },
+    get selection() {
+      return createProxy(trace.selection, {
+        registerSelectionTab(tab) {
+          setOwner(tab, pluginId);
+          trace.selection.registerSelectionTab(tab);
+        },
+        registerAreaSelectionTab(tab) {
+          setOwner(tab, pluginId);
+          trace.selection.registerAreaSelectionTab(tab);
+        },
+        registerTrackEventSelectionTab(tab) {
+          setOwner(tab, pluginId);
+          trace.selection.registerTrackEventSelectionTab(tab);
+        },
+      });
+    },
+    get statusbar() {
+      return createProxy(trace.statusbar, {
+        registerItem(item) {
+          setOwner(item, pluginId);
+          trace.statusbar.registerItem(item);
+        },
+      });
+    },
   });
   return traceProxy;
 }
