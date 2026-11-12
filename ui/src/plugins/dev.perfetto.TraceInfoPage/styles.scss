@@ -351,6 +351,15 @@
     padding: 0;
   }
 
+  &__histogram-jump-link {
+    margin-left: 6px;
+  }
+
+  &__histogram-header {
+    display: flex;
+    justify-content: space-between;
+  }
+
   // ============================================================================
   // External component overrides
   // These styles override external components for consistent appearance
