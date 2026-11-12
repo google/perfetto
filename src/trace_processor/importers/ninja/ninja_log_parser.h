@@ -36,10 +36,13 @@ std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter();
 // This class parses Ninja's (the build system, ninja-build.org) build logs and
 // turns them into traces. A ninja log typically contains the logs of >1 ninja
 // invocation. We map those as follows:
-// - For each ninja invocation we create one process in the trace (from the UI
-//   perspective a process is a group of tracks).
+// - All invocations share one synthesized process, but their timestamps do not
+//   overlap: each invocation is shifted past the end of the previous one, so
+//   the trace reads as the build history of that output directory.
 // - Within each invocation we work out the parallelism from the time stamp and
-//   create one thread for each concurrent stream of jobs.
+//   create one thread for each concurrent stream of jobs. Threads are reused
+//   across invocations, so the number of tracks stays close to the -j level
+//   rather than growing with the number of builds in the log.
 // Caveat: this works only if ninja didn't recompact the logs. Once recompaction
 // happens (can be forced via ninja -t recompact) there is no way to identify
 // the boundaries of each build (recompaction deletes, for each hash, all but
@@ -72,6 +75,18 @@ class NinjaLogParser : public ChunkedTraceReader {
 
   TraceProcessorContext* const ctx_;
   bool header_parsed_ = false;
+
+  // The end timestamp of the last job seen, used to detect the boundary
+  // between two ninja invocations (see the note on |build_offset_ms_|).
+  int64_t last_end_seen_ = 0;
+
+  // Timestamps in a ninja log restart from zero on every invocation, so the
+  // jobs of two builds would otherwise be drawn on top of each other. Each
+  // build after the first is shifted by the sum of the durations of the
+  // builds before it, which keeps every job in the trace without inventing
+  // parallelism that never happened.
+  int64_t build_offset_ms_ = 0;
+
   std::vector<Job> jobs_;
   std::vector<char> log_;
 };

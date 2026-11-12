@@ -263,6 +263,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.png',
           '*.jpg',
           '*.gif',
+          '*.ninja_log',
           '*/test/data/*',
           'Makefile',
           'rules',
