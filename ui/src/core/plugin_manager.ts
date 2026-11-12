@@ -24,6 +24,11 @@ import {createProxy} from '../base/utils';
 import type {RouteArgs} from '../public/route_schema';
 import type {SettingsManagerImpl} from './settings_manager';
 import type {PageManager} from '../public/page';
+import type {CommandManagerImpl} from './command_manager';
+import type {OmniboxManagerImpl} from './omnibox_manager';
+import type {SidebarManagerImpl} from './sidebar_manager';
+import type {SidePanelManagerImpl} from './side_panel_manager';
+import {setOwner} from './ownership';
 
 function makePlugin(
   desc: PerfettoPluginStatic<PerfettoPlugin>,
@@ -221,8 +226,9 @@ export class PluginManagerImpl {
  *
  * This proxy automatically injects the plugin's ID into any pages or settings
  * registered by the plugin, ensuring proper attribution and enabling cleanup
- * when the plugin is unloaded. It also recursively proxies the trace property
- * if one is loaded.
+ * when the plugin is unloaded. It also records the plugin as the owner of the
+ * UI it registers, and recursively proxies the trace property if one is
+ * loaded.
  */
 function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
   return createProxy(app, {
@@ -239,6 +245,18 @@ function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
     get settings() {
       return createSettingsProxy(app.settings, pluginId);
     },
+    get commands() {
+      return createCommandsProxy(app.commands, pluginId);
+    },
+    get sidebar() {
+      return createSidebarProxy(app.sidebar, pluginId);
+    },
+    get sidePanel() {
+      return createSidePanelProxy(app.sidePanel, pluginId);
+    },
+    get omnibox() {
+      return createOmniboxProxy(app.omnibox, pluginId);
+    },
   });
 }
 
@@ -248,8 +266,9 @@ function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
  * This proxy automatically injects the plugin's ID into any pages, settings,
  * and tracks registered by the plugin. This ensures that all trace-scoped
  * resources created by the plugin are properly attributed and can be
- * automatically cleaned up when the trace is closed. It also proxies
- * the trace property back to itself.
+ * automatically cleaned up when the trace is closed. Like the App proxy, it
+ * records the plugin as the owner of the UI it registers. It also proxies the
+ * trace property back to itself.
  */
 function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
   const traceProxy = createProxy(trace, {
@@ -274,6 +293,18 @@ function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
           });
         },
       });
+    },
+    get commands() {
+      return createCommandsProxy(trace.commands, pluginId);
+    },
+    get sidebar() {
+      return createSidebarProxy(trace.sidebar, pluginId);
+    },
+    get sidePanel() {
+      return createSidePanelProxy(trace.sidePanel, pluginId);
+    },
+    get omnibox() {
+      return createOmniboxProxy(trace.omnibox, pluginId);
     },
   });
   return traceProxy;
@@ -310,6 +341,71 @@ function createSettingsProxy<T extends SettingsManagerImpl>(
       return settings.register(setting, pluginId);
     },
   } as Partial<T>);
+}
+
+/**
+ * Creates a proxy for the CommandManager that records the plugin as the owner
+ * of every command it registers. Macros are left alone: the command manager
+ * gives the commands it builds for them their own owner.
+ */
+function createCommandsProxy(
+  commands: CommandManagerImpl,
+  pluginId: string,
+): CommandManagerImpl {
+  return createProxy(commands, {
+    registerCommand(cmd) {
+      setOwner(cmd, pluginId);
+      return commands.registerCommand(cmd);
+    },
+  });
+}
+
+/**
+ * Creates a proxy for the SidebarManager that records the plugin as the owner
+ * of every menu item it adds.
+ */
+function createSidebarProxy(
+  sidebar: SidebarManagerImpl,
+  pluginId: string,
+): SidebarManagerImpl {
+  return createProxy(sidebar, {
+    addMenuItem(item) {
+      setOwner(item, pluginId);
+      return sidebar.addMenuItem(item);
+    },
+  });
+}
+
+/**
+ * Creates a proxy for the SidePanelManager that records the plugin as the
+ * owner of every tab it registers.
+ */
+function createSidePanelProxy(
+  sidePanel: SidePanelManagerImpl,
+  pluginId: string,
+): SidePanelManagerImpl {
+  return createProxy(sidePanel, {
+    registerTab(tab) {
+      setOwner(tab, pluginId);
+      return sidePanel.registerTab(tab);
+    },
+  });
+}
+
+/**
+ * Creates a proxy for the OmniboxManager that records the plugin as the owner
+ * of every mode it registers.
+ */
+function createOmniboxProxy(
+  omnibox: OmniboxManagerImpl,
+  pluginId: string,
+): OmniboxManagerImpl {
+  return createProxy(omnibox, {
+    registerMode(mode) {
+      setOwner(mode, pluginId);
+      return omnibox.registerMode(mode);
+    },
+  });
 }
 
 function getPluginArgs(app: AppImpl, pluginId: string): RouteArgs {
