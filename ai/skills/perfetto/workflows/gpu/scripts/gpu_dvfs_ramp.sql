@@ -10,6 +10,7 @@
 -- For every idle->busy edge (the start of a merged busy interval) where the
 -- clock is below target, this reports how long until the clock first reaches
 -- the target. Edges already at/above target are skipped (no ramp needed).
+-- A STANDARD_STAGE_CUSTOM stage (a vendor child stage or wrapper) is not busy.
 --
 -- target = 90% of the per-GPU max OBSERVED frequency. To change it, edit the
 -- 0.9 factor below.
@@ -39,8 +40,7 @@ FROM counter_leading_intervals!((
     JOIN gpu_counter_track AS gct ON gct.id = c.track_id
     WHERE gct.name = 'gpufreq'
   )) AS f
-JOIN gpu_counter_track AS gct
-  ON gct.id = f.track_id;
+JOIN gpu_counter_track AS gct ON gct.id = f.track_id;
 
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT
@@ -59,6 +59,7 @@ FROM interval_merge_overlapping_partitioned!(
     JOIN gpu_track AS t ON s.track_id = t.id
     WHERE
       s.dur > 0
+      AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'
   ),
   (ugpu)
 );

@@ -10,6 +10,7 @@
 -- each slice of busy time is attributed to the GPU frequency in effect during
 -- it. The frequency source is the canonical per-GPU "gpufreq" counter track
 -- (type gpu_frequency, kHz), expanded into gapless intervals.
+-- A STANDARD_STAGE_CUSTOM stage (a vendor child stage or wrapper) is not busy.
 --
 -- No parameters; operates over each GPU's active span (first..last activity).
 -- One row per GPU that has a gpufreq track. Columns:
@@ -40,8 +41,7 @@ FROM counter_leading_intervals!((
     JOIN gpu_counter_track AS gct ON gct.id = c.track_id
     WHERE gct.name = 'gpufreq'
   )) AS f
-JOIN gpu_counter_track AS gct
-  ON gct.id = f.track_id;
+JOIN gpu_counter_track AS gct ON gct.id = f.track_id;
 
 -- Device-busy timeline per GPU (union of GPU activity).
 CREATE PERFETTO TABLE _gpu_busy AS
@@ -56,6 +56,7 @@ FROM interval_merge_overlapping_partitioned!(
     JOIN gpu_track AS t ON s.track_id = t.id
     WHERE
       s.dur > 0
+      AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'
   ),
   (ugpu)
 );
@@ -64,10 +65,8 @@ FROM interval_merge_overlapping_partitioned!(
 CREATE PERFETTO TABLE _busy_at_freq AS
 SELECT b.ugpu, f.freq_khz, ii.dur
 FROM _interval_intersect!((_gpu_busy, _gpu_freq), (ugpu)) AS ii
-JOIN _gpu_busy AS b
-  ON b.id = ii.id_0
-JOIN _gpu_freq AS f
-  ON f.id = ii.id_1;
+JOIN _gpu_busy AS b ON b.id = ii.id_0
+JOIN _gpu_freq AS f ON f.id = ii.id_1;
 
 CREATE PERFETTO TABLE _span AS
 SELECT

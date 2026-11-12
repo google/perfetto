@@ -15,6 +15,7 @@
 -- To change the thresholds, edit the 0.9 factor and the `>= 1000` floor below.
 -- The 1000 ns floor only drops sub-microsecond noise; raise it (e.g. to 1e6 for
 -- 1 ms) to focus on genuinely sustained throttling.
+-- A STANDARD_STAGE_CUSTOM stage (a vendor child stage or wrapper) is not busy.
 --
 -- Temperature (C) and Power (W) are read from the canonical per-GPU counter
 -- tracks if present and averaged over each throttle interval; NULL means no
@@ -45,8 +46,7 @@ FROM counter_leading_intervals!((
     JOIN gpu_counter_track AS gct ON gct.id = c.track_id
     WHERE gct.name = 'gpufreq'
   )) AS f
-JOIN gpu_counter_track AS gct
-  ON gct.id = f.track_id;
+JOIN gpu_counter_track AS gct ON gct.id = f.track_id;
 
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT
@@ -65,6 +65,7 @@ FROM interval_merge_overlapping_partitioned!(
     JOIN gpu_track AS t ON s.track_id = t.id
     WHERE
       s.dur > 0
+      AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'
   ),
   (ugpu)
 );
@@ -92,10 +93,8 @@ FROM _gpu_busy AS b;
 CREATE PERFETTO TABLE _low_busy AS
 SELECT ii.ts, ii.dur, f.freq_khz, b.ugpu
 FROM _interval_intersect!((_gpu_busy, _gpu_freq), (ugpu)) AS ii
-JOIN _gpu_busy AS b
-  ON b.id = ii.id_0
-JOIN _gpu_freq AS f
-  ON f.id = ii.id_1
+JOIN _gpu_busy AS b ON b.id = ii.id_0
+JOIN _gpu_freq AS f ON f.id = ii.id_1
 WHERE
   f.freq_khz < 0.9 * (SELECT fmax_khz FROM _fmax WHERE ugpu = b.ugpu);
 

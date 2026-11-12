@@ -8,8 +8,9 @@
 --
 -- A compute kernel is a GPU render-stage slice with render_stage_category = 2
 -- (0=OTHER, 1=GRAPHICS, 2=COMPUTE). Only kernels with dur > 0 are listed (a
--- zero/NULL-duration kernel has no time window to analyse); the same filter is
--- used by every compute script so the launch-order id lines up across them.
+-- zero/NULL-duration kernel has no time window to analyse); STANDARD_STAGE_CUSTOM
+-- vendor sub-stages and wrappers are excluded. The same filter is used by every
+-- compute script so the launch-order id lines up across them.
 --
 -- No parameters; operates on the whole trace. One row per compute kernel,
 -- longest first. Columns:
@@ -40,11 +41,11 @@ SELECT
     s.name
   ) AS kernel
 FROM gpu_slice AS s
-JOIN gpu_track AS t
-  ON s.track_id = t.id
+JOIN gpu_track AS t ON s.track_id = t.id
 WHERE
   s.render_stage_category = 2
-  AND s.dur > 0;
+  AND s.dur > 0
+  AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM';
 
 SELECT
   launch_id AS id,

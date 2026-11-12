@@ -70,7 +70,9 @@ Run this before any open-ended exploration. It produces the headline verdict.
     CREATE PERFETTO TABLE busy AS
       SELECT ROW_NUMBER() OVER (ORDER BY ts) AS id, ts, dur
       FROM interval_merge_overlapping!((
-        SELECT ts, dur FROM gpu_slice WHERE dur > 0), 0);
+        SELECT ts, dur FROM gpu_slice
+        WHERE dur > 0
+          AND standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'), 0);
 
     SELECT
       w.name AS window,
@@ -82,6 +84,28 @@ Run this before any open-ended exploration. It produces the headline verdict.
     GROUP BY w.id, w.name, w.dur
     ORDER BY w.ts;
     ```
+
+4.  To see what kind of work fills the busy time, group stages by
+    `standard_stage` (excluding `STANDARD_STAGE_CUSTOM` vendor sub-stages and
+    wrappers; see [GPU render stages](https://perfetto.dev/docs/data-sources/gpu#gpu-render-stages)):
+
+    ```sql
+    SELECT
+      IFNULL(EXTRACT_ARG(t.dimension_arg_set_id, 'ugpu'), 0) AS gpu,
+      IFNULL(s.standard_stage, 'unset') AS standard_stage,
+      COUNT(*) AS stages,
+      SUM(s.dur) AS stage_ns
+    FROM gpu_slice AS s
+    JOIN gpu_track AS t ON s.track_id = t.id
+    WHERE s.dur > 0
+      AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'
+    GROUP BY gpu, standard_stage
+    ORDER BY gpu, stage_ns DESC;
+    ```
+
+    `stage_ns` sums across queues so it can exceed `gpu_busy_ns`. `unset` means
+    the producer did not set `standard_stage`; group those slices by `name` or
+    `render_stage_category` instead.
 
 ---
 
@@ -147,6 +171,10 @@ Keep the SQL and the gap timestamps available so the user can audit.
 ## Reference
 
 - GPU data sources: <https://perfetto.dev/docs/data-sources/gpu>
+- Stage classification: `gpu_slice.standard_stage` (name of the
+  `StandardStage` proto value, NULL if not set) and `gpu_slice.parent_stage_id`
+  (parent stage slice; NULL for a stage without `parent_event_id` and for a
+  `parent_event_id` that matches no stage in the trace).
 - Interval helpers: stdlib `intervals.overlap`, `intervals.intersect`
 - PerfettoSQL tour:
   <https://perfetto.dev/docs/analysis/perfetto-sql-getting-started>

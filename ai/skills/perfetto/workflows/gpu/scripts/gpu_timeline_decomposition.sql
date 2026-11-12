@@ -8,11 +8,16 @@
 -- "Busy" is the UNION of GPU activity intervals (work running concurrently on
 -- multiple hardware queues is merged, not summed, so concurrency is never
 -- double-counted). Covers all GPU render-stage activity, not just one category.
+-- A STANDARD_STAGE_CUSTOM stage is a vendor child stage or a vendor wrapper
+-- and is not in the union: its work is in the stages that have a standard
+-- value. Time in a wrapper that no such stage covers is idle. A stage without
+-- standard_stage is in the union.
 --
 -- No parameters; operates on the whole trace. One row per GPU. Columns:
 --   gpu                : unique GPU id (ugpu).
 --   gpu_name           : GPU name, or "GPU <id>" if unnamed.
 --   activities         : count of GPU activity slices on this GPU.
+--                        STANDARD_STAGE_CUSTOM stages are not counted.
 --   trace_wall_ns      : whole-trace wall-clock duration.
 --   active_span_ns     : first .. last GPU activity span.
 --   gpu_busy_ns        : busy time (union of activity intervals).
@@ -30,7 +35,8 @@ SELECT
 FROM gpu_slice AS s
 JOIN gpu_track AS t ON s.track_id = t.id
 WHERE
-  s.dur > 0;
+  s.dur > 0
+  AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM';
 
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT ugpu, ts, dur

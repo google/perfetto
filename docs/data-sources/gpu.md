@@ -95,6 +95,28 @@ or the other, not both. Not all producers support this — check
 Glob patterns may be used in `counter_names` to match multiple counters by
 name; check `supports_counter_name_globs` in the descriptor for support.
 
+Each `GpuCounterSpec` can also tell tools how to read the counter:
+
+| Field | Purpose |
+|---|---|
+| `short_description` | One plain-text line for counter pickers and lists |
+| `description` | Full description. Markdown is allowed |
+| `value_type` | How to aggregate samples: a count since the previous sample, a rate per second, or a percentage |
+| `derivation` | Formula and source counter IDs of a counter that the producer computes from other counters |
+| `standard_counter` | Cross-vendor identity of the counter. The counter keeps its own `counter_id` and `name` |
+
+A producer puts the same descriptor in the data source descriptor and in the
+first `GpuCounterEvent` packet. Counters that count clock cycles use the
+`CYCLE` unit.
+
+To find a counter on any GPU, filter by `standard_counter` and not by name:
+
+```sql
+SELECT id, name, unit
+FROM gpu_counter_track
+WHERE standard_counter = 'STANDARD_COUNTER_GPU_ACTIVE_CYCLES';
+```
+
 ### GPU memory
 
 Total GPU memory usage per process is collected via ftrace:
@@ -122,6 +144,45 @@ data_sources: {
     }
 }
 ```
+
+Each `GpuRenderStageEvent` is one slice of GPU work on a hardware queue. The
+interned data of the sequence describes what the event refers to:
+
+- `InternedGraphicsContext` gives the process (`pid`) and the API.
+- `InternedGpuRenderStageSpecification` gives the stage name and its
+  `standard_stage`.
+
+`standard_stage` classifies the work with one `StandardStage` value on every
+GPU, for example `BINNING`, `RENDER`, `COMPUTE`, or `TRANSFER`. The stage name
+stays vendor-specific. A stage with a standard value (any value except
+`UNSPECIFIED` and `CUSTOM`) is work, and it is never inside another stage with
+a standard value.
+
+A vendor stage uses `CUSTOM`, in one of two roles. A child stage divides the
+work of its parent, for example a draw call in a `RENDER` stage. A wrapper
+groups other stages, for example the stages of one render pass or of one
+submission. Both roles link a child to its parent with `parent_event_id`, and
+both can nest. In both roles, the child lies inside the time range of its
+parent: it does not start before its parent starts and does not end after its
+parent ends. When you add stage durations, add the stages with a standard value
+and do not add `CUSTOM` stages: the time of a `CUSTOM` stage does not count on
+its own.
+
+Three IDs connect the stages to the Vulkan calls of the application:
+
+| Field | Connects |
+|---|---|
+| `submission_id` | A stage to the `VkQueueSubmit` event that produced it |
+| `render_pass_instance_id` | The stages of one render pass execution that have a standard value |
+| `command_instance_id` | A stage other than `BINNING` and `RENDER` to the commands that it serves |
+
+A stage outside a render pass (for example `COMPUTE`, a copy or blit, an
+acceleration structure build, or `OTHER`) leaves `render_pass_instance_id`
+unset. On a `CUSTOM` stage the field is optional; when set, it is the ID of the
+render pass execution that the stage belongs to.
+
+The pass and command IDs are unique only in one submission. Use them together
+with `submission_id` as the key.
 
 ### Vulkan memory
 

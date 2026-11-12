@@ -5,6 +5,9 @@
 -- no work resident. These gaps are where you look UPSTREAM for the cause:
 -- submission/launch latency, host-side synchronization or waits, device memory
 -- allocation, host-device copies, or host-side work starving the device.
+-- A STANDARD_STAGE_CUSTOM stage (a vendor child stage or a vendor wrapper) is
+-- not in the busy timeline, so a gap inside a wrapper is reported. A stage
+-- without standard_stage is in the busy timeline.
 --
 -- No parameters; operates on the whole trace. One row per idle gap (the 10
 -- largest, biggest first): gap_start_rel_ns (relative to trace_start()),
@@ -20,7 +23,13 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT ts, dur, ts + dur AS te
 FROM interval_merge_overlapping!(
-  (SELECT ts, dur FROM gpu_slice WHERE dur > 0),
+  (
+    SELECT ts, dur
+    FROM gpu_slice
+    WHERE
+      dur > 0
+      AND standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'
+  ),
   0
 );
 
