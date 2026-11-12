@@ -238,20 +238,13 @@ BUILD_DEPS_HOST = [
 
     # Sqlite for the trace processing library.
     # This is the amalgamated source whose compiled output is meant to be faster.
-    # We still pull the full source for the extensions (which are not available
-    # in the amalgamation).
-    # If updating the version, also update bazel/deps.bzl.
+    # If updating the version, also update bazel/deps.bzl and
+    # bazel/perfetto_deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
         'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3530400.zip',
         '1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d',
         'all', 'all'),
-    Dependency(
-        'buildtools/sqlite_src',
-        'https://chromium.googlesource.com/external/github.com/sqlite/sqlite.git',
-        'b09c88c14082339b66c7b7158d609a771e64ca69',  # refs/tags/version-3.53.4.
-        'all',
-        'all'),
 
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
