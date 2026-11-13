@@ -150,6 +150,7 @@ public final class PerfettoTrace {
     // Freeze this snapshot in the builder; native emission checks each session.
     int getEncodingModes() {
       long ptr = mPtr;
+      if (getClass() != Category.class && !isEnabled()) return 0;
       return ptr == 0 ? 0 : native_get_encoding_modes(ptr);
     }
 

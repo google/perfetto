@@ -17,14 +17,18 @@
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 
 #include <jni.h>
+#include "perfetto/ext/base/small_vector.h"
 #include "src/android_sdk/jni/macros.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <list>
 #include <utility>
+#include <vector>
 
 namespace perfetto {
 namespace jni {
@@ -626,6 +630,175 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit(JNIEnv* env,
   StringBuffer::reset();
 }
 
+// These are byte offsets in the one Java transport buffer, not instructions.
+// Keep the record format in sync with PerfettoEncodedEvent.
+constexpr size_t kJavaIidRecordSize = PERFETTO_TE_HL_IID_SLOT_RECORD_SIZE;
+constexpr size_t kMaxJavaEventSize = PERFETTO_TE_HL_MAX_ENCODED_EVENT_SIZE;
+
+// The C ABI consumes a null-terminated list. The Java builder owns the entries,
+// but stores no terminator while it is being populated.
+class ScopedJavaLegacyExtras {
+ public:
+  explicit ScopedJavaLegacyExtras(jlong ptr)
+      : extra_(toPointer<sdk_for_jni::Extra>(ptr)) {
+    if (extra_)
+      extra_->push_extra(nullptr);
+  }
+  ~ScopedJavaLegacyExtras() {
+    if (extra_)
+      extra_->clear_extras();
+  }
+  ScopedJavaLegacyExtras(const ScopedJavaLegacyExtras&) = delete;
+  ScopedJavaLegacyExtras& operator=(const ScopedJavaLegacyExtras&) = delete;
+
+  PerfettoTeHlExtra* const* get() const {
+    return extra_ ? extra_->get() : nullptr;
+  }
+
+ private:
+  sdk_for_jni::Extra* extra_;
+};
+
+static uint32_t ReadJavaUint32(const uint8_t* data) {
+  return static_cast<uint32_t>(data[0]) |
+         (static_cast<uint32_t>(data[1]) << 8) |
+         (static_cast<uint32_t>(data[2]) << 16) |
+         (static_cast<uint32_t>(data[3]) << 24);
+}
+
+static bool ValidateJavaEventLayout(JNIEnv* env,
+                                    jint size,
+                                    jint fields_size,
+                                    jint name_size,
+                                    jint slots_offset,
+                                    jint slot_count) {
+  if (size < 0 || static_cast<size_t>(size) > kMaxJavaEventSize ||
+      fields_size < 0 || fields_size > size || name_size < 0 ||
+      name_size > size - fields_size ||
+      slots_offset < fields_size + name_size || slots_offset > size ||
+      slot_count < 0 ||
+      static_cast<size_t>(slot_count) !=
+          static_cast<size_t>(size - slots_offset) / kJavaIidRecordSize ||
+      static_cast<size_t>(size - slots_offset) % kJavaIidRecordSize != 0) {
+    jniThrowException(env, "java/lang/IllegalArgumentException",
+                      "Invalid encoded event layout");
+    return false;
+  }
+  return true;
+}
+
+// The byte storage and Java-owned native handles must live through this call.
+// Copying and direct-address transports share this validation and routing.
+static void EmitJavaEvent(JNIEnv* env,
+                          jint type,
+                          jlong cat_ptr,
+                          jint modes,
+                          jlong legacy_extra_ptr,
+                          jlong track_ptr,
+                          const uint8_t* bytes,
+                          jint fields_size,
+                          jint name_size,
+                          jint slots_offset,
+                          jint slot_count) {
+  base::SmallVector<PerfettoTeHlIidSlot, 8> slots;
+  slots.reserve(static_cast<size_t>(slot_count));
+  for (jint i = 0; i < slot_count; ++i) {
+    const uint8_t* record =
+        bytes + slots_offset + static_cast<size_t>(i) * kJavaIidRecordSize;
+    uint32_t string_offset = ReadJavaUint32(record + 8);
+    uint32_t string_size = ReadJavaUint32(record + 12);
+    if (string_offset < static_cast<uint32_t>(fields_size + name_size) ||
+        string_offset > static_cast<uint32_t>(slots_offset) ||
+        string_size > static_cast<uint32_t>(slots_offset) - string_offset) {
+      jniThrowException(env, "java/lang/IllegalArgumentException",
+                        "Invalid encoded interning string");
+      return;
+    }
+    slots.emplace_back(PerfettoTeHlIidSlot{ReadJavaUint32(record),
+                                           ReadJavaUint32(record + 4),
+                                           bytes + string_offset, string_size});
+  }
+  PerfettoTeHlEventFields fields{bytes, static_cast<size_t>(fields_size),
+                                 slots.data(), slots.size()};
+  auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
+  ScopedJavaLegacyExtras legacy(legacy_extra_ptr);
+  if (!category->get()->impl)
+    return;
+  PerfettoTeHlExtra* encoded_extras[] = {
+      toPointer<PerfettoTeHlExtra>(track_ptr), nullptr};
+  if (!PerfettoTeHlEmitJavaImpl(
+          category->get()->impl, type,
+          type == PERFETTO_TE_TYPE_COUNTER
+              ? nullptr
+              : reinterpret_cast<const char*>(bytes + fields_size),
+          type == PERFETTO_TE_TYPE_COUNTER ? 0 : static_cast<size_t>(name_size),
+          static_cast<uint32_t>(modes), legacy.get(), &fields,
+          encoded_extras)) {
+    jniThrowException(env, "java/lang/IllegalArgumentException",
+                      "Invalid encoded event fields");
+  }
+}
+
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java(
+    JNIEnv* env,
+    jclass,
+    jint type,
+    jlong cat_ptr,
+    jint modes,
+    jlong legacy_extra_ptr,
+    jlong track_ptr,
+    jstring legacy_name,
+    jbyteArray buffer,
+    jint size,
+    jint fields_size,
+    jint name_size,
+    jint slots_offset,
+    jint slot_count) {
+  if ((modes & PERFETTO_TE_JAVA_ENCODING_ENCODED) == 0) {
+    auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
+    ScopedJavaLegacyExtras legacy(legacy_extra_ptr);
+    if (!category->get()->impl) {
+      StringBuffer::reset();
+      return;
+    }
+    const char* name = StringBuffer::utf16_to_ascii(env, legacy_name).data();
+    if (!PerfettoTeHlEmitJavaImpl(
+            category->get()->impl, type,
+            type == PERFETTO_TE_TYPE_COUNTER ? nullptr : name,
+            type == PERFETTO_TE_TYPE_COUNTER ? 0 : strlen(name),
+            static_cast<uint32_t>(modes), legacy.get(), nullptr, nullptr)) {
+      jniThrowException(env, "java/lang/IllegalArgumentException",
+                        "Invalid Java event modes");
+    }
+    StringBuffer::reset();
+    return;
+  }
+  if (!ValidateJavaEventLayout(env, size, fields_size, name_size, slots_offset,
+                               slot_count)) {
+    return;
+  }
+  if (!buffer || size > env->GetArrayLength(buffer)) {
+    jniThrowException(env, "java/lang/IllegalArgumentException",
+                      "Encoded event exceeds its array");
+    return;
+  }
+  // Never hold a JVM critical-array pin across the tracing call: writers can
+  // allocate and lock. The portable transport owns a copy until emission ends.
+  std::array<uint8_t, 1024> local_bytes;
+  std::vector<uint8_t> large_bytes;
+  uint8_t* bytes = local_bytes.data();
+  if (static_cast<size_t>(size) > local_bytes.size()) {
+    large_bytes.resize(static_cast<size_t>(size));
+    bytes = large_bytes.data();
+  }
+  env->GetByteArrayRegion(buffer, 0, size, reinterpret_cast<jbyte*>(bytes));
+  if (env->ExceptionCheck())
+    return;
+  EmitJavaEvent(env, type, cat_ptr, modes, legacy_extra_ptr, track_ptr, bytes,
+                fields_size, name_size, slots_offset, slot_count);
+  StringBuffer::reset();
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init(
     PERFETTO_JNI_HOST_PARAMS) {
   return toJLong(new sdk_for_jni::Proto());
@@ -665,7 +838,9 @@ static const JNINativeMethod gExtraMethods[] = {
     {"native_clear_args", "(J)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args},
     {"native_emit", "(IJLjava/lang/String;J)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit},
+    {"native_emit_java", "(IJIJJLjava/lang/String;[BIIIII)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java}};
 
 static const JNINativeMethod gProtoMethods[] = {
     {"native_init", "()J",

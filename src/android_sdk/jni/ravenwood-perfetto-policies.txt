@@ -16,3 +16,5 @@ class com.android.internal.dev.perfetto.sdk.PerfettoTrace.Category
     method native_unregister ignore
     method native_is_enabled ignore
     method isEnabled ignore # return false
+    method native_get_encoding_modes ignore
+    method getEncodingModes ignore # return 0

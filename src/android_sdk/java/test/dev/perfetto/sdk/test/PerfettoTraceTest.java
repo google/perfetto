@@ -98,8 +98,13 @@ public class PerfettoTraceTest {
 
   @Test
   public void testFreeNativeMemoryWhenJavaObjectGCed() {
-    TraceConfig traceConfig = getTraceConfig(FOO);
-    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+    // This test exercises native legacy objects; encoded fields live on the Java heap.
+    TraceConfig.Builder config = getTraceConfig(FOO).toBuilder();
+    DataSourceConfig.Builder ds = config.getDataSources(0).getConfig().toBuilder();
+    ds.setTrackEventConfig(ds.getTrackEventConfig().toBuilder().setExperimentalJavaEventEncoding(
+        TrackEventConfig.JavaEventEncoding.JAVA_EVENT_ENCODING_LEGACY));
+    config.setDataSources(0, config.getDataSources(0).toBuilder().setConfig(ds));
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, config.build().toByteArray());
     for (int i = 0; i < 600_000; i++) {
       String eventName = "event_" + i;
       String nativeStringArgKey = "string_key_" + i;
@@ -1068,7 +1073,7 @@ public class PerfettoTraceTest {
       }
     }
 
-    Category disabledFooCategory = new DisabledCategory("DisabledFoo");
+    Category disabledFooCategory = new DisabledCategory("DisabledFoo").register();
 
     TraceConfig traceConfig = getTraceConfig(List.of(FOO, "DisabledFoo"));
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
