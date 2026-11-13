@@ -197,7 +197,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private hoveredY?: number;
 
   private canvasWidth = 0;
-  private viewportHeight = 0;
   // Pushes the graph down so a bottom up graph's root sits at the bottom.
   private yOffset = 0;
   private labelCharWidth = 0;
@@ -268,17 +267,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {minDepth, maxDepth} = attrs.data;
-    let canvasHeight =
+    const canvasHeight =
       Math.max(maxDepth - minDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) *
       NODE_HEIGHT;
-    this.yOffset = 0;
-    if (attrs.state.view.kind === 'BOTTOM_UP') {
-      // The padding goes above the leaves, and a graph shorter than the
-      // viewport sits on its bottom edge, so the root never moves.
-      const contentHeight = (maxDepth - minDepth + 1) * NODE_HEIGHT;
-      canvasHeight = Math.max(canvasHeight, this.viewportHeight);
-      this.yOffset = canvasHeight - contentHeight;
-    }
     const hoveredNode =
       this.hoveredNodeIdx !== undefined
         ? this.renderNodes?.[this.hoveredNodeIdx]
@@ -325,6 +316,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           {
             style: {
               height: `${canvasHeight}px`,
+              flexGrow: 1,
               cursor: hoveredNode === undefined ? 'default' : 'pointer',
             },
             onmousemove: (e: MithrilEvent<MouseEvent>) => {
@@ -442,10 +434,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   ) {
     this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
-    if (viewportRect.height !== this.viewportHeight) {
-      this.viewportHeight = viewportRect.height;
-      m.redraw();
-    }
+    // The canvas is at least as tall as the viewport, so in bottom up the
+    // padding goes above the leaves and the root sits on the bottom edge.
+    const data = this.attrs.data;
+    this.yOffset =
+      data !== undefined && this.attrs.state.view.kind === 'BOTTOM_UP'
+        ? size.height - (data.maxDepth - data.minDepth + 1) * NODE_HEIGHT
+        : 0;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
       if (this.attrs.data === undefined) {
