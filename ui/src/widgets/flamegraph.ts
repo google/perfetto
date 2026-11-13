@@ -178,6 +178,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     () => this.attrs.data,
     () => this.canvasWidth,
     () => this.zoomRegion,
+    () => this.yOffset,
   ]);
   private renderNodes?: ReadonlyArray<RenderNode>;
 
@@ -196,6 +197,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private hoveredY?: number;
 
   private canvasWidth = 0;
+  private viewportHeight = 0;
+  // Pushes the graph down so a bottom up graph's root sits at the bottom.
+  private yOffset = 0;
   private labelCharWidth = 0;
   private viewportRect?: Rect2D;
   private lastPopupVisible = false;
@@ -264,9 +268,17 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {minDepth, maxDepth} = attrs.data;
-    const canvasHeight =
+    let canvasHeight =
       Math.max(maxDepth - minDepth + PADDING_NODE_COUNT, PADDING_NODE_COUNT) *
       NODE_HEIGHT;
+    this.yOffset = 0;
+    if (attrs.state.view.kind === 'BOTTOM_UP') {
+      // The padding goes above the leaves, and a graph shorter than the
+      // viewport sits on its bottom edge, so the root never moves.
+      const contentHeight = (maxDepth - minDepth + 1) * NODE_HEIGHT;
+      canvasHeight = Math.max(canvasHeight, this.viewportHeight);
+      this.yOffset = canvasHeight - contentHeight;
+    }
     const hoveredNode =
       this.hoveredNodeIdx !== undefined
         ? this.renderNodes?.[this.hoveredNodeIdx]
@@ -430,6 +442,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   ) {
     this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
+    if (viewportRect.height !== this.viewportHeight) {
+      this.viewportHeight = viewportRect.height;
+      m.redraw();
+    }
 
     if (this.renderNodesMonitor.ifStateChanged()) {
       if (this.attrs.data === undefined) {
@@ -444,6 +460,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             type: 'ROOT',
           },
           size.width,
+          this.yOffset,
         );
         this.lastClickedNode = this.renderNodes?.find((n) =>
           isIntersecting(this.lastClickedNode?.x, this.lastClickedNode?.y, n),
@@ -1191,6 +1208,7 @@ function computeRenderNodes(
   {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
   zoomRegion: ZoomRegion,
   canvasWidth: number,
+  yOffset: number,
 ): ReadonlyArray<RenderNode> {
   const renderNodes: RenderNode[] = [];
 
@@ -1198,7 +1216,7 @@ function computeRenderNodes(
   const keyToChildMergedIdx = new Map<string, number>();
   renderNodes.push({
     x: 0,
-    y: -minDepth * NODE_HEIGHT,
+    y: yOffset - minDepth * NODE_HEIGHT,
     width: canvasWidth,
     source: {
       kind: 'ROOT',
@@ -1237,7 +1255,7 @@ function computeRenderNodes(
     const relativeWidth = relativeXEnd - relativeXStart;
 
     const x = Math.max(0, relativeXStart) / queryXPerPx;
-    const y = NODE_HEIGHT * (depth - minDepth);
+    const y = yOffset + NODE_HEIGHT * (depth - minDepth);
     const width = depthMatchingZoom
       ? Math.min(relativeWidth, zoomQueryWidth) / queryXPerPx
       : relativeWidth / queryXPerPx;
