@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {OWNER_ATTRIBUTE} from '../base/owner_attribute';
 
 type Style = string | Partial<CSSStyleDeclaration>;
 
@@ -73,6 +74,7 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
     this.portalElement = document.createElement('div');
     container.appendChild(this.portalElement);
     this.applyPortalProps(attrs);
+    copyOwner(dom, this.portalElement);
 
     m.mount(this.portalElement, this.contentComponent);
 
@@ -85,10 +87,11 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
     this.contentComponent.view = () => children;
   }
 
-  onupdate({attrs}: m.CVnodeDOM<PortalAttrs>) {
+  onupdate({attrs, dom}: m.CVnodeDOM<PortalAttrs>) {
     const {onContentUpdate = () => {}} = attrs;
     if (this.portalElement) {
       this.applyPortalProps(attrs);
+      copyOwner(dom, this.portalElement);
       onContentUpdate(this.portalElement);
     }
   }
@@ -111,5 +114,26 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
         container.removeChild(this.portalElement);
       }
     }
+  }
+}
+
+// Copies the owner of the area around the portal's placeholder onto the
+// portal element, so the moved content keeps the owner it was opened from:
+//
+//   <div data-plugin="A">
+//     <div></div>               <- the portal's placeholder
+//   </div>
+//   ...
+//   <div data-plugin="A">       <- the portal element, at the end of the page,
+//     popup content                 gets a copy of the placeholder's owner
+//   </div>
+function copyOwner(placeholder: Element, portal: HTMLElement) {
+  const owner = placeholder
+    .closest(`[${OWNER_ATTRIBUTE}]`)
+    ?.getAttribute(OWNER_ATTRIBUTE);
+  if (owner) {
+    portal.setAttribute(OWNER_ATTRIBUTE, owner);
+  } else {
+    portal.removeAttribute(OWNER_ATTRIBUTE);
   }
 }
