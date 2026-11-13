@@ -202,8 +202,7 @@ must be provided):
 - `process`: Process name or command line (`process.name` or `process.cmdline`)
   to match.
 - `type`: Heap profiler name (for example, `'libc.malloc'` for native heap
-  profiles or `'com.android.art'` for ART allocation profiles; the
-  `'heap_profile:'` prefix is optional).
+  profiles or `'com.android.art'` for ART allocation profiles).
 - `metric`: Initial flamegraph metric to select:
   - `'unreleased_size'` (native / generic heap profiles)
   - `'unreleased_count'` (native / generic heap profiles)

@@ -53,15 +53,15 @@ describe('deeplink', () => {
       }),
     ).toEqual({
       process: 'com.example.app',
-      type: 'heap_profile:com.android.art',
+      type: 'com.android.art',
       metric: 'total_size',
     });
     expect(
       parseHeapProfileDeeplinkArgs({
-        type: 'heap_profile:libc.malloc',
+        type: 'libc.malloc',
       }),
     ).toEqual({
-      type: 'heap_profile:libc.malloc',
+      type: 'libc.malloc',
     });
     expect(parseHeapProfileDeeplinkArgs({process: ''})).toBeUndefined();
     expect(parseHeapProfileDeeplinkArgs({metric: 'unknown'})).toBeUndefined();

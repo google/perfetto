@@ -365,7 +365,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       );
     }
     if (deeplinkArgs?.type !== undefined) {
-      whereClauses.push(`e.type = ${sqliteString(deeplinkArgs.type)}`);
+      whereClauses.push(
+        `e.type = ${sqliteString(`heap_profile:${deeplinkArgs.type}`)}`,
+      );
     }
     const whereClause =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -536,8 +538,7 @@ function showMissingHeapProfileModal(args: HeapProfileDeeplinkArgs) {
     filters.push(`process "${args.process}"`);
   }
   if (args.type !== undefined) {
-    const heapName = args.type.replace(/^heap_profile:/, '');
-    filters.push(`type "${heapName}"`);
+    filters.push(`type "${args.type}"`);
   }
   const target = filters.length > 0 ? ` for ${filters.join(' and ')}` : '';
   showModal({

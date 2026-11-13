@@ -26,11 +26,7 @@ export type HeapProfileMetric = z.infer<typeof HEAP_PROFILE_METRIC_SCHEMA>;
 
 export const HEAP_PROFILE_DEEPLINK_ARGS_SCHEMA = z.object({
   process: z.string().nonempty().optional(),
-  type: z
-    .string()
-    .nonempty()
-    .transform((t) => (t.startsWith('heap_profile:') ? t : `heap_profile:${t}`))
-    .optional(),
+  type: z.string().nonempty().optional(),
   metric: HEAP_PROFILE_METRIC_SCHEMA.optional(),
 });
 
