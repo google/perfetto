@@ -33,10 +33,11 @@
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
-// In Android and Chromium tree builds, we don't have the percentile module.
-// Just don't include it.
+// In standalone and Bazel builds (SQLite >= 3.51.0), percentile is built into
+// the SQLite amalgamation via -DSQLITE_ENABLE_PERCENTILE. In Android tree
+// builds, external/sqlite provides it as a separate sqlite_ext_percentile
+// library requiring explicit registration.
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
-// defined in sqlite_src/ext/misc/percentile.c
 extern "C" int sqlite3_percentile_init(sqlite3* db,
                                        char** error,
                                        const sqlite3_api_routines* api);
@@ -86,7 +87,8 @@ void InitializeSqlite(sqlite3* db) {
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
-// In Android tree builds, we don't have the percentile module.
+// Register external sqlite_ext_percentile when linked separately (e.g. Android
+// tree builds).
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
   sqlite3_percentile_init(db, &error, nullptr);
   if (error) {

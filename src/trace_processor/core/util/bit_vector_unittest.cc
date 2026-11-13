@@ -624,6 +624,26 @@ TEST(BitVectorTest, OrBitsFromEveryAlignment) {
   }
 }
 
+TEST(BitVectorTest, CopyAndAndWordsFrom) {
+  BitVector x = BitVector::CreateWithSize(300);
+  BitVector y = BitVector::CreateWithSize(300);
+  for (uint32_t i = 0; i < 300; ++i) {
+    x.change(i, i % 3 == 0);
+    y.change(i, i % 5 == 0);
+  }
+  for (uint32_t from : {0u, 64u, 128u}) {
+    for (uint32_t count : {0u, 1u, 63u, 64u, 65u, 100u, 172u}) {
+      BitVector dst = BitVector::CreateWithSize(200);
+      dst.CopyWordsFrom(x, from, count);
+      dst.AndWordsFrom(y, from, count);
+      for (uint32_t i = 0; i < count; ++i) {
+        ASSERT_EQ(dst.is_set(i), x.is_set(from + i) && y.is_set(from + i))
+            << from << " " << count << " " << i;
+      }
+    }
+  }
+}
+
 TEST(BitVectorTest, OrBitsFromMergesRatherThanOverwrites) {
   BitVector src = BitVector::CreateWithSize(64);
   BitVector dst = BitVector::CreateWithSize(64);
