@@ -24,7 +24,7 @@ const HIRING_BANNER_FLAG = featureFlags.register({
 });
 
 export function shouldShowHiringBanner(app: AppImpl): boolean {
-  return app.isInternalUser && HIRING_BANNER_FLAG.get();
+  return app.policy.showHiringBanner && HIRING_BANNER_FLAG.get();
 }
 
 export const HiringBanner: m.Component = {

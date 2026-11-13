@@ -354,10 +354,6 @@ export class TraceImpl implements Trace, Disposable {
     return this.settingsProxy;
   }
 
-  get isInternalUser(): boolean {
-    return this.app.isInternalUser;
-  }
-
   get policy(): Policy {
     return this.app.policy;
   }

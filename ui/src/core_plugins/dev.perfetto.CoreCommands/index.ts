@@ -398,9 +398,9 @@ export default class CoreCommands implements PerfettoPlugin {
       text: 'Share',
       action: async () => await shareTrace(trace),
       icon: 'share',
-      // Whether the user is internal can change after startup, once the
-      // internal extension server answers.
-      hidden: () => !app.isInternalUser,
+      // The policy can change after startup, once the internal extension
+      // server answers.
+      hidden: () => !app.policy.enableTraceSharing,
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',
