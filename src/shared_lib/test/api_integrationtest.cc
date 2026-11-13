@@ -1906,6 +1906,51 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
 }
 
+TEST_F(SharedLibTrackEventTest, JavaEncodingModesFollowSessionConfig) {
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(nullptr), 0u);
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl), 0u);
+  auto legacy = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_java_event_encoding(1)
+                    .Build();
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl),
+            PERFETTO_TE_JAVA_ENCODING_LEGACY);
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat2.impl), 0u);
+  auto encoded = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(2)
+                     .Build();
+  EXPECT_EQ(
+      PerfettoTeHlGetJavaEncodingModes(cat1.impl),
+      PERFETTO_TE_JAVA_ENCODING_LEGACY | PERFETTO_TE_JAVA_ENCODING_ENCODED);
+  legacy.StopBlocking();
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl),
+            PERFETTO_TE_JAVA_ENCODING_ENCODED);
+  encoded.StopBlocking();
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl), 0u);
+}
+
+TEST_F(SharedLibTrackEventTest, JavaEncodingUnknownModeUsesLegacy) {
+  auto session = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(12345)
+                     .Build();
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl),
+            PERFETTO_TE_JAVA_ENCODING_LEGACY);
+}
+
+TEST_F(SharedLibTrackEventTest, JavaEncodingDefaultUsesLegacy) {
+  auto session = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .Build();
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl),
+            PERFETTO_TE_JAVA_ENCODING_LEGACY);
+}
+
 TEST_F(SharedLibTrackEventTest, TrackEventCategoryCallback) {
   StrictMock<MockFunction<void(struct PerfettoTeCategoryImpl*,
                                PerfettoDsInstanceIndex, bool, bool)>>

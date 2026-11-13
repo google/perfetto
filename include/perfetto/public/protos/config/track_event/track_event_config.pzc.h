@@ -25,6 +25,15 @@
 
 #include "perfetto/public/pb_macros.h"
 
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackEventConfig, JavaEventEncoding){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEventConfig,
+                                  JAVA_EVENT_ENCODING_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEventConfig,
+                                  JAVA_EVENT_ENCODING_LEGACY) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackEventConfig,
+                                  JAVA_EVENT_ENCODING_ENCODED) = 2,
+};
+
 PERFETTO_PB_MSG(perfetto_protos_TrackEventConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
                   STRING,
@@ -76,5 +85,10 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
                   bool,
                   filter_dynamic_event_names,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
+                  VARINT,
+                  enum perfetto_protos_TrackEventConfig_JavaEventEncoding,
+                  experimental_java_event_encoding,
+                  11);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACK_EVENT_TRACK_EVENT_CONFIG_PZC_H_

@@ -96,6 +96,13 @@ static jboolean dev_perfetto_sdk_PerfettoTraceCategory_is_enabled(
   return category->is_category_enabled();
 }
 
+static jint dev_perfetto_sdk_PerfettoTraceCategory_get_encoding_modes(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  auto* category = toPointer<sdk_for_jni::Category>(ptr);
+  return static_cast<jint>(
+      PerfettoTeHlGetJavaEncodingModes(category->get()->impl));
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrace_start_session(
     JNIEnv* env,
     jclass /* obj */,
@@ -147,6 +154,8 @@ static const JNINativeMethod gCategoryMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTraceCategory_unregister},
     {"native_is_enabled", "(J)Z",
      (void*)dev_perfetto_sdk_PerfettoTraceCategory_is_enabled},
+    {"native_get_encoding_modes", "(J)I",
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_get_encoding_modes},
 };
 
 static const JNINativeMethod gTraceMethods[] = {

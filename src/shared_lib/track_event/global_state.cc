@@ -42,9 +42,39 @@ GlobalState::GlobalState() : interned_categories_(0) {
   perfetto_te_any_categories_enabled = &perfetto_te_any_categories->flag;
 }
 
+uint32_t GlobalState::JavaEncodingMode(
+    const perfetto::protos::gen::TrackEventConfig& config) {
+  using Config = perfetto::protos::gen::TrackEventConfig;
+  return config.experimental_java_event_encoding() ==
+                 Config::JAVA_EVENT_ENCODING_ENCODED
+             ? PERFETTO_TE_JAVA_ENCODING_ENCODED
+             : PERFETTO_TE_JAVA_ENCODING_LEGACY;
+}
+
+uint32_t GlobalState::GetJavaEncodingModes(
+    const PerfettoTeCategoryImpl* cat) const {
+  if (!cat)
+    return 0;
+  const uint8_t active = cat->instances.load(std::memory_order_relaxed);
+  const uint8_t encoded =
+      java_encoded_instances_.load(std::memory_order_relaxed);
+  uint32_t modes = 0;
+  if (active & encoded)
+    modes |= PERFETTO_TE_JAVA_ENCODING_ENCODED;
+  if (active & ~encoded)
+    modes |= PERFETTO_TE_JAVA_ENCODING_LEGACY;
+  return modes;
+}
+
 void GlobalState::OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                           uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
   std::lock_guard<std::mutex> lock(mu_);
+  const auto bit = static_cast<uint8_t>(1u << instance_id);
+  if (JavaEncodingMode(config) == PERFETTO_TE_JAVA_ENCODING_ENCODED)
+    java_encoded_instances_.fetch_or(bit, std::memory_order_relaxed);
+  else
+    java_encoded_instances_.fetch_and(static_cast<uint8_t>(~bit),
+                                      std::memory_order_relaxed);
   perfetto_te_any_categories->EnableInstance(instance_id);
   for (PerfettoTeCategoryImpl* cat : categories_) {
     if (IsRegisteredCategoryEnabled(*cat, config)) {
@@ -60,6 +90,8 @@ void GlobalState::OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
     cat->DisableInstance(instance_id);
   }
   perfetto_te_any_categories->DisableInstance(instance_id);
+  java_encoded_instances_.fetch_and(static_cast<uint8_t>(~(1u << instance_id)),
+                                    std::memory_order_relaxed);
   active_configs_.erase(instance_id);
 }
 
