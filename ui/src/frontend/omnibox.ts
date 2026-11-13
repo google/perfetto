@@ -31,6 +31,8 @@ import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
 import {Spinner} from '../widgets/spinner';
 import type {Command} from '../public/commands';
+import {withOwner} from '../base/owner_attribute';
+import {getOwner} from '../core/ownership';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
@@ -215,40 +217,45 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   private renderRegisteredMode(): m.Children {
     const omnibox = AppImpl.instance.omnibox;
     const desc = ensureExists(omnibox.activeRegisteredMode);
-    return m(OmniboxWidget, {
-      value: omnibox.text,
-      placeholder: desc.placeholder,
-      inputRef: OMNIBOX_INPUT_REF,
-      className: desc.className,
-      onInput: (value) => {
-        if (desc.onInput) {
-          desc.onInput(value);
-        } else {
-          omnibox.setText(value);
-        }
-      },
-      onSubmit: (value, alt) => {
-        desc.onSubmit(value, alt);
-      },
-      onClose: () => {
-        if (desc.onClose) {
-          desc.onClose();
-        } else {
-          omnibox.setText('');
-          if (this.omniboxInputEl) {
-            this.omniboxInputEl.blur();
+    // While a registered mode is active, the omnibox belongs to the plugin
+    // that registered the mode.
+    return withOwner(
+      getOwner(desc),
+      m(OmniboxWidget, {
+        value: omnibox.text,
+        placeholder: desc.placeholder,
+        inputRef: OMNIBOX_INPUT_REF,
+        className: desc.className,
+        onInput: (value) => {
+          if (desc.onInput) {
+            desc.onInput(value);
+          } else {
+            omnibox.setText(value);
           }
-          omnibox.reset();
-        }
-      },
-      onGoBack: () => {
-        if (desc.onGoBack) {
-          desc.onGoBack();
-        } else {
-          omnibox.reset();
-        }
-      },
-    });
+        },
+        onSubmit: (value, alt) => {
+          desc.onSubmit(value, alt);
+        },
+        onClose: () => {
+          if (desc.onClose) {
+            desc.onClose();
+          } else {
+            omnibox.setText('');
+            if (this.omniboxInputEl) {
+              this.omniboxInputEl.blur();
+            }
+            omnibox.reset();
+          }
+        },
+        onGoBack: () => {
+          if (desc.onGoBack) {
+            desc.onGoBack();
+          } else {
+            omnibox.reset();
+          }
+        },
+      }),
+    );
   }
 
   private renderSearchOmnibox(trace: TraceImpl | undefined): m.Children {
