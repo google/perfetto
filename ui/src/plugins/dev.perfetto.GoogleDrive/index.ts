@@ -19,7 +19,7 @@ import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {alertModal, showModal} from '../../widgets/modal';
-import {DriveClient, parseGDriveStateParam} from './google/drive_client';
+import {DriveClient} from './google/drive_client';
 import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
@@ -142,15 +142,11 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           return;
         }
 
-        // Ignore a 'state' param that is not a Drive "Open with" payload.
-        const parsed = parseGDriveStateParam(state);
-        if (!parsed.ok) return;
-
         openFileFromDeeplink(
           app,
           clients.oauth,
           clients.drive,
-          parsed.value,
+          state,
           hideAuthDialogSetting,
         );
       }

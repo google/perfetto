@@ -24,7 +24,6 @@ import {
 import type {
   DriveClient,
   DriveError,
-  GDriveOpenFileRequest,
   GoogleDriveFileMeta,
   PickerResult,
 } from '../google/drive_client';
@@ -48,10 +47,11 @@ const AUTHORIZE_PROMPT = 'GoogleDriveAuthNeeded';
 const TOKEN = 'token';
 const FILE_ID = 'file123';
 const RESOURCE_KEY = 'rk-1';
-const REQUEST: GDriveOpenFileRequest = {
-  fileId: FILE_ID,
-  resourceKey: RESOURCE_KEY,
-};
+const STATE = JSON.stringify({
+  ids: [FILE_ID],
+  action: 'open',
+  resourceKeys: {[FILE_ID]: RESOURCE_KEY},
+});
 const CONTENTS = new ArrayBuffer(8);
 const PICKED_FILE = {
   id: FILE_ID,
@@ -104,12 +104,12 @@ function setup(outcomes: Outcomes = {}) {
     async (args) => outcomes.prompts?.[args.key ?? ''] as never,
   );
 
-  const run = () =>
+  const run = (state = STATE) =>
     openFileFromDeeplink(
       {openTraceFromBuffer} as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {getMeta, openFile, requestFileAccess} as unknown as DriveClient,
-      REQUEST,
+      state,
       {get: () => outcomes.hideAuthDialog ?? false} as Setting<boolean>,
     );
 
@@ -150,14 +150,19 @@ describe('openFileFromDeeplink', () => {
       await t.run();
 
       expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
-        expect.objectContaining({buffer: CONTENTS, shareable: false}),
+        expect.objectContaining({
+          buffer: CONTENTS,
+          shareable: false,
+          // Records which Drive file the trace is, for "Share to GDrive".
+          pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE_ID}},
+        }),
       );
       expect(promptsShown()).toEqual([]);
       expect(t.requestFileAccess).not.toHaveBeenCalled();
       expectNoAlerts();
     });
 
-    test('downloads the requested file, with its resource key', async () => {
+    test('downloads the file named by the state, with its resource key', async () => {
       const t = setup();
       await t.run();
 
@@ -186,6 +191,22 @@ describe('openFileFromDeeplink', () => {
           title: 'Google Drive file',
         }),
       );
+      expectNoAlerts();
+    });
+  });
+
+  describe('an invalid state parameter', () => {
+    test.each([
+      ['not JSON', 'not-json'],
+      ['no file ID', JSON.stringify({ids: []})],
+      ['an unsafe file ID', JSON.stringify({ids: ['../secret']})],
+    ])('is ignored silently: %s', async (_name, state) => {
+      const t = setup();
+      await t.run(state);
+
+      expect(t.authenticate).not.toHaveBeenCalled();
+      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(promptsShown()).toEqual([]);
       expectNoAlerts();
     });
   });
