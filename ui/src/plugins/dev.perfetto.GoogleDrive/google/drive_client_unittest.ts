@@ -33,6 +33,8 @@ type PickerCallback = (data: google.picker.ResponseObject) => void;
 // would, by calling the callback it was built with.
 interface ShownPicker {
   readonly respond: PickerCallback;
+  // The file the picker was limited to, if any.
+  readonly fileIds?: string;
 }
 
 // Installs a stand-in for google.picker, and returns the list of pickers shown
@@ -47,13 +49,19 @@ function installFakePicker(
   const shown: ShownPicker[] = [];
 
   class DocsView {
+    fileIds?: string;
     setMode() {
+      return this;
+    }
+    setFileIds(fileIds: string) {
+      this.fileIds = fileIds;
       return this;
     }
   }
 
   class PickerBuilder {
     private callback: PickerCallback = () => {};
+    private view?: DocsView;
     setAppId() {
       return this;
     }
@@ -66,7 +74,8 @@ function installFakePicker(
     setOrigin() {
       return this;
     }
-    addView() {
+    addView(view: DocsView) {
+      this.view = view;
       return this;
     }
     setTitle() {
@@ -80,7 +89,7 @@ function installFakePicker(
       if (opts.buildThrows !== undefined) throw opts.buildThrows;
       return {
         setVisible: () => {
-          shown.push({respond: this.callback});
+          shown.push({respond: this.callback, fileIds: this.view?.fileIds});
         },
       };
     }
@@ -337,6 +346,104 @@ describe('DriveClient.openFile', () => {
     expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
     expect(request.url).not.toContain('secret-token');
   });
+
+  // The resource key is sent in a request header, so it is held to the same
+  // rules as a file ID.
+  test.each(['', 'a/b', 'abc\r\nX: y', 'abc def'])(
+    'rejects the invalid resource key %j without touching the network',
+    async (resourceKey) => {
+      const client = await createClient();
+      const result = await client.openFile('token', 'file123', resourceKey);
+
+      expect(result).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  test('sends a resource key to Drive alongside the file it is for', async () => {
+    const client = await createClient();
+    const result = await client.openFile('token', 'file123', 'rk-1');
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    expect(request.headers.get('X-Goog-Drive-Resource-Keys')).toBe(
+      'file123/rk-1',
+    );
+  });
+
+  test('sends no resource key header when there is no key', async () => {
+    const client = await createClient();
+    await client.openFile('token', 'file123');
+
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    expect(request.headers.has('X-Goog-Drive-Resource-Keys')).toBe(false);
+  });
+});
+
+describe('DriveClient.getMeta', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({name: 'my.pftrace'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("returns the file's name", async () => {
+    const client = await createClient();
+    const result = await client.getMeta('token', 'file123');
+
+    expect(result).toEqual({ok: true, value: {name: 'my.pftrace'}});
+  });
+
+  test.each([
+    ['has no name', Response.json({})],
+    ['has a name that is not a string', Response.json({name: 42})],
+    ['is not JSON', new Response('<html>')],
+  ])('reports an error if the response %s', async (_name, response) => {
+    fetchMock.mockResolvedValue(response);
+    const client = await createClient();
+    const result = await client.getMeta('token', 'file123');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
+  });
+
+  test.each([403, 404])('reports HTTP %i as access denied', async (status) => {
+    fetchMock.mockResolvedValue(new Response(null, {status}));
+    const client = await createClient();
+    const result = await client.getMeta('token', 'file123');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
+
+  test('reports a network failure as an error, without rejecting', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const client = await createClient();
+    const result = await client.getMeta('token', 'file123');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
+  });
+
+  test.each([
+    ['file ID', '../other', undefined],
+    ['resource key', 'file123', 'a/b'],
+  ])(
+    'rejects an invalid %s without touching the network',
+    async (_name, fileId, resourceKey) => {
+      const client = await createClient();
+      const result = await client.getMeta('token', fileId, resourceKey);
+
+      expect(result).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('DriveClient.pickFile', () => {
@@ -438,4 +545,48 @@ describe('DriveClient.pickFile', () => {
       latest(shown).respond({action: 'picked'});
     }).toThrow();
   });
+});
+
+describe('DriveClient.requestFileAccess', () => {
+  const FILE = {id: 'file123', name: 'my.pftrace'};
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('shows a picker limited to the file, and returns it once picked', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const pending = client.requestFileAccess('token', 'file123');
+
+    expect(shown).toHaveLength(1);
+    expect(latest(shown).fileIds).toBe('file123');
+
+    latest(shown).respond({action: 'picked', docs: [FILE]});
+    expect(await pending).toEqual({ok: true, value: FILE});
+  });
+
+  test('reports a cancellation if the user closes the picker', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const pending = client.requestFileAccess('token', 'file123');
+    latest(shown).respond({action: 'cancel'});
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: {type: 'cancelled'},
+    });
+  });
+
+  test.each(['', '../other', 'abc/def', 'abc def'])(
+    'rejects the invalid file ID %j without showing a picker',
+    async (fileId) => {
+      const shown = installFakePicker();
+      const client = await createClient();
+      const result = await client.requestFileAccess('token', fileId);
+
+      expect(result).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+      expect(shown).toHaveLength(0);
+    },
+  );
 });

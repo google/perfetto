@@ -137,13 +137,10 @@ function expectNoAlerts() {
 describe('openFileFromDeeplink', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // The flow warns when the file's name cannot be looked up.
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
     history.replaceState(null, '', '/?state=abc&other=1');
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     history.replaceState(null, '', '/');
   });
 

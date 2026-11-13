@@ -105,7 +105,7 @@ export class DriveClient {
     return new DriveClient(config);
   }
 
-  // Request access to a specific file by ID via the picker API. Never rejects.
+  // Request access to a specific file by ID via the picker API.
   async requestFileAccess(
     oauthToken: string,
     fileId: string,
