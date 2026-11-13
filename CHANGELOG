@@ -10,6 +10,10 @@ Unreleased:
      and `authoritative_trigger` packets, reporting the effective trigger
      mode of the session.
   Trace Processor:
+   * Fixed `android.cujs` jank CUJ frame metrics (e.g.
+     `android_jank_cuj_slice_summary`, `android_jank_cuj` timeline metrics)
+     counting frames that do not overlap with the CUJ, e.g. frames that
+     finished before the CUJ started when the CUJ's `FT#beginVsync` is stale.
    * The `trace_trigger` metadata is now taken from the
      `authoritative_trigger` packet, when present. Older traces fall back on
      the previous logic.
