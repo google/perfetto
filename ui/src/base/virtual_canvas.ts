@@ -77,7 +77,6 @@ export class VirtualCanvas implements Disposable {
   private _viewportLimits: Rect2D;
   private _layoutShiftListener?: LayoutShiftListener;
   private _canvasResizeListener?: CanvasResizeListener;
-  private _dpr?: number;
 
   /**
    * @param targetElement The element to turn into a virtual canvas. The
@@ -134,9 +133,7 @@ export class VirtualCanvas implements Disposable {
       }
     };
 
-    const updateCanvas = () => {
-      let repaintRequired = false;
-
+    const updateCanvasSizeAndPosition = () => {
       const viewport = getViewportRect();
       this._viewportRect = viewport;
       const canvasRect = getCanvasRect(viewport);
@@ -145,20 +142,11 @@ export class VirtualCanvas implements Disposable {
 
       if (
         canvasRectPrev.width !== canvasRect.width ||
-        canvasRectPrev.height !== canvasRect.height ||
-        devicePixelRatio !== this._dpr
+        canvasRectPrev.height !== canvasRect.height
       ) {
-        this._dpr = devicePixelRatio;
-
         // Canvas needs to change size, update its size
         canvas.style.width = `${canvasRect.width}px`;
         canvas.style.height = `${canvasRect.height}px`;
-        this._canvasResizeListener?.(
-          canvas,
-          canvasRect.width,
-          canvasRect.height,
-        );
-        repaintRequired = true;
       }
 
       if (
@@ -167,22 +155,22 @@ export class VirtualCanvas implements Disposable {
       ) {
         // Canvas needs to move, update the transform
         canvas.style.transform = `translate(${canvasRect.left}px, ${canvasRect.top}px)`;
-        repaintRequired = true;
       }
-
-      repaintRequired && this._layoutShiftListener?.(canvas, canvasRect);
     };
 
-    containerElement.addEventListener('scroll', updateCanvas, {
+    containerElement.addEventListener('scroll', updateCanvasSizeAndPosition, {
       passive: true,
     });
     this._trash.defer(() =>
-      containerElement.removeEventListener('scroll', updateCanvas),
+      containerElement.removeEventListener(
+        'scroll',
+        updateCanvasSizeAndPosition,
+      ),
     );
 
     // Resize observer callbacks are called once immediately after registration
     const resizeObserver = new ResizeObserver((_cb) => {
-      updateCanvas();
+      updateCanvasSizeAndPosition();
     });
 
     resizeObserver.observe(containerElement);
@@ -199,6 +187,18 @@ export class VirtualCanvas implements Disposable {
     targetElement.appendChild(canvas);
     this._trash.defer(() => {
       targetElement.removeChild(canvas);
+    });
+
+    const canvasObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const size = entry.devicePixelContentBoxSize[0]!;
+        canvas.width = size.inlineSize;
+        canvas.height = size.blockSize;
+      }
+    });
+    canvasObserver.observe(canvas, {box: 'device-pixel-content-box'});
+    this._trash.defer(() => {
+      canvasObserver.disconnect();
     });
 
     this._canvasElement = canvas;
