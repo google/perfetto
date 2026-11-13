@@ -21,6 +21,14 @@ vi.mock('../../../base/dom_utils', () => ({loadScript: vi.fn()}));
 const SCOPE_A = 'https://example.com/auth/a';
 const SCOPE_B = 'https://example.com/auth/b';
 
+// The part of window.google that Google Identity Services provides. Other
+// Google libraries add to window.google too, so the tests set it through this
+// narrower type.
+interface GisWindow {
+  google?: {accounts?: {oauth2?: GisOauth2}};
+}
+const gisWindow: GisWindow = window;
+
 // One request to show Google's popup, and the callbacks to answer it with.
 interface PopupRequest {
   readonly scope: string;
@@ -37,7 +45,7 @@ interface PopupRequest {
 // response's space separated `scope`.
 function installFakeGis(): PopupRequest[] {
   const popups: PopupRequest[] = [];
-  window.google = {
+  gisWindow.google = {
     accounts: {
       oauth2: {
         initTokenClient: (params) => ({
@@ -91,13 +99,13 @@ describe('GoogleOAuthClient', () => {
   });
 
   afterEach(() => {
-    window.google = undefined;
+    gisWindow.google = undefined;
     vi.useRealTimers();
   });
 
   describe('create', () => {
     test('rejects if Google Identity Services did not load', async () => {
-      window.google = undefined;
+      gisWindow.google = undefined;
       await expect(createClient()).rejects.toThrow();
     });
   });
@@ -307,7 +315,7 @@ describe('GoogleOAuthClient', () => {
 
       test('reports rather than rejects if Google throws', async () => {
         const failure = new Error('boom');
-        window.google = {
+        gisWindow.google = {
           accounts: {
             oauth2: {
               initTokenClient: () => {
