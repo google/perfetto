@@ -149,6 +149,25 @@ TEST_F(AllocatorTest, BytesAllocationRespectsMemoryLimit) {
   ASSERT_EQ(allocator_.GetMemoryUsageBytes(), 0u);
 }
 
+TEST_F(AllocatorTest, DeleteReferencedDataResetsBytesSize) {
+  auto payload = std::vector<std::uint8_t>(32, 0xab);
+  auto copy = allocator_.AllocateAndCopyBytes(
+      protozero::ConstBytes{payload.data(), payload.size()});
+  ASSERT_TRUE(copy.IsOk());
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), payload.size());
+
+  auto node = Node{std::move(*copy)};
+  allocator_.DeleteReferencedData(&node);
+  ASSERT_EQ(node.GetIf<Node::Bytes>()->data.get(), nullptr);
+  ASSERT_EQ(node.GetIf<Node::Bytes>()->size, 0u);
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), 0u);
+
+  // Calling DeleteReferencedData again on the emptied Bytes node is a safe
+  // no-op and does not underflow memory usage tracking.
+  allocator_.DeleteReferencedData(&node);
+  ASSERT_EQ(allocator_.GetMemoryUsageBytes(), 0u);
+}
+
 }  // namespace test
 }  // namespace protovm
 }  // namespace perfetto
