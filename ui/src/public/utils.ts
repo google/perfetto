@@ -22,7 +22,7 @@ import type {Trace} from './trace';
 export const DISCORD_URL = 'https://discord.gg/35ShE3A';
 
 export function getBugReportUrl(app: App): string {
-  return app.isInternalUser
+  return app.policy.useInternalBugLinks
     ? 'https://goto.google.com/perfetto-ui-bug'
     : 'https://github.com/google/perfetto/issues/new';
 }

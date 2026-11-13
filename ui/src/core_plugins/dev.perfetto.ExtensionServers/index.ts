@@ -72,8 +72,6 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
     if (embedder) {
       const isInternal = embedder.manifest.then((r) => r.ok);
 
-      // TODO(lalitm): break up isInternalUser into a bunch of smaller things
-      // based on where this is used.
       ctx.setIsInternalUser(isInternal);
 
       // TODO(lalitm): ideally this dimension *comes* from the extension server

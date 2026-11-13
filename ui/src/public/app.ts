@@ -18,6 +18,7 @@ import type {FeatureFlagManager} from './feature_flag';
 import type {OmniboxManager} from './omnibox';
 import type {PageManager} from './page';
 import type {PluginManager} from './plugin';
+import type {Policy} from './policy';
 import type {Raf} from './raf';
 import type {RouteArgs} from './route_schema';
 import type {SettingsManager} from './settings';
@@ -82,10 +83,10 @@ export interface App {
    */
   readonly sidePanel: SidePanelManager;
 
-  // True if the current user is an 'internal' user. E.g. a Googler on
-  // ui.perfetto.dev. Plugins might use this to determine whether to show
-  // certain internal links or expose certain experimental features by default.
-  readonly isInternalUser: boolean;
+  /**
+   * Which additional features are on for the current user.
+   */
+  readonly policy: Policy;
 
   /**
    * Navigate to a new page.

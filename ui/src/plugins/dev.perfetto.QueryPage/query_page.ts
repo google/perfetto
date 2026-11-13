@@ -244,7 +244,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             title: 'Auto-format the SQL query',
             onclick: () => this.formatSql(attrs, tab.id, tab.editorText),
           }),
-          trace.isInternalUser &&
+          trace.policy.enableSqlAgent &&
             m(Button, {
               icon: 'wand_stars',
               title:
@@ -384,7 +384,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {
     return (
-      attrs.trace.isInternalUser &&
+      attrs.trace.policy.enableSqlAgent &&
       localStorage.getItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY) !== 'true'
     );
   }

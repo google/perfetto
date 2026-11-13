@@ -175,8 +175,8 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
       return;
     }
 
-    // If the user is not a googler, don't even offer the option to upload it.
-    if (!AppImpl.instance.isInternalUser) return;
+    // Only offer to upload the trace if the policy allows it.
+    if (!AppImpl.instance.policy.enableErrorTraceUpload) return;
 
     if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
@@ -456,7 +456,7 @@ function extractTraceParseDetails(message: string): string {
 // "If you think this is a Perfetto bug, please file a bug <attaching>."
 // pointing at go/perfetto-bug for internal users, GitHub issues otherwise.
 function fileBugNote(attaching: string): m.Children {
-  const bugUrl = AppImpl.instance.isInternalUser
+  const bugUrl = AppImpl.instance.policy.useInternalBugLinks
     ? 'http://go/perfetto-bug'
     : 'https://github.com/google/perfetto/issues';
   return m(
