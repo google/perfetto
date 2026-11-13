@@ -40,6 +40,7 @@ import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import type {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
+import {CORE_OWNER} from '../core/ownership';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
@@ -380,8 +381,13 @@ function onCssLoaded(app: AppImpl) {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-  const pages = app.pages;
-  pages.registerPage({route: '/', render: () => m(HomePage)});
+  // Plugins register pages through a proxy that sets pluginId. Core
+  // registers the home page itself, so it names its owner here.
+  app.pages.registerPage({
+    route: '/',
+    render: () => m(HomePage),
+    pluginId: CORE_OWNER,
+  });
   const router = new Router();
   router.onRouteChanged = routeChange;
 
