@@ -799,6 +799,43 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java(
   StringBuffer::reset();
 }
 
+// The owner is a JNI local reference, so its non-moving storage stays alive
+// through this synchronous call even if the writer allocates, locks or flushes.
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java_direct(
+    JNIEnv* env,
+    jclass,
+    jint type,
+    jlong cat_ptr,
+    jint modes,
+    jlong legacy_extra_ptr,
+    jlong track_ptr,
+    jbyteArray owner,
+    jlong address,
+    jint size,
+    jint fields_size,
+    jint name_size,
+    jint slots_offset,
+    jint slot_count) {
+  if ((modes & PERFETTO_TE_JAVA_ENCODING_ENCODED) == 0 || !owner || !address) {
+    jniThrowException(env, "java/lang/IllegalArgumentException",
+                      "Invalid direct encoded event storage");
+    return;
+  }
+  if (!ValidateJavaEventLayout(env, size, fields_size, name_size, slots_offset,
+                               slot_count)) {
+    return;
+  }
+  if (size > env->GetArrayLength(owner)) {
+    jniThrowException(env, "java/lang/IllegalArgumentException",
+                      "Direct encoded event exceeds its array");
+    return;
+  }
+  EmitJavaEvent(env, type, cat_ptr, modes, legacy_extra_ptr, track_ptr,
+                toPointer<const uint8_t>(address), fields_size, name_size,
+                slots_offset, slot_count);
+  StringBuffer::reset();
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init(
     PERFETTO_JNI_HOST_PARAMS) {
   return toJLong(new sdk_for_jni::Proto());
@@ -840,7 +877,9 @@ static const JNINativeMethod gExtraMethods[] = {
     {"native_emit", "(IJLjava/lang/String;J)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit},
     {"native_emit_java", "(IJIJJLjava/lang/String;[BIIIII)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java},
+    {"native_emit_java_direct", "(IJIJJ[BJIIIII)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java_direct}};
 
 static const JNINativeMethod gProtoMethods[] = {
     {"native_init", "()J",
