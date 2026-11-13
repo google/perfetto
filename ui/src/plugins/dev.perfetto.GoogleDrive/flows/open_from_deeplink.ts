@@ -76,12 +76,6 @@ export async function openFileFromDeeplink(
     drive.getMeta(oauthToken, fileId, resourceKey),
     drive.openFile(oauthToken, fileId, resourceKey),
   ]);
-  if (!fileMetaResult.ok && fileMetaResult.error.type !== 'access_denied') {
-    console.warn(
-      'Failed to fetch Google Drive file metadata',
-      fileMetaResult.error,
-    );
-  }
   let fileName = fileMetaResult.ok ? fileMetaResult.value.name : undefined;
   let fileDownloadResult = initialDownloadResult;
 
