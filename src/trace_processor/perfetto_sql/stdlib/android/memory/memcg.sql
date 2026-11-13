@@ -220,3 +220,118 @@ FROM _android_memcg_intervals!(
       c.track_id IN (SELECT id FROM android_memcg_track)
   )
 );
+
+-- The intervals of the inputs of `android_memcg_derived_intervals`, with
+-- limits set to "max" as NULL.
+CREATE PERFETTO TABLE _android_memcg_derived_input AS
+SELECT cgroup_key, key, ts, dur, value
+FROM _android_memcg_intervals!(
+  (
+    SELECT c.id, c.ts, c.track_id, c.value
+    FROM counter AS c
+    WHERE
+      c.track_id IN (
+        SELECT id
+        FROM android_memcg_track
+        WHERE
+          key IN ('current', 'high', 'stat.file', 'stat.shmem')
+      )
+  )
+);
+
+-- Intersections, not unions: a derived value only exists while both of its
+-- inputs have a value. A cgroup missing an input has no derived intervals,
+-- and a NULL headroom always means that `high` is "max", never that one of the
+-- inputs wasn't recorded (yet).
+CREATE PERFETTO TABLE _android_memcg_file_shmem AS
+INTERVAL INTERSECTION OF (
+  (
+    SELECT cgroup_key, ts, dur, value
+    FROM _android_memcg_derived_input
+    WHERE
+      key = 'stat.file'
+  ) AS file,
+  (
+    SELECT cgroup_key, ts, dur, value
+    FROM _android_memcg_derived_input
+    WHERE
+      key = 'stat.shmem'
+  ) AS shmem
+) PER cgroup_key
+|> SELECT ts, dur, cgroup_key, file.value AS file, shmem.value AS shmem;
+
+CREATE PERFETTO TABLE _android_memcg_high_current AS
+INTERVAL INTERSECTION OF (
+  (
+    SELECT cgroup_key, ts, dur, value
+    FROM _android_memcg_derived_input
+    WHERE
+      key = 'high'
+  ) AS high,
+  (
+    SELECT cgroup_key, ts, dur, value
+    FROM _android_memcg_derived_input
+    WHERE
+      key = 'current'
+  ) AS current
+) PER cgroup_key
+|> SELECT ts, dur, cgroup_key, high.value AS high, current.value AS current;
+
+-- Series derived from the memcg values of `android_memcg_intervals`, as
+-- intervals, for the cgroups that have both inputs of a series:
+-- - 'file_excl_shmem': the file memory that isn't shmem,
+--   `max(0, stat.file - stat.shmem)` (`stat.file` includes `stat.shmem`).
+-- - 'headroom': how far the memory usage is below the `high` limit,
+--   `high - current`. Negative while over the limit, NULL while `high` is
+--   "max".
+-- The intervals start whenever either input changes.
+CREATE PERFETTO TABLE android_memcg_derived_intervals(
+  -- An integer that identifies the cgroup, see `android_memcg_track`.
+  cgroup_key LONG,
+  -- Level of the cgroup: 'process', 'uid' or 'group'.
+  level STRING,
+  -- The top-level cgroup: 'apps' or 'system'.
+  memcg_group STRING,
+  -- The uid of the cgroup. NULL for the top-level cgroups.
+  uid LONG,
+  -- The process of the cgroup. NULL unless `level` is 'process'.
+  upid JOINID(process.id),
+  -- The series: 'file_excl_shmem' or 'headroom'.
+  key STRING,
+  -- Start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- The value of the series during the interval, in bytes.
+  value DOUBLE
+)
+AS
+WITH
+  cgroups AS (
+    SELECT DISTINCT cgroup_key, level, memcg_group, uid, upid
+    FROM android_memcg_track
+  ),
+  derived AS (
+    SELECT
+      cgroup_key,
+      'file_excl_shmem' AS key,
+      ts,
+      dur,
+      max(0, file - shmem) AS value
+    FROM _android_memcg_file_shmem
+    UNION ALL
+    SELECT cgroup_key, 'headroom' AS key, ts, dur, high - current AS value
+    FROM _android_memcg_high_current
+  )
+SELECT
+  c.cgroup_key,
+  c.level,
+  c.memcg_group,
+  c.uid,
+  c.upid,
+  d.key,
+  d.ts,
+  d.dur,
+  d.value
+FROM derived AS d
+JOIN cgroups AS c USING (cgroup_key);
