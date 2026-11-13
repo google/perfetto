@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {errResult, okResult, type Result} from '../../base/result';
-import type {App} from '../../public/app';
+import {errResult, okResult, type Result} from '../../../base/result';
+import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
-} from './dialogs';
+} from '../dialogs';
 import type {
   DriveError,
   DriveClient,
   PickerResult,
-} from './google/drive_client';
-import type {AuthError, GoogleOAuthClient} from './google/oauth_client';
+} from '../google/drive_client';
+import type {AuthError, GoogleOAuthClient} from '../google/oauth_client';
 import {openFileFromSidebar} from './open_from_sidebar';
 
 // The dialogs are replaced wholesale: the flow only decides which one to show.

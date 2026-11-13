@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {App} from '../../public/app';
+import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
-} from './dialogs';
-import type {DriveClient} from './google/drive_client';
-import type {GoogleOAuthClient} from './google/oauth_client';
+} from '../dialogs';
+import type {DriveClient} from '../google/drive_client';
+import type {GoogleOAuthClient} from '../google/oauth_client';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 

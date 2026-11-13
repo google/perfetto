@@ -21,7 +21,7 @@ import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
 import {alertModal} from '../../widgets/modal';
-import {openFileFromSidebar} from './open_from_sidebar';
+import {openFileFromSidebar} from './flows/open_from_sidebar';
 
 export interface GDriveClients {
   readonly oauth: GoogleOAuthClient;
@@ -74,7 +74,6 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
       text: 'Open from GDrive',
       icon: 'drive_export',
       badge: 'preview',
-      // Just below "Open trace file".
       sortOrder: 1.25,
       // Disabled until everything it needs has loaded. This is a callback as
       // that only happens some time after startup.
