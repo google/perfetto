@@ -28,7 +28,7 @@ import type {AuthError, GoogleOAuthClient} from '../google/oauth_client';
 import {openFileFromSidebar} from './open_from_sidebar';
 
 // The dialogs are replaced wholesale: the flow only decides which one to show.
-vi.mock('./dialogs', () => ({
+vi.mock('../dialogs', () => ({
   alertConnectFailed: vi.fn(),
   alertPickerFailed: vi.fn(),
   alertDownloadFailed: vi.fn(),
