@@ -634,6 +634,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit(JNIEnv* env,
 // Keep the record format in sync with PerfettoEncodedEvent.
 constexpr size_t kJavaIidRecordSize = PERFETTO_TE_HL_IID_SLOT_RECORD_SIZE;
 constexpr size_t kMaxJavaEventSize = PERFETTO_TE_HL_MAX_ENCODED_EVENT_SIZE;
+constexpr uint8_t kEmptyJavaEventByte = 0;
 
 // The C ABI consumes a null-terminated list. The Java builder owns the entries,
 // but stores no terminator while it is being populated.
@@ -777,25 +778,29 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java(
                                slot_count)) {
     return;
   }
-  if (!buffer || size > env->GetArrayLength(buffer)) {
-    jniThrowException(env, "java/lang/IllegalArgumentException",
-                      "Encoded event exceeds its array");
-    return;
-  }
   // Never hold a JVM critical-array pin across the tracing call: writers can
   // allocate and lock. The portable transport owns a copy until emission ends.
   std::array<uint8_t, 1024> local_bytes;
   std::vector<uint8_t> large_bytes;
   uint8_t* bytes = local_bytes.data();
-  if (static_cast<size_t>(size) > local_bytes.size()) {
-    large_bytes.resize(static_cast<size_t>(size));
-    bytes = large_bytes.data();
+  if (size != 0) {
+    if (!buffer || size > env->GetArrayLength(buffer)) {
+      jniThrowException(env, "java/lang/IllegalArgumentException",
+                        "Encoded event exceeds its array");
+      return;
+    }
+    if (static_cast<size_t>(size) > local_bytes.size()) {
+      large_bytes.resize(static_cast<size_t>(size));
+      bytes = large_bytes.data();
+    }
+    env->GetByteArrayRegion(buffer, 0, size, reinterpret_cast<jbyte*>(bytes));
+    if (env->ExceptionCheck())
+      return;
   }
-  env->GetByteArrayRegion(buffer, 0, size, reinterpret_cast<jbyte*>(bytes));
-  if (env->ExceptionCheck())
-    return;
-  EmitJavaEvent(env, type, cat_ptr, modes, legacy_extra_ptr, track_ptr, bytes,
-                fields_size, name_size, slots_offset, slot_count);
+  // Empty fields still need the ordinary session, timestamp and track path.
+  EmitJavaEvent(env, type, cat_ptr, modes, legacy_extra_ptr, track_ptr,
+                size ? bytes : &kEmptyJavaEventByte, fields_size, name_size,
+                slots_offset, slot_count);
   StringBuffer::reset();
 }
 
@@ -816,7 +821,7 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java_direct(
     jint name_size,
     jint slots_offset,
     jint slot_count) {
-  if ((modes & PERFETTO_TE_JAVA_ENCODING_ENCODED) == 0 || !owner || !address) {
+  if ((modes & PERFETTO_TE_JAVA_ENCODING_ENCODED) == 0) {
     jniThrowException(env, "java/lang/IllegalArgumentException",
                       "Invalid direct encoded event storage");
     return;
@@ -825,14 +830,14 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_java_direct(
                                slot_count)) {
     return;
   }
-  if (size > env->GetArrayLength(owner)) {
+  if (size != 0 && (!owner || !address || size > env->GetArrayLength(owner))) {
     jniThrowException(env, "java/lang/IllegalArgumentException",
                       "Direct encoded event exceeds its array");
     return;
   }
   EmitJavaEvent(env, type, cat_ptr, modes, legacy_extra_ptr, track_ptr,
-                toPointer<const uint8_t>(address), fields_size, name_size,
-                slots_offset, slot_count);
+                size ? toPointer<const uint8_t>(address) : &kEmptyJavaEventByte,
+                fields_size, name_size, slots_offset, slot_count);
   StringBuffer::reset();
 }
 
