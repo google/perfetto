@@ -203,7 +203,7 @@ function getCurrentTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
     ? false
     : 'Cannot download external trace';
 
-  if (AppImpl.instance.isInternalUser) {
+  if (AppImpl.instance.policy.enableTraceSharing) {
     items.push({
       id: 'perfetto.ShareTrace',
       section: 'current_trace',

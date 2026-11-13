@@ -88,11 +88,6 @@ export interface App {
    */
   readonly policy: Policy;
 
-  // True if the current user is an 'internal' user. E.g. a Googler on
-  // ui.perfetto.dev. Plugins might use this to determine whether to show
-  // certain internal links or expose certain experimental features by default.
-  readonly isInternalUser: boolean;
-
   /**
    * Navigate to a new page.
    */

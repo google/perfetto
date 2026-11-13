@@ -152,7 +152,6 @@ export class AppImpl implements App {
   readonly timezoneOverride: Setting<string>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
-  private _isInternalUser?: boolean;
   private _policy?: Policy;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
@@ -202,13 +201,6 @@ export class AppImpl implements App {
     }
   }
 
-  get isInternalUser() {
-    if (this._isInternalUser === undefined) {
-      this._isInternalUser = localStorage.getItem(IS_INTERNAL_USER_KEY) === '1';
-    }
-    return this._isInternalUser;
-  }
-
   get policy(): Policy {
     // Until setIsInternalUser() gets this visit's answer, use the one saved on
     // the previous visit.
@@ -222,7 +214,6 @@ export class AppImpl implements App {
 
   setIsInternalUser(promise: Promise<boolean>) {
     promise.then((value) => {
-      this._isInternalUser = value;
       this._policy = derivePolicy(value);
       localStorage.setItem(IS_INTERNAL_USER_KEY, value ? '1' : '0');
       raf.scheduleFullRedraw();
