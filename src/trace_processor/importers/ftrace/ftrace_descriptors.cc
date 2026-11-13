@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 620> descriptors{{
+std::array<FtraceMessageDescriptor, 622> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3821,7 +3821,7 @@ std::array<FtraceMessageDescriptor, 620> descriptors{{
     },
     {
         "sde_sde_evtlog",
-        18,
+        23,
         {
             {},
             {"evtlog_tag", ProtoSchemaType::kString},
@@ -3842,6 +3842,11 @@ std::array<FtraceMessageDescriptor, 620> descriptors{{
             {"d12", ProtoSchemaType::kUint32},
             {"d13", ProtoSchemaType::kUint32},
             {"d14", ProtoSchemaType::kUint32},
+            {"d010", ProtoSchemaType::kUint32},
+            {"d011", ProtoSchemaType::kUint32},
+            {"d012", ProtoSchemaType::kUint32},
+            {"d013", ProtoSchemaType::kUint32},
+            {"d014", ProtoSchemaType::kUint32},
         },
     },
     {
@@ -6918,6 +6923,23 @@ std::array<FtraceMessageDescriptor, 620> descriptors{{
             {},
             {"track_name", ProtoSchemaType::kString},
             {"counter_value", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "hypervisor_func",
+        2,
+        {
+            {},
+            {"ip", ProtoSchemaType::kUint64},
+            {"parent", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "hypervisor_func_ret",
+        1,
+        {
+            {},
+            {"ip", ProtoSchemaType::kUint64},
         },
     },
 }};

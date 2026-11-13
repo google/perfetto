@@ -37,7 +37,8 @@ class PkvmHypervisorCpuTracker {
   void ParseHypEvent(uint32_t cput,
                      int64_t timestamp,
                      uint32_t event_id,
-                     protozero::ConstBytes blob);
+                     protozero::ConstBytes blob,
+                     std::function<StringId(uint64_t)> ksym_resolve);
 
  private:
   void ParseHypEnter(uint32_t cpu, int64_t timestamp);
@@ -50,6 +51,13 @@ class PkvmHypervisorCpuTracker {
   void ParsePsciMemProtect(uint32_t cpu, protozero::ConstBytes blob);
   void ParseIommuIdmapComplete(uint32_t cpu, protozero::ConstBytes blob);
   void ParseVcuIllegalTrap(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseFunc(uint32_t cpu,
+                 int64_t timestamp,
+                 protozero::ConstBytes blob,
+                 std::function<StringId(uint64_t)> ksym_resolve);
+  void ParseFuncRet(uint32_t cpu, int64_t timestamp);
+
+  StringId StripSymPrefix(StringId id);
 
   TraceProcessorContext* context_;
   const StringId category_;
@@ -77,6 +85,8 @@ class PkvmHypervisorCpuTracker {
   const StringId forwarded_;
   const StringId host_mem_abort_;
   const StringId addr_;
+  const StringId ip_;
+  const StringId parent_;
 };
 
 }  // namespace trace_processor

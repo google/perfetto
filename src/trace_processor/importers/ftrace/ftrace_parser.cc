@@ -97,6 +97,7 @@
 #include "protos/perfetto/trace/ftrace/google_icc_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/google_irm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
+#include "protos/perfetto/trace/ftrace/hypervisor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
@@ -150,7 +151,7 @@ struct FtraceEventAndFieldId {
 // TODO(lalitm): going through this array is O(n) on a hot-path (see
 // ParseTypedFtraceToRaw). Consider changing this if we end up adding a lot of
 // events here.
-constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 9>{
+constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 12>{
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
         protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber},
@@ -177,7 +178,16 @@ constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 9>{
         protos::pbzero::MmShrinkSlabStartFtraceEvent::kShrinkFieldNumber},
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kHrtimerExpireEntryFieldNumber,
-        protos::pbzero::HrtimerExpireEntryFtraceEvent::kFunctionFieldNumber}};
+        protos::pbzero::HrtimerExpireEntryFtraceEvent::kFunctionFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kHypervisorFuncFieldNumber,
+        protos::pbzero::HypervisorFuncFtraceEvent::kIpFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kHypervisorFuncFieldNumber,
+        protos::pbzero::HypervisorFuncFtraceEvent::kParentFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kHypervisorFuncRetFieldNumber,
+        protos::pbzero::HypervisorFuncRetFtraceEvent::kIpFieldNumber}};
 
 std::string GetUfsCmdString(uint32_t ufsopcode, uint32_t gid) {
   std::string buffer;
@@ -919,7 +929,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     }
 
     if (PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(fld.id())) {
-      pkvm_hyp_cpu_tracker_.ParseHypEvent(cpu, ts, fld.id(), fld_bytes);
+      pkvm_hyp_cpu_tracker_.ParseHypEvent(
+          cpu, ts, fld.id(), fld_bytes, [&](uint64_t key) {
+            return InternedKernelSymbolOrFallback(key, seq_state);
+          });
     }
 
     switch (fld.id()) {

@@ -613,3 +613,5 @@ pixel_metrics/long_irq
 pixel_metrics/long_softirq
 gti/gti_field_slice
 gti/gti_field_counter
+hypervisor/func
+hypervisor/func_ret
