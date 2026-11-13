@@ -67,21 +67,10 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
     // Kick off embedder extension server manifest fetch eagerly.
     const embedder = loadEmbedderExtServer(ctx);
 
-    // These must run synchronously during onActivate (before
-    // analytics.initialize()) so the dimensions are registered in time.
+    // This must run synchronously during onActivate (before
+    // analytics.initialize()), so that analytics gets the answer in time.
     if (embedder) {
-      const isInternal = embedder.manifest.then((r) => r.ok);
-
-      ctx.setIsInternalUser(isInternal);
-
-      // TODO(lalitm): ideally this dimension *comes* from the extension server
-      // or embedder code rather than being baked in here.
-      ctx.analytics.addDimension(
-        isInternal.then((v) => ({
-          key: 'perfetto_is_internal_user',
-          value: v ? '1' : '0',
-        })),
-      );
+      ctx.setIsInternalUser(embedder.manifest.then((r) => r.ok));
     }
 
     maybeAddExtServerFromUrl(setting, args).then(async () => {
