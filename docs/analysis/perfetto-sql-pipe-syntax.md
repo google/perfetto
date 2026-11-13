@@ -294,7 +294,14 @@ Diagram(Choice(0,
   must be a string literal, and `<expr>` a string.
 - `<expr> IS [NOT] NULL`, which gives 0 or 1.
 
-Anything else, such as `AND` or calling a function, is not supported yet.
+- `coalesce(<expr>, <expr>, ...)`, `ifnull(<expr>, <expr>)` and
+  `iif(<condition>, <expr>, <expr>)`. Their results must have one type: mixing an
+  integer and a double is an error rather than a widening, so write `1.0` rather
+  than `1`. `NULL` goes with any type. Integer arithmetic in an argument which only
+  some rows use is an error, as it could overflow on rows SQLite never computes it
+  for. A condition is true if it is a number other than zero.
+
+Anything else, such as `AND` or calling another function, is not supported yet.
 
 ---
 
