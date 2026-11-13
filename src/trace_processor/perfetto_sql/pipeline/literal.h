@@ -23,7 +23,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 
 namespace perfetto::trace_processor {
 class StringPool;
@@ -34,18 +34,27 @@ namespace perfetto::trace_processor::pipeline {
 class Compiler;
 class PlanCodec;
 
-// A value written in a query: a number or a string. Unlike a filter value,
-// which a run binds, a literal is part of the plan and never changes.
+// A value written in a query: a number, a string, or a bound param, which
+// stands for one of the values a run binds.
 struct Literal {
-  enum class Type : uint8_t { kInt64, kDouble, kString };
+  enum class Type : uint8_t { kInt64, kDouble, kString, kBound };
+
+  static Literal Bound(uint32_t index) {
+    Literal literal;
+    literal.type = Type::kBound;
+    literal.bound = index;
+    return literal;
+  }
 
   bool is_double() const { return type == Type::kDouble; }
   bool is_string() const { return type == Type::kString; }
+  bool is_bound() const { return type == Type::kBound; }
 
   Type type = Type::kInt64;
   int64_t int_value = 0;
   double double_value = 0;
   std::string text;
+  uint32_t bound = 0;
 };
 
 // Reads the number, optionally negated, or string at `expr`.
@@ -53,11 +62,11 @@ base::StatusOr<Literal> CompileLiteral(Compiler*, uint32_t expr);
 
 // Casts the `count` literals `op` compares with for a column of storage `type`,
 // as the dataframe's filters cast them.
-core::exec::FilterValue CastLiterals(const core::Op& op,
-                                     const Literal* literals,
-                                     uint32_t count,
-                                     core::StorageType type,
-                                     const StringPool& pool);
+core::exec::ParamValue CastLiterals(const core::Op& op,
+                                    const Literal* literals,
+                                    uint32_t count,
+                                    core::StorageType type,
+                                    const StringPool& pool);
 
 // What comparing a value with a literal comes to, once the literal is of the
 // value's type. Comparing an integer with 2.5, say, is decided without 2.5: `n

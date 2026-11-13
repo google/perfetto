@@ -28,7 +28,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -118,14 +118,27 @@ class Scan : public PlanOperation {
       Compiler*,
       const SyntaqlitePerfettoPipeSource& n);
 
+  // Adds a scan reading `columns` of `dataframe`, which is registered as
+  // `name`, to `plan` as its root, its columns named as the dataframe's.
+  static PlanNodeId AddToPlan(LogicalPlan* plan,
+                              const dataframe::Dataframe& dataframe,
+                              std::string name,
+                              const std::vector<uint32_t>& columns);
+
+  // Binds the scan `node` of `bound` to `dataframe`, as resolving its name
+  // would.
+  static void Bind(BoundPlan* bound,
+                   PlanNodeId node,
+                   const dataframe::Dataframe& dataframe);
+
   const std::vector<NamedColumn>& columns() const { return columns_; }
 
   // A WHERE condition on one of the scan's columns, with its value cast for
-  // the column's storage type.
+  // the column's storage type, or null for a value each run binds.
   struct Condition {
     ColumnId column = 0;
     core::Op op{core::Eq{}};
-    const core::exec::FilterValue* value = nullptr;
+    const core::exec::ParamValue* value = nullptr;
   };
   // How searching the dataframe would answer some of a WHERE's conditions.
   struct SearchPlan {
@@ -197,6 +210,8 @@ class Scan : public PlanOperation {
   static base::Status CheckSourceNames(Compiler*,
                                        const std::vector<NamedColumn>& columns,
                                        uint32_t at);
+  static Bindings::Dataframe BindingFor(const dataframe::Dataframe& dataframe,
+                                        const ScanDataframe& data);
   static Scan BuildDataframeScan(Compiler*,
                                  const dataframe::Dataframe& dataframe,
                                  std::string name,
