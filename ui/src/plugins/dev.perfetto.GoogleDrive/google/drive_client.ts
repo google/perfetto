@@ -42,8 +42,6 @@ export interface DriveClientConfig {
 }
 
 interface PickerConfig {
-  // Builds the picker's view. Called inside picker()'s error handling, so that
-  // a throw here is reported as an error rather than rejecting.
   readonly view: google.picker.DocsView;
   readonly title?: string;
 }
@@ -89,7 +87,7 @@ export class DriveClient {
     return new DriveClient(config);
   }
 
-  // Open the Google Drive file picker to select a file. Never rejects.
+  // Open the Google Drive file picker to select a file.
   async pickFile(oauthToken: string): Promise<PickerResult> {
     const view = new google.picker.DocsView(google.picker.ViewId.DOCS);
     view.setMode(google.picker.DocsViewMode.LIST);
