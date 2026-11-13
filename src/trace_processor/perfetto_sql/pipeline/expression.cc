@@ -405,6 +405,7 @@ class Typer {
     }
     if (node.op == Op::kConstant) {
       const Literal& literal = expr_->literals[node.a];
+      PERFETTO_DCHECK(!literal.is_bound());
       if (rows_) {
         ex::ExprStep step;
         step.op = Op::kConstant;

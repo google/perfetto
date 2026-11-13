@@ -34,7 +34,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/filter.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/expression.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
@@ -51,12 +51,24 @@ static constexpr char kOperators[] =
     "an operator other than =, !=, <, <=, >, >=, GLOB, REGEXP, IN, BETWEEN "
     "and IS [NOT] NULL";
 
+const Literal* BoundOf(const WherePredicate& p,
+                       const std::vector<Literal>& literals) {
+  if (p.literal_count != 1 || !literals[p.first_literal].is_bound()) {
+    return nullptr;
+  }
+  return &literals[p.first_literal];
+}
+
 // What `p` should compare with to suit a column of storage `type`, if a literal
 // of it is a string where the column holds numbers, or the other way around.
-// GLOB, REGEXP and IS [NOT] NULL do not compare values.
+// GLOB, REGEXP and IS [NOT] NULL do not compare values, and a bound param has
+// none yet.
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
                                            const std::vector<Literal>& literals,
                                            core::StorageType type) {
+  if (BoundOf(p, literals)) {
+    return std::nullopt;
+  }
   if (p.op.IsAnyOf<core::NullOp>() || p.op.IsAnyOf<core::OnlyStringOp>()) {
     return std::nullopt;
   }
@@ -232,7 +244,7 @@ class Parser {
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
     const std::vector<Literal>& literals) {
-  if (p.op.IsAnyOf<core::NullOp>()) {
+  if (p.op.IsAnyOf<core::NullOp>() || BoundOf(p, literals)) {
     return std::nullopt;
   }
   if (p.op.IsAnyOf<core::OnlyStringOp>()) {
@@ -251,6 +263,27 @@ std::optional<core::StorageType> TypeForLiterals(
   return type;
 }
 
+// The value `p` tests a column of storage `type` with: its literals, cast now
+// unless they are a bound param.
+PlannedParam PlanValue(const WherePredicate& p,
+                       const std::vector<Literal>& literals,
+                       core::StorageType type,
+                       const StringPool& pool) {
+  PlannedParam value;
+  value.literals.assign(literals.begin() + p.first_literal,
+                        literals.begin() + p.first_literal + p.literal_count);
+  value.type = type;
+  value.op = p.op;
+  if (BoundOf(p, literals)) {
+    value.state = PlannedParam::State::kBound;
+  } else {
+    value.state = PlannedParam::State::kConstant;
+    value.value =
+        CastLiterals(p.op, value.literals.data(), p.literal_count, type, pool);
+  }
+  return value;
+}
+
 }  // namespace
 
 const OperationRegistration Where::kRegistration{
@@ -265,6 +298,15 @@ base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
   RETURN_IF_ERROR(parser.Condition(n->condition));
   c->AddNode(std::move(where), {c->plan().root()});
   return base::OkStatus();
+}
+
+void Where::AddToPlan(LogicalPlan* plan,
+                      std::vector<WherePredicate> predicates,
+                      std::vector<Literal> literals) {
+  Where where;
+  where.predicates_ = std::move(predicates);
+  where.literals_ = std::move(literals);
+  plan->AddNode(std::move(where), {plan->root()});
 }
 
 std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
@@ -292,13 +334,31 @@ InputNeeds Where::Needs(uint32_t) const {
 OutputProperties Where::Derive(DeriveContext& c) const {
   OutputProperties out = c.input(0);
   out.DropRows();
-  // A rewrite may have cast some already.
-  std::vector<std::optional<ex::FilterValue>>& values = c.filter_values();
+  std::vector<PlannedParam>& values = c.params();
   values.resize(predicates_.size());
   for (uint32_t i = 0; i < predicates_.size(); ++i) {
     const WherePredicate& p = predicates_[i];
+    // A rewrite may have planned it already.
+    if (values[i].state != PlannedParam::State::kUnplanned) {
+      continue;
+    }
+    if (p.op.IsAnyOf<core::NullOp>()) {
+      values[i].state = PlannedParam::State::kNone;
+      continue;
+    }
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
     if (!type) {
+      if (!BoundOf(p, literals_)) {
+        continue;
+      }
+      // A column holding no values matches no comparison, whatever is bound.
+      if (!out.TypeOf(p.column).is_null()) {
+        c.Fail(
+            base::ErrStatus("WHERE: a bound param needs a column of a known "
+                            "type"));
+        return out;
+      }
+      values[i].state = PlannedParam::State::kConstant;
       continue;
     }
     if (std::optional<std::string> mismatch =
@@ -306,11 +366,7 @@ OutputProperties Where::Derive(DeriveContext& c) const {
       c.Fail(base::ErrStatus("WHERE: expected %s", mismatch->c_str()));
       return out;
     }
-    if (values[i] || p.op.IsAnyOf<core::NullOp>()) {
-      continue;
-    }
-    values[i] = CastLiterals(p.op, literals_.data() + p.first_literal,
-                             p.literal_count, *type, *c.context().pool);
+    values[i] = PlanValue(p, literals_, *type, *c.context().pool);
   }
   return out;
 }
@@ -331,7 +387,7 @@ void Where::Rewrite(BoundPlan* bound,
   // A scan converts no column, so only conditions on columns of a known type,
   // read as the table stores them, have values to search with. They are what
   // these conditions test whether or not the scan answers them.
-  std::vector<std::optional<ex::FilterValue>> values(where.predicates_.size());
+  std::vector<PlannedParam> values(where.predicates_.size());
   std::vector<uint32_t> predicate_indices;
   std::vector<Scan::Condition> conditions;
   for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
@@ -343,15 +399,17 @@ void Where::Rewrite(BoundPlan* bound,
         LiteralMismatch(p, where.literals_, *type)) {
       continue;
     }
-    values[i] = CastLiterals(p.op, where.literals_.data() + p.first_literal,
-                             p.literal_count, *type, *context.pool);
+    values[i] = PlanValue(p, where.literals_, *type, *context.pool);
     predicate_indices.push_back(i);
-    conditions.push_back({p.column, p.op, &*values[i]});
+    conditions.push_back({p.column, p.op,
+                          values[i].state == PlannedParam::State::kBound
+                              ? nullptr
+                              : &values[i].value});
   }
   std::optional<Scan::SearchPlan> searched =
       scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);
   if (!searched) {
-    bound->planned[self].filter_values = std::move(values);
+    bound->planned[self].params = std::move(values);
     return;
   }
 
@@ -359,8 +417,7 @@ void Where::Rewrite(BoundPlan* bound,
   ScanSearch search;
   search.kind = searched->kind;
   search.index = searched->index;
-  std::vector<std::optional<ex::FilterValue>>& scan_values =
-      bound->planned[scan_id].filter_values;
+  std::vector<PlannedParam>& scan_values = bound->planned[scan_id].params;
   std::vector<bool> moved(where.predicates_.size(), false);
   for (uint32_t j : searched->answered) {
     uint32_t i = predicate_indices[j];
@@ -371,7 +428,7 @@ void Where::Rewrite(BoundPlan* bound,
   scan.SetSearch(std::move(search));
   PlanNodeInputs(bound, scan_id, context);
   std::vector<WherePredicate> kept;
-  std::vector<std::optional<ex::FilterValue>> kept_values;
+  std::vector<PlannedParam> kept_values;
   for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
     if (!moved[i]) {
       kept.push_back(where.predicates_[i]);
@@ -379,7 +436,7 @@ void Where::Rewrite(BoundPlan* bound,
     }
   }
   where.predicates_ = std::move(kept);
-  bound->planned[self].filter_values = std::move(kept_values);
+  bound->planned[self].params = std::move(kept_values);
   if (where.predicates_.empty()) {
     plan.Bypass(self);
   }
@@ -393,8 +450,8 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(predicates_[i].column);
     condition.op = predicates_[i].op;
-    if (std::optional<uint32_t> value = c->TakeFilterValue(node, i)) {
-      condition.value = *value;
+    if (std::optional<uint32_t> value = c->TakeParam(node, i)) {
+      condition.param = *value;
     }
     conditions.push_back(condition);
   }

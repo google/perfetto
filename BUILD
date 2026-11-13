@@ -2677,7 +2677,6 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/expression.h",
         "src/trace_processor/core/exec/filter.cc",
         "src/trace_processor/core/exec/filter.h",
-        "src/trace_processor/core/exec/filter_value.h",
         "src/trace_processor/core/exec/graph_tree.cc",
         "src/trace_processor/core/exec/graph_tree.h",
         "src/trace_processor/core/exec/group_table.cc",
@@ -2701,6 +2700,7 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/limit.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
+        "src/trace_processor/core/exec/param_value.h",
         "src/trace_processor/core/exec/pipeline.cc",
         "src/trace_processor/core/exec/pipeline.h",
         "src/trace_processor/core/exec/row_batch.cc",
@@ -3944,6 +3944,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_engine_engine",
     srcs = [
+        "src/trace_processor/perfetto_sql/engine/column_results.h",
         "src/trace_processor/perfetto_sql/engine/connection_catalog.cc",
         "src/trace_processor/perfetto_sql/engine/connection_catalog.h",
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
