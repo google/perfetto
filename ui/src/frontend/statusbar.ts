@@ -19,6 +19,8 @@ import {Button, ButtonVariant} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {TaskStatus} from './task_status';
 import type {App} from '../public/app';
+import {withOwner} from '../base/owner_attribute';
+import {getOwner} from '../core/ownership';
 
 const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
   id: 'showTaskTracker',
@@ -44,18 +46,20 @@ export function renderStatusBar(app: App): m.Children {
         onclick,
         variant: ButtonVariant.Filled,
       });
-      if (Boolean(popupContent)) {
-        return m(
-          Popup,
-          {
-            position: PopupPosition.Top,
-            trigger: itemContent,
-          },
-          popupContent,
-        );
-      } else {
-        return itemContent;
-      }
+      // Each item gets a wrapper that names its owner.
+      return withOwner(
+        getOwner(item),
+        Boolean(popupContent)
+          ? m(
+              Popup,
+              {
+                position: PopupPosition.Top,
+                trigger: itemContent,
+              },
+              popupContent,
+            )
+          : itemContent,
+      );
     }),
   );
 }
