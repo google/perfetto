@@ -86,11 +86,13 @@ export async function openFileFromDeeplink(
     !fileDownloadResult.ok &&
     fileDownloadResult.error.type === 'access_denied'
   ) {
-    if (!hideAuthDialogSetting.get()) {
-      const choice = await authAccessToFilePrompt(hideAuthDialogSetting);
-      if (choice !== 'authorize') return;
-    }
+    // Explain to the user that the file needs authorization to be accessed and
+    // that they are about to see a file picker.
+    const choice = await authAccessToFilePrompt(hideAuthDialogSetting);
+    if (choice !== 'authorize') return;
 
+    // Show the file picker containing just the file that we are trying to
+    // access. All the user needs to do is click on this file to authorize it.
     const picked = await drive.requestFileAccess(oauthToken, fileId);
     if (!picked.ok) {
       if (picked.error.type === 'cancelled') return;
@@ -153,6 +155,9 @@ async function connectGoogleDrivePrompt() {
 }
 
 async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
+  if (hideAuthDialogSetting.get()) {
+    return 'authorize';
+  }
   return await promptModal({
     key: 'GoogleDriveAuthNeeded',
     title: 'Authorize access to file',
