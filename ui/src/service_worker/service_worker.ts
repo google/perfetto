@@ -113,6 +113,15 @@ function checkFirewall(req: Request): {allowed: boolean; reason?: string} {
     return {allowed: true};
   }
 
+  // Allow the Google API loader to fetch its modules (e.g. the Google Drive
+  // picker), which it requests from this directory with a query string. This
+  // is deliberately limited to the module directory: the loader script itself
+  // (/js/api.js) takes an ?onload= callback, which must stay blocked.
+  if (url.hostname === 'apis.google.com' &&
+      url.pathname.startsWith('/_/scs/abc-static/_/js/')) {
+    return {allowed: true};
+  }
+
   if (url.search !== '') {
     return {allowed: false, reason: 'Query strings not allowed'};
   }
