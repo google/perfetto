@@ -87,9 +87,6 @@ been done.
 
 ## Manual testing
 
-There are no automated tests for connecting to Google, so it needs checking by
-hand.
-
 ### Setup
 
 1. Run `ui/run-dev-server` and open `http://localhost:10000`.
