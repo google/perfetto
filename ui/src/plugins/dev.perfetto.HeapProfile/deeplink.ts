@@ -12,17 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import {ProfileType} from './common';
 
-export interface HeapProfileDeeplinkArgs {
-  readonly process?: string;
-  readonly type?: string;
-  readonly metric?: string;
-}
+export const HEAP_PROFILE_METRIC_SCHEMA = z.enum([
+  'unreleased_size',
+  'unreleased_count',
+  'total_size',
+  'total_count',
+]);
+
+export type HeapProfileMetric = z.infer<typeof HEAP_PROFILE_METRIC_SCHEMA>;
+
+export const HEAP_PROFILE_DEEPLINK_ARGS_SCHEMA = z.object({
+  process: z.string().nonempty().optional(),
+  type: z
+    .string()
+    .nonempty()
+    .transform((t) => (t.startsWith('heap_profile:') ? t : `heap_profile:${t}`))
+    .optional(),
+  metric: HEAP_PROFILE_METRIC_SCHEMA.optional(),
+});
+
+export type HeapProfileDeeplinkArgs = z.infer<
+  typeof HEAP_PROFILE_DEEPLINK_ARGS_SCHEMA
+>;
 
 export function resolveFlamegraphMetricName(
   profileType: ProfileType,
-  metric: string,
+  metric: HeapProfileMetric,
 ): string | undefined {
   switch (profileType) {
     case ProfileType.NATIVE_HEAP_PROFILE:
@@ -35,9 +53,8 @@ export function resolveFlamegraphMetricName(
           return 'Total Malloc Size';
         case 'total_count':
           return 'Total Malloc Count';
-        default:
-          return undefined;
       }
+      break;
     case ProfileType.GENERIC_HEAP_PROFILE:
       switch (metric) {
         case 'unreleased_size':
@@ -48,9 +65,8 @@ export function resolveFlamegraphMetricName(
           return 'Total Size';
         case 'total_count':
           return 'Total Count';
-        default:
-          return undefined;
       }
+      break;
     case ProfileType.JAVA_HEAP_SAMPLES:
       switch (metric) {
         case 'total_size':
@@ -68,29 +84,13 @@ export function resolveFlamegraphMetricName(
 export function parseHeapProfileDeeplinkArgs(
   args: Record<string, unknown>,
 ): HeapProfileDeeplinkArgs | undefined {
-  const process =
-    typeof args.process === 'string' && args.process !== ''
-      ? args.process
-      : undefined;
-  const rawType =
-    typeof args.type === 'string' && args.type !== '' ? args.type : undefined;
-  const type =
-    rawType === undefined
-      ? undefined
-      : rawType.startsWith('heap_profile:')
-        ? rawType
-        : `heap_profile:${rawType}`;
-  const metric =
-    typeof args.metric === 'string' && args.metric !== ''
-      ? args.metric
-      : undefined;
-
+  const res = HEAP_PROFILE_DEEPLINK_ARGS_SCHEMA.safeParse(args);
+  if (!res.success) {
+    return undefined;
+  }
+  const {process, type, metric} = res.data;
   if (process === undefined && type === undefined && metric === undefined) {
     return undefined;
   }
-  return {
-    ...(process !== undefined && {process}),
-    ...(type !== undefined && {type}),
-    ...(metric !== undefined && {metric}),
-  };
+  return res.data;
 }

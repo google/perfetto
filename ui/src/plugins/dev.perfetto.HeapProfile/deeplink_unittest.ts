@@ -36,11 +36,14 @@ describe('deeplink', () => {
       resolveFlamegraphMetricName(ProfileType.JAVA_HEAP_SAMPLES, 'total_size'),
     ).toBe('Total Allocation Size');
     expect(
-      resolveFlamegraphMetricName(ProfileType.NATIVE_HEAP_PROFILE, 'unknown'),
+      resolveFlamegraphMetricName(
+        ProfileType.JAVA_HEAP_SAMPLES,
+        'unreleased_size',
+      ),
     ).toBeUndefined();
   });
 
-  test('parses plugin args', () => {
+  test('parses plugin args with zod', () => {
     expect(parseHeapProfileDeeplinkArgs({})).toBeUndefined();
     expect(
       parseHeapProfileDeeplinkArgs({
@@ -60,5 +63,8 @@ describe('deeplink', () => {
     ).toEqual({
       type: 'heap_profile:libc.malloc',
     });
+    expect(parseHeapProfileDeeplinkArgs({process: ''})).toBeUndefined();
+    expect(parseHeapProfileDeeplinkArgs({metric: 'unknown'})).toBeUndefined();
+    expect(parseHeapProfileDeeplinkArgs({process: 123})).toBeUndefined();
   });
 });

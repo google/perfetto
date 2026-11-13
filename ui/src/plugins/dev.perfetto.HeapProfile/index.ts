@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import './styles.scss';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
@@ -46,7 +47,7 @@ import {EvtSource} from '../../base/events';
 import type {App} from '../../public/app';
 import type {Flag} from '../../public/feature_flag';
 import {sqliteString} from '../../base/string_utils';
-import type {RouteArgs} from '../../public/route_schema';
+import {showModal} from '../../widgets/modal';
 import {
   type HeapProfileDeeplinkArgs,
   parseHeapProfileDeeplinkArgs,
@@ -77,9 +78,8 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
   // Dump Explorer and HeapProfile can read the flag without a circular
   // import.
   static openHeapDumpExplorerByDefaultFlag: Flag;
-  private static routeDeeplinkArgs?: HeapProfileDeeplinkArgs;
 
-  static onActivate(app: App, pluginArgs: RouteArgs) {
+  static onActivate(app: App) {
     HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag =
       app.featureFlags.register({
         id: 'openHeapDumpExplorerByDefault',
@@ -90,8 +90,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
           'Dump Explorer instead of the timeline.',
         defaultValue: true,
       });
-    HeapProfilePlugin.routeDeeplinkArgs =
-      parseHeapProfileDeeplinkArgs(pluginArgs);
   }
 
   private readonly trackMap = new Map<string, Track>();
@@ -118,15 +116,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     trace: Trace,
     openerArgs?: Record<string, unknown>,
   ): Promise<void> {
-    const initialRouteArgs = HeapProfilePlugin.routeDeeplinkArgs;
-    HeapProfilePlugin.routeDeeplinkArgs = undefined;
-    const postMessageArgs =
+    const deeplinkArgs =
       openerArgs !== undefined
         ? parseHeapProfileDeeplinkArgs(openerArgs)
-        : undefined;
-    const deeplinkArgs =
-      initialRouteArgs !== undefined || postMessageArgs !== undefined
-        ? {...initialRouteArgs, ...postMessageArgs}
         : undefined;
 
     const storage = trace.registerStorage({
@@ -360,37 +352,48 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     const hdeWillTakeOver =
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
       !(await traceHasTimelineData(ctx));
-    const javaHeapGraphFilter =
-      deeplinkArgs !== undefined || hdeWillTakeOver
-        ? `WHERE e.type != 'java_heap_graph' AND e.type != 'oome_callstack'`
-        : '';
-    const processExpr =
-      deeplinkArgs?.process !== undefined
-        ? sqliteString(deeplinkArgs.process)
-        : undefined;
-    const processOrder =
-      processExpr !== undefined
-        ? `IIF(p.name = ${processExpr} OR p.cmdline = ${processExpr}, 0, 1),`
-        : '';
-    const typeOrder =
-      deeplinkArgs?.type !== undefined
-        ? `IIF(e.type = ${sqliteString(deeplinkArgs.type)}, 0, 1),`
-        : '';
+    const whereClauses: string[] = [];
+    if (deeplinkArgs !== undefined || hdeWillTakeOver) {
+      whereClauses.push(
+        `e.type != 'java_heap_graph' AND e.type != 'oome_callstack'`,
+      );
+    }
+    if (deeplinkArgs?.process !== undefined) {
+      const processExpr = sqliteString(deeplinkArgs.process);
+      whereClauses.push(
+        `(p.name = ${processExpr} OR p.cmdline = ${processExpr})`,
+      );
+    }
+    if (deeplinkArgs?.type !== undefined) {
+      whereClauses.push(`e.type = ${sqliteString(deeplinkArgs.type)}`);
+    }
+    const whereClause =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
     const result = await ctx.engine.query(`
         SELECT e.id AS id, e.upid AS upid, e.type AS type
         FROM ${EVENT_TABLE_NAME} e
         LEFT JOIN process p USING (upid)
-        ${javaHeapGraphFilter}
-        ORDER BY ${processOrder} ${typeOrder} e.priority, e.ts
+        ${whereClause}
+        ORDER BY e.priority, e.ts
         LIMIT 1
       `);
 
     const iter = result.maybeFirstRow({id: NUM, upid: NUM, type: STR});
-    if (!iter) return;
+    if (!iter) {
+      if (deeplinkArgs !== undefined) {
+        showMissingHeapProfileModal(deeplinkArgs);
+      }
+      return;
+    }
 
     const uri = trackUri(iter.upid, iter.type);
     const track = this.trackMap.get(uri);
-    if (!track) return;
+    if (!track) {
+      if (deeplinkArgs !== undefined) {
+        showMissingHeapProfileModal(deeplinkArgs);
+      }
+      return;
+    }
 
     const profileType = profileDescriptor(iter.type).type;
 
@@ -433,7 +436,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       ctx.selection.selectTrackEvent(track.uri, iter.id);
     } else {
       let trackUris: string[] = [];
-      if (deeplinkArgs?.type !== undefined && iter.type === deeplinkArgs.type) {
+      if (deeplinkArgs?.type !== undefined) {
         // When a specific profile type was requested (e.g. native vs ART),
         // highlight only that profile's track rather than all heap tracks of
         // the process.
@@ -525,6 +528,26 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       },
     };
   }
+}
+
+function showMissingHeapProfileModal(args: HeapProfileDeeplinkArgs) {
+  const filters: string[] = [];
+  if (args.process !== undefined) {
+    filters.push(`process "${args.process}"`);
+  }
+  if (args.type !== undefined) {
+    const heapName = args.type.replace(/^heap_profile:/, '');
+    filters.push(`type "${heapName}"`);
+  }
+  const target = filters.length > 0 ? ` for ${filters.join(' and ')}` : '';
+  showModal({
+    title: 'Heap profile not found',
+    content: m(
+      'div',
+      `No matching heap profile was found in this trace${target}.`,
+    ),
+    buttons: [{text: 'OK', primary: true}],
+  });
 }
 
 function matchingTracks(
