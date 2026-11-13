@@ -275,10 +275,10 @@ TEST_F(FilterTest, RunsAgainWithANewPattern) {
   Filter filter(Conditions(on), &pool_);
   Context context;
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
-  std::vector<FilterValue> cast;
+  std::vector<ParamValue> cast;
   auto run = [&](const char* pattern) {
     CastAll(on, {pattern}, &cast);
-    context.SetFilterValues(base::Span<const FilterValue>(cast));
+    context.SetParams(base::Span<const ParamValue>(cast));
     RowBatch batch;
     batch.CopyFrom(batch_);
     EXPECT_TRUE(filter.Process(batch, *state));
