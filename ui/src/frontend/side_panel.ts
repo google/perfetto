@@ -17,8 +17,8 @@ import m from 'mithril';
 import type {SidePanelManagerImpl} from '../core/side_panel_manager';
 import {SplitPanel} from '../widgets/split_panel';
 import {Tabs, type TabsTab} from '../widgets/tabs';
-import {withOwner} from '../base/owner_attribute';
-import {getOwner} from '../core/ownership';
+import {OWNER_ATTRIBUTE, withOwner} from '../base/owner_attribute';
+import {CORE_OWNER, getOwner} from '../core/ownership';
 
 const MIN_WIDTH_PX = 200;
 
@@ -53,6 +53,7 @@ export function SidePanelContainer(): m.Component<SidePanelContainerAttrs> {
 
       const sidePanel = m(
         '.pf-side-panel',
+        {[OWNER_ATTRIBUTE]: CORE_OWNER},
         m(Tabs, {
           tabs,
           activeTabKey: sidePanelMgr.currentTabUri,

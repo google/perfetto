@@ -19,8 +19,8 @@ import {Button, ButtonVariant} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {TaskStatus} from './task_status';
 import type {App} from '../public/app';
-import {withOwner} from '../base/owner_attribute';
-import {getOwner} from '../core/ownership';
+import {OWNER_ATTRIBUTE, withOwner} from '../base/owner_attribute';
+import {CORE_OWNER, getOwner} from '../core/ownership';
 
 const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
   id: 'showTaskTracker',
@@ -35,6 +35,7 @@ const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
 export function renderStatusBar(app: App): m.Children {
   return m(
     '.pf-statusbar',
+    {[OWNER_ATTRIBUTE]: CORE_OWNER},
     SHOW_TASK_TRACKER_FLAG.get() && m(TaskStatus, {app}),
     app.trace?.statusbar.statusBarItems.map((item) => {
       const {icon, label, intent, onclick} = item.renderItem();

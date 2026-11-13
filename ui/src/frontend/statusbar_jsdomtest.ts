@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
 import {createFakeTraceImpl} from '../core/fake_trace_impl';
-import {setOwner} from '../core/ownership';
+import {CORE_OWNER, setOwner} from '../core/ownership';
 import {renderStatusBar} from './statusbar';
 
 let container: HTMLElement;
@@ -47,5 +47,13 @@ describe('renderStatusBar', () => {
         ?.parentElement?.getAttribute('data-plugin');
     expect(ownerOf('Owned')).toBe('com.example.Owner');
     expect(ownerOf('Unowned')).toBeNull();
+  });
+
+  test("labels the area outside of the status bar's items as core", () => {
+    const trace = createFakeTraceImpl();
+    m.render(container, renderStatusBar(trace.app));
+    expect(
+      container.querySelector('.pf-statusbar')?.getAttribute('data-plugin'),
+    ).toBe(CORE_OWNER);
   });
 });

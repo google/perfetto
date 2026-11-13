@@ -26,6 +26,8 @@ import {
   TRACK_SHELL_WIDTH,
 } from '../../frontend/css_constants';
 import {ResizeHandle} from '../../widgets/resize_handle';
+import {OWNER_ATTRIBUTE} from '../../base/owner_attribute';
+import {CORE_OWNER} from '../../core/ownership';
 import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
@@ -71,6 +73,9 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private renderTrackShellResizeHandle(): m.Children {
     return m(ResizeHandle, {
       direction: 'horizontal',
+      // The handle is drawn over the track rows. Label it so it isn't counted
+      // as part of the track below it.
+      [OWNER_ATTRIBUTE]: CORE_OWNER,
       style: {
         position: 'absolute',
         left: `${TRACK_SHELL_WIDTH}px`,
