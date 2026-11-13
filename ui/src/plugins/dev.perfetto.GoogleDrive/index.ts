@@ -23,7 +23,7 @@ import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
 import {alertModal} from '../../widgets/modal';
 import {openFileFromSidebar} from './flows/open_from_sidebar';
-import {openFileFromDeeplink} from './open_from_deeplink';
+import {openFileFromDeeplink} from './flows/open_from_deeplink';
 
 export interface GDriveClients {
   readonly oauth: GoogleOAuthClient;

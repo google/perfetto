@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import type {App} from '../../public/app';
+import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
-} from './dialogs';
-import type {DriveClient} from './google/drive_client';
-import {parseGDriveStateParam} from './google/drive_client';
-import type {GoogleOAuthClient} from './google/oauth_client';
-import {promptModal} from '../../widgets/modal';
-import type {Setting} from '../../public/settings';
-import {Checkbox} from '../../widgets/checkbox';
+} from '../dialogs';
+import type {DriveClient} from '../google/drive_client';
+import {parseGDriveStateParam} from '../google/drive_client';
+import type {GoogleOAuthClient} from '../google/oauth_client';
+import {promptModal} from '../../../widgets/modal';
+import type {Setting} from '../../../public/settings';
+import {Checkbox} from '../../../widgets/checkbox';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
