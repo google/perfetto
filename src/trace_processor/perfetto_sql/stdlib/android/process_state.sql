@@ -74,7 +74,7 @@ WITH
   ),
   all_events AS (
     SELECT
-      coalesce(s.ts, p.start_ts) AS ts,
+      coalesce(s.ts, s.state_start_ts, p.start_ts) AS ts,
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
