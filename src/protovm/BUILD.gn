@@ -97,6 +97,10 @@ if (enable_perfetto_benchmarks) {
       "../base:test_support",
       "../protozero",
     ]
-    sources = [ "vm_benchmark.cc" ]
+    sources = [
+      "test/utils.cc",
+      "test/utils.h",
+      "vm_benchmark.cc",
+    ]
   }
 }

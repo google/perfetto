@@ -16,6 +16,10 @@
 
 #include "src/protovm/test/utils.h"
 
+#include "perfetto/base/logging.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
 namespace perfetto {
 namespace protovm {
 namespace test {
@@ -23,6 +27,25 @@ namespace test {
 protozero::ConstBytes AsConstBytes(const std::string& s) {
   return protozero::ConstBytes{
       reinterpret_cast<uint8_t*>(const_cast<char*>(s.data())), s.size()};
+}
+
+protozero::ConstBytes ExtractProgram(const std::string& trace_bytes) {
+  protos::pbzero::Trace::Decoder trace(trace_bytes);
+  for (auto packet_it = trace.packet(); packet_it; ++packet_it) {
+    protos::pbzero::TracePacket::Decoder packet(*packet_it);
+    if (!packet.has_protovms()) {
+      continue;
+    }
+    protos::pbzero::TracePacket::ProtoVms::Decoder protovms(packet.protovms());
+    if (auto instance_it = protovms.instance(); instance_it) {
+      protos::pbzero::TracePacket::ProtoVms::Instance::Decoder instance(
+          *instance_it);
+      PERFETTO_CHECK(instance.program().data != nullptr &&
+                     instance.program().size > 0);
+      return instance.program();
+    }
+  }
+  PERFETTO_FATAL("Trace has no program");
 }
 
 }  // namespace test
