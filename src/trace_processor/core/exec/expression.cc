@@ -478,6 +478,7 @@ class Evaluator {
     }
     for (uint32_t r = 0; r < rows_; ++r) {
       if (!a.Valid(r) || !b.Valid(r)) {
+        o[r] = 0;
         continue;
       }
       int order = std::string_view(pool_->Get(x[r]))

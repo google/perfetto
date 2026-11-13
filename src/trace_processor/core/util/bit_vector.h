@@ -329,7 +329,6 @@ struct BitVector {
         [this](uint64_t a, uint64_t word, uint64_t n) { OrBits(a, word, n); });
   }
 
-  // ANDs `src` bits [from, from + count) into bits [at, at + count).
   // Set bits [0, count) to, or AND them with, `src` bits from `from`, which
   // must start a word. Faster than AndBitsFrom as whole words are read, but the
   // bits of the last word from `count` on may change too.
@@ -350,6 +349,7 @@ struct BitVector {
     }
   }
 
+  // ANDs `src` bits [from, from + count) into bits [at, at + count).
   void AndBitsFrom(uint64_t at,
                    const BitVector& src,
                    uint64_t from,
