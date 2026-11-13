@@ -298,5 +298,78 @@ void BM_ExprStringLt(benchmark::State& state) {
 }
 BENCHMARK(BM_ExprStringLt);
 
+void RunGlob(benchmark::State& state, const char* pattern, bool nulls) {
+  ExprProgram p;
+  uint32_t x = Read(&p, kStringA, ExprType::kString);
+  Apply(&p, Op::kGlob, ExprType::kInt64, x, 0);
+  p.patterns.push_back(pattern);
+  RunProgram(state, std::move(p), nulls);
+}
+
+void BM_ExprGlobSuffix(benchmark::State& state) {
+  RunGlob(state, "*$Stub", false);
+}
+BENCHMARK(BM_ExprGlobSuffix);
+
+void BM_ExprGlobSuffixNullable(benchmark::State& state) {
+  RunGlob(state, "*$Stub", true);
+}
+BENCHMARK(BM_ExprGlobSuffixNullable);
+
+// Every string new to the evaluator, so nothing it remembers helps.
+void BM_ExprGlobNoRepeats(benchmark::State& state) {
+  constexpr uint32_t kRuns = 32;
+  StringPool pool;
+  std::vector<StringPool::Id> ids;
+  for (uint32_t i = 0; i < kMaxBatchRows * kRuns; ++i) {
+    std::string text =
+        "com.example.Class" + std::to_string(i) + (i % 3 == 0 ? "$Stub" : "");
+    ids.push_back(pool.InternString(base::StringView(text)));
+  }
+  ExprProgram p;
+  uint32_t x = Read(&p, 0, ExprType::kString);
+  Apply(&p, Op::kGlob, ExprType::kInt64, x, 0);
+  p.patterns.push_back("*$Stub");
+  std::vector<ExprProgram> programs;
+  programs.push_back(std::move(p));
+  Compute compute(std::move(programs), &pool);
+  Context context;
+  for (auto _ : state) {
+    auto op_state = compute.MakeState(context);
+    for (uint32_t i = 0; i < kRuns; ++i) {
+      RowBatch batch;
+      batch.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{String{}}, ids.data() + i * kMaxBatchRows, nullptr));
+      batch.SetRowCount(kMaxBatchRows);
+      benchmark::DoNotOptimize(compute.Process(batch, *op_state));
+    }
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kRuns *
+                          kMaxBatchRows);
+}
+BENCHMARK(BM_ExprGlobNoRepeats);
+
+void RunNullTest(benchmark::State& state, Op op, bool nulls) {
+  ExprProgram p;
+  uint32_t x = Read(&p, kIntA, ExprType::kInt64);
+  Apply(&p, op, ExprType::kInt64, x);
+  RunProgram(state, std::move(p), nulls);
+}
+
+void BM_ExprIsNull(benchmark::State& state) {
+  RunNullTest(state, Op::kIsNull, true);
+}
+BENCHMARK(BM_ExprIsNull);
+
+void BM_ExprIsNotNull(benchmark::State& state) {
+  RunNullTest(state, Op::kIsNotNull, true);
+}
+BENCHMARK(BM_ExprIsNotNull);
+
+void BM_ExprIsNullNoNulls(benchmark::State& state) {
+  RunNullTest(state, Op::kIsNull, false);
+}
+BENCHMARK(BM_ExprIsNullNoNulls);
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec
