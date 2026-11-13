@@ -197,6 +197,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private hoveredY?: number;
 
   private canvasWidth = 0;
+  private canvasHeight = 0;
   // Pushes the graph down so a bottom up graph's root sits at the bottom.
   private yOffset = 0;
   private labelCharWidth = 0;
@@ -432,8 +433,25 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     canvasRect: Rect2D,
     viewportRect: Rect2D,
   ) {
+    // On resize in bottom up, keep the same distance from the bottom edge so
+    // the root stays where it was.
+    const prevRect = this.viewportRect;
+    if (
+      this.attrs.state.view.kind === 'BOTTOM_UP' &&
+      this.canvasApi !== undefined &&
+      prevRect !== undefined &&
+      prevRect.height > 0 &&
+      (prevRect.height !== viewportRect.height ||
+        this.canvasHeight !== size.height)
+    ) {
+      const prevDist = this.canvasHeight - prevRect.bottom;
+      const dist = size.height - viewportRect.bottom;
+      const {y} = this.canvasApi.scrollTo({});
+      this.canvasApi.scrollTo({y: y + dist - prevDist});
+    }
     this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
+    this.canvasHeight = size.height;
     // The canvas is at least as tall as the viewport, so in bottom up the
     // padding goes above the leaves and the root sits on the bottom edge.
     const data = this.attrs.data;
