@@ -178,6 +178,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     () => this.attrs.data,
     () => this.canvasWidth,
     () => this.zoomRegion,
+    () => this.yOffset,
   ]);
   private renderNodes?: ReadonlyArray<RenderNode>;
 
@@ -196,6 +197,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private hoveredY?: number;
 
   private canvasWidth = 0;
+  private canvasHeight = 0;
+  // Pushes the graph down so a bottom up graph's root sits at the bottom.
+  private yOffset = 0;
   private labelCharWidth = 0;
   private viewportRect?: Rect2D;
   private lastPopupVisible = false;
@@ -313,6 +317,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           {
             style: {
               height: `${canvasHeight}px`,
+              flexGrow: 1,
               cursor: hoveredNode === undefined ? 'default' : 'pointer',
             },
             onmousemove: (e: MithrilEvent<MouseEvent>) => {
@@ -428,8 +433,32 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     canvasRect: Rect2D,
     viewportRect: Rect2D,
   ) {
+    // On resize in bottom up, keep the same distance from the bottom edge so
+    // the root stays where it was.
+    const prevRect = this.viewportRect;
+    if (
+      this.attrs.state.view.kind === 'BOTTOM_UP' &&
+      this.canvasApi !== undefined &&
+      prevRect !== undefined &&
+      prevRect.height > 0 &&
+      (prevRect.height !== viewportRect.height ||
+        this.canvasHeight !== size.height)
+    ) {
+      const prevDist = this.canvasHeight - prevRect.bottom;
+      const dist = size.height - viewportRect.bottom;
+      const {y} = this.canvasApi.scrollTo({});
+      this.canvasApi.scrollTo({y: y + dist - prevDist});
+    }
     this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
+    this.canvasHeight = size.height;
+    // The canvas is at least as tall as the viewport, so in bottom up the
+    // padding goes above the leaves and the root sits on the bottom edge.
+    const data = this.attrs.data;
+    this.yOffset =
+      data !== undefined && this.attrs.state.view.kind === 'BOTTOM_UP'
+        ? size.height - (data.maxDepth - data.minDepth + 1) * NODE_HEIGHT
+        : 0;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
       if (this.attrs.data === undefined) {
@@ -444,6 +473,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             type: 'ROOT',
           },
           size.width,
+          this.yOffset,
         );
         this.lastClickedNode = this.renderNodes?.find((n) =>
           isIntersecting(this.lastClickedNode?.x, this.lastClickedNode?.y, n),
@@ -1191,6 +1221,7 @@ function computeRenderNodes(
   {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
   zoomRegion: ZoomRegion,
   canvasWidth: number,
+  yOffset: number,
 ): ReadonlyArray<RenderNode> {
   const renderNodes: RenderNode[] = [];
 
@@ -1198,7 +1229,7 @@ function computeRenderNodes(
   const keyToChildMergedIdx = new Map<string, number>();
   renderNodes.push({
     x: 0,
-    y: -minDepth * NODE_HEIGHT,
+    y: yOffset - minDepth * NODE_HEIGHT,
     width: canvasWidth,
     source: {
       kind: 'ROOT',
@@ -1237,7 +1268,7 @@ function computeRenderNodes(
     const relativeWidth = relativeXEnd - relativeXStart;
 
     const x = Math.max(0, relativeXStart) / queryXPerPx;
-    const y = NODE_HEIGHT * (depth - minDepth);
+    const y = yOffset + NODE_HEIGHT * (depth - minDepth);
     const width = depthMatchingZoom
       ? Math.min(relativeWidth, zoomQueryWidth) / queryXPerPx
       : relativeWidth / queryXPerPx;
