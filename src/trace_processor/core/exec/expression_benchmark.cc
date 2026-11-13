@@ -20,9 +20,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -69,7 +72,7 @@ void RunBinary(benchmark::State& state,
                Op op,
                ExprType type,
                bool nulls = false) {
-  static Columns* columns = new Columns();
+  auto columns = std::make_unique<Columns>();
   RowBatch batch;
   bool doubles = type == ExprType::kDouble;
   StorageType storage = doubles ? StorageType{Double{}} : StorageType{Int64{}};
@@ -101,7 +104,8 @@ void RunBinary(benchmark::State& state,
   program.steps.push_back(step);
   std::vector<ExprProgram> programs;
   programs.push_back(std::move(program));
-  Compute compute(std::move(programs));
+  StringPool pool;
+  Compute compute(std::move(programs), &pool);
 
   Context context;
   auto op_state = compute.MakeState(context);
@@ -150,6 +154,149 @@ void BM_ExprDoubleMul(benchmark::State& state) {
   RunBinary(state, Op::kMul, ExprType::kDouble);
 }
 BENCHMARK(BM_ExprDoubleMul);
+
+// Column ids in RunProgram's batch.
+enum : uint32_t { kIntA, kIntB, kDoubleA, kDoubleB, kStringA, kStringB };
+
+// Strings with many values and some repeats, for string columns, and the pool
+// holding them.
+struct Strings {
+  Strings() {
+    for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
+      std::string text = "com.example.Class" + std::to_string(i % 500) +
+                         (i % 3 == 0 ? "$Stub" : "");
+      a[i] = pool.InternString(base::StringView(text));
+      b[i] = pool.InternString(
+          base::StringView("com.example.Class" + std::to_string(i % 97)));
+    }
+  }
+  StringPool pool;
+  StringPool::Id a[kMaxBatchRows];
+  StringPool::Id b[kMaxBatchRows];
+};
+
+// Runs `program` over batches of the columns above, with nulls if `nulls`.
+void RunProgram(benchmark::State& state, ExprProgram program, bool nulls) {
+  auto columns = std::make_unique<Columns>();
+  auto strings = std::make_unique<Strings>();
+  const BitVector* a = nulls ? &columns->valid_a : nullptr;
+  const BitVector* b = nulls ? &columns->valid_b : nullptr;
+  RowBatch batch;
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, columns->ints_a, a));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, columns->ints_b, b));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, columns->doubles_a, a));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, columns->doubles_b, b));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{String{}}, strings->a, a));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{String{}}, strings->b, b));
+  batch.SetRowCount(kMaxBatchRows);
+
+  std::vector<ExprProgram> programs;
+  programs.push_back(std::move(program));
+  Compute compute(std::move(programs), &strings->pool);
+  Context context;
+  auto op_state = compute.MakeState(context);
+  RowBatch out;
+  for (auto _ : state) {
+    for (uint32_t i = 0; i < kBatches; ++i) {
+      out.CopyFrom(batch);
+      benchmark::DoNotOptimize(compute.Process(out, *op_state));
+    }
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kBatches *
+                          kMaxBatchRows);
+}
+
+uint32_t Read(ExprProgram* program, uint32_t column, ExprType type) {
+  ExprStep step;
+  step.op = Op::kColumn;
+  step.type = type;
+  step.a = column;
+  program->steps.push_back(step);
+  return static_cast<uint32_t>(program->steps.size() - 1);
+}
+
+uint32_t Apply(ExprProgram* program,
+               Op op,
+               ExprType type,
+               uint32_t a,
+               uint32_t b = 0) {
+  ExprStep step;
+  step.op = op;
+  step.type = type;
+  step.a = a;
+  step.b = b;
+  program->steps.push_back(step);
+  return static_cast<uint32_t>(program->steps.size() - 1);
+}
+
+void RunCompare(benchmark::State& state,
+                Op op,
+                ExprType type,
+                uint32_t a,
+                uint32_t b,
+                bool nulls = false) {
+  ExprProgram p;
+  uint32_t x = Read(&p, a, type);
+  uint32_t y = Read(&p, b, type);
+  Apply(&p, op, ExprType::kInt64, x, y);
+  RunProgram(state, std::move(p), nulls);
+}
+
+void BM_ExprIntEq(benchmark::State& state) {
+  RunCompare(state, Op::kEq, ExprType::kInt64, kIntA, kIntB);
+}
+BENCHMARK(BM_ExprIntEq);
+
+void BM_ExprIntNe(benchmark::State& state) {
+  RunCompare(state, Op::kNe, ExprType::kInt64, kIntA, kIntB);
+}
+BENCHMARK(BM_ExprIntNe);
+
+void BM_ExprIntLt(benchmark::State& state) {
+  RunCompare(state, Op::kLt, ExprType::kInt64, kIntA, kIntB);
+}
+BENCHMARK(BM_ExprIntLt);
+
+void BM_ExprIntGt(benchmark::State& state) {
+  RunCompare(state, Op::kGt, ExprType::kInt64, kIntA, kIntB);
+}
+BENCHMARK(BM_ExprIntGt);
+
+void BM_ExprIntLtNullable(benchmark::State& state) {
+  RunCompare(state, Op::kLt, ExprType::kInt64, kIntA, kIntB, true);
+}
+BENCHMARK(BM_ExprIntLtNullable);
+
+void BM_ExprDoubleLt(benchmark::State& state) {
+  RunCompare(state, Op::kLt, ExprType::kDouble, kDoubleA, kDoubleB);
+}
+BENCHMARK(BM_ExprDoubleLt);
+
+void BM_ExprDoubleGe(benchmark::State& state) {
+  RunCompare(state, Op::kGe, ExprType::kDouble, kDoubleA, kDoubleB);
+}
+BENCHMARK(BM_ExprDoubleGe);
+
+void BM_ExprStringEq(benchmark::State& state) {
+  RunCompare(state, Op::kEq, ExprType::kString, kStringA, kStringB);
+}
+BENCHMARK(BM_ExprStringEq);
+
+void BM_ExprStringNe(benchmark::State& state) {
+  RunCompare(state, Op::kNe, ExprType::kString, kStringA, kStringB);
+}
+BENCHMARK(BM_ExprStringNe);
+
+void BM_ExprStringLt(benchmark::State& state) {
+  RunCompare(state, Op::kLt, ExprType::kString, kStringA, kStringB);
+}
+BENCHMARK(BM_ExprStringLt);
 
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec
