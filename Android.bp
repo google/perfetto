@@ -17304,6 +17304,7 @@ filegroup {
         "src/protovm/executor.cc",
         "src/protovm/node.cc",
         "src/protovm/parser.cc",
+        "src/protovm/program.cc",
         "src/protovm/ro_cursor.cc",
         "src/protovm/rw_proto.cc",
         "src/protovm/rw_proto_cursor.cc",
