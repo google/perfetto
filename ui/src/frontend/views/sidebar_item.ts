@@ -35,6 +35,8 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
 
   view({attrs}: m.CVnode<SidebarItemAttrs>): m.Children {
     const item = attrs.item;
+    if (valueOrCallback(item.hidden)) return null;
+
     let href = '#';
     let disabled = false;
     let target = null;
@@ -74,7 +76,7 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
     }
 
     if ('href' in item && item.href !== undefined) {
-      href = item.href;
+      href = valueOrCallback(item.href);
       target = href.startsWith('#') ? null : '_blank';
       isActive = pageMatchesHref(href);
     }
