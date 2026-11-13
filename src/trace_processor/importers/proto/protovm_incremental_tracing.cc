@@ -55,9 +55,14 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
     protozero::ConstBytes state = instance.has_state()
                                       ? instance.state()
                                       : protozero::ConstBytes{nullptr, 0};
-    vms_.push_back(std::make_unique<protovm::Vm>(
-        instance.program(), 1024 * instance.memory_limit_kb(), state));
-    protovm::Vm* vm = vms_.back().get();
+    base::StatusOr<std::unique_ptr<protovm::Vm>> vm = protovm::Vm::Create(
+        instance.program(), 1024 * instance.memory_limit_kb(), state);
+    if (!vm.ok()) {
+      context_->import_logs_tracker->RecordTokenizationLog(
+          stats::protovm_registration_error, packet.offset());
+      continue;
+    }
+    vms_.push_back(std::move(*vm));
     for (auto producer_id = instance.producer_id(); producer_id;
          ++producer_id) {
       auto* sequence_ids = producer_id_to_sequence_ids_.Find(*producer_id);
@@ -67,7 +72,7 @@ void ProtoVmIncrementalTracing::ProcessProtoVmsPacket(
         continue;
       }
       for (auto sequence_id : *sequence_ids) {
-        sequence_id_to_vms_[sequence_id].push_back(vm);
+        sequence_id_to_vms_[sequence_id].push_back(vms_.back().get());
       }
     }
   }

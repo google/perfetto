@@ -69,12 +69,13 @@ void TraceBufferProtoVms::MaybeSetUp(const std::string& data_source_name,
         reinterpret_cast<const uint8_t*>(program_bytes.data()),
         program_bytes.size()};
 
-    new_vm.instance = std::make_unique<protovm::Vm>(
-        program_bytes_view, new_vm.memory_limit_kb * 1024);
-    if (!new_vm.instance) {
-      PERFETTO_ELOG("Failed to allocate ProtoVM");
+    base::StatusOr<std::unique_ptr<protovm::Vm>> instance =
+        protovm::Vm::Create(program_bytes_view, new_vm.memory_limit_kb * 1024);
+    if (!instance.ok()) {
+      PERFETTO_ELOG("%s", instance.status().c_message());
       return;
     }
+    new_vm.instance = std::move(*instance);
 
     vms_.push_back(std::move(new_vm));
     vm = &vms_.back();

@@ -22,7 +22,7 @@ namespace protovm {
 Executor::~Executor() = default;
 
 StatusOr<void> Executor::EnterField(Cursors* cursors, uint32_t field_id) const {
-  if (cursors->selected == CursorEnum::VM_CURSOR_SRC) {
+  if (cursors->selected == CursorSelection::kSrc) {
     return cursors->src.EnterField(field_id);
   }
 
@@ -39,7 +39,7 @@ StatusOr<void> Executor::EnterField(Cursors* cursors, uint32_t field_id) const {
 StatusOr<void> Executor::EnterRepeatedFieldAt(Cursors* cursors,
                                               uint32_t field_id,
                                               uint32_t index) const {
-  if (cursors->selected == CursorEnum::VM_CURSOR_SRC) {
+  if (cursors->selected == CursorSelection::kSrc) {
     return cursors->src.EnterRepeatedFieldAt(field_id, index);
   }
 
@@ -50,7 +50,7 @@ StatusOr<void> Executor::EnterRepeatedFieldByKey(Cursors* cursors,
                                                  uint32_t field_id,
                                                  uint32_t map_key_field_id,
                                                  uint64_t key) const {
-  if (cursors->selected == CursorEnum::VM_CURSOR_SRC) {
+  if (cursors->selected == CursorSelection::kSrc) {
     PROTOVM_ABORT(
         "Mapped repeated fields are currently supported only in RwProto");
   }
@@ -92,7 +92,7 @@ StatusOr<void> Executor::WriteRegister(const Cursors& cursors, uint8_t reg_id) {
     PROTOVM_ABORT("Register (id = %d) is out of bounds", reg_id);
   }
 
-  auto status_or_scalar = cursors.selected == CursorEnum::VM_CURSOR_SRC
+  auto status_or_scalar = cursors.selected == CursorSelection::kSrc
                               ? cursors.src.GetScalar()
                               : cursors.dst.GetScalar();
   PROTOVM_RETURN_IF_NOT_OK(status_or_scalar);
