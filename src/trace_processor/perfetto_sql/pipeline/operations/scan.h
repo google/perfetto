@@ -94,12 +94,16 @@ struct ScanSearch {
     // Searches of sorted columns, which narrow the rows to a range kept in
     // table order.
     kSorted,
-    // Equalities on an index's leading columns, read in index order.
+    // Equalities on an index's leading columns, read in index order, cut to
+    // the range of any searches of sorted columns.
     kIndex,
   };
   Kind kind = Kind::kEmpty;
   // For kIndex, which of the dataframe's indexes.
   uint32_t index = 0;
+  // For kIndex, how many of `predicates`, from the first, are searches of
+  // sorted columns rather than equalities on the index.
+  uint32_t sorted = 0;
   // The conditions searched, in the order they are searched.
   std::vector<WherePredicate> predicates;
 };
@@ -145,13 +149,16 @@ class Scan : public PlanOperation {
     ScanSearch::Kind kind = ScanSearch::Kind::kEmpty;
     // For kIndex, which of the dataframe's indexes.
     uint32_t index = 0;
+    // For kIndex, how many of `answered`, from the first, search sorted
+    // columns.
+    uint32_t sorted = 0;
     // The conditions answered, in the order they are searched.
     std::vector<uint32_t> answered;
   };
   // What of `conditions` the scan, bound to `data`, can answer by searching,
   // choosing as the dataframe's own planner does: no rows at all if a
-  // condition can match none, else binary searches of sorted columns, else an
-  // index. nullopt if it can answer none.
+  // condition can match none, else binary searches of sorted columns and then
+  // an index on the equalities left. nullopt if it can answer none.
   std::optional<SearchPlan> PlanSearch(const std::vector<Condition>& conditions,
                                        const Bindings::Dataframe& data) const;
 
