@@ -32,6 +32,8 @@ import {assertUnreachable} from '../../base/assert';
 import {Button, ButtonBar} from '../../widgets/button';
 import {NoteEditor} from './note_editor';
 import {Gate} from '../../base/mithril_utils';
+import {withOwner} from '../../base/owner_attribute';
+import {getOwner} from '../../core/ownership';
 
 interface TabEntry {
   readonly id: string;
@@ -51,13 +53,15 @@ function renderTabs(
     .flatMap((tab) => {
       const content = tab.render(selection);
       if (!content) return [];
+      // Label what the plugin returned with its owner.
+      const owner = getOwner(tab);
       return [
         {
           id: tab.id,
           name: tab.name,
-          content: content.content,
+          content: withOwner(owner, content.content),
           isLoading: content.isLoading,
-          buttons: content.buttons,
+          buttons: withOwner(owner, content.buttons),
         },
       ];
     });
@@ -167,12 +171,15 @@ export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTab
     // hope it's the right one!
     const detailsPanel = trace.selection.getDetailsPanelForSelection();
     const extraTabs = renderTabs(trace.selection.selectionTabs, selection);
+    // The details panel comes from the selected event's track, so it belongs
+    // to the plugin that registered that track.
+    const detailsOwner = trace.tracks.getTrack(selection.trackUri)?.pluginId;
 
     if (extraTabs.length === 0) {
       if (detailsPanel) {
         return {
           isLoading: detailsPanel.isLoading,
-          content: detailsPanel.render(),
+          content: withOwner(detailsOwner, detailsPanel.render()),
         };
       }
       return {
@@ -185,7 +192,9 @@ export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTab
       {
         id: 'overview',
         name: 'Details',
-        content: detailsPanel ? detailsPanel.render() : 'Loading...',
+        content: detailsPanel
+          ? withOwner(detailsOwner, detailsPanel.render())
+          : 'Loading...',
         isLoading: detailsPanel ? detailsPanel.isLoading : true,
       },
       ...extraTabs,
