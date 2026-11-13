@@ -80,7 +80,10 @@ window. The message should be a JavaScript object with a single `perfetto` key:
     title: string;
     fileName?: string;                 // Optional
     url?: string;                      // Optional
-    appStateHash?: string              // Optional
+    appStateHash?: string;             // Optional
+    pluginArgs?: {                     // Optional
+      [pluginId: string]: {[key: string]: unknown};
+    };
   }
 }
 ```
@@ -103,6 +106,9 @@ The properties of the `perfetto` object are:
   below.
 - `appStateHash` (optional): A hash for restoring the UI state when sharing. See
   the "Sharing" section below.
+- `pluginArgs` (optional): Per-plugin arguments keyed by plugin ID (available
+  when opening a trace via `buffer`). See
+  [Passing arguments to plugins](#passing-arguments-to-plugins) below.
 
 To transfer a stream, include it in the transfer list:
 
@@ -158,6 +164,50 @@ associated with that hash.
 If the `url` property is omitted, the share functionality will be disabled. If
 the `perfettoStateHashPlaceholder` is omitted from the `url`, the trace can be
 shared but the UI state will not be saved.
+
+### Passing arguments to plugins
+
+When opening a trace with a `buffer` via `postMessage`, you can pass
+trace-specific arguments to Perfetto UI plugins through the `pluginArgs` map,
+keyed by plugin ID (`{[pluginId: string]: {[key: string]: unknown}}`).
+
+#### Heap Profile (`dev.perfetto.HeapProfile`)
+
+Selects a matching heap profile track, sets the initial flamegraph metric, and
+scrolls the track into view when the trace finishes loading (if no matching heap
+profile exists in the trace, a warning dialog is shown):
+
+```js
+handle.postMessage(
+  {
+    perfetto: {
+      buffer,
+      title: 'My heap profile trace',
+      pluginArgs: {
+        'dev.perfetto.HeapProfile': {
+          process: 'com.example.app',
+          type: 'libc.malloc',
+          metric: 'unreleased_size',
+        },
+      },
+    },
+  },
+  'https://ui.perfetto.dev',
+);
+```
+
+Supported properties for `dev.perfetto.HeapProfile` (all optional; at least one
+must be provided):
+
+- `process`: Process name or command line (`process.name` or `process.cmdline`)
+  to match.
+- `type`: Heap profiler name (for example, `'libc.malloc'` for native heap
+  profiles or `'com.android.art'` for ART allocation profiles).
+- `metric`: Initial flamegraph metric to select:
+  - `'unreleased_size'` (native / generic heap profiles)
+  - `'unreleased_count'` (native / generic heap profiles)
+  - `'total_size'` (native / generic / ART allocation profiles)
+  - `'total_count'` (native / generic / ART allocation profiles)
 
 ### Code samples
 
