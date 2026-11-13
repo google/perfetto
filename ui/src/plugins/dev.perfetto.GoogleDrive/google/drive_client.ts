@@ -25,6 +25,13 @@ const GAPI_LOADER_URL = 'https://apis.google.com/js/api.js';
 // The Drive REST API endpoint for files.
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 
+// The Drive REST API endpoint for uploading a file with its metadata.
+// supportsAllDrives lets the destination folder be in a shared drive; without
+// it Drive reports such a folder as not found.
+const DRIVE_UPLOAD_URL =
+  'https://www.googleapis.com/upload/drive/v3/files' +
+  '?uploadType=multipart&supportsAllDrives=true';
+
 // How long to wait for each network step of DriveClient.create() before
 // giving up. Without this a stalled request would never settle.
 const INIT_STEP_TIMEOUT_MS = 30000;
@@ -86,13 +93,169 @@ function httpDriveError(status: number): DriveError {
   };
 }
 
-// Talks to Google Drive: shows its file picker and downloads files.
+// What Drive returns for a successful upload: the new file's record.
+const UPLOAD_RESPONSE_SCHEMA = z.object({id: z.string()});
+
+export interface UploadOptions {
+  // Called as the upload progresses, with the bytes sent so far and the total
+  // to send. Both include a small amount of framing around the file itself.
+  readonly onProgress?: (uploadedBytes: number, totalBytes: number) => void;
+  // Abort this to cancel the upload.
+  readonly signal?: AbortSignal;
+}
+
+export interface UploadError {
+  // 'cancelled' if the upload was cancelled through UploadOptions.signal.
+  readonly type: 'cancelled' | 'error';
+  readonly cause?: unknown;
+}
+
+export interface SharingDialogError {
+  readonly type: 'error';
+  readonly cause?: unknown;
+}
+
+// The body of an error response from the Drive API.
+const DRIVE_ERROR_SCHEMA = z.object({error: z.object({message: z.string()})});
+
+// Extracts Drive's explanation from the body of an error response, if it has
+// one.
+function driveErrorMessage(responseText: string): string | undefined {
+  let json: unknown;
+  try {
+    json = JSON.parse(responseText);
+  } catch {
+    return undefined;
+  }
+  const result = DRIVE_ERROR_SCHEMA.safeParse(json);
+  return result.success ? result.data.error.message : undefined;
+}
+
+// Describes an upload that Drive answered with an error status.
+function uploadHttpError(status: number, responseText: string): UploadError {
+  // Drive explains the failure (e.g. storage quota exceeded) in the response
+  // body; pass that on if it is there.
+  const reason = driveErrorMessage(responseText);
+  return {
+    type: 'error',
+    cause:
+      reason === undefined
+        ? `Google Drive returned HTTP ${status}`
+        : `${reason} (HTTP ${status})`,
+  };
+}
+
+// Reads the new file's ID out of Drive's response to a successful upload.
+function parseUploadedFileId(
+  responseText: string,
+): Result<string, UploadError> {
+  let json: unknown;
+  try {
+    json = JSON.parse(responseText);
+  } catch {
+    json = undefined;
+  }
+  const result = UPLOAD_RESPONSE_SCHEMA.safeParse(json);
+  if (!result.success) {
+    return errResult({
+      type: 'error',
+      cause: 'Google Drive did not return a file ID',
+    });
+  }
+  return okResult(result.data.id);
+}
+
+// The body of a Drive "multipart" upload, which sends a file's metadata and
+// its contents in one request, and the Content-Type header to send it with.
+interface MultipartUpload {
+  readonly body: Blob;
+  readonly contentType: string;
+}
+
+function buildMultipartUpload(
+  metadata: {readonly [key: string]: unknown},
+  media: Blob,
+): MultipartUpload {
+  const boundary = '-------314159265358979323846';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelim = `\r\n--${boundary}--`;
+
+  const metadataPart =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata);
+
+  const mediaPart =
+    delimiter + 'Content-Type: application/octet-stream\r\n\r\n';
+
+  return {
+    // The media is referenced by the body rather than copied into it.
+    body: new Blob([metadataPart, mediaPart, media, closeDelim]),
+    contentType: `multipart/related; boundary=${boundary}`,
+  };
+}
+
+// What the server sent back for a request that completed.
+interface PostResponse {
+  readonly status: number;
+  readonly responseText: string;
+}
+
+// POSTs `body` to `url`, resolving with the server's response whatever its
+// status. Never rejects: a request that could not be completed, or was
+// cancelled, resolves with an error.
+//
+// This uses XMLHttpRequest rather than fetch(), as fetch() cannot report
+// upload progress.
+function postWithProgress(
+  url: string,
+  headers: {readonly [name: string]: string},
+  body: Blob,
+  opts?: UploadOptions,
+): Promise<Result<PostResponse, UploadError>> {
+  const deferred = defer<Result<PostResponse, UploadError>>();
+
+  const signal = opts?.signal;
+  if (signal?.aborted) {
+    deferred.resolve(errResult({type: 'cancelled'}));
+    return deferred;
+  }
+
+  try {
+    const req = new XMLHttpRequest();
+    req.open('POST', url, /* async= */ true);
+    for (const [name, value] of Object.entries(headers)) {
+      req.setRequestHeader(name, value);
+    }
+
+    req.upload.onprogress = (e: ProgressEvent) => {
+      opts?.onProgress?.(e.loaded, e.total);
+    };
+    req.onabort = () => deferred.resolve(errResult({type: 'cancelled'}));
+    req.onerror = () =>
+      deferred.resolve(errResult({type: 'error', cause: 'Network error'}));
+    req.onload = () =>
+      deferred.resolve(
+        okResult({status: req.status, responseText: req.responseText}),
+      );
+
+    signal?.addEventListener('abort', () => req.abort(), {once: true});
+    req.send(body);
+  } catch (e) {
+    deferred.resolve(errResult({type: 'error', cause: e}));
+  }
+
+  return deferred;
+}
+
+// Talks to Google Drive: shows its file and folder pickers and sharing dialog,
+// and downloads and uploads files.
 export class DriveClient {
   private constructor(private readonly config: DriveClientConfig) {}
 
   // Loads everything the client needs and returns a ready-to-use client:
-  // Google's API loader and its picker module, for the file picker. Rejects if
-  // any step fails.
+  // Google's API loader with its picker and drive-share modules, for the
+  // pickers and the sharing dialog. Rejects if any step fails.
   //
   // Google's API client (gapi.client) is deliberately not loaded: Drive
   // requests are made with plain fetch() and the access token.
@@ -101,7 +264,7 @@ export class DriveClient {
   // startup.
   static async create(config: DriveClientConfig): Promise<DriveClient> {
     await loadScript(GAPI_LOADER_URL, INIT_STEP_TIMEOUT_MS);
-    await loadGapiModules('picker', INIT_STEP_TIMEOUT_MS);
+    await loadGapiModules('picker:drive-share', INIT_STEP_TIMEOUT_MS);
     return new DriveClient(config);
   }
 
@@ -127,6 +290,73 @@ export class DriveClient {
     const view = new google.picker.DocsView(google.picker.ViewId.DOCS);
     view.setMode(google.picker.DocsViewMode.LIST);
     return this.picker(oauthToken, {view});
+  }
+
+  // Open the Google Drive picker to select a folder.
+  async pickFolder(
+    oauthToken: string,
+  ): Promise<Result<google.picker.DocumentObject, PickerError>> {
+    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS);
+    view.setMode(google.picker.DocsViewMode.LIST);
+    view.setIncludeFolders(true);
+    view.setSelectFolderEnabled(true);
+    view.setMimeTypes('application/vnd.google-apps.folder');
+    return this.picker(oauthToken, {view, title: 'Select folder'});
+  }
+
+  // Opens Drive's sharing settings dialog for a file. The drive-share module
+  // it needs is loaded by create(). Never throws.
+  openSharingDialog(
+    oauthToken: string,
+    fileId: string,
+  ): Result<void, SharingDialogError> {
+    try {
+      const shareClient = new gapi.drive.share.ShareClient();
+      shareClient.setOAuthToken(oauthToken);
+      shareClient.setItemIds([fileId]);
+      shareClient.showSettingsDialog();
+      return okResult();
+    } catch (e) {
+      return errResult({type: 'error', cause: e});
+    }
+  }
+
+  // Uploads a file to Drive, resolving with the new file's ID. Never rejects.
+  //
+  // `opts.onProgress` is called as bytes are sent, and aborting `opts.signal`
+  // cancels the upload.
+  async uploadFile(
+    oauthToken: string,
+    traceBlob: Blob,
+    parentId: string,
+    fileName: string,
+    opts?: UploadOptions,
+  ): Promise<Result<string, UploadError>> {
+    const {body, contentType} = buildMultipartUpload(
+      {
+        name: fileName,
+        mimeType: 'application/octet-stream',
+        parents: [parentId],
+      },
+      traceBlob,
+    );
+
+    const response = await postWithProgress(
+      DRIVE_UPLOAD_URL,
+      {
+        'Content-Type': contentType,
+        'Authorization': `Bearer ${oauthToken}`,
+      },
+      body,
+      opts,
+    );
+    if (!response.ok) return response;
+
+    const {status, responseText} = response.value;
+    if (status < 200 || status >= 300) {
+      return errResult(uploadHttpError(status, responseText));
+    }
+    return parseUploadedFileId(responseText);
   }
 
   // Downloads a file's contents. Never rejects.

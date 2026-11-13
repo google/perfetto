@@ -150,7 +150,12 @@ describe('openFileFromDeeplink', () => {
       await t.run();
 
       expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
-        expect.objectContaining({buffer: CONTENTS, shareable: false}),
+        expect.objectContaining({
+          buffer: CONTENTS,
+          shareable: false,
+          // Records which Drive file the trace is, for "Share to GDrive".
+          pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE_ID}},
+        }),
       );
       expect(promptsShown()).toEqual([]);
       expect(t.requestFileAccess).not.toHaveBeenCalled();

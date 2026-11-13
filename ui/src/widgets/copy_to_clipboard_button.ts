@@ -18,6 +18,7 @@ import {ActionButtonHelper} from './action_button_helper';
 import {Button, type ButtonVariant} from './button';
 import {copyToClipboard} from '../base/clipboard';
 import {isEmptyVnodes} from '../base/mithril_utils';
+import type {Intent} from './common';
 
 export interface CopyToClipboardButtonAttrs {
   readonly className?: string;
@@ -25,6 +26,7 @@ export interface CopyToClipboardButtonAttrs {
   readonly tooltip?: m.Children;
   readonly title?: string;
   readonly label?: string;
+  readonly intent?: Intent;
   readonly variant?: ButtonVariant;
   readonly disabled?: boolean;
   readonly compact?: boolean;
@@ -59,6 +61,7 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         title: attrs.title ?? defaultTitle,
         icon: helper.state === 'done' ? Icons.Check : Icons.Copy,
         loading: helper.state === 'working',
+        intent: attrs.intent,
         label,
         disabled: attrs.disabled,
         compact: attrs.compact,

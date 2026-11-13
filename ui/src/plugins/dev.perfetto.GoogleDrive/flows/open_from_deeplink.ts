@@ -25,6 +25,7 @@ import type {GoogleOAuthClient} from '../google/oauth_client';
 import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
+import {gdriveTraceArgs} from '../trace_args';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -122,6 +123,8 @@ export async function openFileFromDeeplink(
     // ACL-protected Drive traces must not be re-uploaded to the public
     // perfetto-ui-data GCS bucket via permalinks or crash reports.
     shareable: false,
+    // Lets onTraceLoad() know which Drive file this trace is.
+    pluginArgs: gdriveTraceArgs(fileId),
   });
 }
 

@@ -113,6 +113,75 @@ function latest(shown: ShownPicker[]): ShownPicker {
   return picker;
 }
 
+// A stand-in for XMLHttpRequest, which uploadFile() uses to send a file. It
+// sends nothing: each test plays the server, with respond() or fail().
+class FakeXhr {
+  // The most recent request, if one has been made since reset().
+  static latest: FakeXhr | undefined;
+  static reset(): void {
+    FakeXhr.latest = undefined;
+  }
+
+  url = '';
+  readonly headers = new Map<string, string>();
+  body: Blob | undefined;
+  aborted = false;
+  status = 0;
+  responseText = '';
+
+  readonly upload: {onprogress?: (e: ProgressEvent) => void} = {};
+  onabort?: () => void;
+  onerror?: () => void;
+  onload?: () => void;
+
+  constructor() {
+    FakeXhr.latest = this;
+  }
+  open(_method: string, url: string): void {
+    this.url = url;
+  }
+  setRequestHeader(name: string, value: string): void {
+    this.headers.set(name, value);
+  }
+  send(body: Blob): void {
+    this.body = body;
+  }
+  abort(): void {
+    this.aborted = true;
+    this.onabort?.();
+  }
+
+  // Answers the request as the server would.
+  respond(status: number, responseText: string): void {
+    this.status = status;
+    this.responseText = responseText;
+    this.onload?.();
+  }
+  // Reports `uploaded` of `total` bytes as sent.
+  progress(uploaded: number, total: number): void {
+    this.upload.onprogress?.({loaded: uploaded, total} as ProgressEvent);
+  }
+  // Fails the request as a dropped connection would.
+  fail(): void {
+    this.onerror?.();
+  }
+}
+
+function latestRequest(): FakeXhr {
+  const request = FakeXhr.latest;
+  if (request === undefined) throw new Error('No request was sent');
+  return request;
+}
+
+// jsdom's Blob has no text().
+function readBlobText(blob: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsText(blob);
+  });
+}
+
 describe('isValidDriveId', () => {
   test('accepts valid drive IDs and resource keys', () => {
     expect(isValidDriveId('abc123')).toBe(true);
@@ -589,4 +658,173 @@ describe('DriveClient.requestFileAccess', () => {
       expect(shown).toHaveLength(0);
     },
   );
+});
+
+describe('DriveClient.uploadFile', () => {
+  const TRACE = new Blob(['TRACE-BYTES']);
+
+  beforeEach(() => {
+    FakeXhr.reset();
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("returns the new file's ID", async () => {
+    const client = await createClient();
+    const pending = client.uploadFile('token', TRACE, 'folder1', 'my.pftrace');
+    latestRequest().respond(200, JSON.stringify({id: 'new123'}));
+
+    expect(await pending).toEqual({ok: true, value: 'new123'});
+  });
+
+  test("sends the file's contents, name and destination folder", async () => {
+    const client = await createClient();
+    const pending = client.uploadFile('token', TRACE, 'folder1', 'my.pftrace');
+
+    const body = await readBlobText(latestRequest().body!);
+    expect(body).toContain('TRACE-BYTES');
+    // The file's metadata is sent as a JSON object ahead of its contents.
+    const metadata = JSON.parse(/\{.*\}/.exec(body)![0]);
+    expect(metadata).toMatchObject({name: 'my.pftrace', parents: ['folder1']});
+
+    latestRequest().respond(200, JSON.stringify({id: 'new123'}));
+    await pending;
+  });
+
+  test('sends the token to Google only, and only in a header', async () => {
+    const client = await createClient();
+    const pending = client.uploadFile('secret-token', TRACE, 'folder1', 'n');
+    const request = latestRequest();
+
+    expect(new URL(request.url).origin).toBe('https://www.googleapis.com');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(request.url).not.toContain('secret-token');
+
+    request.respond(200, JSON.stringify({id: 'new123'}));
+    await pending;
+  });
+
+  test('reports progress as the file is sent', async () => {
+    const client = await createClient();
+    const onProgress = vi.fn();
+    const pending = client.uploadFile('token', TRACE, 'folder1', 'n', {
+      onProgress,
+    });
+
+    latestRequest().progress(3, 9);
+    latestRequest().progress(9, 9);
+    expect(onProgress.mock.calls).toEqual([
+      [3, 9],
+      [9, 9],
+    ]);
+
+    latestRequest().respond(200, JSON.stringify({id: 'new123'}));
+    await pending;
+  });
+
+  describe('cancelling', () => {
+    test('stops the request and reports a cancellation', async () => {
+      const client = await createClient();
+      const controller = new AbortController();
+      const pending = client.uploadFile('token', TRACE, 'folder1', 'n', {
+        signal: controller.signal,
+      });
+
+      controller.abort();
+
+      expect(latestRequest().aborted).toBe(true);
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: {type: 'cancelled'},
+      });
+    });
+
+    test('sends nothing if already cancelled', async () => {
+      const client = await createClient();
+      const controller = new AbortController();
+      controller.abort();
+      const result = await client.uploadFile('token', TRACE, 'folder1', 'n', {
+        signal: controller.signal,
+      });
+
+      expect(result).toMatchObject({ok: false, error: {type: 'cancelled'}});
+      expect(FakeXhr.latest).toBeUndefined();
+    });
+  });
+
+  describe('failures', () => {
+    // Drive explains failures such as a full quota in the response body, which
+    // is the only way the user finds out why the upload did not work.
+    test("passes on Drive's explanation of an error", async () => {
+      const client = await createClient();
+      const pending = client.uploadFile('token', TRACE, 'folder1', 'n');
+      latestRequest().respond(
+        403,
+        JSON.stringify({error: {message: 'Storage quota exceeded'}}),
+      );
+
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: {
+          type: 'error',
+          cause: expect.stringContaining('Storage quota exceeded'),
+        },
+      });
+    });
+
+    test.each([
+      ['a body that is not JSON', 500, '<html>'],
+      ['a body with no explanation', 500, '{}'],
+      ['a redirect', 302, ''],
+    ])('reports an error status with %s', async (_name, status, body) => {
+      const client = await createClient();
+      const pending = client.uploadFile('token', TRACE, 'folder1', 'n');
+      latestRequest().respond(status, body);
+
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: {type: 'error', cause: expect.stringContaining(`${status}`)},
+      });
+    });
+
+    test.each([
+      ['is not JSON', '<html>'],
+      ['has no file ID', '{}'],
+      ['has a file ID that is not a string', '{"id": 5}'],
+    ])('reports an error if a successful response %s', async (_name, body) => {
+      const client = await createClient();
+      const pending = client.uploadFile('token', TRACE, 'folder1', 'n');
+      latestRequest().respond(200, body);
+
+      expect(await pending).toMatchObject({ok: false, error: {type: 'error'}});
+    });
+
+    test('reports a dropped connection, without rejecting', async () => {
+      const client = await createClient();
+      const pending = client.uploadFile('token', TRACE, 'folder1', 'n');
+      latestRequest().fail();
+
+      expect(await pending).toMatchObject({ok: false, error: {type: 'error'}});
+    });
+
+    test('reports rather than rejects if the request cannot be made', async () => {
+      const failure = new Error('boom');
+      vi.stubGlobal(
+        'XMLHttpRequest',
+        class {
+          constructor() {
+            throw failure;
+          }
+        },
+      );
+      const client = await createClient();
+
+      expect(
+        await client.uploadFile('token', TRACE, 'folder1', 'n'),
+      ).toMatchObject({ok: false, error: {type: 'error', cause: failure}});
+    });
+  });
 });

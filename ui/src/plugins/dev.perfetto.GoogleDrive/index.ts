@@ -17,13 +17,21 @@ import {z} from 'zod';
 import {assertDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import {alertModal, showModal} from '../../widgets/modal';
 import {DriveClient} from './google/drive_client';
 import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
-import {alertModal} from '../../widgets/modal';
-import {openFileFromSidebar} from './flows/open_from_sidebar';
 import {openFileFromDeeplink} from './flows/open_from_deeplink';
+import {openFileFromSidebar} from './flows/open_from_sidebar';
+import {ShareForm, type ShareState} from './views/share_form';
+import {
+  openGDriveSharingDialog,
+  pickUploadFolder,
+  uploadTraceToGDrive,
+} from './share_to_gdrive';
+import {GDRIVE_PLUGIN_ID, parseGDriveTraceArgs} from './trace_args';
 
 export interface GDriveClients {
   readonly oauth: GoogleOAuthClient;
@@ -31,31 +39,47 @@ export interface GDriveClients {
 }
 
 export default class GoogleDrivePlugin implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.GoogleDrive';
-  static readonly description = 'Open traces from Google Drive';
+  static readonly id = GDRIVE_PLUGIN_ID;
+  static readonly description = 'Open and save traces to Google Drive';
+
+  // Set once initGDrive() has succeeded. Stays undefined if it fails. Static,
+  // as it is loaded once in onActivate() and used by every trace.
+  private static clients: GDriveClients | undefined;
+  private static initFinished = false;
+
+  // Why the sidebar buttons cannot be used yet, or false if they can. The
+  // sidebar shows the reason when a disabled button is clicked.
+  private static unavailableReason(): string | false {
+    if (GoogleDrivePlugin.clients !== undefined) return false;
+    return GoogleDrivePlugin.initFinished
+      ? 'Google Drive support could not be loaded.'
+      : 'Google Drive support is still loading.';
+  }
+
+  // What the "Share to Google Drive" dialog shows for this trace. It lives
+  // here, on the per-trace plugin instance, rather than in the dialog, so that
+  // an upload carries on being shown, cancellable and able to report failure
+  // if the dialog is closed and reopened.
+  private readonly share: ShareState = {
+    fileName: '',
+    location: 'root',
+    fileId: undefined,
+    upload: undefined,
+    error: undefined,
+  };
 
   static onActivate(app: App) {
     // Google clients are odd - we must run them as external scripts so loading
     // their code naturally is asynchronous. We don't want to delay startup so
     // kick off the load async and disable features until they've loaded.
-    let clients: GDriveClients | undefined;
-    let initFinished = false;
     const clientsPromise = initGDrive(app).then((c) => {
-      clients = c;
-      initFinished = true;
+      GoogleDrivePlugin.clients = c;
+      GoogleDrivePlugin.initFinished = true;
       return c;
     });
 
-    // Why the sidebar button cannot be used yet, or false if it can. The
-    // sidebar shows the reason when a disabled button is clicked.
-    function unavailableReason(): string | false {
-      if (clients !== undefined) return false;
-      return initFinished
-        ? 'Google Drive support could not be loaded.'
-        : 'Google Drive support is still loading.';
-    }
-
-    // Adds Perfetto to the "Open with" menu in the user's Google Drive.
+    // Connects Perfetto to the user's Google account, which also adds it to
+    // Google Drive's "Open with" menu.
     app.commands.registerCommand({
       id: `dev.perfetto.GoogleDriveInstall`,
       name: 'Install Google Drive support',
@@ -89,8 +113,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
       sortOrder: 1.25,
       // Disabled until everything it needs has loaded. This is a callback as
       // that only happens some time after startup.
-      disabled: () => unavailableReason(),
+      disabled: () => GoogleDrivePlugin.unavailableReason(),
       action: async () => {
+        const clients = GoogleDrivePlugin.clients;
         assertDefined(clients); // The button is disabled until this is set
 
         if (openFlowInProgress) {
@@ -127,6 +152,96 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
       }
     });
   }
+
+  async onTraceLoad(
+    trace: Trace,
+    args?: {[key: string]: unknown},
+  ): Promise<void> {
+    const share = this.share;
+    share.fileName = trace.traceInfo.traceTitle;
+    // If the trace was opened from Drive, it is already there.
+    share.fileId = parseGDriveTraceArgs(args);
+
+    // Stop an upload that is still running when the trace is closed. Nothing
+    // could show or cancel it any more, and it would keep the trace's contents
+    // alive until it finished.
+    trace.trash.defer(() => share.upload?.controller.abort());
+
+    // The button reflects the share state, so that an upload can be followed,
+    // and its outcome seen, while the dialog is closed. These callbacks run on
+    // every render, and the upload's progress reports trigger a redraw.
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      text: () =>
+        isSavedToDrive(share) ? 'Saved to GDrive' : 'Share to GDrive',
+      icon: () => {
+        if (share.upload !== undefined) return 'add_to_drive';
+        if (isSavedToDrive(share)) return 'cloud_done';
+        // The last action in the share dialog failed.
+        if (share.error !== undefined) return 'error';
+        return 'add_to_drive';
+      },
+      sortOrder: 10,
+      // While uploading, the badge shows how far the upload has got.
+      badge: () => {
+        const upload = share.upload;
+        if (upload === undefined) return 'preview';
+        if (upload.totalBytes === 0) return '…';
+        return `${Math.floor((100 * upload.uploadedBytes) / upload.totalBytes)}%`;
+      },
+      // Disabled under the same conditions as "Open from GDrive", and for
+      // traces whose contents cannot be read back to upload (for example, one
+      // loaded over HTTP+RPC).
+      disabled: () => {
+        const reason = GoogleDrivePlugin.unavailableReason();
+        if (reason !== false) return reason;
+        if (!trace.traceInfo.downloadable) {
+          return 'This trace cannot be uploaded, as its contents are not available.';
+        }
+        return false;
+      },
+      action: () => {
+        const clients = GoogleDrivePlugin.clients;
+        assertDefined(clients); // The button is disabled until this is set
+        const {oauth, drive} = clients;
+
+        // Each action runs outside of any DOM event handler once it awaits, so
+        // redraw when it finishes to show the outcome.
+        const redrawAfter = (action: Promise<void>) => {
+          action.finally(() => trace.raf.scheduleFullRedraw());
+        };
+
+        // This button opens a modal dialog which displays the state of the file
+        // in google drive allowing the user to upload it and optionally share
+        // it. The dialog renders this.share, and keeps no state of its own.
+        showModal({
+          key: 'GDriveUpload',
+          title: 'Share to Google Drive',
+          icon: 'cloud_upload',
+          content: () =>
+            m(ShareForm, {
+              state: share,
+              onFileNameChange: (fileName: string) => {
+                share.fileName = fileName;
+              },
+              onUpload: () =>
+                redrawAfter(uploadTraceToGDrive(trace, oauth, drive, share)),
+              onCancelUpload: () => share.upload?.controller.abort(),
+              onPickFolder: () =>
+                redrawAfter(pickUploadFolder(oauth, drive, share)),
+              onOpenSharingDialog: () =>
+                redrawAfter(openGDriveSharingDialog(oauth, drive, share)),
+            }),
+        });
+      },
+    });
+  }
+}
+
+// Whether the trace is known to be in Drive, either uploaded or opened from
+// there.
+function isSavedToDrive(share: Readonly<ShareState>): boolean {
+  return share.fileId !== undefined && share.fileId !== '';
 }
 
 async function alertGDriveNotAvailable() {
