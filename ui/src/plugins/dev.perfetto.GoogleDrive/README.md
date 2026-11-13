@@ -1,8 +1,9 @@
 # dev.perfetto.GoogleDrive
 
-Opens traces from Google Drive through the "Open from GDrive" sidebar button
-(file picker). The "Install Google Drive support" command connects Perfetto to
-a Google account, which adds it to Drive's "Open with" menu.
+Opens traces from Google Drive, either through the "Open from GDrive" sidebar
+button (file picker) or through Drive's "Open with" deep link
+(`?state=<json>`). The "Install Google Drive support" command connects
+Perfetto to a Google account, which adds it to Drive's "Open with" menu.
 
 ## Flows
 
@@ -23,6 +24,42 @@ graph TD
     K --> L{Download ok}
     L -->|No| M[Alert download failed]
     L -->|Yes| N[Open trace]
+```
+
+### Deep link flow (openFileFromDeeplink)
+
+```mermaid
+graph TD
+    A[Page loads with state param] --> B[Wait for clients to load]
+    B --> C{Clients loaded}
+    C -->|No| D[Alert Google Drive unavailable]
+    C -->|Yes| E[Parse state param]
+    E --> F{Valid}
+    F -->|No| G[Do nothing]
+    F -->|Yes| H[Authenticate]
+    H --> I{Popup blocked}
+    I -->|Yes| J[Prompt Connect to Google Drive]
+    J --> K{User pressed Connect}
+    K -->|No| L[Do nothing]
+    K -->|Yes| M[Authenticate again]
+    I -->|No| N{Got token}
+    M --> N
+    N -->|No| O[Alert connect failed]
+    N -->|Yes| P[Remove state param from URL]
+    P --> Q[Fetch metadata and download file in parallel]
+    Q --> R{Access denied}
+    R -->|Yes| S[Prompt Authorize access to file]
+    S --> T{User pressed Authorize}
+    T -->|No| U[Do nothing]
+    T -->|Yes| V[Show picker for this file]
+    V --> W{Picker result}
+    W -->|Cancelled| X[Do nothing]
+    W -->|Error| Y[Alert picker failed]
+    W -->|Picked| Z[Download file again]
+    R -->|No| AA{Download ok}
+    Z --> AA
+    AA -->|No| AB[Alert download failed]
+    AA -->|Yes| AC[Open trace]
 ```
 
 ### Authenticate step (GoogleOAuthClient authenticate)
