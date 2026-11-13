@@ -212,7 +212,10 @@ export class AppImpl implements App {
     return this._policy;
   }
 
+  // Must be called before analytics.initialize(), so that analytics can wait
+  // for the answer before it starts sending.
   setIsInternalUser(promise: Promise<boolean>) {
+    this.analytics.setIsInternalUser(promise);
     promise.then((value) => {
       this._policy = derivePolicy(value);
       localStorage.setItem(IS_INTERNAL_USER_KEY, value ? '1' : '0');
