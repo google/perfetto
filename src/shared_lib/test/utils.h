@@ -87,6 +87,10 @@ class TracingSession {
       enabled_tags_.push_back(std::move(tag));
       return *this;
     }
+    Builder& set_disable_incremental_timestamps(bool disabled) {
+      disable_incremental_timestamps_ = disabled;
+      return *this;
+    }
     Builder& set_java_event_encoding(uint32_t encoding) {
       java_event_encoding_ = encoding;
       return *this;
@@ -114,6 +118,7 @@ class TracingSession {
     std::vector<std::string> enabled_tags_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
+    bool disable_incremental_timestamps_ = false;
     std::optional<uint32_t> v2_probability_;
     std::optional<uint32_t> java_event_encoding_;
   };

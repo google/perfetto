@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/endian.h"
@@ -1867,6 +1868,55 @@ class SharedLibTrackEventTest : public testing::Test {
   }
 };
 
+// Copies values, so callers can release trace buffers after decoding.
+std::vector<uint64_t> JavaEventValues(
+    const std::vector<uint8_t>& trace,
+    uint32_t field_id,
+    std::vector<uint64_t>* timestamps = nullptr) {
+  std::vector<uint64_t> values;
+  for (auto packet :
+       IdFieldView(trace, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      if (timestamps) {
+        IdFieldView ts(packet,
+                       perfetto_protos_TracePacket_timestamp_field_number);
+        EXPECT_EQ(ts.size(), 1u);
+        if (ts.size() != 0)
+          timestamps->push_back(ts.front().value.integer64);
+      }
+      for (auto value : IdFieldView(event, field_id))
+        values.push_back(value.value.integer64);
+    }
+  }
+  return values;
+}
+
+std::vector<std::pair<uint64_t, std::string>> JavaInternedStrings(
+    const std::vector<uint8_t>& trace,
+    uint32_t table) {
+  std::vector<std::pair<uint64_t, std::string>> strings;
+  for (auto packet :
+       IdFieldView(trace, perfetto_protos_Trace_packet_field_number)) {
+    for (auto data : IdFieldView(
+             packet, perfetto_protos_TracePacket_interned_data_field_number)) {
+      for (auto entry : IdFieldView(data, table)) {
+        IdFieldView iids(entry, 1);
+        IdFieldView names(entry, 2);
+        EXPECT_EQ(iids.size(), 1u);
+        EXPECT_EQ(names.size(), 1u);
+        if (iids.size() != 0 && names.size() != 0) {
+          auto name = names.front().value.delimited;
+          strings.emplace_back(
+              iids.front().value.integer64,
+              std::string(reinterpret_cast<const char*>(name.start), name.len));
+        }
+      }
+    }
+  }
+  return strings;
+}
+
 TEST_F(SharedLibTrackEventTest, TrackEventFastpathOtherDsCatDisabled) {
   TracingSession tracing_session =
       TracingSession::Builder()
@@ -1949,6 +1999,239 @@ TEST_F(SharedLibTrackEventTest, JavaEncodingDefaultUsesLegacy) {
                      .Build();
   EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl),
             PERFETTO_TE_JAVA_ENCODING_LEGACY);
+}
+
+TEST_F(SharedLibTrackEventTest, JavaMixedModesRouteOnceAndShareTimestamp) {
+  auto legacy = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_java_event_encoding(1)
+                    .set_disable_incremental_timestamps(true)
+                    .Build();
+  auto encoded = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(2)
+                     .set_disable_incremental_timestamps(true)
+                     .Build();
+  PerfettoTeHlProtoFieldVarInt field{{PERFETTO_TE_HL_PROTO_TYPE_VARINT, 1000},
+                                     11};
+  PerfettoTeHlProtoField* proto_fields[] = {&field.header, nullptr};
+  PerfettoTeHlExtraProtoFields proto{{PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS},
+                                     proto_fields};
+  PerfettoTeHlExtra* legacy_extras[] = {&proto.header, nullptr};
+  const uint8_t bytes[] = {0xC0, 0x3E, 22};  // field 1000 = 22.
+  PerfettoTeHlEventFields fields{bytes, sizeof(bytes), nullptr, 0};
+  const char name[] = {'n', 'a', 'm', 'e'};  // Deliberately no terminator.
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       name, sizeof(name), 3, legacy_extras,
+                                       &fields, nullptr));
+  legacy.StopBlocking();
+  encoded.StopBlocking();
+  std::vector<uint64_t> legacy_timestamps;
+  std::vector<uint64_t> encoded_timestamps;
+  auto legacy_data = legacy.ReadBlocking();
+  auto encoded_data = encoded.ReadBlocking();
+  EXPECT_THAT(JavaEventValues(legacy_data, 1000, &legacy_timestamps),
+              ElementsAre(11));
+  EXPECT_THAT(JavaEventValues(encoded_data, 1000, &encoded_timestamps),
+              ElementsAre(22));
+  ASSERT_EQ(legacy_timestamps.size(), 1u);
+  EXPECT_EQ(encoded_timestamps, legacy_timestamps);
+  EXPECT_THAT(JavaInternedStrings(legacy_data, 2),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string("name"))));
+  EXPECT_TRUE(JavaInternedStrings(encoded_data, 2).empty());
+  EXPECT_TRUE(JavaInternedStrings(encoded_data, 1).empty());
+  for (auto packet :
+       IdFieldView(encoded_data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      EXPECT_THAT(event,
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("name"))));
+      EXPECT_THAT(event, AllFieldsWithId(
+                             perfetto_protos_TrackEvent_categories_field_number,
+                             ElementsAre(StringField("cat1"))));
+    }
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, JavaModeSnapshotSkipsLateDifferentMode) {
+  auto legacy = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_java_event_encoding(1)
+                    .Build();
+  const uint32_t modes = PerfettoTeHlGetJavaEncodingModes(cat1.impl);
+  auto encoded = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(2)
+                     .Build();
+  auto late_legacy = TracingSession::Builder()
+                         .set_data_source_name("track_event")
+                         .add_enabled_category("cat1")
+                         .set_java_event_encoding(1)
+                         .Build();
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       "event", 5, modes, nullptr, nullptr,
+                                       nullptr));
+  late_legacy.StopBlocking();
+  legacy.StopBlocking();
+  encoded.StopBlocking();
+  EXPECT_THAT(JavaEventValues(legacy.ReadBlocking(),
+                              perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+  EXPECT_TRUE(JavaEventValues(encoded.ReadBlocking(),
+                              perfetto_protos_TrackEvent_type_field_number)
+                  .empty());
+  EXPECT_THAT(JavaEventValues(late_legacy.ReadBlocking(),
+                              perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+}
+
+TEST_F(SharedLibTrackEventTest, JavaDynamicFilteringDoesNotChangeSelectedMode) {
+  auto legacy = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_java_event_encoding(1)
+                    .Build();
+  auto encoded = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("dynamic")
+                     .set_java_event_encoding(2)
+                     .Build();
+  PerfettoTeCategoryDescriptor desc{"dynamic", "", nullptr, 0};
+  PerfettoTeHlExtraDynamicCategory dynamic{
+      {PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY}, &desc};
+  PerfettoTeHlExtra* extras[] = {&dynamic.header, nullptr};
+  const uint8_t bytes[] = {0xC0, 0x3E, 22};
+  PerfettoTeHlEventFields fields{bytes, sizeof(bytes), nullptr, 0};
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(perfetto_te_any_categories,
+                                       PERFETTO_TE_TYPE_INSTANT, "event", 5, 3,
+                                       extras, &fields, extras));
+  legacy.StopBlocking();
+  encoded.StopBlocking();
+  EXPECT_TRUE(JavaEventValues(legacy.ReadBlocking(),
+                              perfetto_protos_TrackEvent_type_field_number)
+                  .empty());
+  EXPECT_THAT(JavaEventValues(encoded.ReadBlocking(), 1000), ElementsAre(22));
+}
+
+TEST_F(SharedLibTrackEventTest, JavaExplicitTimestampAndEmptyName) {
+  auto session = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(2)
+                     .Build();
+  PerfettoTeHlExtraTimestamp timestamp{{PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP},
+                                       {128, 1234567}};
+  PerfettoTeHlExtra* extras[] = {&timestamp.header, nullptr};
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT, "",
+                                       0, 2, nullptr, nullptr, extras));
+  session.StopBlocking();
+  auto data = session.ReadBlocking();
+  std::vector<uint64_t> timestamps;
+  EXPECT_THAT(
+      JavaEventValues(data, perfetto_protos_TrackEvent_type_field_number,
+                      &timestamps),
+      ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+  EXPECT_THAT(timestamps, ElementsAre(1234567));
+  EXPECT_TRUE(JavaInternedStrings(data, 2).empty());
+  for (auto packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    if (IdFieldView(packet,
+                    perfetto_protos_TracePacket_track_event_field_number)
+            .size()) {
+      EXPECT_THAT(
+          packet,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_timestamp_clock_id_field_number,
+              ElementsAre(VarIntField(128))));
+    }
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, JavaEncodedNamedTrackAndInlineName) {
+  auto session = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(2)
+                     .Build();
+  PerfettoTeHlExtraNamedTrack track{{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK},
+                                    "named",
+                                    7,
+                                    PerfettoTeProcessTrackUuid(),
+                                    true};
+  PerfettoTeHlExtra* extras[] = {&track.header, nullptr};
+  const char name[] = {'x', 'y'};
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       name, sizeof(name), 2, nullptr, nullptr,
+                                       extras));
+  session.StopBlocking();
+  auto data = session.ReadBlocking();
+  EXPECT_THAT(
+      JavaEventValues(data, perfetto_protos_TrackEvent_track_uuid_field_number),
+      ElementsAre(
+          PerfettoTeNamedTrackUuid("named", 7, PerfettoTeProcessTrackUuid())));
+  EXPECT_TRUE(JavaInternedStrings(data, 2).empty());
+  for (auto packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      EXPECT_THAT(event,
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("xy"))));
+    }
+  }
+}
+
+TEST_F(SharedLibTrackEventTest,
+       JavaInvalidEncodedInputDoesNotTouchLegacySequence) {
+  auto legacy = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_java_event_encoding(1)
+                    .Build();
+  auto encoded = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(2)
+                     .Build();
+  const uint8_t truncated[] = {0x12, 99};
+  PerfettoTeHlEventFields fields{truncated, sizeof(truncated), nullptr, 0};
+  EXPECT_FALSE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                        "bad", 3, 3, nullptr, &fields,
+                                        nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitJavaImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "bad",
+      PERFETTO_TE_HL_MAX_ENCODED_EVENT_SIZE + 1, 3, nullptr, nullptr, nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                        nullptr, 1, 3, nullptr, nullptr,
+                                        nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                        "bad", 3, 4, nullptr, nullptr,
+                                        nullptr));
+  PerfettoTeHlExtra invalid_extra{PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64};
+  PerfettoTeHlExtra* invalid_extras[] = {&invalid_extra, nullptr};
+  EXPECT_FALSE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                        "bad", 3, 3, nullptr, nullptr,
+                                        invalid_extras));
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       "good", 4, 3, nullptr, nullptr,
+                                       nullptr));
+  legacy.StopBlocking();
+  encoded.StopBlocking();
+  auto legacy_data = legacy.ReadBlocking();
+  auto encoded_data = encoded.ReadBlocking();
+  for (const auto& data : {legacy_data, encoded_data}) {
+    EXPECT_THAT(
+        JavaEventValues(data, perfetto_protos_TrackEvent_type_field_number),
+        ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+  }
+  EXPECT_THAT(JavaInternedStrings(legacy_data, 2),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string("good"))));
+  EXPECT_TRUE(JavaInternedStrings(encoded_data, 2).empty());
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventCategoryCallback) {
@@ -2207,15 +2490,132 @@ class SharedLibTrackEventEncodingTest
     : public SharedLibTrackEventTest,
       public testing::WithParamInterface<uint32_t> {
  protected:
-  TracingSession StartSession() {
+  TracingSession StartSession(uint32_t java_encoding = 0) {
     auto builder = TracingSession::Builder()
                        .set_data_source_name("track_event")
+                       .set_java_event_encoding(java_encoding)
                        .add_enabled_category("*");
     if (GetParam() == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP)
       builder.set_v2_probability(100);
     return builder.Build();
   }
 };
+
+TEST_P(SharedLibTrackEventEncodingTest,
+       JavaEncodedIidsAreSequenceLocalAndReset) {
+  auto first = StartSession(2);
+  const std::vector<uint8_t> bytes{0xC0, 0x3E, 0x80, 0x80, 0x80, 0x80,
+                                   0x80, 0x80, 0x80, 0x80, 0x80, 0};
+  PerfettoTeHlIidSlot slot{2, 44, "seed", 4};
+  PerfettoTeHlEventFields fields{bytes.data(), bytes.size(), &slot, 1};
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       "event", 5, 2, nullptr, &fields,
+                                       nullptr));
+  auto second = StartSession(2);
+  slot.str = "job";
+  slot.str_size = 3;
+  const auto original = bytes;
+  for (size_t i = 0; i < 2; ++i) {
+    ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                         "event", 5, 2, nullptr, &fields,
+                                         nullptr));
+  }
+  perfetto::test::TracingMuxerImplInternalsForTest::ClearIncrementalState();
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       "event", 5, 2, nullptr, &fields,
+                                       nullptr));
+  EXPECT_EQ(bytes, original);
+  first.StopBlocking();
+  second.StopBlocking();
+  auto first_data = first.ReadBlocking();
+  auto second_data = second.ReadBlocking();
+  EXPECT_THAT(JavaEventValues(first_data, 1000), ElementsAre(1, 2, 2, 1));
+  EXPECT_THAT(JavaEventValues(second_data, 1000), ElementsAre(1, 1, 1));
+  EXPECT_THAT(JavaInternedStrings(first_data, 44),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string("seed")),
+                          std::make_pair(uint64_t{2}, std::string("job")),
+                          std::make_pair(uint64_t{1}, std::string("job"))));
+  EXPECT_THAT(JavaInternedStrings(second_data, 44),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string("job")),
+                          std::make_pair(uint64_t{1}, std::string("job"))));
+  for (const auto& data : {first_data, second_data}) {
+    EXPECT_TRUE(JavaInternedStrings(data, 1).empty());
+    EXPECT_TRUE(JavaInternedStrings(data, 2).empty());
+  }
+}
+
+TEST_P(SharedLibTrackEventEncodingTest, JavaEncodedNestedInterning) {
+  auto session = StartSession(2);
+  const std::vector<uint8_t> bytes{0xC2, 0x3E, 12,   0xA8, 1,
+                                   0x80, 0x80, 0x80, 0x80, 0x80,
+                                   0x80, 0x80, 0x80, 0x80, 0};
+  PerfettoTeHlIidSlot slot{5, 44, nullptr, 0};
+  PerfettoTeHlEventFields fields{bytes.data(), bytes.size(), &slot, 1};
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       "event", 5, 2, nullptr, &fields,
+                                       nullptr));
+  session.StopBlocking();
+  auto data = session.ReadBlocking();
+  size_t events = 0;
+  for (auto packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      ++events;
+      IdFieldView job(event, 1000);
+      ASSERT_EQ(job.size(), 1u);
+      EXPECT_EQ(job.front().value.delimited.len, 3u);
+      EXPECT_THAT(job.front(),
+                  MsgField(ElementsAre(PbField(21, VarIntField(1)))));
+    }
+  }
+  EXPECT_EQ(events, 1u);
+  EXPECT_THAT(JavaInternedStrings(data, 44),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string())));
+}
+
+TEST_P(SharedLibTrackEventEncodingTest,
+       JavaEncodedCompactionPreservesAncestorPrefixWidths) {
+  auto session = StartSession(2);
+  // Two nested payloads start above 127 bytes, and compact below that boundary.
+  // Their two-byte length prefixes remain two bytes; only the IID shrinks.
+  std::vector<uint8_t> bytes{0xC2, 0x3E, 0x86, 1, 18, 0x83, 1, 8};
+  bytes.insert(bytes.end(), 9, 0x80);
+  bytes.push_back(0);
+  bytes.push_back(18);
+  bytes.push_back(118);
+  bytes.insert(bytes.end(), 118, 'x');
+  const auto original = bytes;
+  PerfettoTeHlIidSlot slot{8, 44, "job", 3};
+  PerfettoTeHlEventFields fields{bytes.data(), bytes.size(), &slot, 1};
+  ASSERT_TRUE(PerfettoTeHlEmitJavaImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT,
+                                       "event", 5, 2, nullptr, &fields,
+                                       nullptr));
+  EXPECT_EQ(bytes, original);
+  session.StopBlocking();
+  auto data = session.ReadBlocking();
+  size_t events = 0;
+  for (auto packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      ++events;
+      IdFieldView outer(event, 1000);
+      ASSERT_EQ(outer.size(), 1u);
+      auto payload = outer.front().value.delimited;
+      ASSERT_EQ(payload.len, 125u);
+      EXPECT_EQ(payload.start[1], 0xfa);
+      EXPECT_EQ(payload.start[2], 0);
+      EXPECT_THAT(
+          outer.front(),
+          MsgField(ElementsAre(PbField(
+              2, MsgField(ElementsAre(
+                     PbField(1, VarIntField(1)),
+                     PbField(2, StringField(std::string(118, 'x')))))))));
+    }
+  }
+  EXPECT_EQ(events, 1u);
+}
 
 TEST_P(SharedLibTrackEventEncodingTest, TrackEventHlInstant) {
   auto tracing_session = StartSession();
