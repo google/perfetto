@@ -48,8 +48,8 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/empty_source.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/index_scan.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
@@ -253,6 +253,45 @@ base::Status Scan::CheckSourceNames(Compiler* c,
   return base::OkStatus();
 }
 
+Bindings::Dataframe Scan::BindingFor(const dataframe::Dataframe& dataframe,
+                                     const ScanDataframe& data) {
+  Bindings::Dataframe bound;
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (const ScanDataframeColumn& column : data.read) {
+    bound.columns.push_back(dataframe.shared_column(column.index));
+  }
+  bound.row_count = dataframe.row_count();
+  for (const dataframe::Index& index : dataframe.indexes()) {
+    bound.indexes.push_back(index.Copy());
+  }
+  return bound;
+}
+
+PlanNodeId Scan::AddToPlan(LogicalPlan* plan,
+                           const dataframe::Dataframe& dataframe,
+                           std::string name,
+                           const std::vector<uint32_t>& columns) {
+  Scan scan;
+  Scan::Dataframe source;
+  source.name = std::move(name);
+  for (uint32_t i : columns) {
+    NameId column_name = plan->names().Intern(dataframe.column_names()[i]);
+    scan.columns_.push_back(
+        {column_name, plan->AddColumn(column_name, ColumnType(dataframe, i))});
+    source.read.push_back({i, column_name});
+  }
+  scan.source_ = std::move(source);
+  return plan->AddNode(std::move(scan));
+}
+
+void Scan::Bind(BoundPlan* bound,
+                PlanNodeId node,
+                const dataframe::Dataframe& dataframe) {
+  const auto& scan = bound->plan.nodes()[node].Cast<Scan>();
+  bound->bindings.dataframes[node] =
+      BindingFor(dataframe, std::get<Scan::Dataframe>(scan.source_));
+}
+
 Scan Scan::BuildDataframeScan(Compiler* c,
                               const dataframe::Dataframe& dataframe,
                               std::string name,
@@ -437,7 +476,7 @@ void Scan::LowerSearch(Lowering* c,
   std::vector<uint32_t> values;
   for (uint32_t i = 0; i < search_->predicates.size(); ++i) {
     columns.push_back(data.columns[Position(search_->predicates[i].column)]);
-    values.push_back(*c->TakeFilterValue(node, i));
+    values.push_back(*c->TakeParam(node, i));
   }
   if (search_->kind == ScanSearch::Kind::kIndex) {
     // Rows are read in index order, so the table's order is lost.
@@ -471,7 +510,7 @@ void Scan::LowerSearch(Lowering* c,
           std::holds_alternative<dataframe::logical::BinarySearch>(*strategy));
       search.kind = ex::SortedScan::Search::Kind::kBinarySearch;
     }
-    search.value = values[i];
+    search.param = values[i];
     searches.push_back(std::move(search));
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
@@ -496,8 +535,9 @@ std::optional<Scan::SearchPlan> Scan::PlanSearch(
   SearchPlan plan;
   // A condition no row can match leaves nothing to read.
   for (const Condition& condition : conditions) {
-    if (condition.value->value.validity ==
-        core::filter::CastFilterValueResult::kNoneMatch) {
+    if (condition.value &&
+        condition.value->value.validity ==
+            core::filter::CastFilterValueResult::kNoneMatch) {
       plan.kind = ScanSearch::Kind::kEmpty;
       for (uint32_t i = 0; i < conditions.size(); ++i) {
         plan.answered.push_back(i);
@@ -586,16 +626,7 @@ base::Status Scan::ResolveDataframes(const LogicalPlan&,
           data->name.c_str());
     }
   }
-  Bindings::Dataframe bound;
-  PERFETTO_NO_VECTORIZE_LOOP
-  for (const ScanDataframeColumn& column : data->read) {
-    bound.columns.push_back(dataframe->shared_column(column.index));
-  }
-  bound.row_count = dataframe->row_count();
-  for (const dataframe::Index& index : dataframe->indexes()) {
-    bound.indexes.push_back(index.Copy());
-  }
-  bindings->dataframes[self] = std::move(bound);
+  bindings->dataframes[self] = BindingFor(*dataframe, *data);
   return base::OkStatus();
 }
 
