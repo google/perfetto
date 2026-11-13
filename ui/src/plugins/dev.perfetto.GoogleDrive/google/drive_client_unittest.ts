@@ -19,6 +19,87 @@ import {DriveClient, isValidDriveId} from './drive_client';
 vi.mock('../../../base/dom_utils', () => ({loadScript: vi.fn()}));
 vi.mock('./gapi', () => ({loadGapiModules: vi.fn()}));
 
+async function createClient(): Promise<DriveClient> {
+  return await DriveClient.create({apiKey: 'key', appId: 'app'});
+}
+
+type PickerCallback = (data: google.picker.ResponseObject) => void;
+
+// One picker dialog shown to the user. respond() answers it as the real picker
+// would, by calling the callback it was built with.
+interface ShownPicker {
+  readonly respond: PickerCallback;
+}
+
+// Installs a stand-in for google.picker, and returns the list of pickers shown
+// through it. Nothing is answered automatically: each test plays the user, by
+// calling respond().
+//
+// This encodes how we believe the real picker behaves: that it reports what
+// the user did through the callback, using the actions in google.picker.Action.
+function installFakePicker(
+  opts: {readonly buildThrows?: unknown} = {},
+): ShownPicker[] {
+  const shown: ShownPicker[] = [];
+
+  class DocsView {
+    setMode() {
+      return this;
+    }
+  }
+
+  class PickerBuilder {
+    private callback: PickerCallback = () => {};
+    setAppId() {
+      return this;
+    }
+    setOAuthToken() {
+      return this;
+    }
+    setDeveloperKey() {
+      return this;
+    }
+    setOrigin() {
+      return this;
+    }
+    addView() {
+      return this;
+    }
+    setTitle() {
+      return this;
+    }
+    setCallback(callback: PickerCallback) {
+      this.callback = callback;
+      return this;
+    }
+    build() {
+      if (opts.buildThrows !== undefined) throw opts.buildThrows;
+      return {
+        setVisible: () => {
+          shown.push({respond: this.callback});
+        },
+      };
+    }
+  }
+
+  vi.stubGlobal('google', {
+    picker: {
+      Action: {PICKED: 'picked', CANCEL: 'cancel', ERROR: 'error'},
+      ViewId: {DOCS: 'docs', FOLDERS: 'folders'},
+      DocsViewMode: {LIST: 'list'},
+      DocsView,
+      PickerBuilder,
+    },
+  });
+  return shown;
+}
+
+function latest(shown: ShownPicker[]): ShownPicker {
+  const picker = shown.at(-1);
+  if (picker === undefined) throw new Error('No picker was shown');
+  return picker;
+}
+
 describe('isValidDriveId', () => {
   test('accepts valid drive IDs and resource keys', () => {
     expect(isValidDriveId('abc123')).toBe(true);
@@ -65,10 +146,6 @@ describe('DriveClient.openFile', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
-
-  async function createClient(): Promise<DriveClient> {
-    return await DriveClient.create({apiKey: 'key', appId: 'app'});
-  }
 
   test.each(['', '../other', 'abc/def', 'abc?alt=media', 'abc\r\nX: y'])(
     'rejects the invalid file ID %j without touching the network',
@@ -158,5 +235,106 @@ describe('DriveClient.openFile', () => {
     expect(new URL(request.url).origin).toBe('https://www.googleapis.com');
     expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
     expect(request.url).not.toContain('secret-token');
+  });
+});
+
+describe('DriveClient.pickFile', () => {
+  const FILE = {id: 'file123', name: 'my.pftrace'};
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('returns the file the user picks', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const pending = client.pickFile('token');
+
+    expect(shown).toHaveLength(1);
+    latest(shown).respond({action: 'picked', docs: [FILE]});
+
+    expect(await pending).toEqual({ok: true, value: FILE});
+  });
+
+  test('returns the first file if several are picked', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const pending = client.pickFile('token');
+    latest(shown).respond({
+      action: 'picked',
+      docs: [FILE, {id: 'other456'}],
+    });
+
+    expect(await pending).toEqual({ok: true, value: FILE});
+  });
+
+  test('Closing the picker reports cancelled', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const pending = client.pickFile('token');
+    latest(shown).respond({action: 'cancel'});
+
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: {type: 'cancelled'},
+    });
+  });
+
+  test('reports an error from the picker', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const pending = client.pickFile('token');
+    latest(shown).respond({action: 'error'});
+
+    expect(await pending).toMatchObject({ok: false, error: {type: 'error'}});
+  });
+
+  // The picker also reports progress, such as having loaded. Those must not
+  // be mistaken for the user's answer.
+  test('keeps waiting through actions that are not an answer', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    const settled = vi.fn();
+    const pending = client.pickFile('token');
+    void pending.then(settled);
+
+    latest(shown).respond({action: 'loaded'});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).not.toHaveBeenCalled();
+
+    latest(shown).respond({action: 'picked', docs: [FILE]});
+    expect(await pending).toEqual({ok: true, value: FILE});
+  });
+
+  test('reports rather than rejects if the picker cannot be shown', async () => {
+    const failure = new Error('boom');
+    const shown = installFakePicker({buildThrows: failure});
+    const client = await createClient();
+
+    expect(await client.pickFile('token')).toMatchObject({
+      ok: false,
+      error: {type: 'error', cause: failure},
+    });
+    expect(shown).toHaveLength(0);
+  });
+
+  test('throws if picked doc array is empty', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    client.pickFile('fakeToken');
+
+    expect(() => {
+      latest(shown).respond({action: 'picked', docs: []});
+    }).toThrow();
+  });
+
+  test('throws if picked doc array is missing', async () => {
+    const shown = installFakePicker();
+    const client = await createClient();
+    client.pickFile('fakeToken');
+
+    expect(() => {
+      latest(shown).respond({action: 'picked'});
+    }).toThrow();
   });
 });

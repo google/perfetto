@@ -28,7 +28,7 @@ declare global {
 
     interface ResponseObject {
       readonly action: string;
-      readonly docs?: DocumentObject[];
+      readonly docs?: readonly DocumentObject[];
     }
 
     const Action: {

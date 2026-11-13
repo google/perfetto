@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists, assertNonEmpty} from '../../../base/assert';
 import {defer} from '../../../base/deferred';
 import {loadScript} from '../../../base/dom_utils';
 import {errResult, okResult, type Result} from '../../../base/result';
@@ -43,7 +44,7 @@ export interface DriveClientConfig {
 interface PickerConfig {
   // Builds the picker's view. Called inside picker()'s error handling, so that
   // a throw here is reported as an error rather than rejecting.
-  readonly createView: () => google.picker.DocsView;
+  readonly view: google.picker.DocsView;
   readonly title?: string;
 }
 
@@ -90,12 +91,9 @@ export class DriveClient {
 
   // Open the Google Drive file picker to select a file. Never rejects.
   async pickFile(oauthToken: string): Promise<PickerResult> {
-    return this.picker(oauthToken, {
-      createView: () =>
-        new google.picker.DocsView(google.picker.ViewId.DOCS).setMode(
-          google.picker.DocsViewMode.LIST,
-        ),
-    });
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS);
+    view.setMode(google.picker.DocsViewMode.LIST);
+    return this.picker(oauthToken, {view});
   }
 
   // Downloads a file's contents. Never rejects.
@@ -169,12 +167,10 @@ export class DriveClient {
     function pickerCallback(data: google.picker.ResponseObject) {
       switch (data.action) {
         case google.picker.Action.PICKED: {
-          const file = data.docs?.[0];
-          if (file === undefined) {
-            deferred.resolve(errResult({type: 'cancelled'}));
-          } else {
-            deferred.resolve(okResult(file));
-          }
+          assertExists(data.docs);
+          assertNonEmpty(data.docs);
+          const [firstDoc] = data.docs;
+          deferred.resolve(okResult(firstDoc));
           break;
         }
         case google.picker.Action.CANCEL:
@@ -200,7 +196,7 @@ export class DriveClient {
         .setOAuthToken(oauthToken)
         .setDeveloperKey(this.config.apiKey)
         .setOrigin(window.location.origin)
-        .addView(config.createView())
+        .addView(config.view)
         .setCallback(pickerCallback);
 
       if (config.title !== undefined) {
