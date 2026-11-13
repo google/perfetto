@@ -159,6 +159,10 @@ function setupContentSecurityPolicy() {
       // and SQL formatter) without enabling JavaScript eval().
       `'wasm-unsafe-eval'`,
       'https://www.googletagmanager.com',
+      // Google Identity Services for the Google Drive plugin (see its README).
+      // Safe to allow: scoped to the exact Google-served script path, with no
+      // user-controlled content.
+      'https://accounts.google.com/gsi/client',
     ],
     'object-src': [`'none'`],
     'connect-src': [
