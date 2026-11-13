@@ -131,6 +131,123 @@ function driveErrorMessage(responseText: string): string | undefined {
   return result.success ? result.data.error.message : undefined;
 }
 
+// Describes an upload that Drive answered with an error status.
+function uploadHttpError(status: number, responseText: string): UploadError {
+  // Drive explains the failure (e.g. storage quota exceeded) in the response
+  // body; pass that on if it is there.
+  const reason = driveErrorMessage(responseText);
+  return {
+    type: 'error',
+    cause:
+      reason === undefined
+        ? `Google Drive returned HTTP ${status}`
+        : `${reason} (HTTP ${status})`,
+  };
+}
+
+// Reads the new file's ID out of Drive's response to a successful upload.
+function parseUploadedFileId(
+  responseText: string,
+): Result<string, UploadError> {
+  let json: unknown;
+  try {
+    json = JSON.parse(responseText);
+  } catch {
+    json = undefined;
+  }
+  const result = UPLOAD_RESPONSE_SCHEMA.safeParse(json);
+  if (!result.success) {
+    return errResult({
+      type: 'error',
+      cause: 'Google Drive did not return a file ID',
+    });
+  }
+  return okResult(result.data.id);
+}
+
+// The body of a Drive "multipart" upload, which sends a file's metadata and
+// its contents in one request, and the Content-Type header to send it with.
+interface MultipartUpload {
+  readonly body: Blob;
+  readonly contentType: string;
+}
+
+function buildMultipartUpload(
+  metadata: {readonly [key: string]: unknown},
+  media: Blob,
+): MultipartUpload {
+  const boundary = '-------314159265358979323846';
+  const delimiter = `\r\n--${boundary}\r\n`;
+  const closeDelim = `\r\n--${boundary}--`;
+
+  const metadataPart =
+    delimiter +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    JSON.stringify(metadata);
+
+  const mediaPart =
+    delimiter + 'Content-Type: application/octet-stream\r\n\r\n';
+
+  return {
+    // The media is referenced by the body rather than copied into it.
+    body: new Blob([metadataPart, mediaPart, media, closeDelim]),
+    contentType: `multipart/related; boundary=${boundary}`,
+  };
+}
+
+// What the server sent back for a request that completed.
+interface PostResponse {
+  readonly status: number;
+  readonly responseText: string;
+}
+
+// POSTs `body` to `url`, resolving with the server's response whatever its
+// status. Never rejects: a request that could not be completed, or was
+// cancelled, resolves with an error.
+//
+// This uses XMLHttpRequest rather than fetch(), as fetch() cannot report
+// upload progress.
+function postWithProgress(
+  url: string,
+  headers: {readonly [name: string]: string},
+  body: Blob,
+  opts?: UploadOptions,
+): Promise<Result<PostResponse, UploadError>> {
+  const deferred = defer<Result<PostResponse, UploadError>>();
+
+  const signal = opts?.signal;
+  if (signal?.aborted) {
+    deferred.resolve(errResult({type: 'cancelled'}));
+    return deferred;
+  }
+
+  try {
+    const req = new XMLHttpRequest();
+    req.open('POST', url, /* async= */ true);
+    for (const [name, value] of Object.entries(headers)) {
+      req.setRequestHeader(name, value);
+    }
+
+    req.upload.onprogress = (e: ProgressEvent) => {
+      opts?.onProgress?.(e.loaded, e.total);
+    };
+    req.onabort = () => deferred.resolve(errResult({type: 'cancelled'}));
+    req.onerror = () =>
+      deferred.resolve(errResult({type: 'error', cause: 'Network error'}));
+    req.onload = () =>
+      deferred.resolve(
+        okResult({status: req.status, responseText: req.responseText}),
+      );
+
+    signal?.addEventListener('abort', () => req.abort(), {once: true});
+    req.send(body);
+  } catch (e) {
+    deferred.resolve(errResult({type: 'error', cause: e}));
+  }
+
+  return deferred;
+}
+
 // Talks to Google Drive: shows its file and folder pickers and sharing dialog,
 // and downloads and uploads files.
 export class DriveClient {
@@ -206,100 +323,40 @@ export class DriveClient {
 
   // Uploads a file to Drive, resolving with the new file's ID. Never rejects.
   //
-  // This uses XMLHttpRequest rather than fetch(), as fetch() cannot report
-  // upload progress. `opts.onProgress` is called as bytes are sent, and
-  // aborting `opts.signal` cancels the upload.
-  uploadFile(
+  // `opts.onProgress` is called as bytes are sent, and aborting `opts.signal`
+  // cancels the upload.
+  async uploadFile(
     oauthToken: string,
     traceBlob: Blob,
     parentId: string,
     fileName: string,
     opts?: UploadOptions,
   ): Promise<Result<string, UploadError>> {
-    const metadata = {
-      name: fileName,
-      mimeType: 'application/octet-stream',
-      parents: [parentId],
-    };
+    const {body, contentType} = buildMultipartUpload(
+      {
+        name: fileName,
+        mimeType: 'application/octet-stream',
+        parents: [parentId],
+      },
+      traceBlob,
+    );
 
-    const boundary = '-------314159265358979323846';
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const closeDelim = `\r\n--${boundary}--`;
+    const response = await postWithProgress(
+      DRIVE_UPLOAD_URL,
+      {
+        'Content-Type': contentType,
+        'Authorization': `Bearer ${oauthToken}`,
+      },
+      body,
+      opts,
+    );
+    if (!response.ok) return response;
 
-    const metadataPart =
-      delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata);
-
-    const mediaPart =
-      delimiter + 'Content-Type: application/octet-stream\r\n\r\n';
-
-    // The trace is referenced by the body rather than copied into it.
-    const body = new Blob([metadataPart, mediaPart, traceBlob, closeDelim]);
-
-    return new Promise<Result<string, UploadError>>((resolve) => {
-      const signal = opts?.signal;
-      if (signal?.aborted) {
-        resolve(errResult({type: 'cancelled'}));
-        return;
-      }
-
-      try {
-        const req = new XMLHttpRequest();
-        req.open('POST', DRIVE_UPLOAD_URL, /* async= */ true);
-        req.setRequestHeader(
-          'Content-Type',
-          `multipart/related; boundary=${boundary}`,
-        );
-        req.setRequestHeader('Authorization', `Bearer ${oauthToken}`);
-
-        req.upload.onprogress = (e: ProgressEvent) => {
-          opts?.onProgress?.(e.loaded, e.total);
-        };
-        req.onabort = () => resolve(errResult({type: 'cancelled'}));
-        req.onerror = () =>
-          resolve(errResult({type: 'error', cause: 'Network error'}));
-        req.onload = () => {
-          if (req.status < 200 || req.status >= 300) {
-            // Drive explains the failure (e.g. storage quota exceeded) in the
-            // response body; pass that on if it is there.
-            const reason = driveErrorMessage(req.responseText);
-            resolve(
-              errResult({
-                type: 'error',
-                cause:
-                  reason === undefined
-                    ? `Google Drive returned HTTP ${req.status}`
-                    : `${reason} (HTTP ${req.status})`,
-              }),
-            );
-            return;
-          }
-          let json: unknown;
-          try {
-            json = JSON.parse(req.responseText);
-          } catch {
-            json = undefined;
-          }
-          const result = UPLOAD_RESPONSE_SCHEMA.safeParse(json);
-          if (!result.success) {
-            resolve(
-              errResult({
-                type: 'error',
-                cause: 'Google Drive did not return a file ID',
-              }),
-            );
-            return;
-          }
-          resolve(okResult(result.data.id));
-        };
-
-        signal?.addEventListener('abort', () => req.abort(), {once: true});
-        req.send(body);
-      } catch (e) {
-        resolve(errResult({type: 'error', cause: e}));
-      }
-    });
+    const {status, responseText} = response.value;
+    if (status < 200 || status >= 300) {
+      return errResult(uploadHttpError(status, responseText));
+    }
+    return parseUploadedFileId(responseText);
   }
 
   // Downloads a file's contents. Never rejects.
