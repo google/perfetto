@@ -19,7 +19,7 @@ import {
   remapHotkeys,
 } from './command_manager';
 import {OmniboxManagerImpl} from './omnibox_manager';
-import {getOwner} from './ownership';
+import {CORE_OWNER, getOwner, setOwner} from './ownership';
 
 describe('remapHotkeys', () => {
   test('single layer', () => {
@@ -171,6 +171,31 @@ describe('CommandManagerImpl error wrapping', () => {
       expect(parentErr.toString()).toContain('Caused by: Error: Root error');
     }
     expect(threw).toBe(true);
+  });
+});
+
+describe('CommandManagerImpl owners', () => {
+  let commandManager: CommandManagerImpl;
+
+  beforeEach(() => {
+    commandManager = new CommandManagerImpl(new OmniboxManagerImpl());
+  });
+
+  test('gives a command registered directly the owner core', () => {
+    commandManager.registerCommand({
+      id: 'cmd.direct',
+      name: 'Direct',
+      callback: () => {},
+    });
+    const cmd = commandManager.getCommand('cmd.direct');
+    expect(getOwner(cmd!)).toBe(CORE_OWNER);
+  });
+
+  test('keeps the owner of a command that already has one', () => {
+    const cmd = {id: 'cmd.owned', name: 'Owned', callback: () => {}};
+    setOwner(cmd, 'com.example.Owner');
+    commandManager.registerCommand(cmd);
+    expect(getOwner(cmd)).toBe('com.example.Owner');
   });
 });
 
