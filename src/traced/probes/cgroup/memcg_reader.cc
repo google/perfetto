@@ -130,6 +130,10 @@ std::optional<MemcgReader::Config> MemcgReader::Config::Create(
       PERFETTO_ILOG("linux.cgroup: clamped poll_period_ms from %u to %u",
                     config_pb.poll_period_ms(), config.poll_period_ms);
     }
+    // Rounded down to a multiple of the poll period. Not caching if shorter
+    // than two polls, since every read would record all values anyway.
+    uint32_t ttl_polls = config_pb.cache_ttl_ms() / config.poll_period_ms;
+    config.cache_ttl_polls = ttl_polls > 1 ? ttl_polls : 0;
   }
   return config;
 }
@@ -137,7 +141,15 @@ std::optional<MemcgReader::Config> MemcgReader::Config::Create(
 MemcgReader::MemcgReader(Config config, std::string cgroup_root)
     : config_(std::move(config)), cgroup_root_(std::move(cgroup_root)) {}
 
-void MemcgReader::Read(protos::pbzero::MemcgStats* out) {
+void MemcgReader::Read(
+    const std::function<protos::pbzero::MemcgStats*()>& lazy_out) {
+  bool caching = config_.cache_ttl_polls > 0;
+  // Every |cache_ttl_polls| reads, start without recorded values, so that
+  // all values get recorded.
+  if (caching && read_count_ % config_.cache_ttl_polls == 0)
+    cache_.clear();
+  read_count_++;
+
   auto read_cmdline = [](uint32_t pid, std::string* cmdline) {
     return profiling::glob_aware::ReadProcCmdlineForPID(static_cast<pid_t>(pid),
                                                         cmdline);
@@ -149,9 +161,11 @@ void MemcgReader::Read(protos::pbzero::MemcgStats* out) {
       cgroup_root_, config_.scopes, read_cmdline,
       [&](const AndroidCgroup& cgroup, const std::string& path) {
         MemcgValues values = ReadCgroup(path, &path_buf, &file_buf);
+        if (caching)
+          values = UpdateCache(cgroup, values);
         if (values.present().none())
           return;
-        auto* cgroup_pb = out->add_cgroup();
+        auto* cgroup_pb = lazy_out()->add_cgroup();
         cgroup_pb->set_android_group(ToProtoGroup(cgroup.group));
         if (cgroup.level != AndroidCgroup::Level::LEVEL_TOP)
           cgroup_pb->set_uid(cgroup.uid);
@@ -176,6 +190,34 @@ MemcgValues MemcgReader::ReadCgroup(const std::string& path,
     ParseMemcgFile(file, *file_buf, config_.fields, &values);
   }
   return values;
+}
+
+MemcgValues MemcgReader::UpdateCache(const AndroidCgroup& cgroup,
+                                     const MemcgValues& values) {
+  MemcgValues changed;
+  if (values.present().none())
+    return changed;
+
+  // Create the initial cache for this cgroup (sized according to number of
+  // fields being recorded), or find the existing entry.
+  size_t field_count = config_.fields.count();
+  auto it = cache_.try_emplace(cgroup, field_count).first;
+  CachedValues& cached = it->second;
+
+  // Update the vector and return the fields that have changed.
+  size_t vec_slot = 0;
+  for (size_t i = 0; i < kMemcgFieldCount; i++) {
+    if (!config_.fields.test(i))
+      continue;
+    MemcgField field = static_cast<MemcgField>(i);
+    std::optional<uint64_t>& last = cached[vec_slot++];
+    std::optional<uint64_t> value = values.Get(field);
+    if (!value.has_value() || value == last)
+      continue;
+    changed.Set(field, *value);
+    last = value;
+  }
+  return changed;
 }
 
 }  // namespace perfetto

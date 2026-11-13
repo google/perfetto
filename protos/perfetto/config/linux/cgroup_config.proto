@@ -35,6 +35,7 @@ package perfetto.protos;
 //         field: MEMCG_EVENTS_LOCAL_HIGH
 //
 //         poll_period_ms: 1000
+//         cache_ttl_ms: 10000
 //
 //         android_scope {
 //           level: LEVEL_UID
@@ -70,9 +71,24 @@ message MemcgConfig {
   // writing).
   optional uint32 poll_period_ms = 3;
 
+  // Caching period during which the polling won't re-emit unchanged values per
+  // cgroup. Every |cache_ttl_ms|, a poll still records all values (which is
+  // useful for ring buffer traces and recovering from data losses).
+  // Every recorded value is absolute: there's no delta encoding or incremental
+  // state.
+  // Rounded down to a multiple of |poll_period_ms|. If zero or unset, every
+  // poll records all values.
+  // Quirk: the caching is per data source. If a trace has several cgroup data
+  // sources recording the same cgroup, a caching one can skip a value that only
+  // looks unchanged to it: if a value goes A -> B -> A and only another data
+  // source records B, this one skips the second A, so the value reads as B
+  // until its next full snapshot (or change). Recorded values are still never
+  // wrong.
+  optional uint32 cache_ttl_ms = 4;
+
   // TODO(rsavitski): event-driven recording (inotify on memory.events*), either
   // instead of or together with |poll_period_ms|:
-  // repeated MemcgEvent on_memcg_event = 4;
+  // repeated MemcgEvent on_memcg_event = 5;
 
   // Filters cgroups in the hierarchy created by android's libprocessgroup.
   //
