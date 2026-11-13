@@ -20,11 +20,15 @@ import dev.perfetto.sdk.PerfettoTrace;
 import dev.perfetto.sdk.PerfettoTrace.Category;
 import dev.perfetto.sdk.PerfettoTrack;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import perfetto.protos.TraceOuterClass.Trace;
+import perfetto.protos.TracePacketOuterClass.TracePacket;
 
 /**
  * Host JVM microbenchmarks for the Java SDK event path.
@@ -46,7 +50,16 @@ import java.util.List;
  * </ul>
  *
  * <p>Options: {@code --filter=<substring>}, {@code --scenario=<name>}, {@code --reps=<n>}
- * (default 5), {@code --rep-ms=<ms>} (default 200), {@code --list}.
+ * (default 5), {@code --rep-ms=<ms>} (default 200), {@code --list},
+ * {@code --encoding=default|legacy|encoded|mixed}, {@code --writer=v1|v2}, and
+ * {@code --verified-iters=<n>}.
+ *
+ * <p>The verified mode warms the JIT in a separate recording, then starts fresh recordings for
+ * each repetition and times exactly n iterations. It decodes each trace after timing and requires
+ * the exact event count in every session. A full or dropping buffer fails the run. Session setup,
+ * stop and decoding are outside timing; the first event's sequence setup is included. In this
+ * mode trace_bytes includes metadata and is summed across both sessions when encoding=mixed.
+ * The duration-based mode is retained for exploratory use and does not check delivery.
  */
 public final class PerfettoTraceBenchmark {
   private static final Category ON = new Category("bench_on");
@@ -56,6 +69,11 @@ public final class PerfettoTraceBenchmark {
       PerfettoTrack.process("bench_parent").child("bench_child");
 
   private static final String[] NAMES64 = new String[64];
+  private static final String LONG_NAME = "event_" + "x".repeat(256);
+  private static final String LONG_ARG_A = "a_" + "x".repeat(128);
+  private static final String LONG_ARG_B = "b_" + "x".repeat(128);
+  private static final String LONG_ARG_C = "c_" + "x".repeat(128);
+  private static final String LONG_ARG_D = "d_" + "x".repeat(128);
   private static final StackTraceElement[] STACK30 = new StackTraceElement[30];
 
   static {
@@ -183,6 +201,20 @@ public final class PerfettoTraceBenchmark {
         }
       }
     },
+    // Repeated long strings expose the extra trace bytes from inline names.
+    new Scenario("args_long_names", 1) {
+      @Override
+      void run(int iters) {
+        for (int i = 0; i < iters; i++) {
+          PerfettoTrace.instant(ON, LONG_NAME)
+              .addArg(LONG_ARG_A, i)
+              .addArg(LONG_ARG_B, true)
+              .addArg(LONG_ARG_C, 1.5)
+              .addArg(LONG_ARG_D, "value")
+              .emit();
+        }
+      }
+    },
     new Scenario("flows", 1) {
       @Override
       void run(int iters) {
@@ -215,6 +247,20 @@ public final class PerfettoTraceBenchmark {
               .beginProto()
               .addField(2001, i)
               .addField(2002, "str")
+              .endProto()
+              .emit();
+        }
+      }
+    },
+    new Scenario("proto_interned", 1) {
+      @Override
+      void run(int iters) {
+        for (int i = 0; i < iters; i++) {
+          PerfettoTrace.instant(ON, "interned")
+              .beginProto()
+              .beginNested(2006)
+              .addFieldWithInterning(21, NAMES64[i & 63], 44)
+              .endNested()
               .endProto()
               .emit();
         }
@@ -301,19 +347,33 @@ public final class PerfettoTraceBenchmark {
   }
 
   /** Configures one buffer and the "bench_on" category. */
-  private static byte[] traceConfig(int sizeKb, boolean ringBuffer) {
+  private static byte[] traceConfig(
+      int sizeKb, boolean ringBuffer, int encodingMode, boolean writerV2) {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
     tag(buffer, 1, 0); // size_kb
     varint(buffer, sizeKb);
     tag(buffer, 4, 0); // fill_policy: RING_BUFFER = 1, DISCARD = 2
     varint(buffer, ringBuffer ? 1 : 2);
+    if (writerV2) {
+      tag(buffer, 8, 0); // experimental_mode: TRACE_BUFFER_V2 = 1.
+      varint(buffer, 1);
+    }
 
     ByteArrayOutputStream te = new ByteArrayOutputStream();
+    lenField(te, 1, "*".getBytes(StandardCharsets.UTF_8)); // disabled_categories
     lenField(te, 2, "bench_on".getBytes(StandardCharsets.UTF_8)); // enabled_categories
+    if (encodingMode != 0) {
+      tag(te, 11, 0); // experimental_java_event_encoding: LEGACY = 1, ENCODED = 2.
+      varint(te, encodingMode);
+    }
 
     ByteArrayOutputStream dsc = new ByteArrayOutputStream();
     lenField(dsc, 1, "track_event".getBytes(StandardCharsets.UTF_8)); // name
     lenField(dsc, 113, te.toByteArray()); // track_event_config
+    ByteArrayOutputStream writer = new ByteArrayOutputStream();
+    tag(writer, 1, 0); // use_v2_probability_percent
+    varint(writer, writerV2 ? 100 : 0);
+    lenField(dsc, 148, writer.toByteArray()); // experimental_tracing_v2
 
     ByteArrayOutputStream ds = new ByteArrayOutputStream();
     lenField(ds, 1, dsc.toByteArray()); // config
@@ -371,24 +431,119 @@ public final class PerfettoTraceBenchmark {
     Arrays.sort(cpu);
     Arrays.sort(wall);
     return String.format(
-        "%.2f\t%.2f\t%.2f", cpu[reps / 2], wall[reps / 2], alloc / (events * reps));
+        Locale.ROOT, "%.2f\t%.2f\t%.2f", cpu[reps / 2], wall[reps / 2], alloc / (events * reps));
   }
 
-  // Measure trace size separately, subtracting empty-session overhead.
-  private static double traceBytesPerEvent(Scenario s, double emptySessionBytes) {
+  // Own all requested sessions, including the LEGACY+ENCODED mixed-mode pair.
+  private static final class Recording implements AutoCloseable {
+    private final List<PerfettoTrace.Session> mSessions = new ArrayList<>();
+    final List<byte[]> mTraces = new ArrayList<>();
+    private boolean mClosed;
+
+    Recording(int sizeKb, boolean ringBuffer, String encoding, boolean writerV2) {
+      int[] modes;
+      switch (encoding) {
+        case "mixed": modes = new int[] {1, 2}; break;
+        case "legacy": modes = new int[] {1}; break;
+        case "encoded": modes = new int[] {2}; break;
+        case "default": modes = new int[] {0}; break;
+        default: throw new IllegalArgumentException("Unknown encoding " + encoding);
+      }
+      for (int mode : modes) {
+        mSessions.add(new PerfettoTrace.Session(
+            true, traceConfig(sizeKb, ringBuffer, mode, writerV2)));
+      }
+    }
+
+    @Override
+    public void close() {
+      if (mClosed) return;
+      mClosed = true;
+      for (PerfettoTrace.Session session : mSessions) {
+        mTraces.add(session.close());
+      }
+    }
+
+    long traceBytes() {
+      long bytes = 0;
+      for (byte[] trace : mTraces) bytes += trace.length;
+      return bytes;
+    }
+  }
+
+  private static void verifyEventCount(Recording recording, long expected) throws IOException {
+    for (int i = 0; i < recording.mTraces.size(); ++i) {
+      long count = 0;
+      for (TracePacket packet : Trace.parseFrom(recording.mTraces.get(i)).getPacketList()) {
+        if (packet.hasTrackEvent()) ++count;
+      }
+      if (count != expected) {
+        throw new IllegalStateException(
+            "Session " + i + " received " + count + " events; expected " + expected
+                + ". Reduce --verified-iters if the buffer filled.");
+      }
+    }
+  }
+
+  private static String measureVerified(
+      Scenario s, int reps, int iters, String encoding, boolean writerV2) throws IOException {
+    // No warm-up events enter any measured recording. The Java/native code and
+    // builder caches are warm, while per-recording sequence metadata is fresh.
+    try (Recording warmup = new Recording(32 * 1024, true, encoding, writerV2)) {
+      for (int w = 0; w < 5; ++w) s.run(10_000);
+    }
+    boolean mt = s instanceof MultiThreadScenario;
+    double events = (double) iters * s.mEventsPerIter;
+    long expected = s.mName.startsWith("disabled_") ? 0 : (long) iters * s.mEventsPerIter;
+    double[] cpu = new double[reps];
+    double[] wall = new double[reps];
+    long alloc = 0;
+    long traceBytes = 0;
+    for (int r = 0; r < reps; ++r) {
+      try (Recording recording = new Recording(8 * 1024, false, encoding, writerV2)) {
+        long a0 = THREAD_BEAN.getCurrentThreadAllocatedBytes();
+        long c0 = mt ? 0 : THREAD_BEAN.getCurrentThreadCpuTime();
+        long t0 = System.nanoTime();
+        s.run(iters);
+        long t1 = System.nanoTime();
+        long c1 = cpuNs(s);
+        long a1 = THREAD_BEAN.getCurrentThreadAllocatedBytes();
+        cpu[r] = (c1 - c0) / events;
+        wall[r] = (t1 - t0) / (mt ? (double) iters * 2 : events);
+        alloc += mt ? ((MultiThreadScenario) s).mThreadAllocBytes : a1 - a0;
+        recording.close();
+        verifyEventCount(recording, expected);
+        traceBytes += recording.traceBytes();
+      }
+    }
+    System.out.println("# samples " + s.mName + " cpu_ns=" + Arrays.toString(cpu)
+        + " wall_ns=" + Arrays.toString(wall));
+    Arrays.sort(cpu);
+    Arrays.sort(wall);
+    return String.format(Locale.ROOT, "%.2f\t%.2f\t%.2f\t%.2f",
+        cpu[reps / 2], wall[reps / 2], alloc / (events * reps), traceBytes / (events * reps));
+  }
+
+  // Duration-based measurements retain the historical separate trace-size run.
+  private static double traceBytesPerEvent(
+      Scenario s, double emptySessionBytes, String encoding, boolean writerV2) {
     int iters = s.mName.startsWith("callstack") ? 500 : 10_000;
-    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig(256 * 1024, false));
-    s.run(iters);
-    byte[] trace = session.close();
-    return (trace.length - emptySessionBytes) / ((double) iters * s.mEventsPerIter);
+    try (Recording recording = new Recording(256 * 1024, false, encoding, writerV2)) {
+      s.run(iters);
+      recording.close();
+      return (recording.traceBytes() - emptySessionBytes) / ((double) iters * s.mEventsPerIter);
+    }
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException {
     String filter = "";
     String scenario = null;
     int reps = 5;
     int repMs = 200;
     boolean list = false;
+    String encoding = "default";
+    String writer = "v1";
+    int verifiedIters = 0;
     for (String arg : args) {
       if (arg.startsWith("--filter=")) {
         filter = arg.substring("--filter=".length());
@@ -398,6 +553,15 @@ public final class PerfettoTraceBenchmark {
         reps = Integer.parseInt(arg.substring("--reps=".length()));
       } else if (arg.startsWith("--rep-ms=")) {
         repMs = Integer.parseInt(arg.substring("--rep-ms=".length()));
+      } else if (arg.startsWith("--encoding=")) {
+        encoding = arg.substring("--encoding=".length());
+      } else if (arg.startsWith("--writer=")) {
+        writer = arg.substring("--writer=".length());
+      } else if (arg.startsWith("--verified-iters=")) {
+        verifiedIters = Integer.parseInt(arg.substring("--verified-iters=".length()));
+        if (verifiedIters <= 0) {
+          throw new IllegalArgumentException("--verified-iters must be positive");
+        }
       } else if (arg.equals("--list")) {
         list = true;
       } else {
@@ -405,6 +569,16 @@ public final class PerfettoTraceBenchmark {
       }
     }
 
+    if (reps <= 0 || repMs <= 0) {
+      throw new IllegalArgumentException("--reps and --rep-ms must be positive");
+    }
+    if (!List.of("default", "legacy", "encoded", "mixed").contains(encoding)) {
+      throw new IllegalArgumentException("Unknown encoding " + encoding);
+    }
+    if (!writer.equals("v1") && !writer.equals("v2")) {
+      throw new IllegalArgumentException("Unknown writer " + writer);
+    }
+    boolean writerV2 = writer.equals("v2");
     List<Scenario> selected = new ArrayList<>();
     for (Scenario s : SCENARIOS) {
       if (scenario != null ? s.mName.equals(scenario) : s.mName.contains(filter)) {
@@ -417,25 +591,42 @@ public final class PerfettoTraceBenchmark {
       }
       return;
     }
+    if (selected.isEmpty()) {
+      throw new IllegalArgumentException("No matching benchmark scenario");
+    }
 
     PerfettoTrace.register(true);
     ON.register();
     OFF.register();
 
-    PerfettoTrace.Session empty = new PerfettoTrace.Session(true, traceConfig(1024, false));
-    double emptyBytes = empty.close().length;
-    double[] traceBytes = new double[selected.size()];
-    for (int i = 0; i < selected.size(); i++) {
-      traceBytes[i] = traceBytesPerEvent(selected.get(i), emptyBytes);
+    System.out.println("# encoding=" + encoding + " writer=" + writer
+        + " verified_iters=" + verifiedIters);
+    System.out.println("# name\tcpu_ns\twall_ns\talloc_bytes\ttrace_bytes");
+    if (verifiedIters > 0) {
+      for (Scenario s : selected) {
+        System.out.println(s.mName + "\t"
+            + measureVerified(s, reps, verifiedIters, encoding, writerV2));
+      }
+      System.exit(0);
+      return;
     }
 
-    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig(32 * 1024, true));
-    for (int i = 0; i < selected.size(); i++) {
-      Scenario s = selected.get(i);
-      System.out.println(
-          s.mName + "\t" + measure(s, reps, repMs) + "\t" + String.format("%.2f", traceBytes[i]));
+    double emptyBytes;
+    try (Recording empty = new Recording(1024, false, encoding, writerV2)) {
+      empty.close();
+      emptyBytes = empty.traceBytes();
     }
-    session.close();
+    double[] traceBytes = new double[selected.size()];
+    for (int i = 0; i < selected.size(); i++) {
+      traceBytes[i] = traceBytesPerEvent(selected.get(i), emptyBytes, encoding, writerV2);
+    }
+    try (Recording recording = new Recording(32 * 1024, true, encoding, writerV2)) {
+      for (int i = 0; i < selected.size(); i++) {
+        Scenario s = selected.get(i);
+        System.out.println(s.mName + "\t" + measure(s, reps, repMs) + "\t"
+            + String.format(Locale.ROOT, "%.2f", traceBytes[i]));
+      }
+    }
     System.exit(0);
   }
 }

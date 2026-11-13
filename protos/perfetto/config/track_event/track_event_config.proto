@@ -113,6 +113,7 @@ message TrackEventConfig {
     JAVA_EVENT_ENCODING_ENCODED = 2;
   }
   // Absent or UNSPECIFIED selects LEGACY. Unknown values also select LEGACY.
+  // ENCODED remains an explicit opt-in while performance is evaluated.
   // ENCODED writes event, category and debug-argument names inline. Explicit
   // addFieldWithInterning() calls still use sequence-local interned IDs.
   // Concurrent recordings may request different modes; Java then builds both
