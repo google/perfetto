@@ -315,6 +315,21 @@ message AndroidJobSchedulerJob {
   // Cumulative duration (in milliseconds) spent in each corresponding pending
   // reason.
   repeated int64 pending_durations_ms = 23;
+  // Total time (in milliseconds) this job spent in JobScheduler's pending queue
+  // waiting for an execution slot, summed over every stay since it was last
+  // (re)scheduled. -1 if the job never entered the pending queue. Only set for
+  // the STARTED and CANCELLED states. On STARTED, measured up to the execution
+  // start, so job_start_latency_ms = (time before the first pending queue
+  // entry) + pending_queue_wait_ms + outside_pending_queue_ms.
+  optional int64 pending_queue_wait_ms = 24;
+  // Time (in milliseconds) since this job's first entry into the pending queue
+  // during which the job wasn't in the queue: measured up to the execution
+  // start on STARTED, and up to when this trace event is recorded on CANCELLED
+  // (so on CANCELLED it may exceed the ScheduledJobStateChanged atom value by a
+  // few milliseconds if the clock advances between logging and tracing). -1 if
+  // the job never entered the pending queue. Only set for the STARTED and
+  // CANCELLED states.
+  optional int64 outside_pending_queue_ms = 25;
 }
 
 // Information about an android.graphics.Bitmap.

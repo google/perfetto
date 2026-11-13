@@ -97,6 +97,8 @@ SELECT
   js.deadline_ms AS deadline_ms,
   js.delay_ms AS delay_ms,
   js.job_start_latency_ms AS job_start_latency_ms,
+  js.pending_queue_wait_ms AS pending_queue_wait_ms,
+  js.outside_pending_queue_ms AS outside_pending_queue_ms,
   js.num_uncompleted_work_items AS num_uncompleted_work_items,
   js.proc_state AS proc_state,
   js.internal_stop_reason AS internal_stop_reason,
@@ -129,8 +131,7 @@ SELECT
   CAST(js.has_flexibility_constraint AS BOOL) AS has_flexibility_constraint,
   CAST(js.can_apply_transport_affinities AS BOOL) AS can_apply_transport_affinities
 FROM __intrinsic_android_job_scheduler_track_events AS js
-JOIN slice AS s
-  ON js.slice_id = s.id;
+JOIN slice AS s ON js.slice_id = s.id;
 
 -- Valid state transitions in Android JobScheduler:
 -- 1. JOB_STATE_SCHEDULED -> JOB_STATE_STARTED: Constraints met and execution begins (JobServiceContext binds service).
@@ -202,6 +203,16 @@ CREATE PERFETTO TABLE android_job_scheduler_states_track_events(
   delay_ms LONG,
   -- The latency in ms between scheduling and starting.
   job_start_latency_ms LONG,
+  -- Total time in ms the job spent in JobScheduler's pending queue waiting for
+  -- an execution slot before starting, or -1 if it never entered the queue.
+  -- Together with `outside_pending_queue_ms` and the time before the job first
+  -- entered the queue, this adds up to `job_start_latency_ms`. NULL if the
+  -- device didn't log it.
+  pending_queue_wait_ms LONG,
+  -- Time in ms between the job first entering the pending queue and starting
+  -- during which it wasn't in the queue, or -1 if it never entered the queue.
+  -- NULL if the device didn't log it.
+  outside_pending_queue_ms LONG,
   -- Number of uncompleted job work items.
   num_uncompleted_work_items LONG,
   -- Process state of the process responsible for running the job.
@@ -310,6 +321,8 @@ SELECT
   deadline_ms,
   delay_ms,
   job_start_latency_ms,
+  pending_queue_wait_ms,
+  outside_pending_queue_ms,
   num_uncompleted_work_items,
   proc_state,
   periodic_job_interval_ms,

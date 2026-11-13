@@ -159,6 +159,15 @@ function setupContentSecurityPolicy() {
       // and SQL formatter) without enabling JavaScript eval().
       `'wasm-unsafe-eval'`,
       'https://www.googletagmanager.com',
+      // Google Identity Services for the Google Drive plugin (see its README).
+      // Safe to allow: scoped to the exact Google-served script path, with no
+      // user-controlled content.
+      'https://accounts.google.com/gsi/client',
+      // - The Google API loader.
+      'https://apis.google.com/js/api.js',
+      // - The modules that loader fetches, such as the file picker. Their URLs
+      //   contain version hashes, so only the directory can be named.
+      'https://apis.google.com/_/scs/abc-static/_/js/',
     ],
     'object-src': [`'none'`],
     'connect-src': [
@@ -176,8 +185,22 @@ function setupContentSecurityPolicy() {
       'https://*.google-analytics.com',
       'https://www.googletagmanager.com',
       'https://*.googleapis.com',
+      // Icons used by the Google Drive picker and sharing dialog.
+      'https://ssl.gstatic.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
+    // Only the Google Drive plugin's dialogs may be framed, and only their
+    // paths rather than the whole hosts, which also serve embeddable user
+    // content. Connecting to a Google account needs no entry here: it happens
+    // in a popup, which frame-src does not govern.
+    'frame-src': [
+      // The Google Drive picker dialog.
+      'https://docs.google.com/picker',
+      'https://docs.google.com/picker/',
+      // The Google Drive sharing dialog (gapi.drive.share.ShareClient).
+      'https://drive.google.com/sharing/',
+      'https://drive.google.com/drivesharing/',
+    ],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';

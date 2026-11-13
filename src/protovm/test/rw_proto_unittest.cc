@@ -17,6 +17,7 @@
 #include <cstdint>
 
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "src/protovm/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -955,6 +956,62 @@ TEST_F(RwProtoTest, Merge_DelIfSrcEmptyAndSkipSubmessages) {
   protos::TraceEntry entry;
   entry.ParseFromString(SerializeAsString(data_empty_));
   ASSERT_FALSE(entry.has_single_element());
+}
+
+// An empty src message absent from DST is not inserted when
+// kDelIfSrcEmpty = true
+TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_FieldAbsentFromDst_1) {
+  auto root = data_empty_.GetRoot();
+
+  protos::TraceEntry patch;
+  patch.mutable_single_element();
+
+  ASSERT_TRUE(root.Merge(AsConstBytes(patch.SerializeAsString()),
+                         RwProto::Cursor::kDelIfSrcEmpty)
+                  .IsOk());
+
+  ASSERT_FALSE(*root.HasField(protos::TraceEntry::kSingleElementFieldNumber));
+  ASSERT_TRUE(SerializeAsString(data_empty_).empty());
+}
+
+// An empty message followed by a non-empty message
+// (proto = [..., F{}, F{x}, ...]) on an absent DST stays singular (not
+// promoted to repeated).
+TEST_F(RwProtoTest, Merge_DelIfSrcEmpty_FieldAbsentFromDst_2) {
+  auto root = data_empty_.GetRoot();
+
+  protozero::HeapBuffered<protozero::Message> patch;
+  // empty message
+  patch->BeginNestedMessage<protozero::Message>(
+      protos::TraceEntry::kSingleElementFieldNumber);
+  // non-empty message
+  auto* single = patch->BeginNestedMessage<protozero::Message>(
+      protos::TraceEntry::kSingleElementFieldNumber);
+  single->AppendVarInt(protos::Element::kIdFieldNumber, 10);
+
+  ASSERT_TRUE(root.Merge(AsConstBytes(patch.SerializeAsString()),
+                         RwProto::Cursor::kDelIfSrcEmpty)
+                  .IsOk());
+
+  // Entering single_element as a singular field must succeed (not abort
+  // because the field got promoted to IndexedRepeatedField).
+  auto single_cursor = root;
+  ASSERT_TRUE(
+      single_cursor.EnterField(protos::TraceEntry::kSingleElementFieldNumber)
+          .IsOk());
+  ASSERT_TRUE(single_cursor.EnterField(protos::Element::kIdFieldNumber).IsOk());
+  ASSERT_EQ(single_cursor.GetScalar().value(), Scalar::VarInt(10));
+
+  // Verify serialized wire output has exactly one occurrence of
+  // single_element.
+  std::string serialized = SerializeAsString(data_empty_);
+  protozero::ProtoDecoder decoder(AsConstBytes(serialized));
+  auto field = decoder.ReadField();
+  ASSERT_TRUE(field.valid());
+  ASSERT_EQ(field.id(), static_cast<uint32_t>(
+                            protos::TraceEntry::kSingleElementFieldNumber));
+  ASSERT_GT(field.size(), 0u);
+  ASSERT_FALSE(decoder.ReadField().valid());
 }
 
 TEST_F(RwProtoTest, SetBytes_IncompatibleWireType) {

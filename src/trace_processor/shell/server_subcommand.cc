@@ -68,6 +68,11 @@
 #include <csignal>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 namespace perfetto::trace_processor::shell {
 
 const char* ServerSubcommand::name() const {
@@ -273,6 +278,12 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     signal(SIGINT, [](int) {
       g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
     });
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    // The RPC stream is binary, but the CRT defaults to text mode, which
+    // rewrites \n as \r\n on output and treats Ctrl-Z as EOF on input.
+    _setmode(_fileno(stdin), _O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
 #endif
     return RunStdioRpcServer(rpc);
   }

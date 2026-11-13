@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
@@ -50,6 +51,40 @@ constexpr uint32_t kMaxDepth = 256;
 bool IsArithmetic(Op op) {
   return op == Op::kAdd || op == Op::kSub || op == Op::kMul || op == Op::kDiv ||
          op == Op::kMod;
+}
+
+bool IsComparison(Op op) {
+  return op == Op::kEq || op == Op::kNe || op == Op::kLt || op == Op::kLe ||
+         op == Op::kGt || op == Op::kGe;
+}
+
+// The comparison which holds of `x y` when `op` holds of `y x`.
+Op Flipped(Op op) {
+  return op == Op::kLt   ? Op::kGt
+         : op == Op::kLe ? Op::kGe
+         : op == Op::kGt ? Op::kLt
+         : op == Op::kGe ? Op::kLe
+                         : op;
+}
+
+core::Op CoreComparison(Op op) {
+  if (op == Op::kEq) {
+    return core::Eq{};
+  }
+  if (op == Op::kNe) {
+    return core::Ne{};
+  }
+  if (op == Op::kLt) {
+    return core::Lt{};
+  }
+  if (op == Op::kLe) {
+    return core::Le{};
+  }
+  if (op == Op::kGt) {
+    return core::Gt{};
+  }
+  PERFETTO_DCHECK(op == Op::kGe);
+  return core::Ge{};
 }
 
 // Appends a node and returns its index.
@@ -91,9 +126,71 @@ std::optional<Op> BinaryOp(SyntaqliteBinaryOp op) {
       return Op::kDiv;
     case SYNTAQLITE_BINARY_OP_REM:
       return Op::kMod;
+    case SYNTAQLITE_BINARY_OP_EQ:
+    case SYNTAQLITE_BINARY_OP_EQ_DOUBLE:
+      return Op::kEq;
+    case SYNTAQLITE_BINARY_OP_NE:
+    case SYNTAQLITE_BINARY_OP_NE_ANGLE:
+      return Op::kNe;
+    case SYNTAQLITE_BINARY_OP_LT:
+      return Op::kLt;
+    case SYNTAQLITE_BINARY_OP_LE:
+      return Op::kLe;
+    case SYNTAQLITE_BINARY_OP_GT:
+      return Op::kGt;
+    case SYNTAQLITE_BINARY_OP_GE:
+      return Op::kGe;
     default:
       return std::nullopt;
   }
+}
+
+base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e);
+
+// Appends the nodes of the coalesce, ifnull or iif at `at`.
+base::Status CompileFunction(Compiler* c,
+                             uint32_t at,
+                             const SyntaqliteFunctionCall& n,
+                             uint32_t depth,
+                             Expr* e) {
+  std::string name = base::ToLower(SpanText(c->parser(), n.func_name));
+  bool iif = name == "iif";
+  bool ifnull = name == "ifnull";
+  if (!iif && !ifnull && name != "coalesce") {
+    return c->Unsupported(at, "calling this function");
+  }
+  if (n.flags.bits.distinct || n.flags.bits.star ||
+      syntaqlite_node_is_present(n.filter_clause) ||
+      syntaqlite_node_is_present(n.over_clause) ||
+      !syntaqlite_node_is_present(n.args)) {
+    return c->Unsupported(at, "this form of " + name);
+  }
+  const auto& args = Node<SyntaqliteNode>(c->parser(), n.args)->expr_list;
+  if (iif && args.count != 3) {
+    return c->Expected(at, "iif to have 3 arguments");
+  }
+  if (ifnull && args.count != 2) {
+    return c->Expected(at, "ifnull to have 2 arguments");
+  }
+  if (args.count < 2) {
+    return c->Expected(at, "coalesce to have at least 2 arguments");
+  }
+  std::vector<uint32_t> values;
+  for (uint32_t i = 0; i < args.count; ++i) {
+    RETURN_IF_ERROR(Compile(c, args.children[i], depth + 1, e));
+    values.push_back(static_cast<uint32_t>(e->nodes.size() - 1));
+  }
+  if (iif) {
+    ex::ExprStep node = Node2(Op::kIif, values[0], values[1]);
+    node.c = values[2];
+    Push(e, node);
+    return base::OkStatus();
+  }
+  uint32_t rest = values.back();
+  for (uint32_t i = args.count - 1; i-- > 0;) {
+    rest = Push(e, Node2(Op::kCoalesce, values[i], rest));
+  }
+  return base::OkStatus();
 }
 
 // Appends the nodes of the expression at `at`, its result last.
@@ -154,6 +251,36 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       Push(e, Node2(Op::kMul, x, PushConstant(e, std::move(minus_one))));
       return base::OkStatus();
     }
+    case SYNTAQLITE_NODE_LIKE_EXPR: {
+      const SyntaqliteLikeExpr& n = node->like_expr;
+      if (n.keyword != SYNTAQLITE_LIKE_KEYWORD_GLOB) {
+        return c->Unsupported(at, "this operator");
+      }
+      if (n.negated) {
+        return c->Unsupported(at, "NOT GLOB");
+      }
+      RETURN_IF_ERROR(Compile(c, n.operand, depth + 1, e));
+      auto operand = static_cast<uint32_t>(e->nodes.size() - 1);
+      ASSIGN_OR_RETURN(Literal pattern, CompileLiteral(c, n.pattern));
+      if (!pattern.is_string()) {
+        return c->Expected(n.pattern, "a string as the pattern of GLOB");
+      }
+      auto index = static_cast<uint32_t>(e->literals.size());
+      e->literals.push_back(std::move(pattern));
+      Push(e, Node2(Op::kGlob, operand, index));
+      return base::OkStatus();
+    }
+    case SYNTAQLITE_NODE_IS_EXPR: {
+      const SyntaqliteIsExpr& n = node->is_expr;
+      ASSIGN_OR_RETURN(bool null, CompileIsNull(c, at, n));
+      RETURN_IF_ERROR(Compile(c, n.left, depth + 1, e));
+      auto operand = static_cast<uint32_t>(e->nodes.size() - 1);
+      ex::ExprStep test;
+      test.op = null ? Op::kIsNull : Op::kIsNotNull;
+      test.a = operand;
+      Push(e, test);
+      return base::OkStatus();
+    }
     case SYNTAQLITE_NODE_BINARY_EXPR: {
       const SyntaqliteBinaryExpr& n = node->binary_expr;
       std::optional<Op> op = BinaryOp(n.op);
@@ -168,7 +295,7 @@ base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
       return base::OkStatus();
     }
     case SYNTAQLITE_NODE_FUNCTION_CALL:
-      return c->Unsupported(at, "calling functions");
+      return CompileFunction(c, at, node->function_call, depth, e);
     default:
       return c->Unsupported(at, "this expression");
   }
@@ -227,6 +354,7 @@ class Typer {
     for (const ex::ExprStep& node : e.nodes) {
       uint32_t reg = 0;
       ASSIGN_OR_RETURN(Kind kind, Type(node, &reg));
+      can_fail_.push_back(CanFail(node, kind));
       kinds_.push_back(kind);
       regs_.push_back(reg);
     }
@@ -298,6 +426,29 @@ class Typer {
     if (node.op == Op::kNull) {
       return Kind::kNull;
     }
+    if (IsComparison(node.op)) {
+      return TypeComparison(node, reg);
+    }
+    if (node.op == Op::kGlob) {
+      return TypeGlob(node, reg);
+    }
+    if (node.op == Op::kCoalesce) {
+      return TypeChoice(node, "coalesce", node.a, node.b, reg);
+    }
+    if (node.op == Op::kIif) {
+      return TypeChoice(node, "iif", node.b, node.c, reg);
+    }
+    if (node.op == Op::kIsNull || node.op == Op::kIsNotNull) {
+      if (rows_) {
+        ex::ExprStep step = node;
+        step.type = Type::kInt64;
+        step.a =
+            Materialize(node.a, kinds_[node.a] == Kind::kNull ? Kind::kInt64
+                                                              : kinds_[node.a]);
+        *reg = Add(step);
+      }
+      return Kind::kInt64;
+    }
     PERFETTO_DCHECK(IsArithmetic(node.op));
     Kind a = kinds_[node.a];
     Kind b = kinds_[node.b];
@@ -325,17 +476,208 @@ class Typer {
     return kind;
   }
 
+  base::StatusOr<Kind> TypeComparison(const ex::ExprStep& node, uint32_t* reg) {
+    Kind a = kinds_[node.a];
+    Kind b = kinds_[node.b];
+    if ((a == Kind::kString && IsNumber(b)) ||
+        (b == Kind::kString && IsNumber(a))) {
+      return base::ErrStatus(
+          "values of one kind to compare, but got a number and a string");
+    }
+    // A comparison with NULL is NULL.
+    if (a == Kind::kNull || b == Kind::kNull) {
+      return Kind::kNull;
+    }
+    if (a == Kind::kUnknown || b == Kind::kUnknown) {
+      return Kind::kInt64;
+    }
+    if (a != b) {
+      const ex::ExprStep* left = &expr_->nodes[node.a];
+      const ex::ExprStep* right = &expr_->nodes[node.b];
+      if (right->op != Op::kConstant && left->op != Op::kConstant) {
+        return base::ErrStatus(
+            "values of one type to compare, but got an integer and a double: "
+            "multiply the integer by 1.0 to compare it as a double");
+      }
+      if (rows_) {
+        *reg = right->op == Op::kConstant
+                   ? AddLiteralComparison(node.op, node.a, *right)
+                   : AddLiteralComparison(Flipped(node.op), node.b, *left);
+      }
+      return Kind::kInt64;
+    }
+    if (rows_) {
+      ex::ExprStep step = Node2(node.op, regs_[node.a], regs_[node.b]);
+      step.type = Type::kInt64;
+      *reg = Add(step);
+    }
+    return Kind::kInt64;
+  }
+
+  // Adds the steps comparing node `value` with a number literal of the other
+  // type.
+  uint32_t AddLiteralComparison(Op op,
+                                uint32_t value,
+                                const ex::ExprStep& constant) {
+    bool double_value = kinds_[value] == Kind::kDouble;
+    ResolvedComparison resolved = ResolveLiteralComparison(
+        CoreComparison(op), expr_->literals[constant.a], double_value);
+    if (resolved.kind != ResolvedComparison::Kind::kCompare) {
+      ex::ExprStep step;
+      step.op = Op::kConstantWherePresent;
+      step.a = regs_[value];
+      step.int_value = resolved.kind == ResolvedComparison::Kind::kAlwaysTrue;
+      return Add(step);
+    }
+    ex::ExprStep literal;
+    literal.op = Op::kConstant;
+    literal.type = double_value ? Type::kDouble : Type::kInt64;
+    literal.int_value = resolved.literal.int_value;
+    literal.double_value = resolved.literal.double_value;
+    ex::ExprStep step = Node2(op, regs_[value], Add(literal));
+    step.type = Type::kInt64;
+    return Add(step);
+  }
+
+  // Whether computing `node` can fail: only integer arithmetic can.
+  bool CanFail(const ex::ExprStep& node, Kind kind) const {
+    if (IsArithmetic(node.op)) {
+      return kind == Kind::kInt64 || can_fail_[node.a] || can_fail_[node.b];
+    }
+    if (IsComparison(node.op)) {
+      return can_fail_[node.a] || can_fail_[node.b];
+    }
+    bool reads_a = node.op == Op::kGlob || node.op == Op::kIsNull ||
+                   node.op == Op::kIsNotNull || node.op == Op::kCoalesce ||
+                   node.op == Op::kIif;
+    return reads_a && can_fail_[node.a];
+  }
+
+  static const char* KindName(Kind kind) {
+    return kind == Kind::kDouble   ? "double"
+           : kind == Kind::kString ? "string"
+                                   : "integer";
+  }
+
+  // A coalesce or iif, choosing between nodes `x` and `y`. Every step runs for
+  // every row, so one only some rows choose must not be able to fail.
+  base::StatusOr<Kind> TypeChoice(const ex::ExprStep& node,
+                                  const char* name,
+                                  uint32_t x,
+                                  uint32_t y,
+                                  uint32_t* reg) {
+    bool iif = node.op == Op::kIif;
+    if ((iif && can_fail_[x]) || can_fail_[y]) {
+      return base::ErrStatus(
+          "no integer arithmetic in the arguments of %s which only some rows "
+          "use, as it could overflow on the others",
+          name);
+    }
+    if (iif && kinds_[node.a] == Kind::kString) {
+      return base::ErrStatus("a number as the condition of iif");
+    }
+    Kind a = kinds_[x];
+    Kind b = kinds_[y];
+    if (a != Kind::kNull && b != Kind::kNull && a != Kind::kUnknown &&
+        b != Kind::kUnknown && a != b) {
+      return base::ErrStatus(
+          "the arguments of %s to have one type, but got %s and %s", name,
+          KindName(a), KindName(b));
+    }
+    Kind kind = a == Kind::kNull || a == Kind::kUnknown ? b : a;
+    if (!rows_) {
+      return kind;
+    }
+    // A result which is only ever NULL is a column of Int64 nulls.
+    Kind typed = kind == Kind::kNull ? Kind::kInt64 : kind;
+    ex::ExprStep step;
+    step.op = node.op;
+    step.type = TypeOf(typed);
+    if (iif) {
+      step.a = AddCondition(node.a);
+      step.b = Materialize(x, typed);
+      step.c = Materialize(y, typed);
+    } else {
+      step.a = Materialize(x, typed);
+      step.b = Materialize(y, typed);
+    }
+    *reg = Add(step);
+    return kind;
+  }
+
+  // The register holding node `i` as an integer condition. A double is true
+  // unless it is zero.
+  uint32_t AddCondition(uint32_t i) {
+    if (kinds_[i] != Kind::kDouble) {
+      return Materialize(i, Kind::kInt64);
+    }
+    ex::ExprStep zero;
+    zero.op = Op::kConstant;
+    zero.type = Type::kDouble;
+    ex::ExprStep step = Node2(Op::kNe, regs_[i], Add(zero));
+    return Add(step);
+  }
+
+  base::StatusOr<Kind> TypeGlob(const ex::ExprStep& node, uint32_t* reg) {
+    Kind a = kinds_[node.a];
+    if (IsNumber(a)) {
+      return base::ErrStatus("a string to match with GLOB");
+    }
+    // Matching NULL is NULL.
+    if (a == Kind::kNull) {
+      return Kind::kNull;
+    }
+    if (rows_) {
+      ex::ExprStep step = node;
+      step.type = Type::kInt64;
+      step.a = regs_[node.a];
+      step.b = static_cast<uint32_t>(program_->patterns.size());
+      program_->patterns.push_back(expr_->literals[node.b].text);
+      *reg = Add(step);
+    }
+    return Kind::kInt64;
+  }
+
+  static bool IsNumber(Kind kind) {
+    return kind == Kind::kInt64 || kind == Kind::kDouble;
+  }
+
   const LogicalPlan* plan_ = nullptr;
   const OutputProperties* rows_ = nullptr;
   ex::ExprProgram* program_ = nullptr;
   StringPool* pool_ = nullptr;
   const Expr* expr_ = nullptr;
+  // By node, whether computing it can fail.
+  std::vector<bool> can_fail_;
   // By node, its kind and the register holding it.
   std::vector<Kind> kinds_;
   std::vector<uint32_t> regs_;
 };
 
 }  // namespace
+
+base::StatusOr<bool> CompileIsNull(Compiler* c,
+                                   uint32_t expr,
+                                   const SyntaqliteIsExpr& node) {
+  switch (static_cast<int>(node.op)) {
+    case SYNTAQLITE_IS_OP_IS_NULL:
+      return true;
+    case SYNTAQLITE_IS_OP_NOT_NULL:
+    case SYNTAQLITE_IS_OP_NOT_NULL_SPACED:
+      return false;
+    case SYNTAQLITE_IS_OP_IS:
+    case SYNTAQLITE_IS_OP_IS_NOT: {
+      const auto* right = Node<SyntaqliteNode>(c->parser(), node.right);
+      if (right->tag != SYNTAQLITE_NODE_LITERAL ||
+          right->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_NULL) {
+        return c->Unsupported(expr, "IS other than IS [NOT] NULL");
+      }
+      return node.op == SYNTAQLITE_IS_OP_IS;
+    }
+    default:
+      return c->Unsupported(expr, "IS other than IS [NOT] NULL");
+  }
+}
 
 base::Status CompileExpr(Compiler* c, uint32_t expr, Expr* out) {
   return Compile(c, expr, 0, out);
@@ -386,6 +728,7 @@ void SerializeExpr(PlanCodec& c, Expr* e) {
     c.Pod(&node.op);
     c.Pod(&node.a);
     c.Pod(&node.b);
+    c.Pod(&node.c);
   }
   e->literals.resize(c.Count(e->literals.size()));
   for (Literal& literal : e->literals) {
