@@ -6801,6 +6801,8 @@ message TraceStats {
 
     // The fields below have been introduced in Android R.
 
+    // TraceBufferV1 only. For TraceBufferV2, see DATA_LOSS_WRITER_ABORT in
+    // TracePacket.previous_packet_dropped.
     // Num. of times the service detected packet loss on a trace writer
     // sequence. This is usually caused by exhaustion of available chunks in the
     // writer process's SMB. Note that this relies on the client's TraceWriter
