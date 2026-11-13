@@ -294,8 +294,6 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     }
 
     if (auto* indexed_fields = it->value->GetIf<Node::IndexedRepeatedField>()) {
-      auto status_or_map_value = CreateNodeFromField(field);
-      PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
       // Implements merge semantics for repeated fields: all existing fields are
       // removed and replaced with the newly received fields.
       if (!it->value->has_been_merged) {
@@ -305,6 +303,8 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
         allocator_->DeleteReferencedData(it->value.get());
         it->value->has_been_merged = true;
       }
+      auto status_or_map_value = CreateNodeFromField(field);
+      PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
       MapInsert(&indexed_fields->index_to_node,
                 indexed_fields->index_to_node.Size(),
                 std::move(*status_or_map_value));
@@ -421,23 +421,13 @@ StatusOr<void> RwProtoCursor::ConvertToMessageIfNeeded(Node* node) {
 
 StatusOr<OwnedPtr<Node>> RwProtoCursor::CreateNodeFromField(
     protozero::Field field) {
-  if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-    auto status_or_bytes = allocator_->AllocateAndCopyBytes(field.as_bytes());
-    PROTOVM_RETURN_IF_NOT_OK(status_or_bytes);
-    auto status_or_node =
-        allocator_->CreateNode<Node::Bytes>(std::move(*status_or_bytes));
-    if (!status_or_node.IsOk()) {
-      allocator_->DeleteReferencedData(&status_or_bytes.value());
-      PROTOVM_RETURN(status_or_node);
-    }
+  auto status_or_node = allocator_->CreateNode<Node::Empty>();
+  PROTOVM_RETURN_IF_NOT_OK(status_or_node);
 
-    return std::move(*status_or_node);
-  }
-
-  auto status_or_node =
-      allocator_->CreateNode<Scalar>(field.type(), field.as_uint64());
-  if (!status_or_node.IsOk()) {
-    PROTOVM_RETURN(status_or_node);
+  auto status = UpdateNodeFromField(status_or_node->get(), field);
+  if (!status.IsOk()) {
+    allocator_->Delete(status_or_node->release());
+    PROTOVM_RETURN(status);
   }
 
   return std::move(*status_or_node);
@@ -445,11 +435,9 @@ StatusOr<OwnedPtr<Node>> RwProtoCursor::CreateNodeFromField(
 
 // Updates an existing Node's value in place instead of deleting the old Node
 // and allocating a new one via CreateNodeFromField (avoiding a SlabAllocator
-// deallocation/allocation pair per overwritten field in Merge). This yields a
-// ~5.0% improvement on the SurfaceFlingerTrace benchmark.
-PERFETTO_ALWAYS_INLINE StatusOr<void> RwProtoCursor::UpdateNodeFromField(
-    Node* node,
-    protozero::Field field) {
+// deallocation/allocation pair per overwritten field in Merge).
+StatusOr<void> RwProtoCursor::UpdateNodeFromField(Node* node,
+                                                  protozero::Field field) {
   allocator_->DeleteReferencedData(node);
 
   if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
