@@ -114,6 +114,14 @@ trace.add_package_list(
     ts=1, name='com.twitter.android', uid=10023, version_code=1)
 trace.add_thread(
     tid=23, tgid=23, cmdline='com.twitter.android', name='com.twitter.android')
+trace.add_process(24, 1, 'com.google.android.contacts', 10024)
+trace.add_package_list(
+    ts=1, name='com.google.android.contacts', uid=10024, version_code=1)
+trace.add_thread(
+    tid=24,
+    tgid=24,
+    cmdline='com.google.android.contacts',
+    name='com.google.android.contacts')
 
 trace.add_ftrace_packet(cpu=0)
 
@@ -489,5 +497,41 @@ trace.add_atrace_begin(
     pid=2,
     buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
 trace.add_atrace_end(ts=14046, tid=2, pid=2)
+
+trace.add_atrace_begin(
+    ts=15000,
+    tid=2,
+    pid=2,
+    buf='MetricsLogger:launchObserverNotifyIntentStarted')
+trace.add_atrace_end(ts=15001, tid=2, pid=2)
+trace.add_atrace_async_begin(
+    ts=15010, tid=2, pid=2, buf='launching: com.google.android.contacts')
+trace.add_atrace_begin(ts=15020, tid=24, pid=24, buf='activityStart')
+trace.add_atrace_end(ts=15025, tid=24, pid=24)
+trace.add_atrace_begin(ts=15025, tid=24, pid=24, buf='activityResume')
+trace.add_atrace_end(ts=15028, tid=24, pid=24)
+trace.add_atrace_begin(
+    ts=15030, tid=24, pid=24, buf='Choreographer#doFrame 123')
+trace.add_atrace_end(ts=15040, tid=24, pid=24)
+trace.add_atrace_async_end(
+    ts=15045, tid=2, pid=2, buf='launching: com.google.android.contacts')
+trace.add_atrace_begin(
+    ts=15045,
+    tid=2,
+    pid=2,
+    buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
+trace.add_atrace_end(ts=15046, tid=2, pid=2)
+trace.add_atrace_begin(
+    ts=15050, tid=24, pid=24, buf='Choreographer#doFrame 124')
+trace.add_atrace_begin(
+    ts=15051,
+    tid=24,
+    pid=24,
+    buf='Choreographer#doFrame - resynced to 125 in 8.3ms')
+trace.add_atrace_end(ts=15059, tid=24, pid=24)
+trace.add_atrace_end(ts=15060, tid=24, pid=24)
+trace.add_atrace_begin(
+    ts=15070, tid=24, pid=24, buf='Choreographer#doFrame 126')
+trace.add_atrace_end(ts=15080, tid=24, pid=24)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

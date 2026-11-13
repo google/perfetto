@@ -238,20 +238,13 @@ BUILD_DEPS_HOST = [
 
     # Sqlite for the trace processing library.
     # This is the amalgamated source whose compiled output is meant to be faster.
-    # We still pull the full source for the extensions (which are not available
-    # in the amalgamation).
-    # If updating the version, also update bazel/deps.bzl.
+    # If updating the version, also update bazel/deps.bzl and
+    # bazel/perfetto_deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
         'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3530400.zip',
         '1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d',
         'all', 'all'),
-    Dependency(
-        'buildtools/sqlite_src',
-        'https://chromium.googlesource.com/external/github.com/sqlite/sqlite.git',
-        'b09c88c14082339b66c7b7158d609a771e64ca69',  # refs/tags/version-3.53.4.
-        'all',
-        'all'),
 
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
@@ -593,33 +586,44 @@ JAVA_SDK_DEPS = [
         'all', 'all'),
 ]
 
-# Sysroots required to cross-compile Linux targets (linux-arm{,64}).
+# Debian sysroots for Linux targets. All architectures use the same Debian
+# release so that the glibc baseline of Linux binaries is consistent and does
+# not depend on the host OS of the machine building them.
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
+# When updating, keep all architectures on the same Debian release.
+_SYSROOT_URL = 'https://commondatastorage.googleapis.com/chrome-linux-sysroot/'
+
+
+def _LinuxSysroot(name, sha256):
+  return Dependency('buildtools/debian_%s-sysroot.tgz' % name,
+                    _SYSROOT_URL + sha256, sha256, 'linux', 'all')
+
+
+BUILD_DEPS_LINUX_SYSROOTS_X64 = [
+    _LinuxSysroot(
+        'bullseye_amd64',
+        'f851add76bdae472fb6c94b4f920bc4a132d85ac607951391297f636af7e934e'),
+]
 BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM = [
-    Dependency(
-        'buildtools/debian_sid_arm-sysroot.tgz',
-        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/11d6f690ca49e8ba01a1d8c5346cedad2cf308fd/debian_sid_arm_sysroot.tar.xz',
-        'ff192fe073d140d836c9ca1e68f7200d558bb9aa6c5c8f4f76f794f82890f99a',
-        'linux', 'all'),
-    Dependency(
-        'buildtools/debian_sid_arm64-sysroot.tgz',
-        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/2befe8ce3e88be6080e4fb7e6d412278ea6a7625/debian_sid_arm64_sysroot.tar.xz',
-        'e4389eab2fe363f3fbdfa4d3ce9d94457d78fd2c0e62171a7534867623eadc90',
-        'linux', 'all'),
+    _LinuxSysroot(
+        'bullseye_armhf',
+        'd78a9e2739dd4cce413dc8629ad0be840591c6456f9a4c6ed4b29ecf2a4257f3'),
+    _LinuxSysroot(
+        'bullseye_arm64',
+        '278c36fe3a785d7f89fbe3f46956899a3bd49fe665f68dc667d6f626a951fcd6'),
 ]
 BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X = [
-    Dependency(
-        'buildtools/debian_bullseye_s390x-sysroot.tgz',
-        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
-        '46d561a32665a7ef4db334d66ba10b0db7750eea3fed1fee4896c2f5c4f87167',
-        'linux', 'all'),
+    _LinuxSysroot(
+        'bullseye_s390x',
+        '544702b33e8d7361272cdb2982c82af3e8227694a3d136d370f27487e6f754f8'),
 ]
 
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
     BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM +
-    BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X + TEST_DEPS_ANDROID +
-    EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST + SYNTAQLITE_DEPS)
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X + BUILD_DEPS_LINUX_SYSROOTS_X64 +
+    TEST_DEPS_ANDROID + EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST +
+    SYNTAQLITE_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
@@ -982,6 +986,10 @@ def Main():
       action='store_true',
       help='Debian sysroots for target_os="linux" target_cpu="s390x"')
   parser.add_argument(
+      '--linux-x64',
+      action='store_true',
+      help='Debian sysroot for target_os="linux" target_cpu="x64"')
+  parser.add_argument(
       '--ui',
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
@@ -1049,6 +1057,8 @@ def Main():
     deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_ARM
   if args.linux_s390x:
     deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS_S390X
+  if args.linux_x64:
+    deps += BUILD_DEPS_LINUX_SYSROOTS_X64
   if args.ui:
     deps += UI_DEPS
   # TODO(b/360084012) Change the arg name to bigtrace

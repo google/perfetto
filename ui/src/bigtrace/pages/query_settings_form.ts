@@ -930,16 +930,18 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
 
   private renderBigTraceSettingCard(rawSetting: BigTraceSetting<unknown>) {
     const setting = this.boundSetting(rawSetting);
-    // Enable/disable goes through the bound setting: per-tab when embedded,
-    // global on /settings — so a per-tab toggle doesn't leak to global state.
+    // Enable/disable goes through the bound setting, so a toggle changes only
+    // this tab until Apply (see rememberQueryOptions).
     const disabled = setting.isDisabled();
     const fullWidth =
       setting.type === 'string-array' ||
       (setting.type === 'string' && setting.format === 'sql');
-    // Flag enabled-but-empty filters. Numeric settings excluded: 0 is valid
+    // Flag enabled-but-empty filters (trace selection settings); an empty
+    // query option can be valid. Numeric settings excluded: 0 is valid
     // (= unlimited).
     const needsValue =
       !disabled &&
+      isTraceSelectionSetting(setting) &&
       (setting.type === 'string' || setting.type === 'string-array');
     let warning: string | undefined;
     if (needsValue) {

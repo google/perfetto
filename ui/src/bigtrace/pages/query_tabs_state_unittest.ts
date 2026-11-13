@@ -27,6 +27,7 @@ import {
   openSettings,
   parseTraceUuids,
   QueryTabsState,
+  rememberQueryOptions,
   restoreTabConfig,
   setTraceUuidsActive,
   snapshotTabConfig,
@@ -870,5 +871,77 @@ describe('addSharedTraceListTab', () => {
       tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
         ?.values,
     ).toEqual(['u1', 'u2']);
+  });
+});
+
+describe('rememberQueryOptions', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+    bigTraceSettingsStorage.register({
+      id: 'text',
+      name: 'text',
+      description: '',
+      type: 'string',
+      schema: z.string() as never,
+      defaultValue: '',
+      category: 'BIGTRACE_QUERY_OPTIONS',
+    });
+    bigTraceSettingsStorage.register({
+      id: 'flag',
+      name: 'flag',
+      description: '',
+      type: 'boolean',
+      schema: z.boolean() as never,
+      defaultValue: false,
+      category: 'BIGTRACE_QUERY_OPTIONS',
+    });
+  });
+
+  function valuesOf(tab: BigTraceEditorTab, id: string) {
+    return tab.querySettings.find((s) => s.settingId === id)?.values;
+  }
+
+  function setOption(tab: BigTraceEditorTab, id: string, value: string) {
+    tab.querySettings = [
+      ...tab.querySettings.filter((s) => s.settingId !== id),
+      {settingId: id, values: [value], category: 'BIGTRACE_QUERY_OPTIONS'},
+    ];
+  }
+
+  test('options changed in the gear are what new tabs start with', () => {
+    const tabs = new QueryTabsState();
+    const open = tabs.addNewTab();
+    const tab = tabs.addNewTab();
+    const before = snapshotTabConfig(tab);
+    setOption(tab, 'text', 'a');
+    setOption(tab, 'flag', 'true');
+    rememberQueryOptions(tab, before);
+    const fresh = tabs.addNewTab();
+    expect([valuesOf(fresh, 'text'), valuesOf(fresh, 'flag')]).toEqual([
+      ['a'],
+      ['true'],
+    ]);
+    // Tabs that already have values keep them.
+    expect(valuesOf(open, 'text')).toEqual(['']);
+
+    // Applying a tab whose values didn't change (say, a run reopened from
+    // History) leaves the global ones alone.
+    setOption(open, 'text', 'b');
+    rememberQueryOptions(open, snapshotTabConfig(open));
+    expect(valuesOf(tabs.addNewTab(), 'text')).toEqual(['a']);
+  });
+
+  test('an option switched on in the gear starts on in new tabs', () => {
+    bigTraceSettingsStorage.get('text')!.setDisabled(true); // off by default
+    const tabs = new QueryTabsState();
+    const tab = tabs.addNewTab();
+    const before = snapshotTabConfig(tab);
+    tab.disabledSettings = tab.disabledSettings.filter((id) => id !== 'text');
+    setOption(tab, 'text', 'a');
+    rememberQueryOptions(tab, before);
+    const fresh = tabs.addNewTab();
+    expect(fresh.disabledSettings).not.toContain('text');
+    expect(valuesOf(fresh, 'text')).toEqual(['a']);
   });
 });

@@ -274,3 +274,59 @@ export function closeModal(key?: string) {
 export function getCurrentModalKey(): string | undefined {
   return currentModal?.key;
 }
+
+export interface ModalPromptButton<T extends string> {
+  // The button's label.
+  readonly text: string;
+  // What promptModal() resolves with if this button is pressed.
+  readonly value: T;
+  readonly primary?: boolean;
+}
+
+export interface ModalPromptArgs<T extends string> {
+  readonly title: string;
+  readonly content: m.Children | (() => m.Children);
+  readonly buttons: ReadonlyArray<ModalPromptButton<T>>;
+  // See ModalAttrs.key.
+  readonly key?: string;
+}
+
+// Shows a modal dialog and waits for the user to respond to it.
+//
+// Resolves with the `value` of the button the user pressed, or undefined if
+// they dismissed the dialog some other way (Escape, or its close button). This
+// lets a flow be written top to bottom, rather than as callbacks on buttons.
+//
+// Note that this does not resolve at the moment of the click: showModal() only
+// settles once the dialog's fade-out animation has finished (~250ms later).
+export async function promptModal<T extends string>(
+  args: ModalPromptArgs<T>,
+): Promise<T | undefined> {
+  let pressed: T | undefined;
+  await showModal({
+    key: args.key,
+    title: args.title,
+    content: args.content,
+    buttons: args.buttons.map((button) => ({
+      text: button.text,
+      primary: button.primary,
+      action: () => {
+        pressed = button.value;
+      },
+    })),
+  });
+  return pressed;
+}
+
+// Shows a modal dialog with a message and a single "OK" button, and waits for
+// the user to dismiss it.
+export async function alertModal(args: {
+  readonly title: string;
+  readonly content: m.Children | (() => m.Children);
+  readonly key?: string;
+}): Promise<void> {
+  await promptModal({
+    ...args,
+    buttons: [{text: 'OK', value: 'ok', primary: true}],
+  });
+}
