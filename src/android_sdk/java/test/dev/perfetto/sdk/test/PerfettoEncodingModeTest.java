@@ -32,6 +32,7 @@ import dev.perfetto.sdk.PerfettoTrack;
 import dev.perfetto.sdk.PerfettoTrackEventBuilder;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -415,6 +416,49 @@ public class PerfettoEncodingModeTest {
         expected = actual.events;
       else
         assertEquals(expected, actual.events);
+    }
+  }
+
+  private static void emitCallstacks(StackTraceElement[] stack) {
+    PerfettoTrace.expensiveDebugCallStack(CATEGORY, "stack", stack).emit();
+    PerfettoTrace.expensiveDebugCallStack(CATEGORY, "weighted_stack", stack, 2.5).emit();
+  }
+
+  @Test
+  public void callstackNamePiecesMatchLegacyInEveryMode() throws Exception {
+    StackTraceElement[] stack = {
+        new StackTraceElement("com.example.Reader", "read", "Reader.java", 17),
+        new StackTraceElement("", "", null, -1),
+        new StackTraceElement("left\0ignored", "method", "file\0ignored", 0),
+        new StackTraceElement("Class", "method\0ignored", "\u00e9.java", 42),
+        new StackTraceElement("\u00e9.\u96ea", "method\ud83d\ude00", "source\u96ea", 19),
+        new StackTraceElement("lone\ud800", "tail\udc00", "file", -2),
+    };
+    String[] names = {
+        "com.example.Reader.read", ".", "left", "Class.method", "\u00e9.?.method??", "lone?.tail?"};
+    for (boolean v2 : new boolean[] {false, true}) {
+      PerfettoTrace.Session baseline = start(LEGACY, v2);
+      emitCallstacks(stack);
+      Decoded expected = decode(baseline.close());
+      assertEquals(2, expected.events.size());
+      assertEquals(stack.length, expected.events.get(0).getCallstack().getFramesCount());
+      for (int i = 0; i < names.length; ++i) {
+        assertEquals(ByteString.copyFrom(names[names.length - 1 - i], StandardCharsets.ISO_8859_1),
+            expected.events.get(0).getCallstack().getFrames(i).getFunctionNameBytes());
+      }
+
+      PerfettoTrace.Session onlyEncoded = start(ENCODED, v2);
+      emitCallstacks(stack);
+      assertEquals(expected.events, decode(onlyEncoded.close()).events);
+
+      PerfettoTrace.Session legacy = start(LEGACY, v2);
+      PerfettoTrace.Session encoded = start(ENCODED, v2);
+      emitCallstacks(stack);
+      Decoded a = decode(legacy.close());
+      Decoded b = decode(encoded.close());
+      assertEquals(expected.events, a.events);
+      assertEquals(expected.events, b.events);
+      assertEquals(a.timestamps, b.timestamps);
     }
   }
 

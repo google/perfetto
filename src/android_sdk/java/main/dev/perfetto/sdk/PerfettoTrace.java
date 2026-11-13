@@ -439,7 +439,7 @@ public final class PerfettoTrace {
                 .beginNested(FIELD_CALLSTACK_FRAMES)
                 .addField(
                     FIELD_FRAME_FUNCTION_NAME,
-                    element.getClassName() + "." + element.getMethodName());
+                    element.getClassName(), '.', element.getMethodName());
 
         if (element.getFileName() != null) {
             builder = builder.addField(FIELD_FRAME_SOURCE_FILE, element.getFileName());

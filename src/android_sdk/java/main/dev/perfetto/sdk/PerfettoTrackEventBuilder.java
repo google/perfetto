@@ -865,11 +865,33 @@ public final class PerfettoTrackEventBuilder {
       mEncoded.addString(id, val);
     }
     if (hasLegacy()) {
-      Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
-      field.setValueString(id, val);
-      addFieldToContainer(field);
+      addLegacyStringField(id, val);
     }
     return this;
+  }
+
+  // The callstack path has both pieces already. Only LEGACY needs the joined string.
+  PerfettoTrackEventBuilder addField(long id, String first, char separator, String second) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    if (hasEncoded()) {
+      mEncoded.checkNestedDepth(mIsNested ? mNestedToken + 1 : 0);
+      mEncoded.addString(id, first, separator, second);
+    }
+    if (hasLegacy()) {
+      addLegacyStringField(id, first + separator + second);
+    }
+    return this;
+  }
+
+  private void addLegacyStringField(long id, String value) {
+    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+    field.setValueString(id, value);
+    addFieldToContainer(field);
   }
 
   /**
