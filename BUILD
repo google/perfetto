@@ -183,6 +183,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_string_filter",
         ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
+        ":src_shared_lib_track_event_encoded_fields",
         ":src_shared_lib_track_event_intern_map",
         ":src_shared_lib_track_event_track_event",
         ":src_tracing_client_api_without_backends",
@@ -2482,6 +2483,15 @@ perfetto_filegroup(
     name = "src_protozero_proto_ring_buffer",
     srcs = [
         "src/protozero/proto_ring_buffer.cc",
+    ],
+)
+
+# GN target: //src/shared_lib/track_event:encoded_fields
+perfetto_filegroup(
+    name = "src_shared_lib_track_event_encoded_fields",
+    srcs = [
+        "src/shared_lib/track_event/encoded_fields.cc",
+        "src/shared_lib/track_event/encoded_fields.h",
     ],
 )
 

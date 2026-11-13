@@ -411,6 +411,48 @@ struct PerfettoTeHlExtraNestedTracks {
   struct PerfettoTeHlNestedTrack* const* tracks;
 };
 
+// Experimental binding format. Ten source bytes reserve space for any uint64_t
+// IID. Output uses canonical varints and adjusts enclosing message lengths.
+#define PERFETTO_TE_HL_IID_SLOT_SIZE 10u
+#define PERFETTO_TE_HL_IID_SLOT_RECORD_SIZE 16u
+#define PERFETTO_TE_HL_MAX_ENCODED_EVENT_SIZE (1024u * 1024u)
+
+struct PerfettoTeHlIidSlot {
+  // Offset of a ten-byte varint value in EventFields.data. The caller writes
+  // its field tag first, followed by nine 0x80 bytes and one zero byte. Slots
+  // may be nested; offsets are always relative to the complete fields buffer.
+  uint32_t offset;
+  // InternedData field number. The table has IID in field 1 and string bytes
+  // in field 2, matching CSTR_INTERNED. Must be in [1, 2^29 - 1].
+  uint32_t interned_type_id;
+  const void* str;
+  size_t str_size;
+};
+
+struct PerfettoTeHlEventFields {
+  // Complete protobuf fields appended after the SDK's normal event metadata.
+  // Blobs containing IID slots must be nested messages. Other blobs stay
+  // opaque. data may be NULL only when size is zero.
+  const void* data;
+  size_t size;
+  // Increasing offsets, without overlap. Strings may contain zero bytes;
+  // str may be NULL only when str_size is zero.
+  const struct PerfettoTeHlIidSlot* iid_slots;
+  size_t num_iid_slots;
+};
+
+// Checks protobuf framing, ordered slots/placeholders, table IDs,
+// pointers and the cumulative size of fields, strings and 16-byte transport
+// records. A NULL fields pointer means no fields. The complete binding event,
+// including its separately supplied name, must fit MAX_ENCODED_EVENT_SIZE.
+// Each slot must start a varint value. Slot-containing messages may nest at
+// most 64 levels and have length prefixes at most four bytes wide. Their
+// prefixes retain their original widths when payload sizes shrink in output.
+// Validation does not intern or emit anything. All storage is borrowed for the
+// synchronous call and must remain alive and unchanged until it returns.
+PERFETTO_SDK_EXPORT bool PerfettoTeHlValidateEventFields(
+    const struct PerfettoTeHlEventFields* fields);
+
 // Emits an event on all active instances of the track event data source.
 // * `cat`: The registered category of the event, it knows on which data source
 //          instances the event should be emitted. Use

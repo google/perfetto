@@ -26,8 +26,24 @@ source_set("intern_map") {
   ]
 }
 
+source_set("encoded_fields") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
+    "../../../include/perfetto/public",
+    "../../base",
+    "../../protozero",
+  ]
+  sources = [
+    "encoded_fields.cc",
+    "encoded_fields.h",
+  ]
+  configs += [ "..:shlib_impl_config" ]
+}
+
 source_set("track_event") {
   deps = [
+    ":encoded_fields",
     ":intern_map",
     "..:for_testing",
     "../../../gn:default_deps",
@@ -57,11 +73,17 @@ source_set("track_event") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":encoded_fields",
     ":intern_map",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/protozero",
+    "../../../include/perfetto/public",
     "../../base",
     "../../base:test_support",
   ]
-  sources = [ "intern_map_unittest.cc" ]
+  sources = [
+    "encoded_fields_unittest.cc",
+    "intern_map_unittest.cc",
+  ]
 }
