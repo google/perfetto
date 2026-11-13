@@ -19,6 +19,7 @@
 #include <jni.h>
 
 #include "src/android_sdk/jni/macros.h"
+#include "src/android_sdk/jni/register_natives.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 
 namespace perfetto {
@@ -40,16 +41,20 @@ static const JNINativeMethod gNativeMemoryCleanerMethods[] = {
     {"applyNativeFunction", "(JJ)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_applyNativeFunction}};
 
-int register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoNativeMemoryCleaner"),
-      gNativeMemoryCleanerMethods, NELEM(gNativeMemoryCleanerMethods));
-  LOG_ALWAYS_FATAL_IF(
-      res < 0,
-      "Unable to register PerfettoNativeMemoryCleaner native methods.");
-  return 0;
+static const NativeClass kNativeMemoryCleanerClasses[] = {
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoNativeMemoryCleaner"),
+     gNativeMemoryCleanerMethods, NELEM(gNativeMemoryCleanerMethods)},
+};
+
+bool register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env) {
+  return RegisterNativeClassesMayFail(env, kNativeMemoryCleanerClasses,
+                                      NELEM(kNativeMemoryCleanerClasses));
+}
+
+void unregister_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(JNIEnv* env) {
+  UnregisterNativeClasses(env, kNativeMemoryCleanerClasses,
+                          NELEM(kNativeMemoryCleanerClasses));
 }
 
 }  // namespace jni

@@ -2,7 +2,8 @@
 # Ensure this is updated when new native methods are added.
 class com.android.internal.dev.perfetto.sdk.PerfettoCategories keepclass
 class com.android.internal.dev.perfetto.sdk.PerfettoNativeLibrary keepclass
-    method load ignore
+    method loadLibrary ignore
+    method native_is_available ignore # return false
 class com.android.internal.dev.perfetto.sdk.PerfettoTrace keepclass
     method native_get_process_track_uuid ignore
     method native_activate_trigger ignore

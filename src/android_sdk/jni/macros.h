@@ -72,10 +72,4 @@ static_assert(IsValidJavaPackage(TO_STRING(PERFETTO_JNI_JARJAR_PREFIX)));
 #define TO_MAYBE_JAR_JAR_CLASS_NAME(className) className
 #endif
 
-#ifndef LOG_ALWAYS_FATAL_IF
-#define LOG_ALWAYS_FATAL_IF(cond, fmt) \
-  if (cond)                            \
-    __android_log_assert(nullptr, "PerfettoJNI", fmt);
-#endif
-
 #endif  // SRC_ANDROID_SDK_JNI_MACROS_H_
