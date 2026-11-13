@@ -52,7 +52,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         group='Android',
         columns={
             'ts':
-                'Timestamp of event; NULL for initial backfill row.',
+                'Timestamp of event, or start timestamp for initial backfill row when known.',
             'upid':
                 'Unique process ID.',
             'proc_state':
@@ -93,6 +93,11 @@ ANDROID_FREEZER_STATE_TABLE = Table(
         C('unfreeze_reason',
           CppOptional(CppString()),
           cpp_access=CppAccess.READ),
+        C('unfrozen_start_ns',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ),
+        C('frozen_start_ns', CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -109,6 +114,10 @@ ANDROID_FREEZER_STATE_TABLE = Table(
                 'Time since last frozen in milliseconds.',
             'unfreeze_reason':
                 'Reason for unfreezing.',
+            'unfrozen_start_ns':
+                'Timestamp when the process was unfrozen (CLOCK_BOOTTIME ns).',
+            'frozen_start_ns':
+                'Timestamp when the process was frozen (CLOCK_BOOTTIME ns).',
             'is_initial':
                 '1 for synthesized initial state row, 0 for track event.',
         },

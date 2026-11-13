@@ -74,7 +74,7 @@ WITH
   ),
   all_events AS (
     SELECT
-      coalesce(s.ts, p.start_ts) AS ts,
+      max(p.start_ts, coalesce(s.ts, p.start_ts)) AS ts,
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
@@ -215,8 +215,8 @@ WITH
         -- The initial row has no ts: anchor it at the process start, but not
         -- before the trace, as the set is only known from there.
         max(
-          coalesce(s.ts, fw.fw_start_ts, p.start_ts, trace_start()),
-          trace_start()
+          coalesce(fw.fw_start_ts, p.start_ts, trace_start()),
+          coalesce(s.ts, trace_start())
         ) AS ts,
         s.is_initial,
         s.id,

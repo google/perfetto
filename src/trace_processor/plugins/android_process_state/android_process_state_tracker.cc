@@ -107,6 +107,9 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_prev_process_group()) {
     prev.process_group = static_cast<int32_t>(p.prev_process_group());
   }
+  if (p.has_prev_proc_state_start_ns()) {
+    prev.proc_state_start_ns = p.prev_proc_state_start_ns();
+  }
   UpdateInitialStateFromDelta(ts, prev);
 
   // Insert the change row.
@@ -142,6 +145,42 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (row.capability_flags.has_value()) {
     AddCapabilityFlagsArgs(id, *row.capability_flags);
   }
+}
+
+void AndroidProcessStateTracker::ParseProcessStateDied(
+    int64_t ts,
+    protozero::ConstBytes bytes) {
+  fb::AndroidProcessStateDiedEvent::Decoder p(bytes);
+  if (!p.has_pid()) {
+    return;
+  }
+  int32_t pid = p.pid();
+  std::optional<UniquePid> opt_upid =
+      context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
+  if (!opt_upid) {
+    unknown_process_logger_.Record(ts, "process_state_died", pid);
+    return;
+  }
+  UniquePid upid = *opt_upid;
+
+  ProcessStateValues prev;
+  prev.upid = upid;
+  if (p.has_prev_proc_state()) {
+    prev.proc_state = static_cast<int32_t>(p.prev_proc_state());
+  }
+  if (p.has_prev_oom_score()) {
+    prev.oom_score = p.prev_oom_score();
+  }
+  if (p.has_prev_capability_flags()) {
+    prev.capability_flags = p.prev_capability_flags();
+  }
+  if (p.has_prev_process_group()) {
+    prev.process_group = static_cast<int32_t>(p.prev_process_group());
+  }
+  if (p.has_prev_proc_state_start_ns()) {
+    prev.proc_state_start_ns = p.prev_proc_state_start_ns();
+  }
+  UpdateInitialStateFromDelta(ts, prev);
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -188,6 +227,9 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         rec.has_process_group()
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
+    if (rec.has_proc_state_start_ns()) {
+      v.proc_state_start_ns = rec.proc_state_start_ns();
+    }
     process_dump_[v.upid] = v;
   }
 }
@@ -214,6 +256,12 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   }
   if (evt.has_frozen_dur_ms()) {
     row.frozen_dur_ms = evt.frozen_dur_ms();
+  }
+  if (evt.has_unfrozen_start_ns()) {
+    row.unfrozen_start_ns = evt.unfrozen_start_ns();
+  }
+  if (evt.has_frozen_start_ns()) {
+    row.frozen_start_ns = evt.frozen_start_ns();
   }
   if (evt.has_unfreeze_reason()) {
     row.unfreeze_reason =
@@ -242,12 +290,18 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
     }
     FreezerStateValues v;
     v.upid = *opt_upid;
+    if (rec.has_unfrozen_start_ns()) {
+      v.unfrozen_start_ns = rec.unfrozen_start_ns();
+    }
+    if (rec.has_frozen_start_ns()) {
+      v.frozen_start_ns = rec.frozen_start_ns();
+    }
     // If the process is unfrozen in the dump, has_unfrozen_dur_ms() is true.
     // Note: android.util.proto.ProtoOutputStream omits 0 values during
     // serialization, so an unset unfreeze_reason on an unfrozen process
     // represents UFR_NONE (0). When the process is frozen, unfreeze_reason is
     // left as std::nullopt so the initial row has NULL.
-    if (rec.has_unfrozen_dur_ms()) {
+    if (rec.has_unfrozen_dur_ms() || rec.has_unfrozen_start_ns()) {
       v.unfreeze_reason =
           rec.has_unfreeze_reason()
               ? static_cast<int32_t>(rec.unfreeze_reason())
@@ -282,6 +336,9 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
     if (earliest.values.process_group.has_value()) {
       v.process_group = earliest.values.process_group;
     }
+    if (earliest.values.proc_state_start_ns.has_value()) {
+      v.proc_state_start_ns = earliest.values.proc_state_start_ns;
+    }
   }
 
   return initial;
@@ -300,7 +357,7 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
     const ProcessStateValues& v) {
   tables::AndroidProcessStateTable::Row row;
   row.upid = v.upid;
-  row.ts = std::nullopt;
+  row.ts = v.proc_state_start_ns;
   row.is_initial = 1;
   if (v.proc_state.has_value()) {
     row.proc_state =
@@ -359,6 +416,8 @@ void AndroidProcessStateTracker::EmitInitialFreezerRow(
   row.ts = std::nullopt;
   row.unfrozen_dur_ms = std::nullopt;
   row.frozen_dur_ms = std::nullopt;
+  row.unfrozen_start_ns = v.unfrozen_start_ns;
+  row.frozen_start_ns = v.frozen_start_ns;
   row.is_initial = 1;
   if (v.unfreeze_reason.has_value()) {
     row.unfreeze_reason =
