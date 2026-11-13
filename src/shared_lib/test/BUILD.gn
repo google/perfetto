@@ -36,9 +36,20 @@ if (enable_perfetto_benchmarks) {
       "..:shared_lib",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../include/perfetto/base",
+      "../../../include/perfetto/ext/tracing/core",
       "../../../include/perfetto/public",
+      "../../../include/perfetto/tracing",
+      "../../../protos/perfetto/config:cpp",
+      "../../../protos/perfetto/config/track_event:cpp",
+      "../../tracing:client_api",
+      "../../tracing/core",
+      "../../tracing/service",
     ]
-    sources = [ "benchmark.cc" ]
+    sources = [
+      "benchmark.cc",
+      "eight_session_benchmark.cc",
+    ]
   }
 }
 

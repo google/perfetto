@@ -16,6 +16,7 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include "perfetto/public/track_event.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -45,6 +46,117 @@ protos::pbzero::TrackEvent::Type EventType(int32_t type) {
       return Type::TYPE_STATE;
   }
   return Type::TYPE_UNSPECIFIED;
+}
+
+using TrackSelection = std::variant<std::monostate,
+                                    const PerfettoTeRegisteredTrackImpl*,
+                                    const PerfettoTeHlExtraNamedTrack*,
+                                    const PerfettoTeHlExtraProtoTrack*,
+                                    const PerfettoTeHlExtraNestedTracks*>;
+
+// Shared by all recordings of this event. Pointers borrow the caller's storage
+// until TeHlEmit() returns.
+struct EventParams {
+  PerfettoTeCategoryImpl* cat = nullptr;
+  protos::pbzero::TrackEvent::Type type =
+      protos::pbzero::TrackEvent::TYPE_UNSPECIFIED;
+  const char* name = nullptr;
+  size_t name_len = 0;
+  TraceTimestamp timestamp{};
+
+  TrackSelection track;
+  // Cached after a recording accepts the category.
+  bool name_and_track_cached = false;
+  uint64_t named_track_uuid = 0;
+  const PerfettoTeCategoryDescriptor* dynamic_cat = nullptr;
+  bool use_interning = true;
+  bool flush = false;
+
+  const PerfettoTeHlExtra* const* extra_data = nullptr;
+  bool has_builtin_fields = false;
+  bool has_proto_fields = false;
+};
+
+EventParams PrepareEvent(PerfettoTeCategoryImpl* cat,
+                         int32_t type,
+                         const char* name,
+                         const PerfettoTeHlExtra* const* extra_data) {
+  EventParams params;
+  params.cat = cat;
+  params.type = EventType(type);
+  params.name = name;
+  params.extra_data = extra_data;
+
+  const PerfettoTeHlExtraTimestamp* custom_timestamp = nullptr;
+  for (const auto* it = extra_data; *it != nullptr; it++) {
+    const auto& extra = **it;
+    switch (extra.type) {
+      case PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK:
+        params.track =
+            reinterpret_cast<const PerfettoTeHlExtraRegisteredTrack&>(extra)
+                .track;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK:
+        params.track =
+            &reinterpret_cast<const PerfettoTeHlExtraNamedTrack&>(extra);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK:
+        params.track =
+            &reinterpret_cast<const PerfettoTeHlExtraProtoTrack&>(extra);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS:
+        params.track =
+            &reinterpret_cast<const PerfettoTeHlExtraNestedTracks&>(extra);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP:
+        custom_timestamp =
+            &reinterpret_cast<const PerfettoTeHlExtraTimestamp&>(extra);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY:
+        params.dynamic_cat =
+            reinterpret_cast<const PerfettoTeHlExtraDynamicCategory&>(extra)
+                .desc;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN:
+        params.use_interning = false;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_FLUSH:
+        params.flush = true;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64:
+      case PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE:
+        if (params.type == protos::pbzero::TrackEvent::TYPE_COUNTER)
+          params.has_builtin_fields = true;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER:
+      case PERFETTO_TE_HL_EXTRA_TYPE_FLOW:
+      case PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW:
+      case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID:
+      case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR:
+        params.has_builtin_fields = true;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS:
+        params.has_proto_fields = true;
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Every recording gets the same event timestamp.
+  if (custom_timestamp) {
+    params.timestamp.clock_id = custom_timestamp->timestamp.clock_id;
+    params.timestamp.value = custom_timestamp->timestamp.value;
+  } else {
+    params.timestamp = TrackEventInternal::GetTraceTime();
+  }
+
+  return params;
 }
 
 // Appends the fields described by `fields` to `msg`.
@@ -121,188 +233,169 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
 
 void WriteTrackEvent(TrackEventIncrementalState* incr,
                      protos::pbzero::TrackEvent* event,
-                     PerfettoTeCategoryImpl* cat,
-                     protos::pbzero::TrackEvent::Type type,
-                     const char* name,
-                     const PerfettoTeHlExtra* const* extra_data,
-                     std::optional<uint64_t> track_uuid,
-                     const PerfettoTeCategoryDescriptor* dynamic_cat,
-                     bool use_interning) {
-  if (type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
-    event->set_type(type);
-  }
+                     const EventParams& params,
+                     std::optional<uint64_t> track_uuid) {
+  if (params.type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED)
+    event->set_type(params.type);
 
-  if (!dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
-      type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    uint64_t iid = cat->cat_iid;
+  if (!params.dynamic_cat &&
+      params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+      params.type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
+    uint64_t iid = params.cat->cat_iid;
     const bool newly_seen = incr->MarkCategorySeen(iid);
     if (newly_seen) {
       auto* ser = incr->serialized_interned_data->add_event_categories();
       ser->set_iid(iid);
-      ser->set_name(cat->desc->name);
+      ser->set_name(params.cat->desc->name);
     }
     event->add_category_iids(iid);
   }
 
-  if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-    if (name) {
-      if (use_interning) {
-        const void* str = name;
-        size_t len = strlen(name);
-        auto res = incr->iids.FindOrAssign(
-            protos::pbzero::InternedData::kEventNamesFieldNumber, str, len);
-        if (res.newly_assigned) {
-          auto* ser = incr->serialized_interned_data->add_event_names();
-          ser->set_iid(res.iid);
-          ser->set_name(name);
-        }
-        event->set_name_iid(res.iid);
-      } else {
-        event->set_name(name);
+  if (params.name &&
+      params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+    if (params.use_interning) {
+      auto res = incr->iids.FindOrAssign(
+          protos::pbzero::InternedData::kEventNamesFieldNumber, params.name,
+          params.name_len);
+      if (res.newly_assigned) {
+        auto* ser = incr->serialized_interned_data->add_event_names();
+        ser->set_iid(res.iid);
+        ser->set_name(params.name, params.name_len);
       }
+      event->set_name_iid(res.iid);
+    } else {
+      event->set_name(params.name, params.name_len);
     }
   }
 
-  if (dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
-      type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    event->add_categories(dynamic_cat->name);
+  if (params.dynamic_cat &&
+      params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+      params.type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
+    event->add_categories(params.dynamic_cat->name);
   }
 
-  if (track_uuid) {
+  if (track_uuid)
     event->set_track_uuid(*track_uuid);
-  }
 
-  if (type == protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    for (const auto* it = extra_data; *it != nullptr; it++) {
-      const struct PerfettoTeHlExtra& extra = **it;
-      if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64) {
-        event->set_counter_value(
-            reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
-                .value);
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
-        event->set_double_counter_value(
-            reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(
-                extra)
-                .value);
-      }
-    }
-  }
+  if (params.has_builtin_fields) {
+    for (const auto* it = params.extra_data; *it != nullptr; it++) {
+      const auto& extra = **it;
+      switch (extra.type) {
+        case PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64:
+          if (params.type == protos::pbzero::TrackEvent::TYPE_COUNTER) {
+            event->set_counter_value(
+                reinterpret_cast<const PerfettoTeHlExtraCounterInt64&>(extra)
+                    .value);
+          }
+          break;
+        case PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE:
+          if (params.type == protos::pbzero::TrackEvent::TYPE_COUNTER) {
+            event->set_double_counter_value(
+                reinterpret_cast<const PerfettoTeHlExtraCounterDouble&>(extra)
+                    .value);
+          }
+          break;
+        case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL:
+        case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64:
+        case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64:
+        case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE:
+        case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING:
+        case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER: {
+          auto* dbg = event->add_debug_annotations();
+          const char* arg_name = nullptr;
+          if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL) {
+            const auto& arg =
+                reinterpret_cast<const PerfettoTeHlExtraDebugArgBool&>(extra);
+            dbg->set_bool_value(arg.value);
+            arg_name = arg.name;
+          } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64) {
+            const auto& arg =
+                reinterpret_cast<const PerfettoTeHlExtraDebugArgUint64&>(extra);
+            dbg->set_uint_value(arg.value);
+            arg_name = arg.name;
+          } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64) {
+            const auto& arg =
+                reinterpret_cast<const PerfettoTeHlExtraDebugArgInt64&>(extra);
+            dbg->set_int_value(arg.value);
+            arg_name = arg.name;
+          } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE) {
+            const auto& arg =
+                reinterpret_cast<const PerfettoTeHlExtraDebugArgDouble&>(extra);
+            dbg->set_double_value(arg.value);
+            arg_name = arg.name;
+          } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING) {
+            const auto& arg =
+                reinterpret_cast<const PerfettoTeHlExtraDebugArgString&>(extra);
+            dbg->set_string_value(arg.value);
+            arg_name = arg.name;
+          } else if (extra.type ==
+                     PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER) {
+            const auto& arg =
+                reinterpret_cast<const PerfettoTeHlExtraDebugArgPointer&>(
+                    extra);
+            dbg->set_pointer_value(arg.value);
+            arg_name = arg.name;
+          }
 
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64 ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64 ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER) {
-      auto* dbg = event->add_debug_annotations();
-      const char* arg_name = nullptr;
-      if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgBool&>(
-                extra);
-        dbg->set_bool_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgUint64&>(
-                extra);
-        dbg->set_uint_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgInt64&>(
-                extra);
-        dbg->set_int_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgDouble&>(
-                extra);
-        dbg->set_double_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgString&>(
-                extra);
-        dbg->set_string_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgPointer&>(
-                extra);
-        dbg->set_pointer_value(arg.value);
-        arg_name = arg.name;
-      }
-
-      if (arg_name != nullptr) {
-        const void* str = arg_name;
-        size_t len = strlen(arg_name);
-        auto res = incr->iids.FindOrAssign(
-            protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber, str,
-            len);
-        if (res.newly_assigned) {
-          auto* ser =
-              incr->serialized_interned_data->add_debug_annotation_names();
-          ser->set_iid(res.iid);
-          ser->set_name(arg_name);
+          if (arg_name != nullptr) {
+            size_t len = strlen(arg_name);
+            auto res = incr->iids.FindOrAssign(
+                protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
+                arg_name, len);
+            if (res.newly_assigned) {
+              auto* ser =
+                  incr->serialized_interned_data->add_debug_annotation_names();
+              ser->set_iid(res.iid);
+              ser->set_name(arg_name, len);
+            }
+            dbg->set_name_iid(res.iid);
+          }
+          break;
         }
-        dbg->set_name_iid(res.iid);
+        case PERFETTO_TE_HL_EXTRA_TYPE_FLOW:
+          event->add_flow_ids(
+              reinterpret_cast<const PerfettoTeHlExtraFlow&>(extra).id);
+          break;
+        case PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW:
+          event->add_terminating_flow_ids(
+              reinterpret_cast<const PerfettoTeHlExtraFlow&>(extra).id);
+          break;
+        case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID:
+          event->set_correlation_id(
+              reinterpret_cast<const PerfettoTeHlExtraCorrelationId&>(extra)
+                  .id);
+          break;
+        case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR:
+          event->set_correlation_id_str(
+              reinterpret_cast<const PerfettoTeHlExtraCorrelationIdStr&>(extra)
+                  .str);
+          break;
+        default:
+          break;
       }
     }
   }
 
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_FLOW) {
-      event->add_flow_ids(
-          reinterpret_cast<const struct PerfettoTeHlExtraFlow&>(extra).id);
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW) {
-      event->add_terminating_flow_ids(
-          reinterpret_cast<const struct PerfettoTeHlExtraFlow&>(extra).id);
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID) {
-      event->set_correlation_id(
-          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationId&>(extra)
-              .id);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR) {
-      event->set_correlation_id_str(
-          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationIdStr&>(
-              extra)
-              .str);
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
-      const auto* fields =
-          reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(extra)
-              .fields;
-      AppendHlProtoFields(incr, event, fields);
+  // Custom fields go last so they can override the built-in fields.
+  if (params.has_proto_fields) {
+    for (const auto* it = params.extra_data; *it != nullptr; it++) {
+      const auto& extra = **it;
+      if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
+        const auto* fields =
+            reinterpret_cast<const PerfettoTeHlExtraProtoFields&>(extra).fields;
+        AppendHlProtoFields(incr, event, fields);
+      }
     }
   }
 }
 
 // Emits (once per sequence) the track descriptor for the named track described
-// by `track` (its `header` is ignored) and returns the derived track uuid.
-uint64_t EmitNamedTrack(uint64_t parent_uuid,
-                        const PerfettoTeHlNestedTrackNamed& track,
-                        perfetto::shlib::TrackEventIncrementalState* incr_state,
-                        perfetto::TraceWriterBase* trace_writer) {
-  uint64_t uuid = parent_uuid;
-  uuid ^= PerfettoFnv1a(track.name, strlen(track.name));
-  uuid ^= track.id;
+// by `track` (its `header` is ignored).
+void EmitNamedTrack(uint64_t uuid,
+                    uint64_t parent_uuid,
+                    const PerfettoTeHlNestedTrackNamed& track,
+                    perfetto::shlib::TrackEventIncrementalState* incr_state,
+                    perfetto::TraceWriterBase* trace_writer) {
   if (incr_state->seen_track_uuids.insert(uuid).second) {
     auto packet = trace_writer->NewTracePacket();
     auto* track_descriptor = packet->set_track_descriptor();
@@ -339,7 +432,6 @@ uint64_t EmitNamedTrack(uint64_t parent_uuid,
       }
     }
   }
-  return uuid;
 }
 
 uint64_t EmitRegisteredTrack(
@@ -408,81 +500,29 @@ void AdvanceToFirstEnabledDynamicCategory(
 void InstanceOp(internal::DataSourceType* ds,
                 internal::DataSourceType::InstancesIterator* ii,
                 internal::DataSourceThreadLocalState* tls_state,
-                struct PerfettoTeCategoryImpl* cat,
-                protos::pbzero::TrackEvent::Type type,
-                const char* name,
-                struct PerfettoTeHlExtra* const* extra_data) {
-  if (!ii->instance) {
+                EventParams* params) {
+  if (!ii->instance)
     return;
-  }
 
-  std::variant<std::monostate, const PerfettoTeRegisteredTrackImpl*,
-               const PerfettoTeHlExtraNamedTrack*,
-               const PerfettoTeHlExtraProtoTrack*,
-               const PerfettoTeHlExtraNestedTracks*>
-      track;
-  std::optional<uint64_t> track_uuid;
-
-  const struct PerfettoTeHlExtraTimestamp* custom_timestamp = nullptr;
-  const struct PerfettoTeCategoryDescriptor* dynamic_cat = nullptr;
-  std::optional<int64_t> int_counter;
-  std::optional<double> double_counter;
-  bool use_interning = true;
-  bool flush = false;
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK) {
-      const auto& cast =
-          reinterpret_cast<const struct PerfettoTeHlExtraRegisteredTrack&>(
-              extra);
-      track = cast.track;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK) {
-      track =
-          &reinterpret_cast<const struct PerfettoTeHlExtraNamedTrack&>(extra);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK) {
-      track =
-          &reinterpret_cast<const struct PerfettoTeHlExtraProtoTrack&>(extra);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS) {
-      auto* nested =
-          &reinterpret_cast<const struct PerfettoTeHlExtraNestedTracks&>(extra);
-      track = nested;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP) {
-      custom_timestamp =
-          &reinterpret_cast<const struct PerfettoTeHlExtraTimestamp&>(extra);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY) {
-      dynamic_cat =
-          reinterpret_cast<const struct PerfettoTeHlExtraDynamicCategory&>(
-              extra)
-              .desc;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64) {
-      int_counter =
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
-              .value;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
-      double_counter =
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(extra)
-              .value;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN) {
-      use_interning = false;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_FLUSH) {
-      flush = true;
-    }
-  }
-
-  TraceTimestamp ts;
-  if (custom_timestamp) {
-    ts.clock_id = custom_timestamp->timestamp.clock_id;
-    ts.value = custom_timestamp->timestamp.value;
-  } else {
-    ts = TrackEventInternal::GetTraceTime();
-  }
-
-  if (PERFETTO_UNLIKELY(dynamic_cat)) {
-    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, cat, *dynamic_cat);
-    if (!ii->instance) {
+  if (PERFETTO_UNLIKELY(params->dynamic_cat)) {
+    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, params->cat,
+                                         *params->dynamic_cat);
+    if (!ii->instance)
       return;
+  }
+
+  // Rejecting every session must not scan the event or track names.
+  if (!params->name_and_track_cached) {
+    if (params->name &&
+        params->type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+      params->name_len = strlen(params->name);
     }
+    if (const auto* track =
+            std::get_if<const PerfettoTeHlExtraNamedTrack*>(&params->track)) {
+      params->named_track_uuid = PerfettoTeNamedTrackUuid(
+          (*track)->name, (*track)->id, (*track)->parent_uuid);
+    }
+    params->name_and_track_cached = true;
   }
 
   perfetto::TraceWriterBase* trace_writer = ii->instance->trace_writer.get();
@@ -493,8 +533,10 @@ void InstanceOp(internal::DataSourceType* ds,
   auto* incr_state = static_cast<TrackEventIncrementalState*>(
       ds->GetIncrementalState(ii->instance, ii->i));
   ResetIncrementalStateIfRequired(trace_writer, incr_state, track_event_tls,
-                                  ts);
+                                  params->timestamp);
 
+  const auto& track = params->track;
+  std::optional<uint64_t> track_uuid;
   if (std::holds_alternative<const PerfettoTeRegisteredTrackImpl*>(track)) {
     auto* registered_track =
         std::get<const PerfettoTeRegisteredTrackImpl*>(track);
@@ -505,10 +547,10 @@ void InstanceOp(internal::DataSourceType* ds,
     auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
     PerfettoTeHlNestedTrackNamed named{};
     named.name = named_track->name;
-    named.id = named_track->id;
     named.is_name_static = named_track->is_name_static;
-    track_uuid = EmitNamedTrack(named_track->parent_uuid, named, incr_state,
-                                trace_writer);
+    track_uuid = params->named_track_uuid;
+    EmitNamedTrack(*track_uuid, named_track->parent_uuid, named, incr_state,
+                   trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
                  track)) {
     auto* proto_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
@@ -529,7 +571,11 @@ void InstanceOp(internal::DataSourceType* ds,
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED: {
           auto* named_track =
               reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
-          uuid = EmitNamedTrack(uuid, *named_track, incr_state, trace_writer);
+          uint64_t parent_uuid = uuid;
+          uuid = PerfettoTeNamedTrackUuid(named_track->name, named_track->id,
+                                          parent_uuid);
+          EmitNamedTrack(uuid, parent_uuid, *named_track, incr_state,
+                         trace_writer);
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
           uuid = perfetto_te_process_track_uuid;
@@ -557,11 +603,10 @@ void InstanceOp(internal::DataSourceType* ds,
 
   {
     auto packet = NewTracePacketInternal(
-        trace_writer, incr_state, track_event_tls, ts,
+        trace_writer, incr_state, track_event_tls, params->timestamp,
         protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
     auto* track_event = packet->set_track_event();
-    WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
-                    track_uuid, dynamic_cat, use_interning);
+    WriteTrackEvent(incr_state, track_event, *params, track_uuid);
     track_event->Finalize();
 
     if (!incr_state->serialized_interned_data.empty()) {
@@ -573,7 +618,7 @@ void InstanceOp(internal::DataSourceType* ds,
     }
   }
 
-  if (PERFETTO_UNLIKELY(flush)) {
+  if (PERFETTO_UNLIKELY(params->flush)) {
     trace_writer->Flush();
   }
 }
@@ -601,15 +646,15 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
     return;
   }
 
-  for (perfetto::internal::DataSourceType::InstancesIterator ii =
-           ds->BeginIteration<perfetto::shlib::TracePointTraits>(
-               cached_instances, tls_state, {cat});
-       ii.instance;
+  auto ii = ds->BeginIteration<perfetto::shlib::TracePointTraits>(
+      cached_instances, tls_state, {cat});
+
+  EventParams params = PrepareEvent(cat, type, name, extra_data);
+
+  for (; ii.instance;
        ds->NextIteration</*Traits=*/perfetto::shlib::TracePointTraits>(
            &ii, tls_state, {cat})) {
-    perfetto::shlib::InstanceOp(ds, &ii, tls_state, cat,
-                                perfetto::shlib::EventType(type), name,
-                                extra_data);
+    perfetto::shlib::InstanceOp(ds, &ii, tls_state, &params);
   }
   ds->TraceEpilogue(tls_state);
 }
