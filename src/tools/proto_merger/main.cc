@@ -80,6 +80,11 @@ const char kUsage[] =
 -o, --output:                Output path for writing the merged proto file.
 -O, --allowlisted-option:    Option/annotation key that should be preserved
                               from upstream (can be repeated).
+--allowlisted-changes-only:  Only apply the upstream changes of the elements in
+                              the allowlist and the type changes which are not
+                              lossless; everything else is kept exactly as in
+                              the input proto. Passthrough fields are not added
+                              to the allowlist in this mode.
 
 Example usage:
 
@@ -95,6 +100,9 @@ Example usage:
 )";
 
 int Main(int argc, char** argv) {
+  enum LongOption {
+    kAllowlistedChangesOnly = 1000,
+  };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
@@ -106,6 +114,8 @@ int Main(int argc, char** argv) {
       {"upstream-root-message", required_argument, nullptr, 'r'},
       {"output", required_argument, nullptr, 'o'},
       {"allowlisted-option", required_argument, nullptr, 'O'},
+      {"allowlisted-changes-only", no_argument, nullptr,
+       kAllowlistedChangesOnly},
       {nullptr, 0, nullptr, 0}};
 
   std::string input;
@@ -116,6 +126,7 @@ int Main(int argc, char** argv) {
   std::string upstream_root_message;
   std::string output;
   std::unordered_set<std::string> allowlisted_options;
+  bool allowlisted_changes_only = false;
 
   for (;;) {
     int option =
@@ -166,6 +177,11 @@ int Main(int argc, char** argv) {
 
     if (option == 'O') {
       allowlisted_options.insert(optarg);
+      continue;
+    }
+
+    if (option == kAllowlistedChangesOnly) {
+      allowlisted_changes_only = true;
       continue;
     }
 
@@ -258,17 +274,20 @@ int Main(int argc, char** argv) {
     }
   }
 
-  base::Status status = AllowlistFromPassthrough(
-      *input_proto.file_descriptor, *upstream_proto.file_descriptor, allowed);
-  if (!status.ok()) {
-    PERFETTO_ELOG("Failed adding passthrough fields to allowlist: %s",
-                  status.c_message());
-    return 1;
+  if (!allowlisted_changes_only) {
+    base::Status status = AllowlistFromPassthrough(
+        *input_proto.file_descriptor, *upstream_proto.file_descriptor, allowed);
+    if (!status.ok()) {
+      PERFETTO_ELOG("Failed adding passthrough fields to allowlist: %s",
+                    status.c_message());
+      return 1;
+    }
   }
 
   ProtoFile merged;
-  status = MergeProtoFiles(input_file, upstream_file, allowed, merged,
-                           allowlisted_options);
+  base::Status status =
+      MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                      allowlisted_options, allowlisted_changes_only);
   if (!status.ok()) {
     PERFETTO_ELOG("Failed merging protos: %s", status.c_message());
     return 1;
