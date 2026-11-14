@@ -284,7 +284,9 @@ TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
   EXPECT_THAT(out, Not(HasSubstr("bool flag")));
 }
 
-TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
+// Bool -> enum is not lossless; applying it would also use an enum which is
+// missing from the output.
+TEST(ProtoFileSerializerTest, TypeTransitionToEnumKeepsType) {
   ProtoFile input;
   {
     ProtoFile::Message message{};
@@ -313,8 +315,36 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
   ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("bool state")));
+  EXPECT_THAT(out, HasSubstr("bool state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
+}
+
+TEST(ProtoFileSerializerTest, TypeTransitionLossyKeepsType) {
+  for (const auto& [from, to] :
+       std::vector<std::pair<std::string, std::string>>{{"int64", "int32"},
+                                                        {"uint32", "int32"},
+                                                        {"fixed32", "sfixed32"},
+                                                        {"string", "bytes"},
+                                                        {"bytes", "Payload"},
+                                                        {"Payload", "bytes"}}) {
+    ProtoFile input;
+    ProtoFile upstream;
+    for (auto* file : {&input, &upstream}) {
+      ProtoFile::Message payload{};
+      payload.name = "Payload";
+      file->messages.push_back(payload);
+    }
+    ProtoFile::Message container{};
+    container.name = "Container";
+    container.fields.push_back(MakeField(from, "field", 1));
+    input.messages.push_back(container);
+    container.fields[0] = MakeField(to, "field", 1);
+    upstream.messages.push_back(container);
+
+    ProtoFile merged;
+    ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+    EXPECT_EQ(merged.messages[1].fields[0].type, from) << from << " -> " << to;
+  }
 }
 
 TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {

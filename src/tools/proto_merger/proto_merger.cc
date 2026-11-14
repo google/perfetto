@@ -314,6 +314,20 @@ bool IsAllowedTypeTransition(
   return false;
 }
 
+// Returns whether every value of type |from| is read back unchanged as type
+// |to|: only widening scalar transitions are.
+bool IsLosslessTypeTransition(const std::string& from, const std::string& to) {
+  return (from == "bool" && (to == "int32" || to == "uint32" || to == "int64" ||
+                             to == "uint64")) ||
+         (from == "int32" && to == "int64") ||
+         (from == "uint32" && (to == "int64" || to == "uint64")) ||
+         (from == "sint32" && to == "sint64");
+}
+
+// Merges |input| with its |upstream| version. Allowed type transitions which
+// are not lossless (e.g. int64 -> int32, int32 -> enum, bytes -> message) are
+// not applied, as they change how stored data is read: the field keeps its
+// input type.
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
                         const MergeContext& ctx,
@@ -362,7 +376,8 @@ base::Status MergeField(const ProtoFile::Field& input,
   MergeAllowlistedOptions(upstream.options, out.options,
                           ctx.allowlisted_options);
 
-  if (input.packageless_type != upstream.packageless_type) {
+  if (IsLosslessTypeTransition(input.packageless_type,
+                               upstream.packageless_type)) {
     out.packageless_type = upstream.packageless_type;
     out.type = upstream.type;
   } else {
