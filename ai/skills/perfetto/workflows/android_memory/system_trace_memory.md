@@ -1,3 +1,14 @@
+---
+related:
+  - path: system_trace_memory_compare.md
+    when: Compare two traces (before/after)
+  - path: recording_memory_signals.md
+    when: Recording the missing signals
+  - path: heap_dump_diff.md
+    when: Compare two Java heap dumps (before/after diff)
+  - path: heap_profile_diff.md
+    when: Compare two native or Java heap profiles (before/after diff)
+---
 # Android Memory in System Traces
 
 Investigates device-wide and per-process memory in **regular system traces**
@@ -7,14 +18,12 @@ low-memory kills, in one trace or across a `before` / `after` pair.
 
 System traces show **how much** memory moved and **when**, not **which objects
 or callstacks** own it. Hand off to the profiler workflows for that:
-[heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md) /
-[heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md)
+[heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md)
 (retained Java objects),
 [java_allocation_profile.md]($SKILL_ROOT/workflows/android_memory/java_allocation_profile.md)
-(Java churn), [native_heap.md]($SKILL_ROOT/workflows/android_memory/native_heap.md)
-(native heap), and
-[heap_profile_diff.md]($SKILL_ROOT/workflows/android_memory/heap_profile_diff.md)
-(two profiles).
+(Java churn), and
+[native_heap.md]($SKILL_ROOT/workflows/android_memory/native_heap.md)
+(native heap).
 
 ## Step 1: Load the trace(s) and check what they recorded
 
@@ -25,9 +34,6 @@ trace_processor server unix --name tp --daemonize '<trace>'
 trace_processor query --remote tp "<SQL>"  # or -f query.sql
 # when done: trace_processor server kill tp
 ```
-
-For a comparison, load `before_tp` and `after_tp` (`--name before_tp`,
-`--name after_tp`) and run every query on both.
 
 **Before any analysis**, check that each trace recorded the signals the
 question needs. Most memory signals come from data sources, ftrace events or
@@ -66,9 +72,9 @@ Ftrace events may be listed without their group (`"rss_stat"`).
 
 - **Not in the config**: the trace cannot answer anything that depends on
   that signal. **Tell the user up front**, before reporting other results,
-  which signals are missing and which parts of the question they block, then
-  give the recording instructions below. Never read a missing signal as zero
-  or "no change".
+  which signals are missing and which parts of the question they block, and
+  suggest recording a new trace with them. Never read a missing signal as
+  zero or "no change".
 - **In the config, but the process has no such track**: the source was on and
   the process emitted nothing (for example no change of a change-driven
   counter, no GC, no frames drawn); see [Signal reference](#signal-reference).
@@ -81,30 +87,6 @@ Ftrace events may be listed without their group (`"rss_stat"`).
   list the failures with `SELECT EXTRACT_ARG(arg_set_id, 'message') FROM
   _trace_import_logs WHERE name = 'ftrace_setup_errors'` and treat those
   events as missing.
-
-### Recording the missing signals
-
-Ask the user to record a new trace on the device while reproducing the same
-scenario, with
-[`android_memory.pftxt`]($SKILL_ROOT/infra-references/example-configs/android_memory.pftxt),
-which enables everything in the table above:
-
-```bash
-curl -O https://raw.githubusercontent.com/google/perfetto/main/tools/record_android_trace
-chmod +x record_android_trace
-./record_android_trace \
-  -c "$SKILL_ROOT/infra-references/example-configs/android_memory.pftxt" \
-  -o memory.perfetto-trace
-```
-
-Raise `duration_ms` in a copy of the config so the trace covers the whole
-scenario. To add only what is missing to the user's own config instead, merge
-in the entries from the table (one `linux.ftrace` block per config; see
-[trace_config_reference.md]($SKILL_ROOT/infra-references/trace_config_reference.md)).
-
-Run Step 1 again on the new trace. If the user cannot re-record, continue with
-the signals that are present and state which conclusions the missing ones
-leave open.
 
 ## Step 2: Resolve the target process
 
@@ -291,13 +273,11 @@ separate from hypotheses.
 - **Java retention vs churn.** Compare `heap_kb_after` across GCs, or across
   the two traces:
   - Rising post-GC heap → objects survive GC (**retention**): use
-    [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md) or
-    [heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md).
+    [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md).
   - Flat post-GC heap but higher `Heap size (KB)` peaks, more GCs, or
     `GC: Wait For Completion` stalls on app threads → temporary allocation
     **churn**: use
-    [java_allocation_profile.md]($SKILL_ROOT/workflows/android_memory/java_allocation_profile.md)
-    or [heap_profile_diff.md]($SKILL_ROOT/workflows/android_memory/heap_profile_diff.md).
+    [java_allocation_profile.md]($SKILL_ROOT/workflows/android_memory/java_allocation_profile.md).
   - No GC in a trace → the minimum of `Heap size (KB)` is not a live-heap
     floor; comparing it with a trace that did collect invents a retention
     delta.
@@ -308,8 +288,7 @@ separate from hypotheses.
   `anon_rss_and_swap`, since reclaim moves pages from `mem.rss.anon` to
   `mem.swap` without changing the footprint. Growth beyond the Java heap and
   `Bitmap Memory` points at native memory:
-  [native_heap.md]($SKILL_ROOT/workflows/android_memory/native_heap.md) or
-  [heap_profile_diff.md]($SKILL_ROOT/workflows/android_memory/heap_profile_diff.md).
+  [native_heap.md]($SKILL_ROOT/workflows/android_memory/native_heap.md).
   `heapprofd` does not see stacks, the JIT cache or direct `mmap`s.
 - **GPU, gralloc and DMA-BUF memory is invisible to heap profilers**, and the
   graphics counters overlap (the same buffer can appear in `Bitmap Memory`,
@@ -320,13 +299,6 @@ separate from hypotheses.
 - **Lagging counters.** `Bitmap *` and `binder_proxies` drop only after the
   owning Java object is collected, so they can rise between GCs without a leak;
   check whether they return after a GC before calling it retention.
-- **Two traces.** Compare the same process role and a comparable window: trace
-  durations and the number of workload repetitions can differ. Also check that
-  the device state matches: list the processes with `score <= 200` in
-  `android_oom_adj_intervals` in each trace. A foreground or perceptible
-  process present in only one run means the runs are not comparable, and its
-  activity (extra windows, media, notifications) can explain memory growth in
-  system processes without any regression in them.
 
 ## Signal reference
 

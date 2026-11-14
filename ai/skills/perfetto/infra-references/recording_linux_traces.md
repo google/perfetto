@@ -1,3 +1,6 @@
+---
+requires: [record]
+---
 # Recording Perfetto Traces on Linux
 
 > [!IMPORTANT] **Scope:** This guide is for recording traces on **Linux**
