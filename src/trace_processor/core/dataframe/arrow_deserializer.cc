@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/dataframe/arrow_deserializer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -266,6 +267,25 @@ base::Status ReadNumericBuffer(BodyReader* reader,
   return base::OkStatus();
 }
 
+template <typename T>
+void FillDefault(uint32_t rows, FlexVector<T>* output) {
+  output->resize(rows);
+  std::fill_n(output->data(), rows, T{});
+}
+
+// Sparse storage keeps no values for null rows; dense needs one per row.
+void InstallAllNullStorage(uint32_t rows, bool sparse, Storage* storage) {
+  if (sparse) {
+    return;
+  }
+  if (storage->type().Is<core::String>()) {
+    FillDefault(rows, &storage->unchecked_get<String>());
+    return;
+  }
+  VisitNumericStorage(storage,
+                      [&](auto* output) { FillDefault(rows, output); });
+}
+
 void InstallValidity(Nullability nullability,
                      BitVector validity,
                      NullStorage* storage) {
@@ -285,6 +305,7 @@ struct LocatedBatches {
   std::vector<Block> dictionaries;
   Block block;
   size_t message_offset;
+  std::vector<uint8_t> field_types;
 };
 
 // Phase 1: validate the outer file framing and locate the dictionary batches
@@ -329,6 +350,16 @@ base::StatusOr<LocatedBatches> LocateBatches(
           kMetadataV5 ||
       blocks.size() != kRecordBatchCount) {
     return InvalidFile();
+  }
+  auto schema = footer->Table(footer_field::kSchema);
+  if (!schema) {
+    return InvalidFile();
+  }
+  auto fields = schema.VecTable(schema_field::kFields);
+  std::vector<uint8_t> field_types;
+  field_types.reserve(fields.size());
+  for (uint32_t i = 0; i < fields.size(); ++i) {
+    field_types.push_back(fields[i].Scalar<uint8_t>(field_field::kTypeType));
   }
 
   Block block = blocks[0];
@@ -381,7 +412,8 @@ base::StatusOr<LocatedBatches> LocateBatches(
     return InvalidFile();
   }
   return LocatedBatches{std::move(dictionaries), block,
-                        base + static_cast<size_t>(block_offset)};
+                        base + static_cast<size_t>(block_offset),
+                        std::move(field_types)};
 }
 
 struct RecordBatchMetadata {
@@ -533,21 +565,30 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
   Dataframe dataframe(pool, static_cast<uint32_t>(column_names.size()),
                       column_names.data(), spec.column_specs.data());
 
-  // The dataframe spec supplies the schema. Derive the exact node, buffer and
-  // dictionary counts for the supported layout before parsing file metadata.
+  ASSIGN_OR_RETURN(LocatedBatches located, LocateBatches(data));
+
+  // The spec supplies the schema; the footer says which columns are all-null.
   uint32_t expected_nodes = 0;
   uint32_t expected_buffers = 0;
   uint32_t expected_dictionaries = 0;
   for (const auto& column : dataframe.columns_) {
-    if (!column->storage.type().Is<core::Id>()) {
-      ++expected_nodes;
-      expected_buffers += kFixedWidthBufferCount;
-      expected_dictionaries += column->storage.type().Is<core::String>();
+    if (column->storage.type().Is<core::Id>()) {
+      continue;
     }
+    if (expected_nodes >= located.field_types.size()) {
+      return InvalidFile();
+    }
+    if (located.field_types[expected_nodes++] == kTypeNull) {
+      if (!IsNullable(column->null_storage.nullability())) {
+        return InvalidFile();
+      }
+      continue;
+    }
+    expected_buffers += kFixedWidthBufferCount;
+    expected_dictionaries += column->storage.type().Is<core::String>();
   }
-
-  ASSIGN_OR_RETURN(LocatedBatches located, LocateBatches(data));
-  if (located.dictionaries.size() != expected_dictionaries) {
+  if (expected_nodes != located.field_types.size() ||
+      located.dictionaries.size() != expected_dictionaries) {
     return InvalidFile();
   }
   ASSIGN_OR_RETURN(std::vector<Dictionary> dictionaries,
@@ -577,10 +618,20 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
       column.storage.unchecked_get<Id>().size = batch.rows;
       continue;
     }
+    bool all_null = located.field_types[serialized_column] == kTypeNull;
     FieldNode node = batch.nodes[serialized_column++];
     Nullability nullability = column.null_storage.nullability();
     bool nullable = IsNullable(nullability);
     bool sparse = IsSparse(nullability);
+    if (all_null) {
+      if (node.null_count != batch.rows) {
+        return InvalidFile();
+      }
+      InstallAllNullStorage(batch.rows, sparse, &column.storage);
+      InstallValidity(nullability, BitVector::CreateWithSize(batch.rows),
+                      &column.null_storage);
+      continue;
+    }
     ASSIGN_OR_RETURN(
         BitVector validity,
         ReadValidityBuffer(&reader, batch.rows, node.null_count, nullable));
