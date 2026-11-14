@@ -1,0 +1,66 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_KEY_PATHS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_KEY_PATHS_H_
+
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+
+namespace perfetto::trace_processor::pipeline {
+
+class Lowering;
+class PlanNode;
+
+// `|> TREE KEY PATHS BY col, ... AS (key, parent_key)`. Appends each node's
+// path key and its parent's.
+class TreeKeyPaths : public PlanOperation {
+ public:
+  static const OperationRegistration kRegistration;
+
+ private:
+  // Test-only formatting; keep payload details out of the public interface.
+  friend class LogicalPlanFormatter;
+
+  // PlanOperation implementation. Dispatch goes through the base interface.
+  std::unique_ptr<PlanOperation> Clone() const override;
+  std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
+  InputNeeds Needs(uint32_t input) const override;
+  OutputProperties Derive(DeriveContext&) const override;
+  void Lower(Lowering*, const PlanNode&) const override;
+  void Serialize(PlanCodec&) override;
+
+  static base::Status BuildPlan(Compiler*, uint32_t);
+
+  const OperationRegistration& registration() const override;
+
+  // The logical id/parent_id columns describing the input tree.
+  ColumnId node_column_ = 0;
+  ColumnId parent_column_ = 0;
+  std::vector<ColumnId> keys_;
+  ColumnId path_ = 0;
+  ColumnId parent_path_ = 0;
+};
+
+}  // namespace perfetto::trace_processor::pipeline
+
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_KEY_PATHS_H_
