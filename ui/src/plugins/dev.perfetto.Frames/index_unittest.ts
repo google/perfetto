@@ -75,6 +75,7 @@ const LAYER_COLUMNS = ['upid', 'layerName', 'maxDepth'];
 
 interface FakeTraceArgs {
   // Process level timelines, as returned by the per process summary queries.
+  readonly inputTimelines?: ReadonlyArray<ProcessRow>;
   readonly expectedTimelines?: ReadonlyArray<ProcessRow>;
   readonly actualTimelines?: ReadonlyArray<ProcessRow>;
   // Per layer timelines, as returned by the layer discovery queries.
@@ -100,7 +101,9 @@ function fakeTrace(args: FakeTraceArgs) {
       PROCESS_COLUMNS,
       sql.includes('android_expected_frame_timeline')
         ? (args.expectedTimelines ?? [])
-        : (args.actualTimelines ?? []),
+        : sql.includes('android_input_frame_timeline')
+          ? (args.inputTimelines ?? [])
+          : (args.actualTimelines ?? []),
     );
   };
   const trace = {
@@ -253,6 +256,23 @@ describe('FramesPlugin layers', () => {
       '/process_1/expected_frames/StatusBar',
       '/process_1/actual_frames/StatusBar',
       '/process_1/actual_frames_experimental/StatusBar',
+    ]);
+  });
+
+  test('orders input timeline below expected and actual frame timelines', async () => {
+    const {tracks, groups} = await loadTrace({
+      expectedTimelines: [PROCESS_1],
+      actualTimelines: [PROCESS_1],
+      inputTimelines: [{upid: 1, trackIds: '13,14', maxDepth: 2}],
+    });
+
+    expect(childNames(groups.get(1))).toEqual([
+      'Expected Timeline',
+      'Actual Timeline',
+      'Input Timeline',
+    ]);
+    expect(tracks.get('/process_1/input_frames')?.tags?.trackIds).toEqual([
+      13, 14,
     ]);
   });
 });
