@@ -20,7 +20,11 @@
 #include <cstdint>
 #include <cstring>
 #include <string_view>
+#include <type_traits>
 #include <vector>
+
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 
 namespace perfetto::trace_processor::util {
 
@@ -58,12 +62,25 @@ class FlatBufferWriter {
   // Writes a vector of offset elements (for vectors of tables or strings).
   Offset WriteVecOffsets(const Offset* offsets, uint32_t count);
 
-  // Writes a vector of inline structs. |data| points to |count| packed
-  // structs of |elem_size| bytes each, aligned to |elem_align|.
-  Offset WriteVecStruct(const void* data,
-                        uint32_t elem_size,
+  // Writes a vector of inline structs, byte-swapping if necessary.
+  // |data| points to |count| packed structs of type |T|,
+  // aligned to |elem_align|.
+  template <typename T>
+  Offset WriteVecStruct(const T* data,
                         uint32_t count,
-                        uint32_t elem_align);
+                        uint32_t elem_align = alignof(T)) {
+    static_assert(std::is_trivially_copyable_v<T>);
+#if PERFETTO_IS_LITTLE_ENDIAN()
+    return WriteVecBytes(data, sizeof(T), count, elem_align);
+#else
+    Align(elem_align);
+    for (uint32_t i = count; i > 0; i--) {
+      Prepend(data[i - 1]);
+    }
+    Prepend<uint32_t>(count);
+    return Offset{size()};
+#endif
+  }
 
   // Begins building a table. All Field* calls between StartTable/EndTable add
   // fields to this table. Tables cannot be nested: finish the child table
@@ -100,15 +117,24 @@ class FlatBufferWriter {
   // Pads so that the current written size is a multiple of |alignment|.
   void Align(uint32_t alignment);
 
+  // Writes a vector of inline structs without byte-swapping.
+  // |data| points to |count| packed structs of |elem_size| bytes each,
+  // aligned to |elem_align|. This is not implemented as a template in order to
+  // avoid bloating the binary.
+  Offset WriteVecBytes(const void* data,
+                       uint32_t elem_size,
+                       uint32_t count,
+                       uint32_t elem_align);
+
   // Prepends raw bytes (order preserved in the final buffer).
   void PrependBytes(const void* src, uint32_t len);
 
-  // Prepends a single scalar value.
+  // Prepends a single scalar or struct in little-endian order.
   template <typename T>
   void Prepend(T val) {
     GrowIfNeeded(sizeof(T));
     head_ -= sizeof(T);
-    memcpy(&buf_[head_], &val, sizeof(T));
+    base::StoreLE(&buf_[head_], val);
   }
 
   std::vector<uint8_t> buf_;
