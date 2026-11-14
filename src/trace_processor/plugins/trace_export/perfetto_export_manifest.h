@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::trace_export {
 // internal to Perfetto. Loading it in a different version may work but is not
 // guaranteed.
 constexpr char kPerfettoManifestFileName[] = "perfetto_manifest.json";
-constexpr int64_t kPerfettoExportFormatVersion = 2;
+constexpr int64_t kPerfettoExportFormatVersion = 3;
 
 std::string SerializePerfettoExportManifest(
     const std::vector<const PluginDataframe*>& tables,

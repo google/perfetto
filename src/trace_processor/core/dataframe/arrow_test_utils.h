@@ -41,9 +41,10 @@ inline std::vector<uint8_t> Serialize(
     Dataframe& dataframe,
     const StringPool& pool,
     ArrowSerializer::IdColumnMode id_column_mode =
-        ArrowSerializer::IdColumnMode::kOmit) {
+        ArrowSerializer::IdColumnMode::kOmit,
+    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand) {
   dataframe.Finalize();
-  ArrowSerializer serializer(id_column_mode);
+  ArrowSerializer serializer(id_column_mode, sparse_columns);
   auto prepared_size = serializer.Prepare(dataframe, pool);
   EXPECT_OK(prepared_size);
   if (!prepared_size.ok()) {
@@ -75,12 +76,14 @@ inline util::TraceBlobViewReader MakeReader(const std::vector<uint8_t>& bytes,
   return reader;
 }
 
-inline base::StatusOr<Dataframe> Deserialize(const std::vector<uint8_t>& bytes,
-                                             StringPool* pool,
-                                             const DataframeSpec& spec,
-                                             size_t chunk_size = 0) {
+inline base::StatusOr<Dataframe> Deserialize(
+    const std::vector<uint8_t>& bytes,
+    StringPool* pool,
+    const DataframeSpec& spec,
+    size_t chunk_size = 0,
+    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand) {
   util::TraceBlobViewReader reader = MakeReader(bytes, chunk_size);
-  return DeserializeFromArrow(reader, pool, spec);
+  return DeserializeFromArrow(reader, pool, spec, sparse_columns);
 }
 
 template <typename Spec, typename... Values>
@@ -95,9 +98,15 @@ Dataframe MakeDataframe(const Spec& spec,
 }
 
 template <typename Spec>
-Dataframe RoundTrip(const Spec& spec, Dataframe& source, StringPool* pool) {
-  std::vector<uint8_t> bytes = Serialize(source, *pool);
-  auto result = Deserialize(bytes, pool, source.CreateSpec());
+Dataframe RoundTrip(
+    const Spec& spec,
+    Dataframe& source,
+    StringPool* pool,
+    ArrowSparseColumns sparse_columns = ArrowSparseColumns::kExpand) {
+  std::vector<uint8_t> bytes = Serialize(
+      source, *pool, ArrowSerializer::IdColumnMode::kOmit, sparse_columns);
+  auto result =
+      Deserialize(bytes, pool, source.CreateSpec(), 0, sparse_columns);
   EXPECT_OK(result);
   return result.ok() ? std::move(*result)
                      : Dataframe::CreateFromTypedSpec(spec, pool);

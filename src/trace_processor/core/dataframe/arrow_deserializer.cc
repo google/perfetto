@@ -88,6 +88,21 @@ class BodyReader {
                : base::StatusOr<std::vector<TraceBlobView>>(InvalidFile());
   }
 
+  base::Status Skip() { return Next(0, false).status(); }
+
+  // Reads a buffer of exactly |size| bytes, copying its first |kept| bytes to
+  // |out|.
+  base::Status ReadInto(uint8_t* out, uint64_t size, size_t kept) {
+    ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces, ReadExactPieces(size));
+    for (const TraceBlobView& piece : pieces) {
+      size_t copied = std::min(kept, piece.size());
+      memcpy(out, piece.data(), copied);
+      out += copied;
+      kept -= copied;
+    }
+    return base::OkStatus();
+  }
+
  private:
   base::StatusOr<ArrowBuffer> Next(uint64_t expected_size, bool exact) {
     if (next_buffer_ >= buffers_.size()) {
@@ -198,6 +213,30 @@ base::Status ReadDictionaryIndices(BodyReader* reader,
       return InvalidFile();
     }
     output.push_back(dictionary[static_cast<uint32_t>(index)]);
+  }
+  return base::OkStatus();
+}
+
+// Reads the indices of a split string column, the first |valid| of |rows|,
+// straight into its storage and maps them to string ids in place.
+base::Status ReadPackedDictionaryIndices(BodyReader* reader,
+                                         uint32_t rows,
+                                         uint32_t valid,
+                                         const Dictionary& dictionary,
+                                         Storage* storage) {
+  static_assert(sizeof(StringPool::Id) == sizeof(DictionaryIndex));
+  auto& output = storage->unchecked_get<String>();
+  output.resize(valid);
+  auto* bytes = reinterpret_cast<uint8_t*>(output.data());
+  RETURN_IF_ERROR(reader->ReadInto(
+      bytes, static_cast<uint64_t>(rows) * sizeof(DictionaryIndex),
+      static_cast<size_t>(valid) * sizeof(DictionaryIndex)));
+  for (uint32_t i = 0; i < valid; ++i) {
+    auto index = Load<DictionaryIndex>(bytes, i);
+    if (index < 0 || static_cast<uint64_t>(index) >= dictionary.size()) {
+      return InvalidFile();
+    }
+    output.data()[i] = dictionary[static_cast<uint32_t>(index)];
   }
   return base::OkStatus();
 }
@@ -551,7 +590,8 @@ base::StatusOr<std::vector<Dictionary>> ReadDictionaries(
 base::StatusOr<Dataframe> DeserializeFromArrow(
     const util::TraceBlobViewReader& data,
     StringPool* pool,
-    const DataframeSpec& spec) {
+    const DataframeSpec& spec,
+    ArrowSparseColumns sparse_columns) {
 #if PERFETTO_IS_LITTLE_ENDIAN()
   if (spec.column_names.size() != spec.column_specs.size() ||
       spec.column_names.size() > std::numeric_limits<uint32_t>::max()) {
@@ -568,6 +608,7 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
   ASSIGN_OR_RETURN(LocatedBatches located, LocateBatches(data));
 
   // The spec supplies the schema; the footer says which columns are all-null.
+  bool split = sparse_columns == ArrowSparseColumns::kSplit;
   uint32_t expected_nodes = 0;
   uint32_t expected_buffers = 0;
   uint32_t expected_dictionaries = 0;
@@ -578,11 +619,21 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
     if (expected_nodes >= located.field_types.size()) {
       return InvalidFile();
     }
-    if (located.field_types[expected_nodes++] == kTypeNull) {
-      if (!IsNullable(column->null_storage.nullability())) {
+    uint8_t field_type = located.field_types[expected_nodes++];
+    Nullability nullability = column->null_storage.nullability();
+    if (field_type == kTypeNull) {
+      if (!IsNullable(nullability)) {
         return InvalidFile();
       }
       continue;
+    }
+    if (split && IsSparse(nullability)) {
+      if (field_type != kTypeBool ||
+          expected_nodes >= located.field_types.size() ||
+          located.field_types[expected_nodes++] == kTypeNull) {
+        return InvalidFile();
+      }
+      expected_buffers += kFixedWidthBufferCount;
     }
     expected_buffers += kFixedWidthBufferCount;
     expected_dictionaries += column->storage.type().Is<core::String>();
@@ -630,6 +681,38 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
       InstallAllNullStorage(batch.rows, sparse, &column.storage);
       InstallValidity(nullability, BitVector::CreateWithSize(batch.rows),
                       &column.null_storage);
+      continue;
+    }
+    if (split && sparse) {
+      RETURN_IF_ERROR(reader.ReadEmpty());
+      ASSIGN_OR_RETURN(TraceBlobView bitmap,
+                       reader.ReadExact(ValidityBufferSize(batch.rows)));
+      BitVector validity =
+          BitVector::CreateFromBitmap(bitmap.data(), batch.rows);
+      auto valid = static_cast<uint32_t>(validity.CountSetBits());
+      FieldNode values_node = batch.nodes[serialized_column++];
+      if (node.null_count != 0 ||
+          values_node.null_count != batch.rows - valid) {
+        return InvalidFile();
+      }
+      // The values' validity is implied: the first |valid| rows are set.
+      RETURN_IF_ERROR(reader.Skip());
+      if (column.storage.type().Is<core::String>()) {
+        RETURN_IF_ERROR(ReadPackedDictionaryIndices(
+            &reader, batch.rows, valid, dictionaries[dictionary_index++],
+            &column.storage));
+      } else {
+        uint32_t width = NumericSize(column.storage.type());
+        base::Status status;
+        VisitNumericStorage(&column.storage, [&](auto* output) {
+          output->resize(valid);
+          status = reader.ReadInto(reinterpret_cast<uint8_t*>(output->data()),
+                                   static_cast<uint64_t>(batch.rows) * width,
+                                   static_cast<size_t>(valid) * width);
+        });
+        RETURN_IF_ERROR(status);
+      }
+      InstallValidity(nullability, std::move(validity), &column.null_storage);
       continue;
     }
     ASSIGN_OR_RETURN(

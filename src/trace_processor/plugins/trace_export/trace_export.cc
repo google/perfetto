@@ -157,7 +157,9 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
     }
     core::dataframe::ArrowSerializer serializer(
         perfetto ? core::dataframe::ArrowSerializer::IdColumnMode::kOmit
-                 : core::dataframe::ArrowSerializer::IdColumnMode::kInclude);
+                 : core::dataframe::ArrowSerializer::IdColumnMode::kInclude,
+        perfetto ? core::dataframe::ArrowSparseColumns::kSplit
+                 : core::dataframe::ArrowSparseColumns::kExpand);
     for (const PluginDataframe* table : tables) {
       RETURN_IF_ERROR(WriteArrowTable(&tar, *table, pool, &serializer));
     }

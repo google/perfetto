@@ -319,6 +319,66 @@ TEST(ArrowDeserializerTest, RoundTripPlainSparseNull) {
   EXPECT_EQ(Serialize(dst, pool), serialized);
 }
 
+TEST(ArrowDeserializerTest, RoundTripSplitSparseAcrossWordBoundary) {
+  StringPool pool;
+  auto src = Dataframe::CreateFromTypedSpec(kInt64SparsePopcountAlways, &pool);
+  for (int64_t i = 0; i < 200; i++) {
+    src.InsertUnchecked(kInt64SparsePopcountAlways, std::monostate{},
+                        i % 3 == 0 ? std::optional<int64_t>{}
+                                   : std::optional<int64_t>{i * 100});
+  }
+  auto dst = RoundTrip(kInt64SparsePopcountAlways, src, &pool,
+                       ArrowSparseColumns::kSplit);
+
+  ASSERT_EQ(dst.row_count(), 200u);
+  for (uint32_t i = 0; i < 200; i++) {
+    auto expected = i % 3 == 0 ? std::optional<int64_t>{}
+                               : std::optional<int64_t>{int64_t{i} * 100};
+    EXPECT_EQ((dst.GetCellUnchecked<1>(kInt64SparsePopcountAlways, i)),
+              expected)
+        << "row " << i;
+  }
+}
+
+TEST(ArrowDeserializerTest, RoundTripSplitPlainSparseNull) {
+  StringPool pool;
+  auto src =
+      MakeDataframe(kInt32Sparse, &pool, std::optional<int32_t>{},
+                    std::optional<int32_t>{-2}, std::optional<int32_t>{7});
+  auto dst = RoundTrip(kInt32Sparse, src, &pool, ArrowSparseColumns::kSplit);
+
+  // Plain SparseNull has no random-access API.
+  EXPECT_EQ(Serialize(dst, pool), Serialize(src, pool));
+}
+
+TEST(ArrowDeserializerTest, RoundTripSplitSparseWithoutNulls) {
+  StringPool pool;
+  auto src =
+      MakeDataframe(kInt64SparsePopcountAlways, &pool,
+                    std::optional<int64_t>{1}, std::optional<int64_t>{2});
+  auto dst = RoundTrip(kInt64SparsePopcountAlways, src, &pool,
+                       ArrowSparseColumns::kSplit);
+
+  ASSERT_EQ(dst.row_count(), 2u);
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kInt64SparsePopcountAlways, 0)), 1);
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kInt64SparsePopcountAlways, 1)), 2);
+}
+
+TEST(ArrowDeserializerTest, RejectsMismatchedSparseLayout) {
+  StringPool pool;
+  auto src = MakeDataframe(kInt64SparsePopcountAlways, &pool,
+                           std::optional<int64_t>{1}, std::optional<int64_t>{});
+  std::vector<uint8_t> expanded = Serialize(src, pool);
+  std::vector<uint8_t> split =
+      Serialize(src, pool, ArrowSerializer::IdColumnMode::kOmit,
+                ArrowSparseColumns::kSplit);
+
+  EXPECT_THAT(Deserialize(expanded, &pool, src.CreateSpec(), 0,
+                          ArrowSparseColumns::kSplit),
+              IsError());
+  EXPECT_THAT(Deserialize(split, &pool, src.CreateSpec()), IsError());
+}
+
 TEST(ArrowDeserializerTest, RoundTripEmptySparseColumn) {
   StringPool pool;
   auto src = Dataframe::CreateFromTypedSpec(kInt32Sparse, &pool);
@@ -444,6 +504,27 @@ TEST(ArrowDeserializerTest, RoundTripStringSparseNull) {
   EXPECT_EQ(pool.Get(*v2).ToStdString(), "world");
 }
 
+TEST(ArrowDeserializerTest, RoundTripSplitStringSparseNull) {
+  StringPool pool;
+  auto hello = pool.InternString(base::StringView("hello"));
+  auto world = pool.InternString(base::StringView("world"));
+  auto src = MakeDataframe(
+      kStringSparse, &pool, std::optional<StringPool::Id>{},
+      std::optional<StringPool::Id>{hello}, std::optional<StringPool::Id>{},
+      std::optional<StringPool::Id>{world});
+  auto dst = RoundTrip(kStringSparse, src, &pool, ArrowSparseColumns::kSplit);
+
+  ASSERT_EQ(dst.row_count(), 4u);
+  EXPECT_FALSE((dst.GetCellUnchecked<1>(kStringSparse, 0)).has_value());
+  auto v1 = dst.GetCellUnchecked<1>(kStringSparse, 1);
+  ASSERT_TRUE(v1.has_value());
+  EXPECT_EQ(pool.Get(*v1).ToStdString(), "hello");
+  EXPECT_FALSE((dst.GetCellUnchecked<1>(kStringSparse, 2)).has_value());
+  auto v3 = dst.GetCellUnchecked<1>(kStringSparse, 3);
+  ASSERT_TRUE(v3.has_value());
+  EXPECT_EQ(pool.Get(*v3).ToStdString(), "world");
+}
+
 inline constexpr auto kStringDenseNull = CreateTypedDataframeSpec(
     {"_auto_id", "name"},
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
@@ -527,6 +608,43 @@ TEST(ArrowDeserializerTest, RejectsNullTypeForNonNullColumn) {
 
   auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
   EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
+}
+
+inline constexpr auto kMixedNullability = CreateTypedDataframeSpec(
+    {"_auto_id", "ts", "sparse", "name", "dense", "empty"},
+    CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
+    CreateTypedColumnSpec(Int64{}, NonNull{}, Sorted{}),
+    CreateTypedColumnSpec(Int32{}, SparseNullWithPopcountAlways{}, Unsorted{}),
+    CreateTypedColumnSpec(String{}, SparseNullWithPopcountAlways{}, Unsorted{}),
+    CreateTypedColumnSpec(Double{}, DenseNull{}, Unsorted{}),
+    CreateTypedColumnSpec(Int64{}, SparseNullWithPopcountAlways{}, Unsorted{}));
+
+TEST(ArrowDeserializerTest, RoundTripSplitMixedColumns) {
+  StringPool pool;
+  auto a = pool.InternString(base::StringView("a"));
+  auto src = Dataframe::CreateFromTypedSpec(kMixedNullability, &pool);
+  src.InsertUnchecked(kMixedNullability, std::monostate{}, int64_t{10},
+                      std::optional<int32_t>{},
+                      std::optional<StringPool::Id>{a},
+                      std::optional<double>{1.5}, std::optional<int64_t>{});
+  src.InsertUnchecked(kMixedNullability, std::monostate{}, int64_t{20},
+                      std::optional<int32_t>{5},
+                      std::optional<StringPool::Id>{}, std::optional<double>{},
+                      std::optional<int64_t>{});
+  auto dst =
+      RoundTrip(kMixedNullability, src, &pool, ArrowSparseColumns::kSplit);
+
+  ASSERT_EQ(dst.row_count(), 2u);
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kMixedNullability, 1)), 20);
+  EXPECT_FALSE((dst.GetCellUnchecked<2>(kMixedNullability, 0)).has_value());
+  EXPECT_EQ((dst.GetCellUnchecked<2>(kMixedNullability, 1)), 5);
+  auto name = dst.GetCellUnchecked<3>(kMixedNullability, 0);
+  ASSERT_TRUE(name.has_value());
+  EXPECT_EQ(pool.Get(*name).ToStdString(), "a");
+  EXPECT_FALSE((dst.GetCellUnchecked<3>(kMixedNullability, 1)).has_value());
+  EXPECT_EQ((dst.GetCellUnchecked<4>(kMixedNullability, 0)), 1.5);
+  EXPECT_FALSE((dst.GetCellUnchecked<4>(kMixedNullability, 1)).has_value());
+  EXPECT_FALSE((dst.GetCellUnchecked<5>(kMixedNullability, 0)).has_value());
 }
 
 TEST(ArrowDeserializerTest, RoundTripEmptyDataframe) {
