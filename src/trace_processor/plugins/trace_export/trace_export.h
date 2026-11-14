@@ -34,10 +34,10 @@ void RegisterPlugin();
 
 // Streams the contents of Trace Processor as defined by |format|. kArrowTar is
 // a cross-version-compatible tar of self-contained Arrow files for external
-// consumers and cannot be loaded back into Trace Processor. kPerfetto adds the
-// internal manifest that lets a fresh instance from the same version reload
-// those tables; loading it in a different version may work but is not
-// guaranteed.
+// consumers and cannot be loaded back into Trace Processor. kArrowZstdTar is
+// the same with zstd-compressed Arrow buffers. kPerfetto adds the internal
+// manifest that lets a fresh instance from the same version reload those
+// tables; loading it in a different version may work but is not guaranteed.
 base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
                          const StringPool& pool,
                          TraceProcessor::ExportFormat format,

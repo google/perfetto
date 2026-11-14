@@ -107,6 +107,7 @@ positional argument, `-o FILE` the output path:
 ```bash
 trace_processor export perfetto -o archive.tar trace.pftrace
 trace_processor export arrow_tar -o tables.tar trace.pftrace
+trace_processor export arrow_zstd_tar -o tables_zstd.tar trace.pftrace
 trace_processor export sqlite -o trace.db trace.pftrace
 ```
 
@@ -118,10 +119,15 @@ trace_processor export sqlite -o trace.db trace.pftrace
   file per statically registered table, packed in a tar. Stable across trace
   processor versions, for analysis with pandas, Polars or pyarrow. Cannot be
   loaded back into trace processor.
+- **`arrow_zstd_tar`**: the same as `arrow_tar`, with every Arrow buffer
+  compressed with zstd using Arrow's standard buffer compression, typically
+  4-6x smaller. pyarrow, pandas, Polars and DuckDB read it directly; Apache
+  Arrow JS needs a zstd codec registered first. Requires a build of trace
+  processor with zstd support, which the prebuilt binaries have.
 - **`sqlite`**: the statically registered tables plus the trace's views, as
   a SQLite database file that any SQLite tool can open.
 
-All three formats export the statically registered tables; only `sqlite` also
+All formats export the statically registered tables; only `sqlite` also
 includes views. Runtime tables created during the session (e.g.
 `CREATE PERFETTO TABLE`) are not exported. See the
 [Trace Processor reference](/docs/reference/trace-processor-cli.md#subcommand-export)

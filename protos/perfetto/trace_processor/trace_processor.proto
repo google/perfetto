@@ -552,6 +552,7 @@ message ExportArgs {
     PERFETTO = 1;
     ARROW_TAR = 2;
     SQLITE = 3;
+    ARROW_ZSTD_TAR = 4;
   }
   optional Format format = 1;
 }
