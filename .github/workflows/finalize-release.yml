@@ -61,7 +61,7 @@ jobs:
 
       - name: Mint app token
         id: app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2 # zizmor: ignore[github-app]
         with:
           app-id: ${{ secrets.PERFETTO_BOT_APP_ID }}
           private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
@@ -69,7 +69,7 @@ jobs:
       # main is the base for the prebuilt-roll PR; tags are needed to pull this
       # release's ai/skills into the bundle.
       - name: Checkout main
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: main
           fetch-depth: 0
@@ -108,7 +108,7 @@ jobs:
           fi
 
       - name: Install gcloud / gsutil
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
 
       - name: Download, verify, and package LUCI artifacts
         env:
@@ -145,7 +145,7 @@ jobs:
 
       # The tag predates its own roll, so the PyPI job takes these instead.
       - name: Upload rolled prebuilt manifests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: prebuilt-manifests-${{ inputs.version }}
           path: python/perfetto/prebuilts/manifests/*.py
@@ -296,19 +296,19 @@ jobs:
           fi
 
       - name: Checkout release tag
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.version }}
           fetch-depth: 1
 
       - name: Inject rolled prebuilt manifests
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: prebuilt-manifests-${{ inputs.version }}
           path: python/perfetto/prebuilts/manifests
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.x'
 
@@ -339,8 +339,69 @@ jobs:
           python -m pip install --upgrade build
           python -m build python
 
-      - name: Publish to PyPI (Trusted Publishing)
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Authenticate to Google Cloud (OSS Exit Gate)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
-          packages-dir: python/dist
-          skip-existing: true  # Safe re-runs: skip a version already on PyPI.
+          workload_identity_provider: 'projects/305452601764/locations/global/workloadIdentityPools/builders/providers/github'
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+      - name: Clean up failed staging attempt for this exact version (if any)
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          PKG_VER="${VERSION#v}"
+          set +e
+          gcloud artifacts versions describe "${PKG_VER}" \
+            --package="perfetto" \
+            --project="oss-exit-gate-prod" \
+            --location="us" \
+            --repository="perfetto--pypi" \
+            --format="value(name)" > /dev/null 2> describe.err
+          DESC_RC=$?
+          set -e
+          if [ $DESC_RC -eq 0 ]; then
+            echo "Deleting incomplete staged version ${PKG_VER} before retry..."
+            gcloud artifacts versions delete "${PKG_VER}" \
+              --package="perfetto" \
+              --project="oss-exit-gate-prod" \
+              --location="us" \
+              --repository="perfetto--pypi" \
+              --quiet
+          elif grep -qi "NOT_FOUND\|not found\|404" describe.err; then
+            echo "Version ${PKG_VER} not present in staging repository — proceeding with fresh upload"
+          else
+            cat describe.err >&2
+            exit $DESC_RC
+          fi
+      - name: Stage distributions to OSS Exit Gate and upload manifest
+        env:
+          VERSION: ${{ inputs.version }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          PKG_VER="${VERSION#v}"
+          python -m pip install --upgrade twine
+          python -m twine upload \
+            --repository-url "https://us-python.pkg.dev/oss-exit-gate-prod/perfetto--pypi/" \
+            -u oauth2accesstoken \
+            -p "$(gcloud auth print-access-token)" \
+            python/dist/*
+          cat <<EOF > manifest.json
+          {
+            "publish_all": false,
+            "publishing_groups": [
+              {
+                "packages": [
+                  {
+                    "name": "perfetto",
+                    "version": "${PKG_VER}"
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+          gcloud storage cp manifest.json \
+            "gs://oss-exit-gate-prod-projects-bucket/perfetto/pypi/manifests/manifest-${PKG_VER}-${RUN_ID}-${RUN_ATTEMPT}.json"
