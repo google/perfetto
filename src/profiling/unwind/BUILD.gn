@@ -20,6 +20,9 @@ source_set("unwind_core") {
   sources = [
     "cpu_registers.h",
     "get_asm_regs.h",
+    "unwind_engine.cc",
+    "unwind_engine.h",
+    "unwind_types.h",
   ]
 }
 
@@ -30,10 +33,9 @@ if (enable_perfetto_benchmarks) {
       ":unwind_core",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
-      "../../../gn:libunwindstack",
       "../../../src/base",
-      "../common:unwind_support",
       "../perf:unwinding",
+      "libunwindstack",
     ]
     sources = [ "unwind_benchmark.cc" ]
   }

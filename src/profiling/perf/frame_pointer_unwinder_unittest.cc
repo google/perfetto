@@ -16,155 +16,148 @@
 
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
-#include <sys/mman.h>
-#include <unwindstack/Unwinder.h>
+#include <fcntl.h>
 
-#include "src/profiling/unwind/cpu_registers.h"
+#include <cstring>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/unwind_engine.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
 
-class MemoryFake : public unwindstack::Memory {
- public:
-  MemoryFake() = default;
-  ~MemoryFake() override = default;
+// Real functions in the test binary, used as PCs so that the real
+// UnwindEngine can resolve them against /proc/self/maps.
+__attribute__((noinline)) int LeafFunctionForTest(int x) {
+  asm volatile("" : "+r"(x));
+  return x + 1;
+}
 
-  size_t Read(uint64_t addr, void* memory, size_t size) override {
-    uint8_t* dst = reinterpret_cast<uint8_t*>(memory);
-    for (size_t i = 0; i < size; i++, addr++) {
-      auto value = data_.find(addr);
-      if (value == data_.end()) {
-        return i;
-      }
-      dst[i] = value->second;
-    }
-    return size;
-  }
+__attribute__((noinline)) int CallerFunctionForTest(int x) {
+  asm volatile("" : "+r"(x));
+  return x + 2;
+}
 
-  void SetMemory(uint64_t addr, const void* memory, size_t length) {
-    const uint8_t* src = reinterpret_cast<const uint8_t*>(memory);
-    for (size_t i = 0; i < length; i++, addr++) {
-      auto value = data_.find(addr);
-      if (value != data_.end()) {
-        value->second = src[i];
-      } else {
-        data_.insert({addr, src[i]});
-      }
-    }
-  }
+// Synthetic stack layout. |kStackBase| is the sampled sp; the stack buffer
+// covers [kStackBase, kStackBase + kStackSize).
+constexpr static size_t kMaxFrames = 64;
+constexpr static uint64_t kStackBase = 0x1800;
+constexpr static size_t kStackSize = 0x2000;
 
-  void SetData8(uint64_t addr, uint8_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
-
-  void SetData16(uint64_t addr, uint16_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
-
-  void SetData32(uint64_t addr, uint32_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
-
-  void SetData64(uint64_t addr, uint64_t value) {
-    SetMemory(addr, &value, sizeof(value));
-  }
-
-  void SetMemory(uint64_t addr, std::vector<uint8_t> values) {
-    SetMemory(addr, values.data(), values.size());
-  }
-
-  void SetMemory(uint64_t addr, std::string string) {
-    SetMemory(addr, string.c_str(), string.size() + 1);
-  }
-
-  void Clear() override { data_.clear(); }
-
- private:
-  std::unordered_map<uint64_t, uint8_t> data_;
-};
-
-constexpr static uint64_t kMaxFrames = 64;
-constexpr static uint64_t kStackSize = 0xFFFFFFF;
+// An address that is guaranteed not to be mapped (below mmap_min_addr).
+constexpr static uint64_t kUnmappedPc = 0x1000;
 
 class FramePointerUnwinderTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    memory_fake_ = new MemoryFake;
-    maps_.reset(new unwindstack::Maps);
-    process_memory_.reset(memory_fake_);
+    base::ScopedFile maps_fd(base::OpenFile("/proc/self/maps", O_RDONLY));
+    base::ScopedFile mem_fd(base::OpenFile("/proc/self/mem", O_RDONLY));
+    ASSERT_TRUE(maps_fd);
+    ASSERT_TRUE(mem_fd);
+    state_ = ProcessUnwindState::Create(std::move(maps_fd), std::move(mem_fd));
+    stack_.assign(kStackSize, 0);
   }
 
-  MemoryFake* memory_fake_;
-  std::unique_ptr<unwindstack::Maps> maps_;
-  std::shared_ptr<unwindstack::Memory> process_memory_;
+  void SetStackData64(uint64_t addr, uint64_t value) {
+    PERFETTO_CHECK(addr >= kStackBase &&
+                   addr + sizeof(uint64_t) <= kStackBase + stack_.size());
+    size_t offset = static_cast<size_t>(addr - kStackBase);
+    std::memcpy(stack_.data() + offset, &value, sizeof(uint64_t));
+  }
+
+  // Lays out a two-frame stack: fp=0x2000 -> {next_fp=0x2200, ret=caller_pc},
+  // fp=0x2200 -> {next_fp=0 (terminates)}.
+  void SetUpTwoFrameStack(uint64_t caller_pc) {
+    SetStackData64(0x2000, 0x2200);                        // next_fp
+    SetStackData64(0x2000 + sizeof(uint64_t), caller_pc);  // return address
+    SetStackData64(0x2200, 0);                             // end of chain
+  }
+
+  static uint64_t PcOf(int (*fn)(int)) {
+    // +4 so the PC looks like a return address inside the function body, as
+    // the engine subtracts a per-arch adjustment to find the call site.
+    return reinterpret_cast<uint64_t>(fn) + 4;
+  }
+
+  static void ExpectFrameInFunction(const FrameData& frame, int (*fn)(int)) {
+    uint64_t fn_addr = reinterpret_cast<uint64_t>(fn);
+    EXPECT_NE(frame.map_info, nullptr);
+    EXPECT_GE(frame.pc, fn_addr);
+    EXPECT_LT(frame.pc, fn_addr + 4);
+  }
+
+  std::unique_ptr<ProcessUnwindState> state_;
+  std::vector<uint8_t> stack_;
 };
 
 TEST_F(FramePointerUnwinderTest, UnwindUnsupportedArch) {
   CpuRegisters regs_x86(CpuArch::X86);
-  FramePointerUnwinder unwinder_x86(kMaxFrames, maps_.get(), &regs_x86,
-                                    process_memory_, kStackSize);
+  regs_x86.set_sp(kStackBase);
+  FramePointerUnwinder unwinder_x86(kMaxFrames, state_.get(), &regs_x86,
+                                    stack_.data(), stack_.size());
   unwinder_x86.Unwind();
-  EXPECT_EQ(unwinder_x86.LastErrorCode(),
-            unwindstack::ErrorCode::ERROR_UNSUPPORTED);
+  EXPECT_EQ(unwinder_x86.LastErrorCode(), UnwindErrorCode::kUnsupported);
 
   CpuRegisters regs_arm(CpuArch::ARM);
-  FramePointerUnwinder unwinder_arm(kMaxFrames, maps_.get(), &regs_arm,
-                                    process_memory_, kStackSize);
+  regs_arm.set_sp(kStackBase);
+  FramePointerUnwinder unwinder_arm(kMaxFrames, state_.get(), &regs_arm,
+                                    stack_.data(), stack_.size());
   unwinder_arm.Unwind();
-  EXPECT_EQ(unwinder_arm.LastErrorCode(),
-            unwindstack::ErrorCode::ERROR_UNSUPPORTED);
+  EXPECT_EQ(unwinder_arm.LastErrorCode(), UnwindErrorCode::kUnsupported);
 }
 
 TEST_F(FramePointerUnwinderTest, UnwindInvalidMaps) {
-  // Set up a valid stack frame
+  // A valid frame chain, but the leaf PC is not in any mapping.
   CpuRegisters regs(CpuArch::X86_64);
-  regs.set_pc(0x1000);
-  regs.set_sp(0x2000);
-  memory_fake_->SetData64(0x2000, 0x3000);
-  memory_fake_->SetData64(0x2008, 0x2000);
+  regs.set_pc(kUnmappedPc);
+  regs.set_sp(kStackBase);
+  regs[X86_64_REG_RBP] = 0x2000;
+  SetUpTwoFrameStack(PcOf(&CallerFunctionForTest));
 
-  FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs, process_memory_,
-                                kStackSize);
+  FramePointerUnwinder unwinder(kMaxFrames, state_.get(), &regs, stack_.data(),
+                                stack_.size());
   unwinder.Unwind();
-  EXPECT_EQ(unwinder.LastErrorCode(),
-            unwindstack::ErrorCode::ERROR_INVALID_MAP);
+  EXPECT_EQ(unwinder.LastErrorCode(), UnwindErrorCode::kInvalidMap);
   EXPECT_EQ(unwinder.ConsumeFrames().size(), 0UL);
 }
 
 TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
-  memory_fake_->SetData64(0x2000, 0x2200);  // mock next_fp
-  memory_fake_->SetData64(0x2000 + sizeof(uint64_t),
-                          0x2100);  // mock return_address(next_pc)
-  memory_fake_->SetData64(0x2200, 0);
-
-  maps_->Add(0x1000, 0x12000, 0, PROT_READ | PROT_WRITE, "libmock.so");
+  SetUpTwoFrameStack(PcOf(&CallerFunctionForTest));
 
   {
     CpuRegisters regs_x86_64(CpuArch::X86_64);
-    regs_x86_64.set_pc(0x1900);
-    regs_x86_64.set_sp(0x1800);
+    regs_x86_64.set_pc(PcOf(&LeafFunctionForTest));
+    regs_x86_64.set_sp(kStackBase);
     regs_x86_64[X86_64_REG_RBP] = 0x2000;
 
-    FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs_x86_64,
-                                  process_memory_, kStackSize);
+    FramePointerUnwinder unwinder(kMaxFrames, state_.get(), &regs_x86_64,
+                                  stack_.data(), stack_.size());
     unwinder.Unwind();
-    EXPECT_EQ(unwinder.LastErrorCode(), unwindstack::ErrorCode::ERROR_NONE);
-    EXPECT_EQ(unwinder.ConsumeFrames().size(), 2UL);
+    EXPECT_EQ(unwinder.LastErrorCode(), UnwindErrorCode::kNone);
+    auto frames = unwinder.ConsumeFrames();
+    ASSERT_EQ(frames.size(), 2UL);
+    ExpectFrameInFunction(frames[0], &LeafFunctionForTest);
+    ExpectFrameInFunction(frames[1], &CallerFunctionForTest);
   }
 
   {
     CpuRegisters regs_arm64(CpuArch::ARM64);
-    regs_arm64.set_pc(0x1900);
-    regs_arm64.set_sp(0x1800);
+    regs_arm64.set_pc(PcOf(&LeafFunctionForTest));
+    regs_arm64.set_sp(kStackBase);
     regs_arm64[ARM64_REG_X29] = 0x2000;
 
-    FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs_arm64,
-                                  process_memory_, kStackSize);
+    FramePointerUnwinder unwinder(kMaxFrames, state_.get(), &regs_arm64,
+                                  stack_.data(), stack_.size());
     unwinder.Unwind();
-    EXPECT_EQ(unwinder.LastErrorCode(), unwindstack::ErrorCode::ERROR_NONE);
-    EXPECT_EQ(unwinder.ConsumeFrames().size(), 2UL);
+    EXPECT_EQ(unwinder.LastErrorCode(), UnwindErrorCode::kNone);
+    auto frames = unwinder.ConsumeFrames();
+    ASSERT_EQ(frames.size(), 2UL);
+    ExpectFrameInFunction(frames[0], &LeafFunctionForTest);
+    ExpectFrameInFunction(frames[1], &CallerFunctionForTest);
   }
 }
 
