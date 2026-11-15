@@ -84,7 +84,9 @@ export type Overflow = 'hidden' | 'visible' | 'auto';
 // Imperative handle for controlling a VirtualOverlayCanvas. Handed to the
 // parent via the `onMount` callback.
 export interface VirtualOverlayCanvasApi {
-  // Redraw the canvas synchronously.
+  // Request a redraw of the canvas. The canvas is not redrawn synchronously,
+  // but later in the current frame, after layout. Multiple requests in the
+  // same frame result in a single redraw.
   redrawCanvas(): void;
 
   // Set the scroll position of the scrolling container and return the applied
@@ -111,6 +113,13 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // using raf.addCanvasRedrawCallback()) and want to avoid double redraws.
   // Default: false.
   readonly disableCanvasRedrawOnMithrilUpdates?: boolean;
+
+  // Controls whether the canvas is redrawn when the virtual canvas element
+  // (whose size is passed to onCanvasRedraw as virtualCanvasSize) changes size
+  // in the inline (horizontal) and/or block (vertical) direction. Redraws
+  // caused by the floating canvas itself moving or resizing are unaffected.
+  // Default: 'both'.
+  readonly redrawOnResize?: 'none' | 'inline' | 'block' | 'both';
 
   // Called when the canvas is mounted. The passed api object exposes
   // imperative methods for controlling the canvas. Any returned disposable
@@ -152,6 +161,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
   private webglRenderer?: WebGLRenderer;
   private dom?: Element;
   private moirePattern?: ImageData; // DO NOT SUBMIT: moire test pattern.
+  private requestRedraw?: () => void;
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
@@ -176,9 +186,8 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       m(
         '.pf-virtual-overlay-canvas__content', // Container for scrolling element, used for sizing the canvas
         children,
-        // Put canvas container after content so it appears on top. An actual
-        // canvas element will be created inside here by the
-        // VirtualCanvasHelper.
+        // Put canvas container after content so it appears on top. The actual
+        // canvas element(s) are created inside here in oncreate().
         m('.pf-virtual-overlay-canvas__canvas-container', {
           ref: CANVAS_CONTAINER_REF,
         }),
@@ -193,19 +202,19 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
     );
     const {overflowX = 'visible', overflowY = 'visible'} = attrs;
 
-    // Create the virtual canvas inside the canvas container element. We assume
-    // the scrolling container is the root level element of this component so we
-    // can just use `dom`.
-    const virtualCanvas = new VirtualCanvas(canvasContainerElement, dom, {
-      overdrawPx: CANVAS_OVERDRAW_PX,
-      tolerancePx: CANVAS_TOLERANCE_PX,
-      overdrawAxes: getScrollAxesFromOverflow(overflowX, overflowY),
+    // Ensures the canvases don't change the size of the container element.
+    canvasContainerElement.style.overflow = 'hidden';
+
+    // Create the floating canvas inside the canvas container element.
+    const canvasEl = document.createElement('canvas');
+    canvasEl.style.position = 'absolute';
+    canvasContainerElement.appendChild(canvasEl);
+    this.trash.defer(() => {
+      canvasContainerElement.removeChild(canvasEl);
     });
-    this.trash.use(virtualCanvas);
-    this.virtualCanvas = virtualCanvas;
 
     // Create the canvas rendering context
-    this.ctx = ensureExists(virtualCanvas.canvasElement.getContext('2d'));
+    this.ctx = ensureExists(canvasEl.getContext('2d'));
     const ctx = this.ctx;
 
     // Create WebGL canvas if enabled
@@ -214,10 +223,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       this.webglCanvas.style.position = 'absolute';
       this.webglCanvas.style.pointerEvents = 'none';
       // Insert before the 2D canvas so WebGL renders underneath
-      canvasContainerElement.insertBefore(
-        this.webglCanvas,
-        virtualCanvas.canvasElement,
-      );
+      canvasContainerElement.insertBefore(this.webglCanvas, canvasEl);
       this.trash.defer(() => {
         if (this.webglCanvas?.parentElement) {
           this.webglCanvas.parentElement.removeChild(this.webglCanvas);
@@ -257,56 +263,132 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       }
     }
 
-    // When the container resizes, we might need to resize the canvas. This can
-    // be slow so we don't want to do it every render cycle. VirtualCanvas will
-    // tell us when we need to do this.
-    virtualCanvas.setCanvasResizeListener((canvas, width, height) => {
-      const dpr = window.devicePixelRatio;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+    // VirtualCanvas works out where the floating canvas should be and how big
+    // it should be (in CSS pixels) and tells us whenever that changes. We
+    // assume the scrolling container is the root level element of this
+    // component so we can just use `dom`.
+    //
+    // This must be created BEFORE the canvas observer below. Resize observers
+    // are called in creation order, so VirtualCanvas's internal observer runs
+    // first. If it changes the rect, the requestRedraw() call below replaces
+    // any canvas entry that was already due in that pass with a fresh one, so
+    // we still only draw once in that frame, with the new rect.
+    const virtualCanvas = new VirtualCanvas(
+      canvasContainerElement,
+      dom,
+      (rect) => {
+        // Apply the new rect to the canvas element(s). No redraw here - the
+        // canvas observer resizes the draw buffers (if required) and redraws
+        // later in this frame.
+        for (const el of [canvasEl, this.webglCanvas]) {
+          if (el === undefined) continue;
+          el.style.width = `${rect.width}px`;
+          el.style.height = `${rect.height}px`;
+          el.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+        }
+        requestRedraw();
+      },
+      {
+        overdrawPx: CANVAS_OVERDRAW_PX,
+        tolerancePx: CANVAS_TOLERANCE_PX,
+        overdrawAxes: getScrollAxesFromOverflow(overflowX, overflowY),
+      },
+    );
+    this.trash.use(virtualCanvas);
+    this.virtualCanvas = virtualCanvas;
 
-      // Resize WebGL canvas to match
-      if (this.webglCanvas && this.webglRenderer) {
-        this.webglCanvas.width = width * dpr;
-        this.webglCanvas.height = height * dpr;
-        this.webglCanvas.style.width = `${width}px`;
-        this.webglCanvas.style.height = `${height}px`;
-        this.webglRenderer.gl.viewport(0, 0, width * dpr, height * dpr);
+    // A single observer watches both the canvas element (in device pixels, for
+    // sizing the draw buffer) and the canvas container element (in CSS pixels,
+    // for redrawOnResize).
+    //
+    // The canvas entry is the only place that redraws the canvas. Anything that
+    // invalidates the canvas (layout changes, mithril updates, explicit redraw
+    // requests) calls requestRedraw() which forces a canvas entry to be
+    // delivered later in the same frame. This way we redraw at most once per
+    // frame, after layout and after the draw buffer is resized.
+    let containerInlineSize: number | undefined;
+    let containerBlockSize: number | undefined;
+    const observer = new ResizeObserver((entries) => {
+      let canvasEntry: ResizeObserverEntry | undefined;
+      let containerInvalidated = false;
+
+      for (const entry of entries) {
+        if (entry.target === canvasEl) {
+          canvasEntry = entry;
+        } else if (entry.target === canvasContainerElement) {
+          const {inlineSize, blockSize} = entry.contentBoxSize[0]!;
+          const inlineChanged = inlineSize !== containerInlineSize;
+          const blockChanged = blockSize !== containerBlockSize;
+          containerInlineSize = inlineSize;
+          containerBlockSize = blockSize;
+
+          const redrawOnResize = this.attrs?.redrawOnResize ?? 'none';
+          const onInline =
+            redrawOnResize === 'inline' || redrawOnResize === 'both';
+          const onBlock =
+            redrawOnResize === 'block' || redrawOnResize === 'both';
+          if ((inlineChanged && onInline) || (blockChanged && onBlock)) {
+            containerInvalidated = true;
+          }
+        }
+      }
+
+      if (canvasEntry) {
+        const width = canvasEntry.devicePixelContentBoxSize[0]!.inlineSize;
+        const height = canvasEntry.devicePixelContentBoxSize[0]!.blockSize;
+
+        // Only touch the draw buffer if its size actually changed - assigning
+        // to width/height clears the canvas, and this entry may have been
+        // forced by requestRedraw() without the size changing.
+        if (canvasEl.width !== width || canvasEl.height !== height) {
+          console.log(`Canvas draw buffer resized: ${width}x${height}px`);
+
+          // Resize the regular canvas buffer
+          canvasEl.width = width;
+          canvasEl.height = height;
+
+          // Resize the WebGL canvas buffer to match. It always has the same
+          // CSS size and position as the regular canvas, so it covers the same
+          // device pixels.
+          if (this.webglCanvas) {
+            this.webglCanvas.width = width;
+            this.webglCanvas.height = height;
+            this.webglRenderer?.gl.viewport(0, 0, width, height);
+          }
+        }
+
+        // Redraw synchronoously.
+        console.log('Redrawing...');
+        this.redrawCanvas();
+      } else if (containerInvalidated) {
+        console.log('Container resized - scheduling a redraw');
+        requestRedraw();
       }
     });
 
-    // Manually sync WebGL canvas size since the initial ResizeObserver callback
-    // fired before the listener was set (during VirtualCanvas construction).
-    if (this.webglCanvas && this.webglRenderer) {
-      const canvasRect = virtualCanvas.canvasRect;
-      const dpr = window.devicePixelRatio;
-      this.webglCanvas.width = canvasRect.width * dpr;
-      this.webglCanvas.height = canvasRect.height * dpr;
-      this.webglCanvas.style.width = `${canvasRect.width}px`;
-      this.webglCanvas.style.height = `${canvasRect.height}px`;
-      this.webglRenderer.gl.viewport(
-        0,
-        0,
-        canvasRect.width * dpr,
-        canvasRect.height * dpr,
-      );
-    }
+    // Re-observing an element creates a fresh observation, which is always
+    // delivered once (provided the element has a non-zero size). The canvas is
+    // deeper in the DOM than the elements whose layout changes call this, so
+    // the entry is delivered in the same frame.
+    const canvasObserverOpts = {box: 'device-pixel-content-box'} as const;
+    const requestRedraw = () => {
+      observer.unobserve(canvasEl);
+      observer.observe(canvasEl, canvasObserverOpts);
+    };
+    this.requestRedraw = requestRedraw;
 
-    // Whenever the canvas changes size or moves around (e.g. when scrolling),
-    // we'll need to trigger a re-render to keep canvas content aligned with the
-    // DOM elements underneath.
-    virtualCanvas.setLayoutShiftListener(() => {
-      // Keep WebGL canvas in sync with 2D canvas position
-      if (this.webglCanvas) {
-        const canvasRect = virtualCanvas.canvasRect;
-        this.webglCanvas.style.transform = `translate(${canvasRect.left}px, ${canvasRect.top}px)`;
-      }
-      this.redrawCanvas();
+    observer.observe(canvasEl, canvasObserverOpts);
+    observer.observe(canvasContainerElement);
+    this.trash.defer(() => {
+      observer.disconnect();
     });
 
     const scrollEl = toHTMLElement(dom);
     const api: VirtualOverlayCanvasApi = {
-      redrawCanvas: this.redrawCanvas.bind(this),
+      redrawCanvas: () => {
+        console.log('Redraw request from raf scheduler');
+        requestRedraw();
+      },
       scrollTo: ({x, y}) => {
         if (x !== undefined) scrollEl.scrollLeft = x;
         if (y !== undefined) scrollEl.scrollTop = y;
@@ -316,11 +398,12 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
     const disposable = attrs.onMount?.(api);
     disposable && this.trash.use(disposable);
 
-    !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
+    // No need to draw here: the first canvas entry is delivered later in this
+    // frame and draws the canvas.
   }
 
   onupdate({attrs}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
-    !attrs.disableCanvasRedrawOnMithrilUpdates && this.redrawCanvas();
+    !attrs.disableCanvasRedrawOnMithrilUpdates && this.requestRedraw?.();
   }
 
   onremove() {

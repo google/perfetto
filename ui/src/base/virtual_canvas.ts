@@ -27,18 +27,23 @@
  * viewport of the scrolling container, we can approximate a huge canvas using a
  * much smaller one.
  *
- * Given a target element and it's scrolling container, VirtualCanvas turns an
- * empty HTML element into a "virtual" canvas with virtually unlimited size
- * using the "floating" canvas technique described above.
+ * Given a target element and it's scrolling container, VirtualCanvas works out
+ * where a floating canvas should be placed (and how big it should be) in order
+ * to cover the viewport, using the "floating" canvas technique described above.
+ *
+ * VirtualCanvas doesn't create or touch any canvas elements itself. It only
+ * works in CSS pixels and reports the desired rect of the floating canvas
+ * whenever it changes. It is up to the caller to create the canvas element,
+ * apply the rect to it, size its draw buffer and redraw it.
  */
 
 import {DisposableStack} from './disposable_stack';
 import {type Bounds2D, Rect2D, type Size2D} from './geom';
 
-export type LayoutShiftListener = (
-  canvas: HTMLCanvasElement,
-  rect: Rect2D,
-) => void;
+// Called when the desired rect of the floating canvas changes (i.e. the canvas
+// should be moved and/or resized). The rect is in CSS pixels, with respect to
+// the target element.
+export type LayoutShiftListener = (rect: Rect2D) => void;
 
 export type CanvasResizeListener = (
   canvas: HTMLCanvasElement,
@@ -68,15 +73,12 @@ export interface VirtualCanvasOpts {
 
 export class VirtualCanvas implements Disposable {
   private readonly _trash = new DisposableStack();
-  private readonly _canvasElement: HTMLCanvasElement;
   private readonly _targetElement: HTMLElement;
 
   // Describes the offset of the canvas w.r.t. the "target" container
   private _canvasRect: Rect2D;
   private _viewportRect: Rect2D;
   private _viewportLimits: Rect2D;
-  private _layoutShiftListener?: LayoutShiftListener;
-  private _canvasResizeListener?: CanvasResizeListener;
 
   /**
    * @param targetElement The element to turn into a virtual canvas. The
@@ -85,11 +87,16 @@ export class VirtualCanvas implements Disposable {
    * @param containerElement The scrolling container to be used for determining
    * the size and position of the canvas. The targetElement should be a child of
    * this element.
+   * @param onLayoutShift Called whenever the desired rect of the floating
+   * canvas changes, i.e. when the canvas should be moved and/or resized. This
+   * is only ever called from inside a ResizeObserver callback (i.e. after
+   * layout, before paint). Never called synchronously from the constructor.
    * @param opts Setup options for the VirtualCanvas.
    */
   constructor(
     targetElement: HTMLElement,
     containerElement: Element,
+    onLayoutShift: LayoutShiftListener,
     opts?: Partial<VirtualCanvasOpts>,
   ) {
     const {
@@ -133,7 +140,7 @@ export class VirtualCanvas implements Disposable {
       }
     };
 
-    const updateCanvasSizeAndPosition = () => {
+    const update = () => {
       const viewport = getViewportRect();
       this._viewportRect = viewport;
       const canvasRect = getCanvasRect(viewport);
@@ -142,35 +149,19 @@ export class VirtualCanvas implements Disposable {
 
       if (
         canvasRectPrev.width !== canvasRect.width ||
-        canvasRectPrev.height !== canvasRect.height
-      ) {
-        // Canvas needs to change size, update its size
-        canvas.style.width = `${canvasRect.width}px`;
-        canvas.style.height = `${canvasRect.height}px`;
-      }
-
-      if (
+        canvasRectPrev.height !== canvasRect.height ||
         canvasRectPrev.left !== canvasRect.left ||
         canvasRectPrev.top !== canvasRect.top
       ) {
-        // Canvas needs to move, update the transform
-        canvas.style.transform = `translate(${canvasRect.left}px, ${canvasRect.top}px)`;
+        console.log('onLayoutShift');
+        // The canvas needs to move and/or change size.
+        onLayoutShift(canvasRect);
       }
     };
 
-    containerElement.addEventListener('scroll', updateCanvasSizeAndPosition, {
-      passive: true,
-    });
-    this._trash.defer(() =>
-      containerElement.removeEventListener(
-        'scroll',
-        updateCanvasSizeAndPosition,
-      ),
-    );
-
     // Resize observer callbacks are called once immediately after registration
     const resizeObserver = new ResizeObserver((_cb) => {
-      updateCanvasSizeAndPosition();
+      update();
     });
 
     resizeObserver.observe(containerElement);
@@ -179,29 +170,20 @@ export class VirtualCanvas implements Disposable {
       resizeObserver.disconnect();
     });
 
-    // Ensures the canvas doesn't change the size of the target element
-    targetElement.style.overflow = 'hidden';
+    // Scrolling doesn't recompute anything directly. Instead, re-observe the
+    // target element: this creates a fresh observation which is always
+    // delivered once, later in this frame. That way everything is recomputed
+    // from one place - the resize observer callback - after layout.
+    const onScroll = () => {
+      console.log('onScroll');
+      resizeObserver.unobserve(targetElement);
+      resizeObserver.observe(targetElement);
+    };
+    containerElement.addEventListener('scroll', onScroll, {passive: true});
+    this._trash.defer(() =>
+      containerElement.removeEventListener('scroll', onScroll),
+    );
 
-    const canvas = document.createElement('canvas');
-    canvas.style.position = 'absolute';
-    targetElement.appendChild(canvas);
-    this._trash.defer(() => {
-      targetElement.removeChild(canvas);
-    });
-
-    const canvasObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const size = entry.devicePixelContentBoxSize[0]!;
-        canvas.width = size.inlineSize;
-        canvas.height = size.blockSize;
-      }
-    });
-    canvasObserver.observe(canvas, {box: 'device-pixel-content-box'});
-    this._trash.defer(() => {
-      canvasObserver.disconnect();
-    });
-
-    this._canvasElement = canvas;
     this._targetElement = targetElement;
     const emptyRect = new Rect2D({
       left: 0,
@@ -212,33 +194,6 @@ export class VirtualCanvas implements Disposable {
     this._canvasRect = emptyRect;
     this._viewportRect = emptyRect;
     this._viewportLimits = emptyRect;
-  }
-
-  /**
-   * Set the callback that gets called when the canvas element is moved or
-   * resized, thus, invalidating the contents, and should be re-painted.
-   *
-   * @param cb The new callback.
-   */
-  setLayoutShiftListener(cb: LayoutShiftListener) {
-    this._layoutShiftListener = cb;
-  }
-
-  /**
-   * Set the callback that gets called when the canvas element is resized. This
-   * might be a good opportunity to update the size of the canvas' draw buffer.
-   *
-   * @param cb The new callback.
-   */
-  setCanvasResizeListener(cb: CanvasResizeListener) {
-    this._canvasResizeListener = cb;
-  }
-
-  /**
-   * The floating canvas element.
-   */
-  get canvasElement(): HTMLCanvasElement {
-    return this._canvasElement;
   }
 
   /**
@@ -259,9 +214,9 @@ export class VirtualCanvas implements Disposable {
   }
 
   /**
-   * Returns the rect of the floating canvas with respect to the target element.
-   * This will need to be subtracted from any drawing operations to get the
-   * right alignment within the virtual canvas.
+   * Returns the desired rect of the floating canvas with respect to the target
+   * element. This will need to be subtracted from any drawing operations to get
+   * the right alignment within the virtual canvas.
    */
   get canvasRect(): Rect2D {
     return this._canvasRect;

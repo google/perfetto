@@ -333,6 +333,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         className: classNames(className, 'pf-track-tree'),
         overflowY: 'auto',
         overflowX: 'hidden',
+        redrawOnResize: 'inline',
         enableWebGL: WEBGL_RENDERING.get(),
         onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, renderer}) => {
           this.drawCanvas(
@@ -356,7 +357,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               !this.canvasRect.equals(canvasRect)
             ) {
               this.canvasRect = canvasRect;
-              m.redraw();
+              // TODO: Stubbed out - restore.
+              // m.redraw();
             }
           }
         },

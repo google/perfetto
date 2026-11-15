@@ -246,7 +246,8 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       this.fullscreenHeight = parent.clientHeight;
       this.resizeObserver = new ResizeObserver(() => {
         this.fullscreenHeight = parent.clientHeight;
-        m.redraw();
+        // TODO: Stubbed out - restore.
+        // m.redraw();
       });
       this.resizeObserver.observe(parent);
     }
