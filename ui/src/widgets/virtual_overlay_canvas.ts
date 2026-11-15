@@ -41,6 +41,16 @@ import {Canvas2DRenderer} from '../base/canvas2d_renderer';
 import type {Renderer} from '../base/renderer';
 import type {HTMLAttrs} from './common';
 
+// DO NOT SUBMIT: moire test pattern.
+// When enabled, every VirtualOverlayCanvas draws a moire test pattern over the
+// top of its normal contents. Widgets cannot depend on feature flags directly,
+// so this is set at startup from a feature flag registered in the frontend.
+let moireTestPatternEnabled = false;
+
+export function setMoireTestPatternEnabled(enabled: boolean) {
+  moireTestPatternEnabled = enabled;
+}
+
 const CANVAS_CONTAINER_REF = 'canvas-container';
 const CANVAS_OVERDRAW_PX = 300;
 const CANVAS_TOLERANCE_PX = 100;
@@ -141,6 +151,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
   private webglCanvas?: HTMLCanvasElement;
   private webglRenderer?: WebGLRenderer;
   private dom?: Element;
+  private moirePattern?: ImageData; // DO NOT SUBMIT: moire test pattern.
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
@@ -361,5 +372,48 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
     // Also flush WebGL draw calls (this is distinct from the flush above).
     this.webglRenderer?.gl.flush();
+
+    // DO NOT SUBMIT: moire test pattern.
+    if (moireTestPatternEnabled) {
+      this.drawMoireTestPattern(ctx);
+    }
+  }
+
+  // DO NOT SUBMIT: moire test pattern.
+  //
+  // Overwrites the whole canvas with stripes that are exactly one draw buffer
+  // pixel wide, written straight into the buffer (putImageData ignores the
+  // current transform):
+  // - Left 62% of the buffer: vertical R/G/B stripes (colour = x % 3).
+  // - Right 38% of the buffer: horizontal R/G/B stripes (colour = y % 3).
+  //
+  // If the buffer reaches the screen 1:1, every device pixel is a pure primary.
+  // If the browser has to scale the buffer to fit the canvas element, the
+  // stripes blend into each other.
+  private drawMoireTestPattern(ctx: CanvasRenderingContext2D) {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    if (width <= 0 || height <= 0) return;
+
+    let pattern = this.moirePattern;
+    if (
+      pattern === undefined ||
+      pattern.width !== width ||
+      pattern.height !== height
+    ) {
+      pattern = ctx.createImageData(width, height);
+      const data = pattern.data;
+      const split = Math.floor(width * 0.62);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const channel = (x < split ? x : y) % 3;
+          const i = (y * width + x) * 4;
+          data[i + channel] = 255;
+          data[i + 3] = 255;
+        }
+      }
+      this.moirePattern = pattern;
+    }
+    ctx.putImageData(pattern, 0, 0);
   }
 }
