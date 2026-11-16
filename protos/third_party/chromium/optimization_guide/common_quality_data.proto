@@ -1512,7 +1512,7 @@ message Site {
 message AnySite {
 }
 
-// Next ID: 3
+// Next ID: 4
 message RuleMetadata {
   // The set of resources that the agent may access when visiting/actuating
   // according to this rule. May be empty if no resources are accessible.
@@ -1526,19 +1526,22 @@ message RuleMetadata {
   repeated ActuationCapability capabilities = 2;
 
   // Resources that may be accessible to the agent.
-  // RESOURCE_UNKNOWN is ignored, RESOURCE_SESSION is the only meaningful value
-  // right now.
-  // Next ID: 2
+  // RESOURCE_UNKNOWN is ignored.
+  // Next ID: 3
   enum AgentResource {
     RESOURCE_UNKNOWN = 0;
 
     // The agent may use the user's existing session.
     RESOURCE_SESSION = 1;
+
+    // The agent will be placed in an isolated session for the associated
+    // location.
+    RESOURCE_ISOLATED = 2;
   }
 
   // What capabilities the agent has permission for when visiting/actuating on
   // a location.
-  // Next ID: 29
+  // Next ID: 31
 
   enum ActuationCapability {
     CAPABILITY_UNKNOWN = 0;
@@ -1614,7 +1617,14 @@ message RuleMetadata {
     // the purpose-made change password flow. It will not work as expected and
     // could potentially result in password loss.
     CAPABILITY_CHANGE_PASSWORD = 28;
+
+    CAPABILITY_SEARCH_IN_PAGE = 29;
+
+    // Allows executing JavaScript code in a document.
+    CAPABILITY_EXECUTE_JS = 30;
   }
+
+  reserved 3;
 }
 
 // Next ID: 2

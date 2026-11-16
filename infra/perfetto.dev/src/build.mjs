@@ -428,7 +428,8 @@ function collectBlogPages(posts) {
       mdFile: post.mdPath,
       templatePath: tmplPost,
       sitePath: `blog/${post.slug}`,
-      searchUrl: `/blog/${post.slug}`,
+      // Hidden posts are reachable by URL only, so they stay out of search.
+      searchUrl: post.hidden ? undefined : `/blog/${post.slug}`,
       // parseSearchDoc() reads the title off the first <h1>. A post's title is
       // front matter and its body deliberately has none, so without this every
       // post looks like an empty redirect stub and is dropped from the index.
@@ -444,7 +445,7 @@ function collectBlogPages(posts) {
     sitePath: "blog/index.html",
     post: {
       isIndex: true,
-      posts,
+      posts: posts.filter((p) => !p.hidden),
       summary:
         "Release notes, performance investigations and deep dives from the " +
         "people who build Perfetto.",
@@ -585,12 +586,14 @@ async function addBlogThumbnails(posts, site) {
 }
 
 async function addBlogAssets(posts, site) {
+  // Hidden posts still need their covers and avatars, but not a feed entry.
+  const listed = posts.filter((p) => !p.hidden);
   site.set(
     "blog/atom.xml",
     await memo(
       "blog:feed",
-      [...posts.map((p) => JSON.stringify(p)), cfg.siteUrl],
-      () => blog.atomFeed(posts, cfg.siteUrl),
+      [...listed.map((p) => JSON.stringify(p)), cfg.siteUrl],
+      () => blog.atomFeed(listed, cfg.siteUrl),
     ),
   );
   for (const post of posts) {

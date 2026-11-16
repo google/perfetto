@@ -73,6 +73,13 @@
   > .pf-split-panel {
     height: 100%;
   }
+
+  &__split--sidebar-hidden {
+    > .pf-resize-handle,
+    > .pf-split-panel__second {
+      display: none;
+    }
+  }
 }
 
 .pf-bt-query-page__editor-tabs {

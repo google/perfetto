@@ -80,6 +80,7 @@ class Where : public PlanOperation {
                PlanNodeId self,
                const LoweringContext&) const override;
   InputNeeds Needs(uint32_t input) const override;
+  bool IsRowWise() const override { return true; }
   OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;

@@ -643,7 +643,7 @@ static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_get_extra_ptr(
 }
 
 static void dev_perfetto_sdk_PerfettoTrackEventExtraProto_add_field(
-    PERFETTO_JNI_HOST_PARAMS_COMMA long proto_ptr,
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong proto_ptr,
     jlong arg_ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(proto_ptr);
   proto->add_field(toPointer<PerfettoTeHlProtoField>(arg_ptr));

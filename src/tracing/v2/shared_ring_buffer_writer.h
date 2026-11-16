@@ -23,6 +23,8 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -155,7 +157,8 @@ class SharedRingBufferWriter {
   // BeginFragment(..., false), even though the previous chunk still marks a
   // continuation. Only the caller knows that a new packet starts. The writer
   // cannot infer |continues_from_prev| from the previous chunk's flag.
-  FragmentRange BeginFragment(uint32_t min_size, bool continues_from_prev);
+  PERFETTO_ALWAYS_INLINE FragmentRange BeginFragment(uint32_t min_size,
+                                                     bool continues_from_prev);
 
   // Ends the open fragment at |size| bytes and publishes it, so the reader
   // can copy it. |size| must fit the range from BeginFragment().
@@ -173,7 +176,8 @@ class SharedRingBufferWriter {
   //    the reader takes this chunk too, it repeats.
   // If step 2 cannot claim a chunk, returns kFull or kClaimFailed. The
   // relocation is then pending: call RetryRelocation() or DropRelocation().
-  EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
+  PERFETTO_ALWAYS_INLINE EndFragmentResult EndFragment(uint32_t size,
+                                                       bool continues_on_next);
 
   // Tries again to claim a chunk for the saved fragment, and publishes it
   // there, as EndFragment() does. Only in Relocation pending.
@@ -252,7 +256,7 @@ class SharedRingBufferWriter {
 
   // Maximum payload available to one more fragment in the cached chunk, which
   // must exist.
-  uint32_t MaxFragmentSizeInCurrentChunk() const;
+  PERFETTO_ALWAYS_INLINE uint32_t MaxFragmentSizeInCurrentChunk() const;
   ChunkState cur_chunk_state() const {
     return ChunkStateOf(expected_state_word_);
   }
@@ -260,7 +264,17 @@ class SharedRingBufferWriter {
     return cur_fragment_begin_ != kNoFragmentOpen;
   }
 
-  FragmentRange BeginFragmentInCurrentChunk(uint32_t available);
+  PERFETTO_ALWAYS_INLINE FragmentRange
+  BeginFragmentInCurrentChunk(uint32_t available);
+  // BeginFragment() when the cached chunk cannot be reused.
+  FragmentRange BeginFragmentSlowPath(uint32_t min_size,
+                                      bool continues_from_prev);
+  // The Complete word that publishes num_fragments_.
+  PERFETTO_ALWAYS_INLINE uint32_t
+  MakeCompleteStateWord(bool continues_on_next) const;
+  // Updates the cached state after |complete_word| was published.
+  PERFETTO_ALWAYS_INLINE void OnChunkPublished(uint32_t complete_word,
+                                               bool continues_on_next);
   BeginFragmentResult AcquireNewChunk(uint32_t continuation_flags);
   // Only the just-ended fragment can be complete but unpublished:
   // - A size of zero is a valid empty fragment.
@@ -351,6 +365,128 @@ class SharedRingBufferWriter {
 
   Stats stats_;
 };
+
+inline uint32_t SharedRingBufferWriter::MaxFragmentSizeInCurrentChunk() const {
+  PERFETTO_DCHECK(cur_chunk_);
+  if (num_fragments_ >= kMaxFragmentsPerChunk)
+    return 0;
+  PERFETTO_DCHECK(payload_end_ <= chunk_size_);
+  PERFETTO_DCHECK(size_directory_bytes_ <= chunk_size_ - payload_end_);
+  const uint32_t available_bytes =
+      chunk_size_ - payload_end_ - size_directory_bytes_;
+  return MaxFragmentSizeForAvailableBytes(available_bytes);
+}
+
+inline SharedRingBufferWriter::FragmentRange
+SharedRingBufferWriter::BeginFragmentInCurrentChunk(uint32_t available) {
+  PERFETTO_DCHECK(cur_chunk_);
+  PERFETTO_DCHECK(cur_chunk_state() == ChunkState::kBeingWritten);
+  PERFETTO_DCHECK(available > 0);
+  cur_fragment_begin_ = payload_end_;
+  return FragmentRange{/*result=*/BeginFragmentResult::kSuccess,
+                       /*begin=*/cur_chunk_ + cur_fragment_begin_,
+                       /*end=*/cur_chunk_ + cur_fragment_begin_ + available};
+}
+
+inline uint32_t SharedRingBufferWriter::MakeCompleteStateWord(
+    bool continues_on_next) const {
+  uint32_t flags = PayloadFlagsOf(expected_state_word_);
+  // Publish pending loss and the fragment count in the same state word.
+  // The reader must observe the loss flag before it can deliver fragments.
+  if (data_loss_pending_)
+    flags |= kFlagDataLoss;
+  if (continues_on_next)
+    flags |= kFlagContinuesOnNextChunk;
+  return MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer,
+                           flags, num_fragments_, writer_id_);
+}
+
+inline void SharedRingBufferWriter::OnChunkPublished(uint32_t complete_word,
+                                                     bool continues_on_next) {
+  expected_state_word_ = complete_word;
+  data_loss_pending_ = false;
+  PERFETTO_DCHECK(payload_end_ <= chunk_size_);
+  PERFETTO_DCHECK(size_directory_bytes_ <= chunk_size_ - payload_end_);
+
+  // Discard the cached handle if any of these limits prevents reuse:
+  // - continues_on_next: kFlagContinuesOnNextChunk describes the last
+  //   fragment. If another fragment follows, the flag describes the wrong
+  //   fragment and the reader cannot identify the split packet.
+  // - num_fragments_ reached kMaxFragmentsPerChunk.
+  // - At most one byte remains between the payload and the size directory.
+  //   BeginFragment() requires a non-empty range plus one size byte, even
+  //   if the caller later ends the fragment with a size of zero.
+  if (continues_on_next || num_fragments_ >= kMaxFragmentsPerChunk ||
+      chunk_size_ - payload_end_ - size_directory_bytes_ <= 1) {
+    ResetCurrentChunk();
+  }
+}
+
+inline SharedRingBufferWriter::FragmentRange
+SharedRingBufferWriter::BeginFragment(uint32_t min_size,
+                                      bool continues_from_prev) {
+  PERFETTO_DCHECK(!has_open_fragment());
+  // A new chunk now would put the next packet ahead of the saved fragment.
+  PERFETTO_DCHECK(!pending_relocation_);
+  // EndFragment(..., /*continues_on_next=*/true) discards the cached handle
+  // when a packet continues into another chunk. A continuation must claim a
+  // new chunk because only AcquireNewChunk() sets kFlagContinuesFromPrevChunk.
+  PERFETTO_DCHECK(!continues_from_prev || !cur_chunk_);
+
+  // Try the cached Complete chunk before a new reservation.
+  if (PERFETTO_LIKELY(cur_chunk_ && min_size <= max_fragment_size_)) {
+    PERFETTO_DCHECK(cur_chunk_state() == ChunkState::kComplete);
+    const uint32_t available = MaxFragmentSizeInCurrentChunk();
+    // Pending loss does not prevent reuse, which requires no new reservation.
+    // The next publication sets kFlagDataLoss. The reader then discards all
+    // published fragments in this chunk, including those before the loss.
+    if (available >= min_size && ring_->TryReacquireChunkForWriting(
+                                     cur_chunk_idx_, expected_state_word_)) {
+      expected_state_word_ =
+          ReplaceChunkState(expected_state_word_, ChunkState::kBeingWritten);
+      return BeginFragmentInCurrentChunk(available);
+    }
+  }
+  return BeginFragmentSlowPath(min_size, continues_from_prev);
+}
+
+inline SharedRingBufferWriter::EndFragmentResult
+SharedRingBufferWriter::EndFragment(uint32_t size, bool continues_on_next) {
+  PERFETTO_DCHECK(has_open_fragment());
+  PERFETTO_DCHECK(cur_chunk_);
+  PERFETTO_DCHECK(cur_chunk_state() == ChunkState::kBeingWritten);
+  PERFETTO_DCHECK(size_directory_bytes_ <= chunk_size_);
+  PERFETTO_DCHECK(cur_fragment_begin_ <= chunk_size_ - size_directory_bytes_);
+  // The fragment must leave space for its size entry before the directory.
+  PERFETTO_DCHECK(
+      size <= MaxFragmentSizeForAvailableBytes(
+                  chunk_size_ - size_directory_bytes_ - cur_fragment_begin_));
+
+  // The reader cannot access this fragment until publication updates the shared
+  // fragment count. Write the size entry before that publication.
+  uint8_t* const chunk_end = cur_chunk_ + chunk_size_;
+  uint8_t* const sizes_begin =
+      WriteFragmentSizeReversed(chunk_end - size_directory_bytes_, size);
+  // sizes_begin points to the new size entry, before the existing entries.
+  // Subtract it from chunk_end to count all directory bytes, including the new
+  // entry. The directory grows towards lower addresses.
+  size_directory_bytes_ = static_cast<uint32_t>(chunk_end - sizes_begin);
+  payload_end_ = cur_fragment_begin_ + size;
+  ++num_fragments_;
+  cur_fragment_begin_ = kNoFragmentOpen;
+
+  // Publish unless the reader requested a rewrite. On failure, the state word
+  // stays RewriteRequested, so ReleaseCurrentChunkAsComplete() fails the same
+  // compare-and-swap and relocates the fragment.
+  const uint32_t complete_word = MakeCompleteStateWord(continues_on_next);
+  uint32_t expected = expected_state_word_;
+  if (PERFETTO_LIKELY(ring_->TryReleaseChunkAsComplete(
+          cur_chunk_idx_, complete_word, &expected))) {
+    OnChunkPublished(complete_word, continues_on_next);
+    return EndFragmentResult::kSuccess;
+  }
+  return ReleaseCurrentChunkAsComplete(size, continues_on_next);
+}
 
 }  // namespace perfetto::tracing_v2
 

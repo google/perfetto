@@ -43,6 +43,7 @@ source_set("android_process_state") {
     "../../../base",
     "../../../protozero",
     "../../core/plugin",
+    "../../importers/android",
     "../../importers/common",
     "../../importers/common:parser_types",
     "../../importers/proto:minimal",

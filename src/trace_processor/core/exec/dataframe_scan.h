@@ -52,7 +52,8 @@ class DataframeScan : public Source {
   const void* type() const override { return &kType; }
 
   DataframeScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
-                uint32_t row_count);
+                uint32_t row_count,
+                ReadDirection direction);
   ~DataframeScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
@@ -69,6 +70,7 @@ class DataframeScan : public Source {
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
   uint32_t row_count_;
+  ReadDirection direction_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

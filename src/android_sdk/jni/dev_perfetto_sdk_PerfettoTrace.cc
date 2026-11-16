@@ -43,11 +43,6 @@ static jlong dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid(
   return sdk_for_jni::get_process_track_uuid();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong tid) {
-  return sdk_for_jni::get_thread_track_uuid(tid);
-}
-
 static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
                                                             jclass,
                                                             jstring name,
@@ -57,9 +52,10 @@ static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
                                 static_cast<uint32_t>(ttl_ms));
 }
 
-void dev_perfetto_sdk_PerfettoTrace_register(JNIEnv*,
-                                             jclass,
-                                             bool is_backend_in_process) {
+static void dev_perfetto_sdk_PerfettoTrace_register(
+    JNIEnv*,
+    jclass,
+    jboolean is_backend_in_process) {
   sdk_for_jni::register_perfetto(is_backend_in_process);
 }
 
@@ -106,15 +102,14 @@ static jlong dev_perfetto_sdk_PerfettoTrace_start_session(
     jboolean is_backend_in_process,
     jbyteArray config_bytes) {
   jsize length = env->GetArrayLength(config_bytes);
-  std::vector<uint8_t> data;
-  data.reserve(length);
+  std::vector<uint8_t> data(static_cast<size_t>(length));
   env->GetByteArrayRegion(config_bytes, 0, length,
                           reinterpret_cast<jbyte*>(data.data()));
 
   auto session =
       new sdk_for_jni::Session(is_backend_in_process, data.data(), length);
 
-  return reinterpret_cast<long>(session);
+  return toJLong(session);
 }
 
 static jbyteArray dev_perfetto_sdk_PerfettoTrace_stop_session(
@@ -130,8 +125,13 @@ static jbyteArray dev_perfetto_sdk_PerfettoTrace_stop_session(
 
   delete session;
 
-  jbyteArray bytes = env->NewByteArray(data.size());
-  env->SetByteArrayRegion(bytes, 0, data.size(),
+  const jsize size = static_cast<jsize>(data.size());
+  jbyteArray bytes = env->NewByteArray(size);
+  if (bytes == nullptr) {
+    // Return with the pending exception from NewByteArray().
+    return nullptr;
+  }
+  env->SetByteArrayRegion(bytes, 0, size,
                           reinterpret_cast<jbyte*>(data.data()));
   return bytes;
 }
@@ -152,8 +152,6 @@ static const JNINativeMethod gCategoryMethods[] = {
 static const JNINativeMethod gTraceMethods[] = {
     {"native_get_process_track_uuid", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid},
-    {"native_get_thread_track_uuid", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid},
     {"native_activate_trigger", "(Ljava/lang/String;I)V",
      (void*)dev_perfetto_sdk_PerfettoTrace_activate_trigger},
     {"native_register", "(Z)V", (void*)dev_perfetto_sdk_PerfettoTrace_register},

@@ -21,21 +21,7 @@ import type {BigTraceEditorTab, QueryTabsState} from './query_tabs_state';
 import {renderStatusBox} from './status_box';
 import {renderResultsGrid, shownRowCount} from './results_grid';
 
-// Owns a 1s setInterval so the status bar's elapsed timer ticks while loading.
 class RunningQuerySpinner implements m.ClassComponent {
-  private timer: number | null = null;
-
-  oncreate(): void {
-    this.timer = window.setInterval(() => m.redraw(), 1000);
-  }
-
-  onremove(): void {
-    if (this.timer !== null) {
-      window.clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
   view(): m.Children {
     return m('.pf-empty-state.pf-empty-state--fill-height', [
       m('.pf-empty-state__title', 'Running query…'),

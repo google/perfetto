@@ -21,8 +21,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/bits.h"
 
 namespace perfetto::trace_processor {
 

@@ -405,6 +405,9 @@ OutputProperties Scan::Derive(DeriveContext& c) const {
       out.arrangements.push_back({{}, {{columns_[i].id, false}}});
     }
   }
+  if (data) {
+    out.reversible_scan = c.self();
+  }
   return out;
 }
 
@@ -417,8 +420,8 @@ void Scan::Lower(Lowering* c, const PlanNode& node) const {
     LowerSearch(c, node, data);
     return;
   }
-  c->SetSource(
-      std::make_unique<ex::DataframeScan>(data.columns, data.row_count));
+  c->SetSource(std::make_unique<ex::DataframeScan>(
+      data.columns, data.row_count, c->QueryScanDirection(node)));
 }
 
 void Scan::LowerSearch(Lowering* c,
@@ -438,6 +441,8 @@ void Scan::LowerSearch(Lowering* c,
   }
   if (search_->kind == ScanSearch::Kind::kIndex) {
     // Rows are read in index order, so the table's order is lost.
+    PERFETTO_DCHECK(c->QueryScanDirection(node) ==
+                    ex::ReadDirection::kForwards);
     std::vector<ex::IndexScan::Equality> equalities;
     for (uint32_t i = 0; i < columns.size(); ++i) {
       equalities.push_back({columns[i], values[i]});
@@ -470,7 +475,8 @@ void Scan::LowerSearch(Lowering* c,
     searches.push_back(std::move(search));
   }
   c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
-                                                std::move(searches), pool));
+                                                std::move(searches), pool,
+                                                c->QueryScanDirection(node)));
 }
 
 uint32_t Scan::Position(ColumnId column) const {

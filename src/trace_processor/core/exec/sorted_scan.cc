@@ -49,11 +49,13 @@ SortedScan::SortedScan(
     std::vector<std::shared_ptr<const dataframe::Column>> columns,
     uint32_t row_count,
     std::vector<Search> searches,
-    const StringPool* pool)
+    const StringPool* pool,
+    ReadDirection direction)
     : columns_(std::move(columns)),
       row_count_(row_count),
       searches_(std::move(searches)),
-      pool_(pool) {
+      pool_(pool),
+      direction_(direction) {
   for (const Search& s : searches_) {
     std::optional<RangeOp> op = s.op.TryDowncast<RangeOp>();
     PERFETTO_CHECK(op);
@@ -153,7 +155,8 @@ Range SortedScan::FindIdEq(const Context& context) const {
 bool SortedScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   if (PERFETTO_UNLIKELY(!s.searched)) {
-    s.reader.Start(only_id_eq_ ? FindIdEq(*s.context) : Find(*s.context));
+    s.reader.Start(only_id_eq_ ? FindIdEq(*s.context) : Find(*s.context),
+                   direction_);
     s.searched = true;
   }
   return s.reader.Read(out);

@@ -19,13 +19,14 @@ import type {
 } from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row, SqlValue} from '../../trace_processor/query_result';
-import {AsyncMemo, type AsyncMemoResult} from '../../base/async_memo';
+import type {AsyncMemoResult} from '../../base/async_memo';
 import {
   type BigtraceQueryClient,
   BigtraceHttpError,
   QueryCancelledError,
 } from './bigtrace_query_client';
 import type {BigtraceColumnSchema} from './column_types';
+import {DistinctValues} from './distinct_values';
 import {encodeFilters} from './filter_encoding';
 import {FetchScheduler} from './fetch_scheduler';
 import m from 'mithril';
@@ -69,7 +70,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   private schema?: ReadonlyArray<BigtraceColumnSchema>;
   // Owns debouncing and cancellation; see FetchScheduler.
   private readonly scheduler: FetchScheduler;
-  private readonly distinctValues = new AsyncMemo<readonly SqlValue[]>();
+  private readonly distinctValues = new DistinctValues();
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
@@ -311,29 +312,27 @@ export class BigtraceAsyncDataSource implements DataSource {
     return {data: {}, isPending: false};
   }
 
+  // Values among the rows the grid shows: a pick is AND-ed onto the grid's
+  // filters, so any other value would empty it.
   useDistinctValues(
     column: string | undefined,
     search = '',
   ): AsyncMemoResult<readonly SqlValue[]> {
     if (column === undefined) return {data: [], isPending: false};
-    return this.distinctValues.use({
+    const filters = this.currentFilter;
+    return this.distinctValues.use(
+      {column, search, scope: this.currentFilterKey},
+      (signal) =>
+        this.queryClient.fetchColumnValues(
+          this.queryUuid,
+          column,
+          search,
+          filters,
+          signal,
+        ),
       // Refetch as the backend inserts rows.
-      key: {column, search, rows: this.getTotalRows()},
-      retainOn: ['rows'],
-      compute: async () => {
-        try {
-          return await this.queryClient.fetchColumnValues(
-            this.queryUuid,
-            column,
-            search,
-          );
-        } catch (e) {
-          // An empty picker beats an exception out of the grid's render.
-          console.error('[bigtrace] column_values failed:', e);
-          return [];
-        }
-      },
-    });
+      this.getTotalRows(),
+    );
   }
 
   useParameterKeys(

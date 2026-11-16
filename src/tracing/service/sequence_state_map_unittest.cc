@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -35,7 +36,15 @@ namespace {
 
 using DataLossReason = protos::pbzero::TracePacket_DataLossReason;
 
+// Enough new sequences to start a prune, in a new map or after another prune.
+constexpr ProducerID kManySequences = 2000;
+
 constexpr WriterID kWriter = 1;
+
+constexpr uint32_t kGapLoss =
+    DataLossReason::DATA_LOSS_PRESENT | DataLossReason::DATA_LOSS_READ_GAP;
+constexpr uint32_t kOverwriteLoss =
+    DataLossReason::DATA_LOSS_PRESENT | DataLossReason::DATA_LOSS_OVERWRITE;
 
 ProducerAndWriterID Key(ProducerID producer) {
   return MkProducerAndWriterID(producer, kWriter);
@@ -130,6 +139,28 @@ TEST(SequenceStateMapTest, PruneDeletesLeastRecentlyUsedFirst) {
   EXPECT_EQ(states.Find(Key(1)), first_seq);
 }
 
+TEST(SequenceStateMapTest, LeaseKeepsSequenceThroughPrune) {
+  SequenceStateMap states;
+  SequenceState* seq = InsertSeq(&states, 1);
+  SequenceState::Lease lease = seq->AcquireLease();
+
+  // Sequence 1 has no chunks and was used before all the others.
+  for (ProducerID producer = 2; producer <= kManySequences; producer++)
+    InsertSeq(&states, producer);
+  ASSERT_TRUE(states.MaybePrune());
+  EXPECT_EQ(states.Find(Key(1)), seq);
+
+  // After the lease ends, the next prune deletes it like any old sequence.
+  lease = SequenceState::Lease();
+  constexpr ProducerID kLastProducer = 2 * kManySequences;
+  for (ProducerID producer = kManySequences + 1; producer <= kLastProducer;
+       producer++) {
+    InsertSeq(&states, producer);
+  }
+  ASSERT_TRUE(states.MaybePrune());
+  EXPECT_EQ(states.Find(Key(1)), nullptr);
+}
+
 TEST(SequenceStateMapTest, TakeDataLossReturnsAddedLossAndClearsIt) {
   SequenceStateMap states;
   SequenceState* seq = InsertSeq(&states, 1);
@@ -142,6 +173,81 @@ TEST(SequenceStateMapTest, TakeDataLossReturnsAddedLossAndClearsIt) {
                                   DataLossReason::DATA_LOSS_READ_GAP |
                                   DataLossReason::DATA_LOSS_OVERWRITE));
   EXPECT_EQ(seq->TakeDataLoss(), 0u);
+}
+
+TEST(SequenceStateMapTest, TakeBundleLossReturnsAddedLossAndClearsIt) {
+  SequenceStateMap states;
+  SequenceState* seq = InsertSeq(&states, 1);
+  SequenceState::Lease lease = seq->AcquireLease();
+  EXPECT_EQ(seq->TakeBundleLoss(), 0u);
+
+  seq->AddBundleLoss(DataLossReason::DATA_LOSS_OVERWRITE);
+  EXPECT_EQ(seq->TakeDataLoss(), 0u);
+  EXPECT_EQ(seq->TakeBundleLoss(), kOverwriteLoss);
+  EXPECT_EQ(seq->TakeBundleLoss(), 0u);
+}
+
+TEST(SequenceStateMapTest, LastLeaseMovesBundleLossToDataLoss) {
+  SequenceStateMap states;
+  SequenceState* seq = InsertSeq(&states, 1);
+  SequenceState::Lease first = seq->AcquireLease();
+  SequenceState::Lease second = seq->AcquireLease();
+  seq->AddBundleLoss(DataLossReason::DATA_LOSS_OVERWRITE);
+
+  // A lease remains, so the bundle loss keeps waiting.
+  first = SequenceState::Lease();
+  EXPECT_EQ(seq->TakeDataLoss(), 0u);
+
+  // The last lease adds it to any loss that is already pending.
+  seq->AddDataLoss(DataLossReason::DATA_LOSS_READ_GAP);
+  second = SequenceState::Lease();
+  EXPECT_EQ(seq->TakeBundleLoss(), 0u);
+  EXPECT_EQ(seq->TakeDataLoss(), kGapLoss | kOverwriteLoss);
+}
+
+// A moved-from lease is empty, so it ends nothing when it goes away.
+TEST(SequenceStateMapTest, MovedLeaseKeepsSequence) {
+  SequenceStateMap states;
+  SequenceState* seq = InsertSeq(&states, 1);
+  SequenceState::Lease assigned;
+  {
+    SequenceState::Lease lease = seq->AcquireLease();
+    seq->AddBundleLoss(DataLossReason::DATA_LOSS_OVERWRITE);
+    SequenceState::Lease constructed = std::move(lease);
+    assigned = std::move(constructed);
+  }
+  EXPECT_EQ(&*assigned, seq);
+  EXPECT_EQ(seq->TakeDataLoss(), 0u);
+
+  assigned = SequenceState::Lease();
+  EXPECT_EQ(seq->TakeDataLoss(), kOverwriteLoss);
+}
+
+TEST(SequenceStateMapTest, CopyHasNoLeases) {
+  SequenceStateMap src;
+  SequenceState* src_seq = InsertSeq(&src, 1);
+  SequenceState::Lease src_lease = src_seq->AcquireLease();
+  src_seq->AddBundleLoss(DataLossReason::DATA_LOSS_OVERWRITE);
+
+  SequenceStateMap copy(src);
+  SequenceState* copy_seq = copy.Find(Key(1));
+  ASSERT_NE(copy_seq, nullptr);
+
+  // A lease on the copy is its only one, so ending it moves the copy's loss.
+  // The source's loss keeps waiting for the source's lease.
+  {
+    SequenceState::Lease copy_lease = copy_seq->AcquireLease();
+  }
+  EXPECT_EQ(copy_seq->TakeDataLoss(), kOverwriteLoss);
+  EXPECT_EQ(src_seq->TakeDataLoss(), 0u);
+  EXPECT_EQ(src_seq->TakeBundleLoss(), kOverwriteLoss);
+
+  // The source's lease doesn't keep the copy's sequence through a prune.
+  for (ProducerID producer = 2; producer <= kManySequences; producer++)
+    InsertSeq(&copy, producer);
+  ASSERT_TRUE(copy.MaybePrune());
+  EXPECT_EQ(copy.Find(Key(1)), nullptr);
+  EXPECT_EQ(src.Find(Key(1)), src_seq);
 }
 
 }  // namespace

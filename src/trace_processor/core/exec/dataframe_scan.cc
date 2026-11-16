@@ -31,8 +31,11 @@ namespace perfetto::trace_processor::core::exec {
 
 DataframeScan::DataframeScan(
     std::vector<std::shared_ptr<const dataframe::Column>> columns,
-    uint32_t row_count)
-    : columns_(std::move(columns)), row_count_(row_count) {}
+    uint32_t row_count,
+    ReadDirection direction)
+    : columns_(std::move(columns)),
+      row_count_(row_count),
+      direction_(direction) {}
 
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
@@ -41,12 +44,12 @@ std::unique_ptr<OperatorState> DataframeScan::MakeState(
     Context& context) const {
   auto state = std::make_unique<State>();
   state->reader.Init(columns_, context);
-  state->reader.Start({0, row_count_});
+  state->reader.Start({0, row_count_}, direction_);
   return state;
 }
 
 void DataframeScan::Rewind(OperatorState& state) const {
-  state.Cast<State>().reader.Start({0, row_count_});
+  state.Cast<State>().reader.Start({0, row_count_}, direction_);
 }
 
 bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {

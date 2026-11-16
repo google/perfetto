@@ -480,6 +480,8 @@ void TraceBufferV1::RecordAbiViolation() {
   stats_.set_abi_violations(stats_.abi_violations() + 1);
 }
 
+void TraceBufferV1::OnWriteCheckpoint() {}
+
 void TraceBufferV1::BeginRead() {
   read_iter_ = GetReadIterForSequence(index_.begin());
 #if PERFETTO_DCHECK_IS_ON()

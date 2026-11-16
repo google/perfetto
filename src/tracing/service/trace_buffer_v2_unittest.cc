@@ -78,6 +78,12 @@ class TraceBufferV2Test : public testing::Test {
     return false;
   }
 
+  // The TEST_F subclasses do not inherit friendship, so expose the private
+  // staging operation through this fixture.
+  bool WriteWouldWrapOrOverwrite(size_t payload_size) {
+    return trace_buffer()->WriteWouldWrapOrOverwrite(payload_size);
+  }
+
   void TearDown() override {
     // Test that the used_size() logic works and that all the data after that
     // is zero-filled.
@@ -787,19 +793,22 @@ TEST_F(TraceBufferV2Test, Fragments_DiscardedOnPacketSizeDropPacket) {
 TEST_F(TraceBufferV2Test, Fragments_PacketSizeDropPacketIsNotAbiViolation) {
   ResetBuffer(4096);
   // A TraceWriter aborting a packet with kPacketSizeDropPacket is legitimate
-  // behaviour since Android R. It must be accounted as a trace writer data
-  // loss and not as an ABI violation.
+  // behaviour since Android R. Report it via DATA_LOSS_WRITER_ABORT.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(10, 'a')
       // Var-int encoded TraceWriterImpl::kPacketSizeDropPacket.
       .AddPacket({0xff, 0xff, 0xff, 0x7f})
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'a')));
+  uint32_t loss = 0;
+  ASSERT_THAT(ReadPacket(nullptr, &loss),
+              ElementsAre(FakePacketFragment(10, 'a')));
+  EXPECT_EQ(static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
+                                  DataLossReason::DATA_LOSS_WRITER_ABORT),
+            loss);
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
   EXPECT_EQ(0u, trace_buffer()->stats().abi_violations());
-  EXPECT_EQ(1u, trace_buffer()->stats().trace_writer_packet_loss());
 }
 
 TEST_F(TraceBufferV2Test, Fragments_IncompleteChunkNeedsPatching) {
@@ -848,12 +857,78 @@ TEST_F(TraceBufferV2Test, Patching_SkipIfChunkDoesntExist) {
       .CopyIntoTraceBuffer();
   ASSERT_FALSE(TryPatchChunkContents(ProducerID(1), WriterID(2), ChunkID(0),
                                      {{0, {{'X', 'X', 'X', 'X'}}}}));
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), 1u);
   ASSERT_FALSE(TryPatchChunkContents(ProducerID(1), WriterID(1), ChunkID(1),
                                      {{0, {{'X', 'X', 'X', 'X'}}}}));
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), 2u);
   ASSERT_FALSE(TryPatchChunkContents(ProducerID(1), WriterID(1), ChunkID(-1),
                                      {{0, {{'X', 'X', 'X', 'X'}}}}));
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), 3u);
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(100, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+TEST_F(TraceBufferV2Test, Patching_MissingConsumedChunks) {
+  for (bool overwrite : {false, true}) {
+    // Check normal ordering and both sides of the ChunkID wraparound.
+    for (ChunkID last_id : {ChunkID(1), kMaxChunkID, ChunkID(0)}) {
+      SCOPED_TRACE(overwrite);
+      SCOPED_TRACE(last_id);
+      ResetBuffer(4096);
+      const ChunkID older_id = last_id - 1;
+      const ChunkID newer_id = last_id + 1;
+      CreateChunk(1, 1, older_id).AddPacket(1008, 'a').CopyIntoTraceBuffer();
+      CreateChunk(1, 1, last_id).AddPacket(1008, 'b').CopyIntoTraceBuffer();
+
+      if (overwrite) {
+        CreateChunk(2, 1, 0).AddPacket(4080, 'x').CopyIntoTraceBuffer();
+        ASSERT_EQ(trace_buffer()->stats().chunks_overwritten(), 2u);
+      } else {
+        trace_buffer()->BeginRead();
+        ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1008, 'a')));
+        ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(1008, 'b')));
+        ASSERT_THAT(ReadPacket(), IsEmpty());
+      }
+
+      for (ChunkID id : {older_id, last_id}) {
+        EXPECT_FALSE(
+            TryPatchChunkContents(1, 1, id, {{0, {{'X', 'X', 'X', 'X'}}}}));
+        EXPECT_EQ(trace_buffer()->stats().patches_failed(), 0u);
+      }
+      EXPECT_FALSE(
+          TryPatchChunkContents(1, 1, newer_id, {{0, {{'X', 'X', 'X', 'X'}}}}));
+      EXPECT_EQ(trace_buffer()->stats().patches_failed(), 1u);
+      EXPECT_EQ(trace_buffer()->stats().patches_succeeded(), 0u);
+    }
+  }
+}
+
+TEST_F(TraceBufferV2Test, Patching_ReadmittedChunkStillValidated) {
+  ResetBuffer(4096);
+  CreateChunk(1, 1, 0)
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+  CreateChunk(2, 1, 0).AddPacket(4080, 'x').CopyIntoTraceBuffer();
+
+  // Re-admit chunk 0 with more payload. Its ID equals last_chunk_consumed,
+  // but it exists again, so patches must still be applied and validated.
+  CreateChunk(1, 1, 0)
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .CopyIntoTraceBuffer();
+  EXPECT_FALSE(TryPatchChunkContents(1, 1, 0, {{49, {{'X', 'X', 'X', 'X'}}}}));
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), 1u);
+  ASSERT_TRUE(TryPatchChunkContents(1, 1, 0, {{21, {{'T', 'E', 'S', 'T'}}}}));
+  EXPECT_EQ(trace_buffer()->stats().patches_succeeded(), 1u);
+
+  std::string expected = FakePacketFragment(30, 'b').payload();
+  expected.replace(0, 4, "TEST");
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(expected.data(),
+                                                           expected.size())));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
@@ -975,6 +1050,14 @@ TEST_F(TraceBufferV2Test, PendingPatchesDataLossOnOverwrite) {
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
       .AddPacket(2000, 'd')
       .CopyIntoTraceBuffer();
+
+  // Late patches for the evicted fragments are soft failures. The packet
+  // loss must still be reported when reading the surviving data below.
+  for (ChunkID id : {ChunkID(0), ChunkID(1)}) {
+    EXPECT_FALSE(
+        TryPatchChunkContents(1, 1, id, {{4, {{'X', 'X', 'X', 'X'}}}}));
+  }
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), 0u);
 
   // The pending chunks should have been overwritten. When we read the next
   // chunk in the sequence, we should see a data loss because chunks 0-1
@@ -1468,8 +1551,8 @@ TEST_F(TraceBufferV2Test, ScrapedChunkReScrape_EvictedBeforeNextRead) {
 
 // kDiscard counterpart of Override_ReCommitIncompleteOnFullBuffer. The write
 // cursor never wraps here, so the stale-offset race can't happen, and
-// relocating would hit the end-of-buffer DiscardWrite() and drop the
-// recovered 'b'/'c'. The |buffer_can_lap| guard keeps the in-place rewrite.
+// relocating would hit the end of the buffer and drop the recovered 'b'/'c'.
+// The |buffer_can_lap| guard keeps the in-place rewrite.
 TEST_F(TraceBufferV2Test, ScrapedChunkRecommit_InPlaceOnFullDiscardBuffer) {
   ResetBuffer(4096, TraceBuffer::kDiscard);
   const auto& stats = trace_buffer()->stats();
@@ -1815,6 +1898,7 @@ TEST_F(TraceBufferV2Test, Malicious_PatchOutOfBounds) {
     ASSERT_FALSE(TryPatchChunkContents(ProducerID(1), WriterID(1), ChunkID(1),
                                        {{offset, {{'0', 'd', 'a', 'y'}}}}));
   }
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), std::size(offsets));
 }
 
 TEST_F(TraceBufferV2Test, Malicious_OverrideWithShorterChunkSize) {
@@ -4051,6 +4135,7 @@ TEST_F(TraceBufferV2Test, V2Admission_RejectsSmbChunksAndPatches) {
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 1u);
   EXPECT_FALSE(
       trace_buffer()->TryPatchChunkContents(1, 7, 0, nullptr, 0, false));
+  EXPECT_EQ(trace_buffer()->stats().patches_failed(), 1u);
   ASSERT_TRUE(
       trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
 
@@ -5264,6 +5349,63 @@ TEST_F(TraceBufferV2Test, Compaction_FullyDrainedBuffer) {
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'b')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// -----------------------------------
+// TraceBufferV3 staging support tests
+// -----------------------------------
+
+TEST_F(TraceBufferV2Test, Staging_WriteWouldWrapOrOverwrite) {
+  for (auto policy : {TraceBuffer::kOverwrite, TraceBuffer::kDiscard}) {
+    SCOPED_TRACE(policy);
+    ResetBuffer(4096, policy);
+    // Each chunk also needs 16 bytes for its header.
+    EXPECT_FALSE(WriteWouldWrapOrOverwrite(4096 - 16));
+    EXPECT_TRUE(WriteWouldWrapOrOverwrite(4096 - 15));
+
+    CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+        .AddPacket(2048 - 16, 'a')
+        .CopyIntoTraceBuffer();
+    EXPECT_FALSE(WriteWouldWrapOrOverwrite(2048 - 16));
+    EXPECT_TRUE(WriteWouldWrapOrOverwrite(2048 - 15));
+  }
+
+  // After wrapping, any kOverwrite write would replace an older chunk.
+  ResetBuffer(4096);
+  for (ChunkID id = 0; id < 3; ++id) {
+    CreateChunk(ProducerID(1), WriterID(1), id)
+        .AddPacket(2048 - 16, 'a')
+        .CopyIntoTraceBuffer();
+  }
+  EXPECT_TRUE(WriteWouldWrapOrOverwrite(0));
+}
+
+TEST_F(TraceBufferV2Test, Staging_CompactionKeepsWritesStopped) {
+  ResetBuffer(4096, TraceBuffer::kDiscard);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(4096 - 16, 'a')
+      .CopyIntoTraceBuffer();
+
+  // This write exceeds the tail, so kDiscard stops intake.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(16, 'b')
+      .CopyIntoTraceBuffer();
+  ASSERT_EQ(trace_buffer()->stats().chunks_discarded(), 1u);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4096 - 16, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  trace_buffer()->MaybeCompact();
+  ASSERT_EQ(trace_buffer()->used_size(), 0u);
+
+  // Compaction reclaimed all space, but intake must remain stopped.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(16, 'c')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(trace_buffer()->stats().chunks_discarded(), 2u);
+  EXPECT_EQ(trace_buffer()->stats().bytes_written(), 4096u);
+  trace_buffer()->BeginRead();
+  EXPECT_THAT(ReadPacket(), IsEmpty());
 }
 
 }  // namespace perfetto

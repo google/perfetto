@@ -37,6 +37,8 @@ PERFETTO_PB_MSG_DECL(
     perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V1);
 PERFETTO_PB_MSG_DECL(
     perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V2);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V3);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BuiltinDataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CmdTraceStartDelay);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig);
@@ -752,6 +754,13 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig,
                   perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V2,
                   v2,
                   2);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V3,
+                  v3,
+                  3);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V3);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V2);
 

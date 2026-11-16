@@ -349,10 +349,12 @@ declare_args() {
       enable_perfetto_trace_processor &&
       (build_with_chromium || !perfetto_build_with_embedder)
 
-  # Enables the optional SQLite percentile module.
+  # Enables the external SQLite percentile loadable module. In standalone and
+  # Bazel builds (SQLite >= 3.51.0), percentile is built directly into the
+  # amalgamation via -DSQLITE_ENABLE_PERCENTILE; Android tree builds still link
+  # external/sqlite's separate sqlite_ext_percentile library.
   enable_perfetto_trace_processor_percentile =
-      enable_perfetto_trace_processor &&
-      (perfetto_build_standalone || perfetto_build_with_android)
+      enable_perfetto_trace_processor && perfetto_build_with_android
 
   # Enables the REPL interactive prompt in the trace processor.
   enable_perfetto_trace_processor_linenoise =

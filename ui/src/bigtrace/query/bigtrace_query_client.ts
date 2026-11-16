@@ -321,13 +321,23 @@ export class BigtraceQueryClient {
     uuid: string,
     column: string,
     search?: string,
+    filters?: ReadonlyArray<Filter>,
+    signal?: AbortSignal,
   ): Promise<ReadonlyArray<string>> {
+    const body: Record<string, unknown> = {
+      column_name: column,
+      search_pattern: search,
+    };
+    if (filters && filters.length > 0) {
+      body.filters = coerceFiltersForWire(filters);
+    }
     const result = await this.requestJson<{values?: string[]}>(
       `/query_executions/${uuid}:column_values`,
       {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({column_name: column, search_pattern: search}),
+        body: JSON.stringify(body),
+        signal,
       },
     );
     return result.values ?? [];

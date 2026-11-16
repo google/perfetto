@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/util/sort.h"
+#include "src/trace_processor/util/sort.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -25,7 +25,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::trace_processor::core {
+namespace perfetto::trace_processor {
 namespace {
 
 struct TestEntry {
@@ -213,4 +213,4 @@ TEST(MsdRadixSort, SingleElementBuckets) {
 }
 
 }  // namespace
-}  // namespace perfetto::trace_processor::core
+}  // namespace perfetto::trace_processor

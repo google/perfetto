@@ -24,10 +24,10 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"

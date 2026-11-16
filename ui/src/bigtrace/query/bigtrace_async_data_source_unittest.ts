@@ -14,6 +14,7 @@
 
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import m from 'mithril';
+import type {Filter} from '../../components/widgets/datagrid/model';
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {FETCH_DEBOUNCE_MS} from './fetch_scheduler';
 import {
@@ -283,5 +284,62 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     rejections[0]!(new Error('signal is aborted without reason'));
     await vi.advanceTimersByTimeAsync(0);
     expect(ds.getError()).toBeNull();
+  });
+});
+
+describe('BigtraceAsyncDataSource Equals picker', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(m, 'redraw').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  test('lists values among the rows the grid shows', async () => {
+    const fetchColumnValues = vi.fn().mockResolvedValue(['main', 'render']);
+    const client = {
+      fetchResults: vi.fn().mockResolvedValue({...PAGE, schema: []}),
+      fetchColumnValues,
+    } as unknown as BigtraceQueryClient;
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 10);
+    const filters: Filter[] = [
+      {field: 'process_name', op: '=', value: 'com.example.app'},
+    ];
+    ds.useRows({...model(0, 100), filters});
+
+    ds.useDistinctValues('thread_name');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ds.useDistinctValues('thread_name')).toEqual({
+      data: ['main', 'render'],
+      isPending: false,
+    });
+    expect(fetchColumnValues).toHaveBeenCalledWith(
+      'uid',
+      'thread_name',
+      '',
+      filters,
+      expect.any(AbortSignal),
+    );
+
+    // Other grid filters mean other values: asked again, nothing kept.
+    const narrower: Filter[] = [
+      ...filters,
+      {field: 'thread_name', op: 'glob', value: 'r*'},
+    ];
+    ds.useRows({...model(0, 100), filters: narrower});
+    expect(ds.useDistinctValues('thread_name')).toEqual({
+      data: undefined,
+      isPending: true,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchColumnValues).toHaveBeenLastCalledWith(
+      'uid',
+      'thread_name',
+      '',
+      narrower,
+      expect.any(AbortSignal),
+    );
   });
 });

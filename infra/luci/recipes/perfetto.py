@@ -78,7 +78,7 @@ class BuildContext:
     self.maybe_git_tag = None
 
 
-def GnArgs(platform):
+def GnArgs(ctx, platform):
   (os, cpu) = platform.split('-')
   base_args = " ".join([
       'is_clang=true', 'monolithic_binaries=true', 'is_debug=false',
@@ -87,7 +87,15 @@ def GnArgs(platform):
   if os not in ('android', 'linux', 'mac'):
     return base_args  # No cross-compiling on Windows.
   cpu = 'x64' if cpu == 'amd64' else cpu  # GN calls it "x64".
-  return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
+  args = base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
+  if platform == 'linux-amd64':
+    # linux-amd64 is not cross-compiled so GN doesn't pick a sysroot by
+    # default. Build against the Debian sysroot (the same release used for
+    # linux-arm{,64}) so that the glibc baseline of the released binaries
+    # doesn't depend on the OS of the bot.
+    sysroot = ctx.src_dir.join('buildtools', 'debian_bullseye_amd64-sysroot')
+    args += ' sysroot="{}"'.format(sysroot)
+  return args
 
 
 def should_build_artifact(artifact, platform):
@@ -221,7 +229,7 @@ def BuildForPlatform(api, ctx, platform):
     targets = [
         x['name'] for x in ARTIFACTS if should_build_artifact(x, platform)
     ]
-    args = GnArgs(platform)
+    args = GnArgs(ctx, platform)
     api.step('gn gen',
              ['python3', 'tools/gn', 'gen', out_dir, '--args={}'.format(args)])
     api.step('gn clean', ['python3', 'tools/gn', 'clean', out_dir])
@@ -269,8 +277,8 @@ def RunSteps(api, repository):
     if 'android' in api.buildbucket.builder_name:
       extra_args += ['--android']
     elif api.platform.is_linux:
-      # Pull the cross-toolchains for building for linux-arm{,64}.
-      extra_args += ['--linux-arm']
+      # Pull the Debian sysroots for linux-x64 and linux-arm{,64}.
+      extra_args += ['--linux-arm', '--linux-x64']
     elif api.platform.is_win:
       extra_args += ['--no-dev-tools']
     api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)

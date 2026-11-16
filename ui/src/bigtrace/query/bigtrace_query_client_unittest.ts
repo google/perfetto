@@ -820,18 +820,23 @@ describe('BigtraceQueryClient result tables', () => {
     expect(method).toBe('DELETE');
   });
 
-  test('fetchColumnValues asks one column of the result table', async () => {
+  test('fetchColumnValues asks one column of the result table, under the grid filters', async () => {
     const fetchMock = captureFetch({values: ['a', 'b']});
     const client = new BigtraceQueryClient('http://example');
     const values = await client.fetchColumnValues(
       'uid-1',
       'process_name',
       'sys',
+      [{field: 'pid', op: '=', value: 42}],
     );
     const {url, method, body} = callOf(fetchMock);
     expect(url).toBe('http://example/query_executions/uid-1:column_values');
     expect(method).toBe('POST');
-    expect(body).toEqual({column_name: 'process_name', search_pattern: 'sys'});
+    expect(body).toEqual({
+      column_name: 'process_name',
+      search_pattern: 'sys',
+      filters: [{field: 'pid', op: '=', value: '42'}],
+    });
     expect(values).toEqual(['a', 'b']);
   });
 

@@ -22,6 +22,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
@@ -42,8 +43,9 @@ class PlanCodec;
 //
 // It has the shape of the executor's program: nodes in post-order, each
 // reading only nodes before it, the last being the result. A kColumn node's
-// `a` is a ColumnId rather than a batch position, and a kConstant node's `a` is
-// its index in `literals`. Nodes are typed when the plan is lowered.
+// `a` is a ColumnId rather than a batch position, a kConstant node's `a` is its
+// index in `literals`, and so is a kGlob node's `b` for its pattern. Nodes are
+// typed when the plan is lowered.
 //
 // Only expressions whose meaning is the same as SQLite's are accepted.
 // Anything else is refused when the plan is built, not answered
@@ -53,6 +55,12 @@ struct Expr {
   std::vector<core::exec::ExprStep> nodes;
   std::vector<Literal> literals;
 };
+
+// Whether the IS at AST node `expr` is IS NULL rather than IS NOT NULL.
+// Anything else is refused.
+base::StatusOr<bool> CompileIsNull(Compiler*,
+                                   uint32_t expr,
+                                   const SyntaqliteIsExpr& node);
 
 // Compiles the expression at AST node `expr` against the row in scope.
 base::Status CompileExpr(Compiler*, uint32_t expr, Expr* out);

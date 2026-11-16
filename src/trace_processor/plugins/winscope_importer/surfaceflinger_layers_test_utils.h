@@ -154,6 +154,12 @@ class Layer {
     return *this;
   }
 
+  // Sets is_visible and visibility_reason the way SurfaceFlinger writes them.
+  Layer& SetVisibilityReason(int32_t value) {
+    visibility_reason_ = value;
+    return *this;
+  }
+
   Layer& NullifyId() {
     nullify_id_ = true;
     return *this;
@@ -175,6 +181,7 @@ class Layer {
   std::optional<geometry::CornerRadii> corner_radii_;
   std::optional<float> corner_radius_;
   std::optional<int32_t> id_;
+  std::optional<int32_t> visibility_reason_;
   bool nullify_id_ = false;
 };
 
@@ -261,6 +268,14 @@ class SnapshotProtoBuilder {
       }
       if (layer.corner_radius_.has_value()) {
         layer_proto->set_corner_radius(layer.corner_radius_.value());
+      }
+      if (layer.visibility_reason_.has_value()) {
+        const auto reason =
+            static_cast<com::android::internal::gen::VisibilityReason>(
+                layer.visibility_reason_.value());
+        layer_proto->set_is_visible(
+            reason == com::android::internal::gen::VISIBILITY_REASON_VISIBLE);
+        layer_proto->set_visibility_reason(reason);
       }
     }
 

@@ -42,7 +42,10 @@ const POST_DIR_RE = /^(\d{4})-(\d{2})-(\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const REQUIRED = ["title", "author", "summary"];
 // Unknown keys are rejected rather than ignored: a misspelt `cover` would
 // otherwise silently fall back to the generated artwork.
-const OPTIONAL = ["cover"];
+// `hidden: true` builds the post at /blog/<slug> as usual but leaves it out of
+// the index, the Atom feed and the blog search, and asks crawlers not to index
+// it: for drafts shared by link, or posts that are not meant to be advertised.
+const OPTIONAL = ["cover", "hidden"];
 const KNOWN = new Set([...REQUIRED, ...OPTIONAL]);
 
 // A PNG sitting next to post.md. The cover doubles as the og:image link
@@ -109,6 +112,13 @@ export function parseFrontMatter(raw, srcForErrors) {
         `also the link preview image, and crawlers do not render SVG.`,
     );
   }
+  if ("hidden" in fields && !/^(true|false)$/.test(fields.hidden)) {
+    throw new Error(
+      `Bad hidden${where}: ${JSON.stringify(fields.hidden)}. Expected ` +
+        `'true' or 'false'.`,
+    );
+  }
+  fields.hidden = fields.hidden === "true";
   return { fields, body: lines.slice(i + 1).join("\n") };
 }
 
@@ -210,6 +220,7 @@ export function collectPosts(blogDir) {
       body,
       title: fields.title,
       summary: fields.summary,
+      hidden: fields.hidden,
       authors: fields.authors.map((handle) => ({
         handle,
         url: NON_GITHUB_AUTHORS.has(handle)

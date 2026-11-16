@@ -55,6 +55,7 @@ if (enable_perfetto_integration_tests) {
       "../../../include/perfetto/tracing",
       "../../../include/perfetto/tracing/core",
       "../../base",
+      "../../tracing/test:api_test_support",
       "protos",
     ]
     sources = [ "api_integrationtest.cc" ]

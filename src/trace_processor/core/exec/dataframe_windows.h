@@ -80,24 +80,33 @@ class DataframeWindows {
   Context* context_ = nullptr;
 };
 
+// Which way a range of a dataframe's rows is read.
+enum class ReadDirection : uint8_t {
+  kForwards,
+  // From the last row to the first.
+  kBackwards,
+};
+
 // Reads a range of a dataframe's rows a batch at a time, for the sources
 // which find the rows they read as a range.
 class RangeReader {
  public:
   void Init(
       const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
-      Context& context) {
-    windows_.Init(columns, context);
-  }
+      Context& context);
 
-  // Reads `range` from its first row.
-  void Start(Range range) {
+  // Reads `range` in `direction`.
+  void Start(Range range, ReadDirection direction) {
     range_ = range;
-    next_ = range.b;
+    direction_ = direction;
+    next_ = direction == ReadDirection::kBackwards ? range.e : range.b;
   }
 
   // Points `out` at the next batch of the range. False once all are read.
   PERFETTO_ALWAYS_INLINE bool Read(RowBatch& out) {
+    if (PERFETTO_UNLIKELY(direction_ == ReadDirection::kBackwards)) {
+      return ReadBackwards(out);
+    }
     if (next_ == range_.e) {
       return false;
     }
@@ -108,9 +117,15 @@ class RangeReader {
   }
 
  private:
+  // The window is filled as forwards, and a selection reverses its rows.
+  bool ReadBackwards(RowBatch& out);
+
   DataframeWindows windows_;
   Range range_{0, 0};
   uint32_t next_ = 0;
+  ReadDirection direction_ = ReadDirection::kForwards;
+  // From kMaxBatchRows - 1 down to 0: the last `count` reverse a batch.
+  std::array<uint32_t, kMaxBatchRows> descending_;
 };
 
 // Reads a list of a dataframe's rows, in list order, a batch at a time. Each

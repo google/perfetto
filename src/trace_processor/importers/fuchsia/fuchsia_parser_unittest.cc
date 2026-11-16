@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
@@ -207,7 +208,9 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     tokenizer_ = std::make_unique<FuchsiaTraceTokenizer>(&context_);
   }
 
-  void push_word(uint64_t word) { trace_bytes_.push_back(word); }
+  void push_word(uint64_t word) {
+    trace_bytes_.push_back(base::HostToLE(word));
+  }
 
   void ResetTraceBuffers() {
     trace_bytes_.clear();

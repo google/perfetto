@@ -65,7 +65,8 @@ class SortedScan final : public Source {
   SortedScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
              uint32_t row_count,
              std::vector<Search> searches,
-             const StringPool* pool);
+             const StringPool* pool,
+             ReadDirection direction);
   ~SortedScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
@@ -99,6 +100,7 @@ class SortedScan final : public Source {
   // Parallel to searches_; used only by binary searches.
   std::vector<Sorted> sorted_;
   const StringPool* pool_;
+  ReadDirection direction_;
   // The hottest lookup, id = ?, skips the general search loop.
   bool only_id_eq_ = false;
 };

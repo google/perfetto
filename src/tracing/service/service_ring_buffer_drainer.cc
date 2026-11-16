@@ -28,14 +28,6 @@
 
 namespace perfetto::tracing_v2 {
 
-namespace {
-
-// Delay retries so writers that repeatedly win chunk state transitions
-// cannot keep the service sequence busy.
-constexpr uint32_t kDrainRetryDelayMs = 1;
-
-}  // namespace
-
 ServiceRingBufferDrainer::Delegate::~Delegate() = default;
 
 ServiceRingBufferDrainer::ServiceRingBufferDrainer(
@@ -43,8 +35,7 @@ ServiceRingBufferDrainer::ServiceRingBufferDrainer(
     uint32_t chunk_size_bytes,
     ProducerID producer_id,
     ClientIdentity client_identity,
-    Delegate* delegate,
-    base::TaskRunner* task_runner)
+    Delegate* delegate)
     : producer_id_(producer_id),
       client_identity_(client_identity),
       delegate_(delegate),
@@ -52,18 +43,17 @@ ServiceRingBufferDrainer::ServiceRingBufferDrainer(
       ring_buffer_(static_cast<uint8_t*>(memory_->start()),
                    memory_->size(),
                    chunk_size_bytes),
-      reader_(&ring_buffer_, this),
-      weak_runner_(task_runner) {}
+      reader_(&ring_buffer_, this) {}
 
 ServiceRingBufferDrainer::~ServiceRingBufferDrainer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
 
-void ServiceRingBufferDrainer::Drain() {
+bool ServiceRingBufferDrainer::Drain() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (PERFETTO_UNLIKELY(reader_.has_protocol_error()))
-    return;
+    return false;
 
   // Bound each pass to num_chunks() logical positions, including positions
   // reserved during the pass.
@@ -91,19 +81,10 @@ void ServiceRingBufferDrainer::Drain() {
     // above, so each destination counts this violation only once.
     delegate_->ForEachV2RingBufferDestination(
         [](TraceBuffer& buffer) { buffer.RecordAbiViolation(); });
-    return;
+    return false;
   }
 
-  if (result.needs_another_drain() && !retry_scheduled_) {
-    retry_scheduled_ = true;
-    weak_runner_.PostDelayedTask(
-        [this] {
-          // Clear the flag so Drain() can schedule another retry if needed.
-          retry_scheduled_ = false;
-          Drain();
-        },
-        kDrainRetryDelayMs);
-  }
+  return result.needs_another_drain();
 }
 
 void ServiceRingBufferDrainer::FillStats(

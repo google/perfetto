@@ -149,21 +149,23 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       },
     });
 
-    if (!this.sidebarVisible) {
-      return m('.pf-bt-query-page', leftPanel);
-    }
-
+    // Always rendered: dropping it while History is hidden remounts the editor.
     return m(
       '.pf-bt-query-page',
       m(SplitPanel, {
+        className: this.sidebarVisible
+          ? undefined
+          : 'pf-bt-query-page__split--sidebar-hidden',
         direction: 'horizontal',
         initialSplit: {percent: 25},
+        split: this.sidebarVisible ? undefined : {percent: 0},
         controlledPanel: 'second',
         // Floor for the History meta-band layout; dismiss the sidebar
-        // entirely (Ctrl+Shift+B) on narrower screens.
-        minSize: 280,
+        // entirely (Ctrl+Shift+B) on narrower screens. 0 while hidden: the
+        // editor's max width is 100% minus this.
+        minSize: this.sidebarVisible ? 280 : 0,
         firstPanel: leftPanel,
-        secondPanel: sidebarPanel,
+        secondPanel: this.sidebarVisible ? sidebarPanel : undefined,
       }),
     );
   }
