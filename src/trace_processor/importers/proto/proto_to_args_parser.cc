@@ -71,14 +71,20 @@ void AppendArrayIndex(std::string& target, size_t index) {
   target.append(part.c_str(), part.len());
 }
 
-// True if ParseSimpleField emits |field| from the interned key ids alone,
-// without reading the key strings.
-bool IsPlainScalar(const FieldDescriptor& field) {
+// True if |field| is a scalar handled by ParseSimpleField (not a message,
+// group, or flags_enum).
+bool IsScalarField(const FieldDescriptor& field) {
   using FD = protos::pbzero::FieldDescriptorProto;
-  return !field.is_pid() && !field.is_tid() &&
-         !field.flags_enum_descriptor_idx() &&
+  return !field.flags_enum_descriptor_idx() &&
          field.type() != FD::TYPE_MESSAGE && field.type() != FD::TYPE_GROUP &&
          field.type() >= FD::TYPE_DOUBLE && field.type() <= FD::TYPE_SINT64;
+}
+
+// True if ParseSimpleField emits |field| from the interned key ids alone,
+// without reading the key strings. pid/tid fields lazily intern their suffixed
+// key from the key strings on the first lookup hit.
+bool IsPlainScalar(const FieldDescriptor& field) {
+  return IsScalarField(field) && !field.is_pid() && !field.is_tid();
 }
 
 bool IsFieldAllowed(const FieldDescriptor& field,
@@ -481,9 +487,7 @@ void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
   path_nodes_[node].flat_eligible = false;
   const auto& descriptor = pool_.descriptors()[descriptor_idx];
   for (const auto& [id, field] : descriptor.fields()) {
-    if (field.is_repeated() || field.flags_enum_descriptor_idx() ||
-        field.type() == FD::TYPE_MESSAGE || field.type() == FD::TYPE_GROUP ||
-        field.type() < FD::TYPE_DOUBLE || field.type() > FD::TYPE_SINT64) {
+    if (field.is_repeated() || !IsScalarField(field)) {
       return;
     }
   }
@@ -1115,12 +1119,13 @@ std::pair<StringPool::Id, StringPool::Id> ProtoToArgsParser::SuffixedKeys(
   if (node == kNoPath || path_nodes_[node].has_array) {
     return InternSuffixedKeys(from, to);
   }
-  // Without an array the key is the flat key, the same every time.
-  StringPool::Id& cached = path_nodes_[node].suffixed_key_id;
-  if (cached.is_null()) {
-    cached = InternSuffixedKeys(from, to).first;
+  PathNode& n = path_nodes_[node];
+  if (n.suffixed_key_id.is_null()) {
+    auto [fk, k] = InternSuffixedKeys(from, to);
+    n.suffixed_flat_key_id = fk;
+    n.suffixed_key_id = k;
   }
-  return {cached, cached};
+  return {n.suffixed_flat_key_id, n.suffixed_key_id};
 }
 
 void ProtoToArgsParser::AddPid(int64_t pid, uint32_t node) {

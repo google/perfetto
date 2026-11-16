@@ -1582,6 +1582,21 @@ std::vector<uint8_t> BuildPidTidDescriptorSet() {
   add_field("caller_tid", 2, 51003);
   // "owner" does not end in "pid": exercises the append fallback.
   add_field("owner", 3, 51002);
+
+  auto* outer = file->add_message_type();
+  outer->set_name("Outer");
+  auto* items = outer->add_field();
+  items->set_name("items");
+  items->set_number(1);
+  items->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  items->set_type_name(".test.Msg");
+  items->set_label(FieldDescriptorProto::LABEL_REPEATED);
+  auto* repeated_pid = outer->add_field();
+  repeated_pid->set_name("repeated_pid");
+  repeated_pid->set_number(2);
+  repeated_pid->set_type(FieldDescriptorProto::TYPE_INT32);
+  repeated_pid->set_label(FieldDescriptorProto::LABEL_REPEATED);
+  repeated_pid->set_options()->AppendVarInt(51002, 1);
   return fds.SerializeAsArray();
 }
 }  // namespace
@@ -1641,6 +1656,51 @@ TEST_F(ProtoToArgsParserTest, PidTidFieldsWithoutProcessTrackerAreDropped) {
       parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
                           ".test.Msg", nullptr, env(), *this));
   EXPECT_THAT(args(), testing::ElementsAre("caller_pid caller_pid 4321"));
+}
+
+TEST_F(ProtoToArgsParserTest, PidTidFieldsUnderArrays) {
+  auto fds_bytes = BuildPidTidDescriptorSet();
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size()));
+
+  context_.global_stats_tracker =
+      std::make_unique<GlobalStatsTracker>(context_.storage.get());
+  context_.args_tracker = std::make_unique<ArgsTracker>(context_.storage.get());
+  context_.trace_state =
+      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+          TraceProcessorContext::TraceState{TraceId{0}});
+  context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+  context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
+  UniquePid first_upid = context_.process_tracker->GetOrCreateProcess(4321);
+  UniquePid second_upid = context_.process_tracker->GetOrCreateProcess(7);
+  env_.process_tracker = context_.process_tracker.get();
+
+  ProtoToArgsParser parser(pool, string_pool_);
+  std::vector<std::string> expected;
+  for (int i = 0; i < 2; i++) {
+    protozero::HeapBuffered<protozero::Message> outer{kChunkSize, kChunkSize};
+    outer->BeginNestedMessage<protozero::Message>(1)->AppendVarInt(1, 4321);
+    outer->BeginNestedMessage<protozero::Message>(1)->AppendVarInt(1, 7);
+    outer->AppendVarInt(2, 4321);
+    outer->AppendVarInt(2, 7);
+    auto binary = outer.SerializeAsArray();
+    ASSERT_OK(
+        parser.ParseMessage(protozero::ConstBytes{binary.data(), binary.size()},
+                            ".test.Outer", nullptr, env(), *this));
+    expected.push_back("items.caller_pid items[0].caller_pid 4321");
+    expected.push_back("items.caller_upid items[0].caller_upid " +
+                       std::to_string(first_upid));
+    expected.push_back("items.caller_pid items[1].caller_pid 7");
+    expected.push_back("items.caller_upid items[1].caller_upid " +
+                       std::to_string(second_upid));
+    expected.push_back("repeated_pid repeated_pid[0] 4321");
+    expected.push_back("repeated_upid repeated_pid[0]_upid " +
+                       std::to_string(first_upid));
+    expected.push_back("repeated_pid repeated_pid[1] 7");
+    expected.push_back("repeated_upid repeated_pid[1]_upid " +
+                       std::to_string(second_upid));
+  }
+  EXPECT_EQ(args(), expected);
 }
 
 }  // namespace

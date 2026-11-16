@@ -421,8 +421,9 @@ class ProtoToArgsParser {
     // fixed key instead.
     bool has_array = false;
 
-    // For a pid or tid field without an array on its path: the key of its
+    // For a pid or tid field with a fixed key: the flat_key and key of its
     // upid / utid arg, interned on first use.
+    StringPool::Id suffixed_flat_key_id = StringPool::Id::Null();
     StringPool::Id suffixed_key_id = StringPool::Id::Null();
 
     uint32_t flat_generation = 0;
