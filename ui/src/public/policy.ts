@@ -13,8 +13,8 @@
 // limitations under the License.
 
 /**
- * Which additional features are on for the current user, with one field per
- * feature. Unlike feature flags, users can't change these.
+ * Configurations for additional features, with one field per feature.
+ * Unlike feature flags, users can't change these.
  *
  * TODO(b/585531330): serve these from a policy server. Until then, every field
  * is derived from whether the user is internal (see
@@ -24,15 +24,13 @@ export interface Policy {
   // Offer to share the current trace via a permalink.
   readonly enableTraceSharing: boolean;
 
-  // Offer to upload the trace when filing a bug from the error dialog.
-  readonly enableErrorTraceUpload: boolean;
+  // Offer to upload the trace when filing a bug report from the error dialog.
+  readonly enableTraceUploadForBugReports: boolean;
 
-  // Point bug links at the internal bug tracker instead of GitHub.
-  readonly useInternalBugLinks: boolean;
+  // Where bug reports are filed, e.g. the GitHub issue tracker.
+  readonly bugReportUrl: string;
 
-  // Show the Perfetto SQL agent button and banner on the query page.
-  readonly enableSqlAgent: boolean;
-
-  // Allow the hiring banner in the sidebar.
-  readonly showHiringBanner: boolean;
+  // Show links that only work for Googlers, such as the Perfetto SQL agent on
+  // the query page and the hiring banner in the sidebar.
+  readonly showInternalExperimentalLinks: boolean;
 }

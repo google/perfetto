@@ -16,13 +16,14 @@ import {defer} from '../base/deferred';
 import type {Policy} from '../public/policy';
 import {initializeAppImplForTesting} from './fake_trace_impl';
 
-function policyWithAll(value: boolean): Policy {
+function policyFor(isInternalUser: boolean): Policy {
   return {
-    enableTraceSharing: value,
-    enableErrorTraceUpload: value,
-    useInternalBugLinks: value,
-    enableSqlAgent: value,
-    showHiringBanner: value,
+    enableTraceSharing: isInternalUser,
+    enableTraceUploadForBugReports: isInternalUser,
+    bugReportUrl: isInternalUser
+      ? 'https://goto.google.com/perfetto-ui-bug'
+      : 'https://github.com/google/perfetto/issues/new',
+    showInternalExperimentalLinks: isInternalUser,
   };
 }
 
@@ -33,7 +34,7 @@ describe('AppImpl', () => {
     test('should start from the answer saved on the previous visit', () => {
       localStorage.setItem('isInternalUser', '1');
       const app = initializeAppImplForTesting();
-      expect(app.policy).toEqual(policyWithAll(true));
+      expect(app.policy).toEqual(policyFor(true));
     });
   });
 
@@ -42,11 +43,11 @@ describe('AppImpl', () => {
       const app = initializeAppImplForTesting();
       const answer = defer<boolean>();
       app.setIsInternalUser(answer);
-      expect(app.policy).toEqual(policyWithAll(true));
+      expect(app.policy).toEqual(policyFor(true));
 
       answer.resolve(false);
       await answer;
-      expect(app.policy).toEqual(policyWithAll(false));
+      expect(app.policy).toEqual(policyFor(false));
       expect(localStorage.getItem('isInternalUser')).toBe('0');
     });
 
@@ -55,7 +56,7 @@ describe('AppImpl', () => {
       const answer = Promise.resolve(true);
       app.setIsInternalUser(answer);
       await answer;
-      expect(app.policy).toEqual(policyWithAll(true));
+      expect(app.policy).toEqual(policyFor(true));
       expect(localStorage.getItem('isInternalUser')).toBe('1');
     });
   });

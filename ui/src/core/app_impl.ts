@@ -58,10 +58,11 @@ const IS_INTERNAL_USER_KEY = 'isInternalUser';
 function derivePolicy(isInternalUser: boolean): Policy {
   return {
     enableTraceSharing: isInternalUser,
-    enableErrorTraceUpload: isInternalUser,
-    useInternalBugLinks: isInternalUser,
-    enableSqlAgent: isInternalUser,
-    showHiringBanner: isInternalUser,
+    enableTraceUploadForBugReports: isInternalUser,
+    bugReportUrl: isInternalUser
+      ? 'https://goto.google.com/perfetto-ui-bug'
+      : 'https://github.com/google/perfetto/issues/new',
+    showInternalExperimentalLinks: isInternalUser,
   };
 }
 

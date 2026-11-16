@@ -16,16 +16,9 @@ import {TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import type {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
-import type {App} from './app';
 import type {Trace} from './trace';
 
 export const DISCORD_URL = 'https://discord.gg/35ShE3A';
-
-export function getBugReportUrl(app: App): string {
-  return app.policy.useInternalBugLinks
-    ? 'https://goto.google.com/perfetto-ui-bug'
-    : 'https://github.com/google/perfetto/issues/new';
-}
 
 // Number of machines in the trace. Used to decide whether tracks should be
 // disambiguated with a "(machine N)" label: with a single machine there's no
