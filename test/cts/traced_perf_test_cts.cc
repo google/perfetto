@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <memory>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -52,32 +53,32 @@ std::string RandomSessionName() {
   return result;
 }
 
-std::vector<protos::gen::TracePacket> CollectTrace(
-    base::TestTaskRunner* task_runner,
-    const TraceConfig& trace_config) {
-  TestHelper helper(task_runner);
-  helper.ConnectConsumer();
-  helper.WaitForConsumerConnect();
+std::unique_ptr<TestHelper> CollectTrace(base::TestTaskRunner* task_runner,
+                                         const TraceConfig& trace_config) {
+  auto helper = std::make_unique<TestHelper>(task_runner);
+  helper->ConnectConsumer();
+  helper->WaitForConsumerConnect();
 
-  helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(15000 /*ms*/);
-  helper.ReadData();
-  helper.WaitForReadData();
-  return helper.trace();
+  helper->StartTracing(trace_config);
+  helper->WaitForTracingDisabled(15000 /*ms*/);
+  helper->ReadData();
+  helper->WaitForReadData();
+  // The helper has its own copy of the trace, release the session in traced.
+  helper->FreeBuffers();
+  return helper;
 }
 
-std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
-  base::TestTaskRunner task_runner;
-
+std::unique_ptr<TestHelper> ProfileSystemWide(base::TestTaskRunner* task_runner,
+                                              std::string app_name) {
   // (re)start the target app's main activity
   if (IsAppRunning(app_name)) {
-    StopApp(app_name, "old.app.stopped", &task_runner);
-    task_runner.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
+    StopApp(app_name, "old.app.stopped", task_runner);
+    task_runner->RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
   StartAppActivity(app_name, "BusyWaitActivity", "target.app.running",
-                   &task_runner,
+                   task_runner,
                    /*delay_ms=*/100);
-  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
+  task_runner->RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
   // build config
   TraceConfig trace_config;
@@ -95,34 +96,34 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   perf_config.set_sampling_frequency(10);  // Hz
   ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
 
-  return CollectTrace(&task_runner, trace_config);
+  return CollectTrace(task_runner, trace_config);
 }
 
-void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
-                                  int pid) {
+void AssertHasSampledStacksForPid(const TestHelper& helper, int pid) {
   uint32_t target_pid = static_cast<uint32_t>(pid);
-  ASSERT_GT(packets.size(), 0u);
 
+  size_t total_packets = 0;
   int total_perf_packets = 0;
   int lost_records_packets = 0;
   int full_samples = 0;
   int target_samples = 0;
   int target_skipped_samples = 0;
-  for (const auto& packet : packets) {
+  helper.ForEachPacket([&](const protos::gen::TracePacket& packet) {
+    total_packets++;
     if (!packet.has_perf_sample())
-      continue;
+      return;
 
     total_perf_packets++;
     EXPECT_GT(packet.timestamp(), 0u) << "all packets should have a timestamp";
     const auto& sample = packet.perf_sample();
     if (sample.has_kernel_records_lost()) {
       lost_records_packets++;
-      continue;
+      return;
     }
     if (sample.has_sample_skipped_reason()) {
       if (sample.pid() == target_pid)
         target_skipped_samples++;
-      continue;
+      return;
     }
 
     full_samples++;
@@ -131,78 +132,82 @@ void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
 
     if (sample.pid() == target_pid)
       target_samples++;
-  }
+  });
+  ASSERT_GT(total_packets, 0u);
 
   // log summary even if successful
   base::StackString<512> log(
-      "target_pid: %d, packets.size(): %zu, total_perf_packets: %d, "
+      "target_pid: %d, total_packets: %zu, total_perf_packets: %d, "
       "full_samples: %d, lost_records_packets: %d, target_skipped_samples: %d",
-      target_pid, packets.size(), total_perf_packets, full_samples,
+      target_pid, total_packets, total_perf_packets, full_samples,
       lost_records_packets, target_skipped_samples);
   PERFETTO_LOG("%s", log.c_str());
 
   EXPECT_GT(target_samples, 0) << log.c_str() << "\n";
 }
 
-void AssertNoStacksForPid(std::vector<protos::gen::TracePacket> packets,
-                          int pid) {
+void AssertNoStacksForPid(const TestHelper& helper, int pid) {
   uint32_t target_pid = static_cast<uint32_t>(pid);
   // The process can still be sampled, but the stacks should be discarded
   // without unwinding.
-  for (const auto& packet : packets) {
+  helper.ForEachPacket([&](const protos::gen::TracePacket& packet) {
     if (packet.perf_sample().pid() == target_pid) {
       EXPECT_EQ(packet.perf_sample().callstack_iid(), 0u);
       EXPECT_TRUE(packet.perf_sample().has_sample_skipped_reason());
     }
-  }
+  });
 }
 
 TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
-  const auto& packets = ProfileSystemWide(app_name);
+  base::TestTaskRunner task_runner;
+  auto helper = ProfileSystemWide(&task_runner, app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  AssertHasSampledStacksForPid(packets, app_pid);
+  AssertHasSampledStacksForPid(*helper, app_pid);
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
 TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
   std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets = ProfileSystemWide(app_name);
+  base::TestTaskRunner task_runner;
+  auto helper = ProfileSystemWide(&task_runner, app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  AssertHasSampledStacksForPid(packets, app_pid);
+  AssertHasSampledStacksForPid(*helper, app_pid);
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
 TEST(TracedPerfCtsTest, SystemWideNonProfileableApp) {
   std::string app_name = "android.perfetto.cts.app.nonprofileable";
-  const auto& packets = ProfileSystemWide(app_name);
+  base::TestTaskRunner task_runner;
+  auto helper = ProfileSystemWide(&task_runner, app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
   if (!IsUserBuild())
-    AssertHasSampledStacksForPid(packets, app_pid);
+    AssertHasSampledStacksForPid(*helper, app_pid);
   else
-    AssertNoStacksForPid(packets, app_pid);
+    AssertNoStacksForPid(*helper, app_pid);
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
 TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
   std::string app_name = "android.perfetto.cts.app.release";
-  const auto& packets = ProfileSystemWide(app_name);
+  base::TestTaskRunner task_runner;
+  auto helper = ProfileSystemWide(&task_runner, app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
   if (!IsUserBuild())
-    AssertHasSampledStacksForPid(packets, app_pid);
+    AssertHasSampledStacksForPid(*helper, app_pid);
   else
-    AssertNoStacksForPid(packets, app_pid);
+    AssertNoStacksForPid(*helper, app_pid);
 
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
@@ -247,15 +252,15 @@ TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
 
   // Collect trace.
   base::TestTaskRunner task_runner;
-  auto packets = CollectTrace(&task_runner, trace_config);
+  auto helper = CollectTrace(&task_runner, trace_config);
 
   int target_pid_after = PidForProcessName("/system/bin/traced_probes");
   ASSERT_EQ(target_pid, target_pid_after) << "traced_probes died during test";
 
   if (!IsUserBuild())
-    AssertHasSampledStacksForPid(packets, target_pid);
+    AssertHasSampledStacksForPid(*helper, target_pid);
   else
-    AssertNoStacksForPid(packets, target_pid);
+    AssertNoStacksForPid(*helper, target_pid);
 }
 
 TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
@@ -285,7 +290,7 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
 
   // Collect trace.
   base::TestTaskRunner task_runner;
-  auto packets = CollectTrace(&task_runner, trace_config);
+  auto helper = CollectTrace(&task_runner, trace_config);
 
   // Assert that we're seeing the symbolised scheduling functions, while
   // double-checking that the interning ids are unrelated to the raw addresses.
@@ -294,7 +299,7 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
 
   size_t fname_count = 0;
   bool found_schedule = false;
-  for (const auto& packet : packets) {
+  helper->ForEachPacket([&](const protos::gen::TracePacket& packet) {
     for (const auto& fname : packet.interned_data().function_names()) {
       fname_count++;
       // Match any "*schedule*" function (e.g. __schedule, schedule,
@@ -317,15 +322,15 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
         packet.perf_sample().callstack_iid() > kSmallInternedId) {
       unexpected_iids++;
     }
-  }
+  });
 
   // Dumps one callstack per line. Example:
   // [1] __schedule <- schedule_idle <- cpu_startup_entry <- rest_init ...
   // [2] schedule <- perf_mon_task <- kthread <- ret_from_fork
-  auto callstacks_to_string = [&packets]() {
+  auto callstacks_to_string = [&helper]() {
     std::string ret;
     int idx = 0;
-    for (const auto& packet : packets) {
+    helper->ForEachPacket([&](const protos::gen::TracePacket& packet) {
       bool first = true;
       for (const auto& fname : packet.interned_data().function_names()) {
         if (fname.str().empty())
@@ -337,7 +342,7 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
           ret += " <- " + fname.str();
         }
       }
-    }
+    });
     return ret;
   };
 
