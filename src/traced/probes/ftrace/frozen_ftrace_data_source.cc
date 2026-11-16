@@ -125,7 +125,8 @@ void FrozenFtraceDataSource::Start() {
           base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{
               0},
           /*debug_ftrace_abi=*/false,
-          /*write_generic_evt_descriptors=*/false));
+          /*write_generic_evt_descriptors=*/false,
+          /*single_event_per_packet=*/false));
 
   // For serialising pre-existing ftrace data, emit a special packet so that
   // trace_processor doesn't filter out data before start-of-trace.

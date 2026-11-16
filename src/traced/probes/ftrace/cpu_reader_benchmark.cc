@@ -827,7 +827,8 @@ ExamplePage g_full_page_atrace_print{
     )",
 };
 
-FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg) {
+FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg,
+                                        bool single_event_per_packet) {
   return FtraceDataSourceConfig{
       /*event_filter=*/EventFilter{},
       /*syscall_filter=*/EventFilter{}, compact_cfg,
@@ -841,7 +842,7 @@ FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg) {
       /*kprobes=*/
       base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
       /*debug_ftrace_abi=*/false,
-      /*write_generic_evt_descriptors=*/false};
+      /*write_generic_evt_descriptors=*/false, single_event_per_packet};
 }
 
 // Low level benchmark for the CpuReader::ParsePageHeader and
@@ -857,14 +858,15 @@ void DoParse(const ExamplePage& test_case,
   CpuReader::Bundler bundler(
       &writer, &metadata, /*symbolizer=*/nullptr, /*cpu=*/0,
       /*clock_snapshot=*/std::nullopt, compact_sched_buf.get(),
-      /*compact_sched_enabled=*/false, /*previous_bundle_end_ts=*/0,
-      &generic_pb_descriptors);
+      /*compact_sched_enabled=*/false, /*single_event_per_packet=*/false,
+      /*previous_bundle_end_ts=*/0, &generic_pb_descriptors);
 
   ProtoTranslationTable* table = GetTable(test_case.name);
   auto page = PageFromXxd(test_case.data);
 
   FtraceDataSourceConfig ds_config =
-      ConfigForTesting(DisabledCompactSchedConfigForTesting());
+      ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                       /*single_event_per_packet=*/false);
   if (print_filter.has_value()) {
     ds_config.print_filter =
         FtracePrintFilterConfig::Create(print_filter.value(), table);
@@ -940,10 +942,13 @@ void BM_ParsePageFullOfAtracePrintWithFilterRules(benchmark::State& state) {
 BENCHMARK(BM_ParsePageFullOfAtracePrintWithFilterRules)->DenseRange(0, 16, 1);
 
 // Higher level benchmark for the CpuReader::ProcessPagesForDataSource function.
+enum class EventEncoding { kBundled, kCompactSched, kSingleEvent };
+
 void DoProcessPages(const ExamplePage& test_case,
                     const size_t page_repetition,
                     const std::vector<GroupAndName>& enabled_events,
                     std::optional<FtraceConfig::PrintFilter> print_filter,
+                    EventEncoding encoding,
                     benchmark::State& state) {
   perfetto::NullTraceWriter writer;
 
@@ -959,8 +964,9 @@ void DoProcessPages(const ExamplePage& test_case,
     }
   }
 
-  FtraceDataSourceConfig ds_config =
-      ConfigForTesting(DisabledCompactSchedConfigForTesting());
+  FtraceDataSourceConfig ds_config = ConfigForTesting(
+      CompactSchedConfig{encoding == EventEncoding::kCompactSched},
+      /*single_event_per_packet=*/encoding == EventEncoding::kSingleEvent);
   if (print_filter.has_value()) {
     ds_config.print_filter =
         FtracePrintFilterConfig::Create(print_filter.value(), table);
@@ -988,15 +994,38 @@ void DoProcessPages(const ExamplePage& test_case,
 
 void BM_ProcessPagesFullOfSchedSwitch(benchmark::State& state) {
   DoProcessPages(g_full_page_sched_switch, static_cast<size_t>(state.range(0)),
-                 {GroupAndName("sched", "sched_switch")}, std::nullopt, state);
+                 {GroupAndName("sched", "sched_switch")}, std::nullopt,
+                 EventEncoding::kBundled, state);
 }
 BENCHMARK(BM_ProcessPagesFullOfSchedSwitch)->Range(1, 64);
 
+void BM_ProcessPagesFullOfSchedSwitchCompact(benchmark::State& state) {
+  DoProcessPages(g_full_page_sched_switch, static_cast<size_t>(state.range(0)),
+                 {GroupAndName("sched", "sched_switch")}, std::nullopt,
+                 EventEncoding::kCompactSched, state);
+}
+BENCHMARK(BM_ProcessPagesFullOfSchedSwitchCompact)->Range(1, 64);
+
+void BM_ProcessPagesFullOfSchedSwitchSingleEvent(benchmark::State& state) {
+  DoProcessPages(g_full_page_sched_switch, static_cast<size_t>(state.range(0)),
+                 {GroupAndName("sched", "sched_switch")}, std::nullopt,
+                 EventEncoding::kSingleEvent, state);
+}
+BENCHMARK(BM_ProcessPagesFullOfSchedSwitchSingleEvent)->Range(1, 64);
+
 void BM_ProcessPagesFullOfPrint(benchmark::State& state) {
   DoProcessPages(g_full_page_print, static_cast<size_t>(state.range(0)),
-                 {GroupAndName("ftrace", "print")}, std::nullopt, state);
+                 {GroupAndName("ftrace", "print")}, std::nullopt,
+                 EventEncoding::kBundled, state);
 }
 BENCHMARK(BM_ProcessPagesFullOfPrint)->Range(1, 64);
+
+void BM_ProcessPagesFullOfPrintSingleEvent(benchmark::State& state) {
+  DoProcessPages(g_full_page_print, static_cast<size_t>(state.range(0)),
+                 {GroupAndName("ftrace", "print")}, std::nullopt,
+                 EventEncoding::kSingleEvent, state);
+}
+BENCHMARK(BM_ProcessPagesFullOfPrintSingleEvent)->Range(1, 64);
 
 }  // namespace
 }  // namespace perfetto

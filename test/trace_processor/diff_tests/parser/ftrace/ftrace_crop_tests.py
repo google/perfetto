@@ -64,6 +64,45 @@ class FtraceCrop(TestSuite):
         2700,"E|42","[NULL]","[NULL]"
         """))
 
+  def test_crop_single_event_packets(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { ftrace_events {
+          cpu: 1
+          previous_bundle_end_timestamp: 1000
+          event {
+            timestamp: 1500
+            pid: 42
+            print { buf: "B|42|FilteredOut\n" }
+          }
+        }}
+        packet { ftrace_events {
+          cpu: 1
+          previous_bundle_end_timestamp: 1500
+          event {
+            timestamp: 2700
+            pid: 42
+            print { buf: "E|42\n" }
+          }
+        }}
+        packet { ftrace_events {
+          cpu: 0
+          previous_bundle_end_timestamp: 2000
+          event {
+            timestamp: 2200
+            pid: 42
+            print { buf: "B|42|Kept\n" }
+          }
+        }}
+        """),
+        query="""
+        SELECT ts, dur, name FROM slice ORDER BY ts
+        """,
+        out=Csv("""
+        "ts","dur","name"
+        2200,500,"Kept"
+        """))
+
   # As test_crop_atrace_slice, with the older "last_read_event_timestamp" field
   def test_crop_atrace_slice_legacy_field(self):
     return DiffTestBlueprint(

@@ -681,7 +681,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   auto compact_sched = CreateCompactSchedConfig(
       request, filter.IsEventEnabled(compact_format.sched_switch.event_id),
       compact_format);
-  if (errors && !compact_format.format_valid) {
+  if (errors && !compact_format.format_valid &&
+      !request.single_event_per_packet()) {
     errors->failed_ftrace_events.emplace_back(
         "perfetto/compact_sched (unexpected sched event format)");
   }
@@ -716,7 +717,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           std::move(categories), std::move(categories_sdk_optout),
           request.symbolize_ksyms(), request.drain_buffer_percent(),
           GetSyscallsReturningFds(syscalls_), std::move(kprobes),
-          request.debug_ftrace_abi(), denser_generic_event_encoding));
+          request.debug_ftrace_abi(), denser_generic_event_encoding,
+          request.single_event_per_packet()));
   return true;
 }
 

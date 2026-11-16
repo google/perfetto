@@ -205,6 +205,9 @@ CompactSchedConfig CreateCompactSchedConfig(
     const FtraceConfig& request,
     bool switch_requested,
     const CompactSchedEventFormat& compact_format) {
+  if (request.single_event_per_packet()) {
+    return CompactSchedConfig{/*enabled=*/false};
+  }
   // If compile-time assumptions don't hold, we'll fall back onto encoding
   // events individually.
   if (!compact_format.format_valid) {

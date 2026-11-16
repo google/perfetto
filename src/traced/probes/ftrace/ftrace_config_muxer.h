@@ -62,7 +62,8 @@ struct FtraceDataSourceConfig {
       base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>
           kprobes_in,
       bool debug_ftrace_abi_in,
-      bool write_generic_evt_descriptors_in)
+      bool write_generic_evt_descriptors_in,
+      bool single_event_per_packet_in)
       : event_filter(std::move(event_filter_in)),
         syscall_filter(std::move(syscall_filter_in)),
         compact_sched(compact_sched_in),
@@ -76,7 +77,8 @@ struct FtraceDataSourceConfig {
         syscalls_returning_fd(std::move(syscalls_returning_fd_in)),
         kprobes(std::move(kprobes_in)),
         debug_ftrace_abi(debug_ftrace_abi_in),
-        write_generic_evt_descriptors(write_generic_evt_descriptors_in) {}
+        write_generic_evt_descriptors(write_generic_evt_descriptors_in),
+        single_event_per_packet(single_event_per_packet_in) {}
 
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
@@ -116,6 +118,9 @@ struct FtraceDataSourceConfig {
 
   // If true, use the newer format for generic events.
   const bool write_generic_evt_descriptors;
+
+  // If true, each event gets its own packet and compact_sched is disabled.
+  const bool single_event_per_packet;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.

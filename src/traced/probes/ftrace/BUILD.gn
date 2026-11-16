@@ -57,7 +57,10 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/trace:cpp",
     "../../../../protos/perfetto/trace/ftrace:cpp",
     "../../../../protos/perfetto/trace/ftrace:zero",
+    "../../../../protos/perfetto/trace/interned_data:cpp",
+    "../../../../protos/perfetto/trace/profiling:cpp",
     "../../../base:test_support",
+    "../../../kallsyms",
     "../../../tracing/test:test_support",
     "format_parser:unittests",
   ]

@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 38
+// Next id: 39
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -86,6 +86,14 @@ message FtraceConfig {
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
+
+  // If true, write each recorded ftrace event in its own TracePacket, using
+  // FtraceEventBundle with a single event. This disables compact_sched, even
+  // when compact_sched.enabled is true. Unset or false preserves bundling.
+  // Loss and parse-error bundles can still contain no events.
+  // This increases trace size and producer overhead.
+  // Introduced in: perfetto v60.
+  optional bool single_event_per_packet = 38;
 
   // Optional filter for "ftrace/print" events.
   //

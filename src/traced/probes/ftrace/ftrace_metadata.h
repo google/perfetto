@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <bitset>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
@@ -107,6 +108,7 @@ struct FtraceMetadata {
     if (it_and_inserted.second) {
       const auto index = static_cast<uint32_t>(kernel_addrs.size());
       it_and_inserted.first->index = index;
+      kernel_addrs_to_symbolize.emplace_back(addr, index);
     }
     return it_and_inserted.first->index;
   }
@@ -117,6 +119,7 @@ struct FtraceMetadata {
     pids.clear();
     pids_cache.reset();
     kernel_addrs.clear();
+    kernel_addrs_to_symbolize.clear();
     fds.clear();
     last_kernel_addr_index_written = 0;
     FinishEvent();
@@ -135,6 +138,9 @@ struct FtraceMetadata {
   base::FlatSet<int32_t> rename_pids;
   base::FlatSet<int32_t> pids;
   base::FlatSet<KernelAddr> kernel_addrs;
+  // Consume new addresses once so per-packet symbolization does not rescan
+  // the address-sorted deduplication set. Capacity is reused across read ticks.
+  std::vector<KernelAddr> kernel_addrs_to_symbolize;
   base::FlatSet<std::pair<pid_t, uint64_t>> fds;
 
   // This bitmap is a cache for |pids|. It speculates on the fact that on most

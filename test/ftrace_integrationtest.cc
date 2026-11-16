@@ -94,9 +94,13 @@ class PerfettoFtraceIntegrationTest : public ::testing::Test {
   std::unique_ptr<Tracefs> tracefs_;
 };
 
+class PerfettoFtracePacketizationIntegrationTest
+    : public PerfettoFtraceIntegrationTest,
+      public testing::WithParamInterface<bool> {};
+
 }  // namespace
 
-TEST_F(PerfettoFtraceIntegrationTest, TestFtraceProducer) {
+TEST_P(PerfettoFtracePacketizationIntegrationTest, TestFtraceProducer) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
@@ -120,6 +124,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceProducer) {
   ds_config->set_target_buffer(0);
 
   protos::gen::FtraceConfig ftrace_config;
+  ftrace_config.set_single_event_per_packet(GetParam());
   ftrace_config.add_ftrace_events("sched_switch");
   ftrace_config.add_ftrace_events("bar");
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
@@ -133,16 +138,25 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceProducer) {
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
 
+  size_t event_count = 0;
   for (const auto& packet : packets) {
+    const auto& bundle = packet.ftrace_events();
+    event_count += bundle.event().size();
+    event_count += bundle.compact_sched().switch_timestamp().size();
+    if (GetParam() && packet.has_ftrace_events()) {
+      EXPECT_FALSE(bundle.has_compact_sched());
+      EXPECT_LE(bundle.event().size(), 1u);
+    }
     for (int ev = 0; ev < packet.ftrace_events().event_size(); ev++) {
       ASSERT_TRUE(packet.ftrace_events()
                       .event()[static_cast<size_t>(ev)]
                       .has_sched_switch());
     }
   }
+  EXPECT_GT(event_count, 0u);
 }
 
-TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
+TEST_P(PerfettoFtracePacketizationIntegrationTest, TestFtraceFlush) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
@@ -169,6 +183,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
   ds_config->set_name("linux.ftrace");
 
   protos::gen::FtraceConfig ftrace_config;
+  ftrace_config.set_single_event_per_packet(GetParam());
   ftrace_config.add_ftrace_events("print");
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
@@ -205,6 +220,10 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
   }
   ASSERT_EQ(marker_found, 1);
 }
+
+INSTANTIATE_TEST_SUITE_P(PacketModes,
+                         PerfettoFtracePacketizationIntegrationTest,
+                         testing::Bool());
 
 // Disable this test:
 // 1. On cuttlefish (x86-kvm). It's too slow when running on GCE (b/171771440).

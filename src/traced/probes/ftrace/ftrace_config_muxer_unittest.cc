@@ -332,6 +332,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     // Explicitly enabled.
     FtraceConfig cfg = CreateFtraceConfig({"sched/sched_switch"});
     cfg.mutable_compact_sched()->set_enabled(true);
+    cfg.set_single_event_per_packet(false);
 
     FtraceConfigId id = 42;
     ASSERT_TRUE(muxer.SetupConfig(id, cfg));
@@ -340,6 +341,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
                 Contains(kFakeSchedSwitchEventId));
     EXPECT_TRUE(ds_config->compact_sched.enabled);
+    EXPECT_FALSE(ds_config->single_event_per_packet);
   }
   {
     // Implicitly enabled (default).
@@ -378,6 +380,25 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
                 Not(Contains(kFakeSchedSwitchEventId)));
     EXPECT_FALSE(ds_config->compact_sched.enabled);
   }
+  for (bool explicit_compact : {false, true}) {
+    FtraceConfig cfg = CreateFtraceConfig({"sched/sched_switch"});
+    cfg.set_single_event_per_packet(true);
+    if (explicit_compact) {
+      cfg.mutable_compact_sched()->set_enabled(true);
+    }
+
+    FtraceConfigId id = explicit_compact ? 47 : 46;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+    const auto* ds_config = muxer.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    EXPECT_TRUE(ds_config->single_event_per_packet);
+    EXPECT_FALSE(ds_config->compact_sched.enabled);
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                Contains(kFakeSchedSwitchEventId));
+  }
+  // Concurrent sources retain their own encoding.
+  EXPECT_TRUE(muxer.GetDataSourceConfig(42)->compact_sched.enabled);
+  EXPECT_FALSE(muxer.GetDataSourceConfig(42)->single_event_per_packet);
 }
 
 TEST_F(FtraceConfigMuxerTest, AtraceAddedEvents) {
@@ -1258,6 +1279,11 @@ TEST_F(FtraceConfigMuxerFakeTableTest, CompactSchedConfigWithInvalidFormat) {
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
               Contains(kFakeSchedSwitchEventId));
   EXPECT_FALSE(ds_config->compact_sched.enabled);
+
+  config.set_single_event_per_packet(true);
+  FtraceSetupErrors errors{};
+  ASSERT_TRUE(model_.SetupConfig(id + 1, config, &errors));
+  EXPECT_THAT(errors.failed_ftrace_events, IsEmpty());
 }
 
 TEST_F(FtraceConfigMuxerFakeTableTest, SkipGenericEventsOption) {

@@ -56,6 +56,34 @@ This page is split into three sections:
 [section-b-link]: #part-b-integrating-new-tracepoints-with-perfetto
 [section-c-link]: #part-c-simple-slice-counter-visualisations-without-modifying-perfetto-code-kernel-track-events-
 
+## Recording one ftrace event per packet
+
+By default, Perfetto groups ftrace events into packets and uses compact encoding
+for scheduler events. To record each event in its own packet, set
+`single_event_per_packet: true` in the `linux.ftrace` data source's
+`ftrace_config`. This option is available from Perfetto v60.
+
+```protobuf
+data_sources {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      ftrace_events: "sched/sched_switch"
+      single_event_per_packet: true
+    }
+  }
+}
+```
+
+Each event-bearing packet contains one `FtraceEventBundle` with one ordinary
+`FtraceEvent`. The option disables `compact_sched`, even when explicitly enabled.
+Filtering still applies, and loss or parse-error bundles can contain no events.
+Stats and other metadata packets also remain separate.
+
+This mode increases trace size and producer overhead, which can reduce buffer
+retention and increase data loss under load. Unset or false preserves the default
+behavior. Older producers do not support this option.
+
 ## Part A: Instrumenting the kernel and recording tracepoints
 
 ### Create the kernel module source files

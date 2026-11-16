@@ -20,13 +20,20 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 
+#include <cstdlib>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/base/test/tmp_dir_tree.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
@@ -52,6 +59,8 @@
 #include "protos/perfetto/trace/ftrace/raw_syscalls.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
+#include "protos/perfetto/trace/interned_data/interned_data.gen.h"
+#include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/traced/probes/ftrace/test/test_messages.gen.h"
 #include "src/traced/probes/ftrace/test/test_messages.pbzero.h"
@@ -80,9 +89,13 @@ namespace {
 
 using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
 
-FtraceDataSourceConfig ConfigForTesting(
-    CompactSchedConfig compact_cfg,
-    bool write_generic_evt_descriptors = false) {
+struct TestConfigOptions {
+  bool write_generic_evt_descriptors = false;
+  bool single_event_per_packet = false;
+};
+
+FtraceDataSourceConfig ConfigForTesting(CompactSchedConfig compact_cfg,
+                                        TestConfigOptions options = {}) {
   return FtraceDataSourceConfig{
       /*event_filter=*/EventFilter{},
       /*syscall_filter=*/EventFilter{}, compact_cfg,
@@ -95,7 +108,8 @@ FtraceDataSourceConfig ConfigForTesting(
       /*syscalls_returning_fd=*/{},
       /*kprobes=*/
       base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
-      /*debug_ftrace_abi=*/false, write_generic_evt_descriptors};
+      /*debug_ftrace_abi=*/false, options.write_generic_evt_descriptors,
+      options.single_event_per_packet};
 }
 
 FtraceDataSourceConfig EmptyConfig() {
@@ -452,6 +466,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
                      /*cpu=*/0,
                      /*clock_snapshot=*/std::nullopt, compact_sched_buf_.get(),
                      ds_config.compact_sched.enabled,
+                     ds_config.single_event_per_packet,
                      /*last_read_event_ts=*/0, &generic_pb_descriptors_);
     return &bundler_.value();
   }
@@ -3756,7 +3771,7 @@ TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
   FtraceMetadata metadata{};
   FtraceDataSourceConfig ftrace_cfg =
       ConfigForTesting(DisabledCompactSchedConfigForTesting(),
-                       /*write_generic_evt_descriptors=*/true);
+                       {/*write_generic_evt_descriptors=*/true});
   ftrace_cfg.event_filter.AddEnabledEvent(
       table->EventToFtraceId(switch_generic));
   ftrace_cfg.event_filter.AddEnabledEvent(
@@ -4013,6 +4028,328 @@ TEST(CpuReaderTest, FtraceClockSnapshot) {
             protos::gen::FtraceClock::FTRACE_CLOCK_LOCAL);
   EXPECT_EQ(bundle.ftrace_timestamp(), 1'000'000'000);
   EXPECT_EQ(bundle.boot_timestamp(), 2'000'000'000);
+}
+
+class CpuReaderSingleEventTest : public testing::Test {
+ protected:
+  bool ProcessPages(TraceWriterForTesting* writer,
+                    const FtraceDataSourceConfig& config,
+                    const std::vector<ExamplePage>& pages) {
+    const size_t page_size = base::GetSysPageSize();
+    auto buf = std::make_unique<uint8_t[]>(page_size * pages.size());
+    for (size_t i = 0; i < pages.size(); ++i) {
+      auto page = PageFromXxd(pages[i].data);
+      memcpy(buf.get() + i * page_size, page.get(), page_size);
+    }
+    auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+    return CpuReader::ProcessPagesForDataSource(
+        writer, &metadata_, /*cpu=*/7, &config, &parse_errors_,
+        &bundle_end_timestamp_, buf.get(), pages.size(),
+        compact_sched_buf.get(), GetTable(pages.front().name),
+        /*symbolizer=*/nullptr, clock_snapshot_);
+  }
+
+  FtraceMetadata metadata_;
+  base::FlatSet<FtraceParseStatus> parse_errors_;
+  uint64_t bundle_end_timestamp_ = 17;
+  std::optional<CpuReader::FtraceClockSnapshot> clock_snapshot_;
+};
+
+TEST_F(CpuReaderSingleEventTest, SchedulerEventsMatchBundledEncoding) {
+  SKIP_IF_BIG_ENDIAN();
+  auto* table = GetTable(g_sched_page.name);
+  auto bundled_config = EmptyConfig();
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/false,
+                                  /*single_event_per_packet=*/true});
+  for (const char* name : {"sched_switch", "sched_waking"}) {
+    size_t id = table->EventToFtraceId(GroupAndName("sched", name));
+    bundled_config.event_filter.AddEnabledEvent(id);
+    config.event_filter.AddEnabledEvent(id);
+  }
+  TraceWriterForTesting bundled_writer;
+  ASSERT_TRUE(ProcessPages(&bundled_writer, bundled_config, {g_sched_page}));
+  auto expected = bundled_writer.GetOnlyTracePacket().ftrace_events().event();
+  ASSERT_EQ(expected.size(), 7u);
+
+  bundle_end_timestamp_ = 17;
+  TraceWriterForTesting writer;
+  ASSERT_TRUE(ProcessPages(&writer, config, {g_sched_page}));
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), expected.size());
+  uint64_t previous_timestamp = 17;
+  for (size_t i = 0; i < packets.size(); ++i) {
+    const auto& bundle = packets[i].ftrace_events();
+    EXPECT_EQ(bundle.cpu(), 7u);
+    EXPECT_FALSE(bundle.has_compact_sched());
+    ASSERT_EQ(bundle.event().size(), 1u);
+    EXPECT_EQ(bundle.event()[0].SerializeAsString(),
+              expected[i].SerializeAsString());
+    EXPECT_EQ(bundle.previous_bundle_end_timestamp(), previous_timestamp);
+    previous_timestamp = expected[i].timestamp();
+  }
+  EXPECT_EQ(bundle_end_timestamp_, previous_timestamp);
+}
+
+TEST_F(CpuReaderSingleEventTest, LossAndClocksAcrossBatches) {
+  SKIP_IF_BIG_ENDIAN();
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/false,
+                                  /*single_event_per_packet=*/true});
+  config.event_filter.AddEnabledEvent(
+      GetTable("synthetic")->EventToFtraceId(GroupAndName("ftrace", "print")));
+  clock_snapshot_ = CpuReader::FtraceClockSnapshot{
+      protos::pbzero::FtraceClock::FTRACE_CLOCK_LOCAL, 1'000'000'000,
+      2'000'000'000};
+
+  TraceWriterForTesting writer;
+  ASSERT_TRUE(ProcessPages(&writer, config,
+                           {{"synthetic", g_last_ts_test_page_0},
+                            {"synthetic", g_last_ts_test_page_1}}));
+  ASSERT_TRUE(
+      ProcessPages(&writer, config, {{"synthetic", g_last_ts_test_page_2}}));
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), 3u);
+  uint64_t previous_timestamp = 17;
+  for (size_t i = 0; i < packets.size(); ++i) {
+    const auto& bundle = packets[i].ftrace_events();
+    ASSERT_EQ(bundle.event().size(), 1u);
+    EXPECT_EQ(bundle.previous_bundle_end_timestamp(), previous_timestamp);
+    EXPECT_EQ(bundle.lost_events(), i == 2);
+    EXPECT_EQ(bundle.ftrace_clock(), protos::gen::FTRACE_CLOCK_LOCAL);
+    EXPECT_EQ(bundle.ftrace_timestamp(), 1'000'000'000);
+    EXPECT_EQ(bundle.boot_timestamp(), 2'000'000'000);
+    previous_timestamp = bundle.event()[0].timestamp();
+  }
+  EXPECT_EQ(bundle_end_timestamp_, previous_timestamp);
+}
+
+TEST_F(CpuReaderSingleEventTest, FilteredPrintsDoNotCreatePackets) {
+  SKIP_IF_BIG_ENDIAN();
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/false,
+                                  /*single_event_per_packet=*/true});
+  auto* table = GetTable(g_three_prints.name);
+  config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("ftrace", "print")));
+  FtraceConfig::PrintFilter filter;
+  auto* rule = filter.add_rules();
+  rule->set_prefix("Good ");
+  rule->set_allow(false);
+  config.print_filter = FtracePrintFilterConfig::Create(filter, table);
+  ASSERT_TRUE(config.print_filter);
+
+  TraceWriterForTesting writer;
+  ASSERT_TRUE(ProcessPages(&writer, config, {g_three_prints}));
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), 2u);
+  ASSERT_EQ(packets[0].ftrace_events().event().size(), 1u);
+  ASSERT_EQ(packets[1].ftrace_events().event().size(), 1u);
+  EXPECT_EQ(packets[0].ftrace_events().event()[0].print().buf(),
+            "Hello, world!\n");
+  EXPECT_EQ(packets[1].ftrace_events().event()[0].print().buf(),
+            "Goodbye, world!\n");
+  EXPECT_EQ(packets[1].ftrace_events().previous_bundle_end_timestamp(),
+            packets[0].ftrace_events().event()[0].timestamp());
+
+  rule->set_prefix("");
+  config.print_filter = FtracePrintFilterConfig::Create(filter, table);
+  const uint64_t previous_timestamp = bundle_end_timestamp_;
+  TraceWriterForTesting filtered_writer;
+  ASSERT_TRUE(ProcessPages(&filtered_writer, config, {g_three_prints}));
+  EXPECT_THAT(filtered_writer.GetAllTracePackets(), IsEmpty());
+  EXPECT_EQ(bundle_end_timestamp_, previous_timestamp);
+}
+
+TEST_F(CpuReaderSingleEventTest, LossWithoutSelectedEvents) {
+  SKIP_IF_BIG_ENDIAN();
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/false,
+                                  /*single_event_per_packet=*/true});
+  TraceWriterForTesting writer;
+  ASSERT_TRUE(ProcessPages(&writer, config,
+                           {{"synthetic", g_switch_page},
+                            {"synthetic", g_switch_page_lost_events}}));
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_TRUE(packets[0].ftrace_events().lost_events());
+  EXPECT_THAT(packets[0].ftrace_events().event(), IsEmpty());
+  EXPECT_EQ(packets[0].ftrace_events().previous_bundle_end_timestamp(), 17u);
+  EXPECT_EQ(bundle_end_timestamp_, 17u);
+}
+
+TEST_F(CpuReaderSingleEventTest, ParseErrorDoesNotPreventLaterEvents) {
+  SKIP_IF_BIG_ENDIAN();
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/false,
+                                  /*single_event_per_packet=*/true});
+  config.event_filter.AddEnabledEvent(
+      GetTable("synthetic")
+          ->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+  TraceWriterForTesting writer;
+  EXPECT_FALSE(ProcessPages(&writer, config,
+                            {{"synthetic", g_invalid_page},
+                             {"synthetic", g_switch_page},
+                             {"synthetic", g_switch_page}}));
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), 2u);
+  ASSERT_EQ(packets[0].ftrace_events().error().size(), 1u);
+  EXPECT_EQ(packets[0].ftrace_events().error()[0].status(),
+            protos::gen::FTRACE_STATUS_ABI_END_OVERFLOW);
+  for (const auto& packet : packets) {
+    ASSERT_EQ(packet.ftrace_events().event().size(), 1u);
+    EXPECT_EQ(packet.ftrace_events().event()[0].sched_switch().next_pid(),
+              3733);
+  }
+  EXPECT_THAT(packets[1].ftrace_events().error(), IsEmpty());
+  EXPECT_EQ(packets[1].ftrace_events().previous_bundle_end_timestamp(),
+            packets[0].ftrace_events().event()[0].timestamp());
+}
+
+TEST_F(CpuReaderSingleEventTest, GenericDescriptorsBelongToEachPacket) {
+  SKIP_IF_BIG_ENDIAN();
+  auto* table = GetTable(g_generic_sched_page.name);
+  for (const char* name : {"sched_switch_generic", "sched_waking_generic"}) {
+    GroupAndName event("generic", name);
+    if (!table->GetEvent(event)) {
+      table->CreateGenericEvent(event);
+    }
+  }
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/true,
+                                  /*single_event_per_packet=*/true});
+  for (const char* name : {"sched_switch_generic", "sched_waking_generic"}) {
+    config.event_filter.AddEnabledEvent(
+        table->EventToFtraceId(GroupAndName("generic", name)));
+  }
+  TraceWriterForTesting writer;
+  ASSERT_TRUE(ProcessPages(&writer, config, {g_generic_sched_page}));
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), 3u);
+  const char* names[] = {"sched_switch_generic", "sched_waking_generic",
+                         "sched_switch_generic"};
+  for (size_t i = 0; i < packets.size(); ++i) {
+    const auto& bundle = packets[i].ftrace_events();
+    ASSERT_EQ(bundle.event().size(), 1u);
+    ASSERT_EQ(bundle.generic_event_descriptors().size(), 1u);
+    const auto& descriptor = bundle.generic_event_descriptors()[0];
+    protos::gen::DescriptorProto decoded;
+    ASSERT_TRUE(decoded.ParseFromString(descriptor.event_descriptor()));
+    EXPECT_EQ(decoded.name(), names[i]);
+    auto event_bytes = bundle.event()[0].SerializeAsString();
+    protozero::ProtoDecoder decoder(event_bytes);
+    EXPECT_TRUE(decoder.FindField(static_cast<uint32_t>(descriptor.field_id()))
+                    .valid());
+  }
+}
+
+TEST_F(CpuReaderParsePagePayloadTest, SingleEventWatermarkBeforePageError) {
+  SKIP_IF_BIG_ENDIAN();
+  auto* table = GetTable(g_three_prints.name);
+  auto page = PageFromXxd(g_three_prints.data);
+  auto config = ConfigForTesting(DisabledCompactSchedConfigForTesting(),
+                                 {/*write_generic_evt_descriptors=*/false,
+                                  /*single_event_per_packet=*/true});
+  config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("ftrace", "print")));
+  const uint8_t* ptr = page.get();
+  auto header = CpuReader::ParsePageHeader(&ptr, table->page_header_size_len());
+  ASSERT_TRUE(header);
+  // A zero-length record after the valid events makes parsing return early.
+  size_t payload_offset = static_cast<size_t>(ptr - page.get());
+  ASSERT_LT(payload_offset + header->size + 8, base::GetSysPageSize());
+  memset(page.get() + payload_offset + header->size, 0, 8);
+  header->size += 8;
+  EXPECT_EQ(CpuReader::ParsePagePayload(ptr, &*header, table, &config,
+                                        CreateBundler(config), &metadata_,
+                                        &last_read_event_ts_),
+            FtraceParseStatus::FTRACE_STATUS_ABI_ZERO_DATA_LENGTH);
+  auto packets = AllTracePackets();
+  ASSERT_EQ(packets.size(), 3u);
+  ASSERT_EQ(packets.back().ftrace_events().event().size(), 1u);
+  EXPECT_EQ(last_read_event_ts_,
+            packets.back().ftrace_events().event()[0].timestamp());
+}
+
+TEST(CpuReaderTest, SingleEventKernelSymbols) {
+  // The inherited-fd path locks this file without reading its symbol contents.
+  auto kallsyms_fd = base::OpenFile("/proc/kallsyms", O_RDONLY);
+  if (!kallsyms_fd) {
+    GTEST_SKIP() << "Requires readable /proc/kallsyms for symbol-map locking";
+  }
+  base::TempFile symbols = base::TempFile::Create().ValueOrDie();
+  constexpr char kSymbols[] =
+      "0000000000001000 t first\n0000000000002000 t second\n";
+  ASSERT_EQ(base::WriteAll(symbols.fd(), kSymbols, sizeof(kSymbols) - 1),
+            static_cast<ssize_t>(sizeof(kSymbols) - 1));
+  constexpr char kEnvName[] = "ANDROID_FILE__proc_kallsyms";
+  const char* old_value = getenv(kEnvName);
+  std::optional<std::string> old_env;
+  if (old_value) {
+    old_env = old_value;
+  }
+  base::SetEnv(kEnvName, std::to_string(symbols.fd()));
+  LazyKernelSymbolizer symbolizer;
+  symbolizer.GetOrCreateKernelSymbolMap();
+  if (old_env) {
+    base::SetEnv(kEnvName, *old_env);
+  } else {
+    base::UnsetEnv(kEnvName);
+  }
+
+  FtraceMetadata metadata;
+  TraceWriterForTesting writer;
+  GenericEventProtoDescriptors descriptors;
+  {
+    CpuReader::Bundler bundler(
+        &writer, &metadata, &symbolizer, /*cpu=*/0, std::nullopt,
+        /*compact_sched_buf=*/nullptr, /*compact_sched_enabled=*/false,
+        /*single_event_per_packet=*/true, /*previous_bundle_end_ts=*/0,
+        &descriptors);
+    const uint64_t addresses[] = {1, 0x1000, 0x1000, 0x2000};
+    uint64_t previous_timestamp = 0;
+    for (uint64_t addr : addresses) {
+      auto* event =
+          bundler.AddEvent(previous_timestamp + 10, previous_timestamp);
+      metadata.AddSymbolAddr(addr);
+      event->set_pid(42);
+      event->Finalize();
+      previous_timestamp += 10;
+    }
+  }
+  metadata.Clear();
+  {
+    CpuReader::Bundler bundler(
+        &writer, &metadata, &symbolizer, /*cpu=*/0, std::nullopt,
+        /*compact_sched_buf=*/nullptr, /*compact_sched_enabled=*/false,
+        /*single_event_per_packet=*/true, /*previous_bundle_end_ts=*/40,
+        &descriptors);
+    auto* event = bundler.AddEvent(50, 40);
+    metadata.AddSymbolAddr(0x1000);
+    event->set_pid(42);
+    event->Finalize();
+  }
+
+  auto packets = writer.GetAllTracePackets();
+  ASSERT_EQ(packets.size(), 5u);
+  constexpr uint32_t kIncrementalStateCleared = static_cast<uint32_t>(
+      protos::gen::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
+  EXPECT_FALSE(packets[0].has_interned_data());
+  EXPECT_FALSE(packets[0].has_sequence_flags());
+  EXPECT_EQ(packets[1].sequence_flags(), kIncrementalStateCleared);
+  ASSERT_EQ(packets[1].interned_data().kernel_symbols().size(), 1u);
+  EXPECT_EQ(packets[1].interned_data().kernel_symbols()[0].iid(), 2u);
+  EXPECT_EQ(packets[1].interned_data().kernel_symbols()[0].str(), "first");
+  EXPECT_FALSE(packets[2].has_interned_data());
+  EXPECT_FALSE(packets[2].has_sequence_flags());
+  EXPECT_FALSE(packets[3].has_sequence_flags());
+  ASSERT_EQ(packets[3].interned_data().kernel_symbols().size(), 1u);
+  EXPECT_EQ(packets[3].interned_data().kernel_symbols()[0].iid(), 3u);
+  EXPECT_EQ(packets[3].interned_data().kernel_symbols()[0].str(), "second");
+  EXPECT_EQ(packets[4].sequence_flags(), kIncrementalStateCleared);
+  ASSERT_EQ(packets[4].interned_data().kernel_symbols().size(), 1u);
+  EXPECT_EQ(packets[4].interned_data().kernel_symbols()[0].iid(), 1u);
+  EXPECT_EQ(packets[4].interned_data().kernel_symbols()[0].str(), "first");
 }
 
 }  // namespace

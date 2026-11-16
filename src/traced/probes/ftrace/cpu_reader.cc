@@ -371,6 +371,10 @@ void CpuReader::Bundler::StartNewPacket(
   FinalizeAndRunSymbolizer();
   packet_ = trace_writer_->NewTracePacket();
   bundle_ = packet_->set_ftrace_events();
+  has_event_ = false;
+  if (single_event_per_packet_) {
+    generic_descriptors_to_write_.clear();
+  }
 
   bundle_->set_cpu(static_cast<uint32_t>(cpu_));
   if (lost_events) {
@@ -387,6 +391,18 @@ void CpuReader::Bundler::StartNewPacket(
     bundle_->set_ftrace_timestamp(clock_snapshot_->ftrace_clock_ts);
     bundle_->set_boot_timestamp(clock_snapshot_->boot_clock_ts);
   }
+}
+
+protos::pbzero::FtraceEvent* CpuReader::Bundler::AddEvent(
+    uint64_t timestamp,
+    uint64_t previous_bundle_end_timestamp) {
+  if (single_event_per_packet_ && has_event_) {
+    StartNewPacket(false, previous_bundle_end_timestamp);
+  }
+  auto* event = GetOrCreateBundle()->add_event();
+  event->set_timestamp(timestamp);
+  has_event_ = true;
+  return event;
 }
 
 void CpuReader::Bundler::WriteGenericEventDescriptors() {
@@ -424,18 +440,16 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
   // |metadata| is shared across all cpus, is distinct per |data_source| (i.e.
   // tracing session) and is cleared after each FtraceController::ReadTick().
   if (symbolizer_) {
-    // Symbol indexes are assigned mononically as |kernel_addrs.size()|,
-    // starting from index 1 (no symbol has index 0). Here we remember the
-    // size() (which is also == the highest value in |kernel_addrs|) at the
-    // beginning and only write newer indexes bigger than that.
+    // Symbol indexes start at 1 and increase as addresses are inserted.
+    // Keep the watermark at zero until a symbol is resolved so the first
+    // successful lookup emits SEQ_INCREMENTAL_STATE_CLEARED.
     uint32_t max_index_at_start = metadata_->last_kernel_addr_index_written;
     PERFETTO_DCHECK(max_index_at_start <= metadata_->kernel_addrs.size());
     protos::pbzero::InternedData* interned_data = nullptr;
     auto* ksyms_map = symbolizer_->GetOrCreateKernelSymbolMap();
     bool wrote_at_least_one_symbol = false;
-    for (const FtraceMetadata::KernelAddr& kaddr : metadata_->kernel_addrs) {
-      if (kaddr.index <= max_index_at_start)
-        continue;
+    for (const FtraceMetadata::KernelAddr& kaddr :
+         metadata_->kernel_addrs_to_symbolize) {
       std::string sym_name = ksyms_map->Lookup(kaddr.addr);
       if (sym_name.empty()) {
         // Lookup failed. This can genuinely happen in many occasions. E.g.,
@@ -463,6 +477,9 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
       interned_sym->set_str(sym_name);
       wrote_at_least_one_symbol = true;
     }
+    // The symbol map is unchanged during a read tick, so failed lookups do
+    // not need to be retried by later packets.
+    metadata_->kernel_addrs_to_symbolize.clear();
 
     auto max_it_at_end = static_cast<uint32_t>(metadata_->kernel_addrs.size());
 
@@ -501,7 +518,8 @@ bool CpuReader::ProcessPagesForDataSource(
   Bundler bundler(
       trace_writer, metadata, ds_config->symbolize_ksyms ? symbolizer : nullptr,
       cpu, clock_snapshot, compact_sched_buf, ds_config->compact_sched.enabled,
-      *bundle_end_timestamp, table->generic_evt_pb_descriptors());
+      ds_config->single_event_per_packet, *bundle_end_timestamp,
+      table->generic_evt_pb_descriptors());
 
   bool success = true;
   size_t pages_parsed = 0;
@@ -743,24 +761,14 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
             ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
                                     bundler->compact_sched_buf(), metadata);
           } else if (ftrace_print_filter_enabled &&
-                     ftrace_event_id == ds_config->print_filter->event_id()) {
-            if (ds_config->print_filter->IsEventInteresting(start, next)) {
-              protos::pbzero::FtraceEvent* event =
-                  bundler->GetOrCreateBundle()->add_event();
-              event->set_timestamp(timestamp);
-              if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
-                              event, metadata,
-                              bundler->generic_descriptors_to_write())) {
-                return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
-              }
-            } else {  // print event did NOT pass the filter
-              event_written = false;
-            }
+                     ftrace_event_id == ds_config->print_filter->event_id() &&
+                     !ds_config->print_filter->IsEventInteresting(start,
+                                                                  next)) {
+            event_written = false;
           } else {
             // Common case: parse all other types of enabled events.
             protos::pbzero::FtraceEvent* event =
-                bundler->GetOrCreateBundle()->add_event();
-            event->set_timestamp(timestamp);
+                bundler->AddEvent(timestamp, *bundle_end_timestamp);
             if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
                             event, metadata,
                             bundler->generic_descriptors_to_write())) {
@@ -769,6 +777,10 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
           }
           if (event_written) {
             last_written_event_ts = timestamp;
+            // Packet boundaries can fall within a page in single-event mode.
+            if (ds_config->single_event_per_packet) {
+              *bundle_end_timestamp = timestamp;
+            }
           }
         }  // IsEventEnabled(id)
         ptr = next;

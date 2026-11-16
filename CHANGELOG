@@ -1,5 +1,7 @@
 Unreleased:
   Tracing service and probes:
+   * Added `FtraceConfig.single_event_per_packet` to record each ftrace event
+     in its own packet with compact scheduler encoding disabled.
    * Added an s390x syscall table.
    * `traced` and `traced_probes` now signal readiness to systemd (`READY=1` on
      `$NOTIFY_SOCKET`) when run as `Type=notify` services.

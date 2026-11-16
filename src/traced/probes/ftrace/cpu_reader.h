@@ -46,6 +46,7 @@ struct GenericEventProtoDescriptors;
 
 namespace protos {
 namespace pbzero {
+class FtraceEvent;
 class FtraceEventBundle;
 enum FtraceClock : int32_t;
 enum FtraceParseStatus : int32_t;
@@ -131,6 +132,7 @@ class CpuReader {
             const std::optional<FtraceClockSnapshot>& clock_snapshot,
             CompactSchedBuffer* compact_sched_buf,
             bool compact_sched_enabled,
+            bool single_event_per_packet,
             uint64_t previous_bundle_end_ts,
             const GenericEventProtoDescriptors* generic_pb_descriptors)
         : trace_writer_(trace_writer),
@@ -139,11 +141,13 @@ class CpuReader {
           cpu_(cpu),
           clock_snapshot_(clock_snapshot),
           compact_sched_enabled_(compact_sched_enabled),
+          single_event_per_packet_(single_event_per_packet),
           compact_sched_buf_(compact_sched_buf),
           initial_previous_bundle_end_ts_(previous_bundle_end_ts),
           generic_pb_descriptors_(generic_pb_descriptors) {
       if (compact_sched_enabled_)
         compact_sched_buf_->Reset();
+      PERFETTO_DCHECK(!single_event_per_packet_ || !compact_sched_enabled_);
     }
 
     ~Bundler() { FinalizeAndRunSymbolizer(); }
@@ -158,6 +162,13 @@ class CpuReader {
     // Forces the creation of a new TracePacket.
     void StartNewPacket(bool lost_events,
                         uint64_t previous_bundle_end_timestamp);
+
+    // Rotates packets in single-event mode, preserving a loss/error bundle
+    // opened before this event. The caller passes the last emitted timestamp
+    // on this cpu and data source, in the ftrace clock domain.
+    protos::pbzero::FtraceEvent* AddEvent(
+        uint64_t timestamp,
+        uint64_t previous_bundle_end_timestamp);
 
     // This function is called after the contents of a FtraceBundle are written.
     void FinalizeAndRunSymbolizer();
@@ -182,6 +193,7 @@ class CpuReader {
     const size_t cpu_;
     std::optional<FtraceClockSnapshot> clock_snapshot_;
     const bool compact_sched_enabled_;
+    const bool single_event_per_packet_;
     CompactSchedBuffer* const compact_sched_buf_;
     uint64_t initial_previous_bundle_end_ts_;
     // Keyed by proto field id within |FtraceEvent|.
@@ -190,6 +202,7 @@ class CpuReader {
 
     TraceWriter::TracePacketHandle packet_;
     protos::pbzero::FtraceEventBundle* bundle_ = nullptr;
+    bool has_event_ = false;
   };
 
   struct PageHeader {

@@ -63,7 +63,8 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
       /*kprobes=*/
       base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
       /*debug_ftrace_abi=*/false,
-      /*write_generic_evt_descriptors=*/false};
+      /*write_generic_evt_descriptors=*/false,
+      /*single_event_per_packet=*/size > 0 && (data[0] & 1)};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(
