@@ -1,8 +1,8 @@
 # Extension Servers
 
 Extension servers are HTTP(S) endpoints that distribute shared
-[macros](/docs/visualization/ui-automation.md), SQL modules, and proto
-descriptors to the Perfetto UI. They are the recommended way for teams and
+[macros](/docs/visualization/ui-automation.md), SQL modules, proto
+descriptors and agent skills to the Perfetto UI. They are the recommended way for teams and
 organizations to share reusable trace analysis workflows.
 
 ## Why extension servers?
@@ -24,6 +24,9 @@ All extensions are **declarative and safe**:
 - **Macros** are sequences of UI commands — no JavaScript execution.
 - **SQL modules** run inside trace processor's existing sandbox.
 - **Proto descriptors** are binary type definitions (data only).
+- **Skills** are markdown instructions and SQL scripts for the in-UI assistant
+  (data only). They do give the assistant instructions, so only enable servers
+  you trust.
 
 ## What extension servers provide
 
@@ -55,6 +58,15 @@ INCLUDE PERFETTO MODULE com.acme.startup;
 See
 [PerfettoSQL Getting Started](/docs/analysis/perfetto-sql-getting-started.md)
 for more on SQL modules.
+
+### Skills
+
+Skills are instructions for the in-UI assistant (`dev.perfetto.Intelletto`):
+a `SKILL.md` that says when and how to investigate a kind of problem, plus the
+workflows and SQL scripts it references. The assistant sees one line per skill
+(its name and description) and loads a skill's files only when a question
+matches it. Skills from a server are listed as `<namespace>/<name>`. See the
+[protocol reference](/docs/visualization/extension-server-protocol.md#skills).
 
 ### Proto descriptors
 

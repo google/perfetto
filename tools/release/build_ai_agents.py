@@ -37,7 +37,8 @@ serves it straight from main's `tools/agents-install`.
 
 There is one skill, `ai/skills/perfetto/`, whose entry point is
 `SKILL-template.md` (not a loadable `SKILL.md`, so the source tree is a
-build input, never a drop-in). The bundler renames it to `SKILL.md` and
+build input, never a drop-in). tools/gen_skill_bundle.py writes the
+CLI form of it (SKILL.md with the CLI adapter in place), and the bundler
 copies the `tools/trace_processor` wrapper into the skill's `bin/`.
 
 The skill is emitted exactly once, into `plugins/perfetto/skills/`.
@@ -45,11 +46,10 @@ Plugin-style agents (Claude, Codex) install the `plugins/perfetto/`
 subdir; every other consumer (Pi, OpenCode, Antigravity, generic
 fallback installs via tools/agents-install) reads the same tree at its
 full `plugins/perfetto/skills/` path. The wrapper at
-`<skill root>/bin/trace_processor` is what the skill's
-`environment-references/setup.md` points `$SKILL_ROOT`-based invocations
-at. Antigravity is intentionally treated as a fallback consumer, not a
-plugin consumer, because the release branch cannot currently pin
-`agy plugin install` to a non-default git ref.
+`<skill root>/bin/trace_processor` is what the skill's `SKILL.md` points
+`$SKILL_ROOT`-based invocations at. Antigravity is intentionally treated
+as a fallback consumer, not a plugin consumer, because the release branch
+cannot currently pin `agy plugin install` to a non-default git ref.
 
 This script does no stamping: the release version is written into the
 source manifests and `tools/agents-install` by tools/release/
@@ -83,31 +83,31 @@ DEFAULT_SKILLS_SRC = REPO_ROOT / 'ai' / 'skills'
 SKILL_NAME = 'perfetto'
 EXTENSIONS_SRC = REPO_ROOT / 'ai' / 'extensions'
 TRACE_PROCESSOR_SRC = REPO_ROOT / 'tools' / 'trace_processor'
+GEN_SKILL_BUNDLE = REPO_ROOT / 'tools' / 'gen_skill_bundle.py'
 # The manifest whose `version` field we treat as the bundle's version (all
 # manifests carry the same value, stamped by roll-prebuilts).
 VERSION_MANIFEST = EXTENSIONS_SRC / 'claude-code' / 'marketplace.json'
 
 # The router entry point is a template in source control so the source tree is
-# never mistaken for a loadable skill; the bundler renames it to SKILL.md.
+# never mistaken for a loadable skill; gen_skill_bundle.py writes SKILL.md.
 SKILL_TEMPLATE = 'SKILL-template.md'
-# Source-only files that must never ship to the release branch: the template
-# (re-emitted as SKILL.md) and dev/test metadata.
-_EMIT_IGNORE = shutil.ignore_patterns(SKILL_TEMPLATE, 'OWNERS', 'TEST.md',
-                                      'BUILD')
 
 
 def _emit_skill(skill_src: Path, dest_dir: Path) -> str:
   """Emit the single `perfetto` skill into dest_dir.
 
-  Copies the skill tree verbatim except for the source-only transform
-  SKILL-template.md -> SKILL.md (rename), and adds the trace_processor
-  wrapper at bin/trace_processor so `$SKILL_ROOT/bin/trace_processor`
-  resolves in every install. Returns the emitted skill name.
+  Writes the CLI form of the skill with gen_skill_bundle.py, and adds the
+  trace_processor wrapper at bin/trace_processor so
+  `$SKILL_ROOT/bin/trace_processor` resolves in every install. Returns the
+  emitted skill name.
   """
   out_dir = dest_dir / SKILL_NAME
-  shutil.copytree(skill_src, out_dir, ignore=_EMIT_IGNORE)
-  # Router: SKILL-template.md -> SKILL.md (verbatim, no content rewrite).
-  shutil.copy(skill_src / SKILL_TEMPLATE, out_dir / 'SKILL.md')
+  subprocess.check_call([
+      sys.executable,
+      str(GEN_SKILL_BUNDLE), '--host', 'cli', '--skill',
+      str(skill_src), '--out',
+      str(dest_dir)
+  ])
   # The bundled wrapper, inside the skill so it survives every install
   # method (plugin subdir, agents-install copytree, index.json fetch).
   (out_dir / 'bin').mkdir()

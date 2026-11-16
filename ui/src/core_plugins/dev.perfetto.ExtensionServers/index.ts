@@ -18,6 +18,7 @@ import type {AppImpl} from '../../core/app_impl';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {RouteArgs} from '../../public/route_schema';
 import {
+  findEmbedderServer,
   initializeServers,
   initializeServerFromManifest,
   loadManifest,
@@ -58,7 +59,7 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
       id: 'dev.perfetto.ExtensionServers',
       name: 'Extension Servers',
       description:
-        'Configure servers that provide additional macros, SQL modules, and proto descriptors.',
+        'Configure servers that provide additional macros, SQL modules, proto descriptors, and agent skills.',
       defaultValue: [],
       schema: extensionServersSchema,
       render: renderExtensionServersSettings,
@@ -295,7 +296,7 @@ async function maybeAddEmbedderExtServer(
   if (!manifest.ok) return [];
 
   // If already configured by the user, initialize the existing entry.
-  const existing = setting.get().find((s) => sameServerLocation(s, location));
+  const existing = findEmbedderServer(setting, location);
   if (existing) {
     return initializeServerFromManifest(
       ctx,

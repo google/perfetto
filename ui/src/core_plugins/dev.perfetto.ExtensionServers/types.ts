@@ -124,6 +124,9 @@ export type UserInput =
 //   - {base_url}/modules/{id}/macros             → using MacrosSchema
 //   - {base_url}/modules/{id}/sql_modules        → using SqlModulesSchema
 //   - {base_url}/modules/{id}/proto_descriptors  → using ProtoDescriptorsSchema
+//   - {base_url}/modules/{id}/skills             → using skillIndexSchema
+//     (core/skill_manager.ts); each skill file is then fetched on demand
+//     from {base_url}/modules/{id}/skill_files/{skill}/{path}
 export const manifestFeatureSchema = z.object({
   name: z.string(),
 });

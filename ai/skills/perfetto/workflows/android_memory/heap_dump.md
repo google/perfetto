@@ -1,3 +1,8 @@
+---
+related:
+  - path: heap_dump_diff.md
+    when: Compare two Java heap dumps (before/after diff)
+---
 # Investigating an Android Java Heap Dump
 
 This workflow walks an AI agent through investigating memory leaks and object
@@ -84,8 +89,7 @@ handle each dump separately and label your sections by those two values.
     If nothing looks abnormal (top hotspots are things every process has,
     such as interned strings or ICU caches, and no duplicate Activities),
     say there is no clear leak signal. One snapshot cannot rule out a slow
-    leak; suggest a second dump and
-    [heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md).
+    leak; suggest a second dump.
 
 4.  **Source code.** If the app's source is available (search the workspace
     for the process name and the app classes in the paths), use it to
