@@ -57,6 +57,7 @@ import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
 import {ThemeProvider} from './theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
+import {setMoireTestPatternEnabled} from '../widgets/virtual_overlay_canvas';
 import {JsonSettingsEditor} from '../components/json_settings_editor';
 import {
   type CommandInvocation,
@@ -112,6 +113,17 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
     'Allows simultaneous usage of several trace_processor_shell ' +
     '-D --http-port 1234 by opening ' +
     'https://ui.perfetto.dev/#!/?rpc_port=1234',
+  defaultValue: false,
+});
+
+// DO NOT SUBMIT: moire test pattern.
+const MOIRE_TEST_PATTERN = featureFlags.register({
+  id: 'canvasMoireTestPattern',
+  name: 'Canvas moire test pattern',
+  description:
+    'Draws 1px wide red, green and blue stripes over every virtual overlay ' +
+    'canvas (timeline, minimap, flamegraph) in place of their contents, to ' +
+    'check that canvas draw buffers map 1:1 to device pixels.',
   defaultValue: false,
 });
 
@@ -351,6 +363,9 @@ function main() {
 
   // Put debug variables in the global scope for better debugging.
   registerDebugGlobals();
+
+  // DO NOT SUBMIT: moire test pattern.
+  setMoireTestPatternEnabled(MOIRE_TEST_PATTERN.get());
 
   // Prevent pinch zoom.
   document.body.addEventListener(

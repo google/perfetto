@@ -26,7 +26,7 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {DisposableStack} from '../../base/disposable_stack';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {bindEventListener, findRef, toHTMLElement} from '../../base/dom_utils';
 import {
   type HorizontalBounds,
   Rect2D,
@@ -47,7 +47,11 @@ import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {TrackNode} from '../../public/workspace';
 import type {SnapPoint} from '../../public/track';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+import {
+  VirtualCanvasHost,
+  type VirtualCanvasHostApi,
+} from '../../widgets/virtual_canvas_host';
+import {maybeDrawMoireTestPattern} from '../../widgets/virtual_overlay_canvas';
 import {
   COLOR_ACCENT,
   COLOR_BACKGROUND,
@@ -75,6 +79,8 @@ import {CursorTooltip} from '../../widgets/cursor_tooltip';
 import type {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
 import type {Renderer} from '../../base/renderer';
+import {Canvas2DRenderer} from '../../base/canvas2d_renderer';
+import {WebGLRenderer} from '../../base/gl/webgl_renderer';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -174,6 +180,17 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private areaDrag?: InProgressAreaSelection;
   private handleDrag?: InProgressHandleDrag;
   private canvasRect?: Rect2D;
+
+  // The renderer used to draw track content, created when the canvas host is
+  // mounted. We give the host two canvases: a WebGL canvas (when WebGL is
+  // enabled and available) with a 2D canvas on top of it for text etc. The
+  // renderer is a WebGLRenderer drawing onto both, or a Canvas2DRenderer
+  // drawing onto just the 2D canvas.
+  private canvasRenderer?: {
+    readonly ctx: CanvasRenderingContext2D;
+    readonly renderer: Renderer;
+    readonly gl?: WebGL2RenderingContext;
+  };
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
 
@@ -325,23 +342,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     }
 
     return m(
-      VirtualOverlayCanvas,
+      VirtualCanvasHost,
       {
-        onMount: ({redrawCanvas}) =>
-          attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
+        onMount: (api) => this.onCanvasMount(api),
         disableCanvasRedrawOnMithrilUpdates: true,
         className: classNames(className, 'pf-track-tree'),
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        enableWebGL: WEBGL_RENDERING.get(),
-        onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, renderer}) => {
-          this.drawCanvas(
-            ctx,
+        scroll: 'y',
+        onCanvasRedraw: ({virtualCanvasSize, canvasRect, deviceScale}) => {
+          this.renderCanvas(
             virtualCanvasSize,
             renderedTracks,
             canvasRect,
+            deviceScale,
             rootNode,
-            renderer,
           );
 
           if (VIRTUAL_TRACK_SCROLLING.get()) {
@@ -356,7 +369,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               !this.canvasRect.equals(canvasRect)
             ) {
               this.canvasRect = canvasRect;
-              m.redraw();
+              // TODO: Stubbed out - restore.
+              // m.redraw();
             }
           }
         },
@@ -421,6 +435,113 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
   onremove() {
     this.interactions?.[Symbol.dispose]();
+  }
+
+  // Creates our canvases and renderer when the canvas host mounts. The host
+  // positions and sizes the canvases. Everything is torn down again when the
+  // host disposes the returned disposable.
+  private onCanvasMount(api: VirtualCanvasHostApi): Disposable {
+    const trash = new DisposableStack();
+    trash.use(this.trace.raf.addCanvasRedrawCallback(api.redrawCanvas));
+    trash.defer(() => {
+      this.canvasRenderer = undefined;
+    });
+
+    // WebGL canvas first, so the 2D canvas is stacked on top of it.
+    let gl: WebGL2RenderingContext | undefined;
+    let glCanvas: HTMLCanvasElement | undefined;
+    if (WEBGL_RENDERING.get()) {
+      glCanvas = document.createElement('canvas');
+      gl =
+        glCanvas.getContext('webgl2', {
+          alpha: true,
+          premultipliedAlpha: true,
+          antialias: true,
+        }) ?? undefined;
+      if (gl) {
+        trash.use(api.addCanvas(glCanvas));
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = ensureExists(canvas.getContext('2d'));
+    trash.use(api.addCanvas(canvas));
+
+    if (gl === undefined || glCanvas === undefined) {
+      this.canvasRenderer = {ctx, renderer: new Canvas2DRenderer(ctx)};
+      return trash;
+    }
+
+    const glContext = gl;
+    this.canvasRenderer = {ctx, renderer: new WebGLRenderer(ctx, gl), gl};
+    trash.use(
+      bindEventListener(glCanvas, 'webglcontextlost', (e: Event) => {
+        // Fall back to the canvas renderer until the context is restored.
+        this.canvasRenderer = {ctx, renderer: new Canvas2DRenderer(ctx)};
+
+        // Calling preventDefault here tells the browser to send us a
+        // 'webglcontextrestored' event when context is restored.
+        e.preventDefault();
+      }),
+    );
+    trash.use(
+      bindEventListener(glCanvas, 'webglcontextrestored', () => {
+        // Recreate the webgl renderer to continue rendering with WebGL.
+        // WebGL state such as buffers and textures shall be recrated lazily
+        // on first render.
+        this.canvasRenderer = {
+          ctx,
+          renderer: new WebGLRenderer(ctx, glContext),
+          gl: glContext,
+        };
+        api.redrawCanvas();
+      }),
+    );
+
+    return trash;
+  }
+
+  // Draws our canvases using our renderer: resets and clears them, scales from
+  // CSS pixels to draw buffer pixels and offsets by the floating canvas
+  // position, then draws the tracks.
+  private renderCanvas(
+    size: Size2D,
+    renderedTracks: ReadonlyArray<TrackView>,
+    floatingCanvasRect: Rect2D,
+    deviceScale: {readonly x: number; readonly y: number},
+    rootNode: TrackNode,
+  ) {
+    const {ctx, renderer, gl} = ensureExists(this.canvasRenderer);
+
+    renderer.resetTransform();
+    renderer.clear();
+
+    // The host sizes the WebGL canvas' draw buffer, which resets the viewport.
+    gl?.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    {
+      using _scale = renderer.pushTransform({
+        scaleX: deviceScale.x,
+        scaleY: deviceScale.y,
+      });
+      using _offset = renderer.pushTransform({
+        offsetX: -floatingCanvasRect.left,
+        offsetY: -floatingCanvasRect.top,
+      });
+      this.drawCanvas(
+        ctx,
+        size,
+        renderedTracks,
+        floatingCanvasRect,
+        rootNode,
+        renderer,
+      );
+    }
+
+    gl?.flush();
+
+    // DO NOT SUBMIT: moire test pattern.
+    maybeDrawMoireTestPattern(ctx);
   }
 
   private drawCanvas(

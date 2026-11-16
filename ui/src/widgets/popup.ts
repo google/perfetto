@@ -382,33 +382,33 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     }
 
     // Custom modifier to hide popup when trigger is not visible. This can be
-    // due to the trigger or one of its ancestors having display:none.
+    // due to the trigger or one of its ancestors having display:none, or the
+    // trigger having been scrolled out of view inside a scrolling container
+    // (or the window). In the latter case, the popup reappears when the
+    // trigger is scrolled back into view. Popper updates on scroll, so this
+    // happens without any redraws.
     const hideOnInvisible: Modifier<'hideOnInvisible', {}> = {
       name: 'hideOnInvisible',
       enabled: true,
       phase: 'main',
+      // Run after popper's built in hide modifier, which works out whether the
+      // trigger is clipped by its scrolling containers.
+      requiresIfExists: ['hide'],
       fn({state}) {
         const reference = state.elements.reference;
         if (!(reference instanceof HTMLElement)) {
           return;
         }
 
+        let isVisible: boolean;
         // Check if checkVisibility is supported
         if (typeof reference.checkVisibility === 'function') {
-          const isVisible = reference.checkVisibility();
-
-          if (!isVisible) {
-            // Hide the popper by setting display to none
-            state.elements.popper.style.display = 'none';
-          } else {
-            // Show the popper
-            state.elements.popper.style.display = '';
-          }
+          isVisible = reference.checkVisibility();
         } else {
           // Fallback for browsers that don't support checkVisibility()
           // Use intersection observer or other visibility checks
           const rect = reference.getBoundingClientRect();
-          const isVisible =
+          isVisible =
             rect.top >= 0 &&
             rect.left >= 0 &&
             rect.bottom <=
@@ -417,9 +417,14 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
               (window.innerWidth || document.documentElement.clientWidth) &&
             window.getComputedStyle(reference).visibility !== 'hidden' &&
             window.getComputedStyle(reference).display !== 'none';
-
-          state.elements.popper.style.display = isVisible ? '' : 'none';
         }
+
+        const isScrolledOutOfView =
+          state.modifiersData.hide?.isReferenceHidden === true;
+
+        // Hide or show the popper.
+        state.elements.popper.style.display =
+          isVisible && !isScrolledOutOfView ? '' : 'none';
       },
     };
 

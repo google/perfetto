@@ -202,7 +202,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private yOffset = 0;
   private labelCharWidth = 0;
   private viewportRect?: Rect2D;
-  private lastPopupVisible = false;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -281,27 +280,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         VirtualOverlayCanvas,
         {
           className: 'pf-virtual-canvas',
-          overflowX: 'hidden',
-          overflowY: 'auto',
+          scroll: 'y',
           onMount: (api) => {
             this.canvasApi = api;
             this.flushPendingScroll();
-          },
-          onscroll: (e: MithrilEvent<Event>) => {
-            // Only redraw if popup visibility would change
-            if (!this.tooltipPos) {
-              e.redraw = false;
-              return;
-            }
-            const target = e.target as HTMLElement;
-            const scrollTop = target.scrollTop;
-            const clientHeight = target.clientHeight;
-            const tooltipY = this.tooltipPos.y;
-            const nowVisible =
-              tooltipY >= scrollTop && tooltipY <= scrollTop + clientHeight;
-            if (nowVisible === this.lastPopupVisible) {
-              e.redraw = false;
-            }
           },
           onCanvasRedraw: ({
             ctx,
@@ -399,11 +381,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             },
           },
           (() => {
+            // The popup hides itself while its anchor is scrolled out of
+            // view.
             const popupVisible =
-              this.isPopupAnchorVisible() &&
-              (this.tooltipPos?.state === 'HOVER' ||
-                this.tooltipPos?.state === 'CLICK');
-            this.lastPopupVisible = popupVisible;
+              this.tooltipPos?.state === 'HOVER' ||
+              this.tooltipPos?.state === 'CLICK';
             return m(
               Popup,
               {
@@ -591,14 +573,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ctx.lineWidth = 0.5;
       }
     }
-  }
-
-  private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos || !this.viewportRect) {
-      return false;
-    }
-    const {y} = this.tooltipPos;
-    return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
   }
 
   private renderTooltip() {
