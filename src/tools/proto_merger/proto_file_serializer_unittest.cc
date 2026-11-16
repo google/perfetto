@@ -319,6 +319,21 @@ TEST(ProtoFileSerializerTest, TypeTransitionToEnumKeepsType) {
   EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
 }
 
+TEST(ProtoFileSerializerTest, LabelChangeKeepsLabel) {
+  ProtoFile input;
+  ProtoFile::Message message{};
+  message.name = "Container";
+  message.fields.push_back(MakeField("int32", "values", 1));
+  message.fields[0].is_repeated = true;
+  input.messages.push_back(message);
+  ProtoFile upstream = input;
+  upstream.messages[0].fields[0].is_repeated = false;
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  EXPECT_TRUE(merged.messages[0].fields[0].is_repeated);
+}
+
 TEST(ProtoFileSerializerTest, TypeTransitionLossyKeepsType) {
   for (const auto& [from, to] :
        std::vector<std::pair<std::string, std::string>>{{"int64", "int32"},

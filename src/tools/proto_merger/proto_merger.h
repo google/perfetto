@@ -39,6 +39,7 @@ namespace proto_merger {
 // * Only lossless type changes of existing fields (e.g. int32 -> int64) are
 //   applied; other wire-compatible ones (e.g. int64 -> int32, bytes -> message)
 //   keep the |input| type, and wire-incompatible ones fail the merge.
+// * Labels (optional/repeated) of existing fields are kept from |input|.
 base::Status MergeProtoFiles(
     const ProtoFile& input,
     const ProtoFile& upstream,

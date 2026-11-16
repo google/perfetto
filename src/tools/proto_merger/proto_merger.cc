@@ -324,10 +324,10 @@ bool IsLosslessTypeTransition(const std::string& from, const std::string& to) {
          (from == "sint32" && to == "sint64");
 }
 
-// Merges |input| with its |upstream| version. Allowed type transitions which
-// are not lossless (e.g. int64 -> int32, int32 -> enum, bytes -> message) are
-// not applied, as they change how stored data is read: the field keeps its
-// input type.
+// Merges |input| with its |upstream| version. Label changes and allowed type
+// transitions which are not lossless (e.g. int64 -> int32, int32 -> enum,
+// bytes -> message) are not applied, as they change how stored data is read:
+// the field keeps its input label and type.
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
                         const MergeContext& ctx,
@@ -363,13 +363,13 @@ base::Status MergeField(const ProtoFile::Field& input,
     }
   }
 
-  // Get the comments, label and the name from the source of truth.
+  // Get the comments and the name from the source of truth.
   out.leading_comments = upstream.leading_comments;
   out.trailing_comments = upstream.trailing_comments;
-  out.is_repeated = upstream.is_repeated;
   out.name = upstream.name;
 
   // Get everything else from the input.
+  out.is_repeated = input.is_repeated;
   out.number = input.number;
   out.options = input.options;
 
