@@ -281,8 +281,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         VirtualOverlayCanvas,
         {
           className: 'pf-virtual-canvas',
-          overflowX: 'hidden',
-          overflowY: 'auto',
+          scroll: 'y',
           onMount: (api) => {
             this.canvasApi = api;
             this.flushPendingScroll();

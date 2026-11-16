@@ -35,7 +35,7 @@ export function renderVirtualCanvas(): m.Children {
           VirtualOverlayCanvas,
           {
             style: {height: '400px', width: `400px`},
-            overflowY: 'auto',
+            scroll: 'y',
             onCanvasRedraw({ctx, canvasRect}) {
               ctx.strokeStyle = 'red';
               ctx.lineWidth = 1;

@@ -42,7 +42,7 @@ import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {bindEventListener, findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect2D, type Size2D} from '../base/geom';
-import {ensureExists} from '../base/assert';
+import {assertDefined, assertIsInstance, ensureExists} from '../base/assert';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
 import type {Renderer} from '../base/renderer';
@@ -73,9 +73,6 @@ const CANVAS_TOLERANCE_PX = 100;
 
 const EMPTY_RECT = new Rect2D({left: 0, top: 0, right: 0, bottom: 0});
 
-// Which axes to overdraw in. Typically only the axes we expect to scroll in.
-type OverdrawAxes = 'none' | 'x' | 'y' | 'both';
-
 export interface VirtualOverlayCanvasDrawContext {
   // Canvas rendering context.
   readonly ctx: CanvasRenderingContext2D;
@@ -100,7 +97,7 @@ export interface VirtualOverlayCanvasDrawContext {
   readonly renderer: Renderer;
 }
 
-export type Overflow = 'hidden' | 'visible' | 'auto';
+export type Scroll = 'none' | 'x' | 'y' | 'both';
 
 // Imperative handle for controlling a VirtualOverlayCanvas. Handed to the
 // parent via the `onMount` callback.
@@ -119,15 +116,12 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Additional class names applied to the root element.
   readonly className?: string;
 
-  // Overflow rules for the horizontal axis.
-  readonly overflowX?: Overflow;
+  // Override styles from base interface, only allowing object type styles
+  // rather than strings.
+  readonly style?: Partial<CSSStyleDeclaration>;
 
-  // Overflow rules for the vertical axis.
-  readonly overflowY?: Overflow;
-
-  // Called when the canvas needs to be repainted due to a layout shift or
-  // or resize.
-  readonly onCanvasRedraw?: (ctx: VirtualOverlayCanvasDrawContext) => void;
+  // Which axis/axes to scroll & virtualize.
+  readonly scroll?: Scroll;
 
   // When true the canvas will not be redrawn on mithril update cycles. Disable
   // this if you want to manage the canvas redraw cycle yourself (i.e. possibly
@@ -135,39 +129,21 @@ export interface VirtualOverlayCanvasAttrs extends HTMLAttrs {
   // Default: false.
   readonly disableCanvasRedrawOnMithrilUpdates?: boolean;
 
-  // Controls whether the canvas is redrawn when the virtual canvas element
-  // (whose size is passed to onCanvasRedraw as virtualCanvasSize) changes size
-  // in the inline (horizontal) and/or block (vertical) direction. Redraws
-  // caused by the floating canvas itself moving or resizing are unaffected.
-  // Default: 'both'.
-  readonly redrawOnResize?: 'none' | 'inline' | 'block' | 'both';
+  // Called when the canvas needs to be repainted due to a layout shift or
+  // or resize.
+  readonly onCanvasRedraw?: (ctx: VirtualOverlayCanvasDrawContext) => void;
 
   // Called when the canvas is mounted. The passed api object exposes
   // imperative methods for controlling the canvas. Any returned disposable
   // will be disposed of when the component is removed.
   readonly onMount?: (api: VirtualOverlayCanvasApi) => Disposable | void;
 
-  // Override styles from base interface, only allowing object type styles
-  // rather than strings.
-  readonly style?: Partial<CSSStyleDeclaration>;
-
   // Enable a second canvas for WebGL rendering. When enabled, webglCanvas and
   // webglCtx will be provided in the draw context.
+  // TODO(stevegolton): This is a hack - this is an implementation detail of the
+  // timeline and is out of scope of this VOC component.
   // Default: false.
   readonly enableWebGL?: boolean;
-}
-
-function getScrollAxesFromOverflow(x: Overflow, y: Overflow): OverdrawAxes {
-  if (x === 'auto' && y === 'auto') {
-    return 'both';
-  } else if (x === 'auto') {
-    return 'x';
-  } else if (y === 'auto') {
-    return 'y';
-  } else {
-    //
-    return 'none';
-  }
 }
 
 // This mithril component acts as scrolling container for tall and/or wide
@@ -185,9 +161,9 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
   // The canvas container is the "virtual canvas": an element the size of the
   // whole content, which the floating canvas element(s) live inside.
-  private canvasContainerElement?: HTMLElement;
+  private canvasContainerEl?: HTMLElement;
   private canvasElement?: HTMLCanvasElement;
-  private overdrawAxes: OverdrawAxes = 'none';
+  private scrollAxes: Scroll = 'none';
 
   // The rect of the floating canvas w.r.t. the canvas container, in CSS pixels.
   private canvasRect = EMPTY_RECT;
@@ -202,12 +178,19 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
-    const {
-      overflowX = 'visible',
-      overflowY = 'visible',
-      style = {},
-      ...rest
-    } = attrs;
+    const {scroll = 'none', style = {}, ...rest} = attrs;
+
+    // Scroll in the scrolling axes and clip in the others. If nothing scrolls,
+    // leave overflow alone.
+    const scrollX = scroll === 'x' || scroll === 'both';
+    const scrollY = scroll === 'y' || scroll === 'both';
+    const overflow =
+      scroll === 'none'
+        ? {}
+        : {
+            overflowX: scrollX ? 'auto' : 'hidden',
+            overflowY: scrollY ? 'auto' : 'hidden',
+          };
 
     return m(
       '.pf-virtual-overlay-canvas', // The scrolling container
@@ -215,8 +198,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
         className: attrs.className,
         style: {
           ...style,
-          overflowX,
-          overflowY,
+          ...overflow,
         },
         ...rest,
       },
@@ -233,24 +215,23 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
   }
 
   oncreate({attrs, dom}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
-    this.dom = dom;
-    const canvasContainerElement = toHTMLElement(
-      ensureExists(findRef(dom, CANVAS_CONTAINER_REF)),
-    );
-    this.canvasContainerElement = canvasContainerElement;
-    const {overflowX = 'visible', overflowY = 'visible'} = attrs;
-    this.overdrawAxes = getScrollAxesFromOverflow(overflowX, overflowY);
+    const {scroll = 'none'} = attrs;
 
-    // Ensures the canvases don't change the size of the container element.
-    canvasContainerElement.style.overflow = 'hidden';
+    this.dom = dom;
+    this.scrollAxes = scroll;
+
+    const canvasContainerEl = findRef(dom, CANVAS_CONTAINER_REF);
+    assertIsInstance(canvasContainerEl, HTMLElement);
+
+    this.canvasContainerEl = canvasContainerEl;
 
     // Create the floating canvas inside the canvas container element.
     const canvasEl = document.createElement('canvas');
     canvasEl.style.position = 'absolute';
-    canvasContainerElement.appendChild(canvasEl);
+    canvasContainerEl.appendChild(canvasEl);
     this.canvasElement = canvasEl;
     this.trash.defer(() => {
-      canvasContainerElement.removeChild(canvasEl);
+      canvasContainerEl.removeChild(canvasEl);
     });
 
     // Create the canvas rendering context
@@ -263,7 +244,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       this.webglCanvas.style.position = 'absolute';
       this.webglCanvas.style.pointerEvents = 'none';
       // Insert before the 2D canvas so WebGL renders underneath
-      canvasContainerElement.insertBefore(this.webglCanvas, canvasEl);
+      canvasContainerEl.insertBefore(this.webglCanvas, canvasEl);
       this.trash.defer(() => {
         if (this.webglCanvas?.parentElement) {
           this.webglCanvas.parentElement.removeChild(this.webglCanvas);
@@ -322,33 +303,15 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
     // calls requestRedraw(), which forces a canvas entry to be delivered later
     // in the same frame. This way we draw at most once per frame, after layout
     // and after the draw buffers have been resized.
-    let containerInlineSize: number | undefined;
-    let containerBlockSize: number | undefined;
     const observer = new ResizeObserver((entries) => {
       let canvasEntry: ResizeObserverEntry | undefined;
       let layoutChanged = false;
-      let containerInvalidated = false;
 
       for (const entry of entries) {
         if (entry.target === canvasEl) {
           canvasEntry = entry;
-        } else if (entry.target === canvasContainerElement) {
+        } else if (entry.target === canvasContainerEl) {
           layoutChanged = true;
-
-          const {inlineSize, blockSize} = entry.contentBoxSize[0]!;
-          const inlineChanged = inlineSize !== containerInlineSize;
-          const blockChanged = blockSize !== containerBlockSize;
-          containerInlineSize = inlineSize;
-          containerBlockSize = blockSize;
-
-          const redrawOnResize = this.attrs?.redrawOnResize ?? 'none';
-          const onInline =
-            redrawOnResize === 'inline' || redrawOnResize === 'both';
-          const onBlock =
-            redrawOnResize === 'block' || redrawOnResize === 'both';
-          if ((inlineChanged && onInline) || (blockChanged && onBlock)) {
-            containerInvalidated = true;
-          }
         } else if (entry.target === dom) {
           layoutChanged = true;
         }
@@ -363,8 +326,12 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       }
 
       if (canvasEntry) {
-        const width = canvasEntry.devicePixelContentBoxSize[0]!.inlineSize;
-        const height = canvasEntry.devicePixelContentBoxSize[0]!.blockSize;
+        const contentBoxSize = canvasEntry.devicePixelContentBoxSize[0];
+        assertDefined(contentBoxSize);
+
+        // Note: Assumes horizontal writing mode.
+        const width = contentBoxSize.inlineSize;
+        const height = contentBoxSize.blockSize;
 
         // Only touch the draw buffer if its size actually changed - assigning
         // to width/height clears the canvas, and this entry may have been
@@ -389,9 +356,6 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
         // Redraw synchronoously.
         console.log('Redrawing...');
         this.redrawCanvas();
-      } else if (containerInvalidated) {
-        console.log('Container resized - scheduling a redraw');
-        requestRedraw();
       }
     });
 
@@ -406,7 +370,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
     this.requestRedraw = requestRedraw;
 
     observer.observe(dom);
-    observer.observe(canvasContainerElement);
+    observer.observe(canvasContainerEl);
     observer.observe(canvasEl, canvasObserverOpts);
     this.trash.defer(() => {
       observer.disconnect();
@@ -422,8 +386,8 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
         'scroll',
         () => {
           console.log('onScroll');
-          observer.unobserve(canvasContainerElement);
-          observer.observe(canvasContainerElement);
+          observer.unobserve(canvasContainerEl);
+          observer.observe(canvasContainerEl);
         },
         {passive: true},
       ),
@@ -466,7 +430,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
   // from the resize observer callback.
   private updateCanvasRect(): boolean {
     const scrollContainer = ensureExists(this.dom);
-    const target = ensureExists(this.canvasContainerElement);
+    const target = ensureExists(this.canvasContainerEl);
 
     // The scrolling container's viewport w.r.t. the canvas container.
     const targetRect = target.getBoundingClientRect();
@@ -475,21 +439,32 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
       .reframe(targetRect);
     this.viewportRect = viewport;
 
-    if (this.viewportLimits.contains(viewport)) {
-      return false;
-    }
-
-    const axes = this.overdrawAxes;
+    const axes = this.scrollAxes;
     const overdrawX = axes === 'x' || axes === 'both';
     const overdrawY = axes === 'y' || axes === 'both';
-    const expandBy = (px: number) => ({
-      width: overdrawX ? px : 0,
-      height: overdrawY ? px : 0,
+
+    // In the scrolling axes, only move the canvas once the viewport leaves the
+    // limits.
+    let scrollRect = this.canvasRect;
+    if (!this.viewportLimits.contains(viewport)) {
+      const expandBy = (px: number) => ({
+        width: overdrawX ? px : 0,
+        height: overdrawY ? px : 0,
+      });
+      scrollRect = viewport.expand(expandBy(CANVAS_OVERDRAW_PX));
+      this.viewportLimits = viewport.expand(
+        expandBy(CANVAS_OVERDRAW_PX - CANVAS_TOLERANCE_PX),
+      );
+    }
+
+    // In the axes that don't scroll, the canvas is sized to 100% of the canvas
+    // container in CSS, so it always spans the whole of it.
+    const canvasRect = new Rect2D({
+      left: overdrawX ? scrollRect.left : 0,
+      right: overdrawX ? scrollRect.right : targetRect.width,
+      top: overdrawY ? scrollRect.top : 0,
+      bottom: overdrawY ? scrollRect.bottom : targetRect.height,
     });
-    const canvasRect = viewport.expand(expandBy(CANVAS_OVERDRAW_PX));
-    this.viewportLimits = viewport.expand(
-      expandBy(CANVAS_OVERDRAW_PX - CANVAS_TOLERANCE_PX),
-    );
 
     const prev = this.canvasRect;
     this.canvasRect = canvasRect;
@@ -506,8 +481,8 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
     console.log('onLayoutShift');
     for (const el of [this.canvasElement, this.webglCanvas]) {
       if (el === undefined) continue;
-      el.style.width = `${canvasRect.width}px`;
-      el.style.height = `${canvasRect.height}px`;
+      el.style.width = overdrawX ? `${canvasRect.width}px` : '100%';
+      el.style.height = overdrawY ? `${canvasRect.height}px` : '100%';
       el.style.transform = `translate(${canvasRect.left}px, ${canvasRect.top}px)`;
     }
     return true;
@@ -515,7 +490,7 @@ export class VirtualOverlayCanvas implements m.ClassComponent<VirtualOverlayCanv
 
   // The size of the canvas container, aka the size of the virtual canvas.
   private get virtualCanvasSize(): Size2D {
-    const target = ensureExists(this.canvasContainerElement);
+    const target = ensureExists(this.canvasContainerEl);
     return {width: target.clientWidth, height: target.clientHeight};
   }
 

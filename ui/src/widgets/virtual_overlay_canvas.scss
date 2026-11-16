@@ -28,5 +28,8 @@
     // size never affects the size of this element (which comes from `inset`),
     // so contain them fully to keep any layout and paint they cause inside.
     contain: strict;
+
+    // Ensures the canvases don't change the size of the container element.
+    overflow: hidden;
   }
 }

@@ -331,9 +331,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           attrs.trace.raf.addCanvasRedrawCallback(redrawCanvas),
         disableCanvasRedrawOnMithrilUpdates: true,
         className: classNames(className, 'pf-track-tree'),
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        redrawOnResize: 'inline',
+        scroll: 'y',
         enableWebGL: WEBGL_RENDERING.get(),
         onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect, renderer}) => {
           this.drawCanvas(
