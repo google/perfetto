@@ -8,14 +8,12 @@
 --     https://www.apache.org/licenses/LICENSE-2.0
 --
 -- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
+-- distributed under the License is distributed ON an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_classification;
-
-INCLUDE PERFETTO MODULE android.memory.heap_graph.class_relationship;
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 
@@ -38,17 +36,55 @@ ORDER BY
 
 -- The `BinderProxy.mDeathRecipients` list of each proxy that has one.
 CREATE PERFETTO TABLE _heap_graph_binder_proxy_death_list AS
-SELECT p.id AS proxy_id, MAX(r.owned_id) AS list_id
-FROM _heap_graph_binder_proxy_object AS p
-CROSS JOIN heap_graph_reference AS r ON r.reference_set_id = p.reference_set_id
+FROM (
+  SELECT p.id AS proxy_id, r.owned_id
+  FROM _heap_graph_binder_proxy_object AS p
+  CROSS JOIN heap_graph_reference AS r
+    ON r.reference_set_id = p.reference_set_id
+  WHERE
+    p.reference_set_id IS NOT NULL
+    AND r.field_name = 'android.os.BinderProxy.mDeathRecipients'
+    AND r.owned_id IS NOT NULL
+)
+|> AGGREGATE MAX(owned_id) AS list_id GROUP BY proxy_id
+|> ORDER BY proxy_id;
+
+-- All subclasses of `android.os.RemoteCallbackList` (including itself).
+CREATE PERFETTO TABLE _heap_graph_remote_callback_list_class AS
+GRAPH DFS TREE
+  NODES heap_graph_class
+  EDGES (
+    FROM heap_graph_class
+    |> SELECT superclass_id AS src, id AS dst
+  )
+  FROM (
+    FROM heap_graph_class
+    |> SELECT id, coalesce(deobfuscated_name, name, '') AS name
+    |> WHERE name = 'android.os.RemoteCallbackList'
+  )
+|> SELECT id;
+
+-- Wrapper classes skipped when walking up each proxy's dominator chain:
+-- standard containers, AIDL `*$Stub$Proxy` classes, and
+-- `android.os.RemoteCallbackList` (plus its subclasses, often anonymous, and
+-- its nested callback/interface wrappers).
+CREATE PERFETTO TABLE _heap_graph_binder_proxy_wrapper_class AS
+SELECT id
+FROM _heap_graph_class_classification
 WHERE
-  p.reference_set_id IS NOT NULL
-  AND r.field_name = 'android.os.BinderProxy.mDeathRecipients'
-  AND r.owned_id IS NOT NULL
-GROUP BY
-  p.id
-ORDER BY
-  proxy_id;
+  is_static_class = 0
+  AND (is_container = 1
+  OR type_name GLOB '*$Stub$Proxy'
+  OR type_name GLOB 'android.os.RemoteCallbackList$*')
+UNION
+SELECT id FROM _heap_graph_remote_callback_list_class ORDER BY id;
+
+-- Standard container classes walked inside `BinderProxy.mDeathRecipients`.
+CREATE PERFETTO TABLE _heap_graph_binder_proxy_container_class AS
+FROM _heap_graph_class_classification
+|> WHERE is_container = 1 AND is_static_class = 0
+|> SELECT id
+|> ORDER BY id;
 
 -- Dominator-tree ancestors of every reachable `android.os.BinderProxy`
 -- (including the proxies themselves), walking upward from `id` to `idom_id`.
@@ -57,53 +93,31 @@ GRAPH DFS TREE
   NODES heap_graph_dominator_tree
   EDGES (
     FROM heap_graph_dominator_tree
-    |> WHERE idom_id IS NOT NULL
     |> SELECT id AS src, idom_id AS dst
   )
-  FROM (SELECT id FROM _heap_graph_binder_proxy_object)
+  FROM _heap_graph_binder_proxy_object
 |> SELECT id, idom_id
 |> ORDER BY id;
 
--- Outermost wrapper on each proxy's dominator chain (or the proxy itself when
--- its immediate dominator is not a wrapper). Wrappers are standard containers,
--- AIDL `*$Stub$Proxy` classes, and `android.os.RemoteCallbackList` (plus its
--- subclasses, often anonymous, and its nested callback/interface wrappers).
--- Cutting the ancestor chain at non-wrappers and accumulating down propagates
--- each chain's topmost wrapper, whose `idom_id` is the nearest non-wrapper
--- dominator (the holder).
-CREATE PERFETTO TABLE _heap_graph_binder_proxy_wrapper_top AS
+-- Outermost wrapper (`wrapper_top_id`) and nearest non-wrapper dominator
+-- (`holder_id`) for each proxy's dominator chain. Cutting the ancestor chain
+-- at non-wrappers and accumulating down propagates each chain's topmost
+-- wrapper and its immediate dominator (the holder).
+CREATE PERFETTO TABLE _heap_graph_binder_proxy_holder AS
 FROM (
-  WITH
-    wrapper_class AS MATERIALIZED (
-      SELECT id
-      FROM _heap_graph_class_classification
-      WHERE
-        NOT is_static_class
-        AND (is_container
-        OR type_name GLOB '*$Stub$Proxy'
-        OR type_name GLOB 'android.os.RemoteCallbackList$*'
-        OR id IN (
-          SELECT id
-          FROM android_heap_graph_class_find_descendants!(
-            (
-              SELECT id
-              FROM heap_graph_class
-              WHERE
-                coalesce(deobfuscated_name, name)
-                = 'android.os.RemoteCallbackList'
-            )
-          )
-        ))
-    )
-  SELECT
-    a.id,
-    iif(po.type_id IN wrapper_class, a.idom_id, NULL) AS parent_id,
-    iif(po.type_id IN wrapper_class, NULL, a.id) AS top_seed
+  SELECT a.id, a.idom_id, wc.id AS wrapper_type_id
   FROM _heap_graph_binder_proxy_ancestor AS a
   LEFT JOIN heap_graph_object AS po ON po.id = a.idom_id
+  LEFT JOIN _heap_graph_binder_proxy_wrapper_class AS wc ON wc.id = po.type_id
 )
-|> TREE ACCUMULATE DOWN MAX(top_seed) AS wrapper_top_id
-|> SELECT id, wrapper_top_id
+|> EXTEND
+  iif(wrapper_type_id IS NOT NULL, idom_id, NULL) AS parent_id,
+  iif(wrapper_type_id IS NOT NULL, NULL, id) AS top_seed,
+  iif(wrapper_type_id IS NOT NULL, NULL, idom_id) AS holder_seed
+|> TREE ACCUMULATE DOWN
+  MAX(top_seed) AS wrapper_top_id,
+  MAX(holder_seed) AS holder_id
+|> SELECT id, wrapper_top_id, holder_id
 |> ORDER BY id;
 
 -- Container objects reachable from `android.os.BinderProxy.mDeathRecipients`,
@@ -113,26 +127,24 @@ FROM (
 CREATE PERFETTO TABLE _heap_graph_binder_proxy_death_container AS
 GRAPH DFS TREE
   NODES (
-    WITH
-      dr_roots AS MATERIALIZED (
-        SELECT DISTINCT list_id AS id FROM _heap_graph_binder_proxy_death_list
-      )
-    SELECT o.id, dr.id AS list_seed
-    FROM heap_graph_object AS o
-    LEFT JOIN dr_roots AS dr ON dr.id = o.id
+    SELECT o.id
+    FROM (
+      SELECT
+        EXISTS (SELECT 1 FROM _heap_graph_binder_proxy_death_list) AS has_dl
+    ) AS g
+    CROSS JOIN heap_graph_object AS o
     WHERE
-      EXISTS (SELECT 1 FROM dr_roots)
+      g.has_dl = 1
       AND o.reachable = 1
-      AND o.type_id IN (
-        SELECT id
-        FROM _heap_graph_class_classification
-        WHERE
-          is_container
-          AND NOT is_static_class
-      )
+      AND o.type_id IN _heap_graph_binder_proxy_container_class
   )
   EDGES _heap_graph_strong_edges
-  FROM (SELECT DISTINCT list_id AS id FROM _heap_graph_binder_proxy_death_list)
+  FROM (
+    FROM _heap_graph_binder_proxy_death_list
+    |> SELECT list_id AS id
+    |> DISTINCT
+  )
+|> EXTEND iif(parent_id IS NULL, id, NULL) AS list_seed
 |> TREE ACCUMULATE DOWN MAX(list_seed) AS list_id
 |> SELECT id AS container_id, list_id
 |> ORDER BY list_id;
@@ -196,7 +208,7 @@ WITH
     JOIN _heap_graph_class_classification AS c ON c.id = o.type_id
     WHERE
       e.dst IN (SELECT id FROM _heap_graph_binder_proxy_object)
-      AND NOT c.is_static_class
+      AND c.is_static_class = 0
       AND c.type_name GLOB '*$Stub$Proxy'
   ),
   death_by_list AS (
@@ -214,8 +226,8 @@ WITH
       co.reference_set_id IS NOT NULL
       AND r.owned_id IS NOT NULL
       AND r.field_name != 'java.lang.Object.shadow$_klass_'
-      AND NOT rc.is_container
-      AND NOT rc.is_static_class
+      AND rc.is_container = 0
+      AND rc.is_static_class = 0
     GROUP BY
       dc.list_id
   )
@@ -225,7 +237,7 @@ SELECT
   p.graph_sample_ts,
   pc.proxy_class_id,
   pc.proxy_class_name,
-  top_dom.idom_id AS holder_id,
+  h.holder_id,
   ho.type_id AS holder_type_id,
   hc.type_name AS holder_class_name,
   (
@@ -234,7 +246,7 @@ SELECT
     WHERE
       ho.reference_set_id IS NOT NULL
       AND r.reference_set_id = ho.reference_set_id
-      AND r.owned_id = wt.wrapper_top_id
+      AND r.owned_id = h.wrapper_top_id
       AND NOT (ho.type_id IN _ref_type_ids
       AND r.field_name = 'java.lang.ref.Reference.referent')
   ) AS holder_field_name,
@@ -242,10 +254,8 @@ SELECT
   dr.death_recipient_class_name
 FROM _heap_graph_binder_proxy_object AS p
 LEFT JOIN proxy_classes AS pc ON pc.proxy_id = p.id AND pc.rn = 1
-LEFT JOIN _heap_graph_binder_proxy_wrapper_top AS wt ON wt.id = p.id
-LEFT JOIN _heap_graph_binder_proxy_ancestor AS top_dom
-  ON top_dom.id = wt.wrapper_top_id
-LEFT JOIN heap_graph_object AS ho ON ho.id = top_dom.idom_id
+LEFT JOIN _heap_graph_binder_proxy_holder AS h ON h.id = p.id
+LEFT JOIN heap_graph_object AS ho ON ho.id = h.holder_id
 LEFT JOIN _heap_graph_class_classification AS hc ON hc.id = ho.type_id
 LEFT JOIN _heap_graph_binder_proxy_death_list AS pdl ON pdl.proxy_id = p.id
 LEFT JOIN death_by_list AS dr ON dr.list_id = pdl.list_id
