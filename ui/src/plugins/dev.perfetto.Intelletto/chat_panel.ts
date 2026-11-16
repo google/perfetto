@@ -91,7 +91,9 @@ function getValidModel(
  * transcript, input box, model header, and context strip.
  */
 export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
-  private readonly md = markdownit();
+  // Explicitly disable raw HTML and external image rendering so untrusted
+  // model output cannot inject markup or trigger outbound image requests.
+  private readonly md = markdownit({html: false}).disable('image');
   // Whether the conversation was scrolled to (near) the bottom as of the last
   // render. We only auto-scroll on update when this holds, so new content keeps
   // the view pinned to the bottom but a user who has scrolled up to read is
