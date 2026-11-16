@@ -17,7 +17,9 @@ import {classNames} from '../../base/classnames';
 import {formatHotkey} from '../../base/hotkeys';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
+import {OWNER_ATTRIBUTE} from '../../base/owner_attribute';
 import type {AppImpl} from '../../core/app_impl';
+import {getOwner} from '../../core/ownership';
 import {raf} from '../../core/raf_scheduler';
 import {Router} from '../../core/router';
 import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
@@ -99,6 +101,7 @@ export class SidebarItem implements m.ClassComponent<SidebarItemAttrs> {
       {
         key: item.id, // This is to work around a mithril bug (b/449784590).
         className: classNames(isActive && 'pf-active'),
+        [OWNER_ATTRIBUTE]: getOwner(item),
       },
       isLink
         ? m(
