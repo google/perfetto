@@ -36,7 +36,8 @@ void ReadAndAppendFreqs(std::set<CpuAndFreq>* freqs,
                         const std::string& sys_cpu_freqs) {
   base::StringSplitter entries(sys_cpu_freqs, ' ');
   while (entries.Next()) {
-    auto freq = base::StringToUInt32(entries.cur_token());
+    auto freq =
+        base::StringToUInt32(base::StripSuffix(entries.cur_token(), "\n"));
     if (freq.has_value())
       freqs->insert({cpu_index, freq.value()});
   }
@@ -65,14 +66,22 @@ CpuFreqInfo::CpuFreqInfo(std::string sysfs_cpu_path)
     if (!maybe_cpu_index.has_value())
       continue;
     uint32_t cpu_index = maybe_cpu_index.value();
+    std::string cpu_cpufreq_dir =
+        sysfs_cpu_path_ + "/cpu" + std::to_string(cpu_index) + "/cpufreq/";
+    size_t freqs_before = freqs.size();
     ReadAndAppendFreqs(
         &freqs, cpu_index,
-        ReadFile(sysfs_cpu_path_ + "/cpu" + std::to_string(cpu_index) +
-                 "/cpufreq/scaling_available_frequencies"));
-    ReadAndAppendFreqs(
-        &freqs, cpu_index,
-        ReadFile(sysfs_cpu_path_ + "/cpu" + std::to_string(cpu_index) +
-                 "/cpufreq/scaling_boost_frequencies"));
+        ReadFile(cpu_cpufreq_dir + "scaling_available_frequencies"));
+    ReadAndAppendFreqs(&freqs, cpu_index,
+                       ReadFile(cpu_cpufreq_dir + "scaling_boost_frequencies"));
+    if (freqs.size() == freqs_before) {
+      // Fallback for drivers like x86 intel_pstate / HWP that do not expose
+      // scaling_available_frequencies.
+      for (const char* leaf :
+           {"cpuinfo_min_freq", "base_frequency", "cpuinfo_max_freq"}) {
+        ReadAndAppendFreqs(&freqs, cpu_index, ReadFile(cpu_cpufreq_dir + leaf));
+      }
+    }
   }
 
   // Build index with guards.

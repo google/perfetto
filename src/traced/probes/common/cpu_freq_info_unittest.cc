@@ -60,5 +60,24 @@ TEST_F(CpuFreqInfoTest, CpuFreqInfo) {
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 5u), 0u);
 }
 
+TEST_F(CpuFreqInfoTest, FallbackToCpuInfoMinBaseMaxFreq) {
+  base::TmpDirTree tmpdir;
+  tmpdir.AddDir("cpu0");
+  tmpdir.AddDir("cpu0/cpufreq");
+  tmpdir.AddFile("cpu0/cpufreq/cpuinfo_min_freq", "400000\n");
+  tmpdir.AddFile("cpu0/cpufreq/base_frequency", "2400000\n");
+  tmpdir.AddFile("cpu0/cpufreq/cpuinfo_max_freq", "4800000\n");
+  tmpdir.AddDir("cpu1");
+  tmpdir.AddDir("cpu1/cpufreq");
+  tmpdir.AddFile("cpu1/cpufreq/cpuinfo_min_freq", "400000\n");
+  tmpdir.AddFile("cpu1/cpufreq/cpuinfo_max_freq", "3600000\n");
+
+  CpuFreqInfo cpu_freq_info(tmpdir.path());
+  EXPECT_THAT(FreqsToVector(cpu_freq_info.GetFreqs(0u)),
+              ElementsAre(400000, 2400000, 4800000));
+  EXPECT_THAT(FreqsToVector(cpu_freq_info.GetFreqs(1u)),
+              ElementsAre(400000, 3600000));
+}
+
 }  // namespace
 }  // namespace perfetto
