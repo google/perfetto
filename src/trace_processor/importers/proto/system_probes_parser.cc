@@ -1181,6 +1181,14 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   bool valid_capacities = std::all_of(
       cpu_infos.begin(), cpu_infos.end(),
       [](const CpuInfo& info) { return info.capacity.has_value(); });
+  bool has_distinct_capacities = false;
+  if (valid_capacities && !cpu_infos.empty()) {
+    uint32_t first_cap = *cpu_infos[0].capacity;
+    has_distinct_capacities = std::any_of(cpu_infos.begin(), cpu_infos.end(),
+                                          [first_cap](const CpuInfo& info) {
+                                            return *info.capacity != first_cap;
+                                          });
+  }
 
   bool valid_frequencies = std::all_of(
       cpu_infos.begin(), cpu_infos.end(),
@@ -1189,7 +1197,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   std::vector<uint32_t> cluster_ids(cpu_infos.size());
   uint32_t cluster_id = 0;
 
-  if (valid_capacities) {
+  if (has_distinct_capacities) {
     SortByKey(cpu_infos.begin(), cpu_infos.end(), [](const CpuInfo& info) {
       return info.capacity ? uint64_t{*info.capacity} + 1 : 0;
     });
@@ -1204,7 +1212,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       cluster_ids[cpu_info.cpu] = cluster_id;
     }
   } else if (valid_frequencies) {
-    // Use max frequency if capacities are invalid
+    // Use max frequency if capacities are missing or uniform
     std::vector<CpuMaxFrequency> cpu_max_freqs;
     cpu_max_freqs.reserve(cpu_infos.size());
     for (CpuInfo& info : cpu_infos) {
