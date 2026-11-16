@@ -23,7 +23,10 @@ import {NUM, STR} from '../../trace_processor/query_result';
 import type {QueryResult} from '../../trace_processor/query_result';
 import type {Engine} from '../../trace_processor/engine';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import {createActualFramesTrack} from './actual_frames_track';
+import {
+  createActualFramesTrack,
+  createInputFramesTrack,
+} from './actual_frames_track';
 import {
   createExpectedFramesTrack,
   EXPECTED_FRAMES_BY_LAYER,
@@ -39,10 +42,12 @@ const EXPECTED_TIMELINE_TRACK_NAME = 'Expected Timeline';
 const ACTUAL_TIMELINE_TRACK_NAME = 'Actual Timeline';
 const ACTUAL_TIMELINE_EXPERIMENTAL_TRACK_NAME =
   'Actual Timeline (Experimental)';
+const INPUT_TIMELINE_TRACK_NAME = 'Input Timeline';
 
 // The frame timelines sit at the very top of the process group.
 const TIMELINE_SORT_ORDER = -50;
 const EXPERIMENTAL_TIMELINE_SORT_ORDER = -49;
+const INPUT_TIMELINE_SORT_ORDER = -48;
 
 // Build a standardized URI for a frames track
 function makeUri(upid: number, kind: string) {
@@ -88,10 +93,68 @@ export default class FramesPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await Promise.all([this.addExpectedFrames(ctx), this.addActualFrames(ctx)]);
+    await Promise.all([
+      this.addExpectedFrames(ctx),
+      this.addActualFrames(ctx),
+      this.addInputFrames(ctx),
+    ]);
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new FrameSelectionAggregator(ctx), 10),
     );
+  }
+
+  private async addInputFrames(ctx: Trace): Promise<void> {
+    const {engine} = ctx;
+    const result = await engine.query(`
+      with summary as (
+        select
+          pt.upid,
+          group_concat(id) AS track_ids,
+          count() AS track_count
+        from process_track pt
+        join _slice_track_summary USING (id)
+        where pt.type = 'android_input_frame_timeline'
+        group by pt.upid
+      )
+      select
+        t.upid,
+        t.track_ids as trackIds,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth
+      from summary t
+    `);
+
+    const it = result.iter({
+      upid: NUM,
+      trackIds: STR,
+      maxDepth: NUM,
+    });
+
+    for (; it.valid(); it.next()) {
+      const upid = it.upid;
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const maxDepth = it.maxDepth;
+
+      const uri = makeUri(upid, 'input_frames');
+      ctx.tracks.registerTrack({
+        uri,
+        renderer: createInputFramesTrack(ctx, uri, maxDepth, trackIds),
+        tags: {
+          kinds: [SLICE_TRACK_KIND],
+          trackIds,
+          upid,
+        },
+      });
+      const group = ctx.plugins
+        .getPlugin(ProcessThreadGroupsPlugin)
+        .getGroupForProcess(upid);
+      const track = new TrackNode({
+        uri,
+        name: INPUT_TIMELINE_TRACK_NAME,
+        sortOrder: INPUT_TIMELINE_SORT_ORDER,
+      });
+      group?.addChildInOrder(track);
+    }
   }
 
   private async addExpectedFrames(ctx: Trace): Promise<void> {

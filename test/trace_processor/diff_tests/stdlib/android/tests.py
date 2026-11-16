@@ -1506,6 +1506,377 @@ class AndroidStdlib(TestSuite):
         2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION","SCROLL","[NULL]",12394215174000
       """))
 
+  def test_input_events_frame_timeline(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 100
+              ppid: 1
+              cmdline: "system_server"
+            }
+            threads {
+              tid: 101
+              tgid: 100
+              name: "InputDispatcher"
+            }
+            processes {
+              pid: 200
+              ppid: 1
+              cmdline: "com.android.settings"
+            }
+            threads {
+              tid: 200
+              tgid: 200
+              name: "com.android.settings"
+            }
+            processes {
+              pid: 300
+              ppid: 1
+              cmdline: "com.android.launcher3"
+            }
+            threads {
+              tid: 300
+              tgid: 300
+              name: "com.android.launcher3"
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1100
+              pid: 101
+              print {
+                buf: "B|100|UnwantedInteractionBlocker::notifyMotion(id=0xdfb496be, eventTime=1000)\n"
+              }
+            }
+            event {
+              timestamp: 1110
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1120
+              pid: 101
+              print {
+                buf: "B|100|enqueueDispatchEntry(inputChannel=abc com.android.settings/Main (server), id=0xdfb496be)\n"
+              }
+            }
+            event {
+              timestamp: 1130
+              pid: 101
+              print {
+                buf: "B|100|startDispatchCycleLocked\n"
+              }
+            }
+            event {
+              timestamp: 1140
+              pid: 101
+              print {
+                buf: "B|100|publishMotionEvent\n"
+              }
+            }
+            event {
+              timestamp: 1150
+              pid: 101
+              print {
+                buf: "B|100|sendMessage(inputChannel=abc com.android.settings/Main (server), seq=0x1, type=MOTION)\n"
+              }
+            }
+            event {
+              timestamp: 1160
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1170
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1180
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1190
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1191
+              pid: 101
+              print {
+                buf: "B|100|enqueueDispatchEntry(inputChannel=[Gesture Monitor] swipe-up (server), id=0xdfb496be)\n"
+              }
+            }
+            event {
+              timestamp: 1192
+              pid: 101
+              print {
+                buf: "B|100|startDispatchCycleLocked\n"
+              }
+            }
+            event {
+              timestamp: 1193
+              pid: 101
+              print {
+                buf: "B|100|publishMotionEvent\n"
+              }
+            }
+            event {
+              timestamp: 1194
+              pid: 101
+              print {
+                buf: "B|100|sendMessage(inputChannel=[Gesture Monitor] swipe-up (server), seq=0x1, type=MOTION)\n"
+              }
+            }
+            event {
+              timestamp: 1195
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1196
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1197
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1198
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1200
+              pid: 200
+              print {
+                buf: "B|200|receiveMessage(inputChannel=abc com.android.settings/Main (client), seq=0x1, type=MOTION)\n"
+              }
+            }
+            event {
+              timestamp: 1210
+              pid: 200
+              print {
+                buf: "E|200\n"
+              }
+            }
+            event {
+              timestamp: 1220
+              pid: 300
+              print {
+                buf: "B|300|receiveMessage(inputChannel=[Gesture Monitor] swipe-up (client), seq=0x1, type=MOTION)\n"
+              }
+            }
+            event {
+              timestamp: 1230
+              pid: 300
+              print {
+                buf: "E|300\n"
+              }
+            }
+            event {
+              timestamp: 1240
+              pid: 300
+              print {
+                buf: "B|300|sendMessage(inputChannel=[Gesture Monitor] swipe-up (client), seq=0x1, type=FINISHED)\n"
+              }
+            }
+            event {
+              timestamp: 1250
+              pid: 300
+              print {
+                buf: "E|300\n"
+              }
+            }
+            event {
+              timestamp: 1260
+              pid: 101
+              print {
+                buf: "B|100|receiveMessage(inputChannel=[Gesture Monitor] swipe-up (server), seq=0x1, type=FINISHED)\n"
+              }
+            }
+            event {
+              timestamp: 1270
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1300
+              pid: 200
+              print {
+                buf: "B|200|deliverInputEvent MOTION MOVE\n"
+              }
+            }
+            event {
+              timestamp: 1310
+              pid: 200
+              print {
+                buf: "B|200|deliverInputEvent src=0x1002 eventTimeNano=1000 id=0xdfb496be\n"
+              }
+            }
+            event {
+              timestamp: 1350
+              pid: 200
+              print {
+                buf: "E|200\n"
+              }
+            }
+            event {
+              timestamp: 1360
+              pid: 200
+              print {
+                buf: "E|200\n"
+              }
+            }
+            event {
+              timestamp: 1400
+              pid: 200
+              print {
+                buf: "B|200|sendMessage(inputChannel=abc com.android.settings/Main (client), seq=0x1, type=FINISHED)\n"
+              }
+            }
+            event {
+              timestamp: 1410
+              pid: 200
+              print {
+                buf: "E|200\n"
+              }
+            }
+            event {
+              timestamp: 1450
+              pid: 101
+              print {
+                buf: "B|100|receiveMessage(inputChannel=abc com.android.settings/Main (server), seq=0x1, type=FINISHED)\n"
+              }
+            }
+            event {
+              timestamp: 1460
+              pid: 101
+              print {
+                buf: "E|100\n"
+              }
+            }
+            event {
+              timestamp: 1500
+              pid: 200
+              print {
+                buf: "B|200|Choreographer#doFrame 999\n"
+              }
+            }
+            event {
+              timestamp: 1900
+              pid: 200
+              print {
+                buf: "E|200\n"
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 1500
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            actual_surface_frame_start {
+              cookie: 1
+              token: 1000
+              display_frame_token: 2000
+              pid: 200
+              layer_name: "TX - com.android.settings/Main#0"
+              present_type: 1
+              on_time_finish: true
+              gpu_composition: false
+              jank_type: 1
+              prediction_type: 1
+              input_timeline_info {
+                input_event_id: -541813058
+                event_time_nanos: 1000
+                expected_deadline_nanos: 1850
+                is_janky: false
+                expected_surface_frame_token: 1000
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 1900
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            actual_display_frame_start {
+              cookie: 2
+              token: 2000
+              pid: 666
+              present_type: 1
+              on_time_finish: true
+              gpu_composition: false
+              jank_type: 1
+              prediction_type: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 2
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.input;
+        SELECT
+          process_name,
+          input_event_id,
+          frame_id,
+          is_speculative_frame,
+          read_time,
+          event_time,
+          frame_event_time,
+          end_to_end_latency_dur,
+          event_to_present_latency_dur
+        FROM android_input_events
+        ORDER BY dispatch_ts;
+        """,
+        out=Csv("""
+        "process_name","input_event_id","frame_id","is_speculative_frame","read_time","event_time","frame_event_time","end_to_end_latency_dur","event_to_present_latency_dur"
+        "com.android.settings","0xdfb496be",1000,0,1100,1000,1000,1400,1500
+        "com.android.launcher3","0xdfb496be","[NULL]","[NULL]",1100,1000,"[NULL]","[NULL]","[NULL]"
+        """))
+
   def test_job_scheduler_events(self):
     return DiffTestBlueprint(
         trace=DataPath('post_boot_trace.atr'),
