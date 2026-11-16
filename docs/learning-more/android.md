@@ -267,4 +267,9 @@ unique_session_name: "my_long_trace"
 write_into_file: true
 file_write_period_ms: 10000
 persist_trace_across_reboots: true
+
+android_report_config {
+  reporter_service_package: "com.example.reporter"
+  reporter_service_class: "com.example.reporter.MyReportService"
+}
 ```
