@@ -1773,6 +1773,277 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('a negated string'))
 
+  # A comparison must match what SQLite computes for the same SQL, including
+  # nulls, fractions and integers a double can't hold exactly.
+  def test_computed_comparisons_match_sqlite(self):
+    query = """
+        id, n > 5 AS a, n = 5 AS b, n != 5 AS c, n <> 5 AS d, n == 5 AS e,
+        n <= 5 AS f, n >= 5 AS g, n < 5 AS h,
+        n > 5.5 AS i, n < 5.5 AS j, n >= 5.5 AS k, n <= 5.5 AS l,
+        n = 5.5 AS m, n != 5.5 AS o, n = 5.0 AS p, n < 1e30 AS q, n > 1e30 AS r,
+        5 < n AS s, 5.5 > n AS t, n = m2 AS u, n < m2 AS v, d2 > 1 AS w,
+        d2 = 2.5 AS x, 3 > d2 AS y, d2 < e2 AS z,
+        s1 = 'foo' AS aa, s1 != 'foo' AS ab, s1 < 'c' AS ac, s1 >= 'foo' AS ad,
+        s1 = 'absent' AS ae, 'c' > s1 AS af, s1 = s2 AS ag, s1 < s2 AS ah,
+        big = 9007199254740992.0 AS ai, big > 9007199254740992.0 AS aj,
+        n + 1 > 5 AS ak, (n > 5) + 1 AS al, n > NULL AS am
+        """
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query=f"""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 5 AS n, 6 AS m2, 2.5 AS d2, 3.5 AS e2, 'foo' AS s1,
+          'foo' AS s2, 9007199254740993 AS big
+        UNION ALL SELECT 2, NULL, 6, NULL, 1.0, NULL, 'bar', 1
+        UNION ALL SELECT 3, 7, 7, 0.5, NULL, 'bar', NULL, 9007199254740992
+        UNION ALL SELECT 4, -1, 0, 3.0, 3.0, 'a', 'b', -9007199254740993;
+
+        CREATE PERFETTO TABLE plain AS SELECT {query} FROM t;
+        CREATE PERFETTO TABLE piped AS FROM t |> SELECT {query};
+
+        SELECT
+          (SELECT count(*) FROM piped) AS n,
+          (SELECT count(*) FROM (SELECT * FROM piped EXCEPT SELECT * FROM plain))
+          + (SELECT count(*) FROM (SELECT * FROM plain EXCEPT SELECT * FROM piped))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "n","mismatches"
+        4,0
+        """))
+
+  def test_computed_comparison_reads_a_later_where(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 'foo' AS s UNION ALL SELECT 2, 'bar'
+        UNION ALL SELECT 3, 'foo';
+        FROM t
+        |> WHERE id > 1
+        |> EXTEND s = 'foo' AS is_foo
+        |> WHERE is_foo = 1
+        |> SELECT id, is_foo;
+        """,
+        out=Csv("""
+        "id","is_foo"
+        3,1
+        """))
+
+  def test_computed_comparison_refuses_a_string_for_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND n = '5' AS a;
+        """,
+        out=ExpectedError('values of one kind to compare'))
+
+  def test_computed_comparison_refuses_an_integer_with_a_double_value(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n, 2.5 AS d;
+        FROM t |> EXTEND n > d AS a;
+        """,
+        out=ExpectedError('values of one type to compare'))
+
+  def test_computed_glob_and_is_null_match_sqlite(self):
+    query = """
+        id, s GLOB 'f*' AS a, s GLOB '*o' AS b, s GLOB '[a-f]?r' AS c,
+        s GLOB 'absent' AS d, s GLOB '*' AS e, 'foo' GLOB 'f*' AS f,
+        s IS NULL AS g, s IS NOT NULL AS h, s NOTNULL AS i, s ISNULL AS j,
+        n IS NULL AS k, n + 1 IS NULL AS l, NULL IS NULL AS m, n / 0 IS NULL AS o,
+        n > 5 IS NOT NULL AS p, d IS NULL AS q, (s GLOB 'f*') + 1 AS r
+        """
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query=f"""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 'foo' AS s, 5 AS n, 2.5 AS d
+        UNION ALL SELECT 2, NULL, NULL, NULL
+        UNION ALL SELECT 3, 'bar', 7, 0.5
+        UNION ALL SELECT 4, '', 0, 0.0;
+
+        CREATE PERFETTO TABLE plain AS SELECT {query} FROM t;
+        CREATE PERFETTO TABLE piped AS FROM t |> SELECT {query};
+
+        SELECT
+          (SELECT count(*) FROM piped) AS n,
+          (SELECT count(*) FROM (SELECT * FROM piped EXCEPT SELECT * FROM plain))
+          + (SELECT count(*) FROM (SELECT * FROM plain EXCEPT SELECT * FROM piped))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "n","mismatches"
+        4,0
+        """))
+
+  def test_computed_glob_refuses_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND n GLOB 'x' AS a;
+        """,
+        out=ExpectedError('expected a string to match with GLOB'))
+
+  def test_computed_glob_needs_a_string_pattern(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 'a' AS s;
+        FROM t |> EXTEND s GLOB 5 AS a;
+        """,
+        out=ExpectedError('a string as the pattern of GLOB'))
+
+  def test_computed_coalesce_and_iif_match_sqlite(self):
+    query = """
+        id, coalesce(s, '') AS a, coalesce(s, u, 'none') AS b, ifnull(n, 7) AS c,
+        COALESCE(d, 1.5) AS e, coalesce(n, m) AS f, coalesce(NULL, n) AS g,
+        coalesce(n, NULL) AS h, coalesce(NULL, NULL) AS i, coalesce(n * 2, 0) AS j,
+        iif(n, s, 'x') AS k, iif(d, 1, 2) AS l, iif(n > 2, NULL, id) AS o,
+        iif(n, id, NULL) AS p, iif(NULL, 1, 2) AS q, iif(n IS NULL, 'y', s) AS r,
+        iif(s = 'foo', d, 0.5) AS t, coalesce(iif(n, s, NULL), u) AS v,
+        coalesce(s, 'q') GLOB 'f*' AS w, iif(s GLOB 'f*', NULL, 1) AS x,
+        iif(d, n + 0.5, 0.0) AS y, coalesce(s, u) = 'a' AS z
+        """
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query=f"""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 5 AS n, 6 AS m, 2.5 AS d, 'foo' AS s, 'a' AS u
+        UNION ALL SELECT 2, NULL, 6, 0.0, NULL, 'b'
+        UNION ALL SELECT 3, 0, NULL, NULL, 'bar', NULL
+        UNION ALL SELECT 4, NULL, NULL, 0.5, NULL, NULL;
+
+        CREATE PERFETTO TABLE plain AS SELECT {query} FROM t;
+        CREATE PERFETTO TABLE piped AS FROM t |> SELECT {query};
+
+        SELECT
+          (SELECT count(*) FROM piped) AS n,
+          (SELECT count(*) FROM (SELECT * FROM piped EXCEPT SELECT * FROM plain))
+          + (SELECT count(*) FROM (SELECT * FROM plain EXCEPT SELECT * FROM piped))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "n","mismatches"
+        4,0
+        """))
+
+  # More rows than one word of validity holds, with nulls on both sides and not
+  # lined up with a word, so the choice between them crosses words.
+  def test_computed_coalesce_and_iif_match_sqlite_across_words(self):
+    query = """
+        id, coalesce(a, b) AS c1, coalesce(s, t) AS c2, coalesce(a, 0) AS c3,
+        iif(a, b, id) AS c4, iif(b, a, b) AS c5, iif(a, s, t) AS c6,
+        iif(a, NULL, b) AS c7, iif(d, e, 0.5) AS c8, a IS NULL AS c9,
+        a IS NOT NULL AS c10, s GLOB '*7' AS c11, a != b AS c12, a > b AS c13,
+        a >= b AS c14, s != t AS c15
+        """
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query=f"""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        WITH RECURSIVE n(id) AS (SELECT 1 UNION ALL SELECT id + 1 FROM n WHERE id < 5000)
+        SELECT
+          id,
+          iif(id % 3 = 0, NULL, id % 5) AS a,
+          iif(id % 7 = 0, NULL, id % 4) AS b,
+          iif(id % 11 = 0, NULL, id * 0.5) AS d,
+          iif(id % 13 = 0, NULL, id * 0.25) AS e,
+          iif(id % 17 = 0, NULL, 's' || (id % 40)) AS s,
+          iif(id % 19 = 0, NULL, 't' || (id % 30)) AS t
+        FROM n;
+
+        CREATE PERFETTO TABLE plain AS SELECT {query} FROM t;
+        CREATE PERFETTO TABLE piped AS FROM t |> WHERE id > 3 |> SELECT {query};
+
+        SELECT
+          (SELECT count(*) FROM piped) AS n,
+          (SELECT count(*) FROM (SELECT * FROM piped EXCEPT SELECT * FROM plain))
+            AS mismatches;
+        """,
+        out=Csv("""
+        "n","mismatches"
+        4997,0
+        """))
+
+  def test_computed_coalesce_refuses_mixed_numbers(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND coalesce(n, 0.0) AS a;
+        """,
+        out=ExpectedError(
+            'expected the arguments of coalesce to have one type, but got integer and double'
+        ))
+
+  def test_computed_iif_refuses_a_string_and_a_number(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND iif(n, 1, 'x') AS a;
+        """,
+        out=ExpectedError(
+            'expected the arguments of iif to have one type, but got integer and string'
+        ))
+
+  def test_computed_iif_refuses_a_string_condition(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 'a' AS s;
+        FROM t |> EXTEND iif(s, 1, 2) AS a;
+        """,
+        out=ExpectedError('a number as the condition of iif'))
+
+  # SQLite would not compute the branch on rows which don't use it, but every
+  # step here runs for every row.
+  def test_computed_iif_refuses_integer_arithmetic_in_a_branch(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND iif(n, n * 2, 0) AS a;
+        """,
+        out=ExpectedError('no integer arithmetic in the arguments of iif'))
+
+  def test_computed_coalesce_refuses_integer_arithmetic_in_a_fallback(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND coalesce(n, n + 1) AS a;
+        """,
+        out=ExpectedError('no integer arithmetic in the arguments of coalesce'))
+
+  def test_computed_coalesce_needs_two_arguments(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS SELECT 5 AS n;
+        FROM t |> EXTEND coalesce(n) AS a;
+        """,
+        out=ExpectedError('coalesce to have at least 2 arguments'))
+
   # A computed column's type is only known once the source's is, so later
   # stages must see it then.
   def test_computed_columns_feed_later_stages(self):
@@ -1842,7 +2113,7 @@ class PerfettoPipeline(TestSuite):
         FROM (SELECT -1 AS a)
         |> EXTEND abs(a) AS b;
         """,
-        out=ExpectedError('calling functions is not supported yet'))
+        out=ExpectedError('calling this function is not supported yet'))
 
   def test_a_computed_column_needs_a_name(self):
     return DiffTestBlueprint(

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/util/sort.h"
+#include "src/trace_processor/util/sort.h"
 
 #include <benchmark/benchmark.h>
 
@@ -70,8 +70,8 @@ struct LsdSorter<RadixSortTag> {
   static void Sort(std::vector<PodObject>& data) {
     std::vector<PodObject> scratch(data.size());
     std::vector<uint32_t> counts(
-        perfetto::trace_processor::core::RadixSortCountsSize(64, data.size()));
-    perfetto::trace_processor::core::RadixSort(
+        perfetto::trace_processor::RadixSortCountsSize(64, data.size()));
+    perfetto::trace_processor::RadixSort(
         data.data(), data.data() + data.size(), scratch.data(), counts.data(),
         64, [](const PodObject& obj) { return obj.key; });
   }
@@ -104,7 +104,7 @@ template <>
 struct MsdSorter<RadixSortTag> {
   static void Sort(std::vector<StringPtr>& data) {
     std::vector<StringPtr> scratch(data.size());
-    perfetto::trace_processor::core::MsdRadixSort(
+    perfetto::trace_processor::MsdRadixSort(
         data.data(), data.data() + data.size(), scratch.data(),
         [](const StringPtr& s) { return std::string_view(s.data, s.size); });
   }

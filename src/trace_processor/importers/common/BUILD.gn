@@ -98,21 +98,23 @@ source_set("common") {
     "virtual_memory_mapping.h",
   ]
   public_deps = [
+    ":parser_types",
     ":stats_tracker",
     ":synthetic_tid_hdr",
+    "../../../../protos/perfetto/common:zero",
     "../../../base",
     "../../containers",
+    "../../sorter",
+    "../../storage",
     "../../util:clock",
     "../../util:descriptors",
     "../../util:interned_message_view",
     "../../util:protozero_to_text",
   ]
   deps = [
-    ":parser_types",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor",
     "../../../../include/perfetto/trace_processor:basic_types",
-    "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/config/ftrace:zero",
     "../../../../protos/perfetto/config/profiling:zero",
@@ -122,8 +124,6 @@ source_set("common") {
     "../../../protozero",
     "../../containers",
     "../../core/dataframe",
-    "../../sorter",
-    "../../storage",
     "../../tables",
     "../../types",
     "../../util:build_id",
@@ -137,11 +137,11 @@ source_set("common") {
 
 source_set("parser_types") {
   sources = [ "parser_types.h" ]
+  public_deps = [ "../proto:packet_sequence_state_generation_hdr" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:storage",
     "../../containers",
-    "../proto:packet_sequence_state_generation_hdr",
   ]
 }
 
@@ -151,10 +151,10 @@ source_set("stats_tracker") {
     "global_stats_tracker.h",
     "stats_tracker.h",
   ]
+  public_deps = [ "../../storage" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
-    "../../storage",
     "../../tables",
     "../../types",
   ]

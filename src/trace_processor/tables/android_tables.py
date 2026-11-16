@@ -460,6 +460,16 @@ ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
+            "pending_queue_wait_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            "outside_pending_queue_ms",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
             "has_charging_constraint",
             CppUint32(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
@@ -588,6 +598,14 @@ ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE = Table(
                 'Number of reschedules due to job being abandoned.',
             'back_off_policy_type':
                 'Back off policy applied to the job that gets rescheduled.',
+            'pending_queue_wait_ms':
+                '''Total time in ms the job spent in the pending queue waiting
+                for an execution slot, or -1 if it never entered the queue.
+                Only set for the STARTED and CANCELLED states.''',
+            'outside_pending_queue_ms':
+                '''Time in ms since the job first entered the pending queue
+                during which it wasn't in the queue, or -1 if it never entered
+                the queue. Only set for the STARTED and CANCELLED states.''',
             'has_charging_constraint':
                 'True if app requested job should run when the device is charging.',
             'has_battery_not_low_constraint':

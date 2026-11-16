@@ -43,6 +43,13 @@
   .pf-virtual-canvas {
     height: 100%;
   }
+
+  // At least as tall as the viewport, so bottom up can sit on its bottom.
+  .pf-virtual-overlay-canvas__content {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 .pf-flamegraph-tooltip-popup {

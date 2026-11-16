@@ -53,6 +53,9 @@ Web UI. See the [UI Development](/docs/contributing/ui-getting-started.md) secti
 
 `--linux-arm` will pull the sysroots for cross-compiling for Linux ARM/64.
 
+`--linux-x64` will pull the sysroot for building Linux x64 binaries which
+don't depend on the glibc version of the host (see below).
+
 `--rust` will pull the Rust toolchain required to build the
 [Rust SDK](/docs/getting-started/rust-sdk.md). The Rust SDK can also
 be built using a system Rust toolchain (1.85+) via Cargo without this
@@ -237,7 +240,7 @@ python3 tools/ninja -C out/win perfetto traced trace_processor_shell
 
 When cross-compiling for Linux you will need a sysroot. You have two options:
 
-#### 1. Use the built-in sysroots based on Debian Sid
+#### 1. Use the built-in sysroots based on Debian Bullseye
 
 ```bash
 tools/install-build-deps --linux-arm
@@ -250,6 +253,22 @@ target_os = "linux"
 target_cpu = "arm"
 # or
 target_cpu = "arm64"
+```
+
+The same sysroots are used for the official release binaries, so they only
+require the glibc version shipped by Debian Bullseye (2.31) or older.
+
+To build Linux x64 binaries with the same glibc baseline, regardless of the
+host distribution, pull the x64 sysroot and point GN at it explicitly:
+
+```bash
+tools/install-build-deps --linux-x64
+```
+
+```python
+target_os = "linux"
+target_cpu = "x64"
+sysroot = "/path/to/perfetto/buildtools/debian_bullseye_amd64-sysroot"
 ```
 
 #### 2. Use your own sysroot
