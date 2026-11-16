@@ -72,6 +72,7 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {CursorTooltip} from '../../widgets/cursor_tooltip';
+import {withOwner} from '../../base/owner_attribute';
 import type {CanvasColors} from '../../public/canvas_colors';
 import {Icons} from '../../base/semantic_icons';
 import type {Renderer} from '../../base/renderer';
@@ -374,7 +375,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     if (!Boolean(tooltipNodes)) {
       return;
     }
-    return m(CursorTooltip, {className: 'pf-track__tooltip'}, tooltipNodes);
+    // The tooltip comes from the track's plugin, so label it with that plugin.
+    return m(
+      CursorTooltip,
+      {className: 'pf-track__tooltip'},
+      withOwner(track?.pluginId, tooltipNodes),
+    );
   }
 
   oncreate(vnode: m.VnodeDOM<TrackTreeViewAttrs>) {
