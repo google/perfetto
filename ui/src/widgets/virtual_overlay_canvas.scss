@@ -23,5 +23,10 @@
     position: absolute;
     inset: 0; // Shorthand for [top, left, right, bottom]: 0
     pointer-events: none; // Make this overlay invisible to pointer events
+
+    // The canvases inside are moved and resized as the user scrolls. Their
+    // size never affects the size of this element (which comes from `inset`),
+    // so contain them fully to keep any layout and paint they cause inside.
+    contain: strict;
   }
 }
