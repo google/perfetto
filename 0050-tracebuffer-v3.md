@@ -2,7 +2,7 @@
 
 **Authors:** @primiano @rsavitski @sashwinbalaji
 
-**Status:** Draft
+**Status:** Decided
 
 This RFC describes the layout and flow of TraceBuffer V3 (TBv3).
 
