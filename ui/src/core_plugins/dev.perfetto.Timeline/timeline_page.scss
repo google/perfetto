@@ -42,6 +42,13 @@
 
   &__overview {
     z-index: 3;
+
+    // .pf-minimap already draws its own 1px bottom border, so collapse the
+    // resize handle's layout box to 0px; its ::before hitbox and :hover::after
+    // highlight remain active around the border line.
+    + .pf-resize-handle {
+      height: 0;
+    }
   }
 
   &__header {

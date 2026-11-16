@@ -45,6 +45,9 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
   private timelineBounds?: Rect2D;
   private pinnedTracksHeight: number | 'auto' = 'auto';
+  // Unclamped minimap height while resizing, so the handle stays under the
+  // pointer after hitting the minimum or maximum height.
+  private minimapDragHeightPx = 0;
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
@@ -89,10 +92,23 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   }
 
   private renderMinimap(trace: TraceImpl): m.Children {
-    return m(Minimap, {
-      trace,
-      className: 'pf-timeline-page__overview',
-    });
+    return [
+      m(Minimap, {
+        trace,
+        className: 'pf-timeline-page__overview',
+      }),
+      m(ResizeHandle, {
+        onResizeStart: () => {
+          this.minimapDragHeightPx = trace.minimap.heightPx;
+        },
+        onResize: (deltaPx: number) => {
+          this.minimapDragHeightPx += deltaPx;
+          trace.minimap.heightPx = this.minimapDragHeightPx;
+          m.redraw();
+        },
+        ondblclick: () => trace.minimap.resetHeight(),
+      }),
+    ];
   }
 
   private renderHeader(trace: TraceImpl): m.Children {
