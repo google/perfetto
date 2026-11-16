@@ -17,6 +17,8 @@ import m from 'mithril';
 import type {SidePanelManagerImpl} from '../core/side_panel_manager';
 import {SplitPanel} from '../widgets/split_panel';
 import {Tabs, type TabsTab} from '../widgets/tabs';
+import {withOwner} from '../base/owner_attribute';
+import {getOwner} from '../core/ownership';
 
 const MIN_WIDTH_PX = 200;
 
@@ -38,10 +40,12 @@ export function SidePanelContainer(): m.Component<SidePanelContainerAttrs> {
 
       const tabs: TabsTab[] = [];
       for (const panel of openTabs) {
+        // Label the title and content the plugin provides with its owner.
+        const owner = getOwner(panel);
         tabs.push({
           key: panel.uri,
-          title: panel.title,
-          content: panel.render(),
+          title: withOwner(owner, panel.title),
+          content: withOwner(owner, panel.render()),
           closeButton: false,
           leftIcon: panel.icon,
         });
