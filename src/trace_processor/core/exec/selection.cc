@@ -62,16 +62,25 @@ void Selection::KeepRows(base::Span<const uint32_t> rows) {
     return;
   }
   size_ = count;
-  if (count == 0 || rows.b[count - 1] == count - 1) {
-    // Increasing and ending at count - 1, they are the first `count`.
-    prefix_ = true;
+  if (prefix_ && (count == 0 || rows.b[count - 1] == count - 1)) {
+    // Kept in order from a prefix, and ending at count - 1, they are the
+    // first `count`.
     return;
   }
+  Reorder(rows);
+}
+
+void Selection::Reorder(base::Span<const uint32_t> rows) {
+  auto count = static_cast<uint32_t>(rows.size());
+  PERFETTO_DCHECK(count <= size_);
+  bool prefix = true;
   for (uint32_t i = 0; i < count; ++i) {
-    PERFETTO_DCHECK(rows.b[i] < rows_ && (i == 0 || rows.b[i - 1] < rows.b[i]));
+    PERFETTO_DCHECK(rows.b[i] < rows_);
+    prefix &= rows.b[i] == i;
     indices_[i] = static_cast<uint16_t>(rows.b[i]);
   }
-  prefix_ = false;
+  size_ = count;
+  prefix_ = prefix;
 }
 
 void Selection::KeepRange(uint32_t first, uint32_t count) {

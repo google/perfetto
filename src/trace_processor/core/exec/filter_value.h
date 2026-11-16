@@ -22,9 +22,11 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/variant.h"
@@ -52,6 +54,8 @@ struct FilterValue {
   // For a string compared by order: its text, which `value` points to. Its
   // buffer is reused, so only a string longer than any before allocates.
   std::string text;
+  // For REGEXP: the pattern, compiled once a run rather than once a batch.
+  std::optional<base::Regex> regex;
   // For IN: the list's values, while `value` says whether any can match. Its
   // allocations are reused from run to run.
   filter::CastFilterValueListResult::Ptr list;
@@ -87,6 +91,16 @@ void CastFilterValueFor(Fetcher& fetcher,
     } else {
       out->text.assign(text);
       out->value.value = out->text.c_str();
+      if (op.Is<Regex>()) {
+        // As the interpreter does, a pattern which does not compile matches
+        // nothing.
+        base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
+        if (!regex.ok()) {
+          out->value = filter::CastFilterValueResult::NoneMatch();
+          return;
+        }
+        out->regex = std::move(*regex);
+      }
     }
   } else {
     base::ignore_result(pool);
@@ -137,12 +151,12 @@ class FilterValueCaster {
 };
 
 // The caster for a column of storage type `type` compared by `op`, one of =,
-// !=, <, <=, >, >= or, for a string column, GLOB.
+// !=, <, <=, >, >= or, for a string column, GLOB or REGEXP.
 template <typename Fetcher>
 FilterValueCaster<Fetcher> GetFilterValueCaster(StorageType type,
                                                 const Op& op) {
   PERFETTO_CHECK(op.IsAnyOf<RangeOp>() || op.Is<Eq>() || op.Is<Ne>() ||
-                 (op.Is<Glob>() && type.Is<String>()));
+                 (op.IsAnyOf<OnlyStringOp>() && type.Is<String>()));
   NonNullOp non_null = *op.TryDowncast<NonNullOp>();
   switch (type.index()) {
     case StorageType::GetTypeIndex<Id>():

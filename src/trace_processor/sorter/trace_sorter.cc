@@ -30,13 +30,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/heap.h"
-#include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor {
 
@@ -114,8 +114,8 @@ void TraceSorter::SortBlock(Block& block) {
   uint32_t key_bits = 64 - base::CountLeadZeros64(range);
   auto n = static_cast<size_t>(end - begin);
   radix_scratch_.resize(n);
-  radix_counts_.resize(core::RadixSortCountsSize(key_bits, n));
-  TimestampedEvent* sorted = core::RadixSort(
+  radix_counts_.resize(RadixSortCountsSize(key_bits, n));
+  TimestampedEvent* sorted = RadixSort(
       &*begin, &*begin + n, radix_scratch_.data(), radix_counts_.data(),
       key_bits, [min_ts](const TimestampedEvent& e) {
         return static_cast<uint64_t>(e.ts) - static_cast<uint64_t>(min_ts);

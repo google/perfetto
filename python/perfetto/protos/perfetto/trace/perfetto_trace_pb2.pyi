@@ -5290,18 +5290,23 @@ class TraceConfig(_message.Message):
         MODE_UNSPECIFIED: TraceConfig.BufferConfig.ExperimentalMode
         TRACE_BUFFER_V2: TraceConfig.BufferConfig.ExperimentalMode
         class BufferTypeConfig(_message.Message):
-            __slots__ = ("v1", "v2")
+            __slots__ = ("v1", "v2", "v3")
             class V1(_message.Message):
                 __slots__ = ()
                 def __init__(self) -> None: ...
             class V2(_message.Message):
                 __slots__ = ()
                 def __init__(self) -> None: ...
+            class V3(_message.Message):
+                __slots__ = ()
+                def __init__(self) -> None: ...
             V1_FIELD_NUMBER: _ClassVar[int]
             V2_FIELD_NUMBER: _ClassVar[int]
+            V3_FIELD_NUMBER: _ClassVar[int]
             v1: TraceConfig.BufferConfig.BufferTypeConfig.V1
             v2: TraceConfig.BufferConfig.BufferTypeConfig.V2
-            def __init__(self, v1: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V1, _Mapping]] = ..., v2: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V2, _Mapping]] = ...) -> None: ...
+            v3: TraceConfig.BufferConfig.BufferTypeConfig.V3
+            def __init__(self, v1: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V1, _Mapping]] = ..., v2: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V2, _Mapping]] = ..., v3: _Optional[_Union[TraceConfig.BufferConfig.BufferTypeConfig.V3, _Mapping]] = ...) -> None: ...
         SIZE_KB_FIELD_NUMBER: _ClassVar[int]
         FILL_POLICY_FIELD_NUMBER: _ClassVar[int]
         TRANSFER_ON_CLONE_FIELD_NUMBER: _ClassVar[int]
@@ -5492,6 +5497,7 @@ class TraceConfig(_message.Message):
         def __init__(self, bytecode: _Optional[bytes] = ..., bytecode_v2: _Optional[bytes] = ..., string_filter_chain: _Optional[_Union[TraceConfig.TraceFilter.StringFilterChain, _Mapping]] = ..., bytecode_overlay_v54: _Optional[bytes] = ..., string_filter_chain_v54: _Optional[_Union[TraceConfig.TraceFilter.StringFilterChain, _Mapping]] = ...) -> None: ...
     class AndroidReportConfig(_message.Message):
         __slots__ = ("reporter_service_package", "reporter_service_class", "skip_report", "use_pipe_in_framework_for_testing")
+        Extensions: _python_message._ExtensionDict
         REPORTER_SERVICE_PACKAGE_FIELD_NUMBER: _ClassVar[int]
         REPORTER_SERVICE_CLASS_FIELD_NUMBER: _ClassVar[int]
         SKIP_REPORT_FIELD_NUMBER: _ClassVar[int]
@@ -5668,15 +5674,42 @@ class TraceStats(_message.Message):
     FINAL_FLUSH_SUCCEEDED: TraceStats.FinalFlushOutcome
     FINAL_FLUSH_FAILED: TraceStats.FinalFlushOutcome
     class BufferStats(_message.Message):
-        __slots__ = ("buffer_size", "buffer_type", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_relocated", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "compactions", "compactions_skipped", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "oversized_packets_dropped")
+        __slots__ = ("buffer_size", "buffer_type", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_relocated", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "compactions", "compactions_skipped", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "oversized_packets_dropped", "experimental_v3_stats")
         class BufferType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
             __slots__ = ()
             BUFFER_TYPE_UNSPECIFIED: _ClassVar[TraceStats.BufferStats.BufferType]
             BUFFER_TYPE_V1: _ClassVar[TraceStats.BufferStats.BufferType]
             BUFFER_TYPE_V2: _ClassVar[TraceStats.BufferStats.BufferType]
+            BUFFER_TYPE_V3: _ClassVar[TraceStats.BufferStats.BufferType]
         BUFFER_TYPE_UNSPECIFIED: TraceStats.BufferStats.BufferType
         BUFFER_TYPE_V1: TraceStats.BufferStats.BufferType
         BUFFER_TYPE_V2: TraceStats.BufferStats.BufferType
+        BUFFER_TYPE_V3: TraceStats.BufferStats.BufferType
+        class ExperimentalV3Stats(_message.Message):
+            __slots__ = ("bundles_written", "uncompressed_bytes_written", "compressed_bytes_written", "bundles_overwritten", "uncompressed_bytes_overwritten", "bundles_too_large", "bundling_max_us", "bundling_time_us_histogram_def", "bundling_time_us_histogram_counts", "bundling_time_us_histogram_sum", "staging_space_passes")
+            BUNDLES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
+            UNCOMPRESSED_BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
+            COMPRESSED_BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
+            BUNDLES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
+            UNCOMPRESSED_BYTES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
+            BUNDLES_TOO_LARGE_FIELD_NUMBER: _ClassVar[int]
+            BUNDLING_MAX_US_FIELD_NUMBER: _ClassVar[int]
+            BUNDLING_TIME_US_HISTOGRAM_DEF_FIELD_NUMBER: _ClassVar[int]
+            BUNDLING_TIME_US_HISTOGRAM_COUNTS_FIELD_NUMBER: _ClassVar[int]
+            BUNDLING_TIME_US_HISTOGRAM_SUM_FIELD_NUMBER: _ClassVar[int]
+            STAGING_SPACE_PASSES_FIELD_NUMBER: _ClassVar[int]
+            bundles_written: int
+            uncompressed_bytes_written: int
+            compressed_bytes_written: int
+            bundles_overwritten: int
+            uncompressed_bytes_overwritten: int
+            bundles_too_large: int
+            bundling_max_us: int
+            bundling_time_us_histogram_def: _containers.RepeatedScalarFieldContainer[int]
+            bundling_time_us_histogram_counts: _containers.RepeatedScalarFieldContainer[int]
+            bundling_time_us_histogram_sum: _containers.RepeatedScalarFieldContainer[int]
+            staging_space_passes: int
+            def __init__(self, bundles_written: _Optional[int] = ..., uncompressed_bytes_written: _Optional[int] = ..., compressed_bytes_written: _Optional[int] = ..., bundles_overwritten: _Optional[int] = ..., uncompressed_bytes_overwritten: _Optional[int] = ..., bundles_too_large: _Optional[int] = ..., bundling_max_us: _Optional[int] = ..., bundling_time_us_histogram_def: _Optional[_Iterable[int]] = ..., bundling_time_us_histogram_counts: _Optional[_Iterable[int]] = ..., bundling_time_us_histogram_sum: _Optional[_Iterable[int]] = ..., staging_space_passes: _Optional[int] = ...) -> None: ...
         BUFFER_SIZE_FIELD_NUMBER: _ClassVar[int]
         BUFFER_TYPE_FIELD_NUMBER: _ClassVar[int]
         BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
@@ -5701,6 +5734,7 @@ class TraceStats(_message.Message):
         ABI_VIOLATIONS_FIELD_NUMBER: _ClassVar[int]
         TRACE_WRITER_PACKET_LOSS_FIELD_NUMBER: _ClassVar[int]
         OVERSIZED_PACKETS_DROPPED_FIELD_NUMBER: _ClassVar[int]
+        EXPERIMENTAL_V3_STATS_FIELD_NUMBER: _ClassVar[int]
         buffer_size: int
         buffer_type: TraceStats.BufferStats.BufferType
         bytes_written: int
@@ -5725,7 +5759,8 @@ class TraceStats(_message.Message):
         abi_violations: int
         trace_writer_packet_loss: int
         oversized_packets_dropped: int
-        def __init__(self, buffer_size: _Optional[int] = ..., buffer_type: _Optional[_Union[TraceStats.BufferStats.BufferType, str]] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_relocated: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., compactions: _Optional[int] = ..., compactions_skipped: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., oversized_packets_dropped: _Optional[int] = ...) -> None: ...
+        experimental_v3_stats: TraceStats.BufferStats.ExperimentalV3Stats
+        def __init__(self, buffer_size: _Optional[int] = ..., buffer_type: _Optional[_Union[TraceStats.BufferStats.BufferType, str]] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_relocated: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., compactions: _Optional[int] = ..., compactions_skipped: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., oversized_packets_dropped: _Optional[int] = ..., experimental_v3_stats: _Optional[_Union[TraceStats.BufferStats.ExperimentalV3Stats, _Mapping]] = ...) -> None: ...
     class WriterStats(_message.Message):
         __slots__ = ("sequence_id", "buffer", "protocol_abi_versions", "chunk_payload_histogram_counts", "chunk_payload_histogram_sum")
         SEQUENCE_ID_FIELD_NUMBER: _ClassVar[int]

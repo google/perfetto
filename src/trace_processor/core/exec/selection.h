@@ -27,10 +27,10 @@ namespace perfetto::trace_processor::core::exec {
 
 inline constexpr uint32_t kMaxBatchRows = 2048;
 
-// Which rows of a batch are kept: the first of them, or some by index, in
-// increasing order. Every column of a batch has the same rows, so one
-// selection serves them all, and dropping rows narrows it in place without
-// touching a column.
+// Which rows of a batch are kept, in the order they are read: the first of
+// them, or some by index, none twice. Every column of a batch has the same
+// rows, so one selection serves them all, and dropping or reordering rows
+// changes it in place without touching a column.
 class Selection {
  public:
   Selection() = default;
@@ -63,8 +63,12 @@ class Selection {
   // Keeps the rows kept at `positions`, which are increasing.
   void Keep(base::Span<const uint32_t> positions);
 
-  // Keeps the batch rows `rows`, which are increasing and all kept already.
+  // Keeps the batch rows `rows`, which are kept already, in the order they are
+  // kept.
   void KeepRows(base::Span<const uint32_t> rows);
+
+  // Keeps the batch rows `rows`, which are kept already, in the order given.
+  void Reorder(base::Span<const uint32_t> rows);
 
   // Keeps `count` of the rows kept, from the `first`.
   void KeepRange(uint32_t first, uint32_t count);

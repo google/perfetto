@@ -66,14 +66,16 @@ source_set("export_json") {
     "../base",
     "containers",
     "importers/common",
-    "storage",
     "tables",
     "types",
     "util:args_utils",
-    "util:cold_sort",
     "util:json_value",
+    "util:sort",
   ]
-  public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
+  public_deps = [
+    "../../include/perfetto/ext/trace_processor:export_json",
+    "storage",
+  ]
 }
 
 source_set("metatrace") {

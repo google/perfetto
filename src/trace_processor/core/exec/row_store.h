@@ -70,6 +70,13 @@ class RowStore {
                   base::Span<const uint32_t> rows,
                   Context& context);
 
+  // As Gather(), but rows held in one batch, in any order, are viewed where
+  // they are held, with a selection putting them in order. `rows` must not
+  // repeat, and the caller must not add a column laid out by position.
+  uint32_t GatherInPlace(RowBatch* out,
+                         base::Span<const uint32_t> rows,
+                         Context& context);
+
   // Lets go of every row held.
   void Clear();
 
@@ -107,6 +114,12 @@ class RowStore {
     PERFETTO_DCHECK(row < held_rows_);
     return batch_of_row_[row];
   }
+
+  // `count` consecutive rows from `first`, all in `batch`, viewed in place.
+  uint32_t ViewRun(RowBatch* out,
+                   uint32_t batch,
+                   uint32_t first,
+                   uint32_t count) const;
 
   // The row `row` is of the batch it is in, before that batch's selection.
   uint32_t RowInBatch(uint32_t row, uint32_t batch) const {

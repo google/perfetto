@@ -116,7 +116,7 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
   DataframeScan scan(
       {df.shared_column(0), df.shared_column(1), df.shared_column(2),
        df.shared_column(3), df.shared_column(4), df.shared_column(5)},
-      df.row_count());
+      df.row_count(), ReadDirection::kForwards);
   std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
@@ -145,7 +145,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
                          std::optional<std::monostate>{std::monostate{}});
   sparse.Finalize();
 
-  DataframeScan sparse_scan({sparse.shared_column(0)}, sparse.row_count());
+  DataframeScan sparse_scan({sparse.shared_column(0)}, sparse.row_count(),
+                            ReadDirection::kForwards);
   std::unique_ptr<OperatorState> sparse_state =
       sparse_scan.MakeState(test::TestContext());
   RowBatch batch;
@@ -163,7 +164,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
                         std::optional<std::monostate>{std::monostate{}});
   dense.Finalize();
 
-  DataframeScan dense_scan({dense.shared_column(0)}, dense.row_count());
+  DataframeScan dense_scan({dense.shared_column(0)}, dense.row_count(),
+                           ReadDirection::kForwards);
   std::unique_ptr<OperatorState> dense_state =
       dense_scan.MakeState(test::TestContext());
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
@@ -184,7 +186,8 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
     expected.push_back(values[i]);
   }
   dataframe::Dataframe df = Build(values, present);
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
+  DataframeScan scan({df.shared_column(0)}, df.row_count(),
+                     ReadDirection::kForwards);
   EXPECT_EQ(Drain(scan, 0), expected);
 }
 
@@ -198,7 +201,8 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
     present[i] = (i < kMaxBatchRows) ? i % 2 == 0 : i % 2 != 0;
   }
   auto df = Build(values, present);
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
+  DataframeScan scan({df.shared_column(0)}, df.row_count(),
+                     ReadDirection::kForwards);
   auto state = scan.MakeState(test::TestContext());
   RowBatch output, retained;
   ASSERT_TRUE(scan.GetData(output, *state));

@@ -284,7 +284,7 @@ void BM_ExtractArg_SortedScan(benchmark::State& state) {
                            std::vector<SortedScan::Search>{
                                {a.df->shared_column(kArgSetId),
                                 SortedScan::Search::Kind::kSetIdEq, Eq{}, 0}},
-                           &a.pool));
+                           &a.pool, ReadDirection::kForwards));
 }
 BENCHMARK(BM_ExtractArg_SortedScan);
 
@@ -373,7 +373,7 @@ void BM_IdEq_SortedScan(benchmark::State& state) {
                         std::vector<SortedScan::Search>{
                             {w.df->shared_column(kWideCols),
                              SortedScan::Search::Kind::kBinarySearch, Eq{}, 0}},
-                        &w.pool),
+                        &w.pool, ReadDirection::kForwards),
                     {}, {{Id{}, Eq{}}}, &w.pool);
   uint32_t i = 0;
   int64_t sum = 0;
@@ -468,7 +468,7 @@ void BM_TsRange_SortedScan(benchmark::State& state) {
                              SortedScan::Search::Kind::kBinarySearch, Ge{}, 0},
                             {s.df->shared_column(kTs),
                              SortedScan::Search::Kind::kBinarySearch, Lt{}, 1}},
-                        &s.pool),
+                        &s.pool, ReadDirection::kForwards),
                     {}, {{Int64{}, Ge{}}, {Int64{}, Lt{}}}, &s.pool);
   uint32_t i = 0;
   int64_t sum = 0;

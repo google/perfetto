@@ -59,6 +59,27 @@ bool IsIntentionallyRemovedType(const std::string& raw_type_name) {
   return false;
 }
 
+// Pre-renumbering revision of frameworks_base_wattson_soc_model.proto (landed
+// in early November 2026 Android builds), where WattsonCurve had
+// `oneof unit { cluster = 1; policy = 2; }` (putting uint64 dep_freq at
+// tag 5 vs packed float active_mw at tag 5 in the built-in schema) and
+// WattsonSocModel used WattsonCpuPolicy instead of WattsonCpuCluster.
+// TODO(b/524094370): remove once Nov 2026 trunk builds (b/584282228) age out.
+bool IsObsoleteWattsonSocModelFile(
+    const std::string& file_name,
+    const protos::pbzero::FileDescriptorProto::Decoder& file) {
+  if (!base::EndsWith(file_name, "frameworks_base_wattson_soc_model.proto")) {
+    return false;
+  }
+  for (auto it = file.message_type(); it; ++it) {
+    protos::pbzero::DescriptorProto::Decoder msg(*it);
+    if (msg.name().ToStdStringView() == "WattsonCpuPolicy") {
+      return true;
+    }
+  }
+  return false;
+}
+
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
     bool is_extension) {
@@ -442,6 +463,12 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     const std::string file_name = file.name().ToStdString();
     if (base::StartsWithAny(file_name, skip_prefixes))
       continue;
+    if (merge_existing_messages &&
+        FindDescriptorIdx(".com.android.internal.WattsonSocModel")
+            .has_value() &&
+        IsObsoleteWattsonSocModelFile(file_name, file)) {
+      continue;
+    }
     if (!merge_existing_messages &&
         processed_files_.find(file_name) != processed_files_.end()) {
       // This file has been loaded once already. Skip.

@@ -28,6 +28,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -231,6 +232,14 @@ uint32_t* StringFilterGlob(const StringPool* string_pool,
 uint32_t* StringFilterRegex(const StringPool* string_pool,
                             const StringPool::Id* data,
                             const char* pattern,
+                            const uint32_t* begin,
+                            const uint32_t* end,
+                            uint32_t* output);
+
+// Keeps the strings which `regex` matches part of.
+uint32_t* StringFilterRegex(const StringPool* string_pool,
+                            const StringPool::Id* data,
+                            const base::Regex& regex,
                             const uint32_t* begin,
                             const uint32_t* end,
                             uint32_t* output);
@@ -569,6 +578,10 @@ base::Span<const uint32_t> SearchIndexEqual(
     const CastFilterValueResult::Value& value,
     base::Span<const uint32_t> entries);
 
+// Sorts row indices ascending. Compiled once, in filter_kernels.cc, so every
+// column type and null mode shares it.
+void SortRowIndices(uint32_t* begin, uint32_t* end);
+
 // The rows of an IN found by binary-searching a sorted index for each of its
 // values, written to `dest` in increasing order. Returns false, writing
 // nothing, if the list is empty or too long for searching to beat a scan.
@@ -610,7 +623,7 @@ template <typename T, typename N>
   dest.e = write;
 
   // Binary search produces output in key order. Sort by raw index.
-  std::sort(dest.b, dest.e);
+  SortRowIndices(dest.b, dest.e);
   return true;
 }
 

@@ -107,6 +107,10 @@ class PlanOperation {
   // What this operation needs of the rows of input `input`.
   virtual InputNeeds Needs(uint32_t input) const;
 
+  // Whether each output row comes from one input row alone, in the same
+  // order.
+  virtual bool IsRowWise() const { return false; }
+
   // Columns of its inputs which must end up with one type.
   virtual std::vector<std::vector<InputColumn>> CommonTypes() const;
 

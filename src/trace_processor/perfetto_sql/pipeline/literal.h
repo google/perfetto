@@ -59,6 +59,29 @@ core::exec::FilterValue CastLiterals(const core::Op& op,
                                      core::StorageType type,
                                      const StringPool& pool);
 
+// What comparing a value with a literal comes to, once the literal is of the
+// value's type. Comparing an integer with 2.5, say, is decided without 2.5: `n
+// = 2.5` is never true, and `n > 2.5` is `n > 2`.
+struct ResolvedComparison {
+  enum class Kind : uint8_t {
+    // Compare with `literal`.
+    kCompare,
+    // True or false for every value which is not null.
+    kAlwaysTrue,
+    kAlwaysFalse,
+  };
+  Kind kind = Kind::kCompare;
+  Literal literal;
+};
+
+// Resolves comparing a number with the number `literal` by `op`, one of =, !=,
+// <,
+// <=, > and >=. The value is a double if `double_value`, else an integer. Means
+// what a filter on a column of that type means.
+ResolvedComparison ResolveLiteralComparison(const core::Op& op,
+                                            const Literal& literal,
+                                            bool double_value);
+
 // Writes or reads `literal`.
 void SerializeLiteral(PlanCodec&, Literal* literal);
 

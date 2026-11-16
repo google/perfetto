@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -292,6 +293,28 @@ void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
   }
   out.SetColumns(lent_, buffers_);
   out.SetRowCount(count);
+}
+
+void RangeReader::Init(
+    const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
+    Context& context) {
+  windows_.Init(columns, context);
+  for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
+    descending_[i] = kMaxBatchRows - 1 - i;
+  }
+}
+
+bool RangeReader::ReadBackwards(RowBatch& out) {
+  if (next_ == range_.b) {
+    return false;
+  }
+  uint32_t count = std::min(kMaxBatchRows, next_ - range_.b);
+  next_ -= count;
+  windows_.Fill(next_, count, out);
+  out.mutable_selection().Reorder(
+      base::Span<const uint32_t>(descending_.data() + (kMaxBatchRows - count),
+                                 descending_.data() + kMaxBatchRows));
+  return true;
 }
 
 }  // namespace perfetto::trace_processor::core::exec
