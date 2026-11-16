@@ -18,6 +18,8 @@
 
 #include <string.h>
 
+#include <mutex>
+
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track.h"
@@ -40,11 +42,23 @@ void ResetTrackEventTls() {
 }  // namespace perfetto::shlib
 
 void PerfettoTeInit(void) {
+  // Data source registration must not run concurrently, and registering twice
+  // is an error. Serialize callers and skip the work if the track_event data
+  // source is already registered. This also covers re-initialization after
+  // ResetForTesting(), which clears the registration.
+  static std::mutex* mu = new std::mutex();
+  std::lock_guard<std::mutex> lock(*mu);
+  if (perfetto::shlib::TrackEvent::GetType()->static_state()->index !=
+      perfetto::internal::kMaxDataSources) {
+    return;
+  }
+  // Set the uuid before registering the data source: once registered, trace
+  // events can be emitted (and read the uuid) at any time.
+  perfetto_te_process_track_uuid =
+      perfetto::internal::TrackRegistry::ComputeProcessUuid();
   perfetto::DataSourceDescriptor dsd = perfetto::shlib::GlobalState::Instance()
                                            .GenerateDescriptorFromCategories();
   perfetto::shlib::TrackEvent::Init(dsd);
-  perfetto_te_process_track_uuid =
-      perfetto::internal::TrackRegistry::ComputeProcessUuid();
 }
 
 struct PerfettoTeTimestamp PerfettoTeGetTimestamp(void) {
