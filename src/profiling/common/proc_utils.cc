@@ -177,14 +177,10 @@ ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
     *first_at = '\0';
     first_arg = first_at;
   }
-  char* start = static_cast<char*>(
-      memrchr(cmdline, '/', static_cast<size_t>(first_arg - cmdline)));
-  if (start == nullptr) {
-    start = cmdline;
-  } else {
-    // Skip the /.
-    start++;
-  }
+  // Skip past the last path separator of argv0, if it exists.
+  char* start = first_arg;
+  while (start > cmdline && start[-1] != '/')
+    start--;
   *cmdline_ptr = start;
   return first_arg - start;
 }

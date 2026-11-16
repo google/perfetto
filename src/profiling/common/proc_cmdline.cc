@@ -93,14 +93,10 @@ const char* FindBinaryName(const char* cmdline, size_t cmdline_len) {
   if (argv0_end == nullptr) {
     argv0_end = cmdline + cmdline_len;  // set to final nul terminator
   }
-  // Find the last path separator of argv0, if it exists.
-  const char* name_start = static_cast<const char*>(
-      memrchr(cmdline, '/', static_cast<size_t>(argv0_end - cmdline)));
-  if (name_start == nullptr) {
-    name_start = cmdline;
-  } else {
-    name_start++;  // skip the separator
-  }
+  // Skip past the last path separator of argv0, if it exists.
+  const char* name_start = argv0_end;
+  while (name_start > cmdline && name_start[-1] != '/')
+    name_start--;
   return name_start;
 }
 
