@@ -196,6 +196,9 @@ posts, articles and videos:
   its drivers for GPU counter and render stage monitoring.
 - [JaneStreet's MagicTrace](https://blog.janestreet.com/magic-trace/) A tool
   based on Perfetto to record and visualize Intel Processor traces.
+- [Sentry: Android profiling now uses Perfetto via ProfilingManager](https://blog.sentry.io/android-profilingmanager-perfetto/)
+  The Sentry Android SDK uses the Android `ProfilingManager` APIs to collect
+  Perfetto-based callstack profiles and analyze them in Sentry.
 
 ## Where do I find more information and get help with Perfetto?
 

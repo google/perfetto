@@ -78,6 +78,10 @@ export type SidebarMenuItem = {
   // that shows the returned text (the string has "disabled reason" semantic);
   readonly disabled?: string | boolean | (() => string | boolean);
 
+  // If true the item isn't shown. Pass a callback for items that should only
+  // appear in some states, e.g. only for some users.
+  readonly hidden?: boolean | (() => boolean);
+
   // One of the three following arguments must be specified.
 } & (
   | {
@@ -89,8 +93,9 @@ export type SidebarMenuItem = {
        * - A local route (e.g. ''#!/query').
        * - An absolute URL (e.g. 'https://example.com'). In this case the link will
        *   be open in a target=_blank new tag.
+       * Pass a callback if the URL can change while the UI is running.
        */
-      readonly href: string;
+      readonly href: string | (() => string);
     }
   | {
       /** The text of the menu entry. Required. */
@@ -104,7 +109,7 @@ export type SidebarMenuItem = {
       readonly action: () => unknown | Promise<unknown>;
 
       /** Optional. If omitted href = '#'. */
-      readonly href?: string;
+      readonly href?: string | (() => string);
     }
   | {
       /** Optional. If omitted uses the command name. */
