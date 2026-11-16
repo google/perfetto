@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
-#include <memory>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -53,32 +52,37 @@ std::string RandomSessionName() {
   return result;
 }
 
-std::unique_ptr<TestHelper> CollectTrace(base::TestTaskRunner* task_runner,
-                                         const TraceConfig& trace_config) {
-  auto helper = std::make_unique<TestHelper>(task_runner);
-  helper->ConnectConsumer();
-  helper->WaitForConsumerConnect();
+class TracedPerfCtsTest : public ::testing::Test {
+ protected:
+  // Records a trace with |trace_config|, which is then held by |helper_|.
+  void CollectTrace(const TraceConfig& trace_config) {
+    helper_.ConnectConsumer();
+    helper_.WaitForConsumerConnect();
 
-  helper->StartTracing(trace_config);
-  helper->WaitForTracingDisabled(15000 /*ms*/);
-  helper->ReadData();
-  helper->WaitForReadData();
-  // The helper has its own copy of the trace, release the session in traced.
-  helper->FreeBuffers();
-  return helper;
-}
+    helper_.StartTracing(trace_config);
+    helper_.WaitForTracingDisabled(15000 /*ms*/);
+    helper_.ReadData();
+    helper_.WaitForReadData();
+    // The helper has its own copy of the trace, release the session in traced.
+    helper_.FreeBuffers();
+  }
 
-std::unique_ptr<TestHelper> ProfileSystemWide(base::TestTaskRunner* task_runner,
-                                              std::string app_name) {
+  void ProfileSystemWide(std::string app_name);
+
+  base::TestTaskRunner task_runner_;
+  TestHelper helper_{&task_runner_};
+};
+
+void TracedPerfCtsTest::ProfileSystemWide(std::string app_name) {
   // (re)start the target app's main activity
   if (IsAppRunning(app_name)) {
-    StopApp(app_name, "old.app.stopped", task_runner);
-    task_runner->RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
+    StopApp(app_name, "old.app.stopped", &task_runner_);
+    task_runner_.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
   StartAppActivity(app_name, "BusyWaitActivity", "target.app.running",
-                   task_runner,
+                   &task_runner_,
                    /*delay_ms=*/100);
-  task_runner->RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
+  task_runner_.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
   // build config
   TraceConfig trace_config;
@@ -96,7 +100,7 @@ std::unique_ptr<TestHelper> ProfileSystemWide(base::TestTaskRunner* task_runner,
   perf_config.set_sampling_frequency(10);  // Hz
   ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
 
-  return CollectTrace(task_runner, trace_config);
+  CollectTrace(trace_config);
 }
 
 void AssertHasSampledStacksForPid(const TestHelper& helper, int pid) {
@@ -158,56 +162,52 @@ void AssertNoStacksForPid(const TestHelper& helper, int pid) {
   });
 }
 
-TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
+TEST_F(TracedPerfCtsTest, SystemWideDebuggableApp) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
-  base::TestTaskRunner task_runner;
-  auto helper = ProfileSystemWide(&task_runner, app_name);
+  ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  AssertHasSampledStacksForPid(*helper, app_pid);
+  AssertHasSampledStacksForPid(helper_, app_pid);
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
-TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
+TEST_F(TracedPerfCtsTest, SystemWideProfileableApp) {
   std::string app_name = "android.perfetto.cts.app.profileable";
-  base::TestTaskRunner task_runner;
-  auto helper = ProfileSystemWide(&task_runner, app_name);
+  ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  AssertHasSampledStacksForPid(*helper, app_pid);
+  AssertHasSampledStacksForPid(helper_, app_pid);
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
-TEST(TracedPerfCtsTest, SystemWideNonProfileableApp) {
+TEST_F(TracedPerfCtsTest, SystemWideNonProfileableApp) {
   std::string app_name = "android.perfetto.cts.app.nonprofileable";
-  base::TestTaskRunner task_runner;
-  auto helper = ProfileSystemWide(&task_runner, app_name);
+  ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
   if (!IsUserBuild())
-    AssertHasSampledStacksForPid(*helper, app_pid);
+    AssertHasSampledStacksForPid(helper_, app_pid);
   else
-    AssertNoStacksForPid(*helper, app_pid);
+    AssertNoStacksForPid(helper_, app_pid);
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
-TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
+TEST_F(TracedPerfCtsTest, SystemWideReleaseApp) {
   std::string app_name = "android.perfetto.cts.app.release";
-  base::TestTaskRunner task_runner;
-  auto helper = ProfileSystemWide(&task_runner, app_name);
+  ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
   if (!IsUserBuild())
-    AssertHasSampledStacksForPid(*helper, app_pid);
+    AssertHasSampledStacksForPid(helper_, app_pid);
   else
-    AssertNoStacksForPid(*helper, app_pid);
+    AssertNoStacksForPid(helper_, app_pid);
 
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
@@ -215,7 +215,7 @@ TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
 
 // Loads a platform process with work (we use traced_probes which runs as
 // AID_NOBODY), and profiles it.
-TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
+TEST_F(TracedPerfCtsTest, ProfilePlatformProcess) {
   int target_pid = PidForProcessName("/system/bin/traced_probes");
   ASSERT_GT(target_pid, 0) << "failed to find pid for target process";
 
@@ -251,19 +251,18 @@ TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
   ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
 
   // Collect trace.
-  base::TestTaskRunner task_runner;
-  auto helper = CollectTrace(&task_runner, trace_config);
+  CollectTrace(trace_config);
 
   int target_pid_after = PidForProcessName("/system/bin/traced_probes");
   ASSERT_EQ(target_pid, target_pid_after) << "traced_probes died during test";
 
   if (!IsUserBuild())
-    AssertHasSampledStacksForPid(*helper, target_pid);
+    AssertHasSampledStacksForPid(helper_, target_pid);
   else
-    AssertNoStacksForPid(*helper, target_pid);
+    AssertNoStacksForPid(helper_, target_pid);
 }
 
-TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
+TEST_F(TracedPerfCtsTest, ProfileKernelCallstack) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(3000);
@@ -289,8 +288,7 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
   ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
 
   // Collect trace.
-  base::TestTaskRunner task_runner;
-  auto helper = CollectTrace(&task_runner, trace_config);
+  CollectTrace(trace_config);
 
   // Assert that we're seeing the symbolised scheduling functions, while
   // double-checking that the interning ids are unrelated to the raw addresses.
@@ -299,7 +297,7 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
 
   size_t fname_count = 0;
   bool found_schedule = false;
-  helper->ForEachPacket([&](const protos::gen::TracePacket& packet) {
+  helper_.ForEachPacket([&](const protos::gen::TracePacket& packet) {
     for (const auto& fname : packet.interned_data().function_names()) {
       fname_count++;
       // Match any "*schedule*" function (e.g. __schedule, schedule,
@@ -327,10 +325,10 @@ TEST(TracedPerfCtsTest, ProfileKernelCallstack) {
   // Dumps one callstack per line. Example:
   // [1] __schedule <- schedule_idle <- cpu_startup_entry <- rest_init ...
   // [2] schedule <- perf_mon_task <- kthread <- ret_from_fork
-  auto callstacks_to_string = [&helper]() {
+  auto callstacks_to_string = [this]() {
     std::string ret;
     int idx = 0;
-    helper->ForEachPacket([&](const protos::gen::TracePacket& packet) {
+    helper_.ForEachPacket([&](const protos::gen::TracePacket& packet) {
       bool first = true;
       for (const auto& fname : packet.interned_data().function_names()) {
         if (fname.str().empty())
