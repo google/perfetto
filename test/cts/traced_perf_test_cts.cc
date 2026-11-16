@@ -291,9 +291,18 @@ TEST_F(TracedPerfCtsTest, ProfileKernelCallstack) {
   CollectTrace(trace_config);
 
   // Assert that we're seeing the symbolised scheduling functions, while
-  // double-checking that the interning ids are unrelated to the raw addresses.
-  const uint64_t kSmallInternedId = 4096;
-  size_t unexpected_iids = 0;
+  // checking that raw kernel addresses (which would reveal the KASLR offset)
+  // don't leak into the trace:
+  // * User frames are not unwound, so all frames are kernel frames, which are
+  //   emitted without addresses.
+  // * Interning ids are counters that persist for the lifetime of traced_perf,
+  //   so they grow with every session it serves. But they should still be far
+  //   below kernel addresses, which are in the upper half of the address space
+  //   on 64-bit kernels, and above 0x80000000 with the standard 32-bit memory
+  //   splits.
+  constexpr uint64_t kMinKernelAddress = 0x80000000;
+  size_t leaked_addresses = 0;
+  size_t address_like_iids = 0;
 
   size_t fname_count = 0;
   bool found_schedule = false;
@@ -307,18 +316,26 @@ TEST_F(TracedPerfCtsTest, ProfileKernelCallstack) {
       if (fname.str().find("schedule") != std::string::npos) {
         found_schedule = true;
       }
-      if (fname.iid() > kSmallInternedId) {
-        unexpected_iids++;
+      if (fname.iid() >= kMinKernelAddress) {
+        address_like_iids++;
+      }
+    }
+    for (const auto& mapping : packet.interned_data().mappings()) {
+      if (mapping.start() || mapping.end()) {
+        leaked_addresses++;
       }
     }
     for (const auto& frame : packet.interned_data().frames()) {
-      if (frame.iid() > kSmallInternedId) {
-        unexpected_iids++;
+      if (frame.rel_pc()) {
+        leaked_addresses++;
+      }
+      if (frame.iid() >= kMinKernelAddress) {
+        address_like_iids++;
       }
     }
     if (packet.has_perf_sample() &&
-        packet.perf_sample().callstack_iid() > kSmallInternedId) {
-      unexpected_iids++;
+        packet.perf_sample().callstack_iid() >= kMinKernelAddress) {
+      address_like_iids++;
     }
   });
 
@@ -349,7 +366,9 @@ TEST_F(TracedPerfCtsTest, ProfileKernelCallstack) {
          "profile, total functions seen: "
       << fname_count << ", callstacks:" << callstacks_to_string();
 
-  EXPECT_EQ(unexpected_iids, 0u) << "Unexpectedly high interning ids.";
+  EXPECT_EQ(leaked_addresses, 0u) << "Kernel frames with addresses.";
+  EXPECT_EQ(address_like_iids, 0u)
+      << "Interning ids in the kernel address range.";
 }
 
 }  // namespace
