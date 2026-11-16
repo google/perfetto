@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-virtual-overlay-canvas {
+.pf-virtual-canvas-host {
   &__content {
     // Make this element positioned so that the canvas container is positioned
     // relative to this element.
@@ -31,5 +31,21 @@
 
     // Ensures the canvases don't change the size of the container element.
     overflow: hidden;
+  }
+
+  // Positioned over the viewport (plus overdraw) and moved around as the user
+  // scrolls. The canvases live inside it and fill it.
+  &__floating {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  &__floating > canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
   }
 }

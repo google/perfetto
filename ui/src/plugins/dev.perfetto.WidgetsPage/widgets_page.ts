@@ -63,6 +63,7 @@ import {renderTrackShell} from './demos/track_shell_demo';
 import {renderTree} from './demos/tree_demo';
 import {renderTreeTable} from './demos/treetable_demo';
 import {renderVirtualCanvas} from './demos/virtual_canvas_demo';
+import {renderVirtualCanvasHost} from './demos/virtual_canvas_host_demo';
 
 interface WidgetSection {
   readonly id: string;
@@ -126,6 +127,11 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'tree', label: 'Tree', view: renderTree},
   {id: 'treetable', label: 'TreeTable', view: renderTreeTable},
   {id: 'virtualcanvas', label: 'VirtualCanvas', view: renderVirtualCanvas},
+  {
+    id: 'virtualcanvashost',
+    label: 'VirtualCanvasHost',
+    view: renderVirtualCanvasHost,
+  },
 ];
 
 export interface WidgetsPageAttrs {
