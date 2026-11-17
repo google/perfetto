@@ -107,8 +107,9 @@ struct DataSourceState {
   uint32_t interceptor_id = 0;
 
   // This is set to true when the datasource is in the process of async stop.
-  // The flag is checked by the tracing muxer to avoid calling OnStop for the
-  // second time.
+  // The flag is checked by the tracing muxer to avoid calling OnStop a second
+  // time and to skip stopping instances during adoption, setup, start, flush,
+  // and incremental state clear.
   bool async_stop_in_progress = false;
 
   // Whether this data source instance should call NotifyDataSourceStopped()

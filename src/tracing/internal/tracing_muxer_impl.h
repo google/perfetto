@@ -159,8 +159,8 @@ class TracingMuxerImpl : public TracingMuxer {
                        uint32_t backend_connection_id,
                        DataSourceInstanceID,
                        const DataSourceConfig&);
-  void StartDataSource(TracingBackendId, DataSourceInstanceID);
-  void StopDataSource_AsyncBegin(TracingBackendId, DataSourceInstanceID);
+  bool StartDataSource(TracingBackendId, DataSourceInstanceID);
+  bool StopDataSource_AsyncBegin(TracingBackendId, DataSourceInstanceID);
   void ClearDataSourceIncrementalState(TracingBackendId, DataSourceInstanceID);
   void SyncProducersForTesting();
 
@@ -447,7 +447,7 @@ class TracingMuxerImpl : public TracingMuxer {
     int num_unbound_data_sources = 0;
 
     bool is_aborting = false;
-    int num_aborting_data_sources = 0;
+    bool any_data_source_aborted = false;
 
     std::function<void()> on_aborted;
     std::function<void()> on_adopted;

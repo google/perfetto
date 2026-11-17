@@ -311,15 +311,18 @@ void TracingMuxerImpl::ProducerImpl::StartDataSource(DataSourceInstanceID id,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!muxer_)
     return;
-  muxer_->StartDataSource(backend_id_, id);
-  service_->NotifyDataSourceStarted(id);
+  if (muxer_->StartDataSource(backend_id_, id)) {
+    service_->NotifyDataSourceStarted(id);
+  }
 }
 
 void TracingMuxerImpl::ProducerImpl::StopDataSource(DataSourceInstanceID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!muxer_)
     return;
-  muxer_->StopDataSource_AsyncBegin(backend_id_, id);
+  if (!muxer_->StopDataSource_AsyncBegin(backend_id_, id) && id != 0) {
+    service_->NotifyDataSourceStopped(id);
+  }
 }
 
 void TracingMuxerImpl::ProducerImpl::Flush(
@@ -1241,7 +1244,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
     for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
       auto* internal_state = static_state->TryGet(i);
 
-      if (internal_state &&
+      if (internal_state && !internal_state->async_stop_in_progress &&
           internal_state->startup_target_buffer_reservation.load(
               std::memory_order_relaxed) &&
           internal_state->data_source_instance_id == 0 &&
@@ -1263,6 +1266,8 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->buffer_exhausted_policy =
             ComputeBufferExhaustedPolicy(cfg, rds.params);
         internal_state->config.reset(new DataSourceConfig(cfg));
+        internal_state->will_notify_on_stop =
+            rds.descriptor.will_notify_on_stop();
 
         // TODO(eseckler): Should the data source config provided by the service
         // be allowed to specify additional interceptors / additional data
@@ -1283,6 +1288,18 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
   PERFETTO_DLOG("Setting up data source %" PRIu64 " %s", instance_id,
                 cfg.name().c_str());
   PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  // 0 is the sentinel id for unadopted startup data sources.
+  if (instance_id == 0) {
+    PERFETTO_ELOG("Data source instance ID 0 is reserved for startup tracing");
+    return;
+  }
+
+  if (FindDataSource(backend_id, instance_id)) {
+    PERFETTO_ELOG("Data source instance %" PRIu64 " already exists",
+                  instance_id);
+    return;
+  }
 
   // First check if there is any matching startup tracing data source instance.
   if (MaybeAdoptStartupTracingInDataSource(backend_id, backend_connection_id,
@@ -1308,7 +1325,8 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
         continue;
       auto* internal_state =
           reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
-      if (internal_state->backend_id == backend_id &&
+      if (!internal_state->async_stop_in_progress &&
+          internal_state->backend_id == backend_id &&
           internal_state->backend_connection_id == backend_connection_id &&
           internal_state->config && *internal_state->config == cfg) {
         active_for_config = true;
@@ -1378,6 +1396,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
           0, std::memory_order_relaxed);
     }
 
+    internal_state->trace_lambda_enabled.store(false,
+                                               std::memory_order_relaxed);
     internal_state->backend_id = backend_id;
     internal_state->backend_connection_id = backend_connection_id;
     internal_state->data_source_instance_id = instance_id;
@@ -1390,6 +1410,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source = rds.factory();
     internal_state->interceptor = nullptr;
     internal_state->interceptor_id = 0;
+    internal_state->async_stop_in_progress = false;
     internal_state->will_notify_on_stop = rds.descriptor.will_notify_on_stop();
 
     if (cfg.has_interceptor_config()) {
@@ -1446,8 +1467,9 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
   return FindDataSourceRes();
 }
 
-// Called by the service of one of the backends.
-void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
+// Called by the service of one of the backends. Returns whether the caller
+// should send NotifyDataSourceStarted(instance_id) to the service.
+bool TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
                                        DataSourceInstanceID instance_id) {
   PERFETTO_DLOG("Starting data source %" PRIu64, instance_id);
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -1455,7 +1477,17 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
   auto ds = FindDataSource(backend_id, instance_id);
   if (!ds) {
     PERFETTO_ELOG("Could not find data source to start");
-    return;
+    // Still ack non-zero instance IDs (e.g. half-adopted startup instances that
+    // were already aborted locally) so the service doesn't stall waiting for
+    // AllDataSourceInstancesStarted().
+    return instance_id != 0;
+  }
+
+  if (ds.internal_state->async_stop_in_progress) {
+    PERFETTO_DLOG("Data source %" PRIu64
+                  " is already stopping, not starting it",
+                  instance_id);
+    return true;
   }
 
   // Check if the data source was already started for startup tracing.
@@ -1470,14 +1502,10 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
         [session_id](const RegisteredStartupSession& session) {
           return session.session_id == session_id;
         });
-    PERFETTO_DCHECK(session_it != backend.startup_sessions.end());
-
-    if (session_it->is_aborting) {
-      PERFETTO_DLOG("Data source %" PRIu64
-                    " was already aborted for startup tracing, not starting it",
-                    instance_id);
-      return;
-    }
+    PERFETTO_CHECK(session_it != backend.startup_sessions.end());
+    // AbortStartupTracingSession() synchronously sets async_stop_in_progress on
+    // all unbound instances, which is already handled above.
+    PERFETTO_DCHECK(!session_it->is_aborting);
 
     PERFETTO_DLOG(
         "Data source %" PRIu64
@@ -1497,18 +1525,27 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
     // notify the data source some other way?
 
     // The session should not have been fully bound yet (or aborted).
-    PERFETTO_DCHECK(session_it->num_unbound_data_sources > 0);
+    PERFETTO_CHECK(session_it->num_unbound_data_sources > 0);
 
     session_it->num_unbound_data_sources--;
     if (session_it->num_unbound_data_sources == 0) {
-      if (session_it->on_adopted)
-        task_runner_->PostTask(session_it->on_adopted);
+      auto callback = session_it->any_data_source_aborted
+                          ? std::move(session_it->on_aborted)
+                          : std::move(session_it->on_adopted);
+      if (callback)
+        task_runner_->PostTask(std::move(callback));
       backend.startup_sessions.erase(session_it);
     }
-    return;
+    return true;
+  }
+
+  if (ds.internal_state->trace_lambda_enabled.load(std::memory_order_relaxed)) {
+    PERFETTO_ELOG("Data source %" PRIu64 " was already started", instance_id);
+    return false;
   }
 
   StartDataSourceImpl(ds);
+  return true;
 }
 
 void TracingMuxerImpl::StartDataSourceImpl(const FindDataSourceRes& ds) {
@@ -1529,8 +1566,9 @@ void TracingMuxerImpl::StartDataSourceImpl(const FindDataSourceRes& ds) {
   ds.internal_state->data_source->OnStart(start_args);
 }
 
-// Called by the service of one of the backends.
-void TracingMuxerImpl::StopDataSource_AsyncBegin(
+// Called by the service of one of the backends. Returns false if no matching
+// data source instance was found.
+bool TracingMuxerImpl::StopDataSource_AsyncBegin(
     TracingBackendId backend_id,
     DataSourceInstanceID instance_id) {
   PERFETTO_DLOG("Stopping data source %" PRIu64, instance_id);
@@ -1539,10 +1577,11 @@ void TracingMuxerImpl::StopDataSource_AsyncBegin(
   auto ds = FindDataSource(backend_id, instance_id);
   if (!ds) {
     PERFETTO_ELOG("Could not find data source to stop");
-    return;
+    return false;
   }
 
   StopDataSource_AsyncBeginImpl(ds);
+  return true;
 }
 
 void TracingMuxerImpl::StopDataSource_AsyncBeginImpl(
@@ -1569,7 +1608,6 @@ void TracingMuxerImpl::StopDataSource_AsyncBeginImpl(
 
   {
     std::unique_lock<std::recursive_mutex> lock(ds.internal_state->lock);
-
     // Don't call OnStop again if the datasource is already stopping.
     if (ds.internal_state->async_stop_in_progress)
       return;
@@ -1646,6 +1684,9 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
   ProducerImpl* producer = backend.producer.get();
   if (!producer)
     return;
+  const bool same_connection =
+      producer->connection_id_.load(std::memory_order_relaxed) ==
+      backend_connection_id;
 
   // If the data source instance still has a startup buffer reservation, it was
   // only active for startup tracing and never started by the service. Discard
@@ -1653,7 +1694,11 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
   if (startup_buffer_reservation) {
     PERFETTO_DCHECK(startup_session_id);
 
-    if (producer->service_ && producer->service_->MaybeSharedMemoryArbiter()) {
+    // Only abort the reservation on the arbiter if the producer hasn't
+    // reconnected since this instance was created; a new connection has a fresh
+    // arbiter whose reservation IDs are unrelated.
+    if (producer->service_ && same_connection &&
+        producer->service_->MaybeSharedMemoryArbiter()) {
       producer->service_->MaybeSharedMemoryArbiter()
           ->AbortStartupTracingForReservation(startup_buffer_reservation);
     }
@@ -1664,25 +1709,30 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
           return session.session_id == startup_session_id;
         });
 
-    // Session should not be removed until abortion of all data source instances
-    // is complete.
-    PERFETTO_DCHECK(session_it != backend.startup_sessions.end());
-
-    session_it->num_aborting_data_sources--;
-    if (session_it->num_aborting_data_sources == 0) {
+    // Session should not be removed until all unbound data source instances
+    // have either been bound or stopped.
+    PERFETTO_CHECK(session_it != backend.startup_sessions.end());
+    PERFETTO_CHECK(session_it->num_unbound_data_sources > 0);
+    session_it->any_data_source_aborted = true;
+    session_it->num_unbound_data_sources--;
+    if (session_it->num_unbound_data_sources == 0) {
       if (session_it->on_aborted)
-        task_runner_->PostTask(session_it->on_aborted);
+        task_runner_->PostTask(std::move(session_it->on_aborted));
 
       backend.startup_sessions.erase(session_it);
     }
   }
 
-  if (producer->connected_ &&
-      backend.producer->connection_id_.load(std::memory_order_relaxed) ==
-          backend_connection_id) {
+  if (producer->connected_ && same_connection) {
     // Flush any commits that might have been batched by SharedMemoryArbiter.
     producer->service_->MaybeSharedMemoryArbiter()
         ->FlushPendingCommitDataRequests();
+    // Note: if a half-adopted startup data source instance (instance_id != 0)
+    // is aborted locally via AbortStartupTracingSession(), this sends an
+    // unsolicited NotifyDataSourceStopped() before the service requests
+    // StopDataSource(). The service logs and ignores the premature stop ack,
+    // and ProducerImpl::StopDataSource() later acknowledges the service's
+    // actual StopDataSource() request.
     if (instance_id && will_notify_on_stop)
       producer->service_->NotifyDataSourceStopped(instance_id);
   }
@@ -1701,6 +1751,8 @@ void TracingMuxerImpl::ClearDataSourceIncrementalState(
     PERFETTO_ELOG("Could not find data source to clear incremental state for");
     return;
   }
+  if (ds.internal_state->async_stop_in_progress)
+    return;
 
   DataSourceBase::ClearIncrementalStateArgs clear_incremental_state_args;
   clear_incremental_state_args.internal_instance_index = ds.instance_idx;
@@ -1729,6 +1781,8 @@ bool TracingMuxerImpl::FlushDataSource_AsyncBegin(
     PERFETTO_ELOG("Could not find data source to flush");
     return true;
   }
+  if (ds.internal_state->async_stop_in_progress)
+    return true;
 
   uint32_t backend_connection_id = ds.internal_state->backend_connection_id;
 
@@ -2586,13 +2640,13 @@ TracingMuxerImpl::CreateStartupTracingSession(
       int num_ds = session.num_unbound_data_sources;
       auto on_setup = opts.on_setup;
       if (on_setup) {
-        backend.producer->OnStartupTracingSetup();
         task_runner_->PostTask([on_setup, num_ds] {
           on_setup(Tracing::OnStartupTracingSetupCallbackArgs{num_ds});
         });
       }
 
       if (num_ds > 0) {
+        backend.producer->OnStartupTracingSetup();
         backend.startup_sessions.push_back(std::move(session));
 
         if (opts.timeout_ms > 0) {
@@ -2655,8 +2709,13 @@ void TracingMuxerImpl::AbortStartupTracingSession(
       return;
 
     session_it->is_aborting = true;
+    session_it->any_data_source_aborted = true;
 
-    // Iterate all data sources and abort them if they weren't adopted yet.
+    // Abort every instance of this session that still holds a startup target
+    // buffer reservation. This includes instances that were already associated
+    // with a service-side instance ID by SetupDataSource() but never bound by
+    // StartDataSource().
+    int num_aborting = 0;
     for (const auto& rds : data_sources_) {
       DataSourceStaticState* static_state = rds.static_state;
       for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
@@ -2664,7 +2723,6 @@ void TracingMuxerImpl::AbortStartupTracingSession(
         if (internal_state &&
             internal_state->startup_target_buffer_reservation.load(
                 std::memory_order_relaxed) &&
-            internal_state->data_source_instance_id == 0 &&
             internal_state->startup_session_id == session_id) {
           PERFETTO_DLOG(
               "Aborting startup tracing for data source %s (target buffer "
@@ -2676,7 +2734,7 @@ void TracingMuxerImpl::AbortStartupTracingSession(
           // Abort the instance asynchronously by stopping it. From this point
           // onwards, the service will not be able to adopt it via
           // StartDataSource().
-          session_it->num_aborting_data_sources++;
+          num_aborting++;
           StopDataSource_AsyncBeginImpl(
               FindDataSourceRes(static_state, internal_state, i,
                                 rds.params.requires_callbacks_under_lock));
@@ -2686,15 +2744,8 @@ void TracingMuxerImpl::AbortStartupTracingSession(
 
     // If we did everything right, we should have aborted all still-unbound data
     // source instances.
-    PERFETTO_DCHECK(session_it->num_unbound_data_sources ==
-                    session_it->num_aborting_data_sources);
-
-    if (session_it->num_aborting_data_sources == 0) {
-      if (session_it->on_aborted)
-        task_runner_->PostTask(session_it->on_aborted);
-
-      backend.startup_sessions.erase(session_it);
-    }
+    PERFETTO_CHECK(num_aborting > 0 &&
+                   session_it->num_unbound_data_sources == num_aborting);
     return;
   }
   // We might reach here in tests because when we start a trace, we post the

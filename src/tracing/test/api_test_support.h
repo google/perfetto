@@ -97,6 +97,14 @@ class TracingMuxerImplInternalsForTest {
  public:
   static bool DoesSystemBackendHaveSMB();
   static void ClearIncrementalState();
+  static void SetupDataSourceOnProducer(BackendType backend_type,
+                                        uint64_t instance_id,
+                                        const DataSourceConfig& cfg);
+  static void StartDataSourceOnProducer(BackendType backend_type,
+                                        uint64_t instance_id,
+                                        const DataSourceConfig& cfg);
+  static void StopDataSourceOnProducer(BackendType backend_type,
+                                       uint64_t instance_id);
 
   template <typename DerivedDataSource>
   static void ClearDataSourceTlsStateOnReset() {
@@ -105,6 +113,11 @@ class TracingMuxerImplInternalsForTest {
   }
 
  private:
+  enum class ProducerOp { kSetup, kStart, kStop };
+  static void DispatchProducerOp(BackendType backend_type,
+                                 ProducerOp op,
+                                 uint64_t instance_id,
+                                 const DataSourceConfig* cfg);
   static void AppendResetForTestingCallback(std::function<void()>);
 };
 
