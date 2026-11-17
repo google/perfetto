@@ -493,6 +493,13 @@ declare_args() {
   # from /usr/include instead of the hermetic one.
   perfetto_use_system_sqlite = false
 
+  # SQLITE_THREADSAFE for the hermetic sqlite. 0 (single-thread) avoids mutex
+  # overhead but forbids using SQLite from more than one thread at a time, even
+  # through different connections (i.e. different TraceProcessor instances).
+  # Set to 2 (multi-thread) when TraceProcessor instances are used
+  # concurrently from different threads.
+  perfetto_sqlite_threadsafe = 0
+
   perfetto_use_system_zlib = false
 
   # Used by NixOS system builds. Uses the system version of zstd
