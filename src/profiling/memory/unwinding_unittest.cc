@@ -20,13 +20,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "src/profiling/unwind/get_asm_regs.h"
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/get_asm_regs.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

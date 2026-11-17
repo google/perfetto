@@ -54,11 +54,13 @@ constexpr CpuArch CurrentCpuArch() {
 }
 
 // Per-architecture register indices.
-// x86     : DWARF ordering (IA-32 ABI).
+// x86     : 0..9 matches with DWARF (IA-32 ABI); 10..15 are unused (kept
+//           from libunwindstack).
 // x86_64  : DWARF ordering (System V ABI).
 // ARM     : DWARF / user_pt_regs / perf_event ordering
 // ARM64   : user_pt_regs ordering, 0..31 matches with DWARF.
-// RISCV64 : user_pt_regs / perf_event + vlenb(32). 1..31 matches with DWARF.
+// RISCV64 : user_pt_regs / perf_event ordering + vlenb(32). 1..31 matches with
+//           DWARF.
 
 // 0..15 : matches DWARF / user_pt_regs / perf_event ordering
 enum ArmReg : uint16_t {
@@ -90,6 +92,7 @@ enum ArmReg : uint16_t {
 // 0-31: DWARF/perf_event/user_pt_regs registers.
 // 32 (PC): perf_event and user_pt_regs.
 // 33 (PSTATE): user_pt_regs only.
+// TODO(safayat): Add support for VG register on Arm64 (b/457531341)
 enum Arm64Reg : uint16_t {
   ARM64_REG_X0 = 0,
   ARM64_REG_X1 = 1,
@@ -131,7 +134,9 @@ enum Arm64Reg : uint16_t {
   ARM64_REG_LR = ARM64_REG_X30,
 };
 
-// Following DWARF (IA-32 ABI) register ordering.
+// 0..9  : DWARF (IA-32 ABI) register ordering.
+// 10..15: CS..GS, not DWARF (DWARF uses 40..45). Never populated or read;
+//         kept so that X86_REG_MAX == unwindstack::X86_REG_LAST.
 enum X86Reg : uint16_t {
   X86_REG_EAX = 0,
   X86_REG_ECX = 1,
@@ -180,7 +185,8 @@ enum X86_64Reg : uint16_t {
 
 // 0 (PC): following perf_event/user_pt_regs registers.
 // 1..31: following DWARF/perf_event/user_pt_regs registers.
-// 32 (vlenb): DWARF register (0x1c22).
+// 32 (vlenb): DWARF 0x1c22, needed for RISC-V vector extension. Not sampled by
+// perf_event; filled by the collector.
 enum Riscv64Reg : uint16_t {
   RISCV64_REG_PC = 0,
   RISCV64_REG_RA = 1,
@@ -214,10 +220,9 @@ enum Riscv64Reg : uint16_t {
   RISCV64_REG_T4 = 29,
   RISCV64_REG_T5 = 30,
   RISCV64_REG_T6 = 31,
-  RISCV64_REG_REAL_MAX = 32,
-  // This is the last real register, vlenb is a special register value.
-  RISCV64_REG_VLENB = RISCV64_REG_REAL_MAX,
-  RISCV64_REG_MAX = 33,
+  RISCV64_REG_MAX = 32,
+  RISCV64_REG_VLENB = RISCV64_REG_MAX,
+  RISCV64_REG_MAX_WITH_PSEUDO = 33,
 
   RISCV64_REG_FP = RISCV64_REG_S0,
 };
@@ -225,7 +230,7 @@ enum Riscv64Reg : uint16_t {
 struct CpuRegisters {
   static constexpr size_t kMaxRegs =
       std::max<size_t>({ARM_REG_MAX, ARM64_REG_MAX, X86_REG_MAX, X86_64_REG_MAX,
-                        RISCV64_REG_MAX});
+                        RISCV64_REG_MAX_WITH_PSEUDO});
 
   CpuRegisters() = default;
   explicit CpuRegisters(CpuArch a) : arch(a) {}

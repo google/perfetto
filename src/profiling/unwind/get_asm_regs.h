@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-// Reads current CPU registers in Machine*.h (DWARF) order into |reg_data|.
+// Reads current CPU registers into |reg_data|, in the per-architecture order
+// defined by the *Reg enums in cpu_registers.h.
 // Note: |reg_data| is written as a packed array of native-sized words
 // (uint32_t[] on 32-bit ARM/x86, uint64_t[] on 64-bit ARM64/x86_64/riscv64).
 // Use CreateRegsFromRawData() to unpack into CpuRegisters.
@@ -25,6 +26,8 @@
 
 #ifndef SRC_PROFILING_UNWIND_GET_ASM_REGS_H_
 #define SRC_PROFILING_UNWIND_GET_ASM_REGS_H_
+
+#include <cstdint>
 
 namespace perfetto {
 namespace profiling {
@@ -170,6 +173,21 @@ inline __attribute__((__always_inline__)) void GetAsmRegs(void* reg_data) {
       : "eax", "memory");
 }
 #endif
+
+// Reads vlenb (VLEN/8) from the current CPU. vlenb is a read-only hardware
+// constant, and Linux only enables the V extension when all harts share the
+// same VLEN, so this value is valid for every process on the system.
+// Returns 0 on non-RISC-V builds.
+// Same as libunwindstack's RegsRiscv64::GetVlenbFromLocal().
+inline uint64_t GetLocalRiscvVlenb() {
+#if defined(__riscv)
+  uint64_t vlenb;
+  asm volatile("csrr %0, 0xc22\n" : "=r"(vlenb)::);
+  return vlenb;
+#else
+  return 0;
+#endif
+}
 
 }  // namespace profiling
 }  // namespace perfetto

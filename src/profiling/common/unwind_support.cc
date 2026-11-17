@@ -60,7 +60,7 @@ static_assert(static_cast<uint16_t>(ARM_REG_MAX) ==
                       static_cast<uint16_t>(unwindstack::X86_REG_LAST) &&
                   static_cast<uint16_t>(X86_64_REG_MAX) ==
                       static_cast<uint16_t>(unwindstack::X86_64_REG_LAST) &&
-                  static_cast<uint16_t>(RISCV64_REG_MAX) ==
+                  static_cast<uint16_t>(RISCV64_REG_MAX_WITH_PSEUDO) ==
                       static_cast<uint16_t>(unwindstack::RISCV64_REG_COUNT),
               "Register counts must match libunwindstack");
 
@@ -73,17 +73,11 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
     const CpuRegisters& cpu_regs) {
   switch (cpu_regs.arch) {
     case CpuArch::ARM64: {
-      static_assert(static_cast<int>(ARM64_REG_MAX) ==
-                        static_cast<int>(unwindstack::ARM64_REG_LAST),
-                    "arm64 register layout mismatch");
       auto regs = std::make_unique<unwindstack::RegsArm64>();
       memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * ARM64_REG_MAX);
       return regs;
     }
     case CpuArch::ARM: {
-      static_assert(static_cast<int>(ARM_REG_MAX) ==
-                        static_cast<int>(unwindstack::ARM_REG_LAST),
-                    "arm register layout mismatch");
       auto regs = std::make_unique<unwindstack::RegsArm>();
       for (size_t i = 0; i < ARM_REG_MAX; ++i) {
         (*regs)[i] = static_cast<uint32_t>(cpu_regs[i]);
@@ -91,17 +85,11 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
       return regs;
     }
     case CpuArch::X86_64: {
-      static_assert(static_cast<int>(X86_64_REG_MAX) ==
-                        static_cast<int>(unwindstack::X86_64_REG_LAST),
-                    "x86_64 register layout mismatch");
       auto regs = std::make_unique<unwindstack::RegsX86_64>();
       memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * X86_64_REG_MAX);
       return regs;
     }
     case CpuArch::X86: {
-      static_assert(static_cast<int>(X86_REG_MAX) ==
-                        static_cast<int>(unwindstack::X86_REG_LAST),
-                    "x86 register layout mismatch");
       auto regs = std::make_unique<unwindstack::RegsX86>();
       for (size_t i = 0; i < X86_REG_MAX; ++i) {
         (*regs)[i] = static_cast<uint32_t>(cpu_regs[i]);
@@ -109,19 +97,11 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
       return regs;
     }
     case CpuArch::RISCV64: {
-      static_assert(static_cast<int>(RISCV64_REG_MAX) ==
-                        static_cast<int>(unwindstack::RISCV64_REG_COUNT),
-                    "riscv64 register layout mismatch");
       auto regs = std::make_unique<unwindstack::RegsRiscv64>();
       memcpy(regs->RawData(), cpu_regs.regs,
-             sizeof(uint64_t) * RISCV64_REG_MAX);
-      // VLENB is not included in perf sampled registers, but libunwindstack
-      // requires it to compute DWARF frame offsets for functions using RISC-V
-      // vector extensions.
-      if ((*regs)[unwindstack::RISCV64_REG_VLENB] == 0) {
-        (*regs)[unwindstack::RISCV64_REG_VLENB] =
-            unwindstack::RegsRiscv64::GetVlenbFromLocal();
-      }
+             sizeof(uint64_t) * RISCV64_REG_MAX_WITH_PSEUDO);
+      // vlenb (needed for DWARF CFA of functions using RISC-V vector
+      // extensions) is expected to be already filled by the collector.
       return regs;
     }
     case CpuArch::UNKNOWN:

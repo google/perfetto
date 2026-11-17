@@ -30,6 +30,8 @@
 namespace perfetto {
 namespace profiling {
 
+// Unpacks |raw_data|, as written by GetAsmRegs() (unwind/get_asm_regs.h) in
+// the heapprofd client and sent over the wire, into CpuRegisters.
 std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
                                                   const void* raw_data);
 

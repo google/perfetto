@@ -339,6 +339,8 @@ bool Client::IsPostFork() {
   return false;
 }
 
+// TODO(safayat): move the per-arch SP index and register width into
+// cpu_registers.h, shared with CpuRegisters::sp()/set_sp().
 ssize_t Client::GetStackRegister(CpuArch arch) {
   ssize_t reg_sp;
   ssize_t reg_size;

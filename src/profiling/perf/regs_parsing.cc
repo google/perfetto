@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/get_asm_regs.h"  // for GetLocalRiscvVlenb()
 
 // kernel uapi headers
 #include <uapi/asm-arm/asm/perf_regs.h>
@@ -206,12 +207,15 @@ CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
                           static_cast<int>(PERF_REG_RISCV_PC) &&
                       static_cast<int>(RISCV64_REG_PC) == 0,
                   "register layout mismatch");
-    static_assert(static_cast<int>(RISCV64_REG_REAL_MAX) ==
+    static_assert(static_cast<int>(RISCV64_REG_MAX) ==
                       static_cast<int>(PERF_REG_RISCV_MAX),
                   "register layout mismatch");
     // Register layout matches, copy the raw data to the cpu_regs.regs array.
     CpuRegisters cpu_regs(CpuArch::RISCV64);
     memcpy(cpu_regs.regs, raw_regs.regs, sizeof(uint64_t) * PERF_REG_RISCV_MAX);
+    // perf_event doesn't sample vlenb, which RISC-V vector extension frames
+    // need for unwinding.
+    cpu_regs[RISCV64_REG_VLENB] = GetLocalRiscvVlenb();
     return cpu_regs;
   }
 

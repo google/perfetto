@@ -89,7 +89,8 @@ std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
       memcpy(ret.regs, raw_data, X86_64_REG_MAX * sizeof(uint64_t));
       return ret;
     case CpuArch::RISCV64:
-      memcpy(ret.regs, raw_data, RISCV64_REG_MAX * sizeof(uint64_t));
+      memcpy(ret.regs, raw_data,
+             RISCV64_REG_MAX_WITH_PSEUDO * sizeof(uint64_t));
       return ret;
     case CpuArch::UNKNOWN:
       break;
