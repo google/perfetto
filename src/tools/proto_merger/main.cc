@@ -80,7 +80,7 @@ const char kUsage[] =
 -o, --output:                Output path for writing the merged proto file.
 -O, --allowlisted-option:    Option/annotation key that should be preserved
                               from upstream (can be repeated).
---lossless-changes-only:     Only apply lossless type changes of existing
+-l, --lossless-changes-only: Only apply lossless type changes of existing
                               fields (e.g. int32 -> int64) and keep their
                               labels; other type changes keep the input type.
 
@@ -98,9 +98,6 @@ Example usage:
 )";
 
 int Main(int argc, char** argv) {
-  enum LongOption {
-    kLosslessChangesOnly = 1000,
-  };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
@@ -112,7 +109,7 @@ int Main(int argc, char** argv) {
       {"upstream-root-message", required_argument, nullptr, 'r'},
       {"output", required_argument, nullptr, 'o'},
       {"allowlisted-option", required_argument, nullptr, 'O'},
-      {"lossless-changes-only", no_argument, nullptr, kLosslessChangesOnly},
+      {"lossless-changes-only", no_argument, nullptr, 'l'},
       {nullptr, 0, nullptr, 0}};
 
   std::string input;
@@ -127,7 +124,7 @@ int Main(int argc, char** argv) {
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:O:", long_options, nullptr);
+        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:O:l", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -177,7 +174,7 @@ int Main(int argc, char** argv) {
       continue;
     }
 
-    if (option == kLosslessChangesOnly) {
+    if (option == 'l') {
       lossless_changes_only = true;
       continue;
     }
