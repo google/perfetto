@@ -14,7 +14,7 @@
 
 import {type Bounds2D, Rect2D} from '../../base/geom';
 import {OWNER_ATTRIBUTE} from '../../base/owner_attribute';
-import {UNATTRIBUTED} from '../ownership';
+import {findAttributionForElement, UNATTRIBUTED} from '../ownership';
 import {type LabeledRect, PaintedRects} from './painted_rects';
 import {VisibleRects} from './visible_rects';
 
@@ -22,6 +22,24 @@ import {VisibleRects} from './visible_rects';
 export interface OwnedBox {
   readonly bounds: Bounds2D;
   readonly owner: string;
+}
+
+/** A point where the snapshot and the page name different owners. */
+export interface PointDisagreement {
+  readonly x: number;
+  readonly y: number;
+  /** The owner of what the browser draws at the point. */
+  readonly pageOwner: string;
+  /** The owner the snapshot gives the point. */
+  readonly snapshotOwner: string;
+  /** What the browser draws at the point, as tag#id.class. */
+  readonly element: string;
+}
+
+export interface PointComparison {
+  /** Points checked, leaving out those near a box edge. */
+  readonly compared: number;
+  readonly disagreements: ReadonlyArray<PointDisagreement>;
 }
 
 /**
@@ -39,7 +57,8 @@ export interface OwnedBox {
  * - findOwnerAt(x, y): who owns a point;
  * - computeShares(): a mapping of how much of the screen each owner takes up;
  * - listRegions(): the picture as boxes that don't overlap, one owner each;
- * - boxes: the raw boxes read in step 1.
+ * - boxes: the raw boxes read in step 1;
+ * - compareWithPage(): where the picture and the page disagree.
  *
  * E.g.
  *   const snapshot = ScreenSnapshot.take();
@@ -66,7 +85,7 @@ export class ScreenSnapshot {
 
   /** Makes a snapshot by painting the given boxes. */
   constructor(
-    viewport: Bounds2D,
+    private readonly viewport: Bounds2D,
     readonly boxes: ReadonlyArray<OwnedBox>,
   ) {
     // Paint the whole viewport first, as unattributed, so parts no box covers
@@ -110,6 +129,52 @@ export class ScreenSnapshot {
     }
     return toThousandths(areas);
   }
+
+  /**
+   * Checks the snapshot against the page: looks up a point every `step`
+   * pixels both in the snapshot and by asking the browser what is drawn
+   * there, and lists where they name different owners. Where they disagree,
+   * the snapshot is wrong, for example because something without a label is
+   * drawn on top of a labeled box.
+   *
+   * Points within `edgeBand` pixels of a box edge are skipped: sub-pixel
+   * rounding makes either answer right there.
+   */
+  compareWithPage(step: number, edgeBand: number): PointComparison {
+    const {left, top, right, bottom} = this.viewport;
+    let compared = 0;
+    const disagreements: PointDisagreement[] = [];
+    for (let y = top + step / 2; y < bottom; y += step) {
+      for (let x = left + step / 2; x < right; x += step) {
+        if (this.painted.measureDistanceToEdge(x, y) < edgeBand) continue;
+        compared++;
+        const snapshotOwner = this.findOwnerAt(x, y);
+        const element = document.elementFromPoint(x, y);
+        const pageOwner = findAttributionForElement(element).owner;
+        if (pageOwner !== snapshotOwner) {
+          disagreements.push({
+            x,
+            y,
+            pageOwner,
+            snapshotOwner,
+            element: describeElement(element),
+          });
+        }
+      }
+    }
+    return {compared, disagreements};
+  }
+}
+
+// Describes an element as tag#id.class, for messages.
+function describeElement(el: Element | null): string {
+  if (el === null) return '(nothing)';
+  const id = el.id ? `#${el.id}` : '';
+  const classes = Array.from(el.classList)
+    .slice(0, 3)
+    .map((c) => `.${c}`)
+    .join('');
+  return `${el.tagName.toLowerCase()}${id}${classes}`;
 }
 
 // Returns the visible part of each labeled element on the page, credited to its

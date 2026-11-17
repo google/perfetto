@@ -57,4 +57,9 @@ describe('Grid', () => {
       GRID.getBounds({firstColumn: 1, endColumn: 3, firstRow: 0, endRow: 1}),
     ).toEqual({left: 10, top: 0, right: 40, bottom: 10});
   });
+
+  test('measures the distance to the nearest line', () => {
+    expect(GRID.measureDistanceToNearestLine(12, 5)).toBe(2);
+    expect(GRID.measureDistanceToNearestLine(20, 15)).toBe(5);
+  });
 });

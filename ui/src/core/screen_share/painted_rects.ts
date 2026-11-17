@@ -86,6 +86,11 @@ export class PaintedRects {
     return regions;
   }
 
+  /** Measures how far (x, y) is from the nearest rectangle edge. */
+  measureDistanceToEdge(x: number, y: number): number {
+    return this.grid.measureDistanceToNearestLine(x, y);
+  }
+
   // Gets the label of the rectangle painted in `color`: color i is rects[i].
   private getLabel(color: number | undefined): string | undefined {
     return color === undefined ? undefined : this.rects[color]?.label;

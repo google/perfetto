@@ -77,4 +77,9 @@ describe('PaintedRects', () => {
       {bounds: {left: 10, top: 20, right: 40, bottom: 40}, label: 'B'},
     ]);
   });
+
+  test('measures the distance to the nearest rectangle edge', () => {
+    const painted = new PaintedRects([A, B]);
+    expect(painted.measureDistanceToEdge(12, 5)).toBe(2);
+  });
 });

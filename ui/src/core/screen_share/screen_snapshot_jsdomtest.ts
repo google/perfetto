@@ -144,3 +144,54 @@ describe('ScreenSnapshot', () => {
     expect(new ScreenSnapshot(empty, []).computeShares()).toEqual(new Map());
   });
 });
+
+describe('ScreenSnapshot.compareWithPage', () => {
+  // The left half belongs to 'a', the right half to 'b'.
+  const snapshot = new ScreenSnapshot(
+    {left: 0, top: 0, right: 100, bottom: 100},
+    [
+      {owner: 'a', bounds: {left: 0, top: 0, right: 50, bottom: 100}},
+      {owner: 'b', bounds: {left: 50, top: 0, right: 100, bottom: 100}},
+    ],
+  );
+  const elementFromPoint = document.elementFromPoint;
+  const a = document.createElement('div');
+  a.setAttribute('data-plugin', 'a');
+  const b = document.createElement('div');
+  b.setAttribute('data-plugin', 'b');
+  const popup = document.createElement('div');
+  popup.className = 'popup';
+
+  afterEach(() => {
+    document.elementFromPoint = elementFromPoint;
+  });
+
+  test('finds no disagreements when the page matches the snapshot', () => {
+    document.elementFromPoint = (x: number) => (x < 50 ? a : b);
+    const result = snapshot.compareWithPage(10, 2);
+    expect(result.compared).toBe(100);
+    expect(result.disagreements).toEqual([]);
+  });
+
+  test('reports each point where the page differs, with both owners', () => {
+    // An unlabeled popup covers the bottom-right corner.
+    document.elementFromPoint = (x: number, y: number) =>
+      x > 70 && y > 70 ? popup : x < 50 ? a : b;
+    const result = snapshot.compareWithPage(10, 2);
+    expect(result.disagreements.length).toBe(9);
+    expect(result.disagreements[0]).toEqual({
+      x: 75,
+      y: 75,
+      pageOwner: UNATTRIBUTED,
+      snapshotOwner: 'b',
+      element: 'div.popup',
+    });
+  });
+
+  test('skips points near a box edge', () => {
+    document.elementFromPoint = () => popup;
+    // With step 4, x = 50 is right on the edge between 'a' and 'b'.
+    const result = snapshot.compareWithPage(4, 2);
+    expect(result.disagreements.some((d) => d.x === 50)).toBe(false);
+  });
+});

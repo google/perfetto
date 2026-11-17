@@ -111,6 +111,14 @@ export class Grid {
       bottom: this.rows.getStart(span.endRow),
     };
   }
+
+  /** Measures how far (x, y) is from the nearest grid line. */
+  measureDistanceToNearestLine(x: number, y: number): number {
+    return Math.min(
+      this.columns.measureDistanceToNearestLine(x),
+      this.rows.measureDistanceToNearestLine(y),
+    );
+  }
 }
 
 // The lines of a Grid in one direction, as positions: sorted, without repeats.
@@ -142,6 +150,15 @@ class GridLines {
     const last = this.lines[this.lines.length - 1] ?? 0;
     if (position < first || position >= last) return undefined;
     return this.findLastLineAtOrBefore(position);
+  }
+
+  // Measures the distance from `position` to the nearest line.
+  measureDistanceToNearestLine(position: number): number {
+    const i = this.findLastLineAtOrBefore(position);
+    return Math.min(
+      Math.abs(position - (this.lines[i] ?? -Infinity)),
+      Math.abs((this.lines[i + 1] ?? Infinity) - position),
+    );
   }
 
   // Finds the number of the last line at or before `position` by binary
