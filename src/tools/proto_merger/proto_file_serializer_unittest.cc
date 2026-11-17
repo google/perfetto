@@ -284,9 +284,7 @@ TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
   EXPECT_THAT(out, Not(HasSubstr("bool flag")));
 }
 
-// Bool -> enum is not lossless; applying it would also use an enum which is
-// missing from the output.
-TEST(ProtoFileSerializerTest, TypeTransitionToEnumKeepsType) {
+TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
   ProtoFile input;
   {
     ProtoFile::Message message{};
@@ -315,51 +313,85 @@ TEST(ProtoFileSerializerTest, TypeTransitionToEnumKeepsType) {
   ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
-  EXPECT_THAT(out, HasSubstr("bool state = 1;"));
-  EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
+  EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("bool state")));
 }
 
-TEST(ProtoFileSerializerTest, LabelChangeKeepsLabel) {
+// Merges a "Container" message whose field 1 changes from |from| to |to| with
+// lossless_changes_only, and returns the merged field.
+ProtoFile::Field MergeLosslessChangesOnly(const ProtoFile::Field& from,
+                                          const ProtoFile::Field& to) {
+  auto make_file = [](const ProtoFile::Field& field) {
+    ProtoFile file;
+    ProtoFile::Message payload{};
+    payload.name = "Payload";
+    file.messages.push_back(payload);
+    ProtoFile::Message container{};
+    container.name = "Container";
+    container.fields.push_back(field);
+    file.messages.push_back(container);
+    return file;
+  };
+  ProtoFile merged;
+  base::Status status =
+      MergeProtoFiles(make_file(from), make_file(to), Allowlist{}, merged, {},
+                      /*lossless_changes_only=*/true);
+  EXPECT_TRUE(status.ok()) << status.c_message();
+  return merged.messages[1].fields[0];
+}
+
+TEST(ProtoFileSerializerTest, LosslessChangesOnlyAppliesLosslessTypeChanges) {
+  struct Case {
+    std::string from;
+    std::string to;
+    std::string expected;
+  };
+  for (const auto& c : std::vector<Case>{{"int32", "int64", "int64"},
+                                         {"bool", "uint32", "uint32"},
+                                         {"int64", "int32", "int64"},
+                                         {"uint32", "int32", "uint32"},
+                                         {"fixed32", "sfixed32", "fixed32"},
+                                         {"string", "bytes", "string"},
+                                         {"bytes", "Payload", "bytes"},
+                                         {"Payload", "bytes", "Payload"}}) {
+    EXPECT_EQ(MergeLosslessChangesOnly(MakeField(c.from, "field", 1),
+                                       MakeField(c.to, "field", 1))
+                  .type,
+              c.expected)
+        << c.from << " -> " << c.to;
+  }
+}
+
+TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsLabel) {
+  ProtoFile::Field repeated = MakeField("int32", "field", 1);
+  repeated.is_repeated = true;
+  EXPECT_TRUE(MergeLosslessChangesOnly(repeated, MakeField("int32", "field", 1))
+                  .is_repeated);
+}
+
+// Without lossless_changes_only, a field changed to a new enum would use an
+// enum that is not allowlisted, so missing from the output.
+TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsTypeOfNewEnum) {
   ProtoFile input;
   ProtoFile::Message message{};
   message.name = "Container";
-  message.fields.push_back(MakeField("int32", "values", 1));
-  message.fields[0].is_repeated = true;
+  message.fields.push_back(MakeField("bool", "state", 1));
   input.messages.push_back(message);
+
   ProtoFile upstream = input;
-  upstream.messages[0].fields[0].is_repeated = false;
+  upstream.messages[0].fields[0] = MakeField("Container.MyEnum", "state", 1);
+  ProtoFile::Enum en{};
+  en.name = "MyEnum";
+  en.values.push_back(MakeEnumValue("UNKNOWN", 0));
+  upstream.messages[0].enums.push_back(en);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
-  EXPECT_TRUE(merged.messages[0].fields[0].is_repeated);
-}
-
-TEST(ProtoFileSerializerTest, TypeTransitionLossyKeepsType) {
-  for (const auto& [from, to] :
-       std::vector<std::pair<std::string, std::string>>{{"int64", "int32"},
-                                                        {"uint32", "int32"},
-                                                        {"fixed32", "sfixed32"},
-                                                        {"string", "bytes"},
-                                                        {"bytes", "Payload"},
-                                                        {"Payload", "bytes"}}) {
-    ProtoFile input;
-    ProtoFile upstream;
-    for (auto* file : {&input, &upstream}) {
-      ProtoFile::Message payload{};
-      payload.name = "Payload";
-      file->messages.push_back(payload);
-    }
-    ProtoFile::Message container{};
-    container.name = "Container";
-    container.fields.push_back(MakeField(from, "field", 1));
-    input.messages.push_back(container);
-    container.fields[0] = MakeField(to, "field", 1);
-    upstream.messages.push_back(container);
-
-    ProtoFile merged;
-    ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
-    EXPECT_EQ(merged.messages[1].fields[0].type, from) << from << " -> " << to;
-  }
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged, {},
+                              /*lossless_changes_only=*/true)
+                  .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("bool state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
 }
 
 TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {

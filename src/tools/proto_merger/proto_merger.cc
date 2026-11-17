@@ -32,6 +32,7 @@ namespace {
 struct MergeContext {
   std::unordered_set<std::string> known_enums;
   std::unordered_set<std::string> allowlisted_options;
+  bool lossless_changes_only = false;
 };
 
 struct FieldParams {
@@ -324,10 +325,10 @@ bool IsLosslessTypeTransition(const std::string& from, const std::string& to) {
          (from == "sint32" && to == "sint64");
 }
 
-// Merges |input| with its |upstream| version. Label changes and allowed type
-// transitions which are not lossless (e.g. int64 -> int32, int32 -> enum,
-// bytes -> message) are not applied, as they change how stored data is read:
-// the field keeps its input label and type.
+// Merges |input| with its |upstream| version. With |ctx.lossless_changes_only|,
+// label changes and allowed type transitions which are not lossless (e.g.
+// int64 -> int32, int32 -> enum, bytes -> message) are not applied, as they
+// change how stored data is read: the field keeps its input label and type.
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
                         const MergeContext& ctx,
@@ -363,21 +364,24 @@ base::Status MergeField(const ProtoFile::Field& input,
     }
   }
 
-  // Get the comments and the name from the source of truth.
+  // Get the comments, label and the name from the source of truth.
   out.leading_comments = upstream.leading_comments;
   out.trailing_comments = upstream.trailing_comments;
+  out.is_repeated =
+      ctx.lossless_changes_only ? input.is_repeated : upstream.is_repeated;
   out.name = upstream.name;
 
   // Get everything else from the input.
-  out.is_repeated = input.is_repeated;
   out.number = input.number;
   out.options = input.options;
 
   MergeAllowlistedOptions(upstream.options, out.options,
                           ctx.allowlisted_options);
 
-  if (IsLosslessTypeTransition(input.packageless_type,
-                               upstream.packageless_type)) {
+  if (ctx.lossless_changes_only
+          ? IsLosslessTypeTransition(input.packageless_type,
+                                     upstream.packageless_type)
+          : input.packageless_type != upstream.packageless_type) {
     out.packageless_type = upstream.packageless_type;
     out.type = upstream.type;
   } else {
@@ -651,7 +655,8 @@ base::Status MergeProtoFiles(
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::unordered_set<std::string>& allowlisted_options) {
+    const std::unordered_set<std::string>& allowlisted_options,
+    bool lossless_changes_only) {
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
@@ -659,6 +664,7 @@ base::Status MergeProtoFiles(
 
   MergeContext ctx;
   ctx.allowlisted_options = allowlisted_options;
+  ctx.lossless_changes_only = lossless_changes_only;
 
   for (const auto& en : upstream.enums) {
     ctx.known_enums.insert(en.name);

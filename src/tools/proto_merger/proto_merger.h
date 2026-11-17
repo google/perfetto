@@ -36,16 +36,18 @@ namespace proto_merger {
 // * Non-allowlisted options for fields and enums are taken from |input|, while
 //   options in |allowlisted_options| are synced from |upstream| (including
 //   additions, updates, and removals).
-// * Only lossless type changes of existing fields (e.g. int32 -> int64) are
-//   applied; other wire-compatible ones (e.g. int64 -> int32, bytes -> message)
-//   keep the |input| type, and wire-incompatible ones fail the merge.
-// * Labels (optional/repeated) of existing fields are kept from |input|.
+// * Wire-compatible type changes of existing fields are applied and
+//   wire-incompatible ones fail the merge. With |lossless_changes_only|, only
+//   lossless type changes (e.g. int32 -> int64) are applied and labels
+//   (optional/repeated) are kept from |input|; other type changes (e.g.
+//   int64 -> int32, bytes -> message) keep the |input| type.
 base::Status MergeProtoFiles(
     const ProtoFile& input,
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::unordered_set<std::string>& allowlisted_options = {});
+    const std::unordered_set<std::string>& allowlisted_options = {},
+    bool lossless_changes_only = false);
 
 }  // namespace proto_merger
 }  // namespace perfetto
