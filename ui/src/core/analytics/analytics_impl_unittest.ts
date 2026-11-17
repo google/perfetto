@@ -143,6 +143,25 @@ describe('AnalyticsImpl', () => {
     });
   });
 
+  describe('initialize', () => {
+    beforeEach(() => {
+      gtagGlobals.dataLayer = [];
+    });
+
+    test('should send perfetto_env with every event', async () => {
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
+      await analytics.initialize();
+      // Tests run on localhost.
+      expect(gaConfig()?.perfetto_env).toBe('localhost');
+    });
+  });
+
   describe('logEvent', () => {
     beforeEach(() => {
       gtagGlobals.dataLayer = [];

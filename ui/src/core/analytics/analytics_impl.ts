@@ -14,6 +14,7 @@
 
 import type {ErrorDetails} from '../../base/logging';
 import {getCurrentChannel} from '../channels';
+import {getPerfettoEnv} from './perfetto_env';
 import {VERSION} from '../../virtual/version';
 import {Router} from '../router';
 import {assertUnreachable} from '../../base/assert';
@@ -230,6 +231,8 @@ class AnalyticsImpl implements AnalyticsInternal {
       perfetto_channel: getCurrentChannel(),
       // Referrer *if overridden* via the query string else empty string.
       perfetto_referrer_override: getReferrerOverride() ?? '',
+      // Where the UI is served from (prod, localhost, pr_preview or other).
+      perfetto_env: getPerfettoEnv(new URL(window.location.href)),
       ...extraDimensions,
     });
 
