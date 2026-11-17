@@ -50,12 +50,8 @@ static constexpr char kOperators[] =
     "an operator other than =, !=, <, <=, >, >=, GLOB, REGEXP, IN, BETWEEN "
     "and IS [NOT] NULL";
 
-const Literal* BoundOf(const WherePredicate& p,
-                       const std::vector<Literal>& literals) {
-  if (p.literal_count != 1 || !literals[p.first_literal].is_bound()) {
-    return nullptr;
-  }
-  return &literals[p.first_literal];
+bool IsBound(const WherePredicate& p, const std::vector<Literal>& literals) {
+  return p.literal_count == 1 && literals[p.first_literal].is_bound();
 }
 
 // What `p` should compare with to suit a column of storage `type`, if a literal
@@ -65,7 +61,7 @@ const Literal* BoundOf(const WherePredicate& p,
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
                                            const std::vector<Literal>& literals,
                                            core::StorageType type) {
-  if (BoundOf(p, literals)) {
+  if (IsBound(p, literals)) {
     return std::nullopt;
   }
   if (p.op.IsAnyOf<core::NullOp>() || p.op.IsAnyOf<core::OnlyStringOp>()) {
@@ -260,15 +256,20 @@ class Parser {
 
 // The type a column of no known type is converted to, for Filter to read it:
 // the type its literals have. Strings win, as SQL compares a number with a
-// string by type. None for IS [NOT] NULL, which reads any column.
+// string by type. None for IS [NOT] NULL, which reads any column, or for a
+// bound param, which has no value yet. GLOB and REGEXP match only strings,
+// whatever is bound.
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
     const std::vector<Literal>& literals) {
-  if (p.op.IsAnyOf<core::NullOp>() || BoundOf(p, literals)) {
+  if (p.op.IsAnyOf<core::NullOp>()) {
     return std::nullopt;
   }
   if (p.op.IsAnyOf<core::OnlyStringOp>()) {
     return core::String{};
+  }
+  if (IsBound(p, literals)) {
+    return std::nullopt;
   }
   core::StorageType type = core::Int64{};
   for (uint32_t i = 0; i < p.literal_count; ++i) {
@@ -294,7 +295,7 @@ PlannedParam PlanValue(const WherePredicate& p,
                         literals.begin() + p.first_literal + p.literal_count);
   value.type = type;
   value.op = p.op;
-  if (BoundOf(p, literals)) {
+  if (IsBound(p, literals)) {
     value.state = PlannedParam::State::kBound;
   } else {
     value.state = PlannedParam::State::kConstant;
@@ -368,7 +369,7 @@ OutputProperties Where::Derive(DeriveContext& c) const {
     }
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
     if (!type) {
-      if (!BoundOf(p, literals_)) {
+      if (!IsBound(p, literals_)) {
         continue;
       }
       // A column holding no values matches no comparison, whatever is bound.

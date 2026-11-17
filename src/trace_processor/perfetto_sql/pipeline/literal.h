@@ -51,10 +51,10 @@ struct Literal {
   bool is_bound() const { return type == Type::kBound; }
 
   Type type = Type::kInt64;
+  uint32_t bound = 0;
   int64_t int_value = 0;
   double double_value = 0;
   std::string text;
-  uint32_t bound = 0;
 };
 
 // Reads the number, optionally negated, or string at `expr`.

@@ -652,6 +652,32 @@ TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
   EXPECT_THAT(ids(6, 0), ElementsAre());
 }
 
+// GLOB matches only strings, so a bound pattern still has its column read as
+// strings. A bound comparison has no value yet to give a type.
+TEST_F(PhysicalPlanTest, WhereReadsStringsForABoundGlob) {
+  catalog_.AddTable("g", {"id", "k"}, {{0, 1}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("g");
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, df, "g", {0, 1});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate glob;
+  glob.column = columns[1].id;
+  glob.op = core::Glob{};
+  glob.literal_count = 1;
+  WherePredicate gt;
+  gt.column = columns[0].id;
+  gt.op = core::Gt{};
+  gt.first_literal = 1;
+  gt.literal_count = 1;
+  Where::AddToPlan(&plan, {glob, gt}, {Literal::Bound(0), Literal::Bound(1)});
+
+  InputNeeds needs = plan.nodes()[plan.root()].operation().Needs(0);
+  ASSERT_EQ(needs.types_first.size(), 1u);
+  EXPECT_EQ(needs.types_first[0].column, columns[1].id);
+  EXPECT_TRUE(needs.types_first[0].type.Is<core::String>());
+  EXPECT_FALSE(needs.types_first[0].if_unknown);
+}
+
 // Each operand is grouped by its PER keys and sorted by ts within each group,
 // unless it already is.
 TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {

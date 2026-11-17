@@ -133,7 +133,7 @@ class RunParams {
     for (const Binding& b : bindings_) {
       b.cast(fetcher, b.value, *pool_, &params_[b.param]);
     }
-    return {params_.data(), params_.data() + params_.size()};
+    return params_;
   }
 
  private:
