@@ -91,11 +91,6 @@ class AndroidProcessStateTracker {
     ProcessStateValues values;
   };
 
-  // Converts a CLOCK_BOOTTIME timestamp written by system_server (e.g.
-  // proc_state_start_ns) to trace time. Returns std::nullopt if the
-  // conversion fails (the clock tracker records a stat in that case).
-  std::optional<int64_t> BoottimeToTraceTime(int64_t boottime_ns);
-
   // Records the pre-change state (prev_*) from the earliest delta track event
   // seen for a process to establish its baseline at trace start.
   void UpdateInitialStateFromDelta(int64_t ts,

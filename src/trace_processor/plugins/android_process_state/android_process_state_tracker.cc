@@ -41,6 +41,20 @@
 namespace perfetto::trace_processor::android_process_state {
 namespace {
 namespace fb = com::android::internal::pbzero;
+
+// Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
+// proc_state_start_ns, frozen_start_ns) to trace time. Values <= 0 mean
+// unknown. Also returns std::nullopt if the conversion fails (the clock tracker
+// records a stat in that case).
+std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
+                                          int64_t boottime_ns) {
+  if (boottime_ns <= 0) {
+    return std::nullopt;
+  }
+  return clock_tracker->ToTraceTime(
+      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      boottime_ns);
+}
 }  // namespace
 
 StringId InternEnum(TraceProcessorContext* context,
@@ -64,13 +78,6 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
       freezer_state_table_(freezer_state_table),
       capability_flags_id_(context->storage->InternString("capability_flags")),
       unknown_process_logger_(context) {}
-
-std::optional<int64_t> AndroidProcessStateTracker::BoottimeToTraceTime(
-    int64_t boottime_ns) {
-  return context_->clock_tracker->ToTraceTime(
-      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
-      boottime_ns);
-}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -117,7 +124,8 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     prev.process_group = static_cast<int32_t>(p.prev_process_group());
   }
   if (p.has_prev_proc_state_start_ns()) {
-    prev.start_ts = BoottimeToTraceTime(p.prev_proc_state_start_ns());
+    prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                       p.prev_proc_state_start_ns());
   }
   UpdateInitialStateFromDelta(ts, prev);
 
@@ -201,7 +209,8 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
     if (rec.has_proc_state_start_ns()) {
-      v.start_ts = BoottimeToTraceTime(rec.proc_state_start_ns());
+      v.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                      rec.proc_state_start_ns());
     }
     process_dump_[v.upid] = v;
   }
