@@ -84,6 +84,8 @@ export class TimeAxisPanel {
         return Time.formatMilliseconds(start);
       case TimestampFormat.Microseconds:
         return Time.formatMicroseconds(start);
+      case TimestampFormat.Compact:
+        return Time.formatCompact(start);
       case TimestampFormat.TraceNs:
         return start.toString();
       case TimestampFormat.TraceNsLocale:
@@ -183,6 +185,14 @@ export class TimeAxisPanel {
         return renderRawTimestamp(
           ctx,
           Time.formatMicroseconds(time),
+          x,
+          y,
+          minWidth,
+        );
+      case TimestampFormat.Compact:
+        return renderRawTimestamp(
+          ctx,
+          Time.formatCompact(time),
           x,
           y,
           minWidth,

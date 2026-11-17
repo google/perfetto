@@ -38,6 +38,7 @@ export class DurationPrecisionMenuItem implements m.ClassComponent<DurationPreci
         case TimestampFormat.Timecode:
         case TimestampFormat.UTC:
         case TimestampFormat.TraceTz:
+        case TimestampFormat.Compact:
           return true;
         default:
           return false;
