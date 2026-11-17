@@ -97,8 +97,7 @@ CREATE PERFETTO TABLE _android_critical_blocking_call_names AS
 SELECT
   name AS raw_name,
   android_standardize_slice_name(name) AS standardized_name,
-  name GLOB 'DrawFrames*' AS is_draw_frames,
-  name GLOB 'drawLayer *' AS is_draw_layer
+  name GLOB 'DrawFrames*' AS is_draw_frames
 FROM (
   SELECT DISTINCT name FROM slice WHERE _is_relevant_blocking_call_expr!(name)
 );
@@ -109,15 +108,13 @@ SELECT
   s.id,
   n.standardized_name,
   n.is_draw_frames,
-  n.is_draw_layer,
   s.ts,
   s.dur,
   s.process_name,
   s.utid,
   s.upid
 FROM thread_slice AS s
-JOIN _android_critical_blocking_call_names AS n
-  ON s.name = n.raw_name;
+JOIN _android_critical_blocking_call_names AS n ON s.name = n.raw_name;
 
 CREATE PERFETTO TABLE _android_critical_blocking_calls_draw_frames AS
 SELECT utid, id, ts, dur
@@ -171,20 +168,6 @@ SELECT
   ) AS ts_end
 FROM _android_critical_blocking_call_slices AS s
 LEFT JOIN _wait_for_buffer_release_dur AS wait_for_buffer_release USING (id)
-UNION ALL
--- Add a summation of all drawLayer slices without the individual layer name
-SELECT
-  'drawLayer' AS name,
-  s.ts,
-  s.dur,
-  s.id,
-  s.process_name,
-  s.utid,
-  s.upid,
-  s.ts + s.dur AS ts_end
-FROM _android_critical_blocking_call_slices AS s
-WHERE
-  s.is_draw_layer
 UNION ALL
 -- As binder names are not included in slice table, extract these directly from the
 -- android_binder_txns table.

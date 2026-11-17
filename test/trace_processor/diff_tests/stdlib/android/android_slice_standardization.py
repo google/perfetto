@@ -37,6 +37,7 @@ slices_to_standardize = [
     "relayoutWindow#first=false/resize=false/vis=true/params=true/force=false",
     "android.os.Handler: kotlinx.coroutines.CancellableContinuationImpl",
     "Choreographer#doFrame 122932914", "DrawFrames 122921845",
+    "drawLayer [DoubleShadowNode] 55.0 x 55.0", "draw-VRI[NotificationShade]",
     "/data/app/.../base.apk", "OpenDexFilesFromOat(/data/app/.../base.apk)",
     "Open oat file /data/misc/apexdata/com.android.art/dalvik-cache/boot.oat",
     "android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation",

@@ -119,11 +119,9 @@ SELECT
     WHEN $name GLOB "Choreographer#doFrame*" THEN "Choreographer#doFrame"
     WHEN $name GLOB "DrawFrames*" THEN "DrawFrames"
     -- e.g. drawLayer [DoubleShadowNode] 55.0 x 55.0
-    WHEN $name GLOB "drawLayer [[]*[]]*" THEN SUBSTR(
-      $name,
-      1,
-      INSTR($name, ']')
-    )
+    WHEN $name GLOB "drawLayer *" THEN "drawLayer"
+    -- e.g. draw-VRI[NotificationShade]
+    WHEN $name GLOB "draw-VRI*" THEN "draw-VRI <...>"
     -- e.g. Texture upload(2634389) 192x192
     WHEN $name GLOB "Texture upload*" THEN "Texture upload"
     WHEN $name GLOB "AssetManager::OpenNonAsset*" THEN "AssetManager::OpenNonAsset <...>"

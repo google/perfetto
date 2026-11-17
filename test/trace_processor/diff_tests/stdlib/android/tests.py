@@ -409,6 +409,8 @@ class AndroidStdlib(TestSuite):
         "CoroutineContinuation"
         "Choreographer#doFrame"
         "DrawFrames"
+        "drawLayer"
+        "draw-VRI <...>"
         "APK load"
         "OpenDexFilesFromOat"
         "Open oat file"

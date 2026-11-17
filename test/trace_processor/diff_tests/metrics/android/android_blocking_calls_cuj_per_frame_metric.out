@@ -63,15 +63,6 @@ android_blocking_calls_cuj_per_frame_metric {
       mean_cnt_per_frame: 0.250000
     }
     blocking_calls {
-      name: "drawLayer [TestLayer]"
-      max_dur_per_frame_ms: 0
-      max_dur_per_frame_ns: 100000
-      mean_dur_per_frame_ms: 0
-      mean_dur_per_frame_ns: 25000
-      max_cnt_per_frame: 1
-      mean_cnt_per_frame: 0.250000
-    }
-    blocking_calls {
       name: "flush commands"
       max_dur_per_frame_ms: 0
       max_dur_per_frame_ns: 100000

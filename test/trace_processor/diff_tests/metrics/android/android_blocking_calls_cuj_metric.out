@@ -141,6 +141,16 @@ android_blocking_calls_cuj_metric {
     ts: 2000000
     dur: 300000000
     blocking_calls {
+      name: "draw-VRI <...>"
+      cnt: 4
+      total_dur_ms: 40
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 40000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
       name: "CoroutineContinuation"
       cnt: 2
       total_dur_ms: 20
@@ -292,46 +302,6 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "configChanged"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "draw-VRI[NexusLauncherActivity]"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "draw-VRI[ScreenDecorHwcOverlay]"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "draw-VRI[StatusBar]"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "draw-VRI[Taskbar]"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
