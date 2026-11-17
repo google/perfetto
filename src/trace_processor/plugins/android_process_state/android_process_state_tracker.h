@@ -31,6 +31,7 @@
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
+class ClockTracker;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
@@ -54,6 +55,8 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // A process_state_died_event TrackEvent extension at |ts|.
+  void ParseProcessStateDied(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket at |ts|.
   void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
@@ -82,7 +85,18 @@ class AndroidProcessStateTracker {
   struct FreezerStateValues {
     UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
+    // Trace time at which the process was last unfrozen / frozen.
+    std::optional<int64_t> unfrozen_start_ts;
+    std::optional<int64_t> frozen_start_ts;
   };
+
+  // Reads the prev_* fields shared by AndroidProcessStateChangedEvent and
+  // AndroidProcessStateDiedEvent into |prev|. Defined in the .cc file, the
+  // only place it is instantiated.
+  template <typename Decoder>
+  static void ReadPrevState(const Decoder& event,
+                            ClockTracker* clock_tracker,
+                            ProcessStateValues* prev);
 
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.

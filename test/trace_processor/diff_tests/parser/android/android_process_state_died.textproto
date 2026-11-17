@@ -1,0 +1,262 @@
+# Exercises AndroidProcessStateDiedEvent ingestion. The died event only feeds
+# the initial state (prev_*), like the earliest change event, and inserts no
+# row of its own.
+# The trace clock is MONOTONIC, which is BOOTTIME - 500. Packets and the
+# *_start_ns values are BOOTTIME, so both are converted to trace time; times
+# below are BOOTTIME. The trace starts at 1000.
+# system_server emits binder_died (PROC_LIFECYCLE category) right after
+# process_state_died; it ends the process, which gives the EXITED interval.
+# - PID 100: changes state at 2000 (no prev_proc_state_start_ns), then dies.
+#            The initial state comes from the earlier change event, including
+#            its (missing) start, not from the died event.
+# - PID 200: never changes state and is not in a trace-stop dump. The initial
+#            state, including its start (1500), comes from the died event.
+# - PID 300: like PID 200, but the died event has no prev_proc_state_start_ns.
+# - PID 400: changes state at 2500 with prev_proc_state_start_ns 1200, then
+#            dies with prev_proc_state_start_ns 2500. The earliest event wins.
+# - PID 500: dies without binder_died, as in a config that enables the
+#            process state category but not PROC_LIFECYCLE. The initial state is
+#            still recovered, but there is no EXITED interval.
+# - PID 0 is ignored, and unknown PID 999 records a notice.
+# Producers always write every prev_* field except the start; fields the test
+# doesn't need (e.g. prev_process_group) are omitted.
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_MONOTONIC
+    clocks { clock_id: 6 timestamp: 1000 }
+    clocks { clock_id: 3 timestamp: 500 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+packet {
+  timestamp: 1000
+  timestamp_clock_id: 6
+  [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    dump_reason: DUMP_REASON_START
+    record { pid: 100 uid: 10010 process_name: "com.example.a" start_seq_id: 1 }
+    record { pid: 200 uid: 10020 process_name: "com.example.b" start_seq_id: 2 }
+    record { pid: 300 uid: 10030 process_name: "com.example.c" start_seq_id: 3 }
+    record { pid: 400 uid: 10040 process_name: "com.example.d" start_seq_id: 4 }
+    record { pid: 500 uid: 10050 process_name: "com.example.e" start_seq_id: 5 }
+  }
+}
+# Anchors the trace start at 1000.
+packet {
+  timestamp: 1000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "trace_begin"
+  }
+}
+packet {
+  timestamp: 2000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 100
+      uid: 10010
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+      prev_oom_score: 0
+      cur_oom_score: 900
+      prev_capability_flags: 1
+      cur_capability_flags: 0
+      reason: OOM_ADJ_REASON_ACTIVITY
+      seq_id: 5
+    }
+  }
+}
+packet {
+  timestamp: 2500
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 400
+      uid: 10040
+      prev_proc_state: PROCESS_STATE_SERVICE
+      cur_proc_state: PROCESS_STATE_RECEIVER
+      prev_oom_score: 500
+      cur_oom_score: 200
+      prev_proc_state_start_ns: 1200
+      reason: OOM_ADJ_REASON_START_RECEIVER
+      seq_id: 6
+    }
+  }
+}
+packet {
+  timestamp: 3000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 100
+      uid: 10010
+      prev_proc_state: PROCESS_STATE_CACHED_EMPTY
+      prev_oom_score: 900
+      prev_capability_flags: 0
+      prev_proc_state_start_ns: 2000
+    }
+  }
+}
+packet {
+  timestamp: 3001
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 100
+      uid: 10010
+      start_seq_id: 1
+    }
+  }
+}
+packet {
+  timestamp: 4000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 200
+      uid: 10020
+      prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+      prev_oom_score: 200
+      prev_capability_flags: 4
+      prev_proc_state_start_ns: 1500
+    }
+  }
+}
+packet {
+  timestamp: 4001
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 200
+      uid: 10020
+      start_seq_id: 2
+    }
+  }
+}
+packet {
+  timestamp: 4500
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 300
+      uid: 10030
+      prev_proc_state: PROCESS_STATE_SERVICE
+      prev_oom_score: 500
+      prev_capability_flags: 0
+    }
+  }
+}
+packet {
+  timestamp: 4501
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 300
+      uid: 10030
+      start_seq_id: 3
+    }
+  }
+}
+packet {
+  timestamp: 5000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 400
+      uid: 10040
+      prev_proc_state: PROCESS_STATE_RECEIVER
+      prev_oom_score: 200
+      prev_proc_state_start_ns: 2500
+    }
+  }
+}
+packet {
+  timestamp: 5001
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 400
+      uid: 10040
+      start_seq_id: 4
+    }
+  }
+}
+packet {
+  timestamp: 5200
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 500
+      uid: 10050
+      prev_proc_state: PROCESS_STATE_CACHED_EMPTY
+      prev_oom_score: 999
+      prev_capability_flags: 0
+      prev_process_group: PROCESS_GROUP_BACKGROUND
+      prev_proc_state_start_ns: 1800
+    }
+  }
+}
+packet {
+  timestamp: 5500
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 0
+      uid: 1000
+      prev_proc_state: PROCESS_STATE_TOP
+    }
+  }
+}
+packet {
+  timestamp: 6000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_state_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+      pid: 999
+      uid: 10999
+      prev_proc_state: PROCESS_STATE_TOP
+    }
+  }
+}
