@@ -15,6 +15,7 @@
 import z from 'zod';
 import {Time} from '../base/time';
 import {EngineBase} from '../trace_processor/engine';
+import {createTraceLoadId} from './analytics/analytics_impl';
 import {AppImpl} from './app_impl';
 import {InMemoryStorage} from './in_memory_storage';
 import {SettingsManagerImpl} from './settings_manager';
@@ -92,6 +93,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
   initializeAppImplForTesting();
   const fakeTraceInfo: TraceInfoImpl = {
     source: {type: 'URL', url: ''},
+    traceLoadId: createTraceLoadId(),
     traceTitle: '',
     traceUrl: '',
     start: Time.fromSeconds(0),

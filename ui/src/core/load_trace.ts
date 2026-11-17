@@ -46,6 +46,7 @@ import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
 import type {TraceSource} from './trace_source';
 import {Router} from '../core/router';
+import {createTraceLoadId, type TraceLoadId} from './analytics/analytics_impl';
 import type {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
 import {
@@ -142,9 +143,10 @@ export async function loadTrace(
   traceSource: TraceSource,
 ): Promise<TraceImpl> {
   updateStatus(app, 'Opening trace');
+  const traceLoadId = createTraceLoadId();
   const engineId = `${++lastEngineId}`;
   const engine = await createEngine(app, engineId);
-  return await loadTraceIntoEngine(app, traceSource, engine);
+  return await loadTraceIntoEngine(app, traceSource, engine, traceLoadId);
 }
 
 async function createEngine(
@@ -191,6 +193,7 @@ async function loadTraceIntoEngine(
   app: AppImpl,
   traceSource: TraceSource,
   engine: EngineBase,
+  traceLoadId: TraceLoadId,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
   const serializedAppState = traceSource.serializedAppState;
@@ -253,7 +256,12 @@ async function loadTraceIntoEngine(
     await engine.registerSqlPackages(p);
   }
 
-  const traceDetails = await getTraceInfo(engine, app, traceSource);
+  const traceDetails = await getTraceInfo(
+    engine,
+    app,
+    traceSource,
+    traceLoadId,
+  );
   const trace = new TraceImpl(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
@@ -539,6 +547,7 @@ async function getTraceInfo(
   engine: Engine,
   app: AppImpl,
   traceSource: TraceSource,
+  traceLoadId: TraceLoadId,
 ): Promise<TraceInfoImpl> {
   const traceTime = await getTraceTimeBounds(engine);
 
@@ -684,6 +693,7 @@ async function getTraceInfo(
     unixOffset,
     importErrors: await getTraceErrors(engine),
     source: traceSource,
+    traceLoadId,
     traceTypes,
     hasFtrace,
     uuid,
