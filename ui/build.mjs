@@ -89,6 +89,7 @@ const cfg = {
   debug: false,
   bigtrace: false,
   engineBench: false,
+  componentHarness: false,
   startHttpServer: false,
   useHmr: false,
   httpServerListenHost: '127.0.0.1',
@@ -129,6 +130,11 @@ const RULES = [
   {r: /ui\/src\/open_perfetto_trace\/index.html/, f: copyOpenPerfettoTraceHtml},
   // engine_bench page; no-op without --enable-engine-bench.
   {r: /ui\/src\/engine_bench\/bench\.html$/, f: copyEngineBenchHtml},
+  // Component test harness; no-op without --enable-component-harness.
+  {
+    r: /ui\/src\/component_harness\/harness\.html$/,
+    f: copyComponentHarnessHtml,
+  },
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
@@ -227,6 +233,11 @@ Env-var overrides:
     help: 'Build the engine startup benchmark page (engine_bench.html) and ' +
           'its dedicated worker bundle. Off by default.',
   });
+  parser.add_argument('--enable-component-harness', {
+    action: 'store_true',
+    help: 'Build the component test harness page (component_harness.html) ' +
+          'used by Playwright component tests. Off by default.',
+  });
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
   parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
@@ -308,6 +319,7 @@ Env-var overrides:
   cfg.debug = !!args.debug;
   cfg.bigtrace = !!args.bigtrace;
   cfg.engineBench = !!args.enable_engine_bench;
+  cfg.componentHarness = !!args.enable_component_harness;
   cfg.openPerfettoTrace = !!args.open_perfetto_trace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
@@ -440,6 +452,9 @@ Env-var overrides:
     if (cfg.engineBench) {
       scanDir('ui/src/engine_bench');
     }
+    if (cfg.componentHarness) {
+      scanDir('ui/src/component_harness');
+    }
 
     if (cfg.check) {
       for (const prj of tsProjects) {
@@ -569,20 +584,28 @@ function copyEngineBenchHtml(src) {
   if (!cfg.engineBench) return;
   // Goes next to engine_bench_bundle.js so its relative <script> resolves.
   addTask(cp, [src, pjoin(cfg.outDistDir, 'engine_bench.html')]);
-  addTask(makeEngineBenchRedirect, []);
+  addTask(makeVersionedRedirect, ['engine_bench.html']);
 }
 
-function makeEngineBenchRedirect() {
-  const target = `${cfg.version}/engine_bench.html`;
-  // Redirect via JS so the bench knob query string is preserved.
+function copyComponentHarnessHtml(src) {
+  if (!cfg.componentHarness) return;
+  // Goes next to component_harness_bundle.js so its relative <script> resolves.
+  addTask(cp, [src, pjoin(cfg.outDistDir, 'component_harness.html')]);
+  addTask(makeVersionedRedirect, ['component_harness.html']);
+}
+
+// Writes /<filename> as a redirect to /<version>/<filename>.
+function makeVersionedRedirect(filename) {
+  const target = `${cfg.version}/${filename}`;
+  // Redirect via JS so the query string is preserved.
   const html =
     '<!DOCTYPE html><meta charset="utf-8">' +
-    '<title>Perfetto engine bench (redirect)</title>' +
+    '<title>Perfetto (redirect)</title>' +
     `<script>location.replace(${JSON.stringify(target)} + location.search + ` +
     'location.hash);</script>' +
     `<noscript><meta http-equiv="refresh" content="0; url=${target}">` +
     `<p>Redirecting to <a href="${target}">${target}</a>.</p></noscript>\n`;
-  fs.writeFileSync(pjoin(cfg.outDistRootDir, 'engine_bench.html'), html);
+  fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
 }
 
 function copyAssets(src, dst) {
@@ -834,6 +857,8 @@ function runVite() {
   if (!cfg.noTraceconv) bundles.push('traceconv');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
+  // With HMR the dev server serves the harness from source instead.
+  if (cfg.componentHarness && !cfg.useHmr) bundles.push('component_harness');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
     const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];
@@ -983,6 +1008,37 @@ async function startViteDevServer() {
     }
     next();
   });
+
+  // Component harness: serve its page from source through Vite, like the main
+  // UI, so editing a fixture or a component it shows reloads it straight away.
+  // Must come before the fallback below, which would otherwise serve the
+  // built page.
+  if (cfg.componentHarness) {
+    const harnessSrc = pjoin(ROOT_DIR, 'ui/src/component_harness/harness.html');
+    server.middlewares.use(async (req, res, next) => {
+      const url = req.url.split('?', 1)[0];
+      if (url !== '/component_harness.html') return next();
+      try {
+        const raw = fs.readFileSync(harnessSrc, 'utf8');
+        // In dev the styles come from the SCSS modules Vite injects, and the
+        // entry is the TS source rather than the bundle.
+        const patched = raw
+          .replace(/<link rel="stylesheet" href="\.\/component_harness\.css">/, '')
+          .replace(
+            /<script src="\.\/component_harness_bundle\.js"><\/script>/,
+            '<script type="module" src="/component_harness/index.ts"></script>',
+          );
+        if (!patched.includes('/component_harness/index.ts')) {
+          throw new Error(`Couldn't patch ${harnessSrc} for the dev server`);
+        }
+        const transformed = await server.transformIndexHtml(url, patched);
+        res.setHeader('Content-Type', 'text/html');
+        res.end(transformed);
+      } catch (e) {
+        next(e);
+      }
+    });
+  }
 
   // Fall back to serving files from outDistRootDir / outDistDir for anything
   // Vite hasn't claimed (wasm modules, fonts under /assets/, manifest.json,
