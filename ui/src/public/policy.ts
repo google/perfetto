@@ -31,6 +31,6 @@ export interface Policy {
   readonly bugReportUrl: string;
 
   // Show links that only work for Googlers, such as the Perfetto SQL agent on
-  // the query page and the hiring banner in the sidebar.
+  // the query page.
   readonly showInternalExperimentalLinks: boolean;
 }
