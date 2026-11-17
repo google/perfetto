@@ -14,15 +14,37 @@
 
 import("../../../gn/perfetto.gni")
 
+# Header-only register types and local register capture. Kept free of compiled
+# code so heapprofd_client can depend on it without pulling in the engine.
 source_set("unwind_core") {
   public_deps = [ "../../base" ]
   deps = [ "../../../gn:default_deps" ]
   sources = [
     "cpu_registers.h",
     "get_asm_regs.h",
+  ]
+}
+
+# Unwinding output types (frames, mappings, results). Daemon side only.
+source_set("unwind_types") {
+  deps = [ "../../../gn:default_deps" ]
+  sources = [
+    "unwind_types.cc",
+    "unwind_types.h",
+  ]
+}
+
+# Backend-agnostic unwinding interface. Daemon side only.
+source_set("unwind_engine") {
+  public_deps = [
+    ":unwind_core",
+    ":unwind_types",
+    "../../base",
+  ]
+  deps = [ "../../../gn:default_deps" ]
+  sources = [
     "unwind_engine.cc",
     "unwind_engine.h",
-    "unwind_types.h",
   ]
 }
 
@@ -31,7 +53,7 @@ if (enable_perfetto_benchmarks && enable_perfetto_traced_perf &&
   source_set("benchmarks") {
     testonly = true
     deps = [
-      ":unwind_core",
+      ":unwind_engine",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
       "../../../src/base",

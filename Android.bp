@@ -117,6 +117,8 @@ cc_binary {
         ":perfetto_src_profiling_memory_wire_protocol",
         ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
         ":perfetto_src_profiling_unwind_unwind_core",
+        ":perfetto_src_profiling_unwind_unwind_engine",
+        ":perfetto_src_profiling_unwind_unwind_types",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_tracing_common",
@@ -424,6 +426,8 @@ cc_library_shared {
         ":perfetto_src_profiling_memory_wire_protocol",
         ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
         ":perfetto_src_profiling_unwind_unwind_core",
+        ":perfetto_src_profiling_unwind_unwind_engine",
+        ":perfetto_src_profiling_unwind_unwind_types",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_tracing_common",
@@ -3128,6 +3132,8 @@ cc_test {
         ":perfetto_src_profiling_memory_wire_protocol",
         ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
         ":perfetto_src_profiling_unwind_unwind_core",
+        ":perfetto_src_profiling_unwind_unwind_engine",
+        ":perfetto_src_profiling_unwind_unwind_types",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
@@ -17168,8 +17174,21 @@ filegroup {
 // GN: //src/profiling/unwind:unwind_core
 filegroup {
     name: "perfetto_src_profiling_unwind_unwind_core",
+}
+
+// GN: //src/profiling/unwind:unwind_engine
+filegroup {
+    name: "perfetto_src_profiling_unwind_unwind_engine",
     srcs: [
         "src/profiling/unwind/unwind_engine.cc",
+    ],
+}
+
+// GN: //src/profiling/unwind:unwind_types
+filegroup {
+    name: "perfetto_src_profiling_unwind_unwind_types",
+    srcs: [
+        "src/profiling/unwind/unwind_types.cc",
     ],
 }
 
@@ -25064,6 +25083,8 @@ cc_test {
         ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
         ":perfetto_src_profiling_unwind_libunwindstack_unittests",
         ":perfetto_src_profiling_unwind_unwind_core",
+        ":perfetto_src_profiling_unwind_unwind_engine",
+        ":perfetto_src_profiling_unwind_unwind_types",
         ":perfetto_src_proto_utils_pb_to_txt",
         ":perfetto_src_proto_utils_txt_to_pb",
         ":perfetto_src_proto_utils_unittests",
@@ -27131,6 +27152,8 @@ cc_binary {
         ":perfetto_src_profiling_smaps_smaps_data_source",
         ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
         ":perfetto_src_profiling_unwind_unwind_core",
+        ":perfetto_src_profiling_unwind_unwind_engine",
+        ":perfetto_src_profiling_unwind_unwind_types",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",

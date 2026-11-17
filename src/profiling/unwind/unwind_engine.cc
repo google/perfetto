@@ -19,7 +19,6 @@
 namespace perfetto {
 namespace profiling {
 
-UnwoundMapping::~UnwoundMapping() = default;
 ProcessUnwindState::~ProcessUnwindState() = default;
 UnwindEngine::~UnwindEngine() = default;
 

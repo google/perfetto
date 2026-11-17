@@ -17,7 +17,7 @@ import("../../../../gn/test.gni")
 
 source_set("libunwindstack") {
   public_deps = [
-    "..:unwind_core",
+    "..:unwind_engine",
     "../../../../gn:libunwindstack",
   ]
   deps = [
