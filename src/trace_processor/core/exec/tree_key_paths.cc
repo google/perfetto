@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/tree_key_paths.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -96,6 +97,17 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
 
   FlatColumnReader<uint32_t> nodes(batch, spec_.node_column);
   FlatColumnReader<uint32_t> parents(batch, spec_.parent_column);
+  // Nodes are numbered densely, so the batch's largest sizes the paths of
+  // nodes once.
+  uint32_t max_node = 0;
+  for (uint32_t row = 0; row < count; ++row) {
+    uint32_t node = 0;
+    nodes.Read(row, &node);
+    max_node = std::max(max_node, node);
+  }
+  if (count > 0 && max_node >= s.node_paths.size()) {
+    s.node_paths.push_back_multiple(0, max_node + 1 - s.node_paths.size());
+  }
   // Rows are parent first, so each row's parent already has its path.
   for (uint32_t row = 0; row < count; ++row) {
     uint32_t node = 0;
@@ -116,9 +128,6 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
     auto next = static_cast<uint32_t>(s.paths.size());
     uint32_t path = *s.paths.Insert(path_key, next).first;
     path_values[batch_row] = path;
-    if (node >= s.node_paths.size()) {
-      s.node_paths.push_back_multiple(0, node + 1 - s.node_paths.size());
-    }
     s.node_paths[node] = path;
   }
 

@@ -354,8 +354,8 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     const auto& paths = static_cast<const TreeKeyPaths&>(transform);
     std::string out = "TreeKeyPaths(" + Column(paths.spec_.node_column) + ", " +
                       Column(paths.spec_.parent_column);
-    for (uint32_t column : paths.spec_.key_columns) {
-      out += ", " + Column(column);
+    if (!paths.spec_.key_columns.empty()) {
+      out += ", " + Columns(paths.spec_.key_columns);
     }
     return out + ")";
   }
