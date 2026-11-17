@@ -29,4 +29,7 @@ export interface Policy {
 
   // Where bug reports are filed, e.g. the GitHub issue tracker.
   readonly bugReportUrl: string;
+
+  // Send the advanced analytics events. See AnalyticsInternal.logAdvancedEvent().
+  readonly useAdvancedAnalytics: boolean;
 }
