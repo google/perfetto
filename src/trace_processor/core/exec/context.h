@@ -25,7 +25,7 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-struct FilterValue;
+struct ParamValue;
 
 // What one execution of a plan shares as it runs: the storage the batches'
 // own columns are in. A step takes a buffer for each column it fills, sized
@@ -51,19 +51,17 @@ class Context {
   // value is zero.
   const ColumnBuffer& NullBuffer();
 
-  // The values the next run's filters compare with, by parameter, already
-  // cast (see FilterValue). Nothing is copied: the caller keeps them alive and
+  // The next run's params: the values its operators compare with, already
+  // cast (see ParamValue). Nothing is copied: the caller keeps them alive and
   // unchanged until the run ends.
-  void SetFilterValues(base::Span<const FilterValue> values) {
-    filter_values_ = values;
-  }
-  base::Span<const FilterValue> filter_values() const { return filter_values_; }
+  void SetParams(base::Span<const ParamValue> params) { params_ = params; }
+  base::Span<const ParamValue> params() const { return params_; }
 
  private:
   // Declared before `nulls_`, so it outlives it.
   BufferPool buffers_;
   ColumnBuffer nulls_;
-  base::Span<const FilterValue> filter_values_;
+  base::Span<const ParamValue> params_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

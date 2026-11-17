@@ -33,8 +33,8 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/context.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -97,11 +97,11 @@ void IndexScan::Rewind(OperatorState& state) const {
 base::Span<const uint32_t> IndexScan::Find(const State& s) const {
   base::Span<const uint32_t> entries(
       permutation_->data(), permutation_->data() + permutation_->size());
-  const FilterValue* values = s.context->filter_values().b;
+  const ParamValue* values = s.context->params().b;
   for (uint32_t i = 0; i < equalities_.size() && !entries.empty(); ++i) {
     const Equality& eq = equalities_[i];
-    PERFETTO_DCHECK(eq.value < s.context->filter_values().size());
-    const FilterValue& cast = values[eq.value];
+    PERFETTO_DCHECK(eq.param < s.context->params().size());
+    const ParamValue& cast = values[eq.param];
     if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
       entries.e = entries.b;
       break;

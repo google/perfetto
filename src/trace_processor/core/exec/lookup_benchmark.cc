@@ -39,9 +39,9 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/exec/filter.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
@@ -196,7 +196,7 @@ class ExecLookup {
         cast_(conditions.size()),
         pool_(pool) {
     for (const Condition& c : conditions) {
-      casters_.push_back(GetFilterValueCaster<Fetcher>(c.type, c.op));
+      casters_.push_back(GetParamCaster<Fetcher>(c.type, c.op));
     }
     fetcher_.filter_values_ = values_.data();
   }
@@ -208,7 +208,7 @@ class ExecLookup {
     for (uint32_t i = 0; i < casters_.size(); ++i) {
       casters_[i](fetcher_, i, *pool_, &cast_[i]);
     }
-    return cursor_.Open(base::Span<const FilterValue>(
+    return cursor_.Open(base::Span<const ParamValue>(
         cast_.data(), cast_.data() + cast_.size()));
   }
   RowCursor& cursor() { return cursor_; }
@@ -218,8 +218,8 @@ class ExecLookup {
   Pipeline pipeline_;
   RowCursor cursor_;
   std::vector<FetcherValue> values_;
-  std::vector<FilterValue> cast_;
-  std::vector<FilterValueCaster<Fetcher>> casters_;
+  std::vector<ParamValue> cast_;
+  std::vector<ParamCaster<Fetcher>> casters_;
   Fetcher fetcher_;
   const StringPool* pool_;
 };

@@ -34,10 +34,9 @@
 namespace perfetto::trace_processor::core::exec {
 
 // Reads the rows of a dataframe which an index finds for equalities on its
-// leading columns, in index order, as the dataframe interpreter does. Each
-// equality narrows the index's entries; any other condition is left to a
-// Filter after the scan. The searches run once per run, on the first
-// GetData(). The columns must be finalized.
+// leading columns, in index order. Each equality narrows the index's entries;
+// any other condition is left to a Filter after the scan. The searches run once
+// per run, on the first GetData(). The columns must be finalized.
 class IndexScan final : public Source {
  public:
   static constexpr char kType = 0;
@@ -46,8 +45,8 @@ class IndexScan final : public Source {
   // = on one of the index's columns, given in index order.
   struct Equality {
     std::shared_ptr<const dataframe::Column> column;
-    // Index into the run's filter values.
-    uint32_t value = 0;
+    // Index into the run's params.
+    uint32_t param = 0;
   };
 
   // `pool` must outlive the scan.
