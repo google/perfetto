@@ -19569,6 +19569,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/operations/projection.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/scan.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/tree_key_paths.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/where.cc",
     ],
 }
