@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/util/slab.h"
 
@@ -75,7 +76,7 @@ class IndexScan final : public Source {
     // By equality: the column as filter::SearchIndexEqual takes it.
     std::vector<filter::IndexColumn> columns;
     // The entries in the sorted searches' range, when they can't be cut.
-    std::vector<uint32_t> in_range;
+    Held<std::vector<uint32_t>> in_range{this};
     bool searched = false;
   };
 

@@ -65,8 +65,6 @@ class SortedSearches {
   bool empty() const { return searches_.empty(); }
 
  private:
-  friend class PipelineFormatter;
-
   // Arguments to filter::SearchSorted, built once.
   struct Sorted {
     filter::SortedColumn column;

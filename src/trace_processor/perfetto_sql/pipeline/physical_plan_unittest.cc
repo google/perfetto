@@ -580,6 +580,28 @@ TEST_F(PhysicalPlanTest, WhereCutsAnIndexToASortedRange) {
   }
 }
 
+// An equality on a sorted column with no duplicates leaves at most one row, so
+// no index is searched for the rest.
+TEST_F(PhysicalPlanTest, WhereSearchesAUniqueSortedColumnOverAnIndex) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  for (int64_t id : {1, 2}) {
+    auto plan = Plan("FROM ix |> WHERE id = " + std::to_string(id) +
+                     " AND k = 7 |> SELECT id, v");
+    ASSERT_TRUE(plan.ok()) << plan.status().message();
+    EXPECT_EQ(PhysicalPlanToString(**plan),
+              "main: SortedScan | Filter(#1 = ?1)");
+    auto rows = Run(**plan, "v");
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    if (id == 2) {
+      EXPECT_THAT(*rows, ElementsAre(Pair(2, 9)));
+    } else {
+      EXPECT_THAT(*rows, ElementsAre());
+    }
+  }
+}
+
 // A column of only nulls needs no check, however many types it is made to hold.
 TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
   Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");

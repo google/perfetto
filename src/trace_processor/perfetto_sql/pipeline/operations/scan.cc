@@ -40,6 +40,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/row_estimate.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
@@ -550,13 +551,22 @@ std::optional<Scan::SearchPlan> Scan::PlanSearch(
     }
   }
 
-  // Each sorted column narrows the rows to a range, which stays in order.
+  // Each sorted column narrows the rows to a range, which stays in order. As
+  // in the dataframe's planner, an equality on a column with no duplicates
+  // leaves at most one row, which no index is worth searching for.
   std::vector<uint8_t> unsearchable(conditions.size(), false);
+  core::RowModel rows(data.row_count);
   for (uint32_t i = 0; i < conditions.size(); ++i) {
-    if (dataframe::SortedFilterStrategy(
-            *data.columns[Position(conditions[i].column)], conditions[i].op)) {
-      plan.answered.push_back(i);
-      unsearchable[i] = true;
+    const dataframe::Column& column =
+        *data.columns[Position(conditions[i].column)];
+    if (!dataframe::SortedFilterStrategy(column, conditions[i].op)) {
+      continue;
+    }
+    plan.answered.push_back(i);
+    unsearchable[i] = true;
+    if (conditions[i].op.Is<core::Eq>()) {
+      rows.ApplyEqualityFilter(column.duplicate_state,
+                               column.estimated_distinct);
     }
   }
   auto sorted = static_cast<uint32_t>(plan.answered.size());
@@ -572,7 +582,7 @@ std::optional<Scan::SearchPlan> Scan::PlanSearch(
       unsearchable[i] |= !conditions[i].op.Is<core::Eq>() || id;
     }
     if (std::optional<dataframe::BestIndex> best =
-            dataframe::GetBestIndexForFilterSpecs(data.row_count, specs,
+            dataframe::GetBestIndexForFilterSpecs(rows.rows().max, specs,
                                                   unsearchable, data.indexes)) {
       plan.kind = ScanSearch::Kind::kIndex;
       plan.index = best->best_index_idx;
