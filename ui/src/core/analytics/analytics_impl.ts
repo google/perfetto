@@ -19,6 +19,7 @@ import {VERSION} from '../../virtual/version';
 import {Router} from '../router';
 import {assertUnreachable} from '../../base/assert';
 import type {Brand} from '../../base/brand';
+import {uuidv4} from '../../base/uuid';
 import type {Analytics, BasicAnalyticsEvent} from '../../public/analytics';
 import type {Policy} from '../../public/policy';
 
@@ -152,6 +153,11 @@ class AnalyticsImpl implements AnalyticsInternal {
   private initialized_ = false;
   private readonly analyticsId: string;
   private readonly getPolicy: () => Policy;
+  // A random ID for this visit: it's created when the UI loads and lasts until
+  // the tab is closed or reloaded. Why not use GA's session ID? GA puts all of
+  // a browser's tabs on the same site into one session, but we want to report
+  // analytics per visit to one tab, that's why.
+  private readonly visitId = uuidv4();
   private readonly dimensions: Array<Promise<{key: string; value: string}>> =
     [];
 
@@ -233,6 +239,7 @@ class AnalyticsImpl implements AnalyticsInternal {
       perfetto_referrer_override: getReferrerOverride() ?? '',
       // Where the UI is served from (prod, localhost, pr_preview or other).
       perfetto_env: getPerfettoEnv(new URL(window.location.href)),
+      visit_id: this.visitId,
       ...extraDimensions,
     });
 
