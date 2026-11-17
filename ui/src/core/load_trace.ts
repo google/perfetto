@@ -48,6 +48,7 @@ import type {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {createTraceLoadId, type TraceLoadId} from './analytics/analytics_impl';
 import type {TraceInfoImpl} from './trace_info_impl';
+import {buildTraceLoadedEvent} from './analytics/trace_loaded_event';
 import {base64Decode} from '../base/string_utils';
 import {
   parseUrlCommands,
@@ -143,10 +144,17 @@ export async function loadTrace(
   traceSource: TraceSource,
 ): Promise<TraceImpl> {
   updateStatus(app, 'Opening trace');
+  const loadStartMs = performance.now();
   const traceLoadId = createTraceLoadId();
   const engineId = `${++lastEngineId}`;
   const engine = await createEngine(app, engineId);
-  return await loadTraceIntoEngine(app, traceSource, engine, traceLoadId);
+  return await loadTraceIntoEngine(
+    app,
+    traceSource,
+    engine,
+    traceLoadId,
+    loadStartMs,
+  );
 }
 
 async function createEngine(
@@ -194,6 +202,7 @@ async function loadTraceIntoEngine(
   traceSource: TraceSource,
   engine: EngineBase,
   traceLoadId: TraceLoadId,
+  loadStartMs: number,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
   const serializedAppState = traceSource.serializedAppState;
@@ -298,6 +307,12 @@ async function loadTraceIntoEngine(
   await app.plugins.onTraceLoad(trace, (id) => {
     updateStatus(app, `Running plugin: ${id}`);
   });
+
+  // The trace counts as loaded once every plugin has loaded. Only sent if the
+  // policy allows advanced analytics (see logAdvancedEvent()).
+  app.analytics.logAdvancedEvent(
+    buildTraceLoadedEvent(traceDetails, performance.now() - loadStartMs),
+  );
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.
