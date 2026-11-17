@@ -13,9 +13,33 @@
 // limitations under the License.
 
 import {defer} from '../../base/deferred';
-import {initAnalytics} from './analytics_impl';
+import type {Policy} from '../../public/policy';
+import {
+  type AdvancedAnalyticsEvent,
+  type TraceLoadId,
+  initAnalytics,
+} from './analytics_impl';
 
 const gtagGlobals = window as {} as {dataLayer: IArguments[]};
+
+function policyWithAdvancedAnalytics(on: boolean): Policy {
+  return {
+    enableTraceSharing: false,
+    enableTraceUploadForBugReports: false,
+    bugReportUrl: 'https://github.com/google/perfetto/issues/new',
+    useAdvancedAnalytics: on,
+  };
+}
+
+const POLICY_OFF = policyWithAdvancedAnalytics(false);
+
+const TRACE_LOADED: AdvancedAnalyticsEvent = {
+  kind: 'trace_loaded',
+  traceLoadId: 'load-1' as TraceLoadId,
+  traceFormat: 'json+proto',
+  traceSizeBucket: '100MB-1GB',
+  loadMs: 8420,
+};
 
 // Returns the fields passed to gtag('config', ...), or undefined if GA hasn't
 // been configured yet.
@@ -36,13 +60,102 @@ function gaEvents(): Array<[unknown, unknown]> {
 }
 
 describe('AnalyticsImpl', () => {
+  describe('logAdvancedEvent', () => {
+    beforeEach(() => {
+      gtagGlobals.dataLayer = [];
+    });
+
+    test('should send trace_loaded with its fields when the policy allows it', () => {
+      const policy = policyWithAdvancedAnalytics(true);
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => policy,
+      );
+      analytics.logAdvancedEvent(TRACE_LOADED);
+      expect(gaEvents()).toContainEqual([
+        'trace_loaded',
+        {
+          trace_load_id: 'load-1',
+          trace_format: 'json+proto',
+          trace_size_bucket: '100MB-1GB',
+          load_ms: 8420,
+        },
+      ]);
+    });
+
+    test('should send plugin_loaded with its fields when the policy allows it', () => {
+      const policy = policyWithAdvancedAnalytics(true);
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => policy,
+      );
+      analytics.logAdvancedEvent({
+        kind: 'plugin_loaded',
+        traceLoadId: 'load-1' as TraceLoadId,
+        plugin: 'dev.perfetto.Sched',
+        loadMs: 312,
+        hasTracks: true,
+      });
+      expect(gaEvents()).toContainEqual([
+        'plugin_loaded',
+        {
+          trace_load_id: 'load-1',
+          plugin: 'dev.perfetto.Sched',
+          load_ms: 312,
+          has_tracks: 1,
+        },
+      ]);
+    });
+
+    test('should not send anything when the policy turns advanced analytics off', () => {
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
+      analytics.logAdvancedEvent(TRACE_LOADED);
+      expect(gaEvents()).toEqual([]);
+    });
+
+    test('should check the policy each time an event is logged', () => {
+      let policy = POLICY_OFF;
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => policy,
+      );
+      analytics.logAdvancedEvent(TRACE_LOADED);
+      expect(gaEvents()).toEqual([]);
+
+      policy = policyWithAdvancedAnalytics(true);
+      analytics.logAdvancedEvent(TRACE_LOADED);
+      expect(gaEvents().map(([name]) => name)).toEqual(['trace_loaded']);
+    });
+  });
+
   describe('logEvent', () => {
     beforeEach(() => {
       gtagGlobals.dataLayer = [];
     });
 
     test('should send a page view as an event named after the page', () => {
-      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
       analytics.logEvent({kind: 'page_view', page: '/viewer'});
       expect(gaEvents()).toContainEqual([
         '/viewer',
@@ -51,7 +164,13 @@ describe('AnalyticsImpl', () => {
     });
 
     test('should send an action with its category', () => {
-      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
       analytics.logEvent({
         kind: 'action',
         category: 'Trace Actions',
@@ -64,7 +183,13 @@ describe('AnalyticsImpl', () => {
     });
 
     test('should send an action without a category', () => {
-      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
       analytics.logEvent({kind: 'action', action: 'MyPlugin:Activated'});
       expect(gaEvents()).toContainEqual([
         'MyPlugin:Activated',
@@ -79,21 +204,39 @@ describe('AnalyticsImpl', () => {
     });
 
     test("should set perfetto_is_internal_user to '1' for internal users", async () => {
-      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
       analytics.setIsInternalUser(Promise.resolve(true));
       await analytics.initialize();
       expect(gaConfig()?.perfetto_is_internal_user).toBe('1');
     });
 
     test("should set perfetto_is_internal_user to '0' for external users", async () => {
-      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
       analytics.setIsInternalUser(Promise.resolve(false));
       await analytics.initialize();
       expect(gaConfig()?.perfetto_is_internal_user).toBe('0');
     });
 
     test('should not start GA until the answer arrives', async () => {
-      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
       const answer = defer<boolean>();
       analytics.setIsInternalUser(answer);
       const initialized = analytics.initialize();

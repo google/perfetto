@@ -14,7 +14,21 @@
 
 import {defer} from '../base/deferred';
 import type {Policy} from '../public/policy';
+import type {
+  AdvancedAnalyticsEvent,
+  TraceLoadId,
+} from './analytics/analytics_impl';
 import {initializeAppImplForTesting} from './fake_trace_impl';
+
+const gtagGlobals = window as {} as {dataLayer: IArguments[]};
+
+// The names of the gtag('event', ...) calls since dataLayer was last cleared.
+function sentEventNames(): unknown[] {
+  return gtagGlobals.dataLayer
+    .map((entry) => Array.from(entry))
+    .filter(([command]) => command === 'event')
+    .map(([, name]) => name);
+}
 
 function policyFor(isInternalUser: boolean): Policy {
   return {
@@ -58,6 +72,35 @@ describe('AppImpl', () => {
       await answer;
       expect(app.policy).toEqual(policyFor(true));
       expect(localStorage.getItem('isInternalUser')).toBe('1');
+    });
+  });
+
+  describe('analytics', () => {
+    test('should send advanced events only while the policy allows them', async () => {
+      const app = initializeAppImplForTesting();
+      // The test origin (localhost) picks an embedder with a GA ID, so this
+      // is the real analytics class rather than the no-op one.
+      expect(app.analytics.isEnabled()).toBe(true);
+      const event: AdvancedAnalyticsEvent = {
+        kind: 'plugin_loaded',
+        traceLoadId: 'load-1' as TraceLoadId,
+        plugin: 'dev.perfetto.Sched',
+        loadMs: 312,
+        hasTracks: true,
+      };
+
+      const external = Promise.resolve(false);
+      app.setIsInternalUser(external);
+      await external;
+      gtagGlobals.dataLayer = [];
+      app.analytics.logAdvancedEvent(event);
+      expect(sentEventNames()).not.toContain('plugin_loaded');
+
+      const internal = Promise.resolve(true);
+      app.setIsInternalUser(internal);
+      await internal;
+      app.analytics.logAdvancedEvent(event);
+      expect(sentEventNames()).toContain('plugin_loaded');
     });
   });
 });

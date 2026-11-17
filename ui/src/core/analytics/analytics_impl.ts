@@ -17,7 +17,9 @@ import {getCurrentChannel} from '../channels';
 import {VERSION} from '../../virtual/version';
 import {Router} from '../router';
 import {assertUnreachable} from '../../base/assert';
+import type {Brand} from '../../base/brand';
 import type {Analytics, BasicAnalyticsEvent} from '../../public/analytics';
+import type {Policy} from '../../public/policy';
 
 const PAGE_TITLE = 'no-page-title';
 
@@ -60,6 +62,39 @@ function getReferrer(): string {
   }
 }
 
+// An event that only core can send, with AnalyticsInternal.logAdvancedEvent().
+// These are only sent when Policy.useAdvancedAnalytics is on. Each kind of
+// event has a unique `kind`, which is how code tells them apart.
+export type AdvancedAnalyticsEvent = TraceLoadedEvent | PluginLoadedEvent;
+
+// A random ID for one trace load, shared by all of its events.
+export type TraceLoadId = Brand<string, 'TraceLoadId'>;
+
+// The size of a trace file, rounded to a coarse range. 'unknown' when the size
+// isn't known in advance, e.g. for traces opened from a URL.
+export type TraceSizeBucket =
+  '<10MB' | '10-100MB' | '100MB-1GB' | '>1GB' | 'unknown';
+
+// A trace finished loading.
+export interface TraceLoadedEvent {
+  readonly kind: 'trace_loaded';
+  readonly traceLoadId: TraceLoadId;
+  // The trace's types, sorted and joined with '+', e.g. 'json+proto'.
+  readonly traceFormat: string;
+  readonly traceSizeBucket: TraceSizeBucket;
+  readonly loadMs: number;
+}
+
+// One plugin's part in a trace load.
+export interface PluginLoadedEvent {
+  readonly kind: 'plugin_loaded';
+  readonly traceLoadId: TraceLoadId;
+  readonly plugin: string;
+  readonly loadMs: number;
+  // Whether the plugin registered at least one track for the trace.
+  readonly hasTracks: boolean;
+}
+
 // Interface exposed only to core (for the initialize method).
 export interface AnalyticsInternal extends Analytics {
   addDimension(
@@ -68,6 +103,9 @@ export interface AnalyticsInternal extends Analytics {
   // Records whether the user is internal on every event. Must be called before
   // initialize(), which waits for the answer before it starts sending.
   setIsInternalUser(isInternalUser: Promise<boolean>): void;
+  // Sends an advanced event, but only if the policy allows advanced analytics
+  // at the time of the call. Plugins can't reach this method.
+  logAdvancedEvent(event: AdvancedAnalyticsEvent): void;
   initialize(): Promise<void>;
 }
 
@@ -76,6 +114,7 @@ export function initAnalytics(
   embeddedMode: boolean,
   enable: boolean,
   analyticsId: string | undefined,
+  getPolicy: () => Policy,
 ): AnalyticsInternal {
   // Skip analytics if the fragment has "testing=1", this is used by UI tests.
   // Skip analytics in embeddedMode since iFrames do not have the same access to
@@ -83,7 +122,7 @@ export function initAnalytics(
   // Skip analytics if the user has disabled analytics.
   // Skip analytics if the embedder does not provide an analytics ID.
   if (analyticsId !== undefined && !testingMode && !embeddedMode && enable) {
-    return new AnalyticsImpl(analyticsId);
+    return new AnalyticsImpl(analyticsId, getPolicy);
   }
   return new NullAnalytics();
 }
@@ -99,6 +138,7 @@ class NullAnalytics implements AnalyticsInternal {
     _arg: {key: string; value: string} | Promise<{key: string; value: string}>,
   ) {}
   setIsInternalUser(_isInternalUser: Promise<boolean>) {}
+  logAdvancedEvent(_event: AdvancedAnalyticsEvent) {}
   async initialize() {}
   logEvent(_event: BasicAnalyticsEvent) {}
   logError(_err: ErrorDetails) {}
@@ -110,11 +150,13 @@ class NullAnalytics implements AnalyticsInternal {
 class AnalyticsImpl implements AnalyticsInternal {
   private initialized_ = false;
   private readonly analyticsId: string;
+  private readonly getPolicy: () => Policy;
   private readonly dimensions: Array<Promise<{key: string; value: string}>> =
     [];
 
-  constructor(analyticsId: string) {
+  constructor(analyticsId: string, getPolicy: () => Policy) {
     this.analyticsId = analyticsId;
+    this.getPolicy = getPolicy;
     // The code below is taken from the official Google Analytics docs [1] and
     // adapted to TypeScript. We have it here rather than as an inline script
     // in index.html (as suggested by GA's docs) because inline scripts don't
@@ -214,6 +256,15 @@ class AnalyticsImpl implements AnalyticsInternal {
     }
   }
 
+  logAdvancedEvent(event: AdvancedAnalyticsEvent) {
+    // Only send advanced events if the policy allows them. The policy only
+    // allows them for internal users (Googlers). See RFC 0053.
+    // The policy is read on every call, as it can change when this visit's
+    // internal-user answer arrives.
+    if (!this.getPolicy().useAdvancedAnalytics) return;
+    gtagGlobals.gtag('event', event.kind, toGoogleAnalyticsParams(event));
+  }
+
   logError(err: ErrorDetails) {
     let stack = '';
     for (const entry of err.stack) {
@@ -236,5 +287,29 @@ class AnalyticsImpl implements AnalyticsInternal {
 
   isEnabled(): boolean {
     return true;
+  }
+}
+
+// Converts an advanced event to GA parameters, in GA's snake_case naming.
+function toGoogleAnalyticsParams(
+  event: AdvancedAnalyticsEvent,
+): Record<string, string | number> {
+  switch (event.kind) {
+    case 'trace_loaded':
+      return {
+        trace_load_id: event.traceLoadId,
+        trace_format: event.traceFormat,
+        trace_size_bucket: event.traceSizeBucket,
+        load_ms: event.loadMs,
+      };
+    case 'plugin_loaded':
+      return {
+        trace_load_id: event.traceLoadId,
+        plugin: event.plugin,
+        load_ms: event.loadMs,
+        has_tracks: event.hasTracks ? 1 : 0,
+      };
+    default:
+      assertUnreachable(event);
   }
 }

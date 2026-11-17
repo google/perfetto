@@ -185,6 +185,7 @@ export class AppImpl implements App {
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
       this.embedder.analyticsId,
+      () => this.policy,
     );
     this.pages = new PageManagerImpl(this.analytics);
   }
