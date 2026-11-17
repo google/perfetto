@@ -27,7 +27,52 @@ function gaConfig(): Record<string, unknown> | undefined {
   return undefined;
 }
 
+// Returns the [name, fields] of every gtag('event', ...) call so far.
+function gaEvents(): Array<[unknown, unknown]> {
+  return gtagGlobals.dataLayer
+    .map((entry) => Array.from(entry))
+    .filter(([command]) => command === 'event')
+    .map(([, name, fields]) => [name, fields]);
+}
+
 describe('AnalyticsImpl', () => {
+  describe('logEvent', () => {
+    beforeEach(() => {
+      gtagGlobals.dataLayer = [];
+    });
+
+    test('should send a page view as an event named after the page', () => {
+      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      analytics.logEvent({kind: 'page_view', page: '/viewer'});
+      expect(gaEvents()).toContainEqual([
+        '/viewer',
+        {event_category: 'User Actions'},
+      ]);
+    });
+
+    test('should send an action with its category', () => {
+      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      analytics.logEvent({
+        kind: 'action',
+        category: 'Trace Actions',
+        action: 'Download trace',
+      });
+      expect(gaEvents()).toContainEqual([
+        'Download trace',
+        {event_category: 'Trace Actions'},
+      ]);
+    });
+
+    test('should send an action without a category', () => {
+      const analytics = initAnalytics(false, false, true, 'G-TEST');
+      analytics.logEvent({kind: 'action', action: 'MyPlugin:Activated'});
+      expect(gaEvents()).toContainEqual([
+        'MyPlugin:Activated',
+        {event_category: null},
+      ]);
+    });
+  });
+
   describe('setIsInternalUser', () => {
     beforeEach(() => {
       gtagGlobals.dataLayer = [];

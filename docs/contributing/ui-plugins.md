@@ -1830,14 +1830,13 @@ The analytics interface is available via `app.analytics` (in `onActivate`) or
 
 The `Analytics` interface provides the following methods:
 
-- `logEvent(category: TraceCategories | null, event: string): void`: Logs a
-  specific event.
-  - `category`: Can be one of the predefined `TraceCategories` (e.g.,
-    `'Trace Actions'`, `'Record Trace'`, `'User Actions'`) or `null` for general
-    plugin events. It's recommended to use `null` or a very specific event
-    string if your plugin's actions don't fit predefined categories, to avoid
-    polluting general metrics.
-  - `event`: A string describing the event (e.g., "MyPlugin:FeatureUsed",
+- `logEvent(event: BasicAnalyticsEvent): void`: Logs a specific event. Plugins
+  log actions as `{kind: 'action', category, action}`:
+  - `category` (optional): One of `'Trace Actions'`, `'Record Trace'` or
+    `'User Actions'`. It's recommended to leave it out, or use a very specific
+    action string, if your plugin's actions don't fit these categories, to
+    avoid polluting general metrics.
+  - `action`: A string describing the event (e.g., "MyPlugin:FeatureUsed",
     "MyPlugin:SpecificActionCompleted").
 - `logError(err: ErrorDetails): void`: Logs an error.
   - `err`: An `ErrorDetails` object, which typically includes an error message,
@@ -1855,13 +1854,17 @@ export default class implements PerfettoPlugin {
 
   static onActivate(app: App): void {
     if (app.analytics.isEnabled()) {
-      app.analytics.logEvent(null, `${this.id}:Activated`);
+      app.analytics.logEvent({kind: 'action', action: `${this.id}:Activated`});
     }
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
     if (trace.analytics.isEnabled()) {
-      trace.analytics.logEvent('User Actions', `${this.id}:TraceLoaded`);
+      trace.analytics.logEvent({
+        kind: 'action',
+        category: 'User Actions',
+        action: `${this.id}:TraceLoaded`,
+      });
     }
 
     // Example of logging a custom action
@@ -1872,7 +1875,10 @@ export default class implements PerfettoPlugin {
     try {
       // ... some plugin logic ...
       if (analytics.isEnabled()) {
-        analytics.logEvent(null, `${MyAnalyticsPlugin.id}:SomeActionSuccess`);
+        analytics.logEvent({
+          kind: 'action',
+          action: `${MyAnalyticsPlugin.id}:SomeActionSuccess`,
+        });
       }
     } catch (e) {
       if (analytics.isEnabled()) {

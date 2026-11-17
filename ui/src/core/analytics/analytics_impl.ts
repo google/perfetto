@@ -16,7 +16,8 @@ import type {ErrorDetails} from '../../base/logging';
 import {getCurrentChannel} from '../channels';
 import {VERSION} from '../../virtual/version';
 import {Router} from '../router';
-import type {Analytics, TraceCategories} from '../../public/analytics';
+import {assertUnreachable} from '../../base/assert';
+import type {Analytics, BasicAnalyticsEvent} from '../../public/analytics';
 
 const PAGE_TITLE = 'no-page-title';
 
@@ -99,7 +100,7 @@ class NullAnalytics implements AnalyticsInternal {
   ) {}
   setIsInternalUser(_isInternalUser: Promise<boolean>) {}
   async initialize() {}
-  logEvent(_category: TraceCategories | null, _event: string) {}
+  logEvent(_event: BasicAnalyticsEvent) {}
   logError(_err: ErrorDetails) {}
   isEnabled(): boolean {
     return false;
@@ -196,8 +197,21 @@ class AnalyticsImpl implements AnalyticsInternal {
     });
   }
 
-  logEvent(category: TraceCategories | null, event: string) {
-    gtagGlobals.gtag('event', event, {event_category: category});
+  logEvent(event: BasicAnalyticsEvent) {
+    switch (event.kind) {
+      case 'page_view':
+        // Page views are sent as an event named after the page, rather than
+        // as GA's own page_view event, so that existing reports keep working.
+        gtagGlobals.gtag('event', event.page, {event_category: 'User Actions'});
+        break;
+      case 'action':
+        gtagGlobals.gtag('event', event.action, {
+          event_category: event.category ?? null,
+        });
+        break;
+      default:
+        assertUnreachable(event);
+    }
   }
 
   logError(err: ErrorDetails) {
