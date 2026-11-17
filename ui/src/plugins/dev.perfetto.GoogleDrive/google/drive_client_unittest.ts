@@ -787,7 +787,31 @@ describe('DriveClient.uploadFile', () => {
     expect(body).toContain('TRACE-BYTES');
     // The file's metadata is sent as a JSON object ahead of its contents.
     const metadata = JSON.parse(/\{.*\}/.exec(body)![0]);
-    expect(metadata).toMatchObject({name: 'my.pftrace', parents: ['folder1']});
+    expect(metadata).toMatchObject({
+      name: 'my.pftrace',
+      mimeType: 'application/octet-stream',
+      parents: ['folder1'],
+    });
+    expect(body).toContain('Content-Type: application/octet-stream\r\n\r\n');
+
+    latestRequest().respond(200, JSON.stringify({id: 'new123'}));
+    await pending;
+  });
+
+  test('sends a custom MIME type in both metadata and media part', async () => {
+    const client = await createClient();
+    const pending = client.uploadFile('token', TRACE, 'folder1', 'my.pftrace', {
+      mimeType: 'application/vnd.perfetto.trace',
+    });
+
+    const body = await readBlobText(latestRequest().body!);
+    const metadata = JSON.parse(/\{.*\}/.exec(body)![0]);
+    expect(metadata).toMatchObject({
+      mimeType: 'application/vnd.perfetto.trace',
+    });
+    expect(body).toContain(
+      'Content-Type: application/vnd.perfetto.trace\r\n\r\n',
+    );
 
     latestRequest().respond(200, JSON.stringify({id: 'new123'}));
     await pending;
