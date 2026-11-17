@@ -10,6 +10,8 @@ Unreleased:
      and `authoritative_trigger` packets, reporting the effective trigger
      mode of the session.
   Trace Processor:
+   * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
+     one call failed (e.g. an interrupted query), until they were redefined.
    * Fixed `android.cujs` jank CUJ frame metrics (e.g.
      `android_jank_cuj_slice_summary`, `android_jank_cuj` timeline metrics)
      counting frames that do not overlap with the CUJ, e.g. frames that
