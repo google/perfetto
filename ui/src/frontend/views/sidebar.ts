@@ -24,7 +24,6 @@ import {SIDEBAR_SECTIONS, type SidebarSections} from '../../public/sidebar';
 import {Icon} from '../../widgets/icon';
 import {Animation} from '../animation';
 import {EngineStatusBadge} from './engine_status_badge';
-import {HiringBanner, shouldShowHiringBanner} from './hiring_banner';
 import {ServiceWorkerStatusBadge} from './service_worker_status_badge';
 import {SidebarSection} from './sidebar_section';
 
@@ -56,7 +55,6 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
           this._redrawWhileAnimating.stop();
         },
       },
-      shouldShowHiringBanner(app) && m(HiringBanner),
       this.renderSidebarHeader(app),
       this.renderSidebarContent(app),
       this.renderSidebarFooter(app),
