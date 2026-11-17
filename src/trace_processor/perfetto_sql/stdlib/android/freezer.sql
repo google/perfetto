@@ -273,7 +273,7 @@ WITH
     -- ring-buffer traces the event that started that state is often
     -- overwritten, so don't stretch the span back to process or trace start;
     -- before it the state is unknown. The span never starts after the event, so
-    -- a bogus start can't produce a negative (or open-ended -1) duration.
+    -- an invalid start can't produce a negative (or open-ended -1) duration.
     SELECT upid, ts, event_ts - ts AS dur, state
     FROM (
       SELECT
