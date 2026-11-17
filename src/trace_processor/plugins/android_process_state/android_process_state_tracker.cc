@@ -55,30 +55,6 @@ std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
       ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
       boottime_ns);
 }
-
-// Reads the prev_* fields shared by AndroidProcessStateChangedEvent and
-// AndroidProcessStateDiedEvent into |prev|.
-template <typename Decoder, typename Values>
-void ReadPrevState(const Decoder& event,
-                   ClockTracker* clock_tracker,
-                   Values* prev) {
-  if (event.has_prev_proc_state()) {
-    prev->proc_state = static_cast<int32_t>(event.prev_proc_state());
-  }
-  if (event.has_prev_oom_score()) {
-    prev->oom_score = event.prev_oom_score();
-  }
-  if (event.has_prev_capability_flags()) {
-    prev->capability_flags = event.prev_capability_flags();
-  }
-  if (event.has_prev_process_group()) {
-    prev->process_group = static_cast<int32_t>(event.prev_process_group());
-  }
-  if (event.has_prev_proc_state_start_ns()) {
-    prev->start_ts =
-        StartNsToTraceTime(clock_tracker, event.prev_proc_state_start_ns());
-  }
-}
 }  // namespace
 
 StringId InternEnum(TraceProcessorContext* context,
@@ -115,6 +91,28 @@ void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
   }
   earliest.ts = ts;
   earliest.values = prev_state;
+}
+
+template <typename Decoder>
+void AndroidProcessStateTracker::ReadPrevState(const Decoder& event,
+                                               ClockTracker* clock_tracker,
+                                               ProcessStateValues* prev) {
+  if (event.has_prev_proc_state()) {
+    prev->proc_state = static_cast<int32_t>(event.prev_proc_state());
+  }
+  if (event.has_prev_oom_score()) {
+    prev->oom_score = event.prev_oom_score();
+  }
+  if (event.has_prev_capability_flags()) {
+    prev->capability_flags = event.prev_capability_flags();
+  }
+  if (event.has_prev_process_group()) {
+    prev->process_group = static_cast<int32_t>(event.prev_process_group());
+  }
+  if (event.has_prev_proc_state_start_ns()) {
+    prev->start_ts =
+        StartNsToTraceTime(clock_tracker, event.prev_proc_state_start_ns());
+  }
 }
 
 void AndroidProcessStateTracker::ParseProcessStateChange(
