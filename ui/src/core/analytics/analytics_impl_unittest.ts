@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer} from '../base/deferred';
+import {defer} from '../../base/deferred';
 import {initAnalytics} from './analytics_impl';
 
 const gtagGlobals = window as {} as {dataLayer: IArguments[]};
