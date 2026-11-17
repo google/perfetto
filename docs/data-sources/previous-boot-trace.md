@@ -12,6 +12,11 @@ reason from the ftrace trace log.
 Therefore, this is expected that the user ran the another perfetto
 trace session in background on the special persistent ring buffer.
 
+NOTE: This page covers preserving kernel ftrace ring buffers across kernel
+crashes and panics. If you want a long-running Android trace to survive
+graceful reboots, OTA updates, or battery depletion, see
+[Persisting Traces Across Reboots](/docs/learning-more/android.md#persisting-traces-across-reboots).
+
 ### Creating a persistent ring buffer
 
 You have to set up a ftrace persistent ring buffer via the kernel
