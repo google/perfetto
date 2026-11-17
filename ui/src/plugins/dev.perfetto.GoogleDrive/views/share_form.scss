@@ -20,29 +20,91 @@
   // not let the form get cramped when that is narrow.
   min-width: min(400px, 100%);
 
-  // The read-only location field takes the room left over by its "Change"
-  // button.
+  // One line of context above the fields.
+  &__intro {
+    margin: 0 0 4px;
+    color: var(--pf-color-text-muted);
+  }
+
+  // The location "field" is a button that opens the folder picker. Lay it out
+  // like a text input: full width, label on the left, edit icon on the right.
   &__location {
-    flex: 1;
+    display: flex;
+    align-items: center;
+    width: 100%;
     min-width: 0;
+    // Match the height and inset of the text input above it.
+    padding: 2px 4px;
+    text-align: left;
+
+    .pf-button__label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pf-right-icon {
+      color: var(--pf-color-text-muted);
+    }
   }
 
   // Separate the action row from the fields above it.
-  &__footer {
+  &__footer,
+  &__progress {
     margin-top: 8px;
   }
 
-  // Shown once the trace is in Drive: a plain icon and line of text.
-  &__saved {
+  &__progress {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 8px;
-    color: var(--pf-color-success);
-    font-weight: 500;
+  }
+
+  // LinearProgress is a hairline that overlaps the element above it; give it
+  // a visible track of its own here.
+  &__progress-bar {
+    height: 4px;
+    margin-bottom: 0;
+    border-radius: 2px;
+    background-color: var(--pf-color-background-secondary);
   }
 
   &__progress-text {
     color: var(--pf-color-text-muted);
     font-size: var(--pf-font-size-s);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Shown once the trace is in Drive: a large tick-cloud icon next to a title
+  // and the file's name.
+  &__saved {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__saved-icon {
+    font-size: 32px;
+    color: var(--pf-color-success);
+  }
+
+  &__saved-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__saved-title {
+    color: var(--pf-color-success);
+    font-weight: 500;
+  }
+
+  &__saved-name {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
