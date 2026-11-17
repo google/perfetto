@@ -4512,6 +4512,10 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
     trace_config.set_write_into_file(true);
     // Large period so the periodic drain/flush timers don't race the clone.
     trace_config.set_file_write_period_ms(100000);  // 100s
+    // Freeze wall time so the write timer fires a full period after start.
+    ON_CALL(*mock_clock_, GetWallTimeNs).WillByDefault([&] {
+      return mock_clock_displacement_;
+    });
     consumer->EnableTracing(
         trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
 

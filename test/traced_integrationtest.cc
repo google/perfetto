@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
@@ -633,12 +634,12 @@ TEST(PerfettoTracedIntegrationTest, ProbesDataSourceUsesTracingV2) {
   // Producer stats cover only producers with an attached ring buffer.
   // The process tree writer is the only v2 writer, so chunks_read > 0 means
   // its data came through the ring buffer.
-  const protos::gen::ExperimentalTracingV2ProducerStats* stats = nullptr;
+  std::optional<protos::gen::ExperimentalTracingV2ProducerStats> stats;
   for (const auto& packet : helper.full_trace()) {
     if (packet.has_experimental_tracing_v2_producer_stats())
-      stats = &packet.experimental_tracing_v2_producer_stats();
+      stats = packet.experimental_tracing_v2_producer_stats();
   }
-  ASSERT_NE(stats, nullptr);
+  ASSERT_TRUE(stats.has_value());
   EXPECT_EQ(stats->producer_name(), "perfetto.traced_probes");
   EXPECT_GT(stats->chunks_read(), 0u);
 }
