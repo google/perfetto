@@ -89,7 +89,10 @@ source_set("producer") {
 }
 
 source_set("common_types") {
-  public_deps = [ "../unwind:unwind_core" ]
+  public_deps = [
+    "../unwind:unwind_core",
+    "../unwind:unwind_types",
+  ]
   deps = [ "../../../gn:default_deps" ]
   sources = [ "common_types.h" ]
 }
@@ -97,7 +100,7 @@ source_set("common_types") {
 source_set("unwinding") {
   public_deps = [
     "../../../src/tracing/service",  # for metatrace
-    "../unwind:unwind_core",
+    "../unwind:unwind_engine",
   ]
   deps = [
     ":common_types",
