@@ -23,8 +23,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <cinttypes>
-#include <cstdio>
 #include <functional>
 #include <memory>
 #include <string>
@@ -33,7 +31,6 @@
 #include <unwindstack/Elf.h>
 #include <unwindstack/Unwinder.h>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/common/unwind_support.h"
@@ -48,28 +45,14 @@ namespace {
 constexpr size_t kMaxFrames = 64;
 constexpr size_t kMaxStackDumpBytes = 65536;  // 64kb
 
-struct MemoryStatus {
-  uint64_t vmrss_kb = 0;
-  uint64_t vmhwm_kb = 0;  // Peak RSS
-};
+bool IsBenchmarkFunctionalOnly() {
+  return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
+}
 
-MemoryStatus ReadMemoryStatus() {
-  MemoryStatus status;
-  base::ScopedFstream fp(fopen("/proc/self/status", "r"));
-  if (!fp)
-    return status;
-  char line[512];
-  int found = 0;
-  while (fgets(line, sizeof(line), fp.get())) {
-    if (sscanf(line, "VmRSS: %" PRIu64 " kB", &status.vmrss_kb) == 1) {
-      if (++found == 2)
-        break;
-    } else if (sscanf(line, "VmHWM: %" PRIu64 " kB", &status.vmhwm_kb) == 1) {
-      if (++found == 2)
-        break;
-    }
+static void BmArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Iterations(1);
   }
-  return status;
 }
 
 template <typename T>
@@ -101,53 +84,6 @@ PERFETTO_NO_INLINE void GenerateCallStack(int depth,
   CallStackStage<1>(static_cast<size_t>(depth), cb);
 }
 
-// Calls through a system shared library (.so) via libc qsort
-static thread_local bool g_qsort_cb_invoked = false;
-
-struct QsortItem {
-  int key;
-  const std::function<void()>* cb;
-};
-
-static int QsortComparator(const void* a, const void* b) {
-  const auto* item_a = static_cast<const QsortItem*>(a);
-  const auto* item_b = static_cast<const QsortItem*>(b);
-  if (!g_qsort_cb_invoked && item_a->cb && *item_a->cb) {
-    g_qsort_cb_invoked = true;
-    (*item_a->cb)();
-  }
-  return (item_a->key > item_b->key) - (item_a->key < item_b->key);
-}
-
-template <size_t Stage = 1>
-PERFETTO_NO_INLINE void CallStackStage_SystemLib(
-    size_t target_depth,
-    const std::function<void()>& cb) {
-  if (Stage >= target_depth) {
-    g_qsort_cb_invoked = false;
-    QsortItem items[4] = {
-        {40, &cb}, {10, nullptr}, {30, nullptr}, {20, nullptr}};
-    qsort(items, 4, sizeof(QsortItem), QsortComparator);
-    return;
-  }
-  if constexpr (Stage < 64) {
-    CallStackStage_SystemLib<Stage + 1>(target_depth, cb);
-    PreventTailCall(target_depth);
-  } else {
-    cb();
-  }
-}
-
-PERFETTO_NO_INLINE void GenerateCallStack_SystemLib(
-    int depth,
-    const std::function<void()>& cb) {
-  if (depth <= 0) {
-    cb();
-    return;
-  }
-  CallStackStage_SystemLib<1>(static_cast<size_t>(depth), cb);
-}
-
 struct SampleSnapshot {
   CpuRegisters regs;
   std::vector<uint8_t> stack_bytes;
@@ -176,20 +112,17 @@ SampleSnapshot CaptureCurrentStack() {
   sample.sp = sample.regs.sp();
 
   uintptr_t sp = static_cast<uintptr_t>(sample.sp);
-  uintptr_t stack_top = 0;
-
   pthread_attr_t attr;
-  if (pthread_getattr_np(pthread_self(), &attr) == 0) {
-    void* stack_base = nullptr;
-    size_t stack_size = 0;
-    if (pthread_attr_getstack(&attr, &stack_base, &stack_size) == 0) {
-      stack_top = reinterpret_cast<uintptr_t>(stack_base) + stack_size;
-    }
-    pthread_attr_destroy(&attr);
-  }
+  PERFETTO_CHECK(pthread_getattr_np(pthread_self(), &attr) == 0);
+  void* stack_base = nullptr;
+  size_t stack_size = 0;
+  PERFETTO_CHECK(pthread_attr_getstack(&attr, &stack_base, &stack_size) == 0);
+  pthread_attr_destroy(&attr);
 
-  size_t bytes_available = (stack_top > sp) ? (stack_top - sp) : 4096;
-  size_t bytes_to_copy = std::min(bytes_available, kMaxStackDumpBytes);
+  uintptr_t stack_low = reinterpret_cast<uintptr_t>(stack_base);
+  uintptr_t stack_top = stack_low + stack_size;
+  PERFETTO_CHECK(sp >= stack_low && sp < stack_top);
+  size_t bytes_to_copy = std::min(stack_top - sp, kMaxStackDumpBytes);
 
   sample.stack_bytes.resize(bytes_to_copy);
   CopyStackMemory(sample.stack_bytes.data(),
@@ -200,14 +133,9 @@ SampleSnapshot CaptureCurrentStack() {
 
 class UnwindBenchmarkFixture {
  public:
-  explicit UnwindBenchmarkFixture(int callstack_depth,
-                                  bool through_system_lib = false) {
+  explicit UnwindBenchmarkFixture(int callstack_depth) {
     std::function<void()> capture = [this] { sample_ = CaptureCurrentStack(); };
-    if (through_system_lib) {
-      GenerateCallStack_SystemLib(callstack_depth, capture);
-    } else {
-      GenerateCallStack(callstack_depth, capture);
-    }
+    GenerateCallStack(callstack_depth, capture);
 
     base::ScopedFile maps_fd(open("/proc/self/maps", O_RDONLY));
     base::ScopedFile mem_fd(open("/proc/self/mem", O_RDONLY));
@@ -221,17 +149,13 @@ class UnwindBenchmarkFixture {
         sample_.stack_bytes.size());
   }
 
-  std::vector<unwindstack::FrameData> Unwind(bool resolve_names = true) {
+  std::vector<unwindstack::FrameData> Unwind(bool resolve_names) {
     std::unique_ptr<unwindstack::Regs> regs =
         ToLibUnwindstackRegs(sample_.regs);
     PERFETTO_DCHECK(regs != nullptr);
     unwindstack::Unwinder unwinder(kMaxFrames, &metadata_->fd_maps, regs.get(),
                                    overlay_memory_);
     unwinder.SetResolveNames(resolve_names);
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    unwinder.SetJitDebug(metadata_->GetJitDebug(regs->Arch()));
-    unwinder.SetDexFiles(metadata_->GetDexFiles(regs->Arch()));
-#endif
     unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
                     /*map_suffixes_to_ignore=*/nullptr);
     return unwinder.ConsumeFrames();
@@ -250,33 +174,23 @@ class UnwindBenchmarkFixture {
 };
 
 void RecordMetrics(benchmark::State& state,
-                   const MemoryStatus& start_mem,
                    size_t total_frames,
                    size_t error_count) {
-  MemoryStatus end_mem = ReadMemoryStatus();
   double avg_frames = static_cast<double>(total_frames) /
                       static_cast<double>(state.iterations());
   state.counters["frames_unwound"] = benchmark::Counter(avg_frames);
   state.counters["unwind_errors"] =
       benchmark::Counter(static_cast<double>(error_count));
-  state.counters["peak_rss_kb"] =
-      benchmark::Counter(static_cast<double>(end_mem.vmhwm_kb));
-  state.counters["rss_growth_kb"] = benchmark::Counter(
-      end_mem.vmrss_kb > start_mem.vmrss_kb
-          ? static_cast<double>(end_mem.vmrss_kb - start_mem.vmrss_kb)
-          : 0.0);
 }
 
 struct UnwindArgs {
   int depth;
-  bool through_system_lib = false;
-  bool resolve_names = false;
+  bool resolve_names;
 };
 
 // Benchmark DWARF unwinding
 void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
-  UnwindBenchmarkFixture fixture(args.depth, args.through_system_lib);
-  MemoryStatus start_mem = ReadMemoryStatus();
+  UnwindBenchmarkFixture fixture(args.depth);
 
   size_t total_frames = 0;
   size_t error_count = 0;
@@ -297,13 +211,12 @@ void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
     benchmark::DoNotOptimize(build_ids);
   }
 
-  RecordMetrics(state, start_mem, total_frames, error_count);
+  RecordMetrics(state, total_frames, error_count);
 }
 
 // Benchmark Frame Pointer unwinding
 void BM_Unwind_FramePointer(benchmark::State& state, int depth) {
   UnwindBenchmarkFixture fixture(depth);
-  MemoryStatus start_mem = ReadMemoryStatus();
 
   size_t total_frames = 0;
   size_t error_count = 0;
@@ -329,16 +242,16 @@ void BM_Unwind_FramePointer(benchmark::State& state, int depth) {
     benchmark::DoNotOptimize(build_ids);
   }
 
-  RecordMetrics(state, start_mem, total_frames, error_count);
+  RecordMetrics(state, total_frames, error_count);
 }
 
 // Benchmark cold-cache DWARF unwinding (first sample / cache flush)
 void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
   UnwindBenchmarkFixture fixture(depth);
-  MemoryStatus start_mem = ReadMemoryStatus();
 
   size_t total_frames = 0;
   size_t error_count = 0;
+  const bool elf_cache_enabled = unwindstack::Elf::CachingEnabled();
   for (auto _ : state) {
     state.PauseTiming();
     fixture.metadata()->ReparseMaps();
@@ -346,7 +259,8 @@ void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
     unwindstack::Elf::SetCachingEnabled(true);
     state.ResumeTiming();
 
-    std::vector<unwindstack::FrameData> frames = fixture.Unwind();
+    std::vector<unwindstack::FrameData> frames =
+        fixture.Unwind(/*resolve_names=*/true);
     if (frames.empty()) {
       error_count++;
     }
@@ -354,57 +268,30 @@ void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
     benchmark::DoNotOptimize(total_frames);
   }
 
-  RecordMetrics(state, start_mem, total_frames, error_count);
-}
-
-// Benchmark memory stability over thousands of unwinds
-void BM_Unwind_MemoryCache_Churn(benchmark::State& state) {
-  UnwindBenchmarkFixture fixture(20, /*through_system_lib=*/true);
-  MemoryStatus start_mem = ReadMemoryStatus();
-
-  size_t count = 0;
-  for (auto _ : state) {
-    std::vector<unwindstack::FrameData> frames = fixture.Unwind();
-    benchmark::DoNotOptimize(frames);
-    count++;
-  }
-
-  MemoryStatus end_mem = ReadMemoryStatus();
-  state.counters["samples_unwound"] =
-      benchmark::Counter(static_cast<double>(count));
-  state.counters["peak_rss_kb"] =
-      benchmark::Counter(static_cast<double>(end_mem.vmhwm_kb));
-  state.counters["rss_growth_kb"] = benchmark::Counter(
-      end_mem.vmrss_kb > start_mem.vmrss_kb
-          ? static_cast<double>(end_mem.vmrss_kb - start_mem.vmrss_kb)
-          : 0.0);
+  unwindstack::Elf::SetCachingEnabled(elf_cache_enabled);
+  RecordMetrics(state, total_frames, error_count);
 }
 
 // DWARF benchmarks without symbol resolution
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf, Depth10_Local, UnwindArgs{10, false, false});
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf, Depth30_Local, UnwindArgs{30, false, false});
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf,
-                  Depth20_SharedLibDso,
-                  UnwindArgs{20, true, false});
+BENCHMARK_CAPTURE(BM_Unwind_Dwarf, Depth10, UnwindArgs{10, false})
+    ->Apply(BmArgs);
+BENCHMARK_CAPTURE(BM_Unwind_Dwarf, Depth30, UnwindArgs{30, false})
+    ->Apply(BmArgs);
 
 // DWARF benchmarks with symbol resolution
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf,
-                  Depth10_Local_WithNames,
-                  UnwindArgs{10, false, true});
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf,
-                  Depth30_Local_WithNames,
-                  UnwindArgs{30, false, true});
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf,
-                  Depth20_SharedLibDso_WithNames,
-                  UnwindArgs{20, true, true});
+BENCHMARK_CAPTURE(BM_Unwind_Dwarf, Depth10_WithNames, UnwindArgs{10, true})
+    ->Apply(BmArgs);
+BENCHMARK_CAPTURE(BM_Unwind_Dwarf, Depth30_WithNames, UnwindArgs{30, true})
+    ->Apply(BmArgs);
 
-// ColdStart & Churn
-BENCHMARK_CAPTURE(BM_Unwind_Dwarf_ColdStart, Depth20, 20)->Iterations(100);
-BENCHMARK(BM_Unwind_MemoryCache_Churn)->Iterations(5000);
+// ColdStart
+BENCHMARK_CAPTURE(BM_Unwind_Dwarf_ColdStart, Depth20, 20)
+    ->Iterations(100)
+    ->Apply(BmArgs);
 
 // FramePointer benchmarks
-BENCHMARK_CAPTURE(BM_Unwind_FramePointer, Depth10_Local, 10);
-BENCHMARK_CAPTURE(BM_Unwind_FramePointer, Depth30_Local, 30);
+BENCHMARK_CAPTURE(BM_Unwind_FramePointer, Depth10, 10)->Apply(BmArgs);
+BENCHMARK_CAPTURE(BM_Unwind_FramePointer, Depth30, 30)->Apply(BmArgs);
 
 }  // namespace
 }  // namespace profiling
