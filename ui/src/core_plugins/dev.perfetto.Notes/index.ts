@@ -16,6 +16,7 @@ import m from 'mithril';
 import {NotesManager} from './notes_manager';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {TraceImpl} from '../../core/trace_impl';
+import {Time, type time} from '../../base/time';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Notes';
@@ -58,12 +59,28 @@ export default class implements PerfettoPlugin {
     trace.commands.registerCommand({
       id: 'dev.perfetto.AddSpanNote',
       name: 'Add a new span note based on the current selection',
-      callback: () => {
+      // Optional args (e.g. for startup commands): start ts, end ts, text.
+      // Without them, the span of the current selection is used.
+      callback: (startArg: unknown, endArg: unknown, textArg: unknown) => {
+        const text = typeof textArg === 'string' ? textArg : undefined;
+
+        if (typeof startArg === 'string' && typeof endArg === 'string') {
+          const start = parseTimestamp(startArg);
+          const end = parseTimestamp(endArg);
+          if (start === undefined || end === undefined || end < start) {
+            console.error(`Invalid span: [${startArg}, ${endArg}]`);
+            return;
+          }
+          trace.notes.addSpanNote({start, end, text});
+          return;
+        }
+
         const range = trace.selection.getTimeSpanOfSelection();
         if (range) {
           trace.notes.addSpanNote({
             start: range.start,
             end: range.end,
+            text,
           });
         }
       },
@@ -82,4 +99,10 @@ export default class implements PerfettoPlugin {
       defaultHotkey: 'Delete',
     });
   }
+}
+
+// Parses a raw trace timestamp in nanoseconds, e.g. '123456789'.
+function parseTimestamp(str: string): time | undefined {
+  if (!/^\d+$/.test(str.trim())) return undefined;
+  return Time.fromRaw(BigInt(str.trim()));
 }

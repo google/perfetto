@@ -41,6 +41,7 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
 
   // Note commands
   'dev.perfetto.AddNoteAtTimestamp',
+  'dev.perfetto.AddSpanNote',
 
   // Android performance metrics pinning
   'com.android.PinPerfMetrics',
