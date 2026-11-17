@@ -163,6 +163,43 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
       case SYNTAQLITE_NODE_PERFETTO_INTERVALS_FROM_EVENTS:
         name = "INTERVALS FROM EVENTS";
         break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_FIND: {
+        const auto* find = Node<SyntaqlitePerfettoTreeFind>(p_, stage);
+        if (find->join_type != SYNTAQLITE_JOIN_TYPE_INNER &&
+            find->join_type != SYNTAQLITE_JOIN_TYPE_LEFT) {
+          return source_(stage).AddTraceback(
+              0, base::ErrStatus("TREE FIND can only be preceded by LEFT"));
+        }
+        name = "TREE FIND";
+        break;
+      }
+      case SYNTAQLITE_NODE_PERFETTO_TREE_FOLD:
+        name = Node<SyntaqlitePerfettoTreeFold>(p_, stage)->kind ==
+                       SYNTAQLITE_PERFETTO_TREE_FOLD_KIND_CONTRACT
+                   ? "TREE CONTRACT"
+                   : "TREE ABSORB";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_PRUNE:
+        name = "TREE PRUNE";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_REPARENT:
+        name = "TREE REPARENT";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_KEY_PATHS:
+        name = "TREE KEY PATHS";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_MERGE_SIBLINGS:
+        name = "TREE MERGE SIBLINGS";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_MERGE_INTO_PARENT:
+        name = "TREE MERGE INTO PARENT";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_INVERT:
+        name = "TREE INVERT";
+        break;
+      case SYNTAQLITE_NODE_PERFETTO_TREE_EXPAND:
+        name = "TREE EXPAND";
+        break;
       case SYNTAQLITE_NODE_PERFETTO_PIPE_JOIN: {
         const auto* join = Node<SyntaqlitePerfettoPipeJoin>(p_, stage);
         if (!syntaqlite_node_is_present(join->on_expr) &&

@@ -743,6 +743,47 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
                 "SELECT merge, overlapping, consecutive, intervals, events, "
                 "stop, keeping, last, open, closing, at FROM t")),
             std::vector<Statement>{Statement(SqliteSql{})});
+  ASSERT_EQ(
+      *Parse(SqlSource::FromExecuteQuery(
+          "SELECT paths, siblings, parent, indirect, invert, expand, charge, "
+          "leaf, root, find, nearest, ancestor, descendant, self, "
+          "contract, absorb, prune, reparent FROM t")),
+      std::vector<Statement>{Statement(SqliteSql{})});
+}
+
+TEST_F(PerfettoSqlParserTest, TreeFindOnlyTakesLeft) {
+  for (const char* keyword : {"RIGHT", "FULL", "CROSS", "NATURAL"}) {
+    std::string sql = std::string("FROM (SELECT 1 AS a) AS s |> ") + keyword +
+                      " TREE FIND t AS y NEAREST ANCESTOR WHERE y.a = 1";
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr("TREE FIND can only be preceded by LEFT"))
+        << sql;
+  }
+  for (const char* keyword : {"LEFT", "left", "INNER"}) {
+    std::string sql = std::string("FROM (SELECT 1 AS a) AS s |> ") + keyword +
+                      " TREE FIND t AS y NEAREST ANCESTOR WHERE y.a = 1";
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr("TREE FIND is not supported yet"))
+        << sql;
+  }
+}
+
+// Rejected by the grammar: a node has only one nearest ancestor, and every
+// tree transform takes the complete tree.
+TEST_F(PerfettoSqlParserTest, TreeGrammarRejections) {
+  for (const char* stage : {
+           "TREE FIND t AS y NEAREST ANCESTOR WHERE y.a = 1 ORDER BY y.b",
+           "TREE PRUNE AT t OVER t",
+           "TREE KEEP IF DESCENDANT OF t",
+           "TREE FLATTEN RECURSION BY a",
+           "TREE MERGE SIBLINGS BY a ORDERED AGGREGATE SUM(b) AS b",
+           "TREE EXPAND DOWN t BY a ORDERED BY b",
+       }) {
+    std::string sql = std::string("FROM (SELECT 1 AS a) AS s |> ") + stage;
+    EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
+                HasSubstr("syntax error"))
+        << sql;
+  }
 }
 
 // Each form parses and reaches the compiler, which does not lower it yet.
@@ -777,6 +818,41 @@ TEST_F(PerfettoSqlParserTest, StagesNotSupportedYet) {
             "INTERVALS FROM EVENTS"},
            {"INTERVALS FROM EVENTS STOP t KEEPING LAST OPEN",
             "INTERVALS FROM EVENTS"},
+           {"TREE FIND t AS y NEAREST ANCESTOR WHERE y.a = 1", "TREE FIND"},
+           {"TREE FIND t AS y NEAREST ANCESTOR OR SELF WHERE y.a = 1",
+            "TREE FIND"},
+           {"LEFT TREE FIND (FROM t) AS y NEAREST ANCESTOR WHERE y.a = 1",
+            "TREE FIND"},
+           {"TREE FIND t AS y NEAREST DESCENDANT WHERE y.a = 1", "TREE FIND"},
+           {"TREE FIND t AS y NEAREST DESCENDANT OR SELF WHERE y.a = 1 "
+            "ORDER BY y.b DESC, y.c",
+            "TREE FIND"},
+           {"LEFT TREE FIND t AS y NEAREST DESCENDANT WHERE y.a = 1 "
+            "ORDER BY y.b",
+            "TREE FIND"},
+           {"TREE CONTRACT AT t AGGREGATE SUM(a) AS a", "TREE CONTRACT"},
+           {"TREE ABSORB AT (SELECT 1 AS id) AGGREGATE SUM(a) AS a, "
+            "MIN(b) AS b",
+            "TREE ABSORB"},
+           {"TREE PRUNE AT t", "TREE PRUNE"},
+           {"TREE REPARENT TO NEAREST ANCESTOR IN t", "TREE REPARENT"},
+           {"TREE KEY PATHS BY a AS (k, p)", "TREE KEY PATHS"},
+           {"TREE KEY PATHS BY a, s.b AS (k, p)", "TREE KEY PATHS"},
+           {"TREE MERGE SIBLINGS BY a AGGREGATE SUM(b) AS b",
+            "TREE MERGE SIBLINGS"},
+           {"TREE MERGE CONSECUTIVE SIBLINGS BY a, b AGGREGATE SUM(c) AS c",
+            "TREE MERGE SIBLINGS"},
+           {"TREE MERGE INTO PARENT BY a AGGREGATE SUM(b) AS b",
+            "TREE MERGE INTO PARENT"},
+           {"TREE MERGE INTO PARENT BY a INDIRECT AGGREGATE SUM(b) AS b",
+            "TREE MERGE INTO PARENT"},
+           {"TREE INVERT", "TREE INVERT"},
+           {"TREE EXPAND DOWN t BY a", "TREE EXPAND"},
+           {"TREE EXPAND UP (FROM t) AS x BY a, b", "TREE EXPAND"},
+           {"TREE EXPAND DOWN t BY a ORDER BY b", "TREE EXPAND"},
+           {"TREE EXPAND DOWN t BY a ORDER BY b, c CHARGE x TO LEAF",
+            "TREE EXPAND"},
+           {"TREE EXPAND UP t BY a CHARGE x, b TO ROOT", "TREE EXPAND"},
        }) {
     std::string sql =
         std::string("FROM (SELECT 1 AS a, 2 AS b, 3 AS c, 4 AS x) AS s |> ") +
