@@ -92,7 +92,7 @@ WITH
       -- The initial row has no ts. It starts when the process entered the
       -- state (state_start_ts) when known, but, like every other initial
       -- interval, not before the process start clamped to the trace start. A
-      -- state_start_ts after the process's first change event is bogus, so it
+      -- state_start_ts after the process's first change event is invalid, so it
       -- is treated as unknown.
       max(
         p.start_ts,

@@ -11,7 +11,7 @@
 # - PID 400: in dump only, without proc_state_start_ns. state_start_ts remains
 #            NULL.
 # - PID 500: in dump only, with proc_state_start_ns (1500) inside the trace.
-# - PID 600: earliest delta at 2000 carries a bogus prev_proc_state_start_ns
+# - PID 600: earliest delta at 2000 carries an invalid prev_proc_state_start_ns
 #            (2500) after the delta itself (synthetic: producers always write
 #            a start before the event). state_start_ts keeps the raw value, but
 #            the interval treats it as unknown and starts at trace start.
