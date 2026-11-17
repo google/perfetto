@@ -15,7 +15,6 @@
 import './preview_banner.scss';
 import m from 'mithril';
 import type {App} from '../../../public/app';
-import {getBugReportUrl} from '../../../public/utils';
 import {Anchor} from '../../../widgets/anchor';
 import {Icons} from '../../../base/semantic_icons';
 import {Callout} from './callout';
@@ -42,7 +41,7 @@ export class PreviewBanner implements m.ClassComponent<PreviewBannerAttrs> {
           m(
             Anchor,
             {
-              href: getBugReportUrl(attrs.app),
+              href: attrs.app.policy.bugReportUrl,
               target: '_blank',
               icon: Icons.ExternalLink,
             },
