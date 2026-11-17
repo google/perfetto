@@ -181,7 +181,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
         if (share.error !== undefined) return 'error';
         return 'add_to_drive';
       },
-      sortOrder: 10,
+      // Right after CoreCommands' "Share" (50) and before "Download" (51), so
+      // the ways of sharing the trace sit together.
+      sortOrder: 50.5,
       // While uploading, the badge shows how far the upload has got.
       badge: () => {
         const upload = share.upload;
