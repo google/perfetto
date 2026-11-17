@@ -28,8 +28,11 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -344,7 +347,7 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
 // The time the initial proc_state was entered (start_ts) always comes from the
 // same source as the proc_state itself.
 std::map<UniquePid, AndroidProcessStateTracker::ProcessStateValues>
-AndroidProcessStateTracker::ComputeInitialProcessStates() const {
+AndroidProcessStateTracker::ComputeInitialProcessStates() {
   std::map<UniquePid, ProcessStateValues> initial = process_dump_;
 
   for (const auto& [upid, earliest] : earliest_prev_) {
@@ -368,9 +371,36 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
     // prev_proc_state_start_ns when it is 0, e.g. on the first transition out
     // of PROCESS_STATE_NONEXISTENT.
     v.start_ts = earliest.values.start_ts;
+    // The initial state ended at the earliest delta, so it can't have started
+    // after it. The earliest delta is either the first change event (the first
+    // non-initial row) or, for processes that never change state, a died event
+    // (which inserts no row); a start after either is invalid.
+    if (v.start_ts.has_value() && *v.start_ts > earliest.ts) {
+      RecordStartTsAfterEarliestEvent(upid, *v.start_ts, earliest.ts);
+      v.start_ts = std::nullopt;
+    }
   }
 
   return initial;
+}
+
+void AndroidProcessStateTracker::RecordStartTsAfterEarliestEvent(
+    UniquePid upid,
+    int64_t state_start_ts,
+    int64_t earliest_event_ts) {
+  TraceStorage* storage = context_->storage.get();
+  int64_t pid = storage->process_table()[upid].pid();
+  context_->import_logs_tracker->RecordParserLog(
+      stats::android_process_state_start_ts_after_earliest_event,
+      earliest_event_ts, [&](ArgsInserter& inserter) {
+        inserter.AddArg(storage->InternString("pid"), Variadic::Integer(pid));
+        inserter.AddArg(storage->InternString("upid"),
+                        Variadic::Integer(static_cast<int64_t>(upid)));
+        inserter.AddArg(storage->InternString("state_start_ts"),
+                        Variadic::Integer(state_start_ts));
+        inserter.AddArg(storage->InternString("earliest_event_ts"),
+                        Variadic::Integer(earliest_event_ts));
+      });
 }
 
 void AndroidProcessStateTracker::Finalize() {

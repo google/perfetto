@@ -112,8 +112,15 @@ class AndroidProcessStateTracker {
 
   // Computes the initial baseline state for every process by starting from the
   // trace-stop dump snapshot and overlaying the pre-transition states from the
-  // earliest observed deltas.
-  std::map<UniquePid, ProcessStateValues> ComputeInitialProcessStates() const;
+  // earliest observed deltas. Start times after the earliest delta are invalid:
+  // they are dropped and reported via RecordStartTsAfterEarliestEvent().
+  std::map<UniquePid, ProcessStateValues> ComputeInitialProcessStates();
+
+  // Records the android_process_state_start_ts_after_earliest_event stat and an
+  // import log with the details for a dropped initial proc_state start time.
+  void RecordStartTsAfterEarliestEvent(UniquePid upid,
+                                       int64_t state_start_ts,
+                                       int64_t earliest_event_ts);
 
   // Emits a synthesized initial baseline row (is_initial = 1, ts = NULL) into
   // the AndroidProcessState table.

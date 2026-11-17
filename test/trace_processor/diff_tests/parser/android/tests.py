@@ -518,8 +518,93 @@ class AndroidParser(TestSuite):
           2000,300,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
           "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",1,"[NULL]"
           "[NULL]",500,"PROCESS_STATE_RECEIVER",1,1500
-          "[NULL]",600,"PROCESS_STATE_SERVICE",1,2500
+          "[NULL]",600,"PROCESS_STATE_SERVICE",1,"[NULL]"
           2000,600,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+        """))
+
+  def test_android_process_state_start_ts_after_earliest_event_stat(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT name, idx, severity, source, value
+        FROM stats
+        WHERE name = 'android_process_state_start_ts_after_earliest_event';
+        """,
+        out=Csv("""
+          "name","idx","severity","source","value"
+          "android_process_state_start_ts_after_earliest_event","[NULL]","notice","analysis",1
+        """))
+
+  def test_android_process_state_start_ts_after_earliest_event_log(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT
+          l.ts,
+          l.severity,
+          l.name,
+          extract_arg(l.arg_set_id, 'pid') AS pid,
+          extract_arg(l.arg_set_id, 'upid') = p.upid AS upid_matches,
+          extract_arg(l.arg_set_id, 'state_start_ts') AS state_start_ts,
+          extract_arg(l.arg_set_id, 'earliest_event_ts') AS earliest_event_ts
+        FROM _trace_import_logs AS l
+        JOIN process AS p ON p.pid = extract_arg(l.arg_set_id, 'pid')
+        WHERE l.name = 'android_process_state_start_ts_after_earliest_event'
+        ORDER BY l.ts, pid;
+        """,
+        out=Csv("""
+          "ts","severity","name","pid","upid_matches","state_start_ts","earliest_event_ts"
+          2000,"notice","android_process_state_start_ts_after_earliest_event",600,1,2500,2000
+        """))
+
+  def test_android_process_state_start_ts_after_died_event(self):
+    # A process that never changes state but dies at 2000 with a
+    # prev_proc_state_start_ns (2500) after the died event. The died event
+    # inserts no row, but the start is just as invalid.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_state_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_SERVICE
+              prev_proc_state_start_ns: 2500
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (
+            SELECT state_start_ts
+            FROM __intrinsic_android_process_state
+            WHERE is_initial = 1
+          ) AS state_start_ts,
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_start_ts_after_earliest_event'
+          ) AS stat_value,
+          extract_arg(arg_set_id, 'pid') AS pid,
+          extract_arg(arg_set_id, 'state_start_ts') AS log_state_start_ts,
+          extract_arg(arg_set_id, 'earliest_event_ts') AS log_earliest_event_ts
+        FROM _trace_import_logs
+        WHERE name = 'android_process_state_start_ts_after_earliest_event';
+        """,
+        out=Csv("""
+          "state_start_ts","stat_value","pid","log_state_start_ts","log_earliest_event_ts"
+          "[NULL]",1,100,2500,2000
         """))
 
   def test_android_process_state_start_ts_clock_conversion(self):

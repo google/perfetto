@@ -91,23 +91,18 @@ WITH
       f.first_ts,
       -- The initial row has no ts. It starts when the process entered the
       -- state (state_start_ts) when known, but, like every other initial
-      -- interval, not before the process start clamped to the trace start. A
-      -- state_start_ts after the process's first change event is invalid, so it
-      -- is treated as unknown.
-      max(
-        p.start_ts,
-        coalesce(
-          iif(s.state_start_ts > f.first_ts, NULL, s.state_start_ts),
-          p.start_ts
-        )
-      ) AS initial_start_ts
+      -- interval, not before the process start clamped to the trace start.
+      -- Trace processor already drops a state_start_ts after the process's
+      -- first change event.
+      max(p.start_ts, coalesce(s.state_start_ts, p.start_ts)) AS initial_start_ts
     FROM __intrinsic_android_process_state AS s
     JOIN process_lifetimes AS p USING (upid)
     LEFT JOIN first_changes AS f ON f.upid = s.upid AND s.is_initial = 1
   ),
   all_events AS (
     SELECT
-      -- The initial interval never starts after the first change event.
+      -- The initial interval never starts after the first change event, even
+      -- when the process start does.
       iif(
         s.is_initial = 1,
         min(s.initial_start_ts, coalesce(s.first_ts, s.initial_start_ts)),
