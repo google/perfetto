@@ -54,6 +54,19 @@
     }
   }
 
+  // A short explanation under a field.
+  &__hint {
+    margin-top: -4px;
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+
+  // Who can open the uploaded file.
+  &__status {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+
   // Same height as the location button next to it.
   &__location-reset {
     padding: 2px 4px;

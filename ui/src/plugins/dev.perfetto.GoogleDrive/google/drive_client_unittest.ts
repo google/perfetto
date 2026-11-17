@@ -15,6 +15,7 @@
 import {
   DriveClient,
   isValidDriveId,
+  orgDomainOf,
   parseGDriveStateParam,
 } from './drive_client';
 
@@ -658,6 +659,229 @@ describe('DriveClient.requestFileAccess', () => {
       expect(shown).toHaveLength(0);
     },
   );
+});
+
+describe('orgDomainOf', () => {
+  test("returns the domain of an organization's account", () => {
+    expect(orgDomainOf('alice@example.com')).toBe('example.com');
+    expect(orgDomainOf('Bob@Sub.Example.ORG')).toBe('sub.example.org');
+  });
+
+  test('returns undefined for personal accounts', () => {
+    expect(orgDomainOf('alice@gmail.com')).toBeUndefined();
+    expect(orgDomainOf('alice@googlemail.com')).toBeUndefined();
+  });
+
+  test('returns undefined for something that is not an email address', () => {
+    expect(orgDomainOf('alice')).toBeUndefined();
+    expect(orgDomainOf('alice@')).toBeUndefined();
+  });
+});
+
+describe('DriveClient.getAccountEmail', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test("returns the signed-in user's email address", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({user: {emailAddress: 'alice@example.com'}}),
+    );
+    const client = await createClient();
+
+    expect(await client.getAccountEmail('token')).toEqual({
+      ok: true,
+      value: 'alice@example.com',
+    });
+  });
+
+  test('reports a malformed response as an error', async () => {
+    fetchMock.mockResolvedValue(Response.json({user: {}}));
+    const client = await createClient();
+
+    expect(await client.getAccountEmail('token')).toMatchObject({
+      ok: false,
+      error: {type: 'error'},
+    });
+  });
+});
+
+describe('DriveClient.getSharingStatus', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function statusFor(permissions: unknown[]) {
+    fetchMock.mockResolvedValue(Response.json({permissions}));
+    const client = await createClient();
+    return await client.getSharingStatus('token', 'file123');
+  }
+
+  const OWNER = {type: 'user', role: 'owner'};
+
+  test('reports a file only its owner can open as private', async () => {
+    expect(await statusFor([OWNER])).toEqual({
+      ok: true,
+      value: {link: {type: 'private'}, people: 0},
+    });
+  });
+
+  test('counts the people and groups it is shared with', async () => {
+    expect(
+      await statusFor([
+        OWNER,
+        {type: 'user', role: 'reader'},
+        {type: 'group', role: 'writer'},
+      ]),
+    ).toEqual({ok: true, value: {link: {type: 'private'}, people: 2}});
+  });
+
+  test('reports domain link sharing', async () => {
+    expect(
+      await statusFor([
+        OWNER,
+        {type: 'domain', role: 'reader', domain: 'example.com'},
+      ]),
+    ).toEqual({
+      ok: true,
+      value: {link: {type: 'domain', domain: 'example.com'}, people: 0},
+    });
+  });
+
+  test('prefers "anyone with the link" over a domain', async () => {
+    expect(
+      await statusFor([
+        OWNER,
+        {type: 'domain', role: 'reader', domain: 'example.com'},
+        {type: 'anyone', role: 'reader'},
+      ]),
+    ).toMatchObject({ok: true, value: {link: {type: 'anyone'}}});
+  });
+
+  test('asks for the permissions, including in shared drives', async () => {
+    await statusFor([OWNER]);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const url = new URL(new Request(input, init).url);
+
+    expect(url.pathname).toMatch(/\/files\/file123$/);
+    expect(url.searchParams.get('fields')).toContain('permissions');
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+  });
+
+  test('reports HTTP 404 as access denied', async () => {
+    fetchMock.mockResolvedValue(new Response(null, {status: 404}));
+    const client = await createClient();
+
+    expect(await client.getSharingStatus('token', 'file123')).toMatchObject({
+      ok: false,
+      error: {type: 'access_denied'},
+    });
+  });
+});
+
+describe('DriveClient.setLinkSharing', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({id: 'perm1'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function sentRequest(): Promise<{url: URL; body: unknown}> {
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    expect(request.method).toBe('POST');
+    return {url: new URL(request.url), body: await request.json()};
+  }
+
+  test('shares link-only with anyone', async () => {
+    const client = await createClient();
+    const result = await client.setLinkSharing('token', 'file123', {
+      type: 'anyone',
+    });
+
+    expect(result).toEqual({ok: true, value: undefined});
+    const {url, body} = await sentRequest();
+    expect(url.pathname).toMatch(/\/files\/file123\/permissions$/);
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(body).toEqual({
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: false,
+    });
+  });
+
+  test('shares link-only with a domain', async () => {
+    const client = await createClient();
+    await client.setLinkSharing('token', 'file123', {
+      type: 'domain',
+      domain: 'example.com',
+    });
+
+    const {body} = await sentRequest();
+    expect(body).toEqual({
+      type: 'domain',
+      domain: 'example.com',
+      role: 'reader',
+      allowFileDiscovery: false,
+    });
+  });
+
+  test("reports the organization's policy refusing it", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json(
+        {error: {errors: [{reason: 'publishOutNotPermitted'}]}},
+        {status: 403},
+      ),
+    );
+    const client = await createClient();
+
+    expect(
+      await client.setLinkSharing('token', 'file123', {type: 'anyone'}),
+    ).toMatchObject({ok: false, error: {type: 'blocked_by_policy'}});
+  });
+
+  test('reports other 403s as access denied', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json(
+        {error: {errors: [{reason: 'insufficientFilePermissions'}]}},
+        {status: 403},
+      ),
+    );
+    const client = await createClient();
+
+    expect(
+      await client.setLinkSharing('token', 'file123', {type: 'anyone'}),
+    ).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
+
+  test('rejects an invalid file ID without touching the network', async () => {
+    const client = await createClient();
+
+    expect(
+      await client.setLinkSharing('token', '../other', {type: 'anyone'}),
+    ).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('DriveClient.uploadFile', () => {

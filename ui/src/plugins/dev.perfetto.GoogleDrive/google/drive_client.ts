@@ -86,6 +86,122 @@ export interface DriveError {
   readonly cause?: unknown;
 }
 
+// Who, beyond the people a file is shared with directly, can open it with its
+// link.
+export type LinkSharing =
+  | {readonly type: 'private'}
+  | {readonly type: 'domain'; readonly domain: string}
+  | {readonly type: 'anyone'};
+
+// Who can currently open a Drive file.
+export interface SharingStatus {
+  // The widest link access the file has.
+  readonly link: LinkSharing;
+  // How many users and groups, other than its owner, it is shared with
+  // directly.
+  readonly people: number;
+}
+
+export interface ShareFileError {
+  // 'blocked_by_policy' means the user's organization doesn't allow this kind
+  // of sharing. 'access_denied' means the user isn't allowed to share the
+  // file, or the app can't see it.
+  readonly type: 'blocked_by_policy' | 'access_denied' | 'invalid_id' | 'error';
+  readonly cause?: unknown;
+}
+
+// The Drive REST API endpoint for the signed-in user's account details.
+const DRIVE_ABOUT_URL = 'https://www.googleapis.com/drive/v3/about';
+
+const ABOUT_SCHEMA = z.object({
+  user: z.object({emailAddress: z.string()}),
+});
+
+const PERMISSIONS_SCHEMA = z.object({
+  permissions: z.array(
+    z.object({
+      type: z.string(),
+      role: z.string(),
+      domain: z.string().optional(),
+    }),
+  ),
+});
+
+// What Drive returns when it refuses a request: the first error's reason says
+// why, e.g. 'publishOutNotPermitted'.
+const DRIVE_ERROR_REASON_SCHEMA = z.object({
+  error: z.object({
+    errors: z.array(z.object({reason: z.string()})).optional(),
+  }),
+});
+
+// Reasons Drive gives for refusing to share a file because the user's
+// organization doesn't allow it.
+const POLICY_REASONS = new Set([
+  'publishOutNotPermitted',
+  'domainPolicy',
+  'cannotShareTeamDriveTopFolderWithAnyoneOrDomains',
+  'cannotShareTeamDriveWithNonGoogleAccounts',
+]);
+
+// Domains of personal Google accounts, which don't belong to an organization.
+const PERSONAL_ACCOUNT_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
+
+// The organization domain of an account, from its email address, or undefined
+// for personal accounts (which have no organization to share with).
+export function orgDomainOf(email: string): string | undefined {
+  const at = email.lastIndexOf('@');
+  if (at < 0) return undefined;
+  const domain = email.slice(at + 1).toLowerCase();
+  if (domain === '' || PERSONAL_ACCOUNT_DOMAINS.has(domain)) return undefined;
+  return domain;
+}
+
+// Summarizes a file's permissions into who can open it.
+function sharingStatusOf(
+  permissions: z.infer<typeof PERMISSIONS_SCHEMA>['permissions'],
+): SharingStatus {
+  let link: LinkSharing = {type: 'private'};
+  let people = 0;
+  for (const p of permissions) {
+    if (p.type === 'anyone') {
+      link = {type: 'anyone'};
+    } else if (
+      p.type === 'domain' &&
+      p.domain !== undefined &&
+      link.type === 'private'
+    ) {
+      link = {type: 'domain', domain: p.domain};
+    } else if (
+      (p.type === 'user' || p.type === 'group') &&
+      p.role !== 'owner'
+    ) {
+      people++;
+    }
+  }
+  return {link, people};
+}
+
+async function shareFileHttpError(response: Response): Promise<ShareFileError> {
+  let reason: string | undefined;
+  try {
+    const parsed = DRIVE_ERROR_REASON_SCHEMA.safeParse(await response.json());
+    reason = parsed.success ? parsed.data.error.errors?.[0]?.reason : undefined;
+  } catch {
+    reason = undefined;
+  }
+  const cause =
+    `Google Drive returned HTTP ${response.status}` +
+    (reason !== undefined ? ` (${reason})` : '');
+  if (reason !== undefined && POLICY_REASONS.has(reason)) {
+    return {type: 'blocked_by_policy', cause};
+  }
+  if (response.status === 403 || response.status === 404) {
+    return {type: 'access_denied', cause};
+  }
+  return {type: 'error', cause};
+}
+
 function httpDriveError(status: number): DriveError {
   return {
     type: status === 403 || status === 404 ? 'access_denied' : 'error',
@@ -396,6 +512,88 @@ export class DriveClient {
         return okResult(meta.data);
       },
     );
+  }
+
+  // Returns the signed-in user's email address. Never rejects.
+  async getAccountEmail(
+    oauthToken: string,
+  ): Promise<Result<string, DriveError>> {
+    try {
+      const url = new URL(DRIVE_ABOUT_URL);
+      url.searchParams.set('fields', 'user(emailAddress)');
+      const response = await fetch(url, {
+        headers: {Authorization: `Bearer ${oauthToken}`},
+      });
+      if (!response.ok) return errResult(httpDriveError(response.status));
+      const about = ABOUT_SCHEMA.safeParse(await response.json());
+      if (!about.success) {
+        return errResult({type: 'error', cause: about.error});
+      }
+      return okResult(about.data.user.emailAddress);
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
+  }
+
+  // Returns who can currently open a file. Never rejects.
+  async getSharingStatus(
+    oauthToken: string,
+    fileId: string,
+  ): Promise<Result<SharingStatus, DriveError>> {
+    return this.fetchFileResult(
+      oauthToken,
+      fileId,
+      {fields: 'permissions(type,role,domain)', supportsAllDrives: 'true'},
+      undefined,
+      async (response) => {
+        const parsed = PERMISSIONS_SCHEMA.safeParse(await response.json());
+        if (!parsed.success) {
+          return errResult({type: 'error', cause: parsed.error});
+        }
+        return okResult(sharingStatusOf(parsed.data.permissions));
+      },
+    );
+  }
+
+  // Lets anyone with the file's link open it: anyone at all, or anyone in an
+  // organization domain. Link-only, so the file doesn't show up in Drive
+  // search. Never rejects.
+  async setLinkSharing(
+    oauthToken: string,
+    fileId: string,
+    link: Exclude<LinkSharing, {type: 'private'}>,
+  ): Promise<Result<void, ShareFileError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({type: 'invalid_id', cause: 'Invalid Drive file ID'});
+    }
+    const permission =
+      link.type === 'anyone'
+        ? {type: 'anyone', role: 'reader', allowFileDiscovery: false}
+        : {
+            type: 'domain',
+            domain: link.domain,
+            role: 'reader',
+            allowFileDiscovery: false,
+          };
+    try {
+      const url = new URL(
+        `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      );
+      // supportsAllDrives lets this work for files in shared drives.
+      url.searchParams.set('supportsAllDrives', 'true');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${oauthToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(permission),
+      });
+      if (!response.ok) return errResult(await shareFileHttpError(response));
+      return okResult();
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
   }
 
   // Sends an authenticated GET for a file to the Drive REST API and parses the

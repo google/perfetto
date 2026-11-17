@@ -25,10 +25,11 @@ import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
 import {openFileFromDeeplink} from './flows/open_from_deeplink';
 import {openFileFromSidebar} from './flows/open_from_sidebar';
-import {ShareForm, type ShareState} from './views/share_form';
+import {type LinkAccess, ShareForm, type ShareState} from './views/share_form';
 import {
   openGDriveSharingDialog,
   pickUploadFolder,
+  refreshSharingStatus,
   uploadTraceToGDrive,
 } from './share_to_gdrive';
 import {GDRIVE_PLUGIN_ID, parseGDriveTraceArgs} from './trace_args';
@@ -64,6 +65,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
     fileName: '',
     location: 'root',
     fileId: undefined,
+    linkAccess: 'private',
+    accountDomain: undefined,
+    sharing: undefined,
     upload: undefined,
     error: undefined,
   };
@@ -161,6 +165,8 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
     share.fileName = trace.traceInfo.traceTitle;
     // If the trace was opened from Drive, it is already there.
     share.fileId = parseGDriveTraceArgs(args);
+    // Who can open it is only known once checked.
+    share.sharing = undefined;
 
     // Stop an upload that is still running when the trace is closed. Nothing
     // could show or cancel it any more, and it would keep the trace's contents
@@ -232,6 +238,11 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
               onResetLocation: () => {
                 share.location = 'root';
               },
+              onLinkAccessChange: (access: LinkAccess) => {
+                share.linkAccess = access;
+              },
+              onRefreshSharing: () =>
+                redrawAfter(refreshSharingStatus(oauth, drive, share)),
               onOpenSharingDialog: () =>
                 redrawAfter(openGDriveSharingDialog(oauth, drive, share)),
             }),
