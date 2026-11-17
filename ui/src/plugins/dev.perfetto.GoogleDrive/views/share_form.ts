@@ -73,6 +73,9 @@ export interface ShareFormAttrs {
   readonly onCancelUpload: () => void;
   // Opens the folder picker to change the location.
   readonly onPickFolder: () => void;
+  // Sets the location back to the top of My Drive, which the folder picker
+  // can't select.
+  readonly onResetLocation: () => void;
   // Opens the Google Drive sharing dialog for the uploaded file.
   readonly onOpenSharingDialog: () => void;
 }
@@ -174,10 +177,6 @@ function renderUploadForm(attrs: ShareFormAttrs): m.Children {
     },
     [
       renderError(state),
-      m(
-        'p.pf-gdrive-share__intro',
-        'Upload this trace to your Google Drive to get a link you can share.',
-      ),
       m(FormLabel, {for: 'pf-gdrive-share-filename'}, 'File name'),
       m(TextInput, {
         id: 'pf-gdrive-share-filename',
@@ -193,18 +192,33 @@ function renderUploadForm(attrs: ShareFormAttrs): m.Children {
       // The location can only be chosen with the folder picker, so it's shown
       // as a single button that opens the picker, rather than a read-only
       // text box that looks editable.
-      m(Button, {
-        id: 'pf-gdrive-share-location',
-        className: 'pf-gdrive-share__location',
-        type: 'button',
-        icon: 'folder',
-        label: location === 'root' ? 'My Drive' : (location.name ?? 'Folder'),
-        rightIcon: 'edit',
-        title: 'Choose a folder in Google Drive',
-        variant: ButtonVariant.Outlined,
-        disabled: uploading,
-        onclick: () => attrs.onPickFolder(),
-      }),
+      m(Inline, {className: 'pf-gdrive-share__location-row'}, [
+        m(Button, {
+          id: 'pf-gdrive-share-location',
+          className: 'pf-gdrive-share__location',
+          type: 'button',
+          icon: 'folder',
+          label: location === 'root' ? 'My Drive' : (location.name ?? 'Folder'),
+          rightIcon: 'edit',
+          title: 'Choose a folder in Google Drive',
+          variant: ButtonVariant.Outlined,
+          disabled: uploading,
+          onclick: () => attrs.onPickFolder(),
+        }),
+        // The folder picker can't select the top of My Drive, so offer a way
+        // back to it once a folder has been chosen.
+        location !== 'root' &&
+          m(Button, {
+            'className': 'pf-gdrive-share__location-reset',
+            'type': 'button',
+            'icon': 'close',
+            'title': 'Upload to My Drive instead',
+            'aria-label': 'Upload to My Drive instead',
+            'variant': ButtonVariant.Outlined,
+            'disabled': uploading,
+            'onclick': () => attrs.onResetLocation(),
+          }),
+      ]),
       upload === undefined
         ? m(Inline, {className: 'pf-gdrive-share__footer'}, [
             m(StackAuto),

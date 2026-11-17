@@ -26,12 +26,18 @@
     color: var(--pf-color-text-muted);
   }
 
+  // The location button, plus a button to go back to My Drive once a folder
+  // has been chosen.
+  &__location-row {
+    width: 100%;
+  }
+
   // The location "field" is a button that opens the folder picker. Lay it out
   // like a text input: full width, label on the left, edit icon on the right.
   &__location {
     display: flex;
     align-items: center;
-    width: 100%;
+    flex: 1;
     min-width: 0;
     // Match the height and inset of the text input above it.
     padding: 2px 4px;
@@ -46,6 +52,11 @@
     .pf-right-icon {
       color: var(--pf-color-text-muted);
     }
+  }
+
+  // Same height as the location button next to it.
+  &__location-reset {
+    padding: 2px 4px;
   }
 
   // Separate the action row from the fields above it.

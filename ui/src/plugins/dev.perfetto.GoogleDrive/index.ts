@@ -229,6 +229,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
               onCancelUpload: () => share.upload?.controller.abort(),
               onPickFolder: () =>
                 redrawAfter(pickUploadFolder(oauth, drive, share)),
+              onResetLocation: () => {
+                share.location = 'root';
+              },
               onOpenSharingDialog: () =>
                 redrawAfter(openGDriveSharingDialog(oauth, drive, share)),
             }),
