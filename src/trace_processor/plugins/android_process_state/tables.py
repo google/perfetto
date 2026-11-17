@@ -61,7 +61,9 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'or died event or, for processes without such events, '
                 'proc_state_start_ns of the trace-stop snapshot. NULL if unknown '
                 '(e.g. not reported or not convertible) and for change rows, '
-                'whose start is ts.',
+                'whose start is ts. Values after the earliest change or died '
+                'event are invalid: they are dropped (NULL) and reported via the '
+                'android_process_state_start_ts_after_earliest_event stat.',
             'upid':
                 'Unique process ID.',
             'proc_state':
