@@ -153,6 +153,13 @@ class SmallVector {
     --end_;
   }
 
+  // Makes room for `n` elements in total, so adding them does not grow the
+  // storage one doubling at a time.
+  void reserve(size_t n) {
+    if (n > capacity())
+      Grow(n);
+  }
+
   // Clear without reverting back to inline storage.
   void clear() {
     while (!empty())

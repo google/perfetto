@@ -16,6 +16,7 @@ import m from 'mithril';
 import {showModal} from '../../widgets/modal';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {
+  rememberQueryOptions,
   restoreTabConfig,
   snapshotTabConfig,
   type BigTraceEditorTab,
@@ -26,8 +27,9 @@ import {QuerySettingsForm} from './query_settings_form';
 // Query settings — the trace cap and every setting that isn't trace
 // selection — in a modal off the run toolbar. Edits apply to the tab as
 // they're made, like the Trace Selection page; leaving decides: Apply keeps
-// them, while Cancel — or closing the dialog any other way — puts the
-// configuration back to what it was when the modal opened.
+// them (and makes changed query options what new tabs start with), while
+// Cancel — or closing the dialog any other way — puts the configuration back
+// to what it was when the modal opened.
 export async function openQuerySettingsModal(
   tab: BigTraceEditorTab,
   tabsState: QueryTabsState,
@@ -46,6 +48,7 @@ export async function openQuerySettingsModal(
         primary: true,
         action: () => {
           applied = true;
+          rememberQueryOptions(tab, before);
         },
       },
     ],

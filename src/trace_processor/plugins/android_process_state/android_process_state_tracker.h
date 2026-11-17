@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -52,13 +53,13 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidProcessState dump TracePacket.
-  void ParseProcessStateDump(protozero::ConstBytes bytes);
+  // An AndroidProcessState dump TracePacket at |ts|.
+  void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
   // An AndroidFreezerEvent TrackEvent extension at |ts|.
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidFreezerState dump TracePacket.
-  void ParseFreezerDump(protozero::ConstBytes bytes);
+  // An AndroidFreezerState dump TracePacket at |ts|.
+  void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();
@@ -112,6 +113,7 @@ class AndroidProcessStateTracker {
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
   const StringId capability_flags_id_;
+  UnknownProcessLogger unknown_process_logger_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor process_group_cache_;

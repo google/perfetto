@@ -285,7 +285,23 @@ Diagram(Choice(0,
   or remainder by zero gives null, as in SQLite. An integer overflow fails the
   query where SQLite would answer with a double.
 
-Anything else, such as a comparison or calling a function, is not supported yet.
+- `=`, `==`, `!=`, `<>`, `<`, `<=`, `>` and `>=`, which give 0 or 1, or null if
+  either side is. Strings compare by their bytes. An integer can be compared with
+  a floating-point literal, as in [`WHERE`](#where). Comparing it with another
+  floating-point value is an error, as is comparing a string with a number.
+
+- `<expr> GLOB <string>`, which gives 0 or 1, or null if `<expr>` is. The pattern
+  must be a string literal, and `<expr>` a string.
+- `<expr> IS [NOT] NULL`, which gives 0 or 1.
+
+- `coalesce(<expr>, <expr>, ...)`, `ifnull(<expr>, <expr>)` and
+  `iif(<condition>, <expr>, <expr>)`. Their results must have one type: mixing an
+  integer and a double is an error rather than a widening, so write `1.0` rather
+  than `1`. `NULL` goes with any type. Integer arithmetic in an argument which only
+  some rows use is an error, as it could overflow on rows SQLite never computes it
+  for. A condition is true if it is a number other than zero.
+
+Anything else, such as `AND` or calling another function, is not supported yet.
 
 ---
 

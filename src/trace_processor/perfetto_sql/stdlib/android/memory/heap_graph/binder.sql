@@ -15,59 +15,32 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.excluded_refs;
 
--- All subclasses of `android.os.Binder` (including `android.os.Binder` itself)
--- as a tree in which `parent_id` is the superclass.
+-- All subclasses of `android.os.Binder` (including `android.os.Binder` itself),
+-- with the nearest `*$Stub` class at or above each, NULL when there is none. The
+-- class tree is cut at the stub classes, so accumulating down from each cut picks
+-- the closest stub.
 CREATE PERFETTO TABLE _heap_graph_binder_class AS
 GRAPH DFS TREE
-  NODES (
-    SELECT
-      id,
-      coalesce(deobfuscated_name, name, '') AS name,
-      coalesce(deobfuscated_name, name, '') GLOB '*$Stub' AS is_stub
-    FROM heap_graph_class
-  )
+  NODES heap_graph_class
   EDGES (
-    SELECT superclass_id AS src, id AS dst
     FROM heap_graph_class
-    WHERE
-      superclass_id IS NOT NULL
+    |> SELECT superclass_id AS src, id AS dst
   )
   FROM (
-    SELECT id
     FROM heap_graph_class
-    WHERE
-      coalesce(deobfuscated_name, name, '') = 'android.os.Binder'
+    |> SELECT id, coalesce(deobfuscated_name, name, '') AS name
+    |> WHERE name = 'android.os.Binder'
   )
-|> SELECT id, parent_id, name, is_stub;
-
--- The nearest `*$Stub` class at or above every Binder class: the class tree
--- is cut at the stub classes, so accumulating down from each cut picks the
--- closest stub. NULL when there is no stub.
-CREATE PERFETTO TABLE _heap_graph_binder_class_stub AS
-FROM (
-  SELECT
-    id,
-    iif(is_stub, NULL, parent_id) AS parent_id,
-    iif(is_stub, id, NULL) AS stub_id
-  FROM _heap_graph_binder_class
-)
-|> TREE ACCUMULATE DOWN MAX(stub_id) AS stub_class_id
-|> SELECT id, stub_class_id;
-
--- Concrete class name and nearest `*$Stub` superclass per Binder class. The
--- lookup starts at the superclass, so an implementation that is itself named
--- `*$Stub` (e.g. `FooService$Stub extends IFoo$Stub`) resolves to the AIDL
--- `IFoo$Stub`. NULL when no superclass is a stub (e.g. direct
--- `android.os.Binder` subclasses).
-CREATE PERFETTO TABLE _heap_graph_binder_resolved_stub_class AS
-SELECT
-  c.id AS class_id,
-  c.name AS class_name,
-  s.stub_class_id,
-  stub.name AS stub_class_name
-FROM _heap_graph_binder_class AS c
-LEFT JOIN _heap_graph_binder_class_stub AS s ON s.id = c.parent_id
-LEFT JOIN _heap_graph_binder_class AS stub ON stub.id = s.stub_class_id;
+|> SELECT
+  id,
+  parent_id AS superclass_id,
+  coalesce(deobfuscated_name, name, '') AS name
+|> EXTEND name GLOB '*$Stub' AS is_stub
+|> EXTEND
+  iif(is_stub, NULL, superclass_id) AS parent_id,
+  iif(is_stub, id, NULL) AS stub_id
+|> TREE ACCUMULATE DOWN MAX(stub_id) AS nearest_stub_id
+|> SELECT id, superclass_id, name, nearest_stub_id;
 
 -- `android.os.Binder` objects held by a JNI global reference
 -- (`ROOT_JNI_GLOBAL`).
@@ -196,16 +169,23 @@ SELECT
   o.upid,
   o.graph_sample_ts,
   o.type_id,
-  r.class_name,
-  r.stub_class_id,
-  r.stub_class_name,
+  c.name AS class_name,
+  superclass.nearest_stub_id AS stub_class_id,
+  stub.name AS stub_class_name,
   ro_stats.id IS NOT NULL AS is_remote_only,
   coalesce(ro_stats.remote_only_obj_count, 0) AS remote_only_obj_count,
   coalesce(ro_stats.remote_only_size_bytes, 0) AS remote_only_size_bytes,
   coalesce(ro_stats.remote_only_native_size_bytes, 0) AS remote_only_native_size_bytes
 FROM _heap_graph_binder_roots AS b
 JOIN heap_graph_object AS o USING (id)
-JOIN _heap_graph_binder_resolved_stub_class AS r ON o.type_id = r.class_id
+JOIN _heap_graph_binder_class AS c ON c.id = o.type_id
+-- The lookup starts at the superclass, so an implementation that is itself named
+-- `*$Stub` (e.g. `FooService$Stub extends IFoo$Stub`) resolves to the AIDL
+-- `IFoo$Stub`.
+LEFT JOIN _heap_graph_binder_class AS superclass
+  ON superclass.id = c.superclass_id
+LEFT JOIN _heap_graph_binder_class AS stub
+  ON stub.id = superclass.nearest_stub_id
 LEFT JOIN _heap_graph_binder_remote_only_by_stub AS ro_stats
   ON o.id = ro_stats.id
 ORDER BY

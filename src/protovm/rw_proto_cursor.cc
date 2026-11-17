@@ -17,6 +17,7 @@
 #include "src/protovm/rw_proto_cursor.h"
 
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/protovm/error_handling.h"
 
 namespace perfetto {
@@ -247,14 +248,16 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
     auto it = message->field_id_to_node.Find(field.id());
 
     bool del_if_src_empty = (flags & kDelIfSrcEmpty) != 0;
-    if (it && del_if_src_empty &&
+    if (del_if_src_empty &&
         field.type() ==
             protozero::proto_utils::ProtoWireType::kLengthDelimited &&
         field.size() == 0) {
       // Implements remove submessage semantics: empty src field means delete
       // the dst field
-      message->field_id_to_node.Remove(*it);
-      allocator_->Delete(&*it);
+      if (it) {
+        message->field_id_to_node.Remove(*it);
+        allocator_->Delete(&*it);
+      }
       continue;
     }
 
@@ -265,10 +268,9 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
       continue;
     }
 
-    auto status_or_map_value = CreateNodeFromField(field);
-    PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
-
     if (!it) {
+      auto status_or_map_value = CreateNodeFromField(field);
+      PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
       auto status_or_it = MapInsert(&message->field_id_to_node, field.id(),
                                     std::move(*status_or_map_value));
       PROTOVM_RETURN_IF_NOT_OK(status_or_it);
@@ -303,16 +305,16 @@ StatusOr<void> RwProtoCursor::Merge(protozero::ConstBytes data,
         allocator_->DeleteReferencedData(it->value.get());
         it->value->has_been_merged = true;
       }
+      auto status_or_map_value = CreateNodeFromField(field);
+      PROTOVM_RETURN_IF_NOT_OK(status_or_map_value);
       MapInsert(&indexed_fields->index_to_node,
                 indexed_fields->index_to_node.Size(),
                 std::move(*status_or_map_value));
       continue;
     }
 
-    // Optimization oppurtunity: reuse the existing node to avoid one
-    // allocation-deallocation pair
-    allocator_->Delete(it->value.release());
-    it->value = std::move(*status_or_map_value);
+    auto status = UpdateNodeFromField(it->value.get(), field);
+    PROTOVM_RETURN_IF_NOT_OK(status);
     it->value->has_been_merged = true;
   }
 
@@ -421,26 +423,34 @@ StatusOr<void> RwProtoCursor::ConvertToMessageIfNeeded(Node* node) {
 
 StatusOr<OwnedPtr<Node>> RwProtoCursor::CreateNodeFromField(
     protozero::Field field) {
-  if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
-    auto status_or_bytes = allocator_->AllocateAndCopyBytes(field.as_bytes());
-    PROTOVM_RETURN_IF_NOT_OK(status_or_bytes);
-    auto status_or_node =
-        allocator_->CreateNode<Node::Bytes>(std::move(*status_or_bytes));
-    if (!status_or_node.IsOk()) {
-      allocator_->DeleteReferencedData(&status_or_bytes.value());
-      PROTOVM_RETURN(status_or_node);
-    }
+  auto status_or_node = allocator_->CreateNode<Node::Empty>();
+  PROTOVM_RETURN_IF_NOT_OK(status_or_node);
 
-    return std::move(*status_or_node);
-  }
-
-  auto status_or_node =
-      allocator_->CreateNode<Scalar>(field.type(), field.as_uint64());
-  if (!status_or_node.IsOk()) {
-    PROTOVM_RETURN(status_or_node);
+  auto status = UpdateNodeFromField(status_or_node->get(), field);
+  if (!status.IsOk()) {
+    allocator_->Delete(status_or_node->release());
+    PROTOVM_RETURN(status);
   }
 
   return std::move(*status_or_node);
+}
+
+// Updates an existing Node's value in place instead of deleting the old Node
+// and allocating a new one via CreateNodeFromField (avoiding a SlabAllocator
+// deallocation/allocation pair per overwritten field in Merge).
+StatusOr<void> RwProtoCursor::UpdateNodeFromField(Node* node,
+                                                  protozero::Field field) {
+  allocator_->DeleteReferencedData(node);
+
+  if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+    auto status_or_bytes = allocator_->AllocateAndCopyBytes(field.as_bytes());
+    PROTOVM_RETURN_IF_NOT_OK(status_or_bytes);
+    node->value = Node::Bytes{std::move(*status_or_bytes)};
+    return StatusOr<void>::Ok();
+  }
+
+  node->value = Scalar{field.type(), field.as_uint64()};
+  return StatusOr<void>::Ok();
 }
 
 StatusOr<void> RwProtoCursor::ConvertToMappedRepeatedFieldIfNeeded(

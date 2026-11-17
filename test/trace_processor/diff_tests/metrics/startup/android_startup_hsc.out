@@ -839,4 +839,67 @@ installd_dur_ns: 0
 dex2oat_dur_ns: 0
 }
 }
+startup {
+startup_id: 14
+startup_type: "warm"
+cpu_count: 0
+package_name: "com.google.android.contacts"
+process_name: "com.google.android.contacts"
+process {
+name: "com.google.android.contacts"
+uid: 10024
+android_user_id: 0
+pid: 24
+is_kernel_task: false
+}
+zygote_new_process: false
+activity_hosting_process_count: 1
+event_timestamps {
+intent_received: 15000
+first_frame: 15045
+}
+to_first_frame {
+dur_ns: 45
+dur_ms: 0.000045
+main_thread_by_task_state {
+running_dur_ns: 0
+runnable_dur_ns: 0
+uninterruptible_sleep_dur_ns: 0
+interruptible_sleep_dur_ns: 0
+uninterruptible_io_sleep_dur_ns: 0
+uninterruptible_non_io_sleep_dur_ns: 0
+}
+time_activity_manager {
+dur_ns: 10
+dur_ms: 0.000010
+}
+time_activity_start {
+dur_ns: 5
+dur_ms: 0.000005
+}
+time_activity_resume {
+dur_ns: 3
+dur_ms: 0.000003
+}
+time_choreographer {
+dur_ns: 10
+dur_ms: 0.000010
+}
+other_processes_spawned_count: 0
+}
+hsc {
+full_startup {
+dur_ns: 80
+dur_ms: 0.000080
+}
+}
+system_state {
+dex2oat_running: false
+installd_running: false
+broadcast_dispatched_count: 0
+broadcast_received_count: 0
+installd_dur_ns: 0
+dex2oat_dur_ns: 0
+}
+}
 }

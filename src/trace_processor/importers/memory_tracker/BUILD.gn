@@ -18,7 +18,7 @@ import("../../../../gn/test.gni")
 source_set("graph_processor") {
   deps = [
     "../../../../gn:default_deps",
-    "../../util:cold_sort",
+    "../../util:sort",
   ]
   public_deps = [
     "../../../../include/perfetto/base",

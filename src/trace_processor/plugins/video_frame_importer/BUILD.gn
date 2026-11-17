@@ -29,6 +29,7 @@ source_set("video_frame_importer") {
     "video_frame_module.cc",
     "video_frame_module.h",
   ]
+  public_deps = [ "../../importers/proto:proto_importer_module" ]
   deps = [
     ":tables",
     "../../../../gn:default_deps",
@@ -43,7 +44,6 @@ source_set("video_frame_importer") {
     "../../core/plugin",
     "../../importers/common",
     "../../importers/common:parser_types",
-    "../../importers/proto:proto_importer_module",
     "../../perfetto_sql/engine",
     "../../sorter",
     "../../sqlite",

@@ -77,6 +77,13 @@ namespace perfetto::trace_processor::stats {
       "different vsync ids, and that match an android.display.video frame "    \
       "pts_us. Such frames get no frame_timeline_vsync_id, as the composite "  \
       "that produced them is ambiguous."),                                     \
+  F(android_track_event_process_unknown,  kSingle,  kNotice,   kAnalysis, Scope::kMachineAndTrace,      \
+      "An Android framework event or state dump referenced a pid with no "     \
+      "live process in trace processor (never seen, or already ended), so it " \
+      "was ignored. This can happen when a process start races with the "      \
+      "trace-start dump (DUMP_REASON_START). Counted at most once per pid "    \
+      "per importer; see trace_import_logs for the source, pid, process_name " \
+      "and start_seq_id."),                                                    \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
@@ -392,9 +399,10 @@ namespace perfetto::trace_processor::stats {
       "in traced_buf_chunks_discarded. A high count means write batches "      \
       "often outgrow staging, so use a larger buffer."),                       \
   F(traced_buf_trace_writer_packet_loss,  kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
-      "The tracing service observed packet loss for this buffer during this "  \
-      "tracing session. This also counts packet loss that happened before "    \
-      "the RING_BUFFER start or after the DISCARD buffer end."),               \
+      "TraceBufferV1 only: the tracing service observed packet loss for this " \
+      "buffer during this tracing session. This also counts packet loss that " \
+      "happened before the RING_BUFFER start or after the "                    \
+      "DISCARD buffer end."),                                                  \
   F(traced_buf_sequence_packet_loss,      kIndexed, kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
       "The number of groups of consecutive packets lost in each sequence for " \
       "this buffer"),                                                          \

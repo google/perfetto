@@ -29,8 +29,8 @@ source_set("connected_flow") {
     "connected_flow.h",
     "connected_flow_impl.h",
   ]
+  public_deps = [ ":tables" ]
   deps = [
-    ":tables",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../base",

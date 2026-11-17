@@ -200,6 +200,35 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
       return binary("/");
     case ExprOp::kMod:
       return binary("%");
+    case ExprOp::kEq:
+      return binary("=");
+    case ExprOp::kNe:
+      return binary("!=");
+    case ExprOp::kLt:
+      return binary("<");
+    case ExprOp::kLe:
+      return binary("<=");
+    case ExprOp::kGt:
+      return binary(">");
+    case ExprOp::kGe:
+      return binary(">=");
+    case ExprOp::kCoalesce:
+      return "coalesce(" + StepString(program, step.a) + ", " +
+             StepString(program, step.b) + ")";
+    case ExprOp::kIif:
+      return "iif(" + StepString(program, step.a) + ", " +
+             StepString(program, step.b) + ", " + StepString(program, step.c) +
+             ")";
+    case ExprOp::kGlob:
+      return "(" + StepString(program, step.a) + " GLOB '" +
+             program.patterns[step.b] + "')";
+    case ExprOp::kIsNull:
+      return "(" + StepString(program, step.a) + " IS NULL)";
+    case ExprOp::kIsNotNull:
+      return "(" + StepString(program, step.a) + " IS NOT NULL)";
+    case ExprOp::kConstantWherePresent:
+      return "if_present(" + StepString(program, step.a) + ", " +
+             std::to_string(step.int_value) + ")";
   }
   PERFETTO_FATAL("For GCC");
 }

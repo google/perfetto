@@ -65,6 +65,7 @@ source_set("full") {
     "virtio_video_tracker.cc",
     "virtio_video_tracker.h",
   ]
+  public_deps = [ "../../storage" ]
   deps = [
     ":ftrace_descriptors",
     ":minimal",
@@ -76,7 +77,6 @@ source_set("full") {
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../protozero",
     "../../sorter",
-    "../../storage",
     "../../tables",
     "../../types",
     "../common",

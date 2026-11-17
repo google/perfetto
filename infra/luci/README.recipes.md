@@ -93,17 +93,17 @@ Raises:
 
 Recipe for building Perfetto.
 
-&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#214)(api, ctx, platform):**
+&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#222)(api, ctx, platform):**
 
-&mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#81)(platform):**
+&mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#81)(ctx, platform):**
 
-&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#239)(api, repository):**
+&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#247)(api, repository):**
 
-&mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#102)(api, ctx, platform, out_dir, artifact):**
+&mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#110)(api, ctx, platform, out_dir, artifact):**
 
-&mdash; **def [UploadSDK](/infra/luci/recipes/perfetto.py#169)(api, ctx):**
+&mdash; **def [UploadSDK](/infra/luci/recipes/perfetto.py#177)(api, ctx):**
 
-&mdash; **def [should\_build\_artifact](/infra/luci/recipes/perfetto.py#93)(artifact, platform):**
+&mdash; **def [should\_build\_artifact](/infra/luci/recipes/perfetto.py#101)(artifact, platform):**
 ### *recipes* / [windows\_sdk:examples/full](/infra/luci/recipe_modules/windows_sdk/examples/full.py)
 
 [DEPS](/infra/luci/recipe_modules/windows_sdk/examples/full.py#15): [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/step][recipe_engine/recipe_modules/step]

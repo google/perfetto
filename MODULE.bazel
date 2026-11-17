@@ -105,7 +105,6 @@ use_repo(
     "perfetto_dep_llvm_demangle",
     "perfetto_dep_open_csd",
     "perfetto_dep_sqlite",
-    "perfetto_dep_sqlite_src",
     "perfetto_dep_zlib",
 )
 

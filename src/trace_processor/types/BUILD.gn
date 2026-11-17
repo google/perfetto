@@ -28,12 +28,12 @@ source_set("types") {
     "variadic.h",
     "version_number.h",
   ]
+  public_deps = [ "../tables:tables_python" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
-    "../tables:tables_python",
     "../util:trace_type",
   ]
 }

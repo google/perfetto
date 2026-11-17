@@ -151,3 +151,13 @@ export function assertIsArrayBufferView(
     );
   }
 }
+
+// Asserts array x is non empty (has at least one element)
+export function assertNonEmpty<T>(
+  x: readonly T[],
+  optMsg?: string,
+): asserts x is [T, ...T[]] {
+  if (x.length === 0) {
+    throw new Error(optMsg ?? 'Array is empty');
+  }
+}

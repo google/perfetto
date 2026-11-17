@@ -44,7 +44,6 @@ source_set("metrics") {
     "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/trace_processor:metrics_impl_zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../base/regex",
@@ -56,6 +55,7 @@ source_set("metrics") {
     ":gen_cc_all_chrome_metrics_descriptor",
     ":gen_cc_all_webview_metrics_descriptor",
     ":gen_cc_metrics_descriptor",
+    "../../../protos/perfetto/trace_processor:metrics_impl_zero",
     "../util:descriptors",
     "sql:gen_amalgamated_sql_metrics",
   ]
