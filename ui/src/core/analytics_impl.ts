@@ -64,6 +64,9 @@ export interface AnalyticsInternal extends Analytics {
   addDimension(
     arg: {key: string; value: string} | Promise<{key: string; value: string}>,
   ): void;
+  // Records whether the user is internal on every event. Must be called before
+  // initialize(), which waits for the answer before it starts sending.
+  setIsInternalUser(isInternalUser: Promise<boolean>): void;
   initialize(): Promise<void>;
 }
 
@@ -94,6 +97,7 @@ class NullAnalytics implements AnalyticsInternal {
   addDimension(
     _arg: {key: string; value: string} | Promise<{key: string; value: string}>,
   ) {}
+  setIsInternalUser(_isInternalUser: Promise<boolean>) {}
   async initialize() {}
   logEvent(_category: TraceCategories | null, _event: string) {}
   logError(_err: ErrorDetails) {}
@@ -136,6 +140,15 @@ class AnalyticsImpl implements AnalyticsInternal {
       throw new Error('Cannot add analytics dimensions after initialization');
     }
     this.dimensions.push(Promise.resolve(arg));
+  }
+
+  setIsInternalUser(isInternalUser: Promise<boolean>) {
+    this.addDimension(
+      isInternalUser.then((v) => ({
+        key: 'perfetto_is_internal_user',
+        value: v ? '1' : '0',
+      })),
+    );
   }
 
   // It is fine to call updatePath() and log*() functions before initialize().
