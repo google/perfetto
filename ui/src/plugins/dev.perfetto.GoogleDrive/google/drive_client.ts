@@ -122,6 +122,9 @@ export interface UploadedFile {
 }
 
 export interface UploadOptions {
+  // The MIME type to store on the file in Drive. Defaults to
+  // 'application/octet-stream'.
+  readonly mimeType?: string;
   // Called as the upload progresses, with the bytes sent so far and the total
   // to send. Both include a small amount of framing around the file itself.
   readonly onProgress?: (uploadedBytes: number, totalBytes: number) => void;
@@ -201,6 +204,7 @@ interface MultipartUpload {
 function buildMultipartUpload(
   metadata: {readonly [key: string]: unknown},
   media: Blob,
+  mimeType: string,
 ): MultipartUpload {
   const boundary = '-------314159265358979323846';
   const delimiter = `\r\n--${boundary}\r\n`;
@@ -211,8 +215,7 @@ function buildMultipartUpload(
     'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
     JSON.stringify(metadata);
 
-  const mediaPart =
-    delimiter + 'Content-Type: application/octet-stream\r\n\r\n';
+  const mediaPart = delimiter + `Content-Type: ${mimeType}\r\n\r\n`;
 
   return {
     // The media is referenced by the body rather than copied into it.
@@ -358,13 +361,15 @@ export class DriveClient {
     fileName: string,
     opts?: UploadOptions,
   ): Promise<Result<UploadedFile, UploadError>> {
+    const mimeType = opts?.mimeType ?? 'application/octet-stream';
     const {body, contentType} = buildMultipartUpload(
       {
         name: fileName,
-        mimeType: 'application/octet-stream',
+        mimeType,
         parents: [parentId],
       },
       traceBlob,
+      mimeType,
     );
 
     const response = await postWithProgress(
