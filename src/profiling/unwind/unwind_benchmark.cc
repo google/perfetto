@@ -147,6 +147,12 @@ class UnwindBenchmarkFixture {
     overlay_memory_ = std::make_shared<StackOverlayMemory>(
         metadata_->fd_mem, sample_.regs.sp(), sample_.stack_bytes.data(),
         sample_.stack_bytes.size());
+
+    // Non-timed warmup so lazy MapInfo/ELF/symbol/build-ID caches are
+    // populated before timed iterations begin.
+    for (const auto& frame : Unwind(/*resolve_names=*/true)) {
+      metadata_->GetBuildId(frame);
+    }
   }
 
   std::vector<unwindstack::FrameData> Unwind(bool resolve_names) {
@@ -174,8 +180,13 @@ class UnwindBenchmarkFixture {
 };
 
 void RecordMetrics(benchmark::State& state,
+                   int expected_min_depth,
                    size_t total_frames,
                    size_t error_count) {
+  if (IsBenchmarkFunctionalOnly()) {
+    PERFETTO_CHECK(error_count == 0);
+    PERFETTO_CHECK(total_frames >= static_cast<size_t>(expected_min_depth));
+  }
   double avg_frames = static_cast<double>(total_frames) /
                       static_cast<double>(state.iterations());
   state.counters["frames_unwound"] = benchmark::Counter(avg_frames);
@@ -190,6 +201,10 @@ struct UnwindArgs {
 
 // Benchmark DWARF unwinding
 void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
+  if (CurrentCpuArch() == CpuArch::UNKNOWN) {
+    state.SkipWithError("Unsupported CPU architecture");
+    return;
+  }
   UnwindBenchmarkFixture fixture(args.depth);
 
   size_t total_frames = 0;
@@ -211,11 +226,18 @@ void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
     benchmark::DoNotOptimize(build_ids);
   }
 
-  RecordMetrics(state, total_frames, error_count);
+  RecordMetrics(state, args.depth, total_frames, error_count);
 }
 
 // Benchmark Frame Pointer unwinding
 void BM_Unwind_FramePointer(benchmark::State& state, int depth) {
+  CpuRegisters probe_regs(CurrentCpuArch());
+  if (!FramePointerUnwinder(0, nullptr, &probe_regs, nullptr, 0)
+           .IsArchSupported()) {
+    state.SkipWithError(
+        "Frame pointer unwinding is not supported on this architecture");
+    return;
+  }
   UnwindBenchmarkFixture fixture(depth);
 
   size_t total_frames = 0;
@@ -242,11 +264,15 @@ void BM_Unwind_FramePointer(benchmark::State& state, int depth) {
     benchmark::DoNotOptimize(build_ids);
   }
 
-  RecordMetrics(state, total_frames, error_count);
+  RecordMetrics(state, depth, total_frames, error_count);
 }
 
 // Benchmark cold-cache DWARF unwinding (first sample / cache flush)
 void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
+  if (CurrentCpuArch() == CpuArch::UNKNOWN) {
+    state.SkipWithError("Unsupported CPU architecture");
+    return;
+  }
   UnwindBenchmarkFixture fixture(depth);
 
   size_t total_frames = 0;
@@ -269,7 +295,7 @@ void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
   }
 
   unwindstack::Elf::SetCachingEnabled(elf_cache_enabled);
-  RecordMetrics(state, total_frames, error_count);
+  RecordMetrics(state, depth, total_frames, error_count);
 }
 
 // DWARF benchmarks without symbol resolution
