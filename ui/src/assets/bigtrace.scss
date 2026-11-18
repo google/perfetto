@@ -121,6 +121,45 @@
   height: 1.2em;
 }
 
+// The BigTrace version next to the brand: a chip that opens the channel menu.
+// Canary and autopush take their colors from the chip's intent.
+.pf-chip.pf-bt-topbar-channel {
+  align-items: center;
+  padding: 2px 2px 2px 6px;
+  border: none;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+
+  &:hover {
+    filter: brightness(0.93);
+  }
+
+  .pf-chip__label {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .pf-icon {
+    font-size: 16px;
+  }
+}
+
+.pf-chip.pf-bt-topbar-channel--stable {
+  color: var(--pf-color-text-muted);
+  background: var(--pf-color-background-tertiary);
+}
+
+.pf-bt-channel-menu {
+  &__desc {
+    margin-top: 4px;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+}
+
 // Endpoint panel hanging off the topbar's connection button.
 .pf-bt-connection-panel {
   display: flex;

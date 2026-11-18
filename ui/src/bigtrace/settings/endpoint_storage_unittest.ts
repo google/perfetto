@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {expect, test} from 'vitest';
+import {beforeEach, expect, test, vi} from 'vitest';
+
+// The module reads the meta tags and the release channel at import.
+beforeEach(() => {
+  vi.resetModules();
+  localStorage.clear();
+  delete document.body.dataset['perfetto_version'];
+});
 
 test('the default endpoint comes from the bigtrace-endpoint meta tag', async () => {
   document.head.innerHTML =
@@ -20,4 +27,22 @@ test('the default endpoint comes from the bigtrace-endpoint meta tag', async () 
   // Imported after the meta tag exists: the default is read at module init.
   const {getBigtraceEndpoint} = await import('./endpoint_storage');
   expect(getBigtraceEndpoint()).toBe('https://backend.example/v1');
+});
+
+test('each release channel has its own endpoint', async () => {
+  document.head.innerHTML =
+    '<meta name="bigtrace-endpoint" content="https://backend.example/v1">' +
+    '<meta name="bigtrace-endpoint-canary" content="https://canary.example/v1">';
+  document.body.dataset['perfetto_version'] = '{"stable":"v1","canary":"v2"}';
+  localStorage.setItem(
+    'bigtraceSettings',
+    JSON.stringify({bigtraceEndpoint: 'https://chosen.example/v1'}),
+  );
+  const stable = await import('./endpoint_storage');
+  expect(stable.getBigtraceEndpoint()).toBe('https://chosen.example/v1');
+
+  vi.resetModules();
+  localStorage.setItem('bigtraceUiChannel', 'canary');
+  const canary = await import('./endpoint_storage');
+  expect(canary.getBigtraceEndpoint()).toBe('https://canary.example/v1');
 });
