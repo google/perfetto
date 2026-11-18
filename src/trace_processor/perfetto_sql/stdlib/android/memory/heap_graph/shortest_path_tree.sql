@@ -39,7 +39,7 @@ CREATE PERFETTO TABLE heap_graph_shortest_path_tree(
   -- shortest-path tree, self inclusive.
   cumulative_native_size LONG,
   -- Depth of the object in the shortest-path tree. Depth of GC root objects is
-  -- 1.
+  -- 0.
   depth LONG
 )
 AS
@@ -69,5 +69,5 @@ GRAPH BFS TREE
   cumulative_count,
   cumulative_size,
   cumulative_native_size,
-  root_distance + 1 AS depth
+  root_distance AS depth
 |> ORDER BY id;

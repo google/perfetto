@@ -17,6 +17,11 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.helpers;
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree;
 
+-- Deprecated alias for `heap_graph_shortest_path_tree`, kept for existing users.
+CREATE PERFETTO VIEW _heap_graph_object_min_depth_tree AS
+SELECT id, parent_id, cumulative_size, cumulative_native_size, cumulative_count
+FROM heap_graph_shortest_path_tree;
+
 CREATE PERFETTO TABLE _heap_graph_path_hashes AS
 SELECT * FROM _heap_graph_type_path_hash!(heap_graph_shortest_path_tree);
 

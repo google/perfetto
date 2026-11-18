@@ -675,13 +675,13 @@ class HeapGraph(TestSuite):
         """,
         out=Csv("""
           "type_name","parent_type_name","depth","dom_depth","cumulative_count","cumulative_size","cumulative_native_size"
-          "Branch","RootA",2,2,2,50,0
-          "Deep","Branch",3,3,1,30,0
-          "RootA","[NULL]",1,1,5,115,0
-          "RootB","[NULL]",1,1,2,110,0
-          "Shared","RootB",2,1,1,50,0
-          "Target","RootA",2,2,1,40,0
-          "WeakRef","RootA",2,2,1,15,0
+          "Branch","RootA",1,2,2,50,0
+          "Deep","Branch",2,3,1,30,0
+          "RootA","[NULL]",0,1,5,115,0
+          "RootB","[NULL]",0,1,2,110,0
+          "Shared","RootB",1,1,1,50,0
+          "Target","RootA",1,2,1,40,0
+          "WeakRef","RootA",1,2,1,15,0
         """))
 
   def test_heap_graph_shortest_path_tree_native_size(self):
@@ -706,10 +706,10 @@ class HeapGraph(TestSuite):
         """,
         out=Csv("""
           "type_name","parent_type_name","depth","cumulative_count","cumulative_size","cumulative_native_size"
-          "android.graphics.Bitmap","[NULL]",1,1,46,123456
-          "android.os.BinderProxy","[NULL]",1,1,17,0
-          "java.lang.Class<sun.misc.Cleaner>","[NULL]",1,4,380,0
-          "libcore.util.NativeAllocationRegistry","libcore.util.NativeAllocationRegistry$CleanerThunk",4,1,32,0
-          "libcore.util.NativeAllocationRegistry$CleanerThunk","sun.misc.Cleaner",3,2,56,0
-          "sun.misc.Cleaner","java.lang.Class<sun.misc.Cleaner>",2,3,92,0
+          "android.graphics.Bitmap","[NULL]",0,1,46,123456
+          "android.os.BinderProxy","[NULL]",0,1,17,0
+          "java.lang.Class<sun.misc.Cleaner>","[NULL]",0,4,380,0
+          "libcore.util.NativeAllocationRegistry","libcore.util.NativeAllocationRegistry$CleanerThunk",3,1,32,0
+          "libcore.util.NativeAllocationRegistry$CleanerThunk","sun.misc.Cleaner",2,2,56,0
+          "sun.misc.Cleaner","java.lang.Class<sun.misc.Cleaner>",1,3,92,0
         """))
