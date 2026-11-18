@@ -525,14 +525,15 @@ class AndroidParser(TestSuite):
         SELECT
           t.ts,
           p.pid,
+          t.uid,
           t.process_group
         FROM __intrinsic_android_process_group_request t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts;
         """,
         out=Csv("""
-          "ts","pid","process_group"
-          3500,200,"PROCESS_GROUP_DEFAULT"
+          "ts","pid","uid","process_group"
+          3500,200,10002,"PROCESS_GROUP_DEFAULT"
         """))
 
   def test_android_process_group_request_events(self):
@@ -540,7 +541,8 @@ class AndroidParser(TestSuite):
     # pid 200: a call without cur_process_group (defensive: producers always
     # write it).
     # pid 300: in the trace-stop dump but without calls, so no rows.
-    # pid 400: calls but not in the trace-stop dump.
+    # pid 400: calls but not in the trace-stop dump, through the
+    # Process.setProcessGroup(pid, group) overload, which has no uid.
     # pid 0 (meaning the calling process) is ignored; unknown pid 998 is
     # dropped.
     return DiffTestBlueprint(
@@ -600,7 +602,6 @@ class AndroidParser(TestSuite):
             name: "set_process_group"
             [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
               pid: 400
-              uid: 10004
               cur_process_group: PROCESS_GROUP_FOREGROUND
             }
           }
@@ -656,18 +657,19 @@ class AndroidParser(TestSuite):
         SELECT
           t.ts,
           p.pid,
+          t.uid,
           t.process_group
         FROM __intrinsic_android_process_group_request t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts;
         """,
         out=Csv("""
-          "ts","pid","process_group"
-          1000,100,"PROCESS_GROUP_TOP_APP"
-          2000,100,"PROCESS_GROUP_BACKGROUND"
-          3000,100,"PROCESS_GROUP_BACKGROUND"
-          1500,200,"[NULL]"
-          2200,400,"PROCESS_GROUP_FOREGROUND"
+          "ts","pid","uid","process_group"
+          1000,100,10001,"PROCESS_GROUP_TOP_APP"
+          2000,100,10001,"PROCESS_GROUP_BACKGROUND"
+          3000,100,10001,"PROCESS_GROUP_BACKGROUND"
+          1500,200,10002,"[NULL]"
+          2200,400,"[NULL]","PROCESS_GROUP_FOREGROUND"
         """))
 
   def test_android_process_group_request_unknown_pid(self):

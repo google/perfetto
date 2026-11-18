@@ -125,6 +125,7 @@ ANDROID_PROCESS_GROUP_REQUEST_TABLE = Table(
     columns=[
         C('ts', CppInt64(), cpp_access=CppAccess.READ),
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
+        C('uid', CppOptional(CppInt32()), cpp_access=CppAccess.READ),
         C('process_group', CppOptional(CppString()), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -144,6 +145,9 @@ ANDROID_PROCESS_GROUP_REQUEST_TABLE = Table(
         columns={
             'ts': 'Timestamp of the Process.setProcessGroup call.',
             'upid': 'Unique process ID.',
+            'uid':
+                'Uid of the target process, if the caller passed it '
+                '(Process.setProcessGroup(uid, pid, group)); NULL otherwise.',
             'process_group':
                 'Requested process group enum name (e.g. '
                 'PROCESS_GROUP_TOP_APP), or its value if unknown; NULL if the '

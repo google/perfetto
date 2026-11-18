@@ -278,6 +278,9 @@ void AndroidProcessStateTracker::ParseProcessGroupChange(
   tables::AndroidProcessGroupRequestTable::Row row;
   row.ts = ts;
   row.upid = *opt_upid;
+  if (evt.has_uid()) {
+    row.uid = evt.uid();
+  }
   if (evt.has_cur_process_group()) {
     row.process_group = InternEnum(
         context_, process_group_cache_, ".com.android.internal.ProcessGroup",
