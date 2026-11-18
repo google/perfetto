@@ -281,6 +281,10 @@
     }
   }
 
+  &__retry {
+    margin-top: 6px;
+  }
+
   // A markdown table from the model, shown as a DataGrid.
   &__table {
     margin: 4px 0;

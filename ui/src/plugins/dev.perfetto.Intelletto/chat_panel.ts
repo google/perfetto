@@ -132,6 +132,8 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       selectedModelSetting.set(model);
       session.save();
     };
+    const lastNonSpacerIdx = findLastNonSpacerIndex(session.lines);
+    const canRetry = session.canRetry && currentModel !== undefined;
 
     return m(
       '.pf-intelletto',
@@ -195,7 +197,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
               icon: 'psychology',
               title: 'Ask about your trace',
             })
-          : session.lines.map((msg) => {
+          : session.lines.map((msg, i) => {
               if (!msg.text && msg.role !== 'spacer') return null;
               if (msg.role === 'toolcall') return this.renderToolCall(msg);
               const labels: Record<ChatLine['role'], string> = {
@@ -206,6 +208,8 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                 thought: 'Thought',
                 spacer: '',
               };
+              const showRetry =
+                canRetry && msg.role === 'error' && i === lastNonSpacerIdx;
               return m(
                 `.pf-intelletto__msg.pf-intelletto__msg--${msg.role}`,
                 m('b.pf-intelletto__msg-role', labels[msg.role]),
@@ -213,6 +217,18 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                   'span.pf-intelletto__msg-text',
                   renderMarkdown(this.md, msg.text),
                 ),
+                showRetry &&
+                  m(
+                    '.pf-intelletto__retry',
+                    m(Button, {
+                      icon: 'refresh',
+                      label: 'Retry',
+                      compact: true,
+                      variant: ButtonVariant.Outlined,
+                      intent: Intent.Danger,
+                      onclick: () => session.retry(currentModel),
+                    }),
+                  ),
               );
             }),
         session.loading &&
@@ -597,6 +613,13 @@ function prettyJson(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function findLastNonSpacerIndex(lines: readonly ChatLine[]): number {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i]!.role !== 'spacer') return i;
+  }
+  return -1;
 }
 
 function truncate(s: string, max: number): string {

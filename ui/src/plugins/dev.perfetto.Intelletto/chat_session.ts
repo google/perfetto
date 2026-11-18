@@ -15,11 +15,13 @@
 import m from 'mithril';
 import {uuidv4} from '../../base/uuid';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
-import {Agent} from './agent';
+import {Agent, type AgentEvent} from './agent';
 import type {ContextRegistry} from './context';
 import type {ConversationStore, StoredConversation} from './conversation_store';
 import type {ToolRegistry} from './tools';
 import {SYSTEM_PROMPT} from './system_prompt';
+
+const CANCELLED_TEXT = '(turn cancelled)';
 
 /** A single line in the conversation transcript. */
 export interface ChatLine {
@@ -182,7 +184,49 @@ export class ChatSession {
       return;
     }
 
-    let next: string | undefined = text;
+    await this.drainTurns(text, model);
+  }
+
+  /**
+   * True when the most recent turn ended in an outright request failure (not
+   * a user cancellation) and the agent history can re-send that request.
+   */
+  get canRetry(): boolean {
+    if (this.loading || !this.agent.canRetry()) return false;
+    for (let i = this.lines.length - 1; i >= 0; i--) {
+      const line = this.lines[i]!;
+      if (line.role === 'spacer') continue;
+      return line.role === 'error' && line.text !== CANCELLED_TEXT;
+    }
+    return false;
+  }
+
+  /**
+   * Retry the latest failed turn without re-adding the user message. Drops the
+   * trailing error banner before re-sending. No-op if nothing failed or a turn
+   * is already running.
+   */
+  async retry(model: ModelPath): Promise<void> {
+    if (!this.canRetry) return;
+
+    while (this.lines[this.lines.length - 1]?.role === 'spacer') {
+      this.lines.pop();
+    }
+    if (this.lines[this.lines.length - 1]?.role === 'error') {
+      this.lines.pop();
+    }
+    this.model = model;
+    this.save();
+
+    await this.drainTurns(undefined, model);
+  }
+
+  private async drainTurns(
+    firstPrompt: string | undefined,
+    model: ModelPath,
+  ): Promise<void> {
+    await this.runTurn(firstPrompt, model);
+    let next = this.pendingFollowUps.shift();
     while (next !== undefined) {
       await this.runTurn(next, model);
       next = this.pendingFollowUps.shift();
@@ -196,7 +240,7 @@ export class ChatSession {
   cancel(): void {
     this.abort?.abort();
     this.pendingFollowUps = [];
-    this.lines.push({role: 'error', text: '(turn cancelled)'});
+    this.lines.push({role: 'error', text: CANCELLED_TEXT});
   }
 
   private getContext(): ContextRegistry {
@@ -212,40 +256,52 @@ export class ChatSession {
     }
   }
 
-  private async runTurn(text: string, model: ModelPath): Promise<void> {
-    this.lines.push({role: 'user', text});
-    this.save();
+  private async runTurn(
+    text: string | undefined,
+    model: ModelPath,
+  ): Promise<void> {
+    const dequeueFollowUp = (): string | undefined => {
+      const followUp = this.pendingFollowUps.shift();
+      if (followUp !== undefined) {
+        this.lines.push({role: 'user', text: followUp});
+        this.save();
+        m.redraw();
+      }
+      return followUp;
+    };
 
-    // Fold in any non-excluded context as a preamble the model can see.
-    const context = this.getContext()
-      .buildContextItems()
-      .filter((c) => !this.excludedContext.has(c.id));
-    const prompt =
-      context.length === 0
-        ? text
-        : `Context for this question:\n${context
-            .map((c) => `- ${c.label}: ${c.payload}`)
-            .join('\n')}\n\nQuestion: ${text}`;
+    const abort = new AbortController();
+    this.abort = abort;
+    let stream: AsyncGenerator<AgentEvent, void, void>;
+    if (text === undefined) {
+      stream = this.agent.retry(model, abort.signal, dequeueFollowUp);
+    } else {
+      this.lines.push({role: 'user', text});
+      this.save();
+
+      // Fold in any non-excluded context as a preamble the model can see.
+      const context = this.getContext()
+        .buildContextItems()
+        .filter((c) => !this.excludedContext.has(c.id));
+      const prompt =
+        context.length === 0
+          ? text
+          : `Context for this question:\n${context
+              .map((c) => `- ${c.label}: ${c.payload}`)
+              .join('\n')}\n\nQuestion: ${text}`;
+      stream = this.agent.sendMessage(
+        prompt,
+        model,
+        abort.signal,
+        dequeueFollowUp,
+      );
+    }
 
     this.loading = true;
-    this.abort = new AbortController();
     m.redraw();
 
     try {
-      for await (const evt of this.agent.sendMessage(
-        prompt,
-        model,
-        this.abort.signal,
-        () => {
-          const followUp = this.pendingFollowUps.shift();
-          if (followUp !== undefined) {
-            this.lines.push({role: 'user', text: followUp});
-            this.save();
-            m.redraw();
-          }
-          return followUp;
-        },
-      )) {
+      for await (const evt of stream) {
         switch (evt.type) {
           case 'text':
             this.appendAi(evt.text);
@@ -283,14 +339,19 @@ export class ChatSession {
             }
             break;
           case 'error':
-            this.lines.push({role: 'error', text: evt.message});
+            this.lines.push({
+              role: 'error',
+              text: evt.message || 'Unknown error',
+            });
             break;
         }
         m.redraw();
       }
       this.lines.push({role: 'spacer', text: ''});
     } catch (e) {
-      this.lines.push({role: 'error', text: `Something went wrong: ${e}`});
+      if (!abort.signal.aborted) {
+        this.lines.push({role: 'error', text: `Something went wrong: ${e}`});
+      }
     } finally {
       this.loading = false;
       this.abort = undefined;
