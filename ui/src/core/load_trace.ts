@@ -313,6 +313,13 @@ async function loadTraceIntoEngine(
   app.analytics.logAdvancedEvent(
     buildTraceLoadedEvent(traceDetails, performance.now() - loadStartMs),
   );
+  const pluginsWithTracks = new Set(
+    trace.tracks
+      .getAllTracks()
+      .map((track) => track.pluginId)
+      .filter((pluginId) => pluginId !== undefined),
+  );
+  trace.pluginLoads.reportLoad(app.plugins.getLoadTimesMs(), pluginsWithTracks);
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
   // request that the app navigate somewhere other than /viewer.

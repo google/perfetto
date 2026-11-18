@@ -149,6 +149,18 @@ export class PluginManagerImpl {
     return this.registry.valuesAsArray();
   }
 
+  // How long each plugin's onTraceLoad() took for the current trace, by plugin
+  // ID, in load order.
+  getLoadTimesMs(): Map<string, number> {
+    const loadTimesMs = new Map<string, number>();
+    for (const p of this.orderedPlugins) {
+      if (p.traceContext !== undefined) {
+        loadTimesMs.set(p.desc.id, p.traceContext.loadTimeMs);
+      }
+    }
+    return loadTimesMs;
+  }
+
   getPluginContainer(id: string): PluginWrapper | undefined {
     return this.registry.tryGet(id);
   }
