@@ -12,6 +12,8 @@ Unreleased:
   Trace Processor:
    * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
      one call failed (e.g. an interrupted query), until they were redefined.
+   * Fixed `heap_graph_object.root_distance` always being `-1` for
+     `android.java_hprof` heap graphs (regression introduced in v59.0).
    * Fixed `android.cujs` jank CUJ frame metrics (e.g.
      `android_jank_cuj_slice_summary`, `android_jank_cuj` timeline metrics)
      counting frames that do not overlap with the CUJ, e.g. frames that
