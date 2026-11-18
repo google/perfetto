@@ -49,6 +49,12 @@ function sentPlugins(sent: AdvancedAnalyticsEvent[]): string[] {
   return sent.map((e) => (e.kind === 'plugin_loaded' ? e.plugin : e.kind));
 }
 
+// Load times for 10 slow plugins named 'slow0', 'slow1', ..., each taking at
+// least 100 ms, so that no faster plugin is among the 10 slowest.
+function slowPlugins(): Array<[string, number]> {
+  return Array.from({length: 10}, (_, i) => [`slow${i}`, 100 + i]);
+}
+
 // Load times for |count| fast plugins named 'fast0', 'fast1', ..., each taking
 // 1 ms.
 function fastPlugins(count: number): Array<[string, number]> {
@@ -106,6 +112,56 @@ describe('PluginLoadReporter', () => {
           hasTracks: false,
         },
       ]);
+    });
+  });
+
+  describe('onTrackRegistered', () => {
+    test('should report a plugin that registers its first track late', () => {
+      const {reporter, sent, traceLoadId} = createReporter();
+      reporter.reportLoad(
+        new Map([...slowPlugins(), ['late', 20.6]]),
+        new Set(),
+      );
+      sent.length = 0;
+      reporter.onTrackRegistered('late');
+      expect(sent).toEqual([
+        {
+          kind: 'plugin_loaded',
+          traceLoadId,
+          plugin: 'late',
+          loadMs: 21,
+          hasTracks: true,
+        },
+      ]);
+    });
+
+    test('should report a late plugin only once', () => {
+      const {reporter, sent} = createReporter();
+      reporter.reportLoad(new Map([...slowPlugins(), ['late', 20]]), new Set());
+      sent.length = 0;
+      reporter.onTrackRegistered('late');
+      reporter.onTrackRegistered('late');
+      expect(sentPlugins(sent)).toEqual(['late']);
+    });
+
+    test('should not report tracks registered while loading', () => {
+      const {reporter, sent} = createReporter();
+      reporter.onTrackRegistered('early');
+      expect(sent).toEqual([]);
+    });
+
+    test('should not report a plugin that was already reported', () => {
+      const {reporter, sent} = createReporter();
+      reporter.reportLoad(new Map([['sched', 300]]), new Set(['sched']));
+      reporter.onTrackRegistered('sched');
+      expect(sentPlugins(sent)).toEqual(['sched']);
+    });
+
+    test('should not report a plugin with no load time', () => {
+      const {reporter, sent} = createReporter();
+      reporter.reportLoad(new Map(), new Set());
+      reporter.onTrackRegistered('unknown');
+      expect(sent).toEqual([]);
     });
   });
 });

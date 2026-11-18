@@ -21,6 +21,12 @@ const SLOWEST_PLUGIN_COUNT = 10;
 // Sends the plugin_loaded events for one trace load: one for each plugin that
 // registered tracks for the trace, and one for each of the slowest plugins.
 export class PluginLoadReporter {
+  // The plugins that already have a plugin_loaded event for this trace load.
+  private readonly reported = new Set<string>();
+
+  // Each plugin's onTraceLoad() time, once loading has finished.
+  private loadTimesMs?: ReadonlyMap<string, number>;
+
   constructor(
     private readonly traceLoadId: TraceLoadId,
     // Require a dependency injection of the analytics manager.
@@ -34,6 +40,7 @@ export class PluginLoadReporter {
     loadTimesMs: ReadonlyMap<string, number>,
     pluginsWithTracks: ReadonlySet<string>,
   ): void {
+    this.loadTimesMs = loadTimesMs;
     const slowest = new Set(
       [...loadTimesMs.entries()]
         .sort(([, a], [, b]) => b - a)
@@ -48,11 +55,25 @@ export class PluginLoadReporter {
     }
   }
 
+  // Call whenever a plugin registers a track. Check against the list of plugins
+  // we've already sent plugin_loaded events for. If it's not in the list, then
+  // send a new plugin_loaded event.
+  //
+  // Reason for this is to catch the edge case that a plugin registers tracks after
+  // or outside of trace loading time, because we still want those counted.
+  onTrackRegistered(pluginId: string): void {
+    if (this.loadTimesMs === undefined || this.reported.has(pluginId)) return;
+    const loadMs = this.loadTimesMs.get(pluginId);
+    if (loadMs === undefined) return;
+    this.sendPluginLoaded(pluginId, loadMs, true);
+  }
+
   private sendPluginLoaded(
     pluginId: string,
     loadMs: number,
     hasTracks: boolean,
   ) {
+    this.reported.add(pluginId);
     this.analytics.logAdvancedEvent({
       kind: 'plugin_loaded',
       traceLoadId: this.traceLoadId,

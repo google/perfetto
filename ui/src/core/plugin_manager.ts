@@ -280,10 +280,12 @@ function createTraceProxy(trace: TraceImpl, pluginId: string): TraceImpl {
     get tracks() {
       return createProxy(trace.tracks, {
         registerTrack(track) {
-          return trace.tracks.registerTrack({
+          const registration = trace.tracks.registerTrack({
             ...track,
             pluginId,
           });
+          trace.pluginLoads.onTrackRegistered(pluginId);
+          return registration;
         },
       });
     },
