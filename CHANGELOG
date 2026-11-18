@@ -30,6 +30,10 @@ Unreleased:
    * Python query results can now be converted to typed Arrow tables with
      `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
      can be passed straight to pyarrow, polars and DuckDB.
+   * Added `heap_graph_shortest_path_tree` in
+     `android.memory.heap_graph.shortest_path_tree`, exposing each reachable
+     Java heap object's shortest strong-reference path parent, depth and
+     subtree sizes from GC roots.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.

@@ -515,3 +515,201 @@ class HeapGraph(TestSuite):
           "com.android.server.stats.StatsManagerService$PullerValue","com.android.server.stats.StatsManagerService$PullerValue.mCallback",5
           "android.graphics.GraphicsStatsService$ActiveBuffer","android.graphics.GraphicsStatsService$ActiveBuffer.mToken",4
         """))
+
+  def test_heap_graph_shortest_path_tree(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            process_tree {
+              processes {
+                pid: 2
+                ppid: 1
+                cmdline: "system_server"
+                uid: 1000
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 999
+            timestamp: 10
+            [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+              pid: 2
+              field_names {
+                iid: 1
+                str: "java.lang.Object ref"
+              }
+              field_names {
+                iid: 2
+                str: "java.lang.Object java.lang.ref.Reference.referent"
+              }
+              types {
+                id: 1
+                class_name: "RootA"
+                reference_field_id: 1
+                reference_field_id: 1
+                reference_field_id: 1
+              }
+              types {
+                id: 2
+                class_name: "RootB"
+                reference_field_id: 1
+              }
+              types {
+                id: 3
+                class_name: "Branch"
+                reference_field_id: 1
+                reference_field_id: 1
+              }
+              types {
+                id: 4
+                class_name: "Deep"
+                reference_field_id: 1
+              }
+              types {
+                id: 5
+                class_name: "Target"
+              }
+              types {
+                id: 6
+                class_name: "Shared"
+              }
+              types {
+                id: 7
+                class_name: "WeakRef"
+                kind: KIND_WEAK_REFERENCE
+                reference_field_id: 2
+              }
+              types {
+                id: 8
+                class_name: "WeakOnly"
+              }
+              types {
+                id: 9
+                class_name: "Unreachable"
+              }
+              roots {
+                root_type: ROOT_JAVA_FRAME
+                object_ids: 1
+              }
+              roots {
+                root_type: ROOT_JNI_GLOBAL
+                object_ids: 2
+              }
+              objects {
+                id: 1
+                type_id: 1
+                self_size: 10
+                reference_object_id: 3
+                reference_object_id: 5
+                reference_object_id: 7
+              }
+              objects {
+                id: 2
+                type_id: 2
+                self_size: 60
+                reference_object_id: 6
+              }
+              objects {
+                id: 3
+                type_id: 3
+                self_size: 20
+                reference_object_id: 4
+                reference_object_id: 6
+              }
+              objects {
+                id: 4
+                type_id: 4
+                self_size: 30
+                reference_object_id: 5
+              }
+              objects {
+                id: 5
+                type_id: 5
+                self_size: 40
+              }
+              objects {
+                id: 6
+                type_id: 6
+                self_size: 50
+              }
+              objects {
+                id: 7
+                type_id: 7
+                self_size: 15
+                reference_object_id: 8
+              }
+              objects {
+                id: 8
+                type_id: 8
+                self_size: 100
+              }
+              objects {
+                id: 9
+                type_id: 9
+                self_size: 200
+              }
+              continued: false
+              index: 0
+            }
+          }
+        """),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree;
+
+          SELECT
+            c.name AS type_name,
+            pc.name AS parent_type_name,
+            t.depth,
+            d.depth AS dom_depth,
+            t.cumulative_count,
+            t.cumulative_size,
+            t.cumulative_native_size
+          FROM heap_graph_shortest_path_tree AS t
+          JOIN heap_graph_object AS o ON t.id = o.id
+          JOIN heap_graph_class AS c ON o.type_id = c.id
+          LEFT JOIN heap_graph_object AS po ON t.parent_id = po.id
+          LEFT JOIN heap_graph_class AS pc ON po.type_id = pc.id
+          LEFT JOIN heap_graph_dominator_tree AS d ON t.id = d.id
+          ORDER BY c.name;
+        """,
+        out=Csv("""
+          "type_name","parent_type_name","depth","dom_depth","cumulative_count","cumulative_size","cumulative_native_size"
+          "Branch","RootA",2,2,2,50,0
+          "Deep","Branch",3,3,1,30,0
+          "RootA","[NULL]",1,1,5,115,0
+          "RootB","[NULL]",1,1,2,110,0
+          "Shared","RootB",2,1,1,50,0
+          "Target","RootA",2,2,1,40,0
+          "WeakRef","RootA",2,2,1,15,0
+        """))
+
+  def test_heap_graph_shortest_path_tree_native_size(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/profiling/heap_graph_native_size.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree;
+
+          SELECT
+            c.name AS type_name,
+            pc.name AS parent_type_name,
+            t.depth,
+            t.cumulative_count,
+            t.cumulative_size,
+            t.cumulative_native_size
+          FROM heap_graph_shortest_path_tree AS t
+          JOIN heap_graph_object AS o ON t.id = o.id
+          JOIN heap_graph_class AS c ON o.type_id = c.id
+          LEFT JOIN heap_graph_object AS po ON t.parent_id = po.id
+          LEFT JOIN heap_graph_class AS pc ON po.type_id = pc.id
+          ORDER BY c.name;
+        """,
+        out=Csv("""
+          "type_name","parent_type_name","depth","cumulative_count","cumulative_size","cumulative_native_size"
+          "android.graphics.Bitmap","[NULL]",1,1,46,123456
+          "android.os.BinderProxy","[NULL]",1,1,17,0
+          "java.lang.Class<sun.misc.Cleaner>","[NULL]",1,4,380,0
+          "libcore.util.NativeAllocationRegistry","libcore.util.NativeAllocationRegistry$CleanerThunk",4,1,32,0
+          "libcore.util.NativeAllocationRegistry$CleanerThunk","sun.misc.Cleaner",3,2,56,0
+          "sun.misc.Cleaner","java.lang.Class<sun.misc.Cleaner>",2,3,92,0
+        """))
