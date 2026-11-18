@@ -37,6 +37,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/tree_key_paths.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -135,6 +136,8 @@ class LogicalPlanFormatter {
 
  private:
   static std::string ScanString(const LogicalPlan&, const Scan&);
+  static std::string TreeKeyPathsString(const LogicalPlan&,
+                                        const TreeKeyPaths&);
   static std::string TreeAccumulateString(const LogicalPlan&,
                                           const TreeAccumulate&);
   static std::string IntervalFlattenString(const LogicalPlan&,
@@ -266,6 +269,19 @@ std::string LogicalPlanFormatter::TreeAccumulateString(
   return out + ")";
 }
 
+std::string LogicalPlanFormatter::TreeKeyPathsString(
+    const LogicalPlan& plan,
+    const TreeKeyPaths& paths) {
+  std::string out = "TreeKeyPaths(node=#" + std::to_string(paths.node_column_) +
+                    ", parent=#" + std::to_string(paths.parent_column_);
+  for (ColumnId key : paths.keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  out += " -> " + ColumnString(plan, paths.path_) + ", " +
+         ColumnString(plan, paths.parent_path_);
+  return out + ")";
+}
+
 std::string LogicalPlanFormatter::IntervalFlattenString(
     const LogicalPlan& plan,
     const IntervalFlatten& flatten) {
@@ -384,7 +400,8 @@ std::string LogicalPlanFormatter::WhereString(const Where& where) {
     std::vector<std::string> literals;
     for (uint32_t j = 0; j < p.literal_count; ++j) {
       const Literal& l = where.literals_[p.first_literal + j];
-      literals.push_back(l.is_string()   ? "'" + l.text + "'"
+      literals.push_back(l.is_bound()    ? "?" + std::to_string(l.bound)
+                         : l.is_string() ? "'" + l.text + "'"
                          : l.is_double() ? std::to_string(l.double_value)
                                          : std::to_string(l.int_value));
     }
@@ -425,6 +442,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<TreeAccumulate>()) {
     return SubtreeString(plan, node.children()[0]) +
            TreeAccumulateString(plan, node.Cast<TreeAccumulate>()) + "\n";
+  }
+  if (node.Is<TreeKeyPaths>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           TreeKeyPathsString(plan, node.Cast<TreeKeyPaths>()) + "\n";
   }
   if (node.Is<IntervalIntersect>()) {
     return IntervalIntersectString(plan, node) + "\n";

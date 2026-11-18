@@ -18,7 +18,7 @@ import type {Trace} from '../../public/trace';
 
 export enum CPUType {
   Big = 'big',
-  Mid = 'mid',
+  Mid = 'medium',
   Little = 'little',
 }
 

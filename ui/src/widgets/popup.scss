@@ -49,6 +49,23 @@
     max-width: unset;
   }
 
+  // Popper sets this attribute while the trigger is not visible: when it has
+  // been scrolled out of view inside a scrolling container (or the window), or
+  // when it or one of its ancestors has display:none (an empty rect at the
+  // viewport origin always counts as clipped). Hide the popup until the trigger
+  // is visible again. Popper updates on scroll and resize, so this happens
+  // without any redraws. Use visibility rather than display so popper can still
+  // measure the popup.
+  &[data-popper-reference-hidden] {
+    visibility: hidden;
+
+    // The arrow is drawn by its ::before, which sets visibility explicitly
+    // (see below), so it has to be hidden explicitly too.
+    .pf-popup-arrow::before {
+      visibility: hidden;
+    }
+  }
+
   &--match-width {
     // Width is handled in JS
     max-width: unset;

@@ -110,7 +110,8 @@ export async function uploadTraceToGDrive(
       return;
     }
 
-    share.fileId = result.value;
+    share.fileId = result.value.id;
+    share.resourceKey = result.value.resourceKey;
   } finally {
     share.upload = undefined;
   }
