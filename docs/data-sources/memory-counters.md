@@ -257,7 +257,11 @@ which level of the hierarchy the cgroup is at, and what the value is:
 The tracks are named `memcg.<key>` for processes,
 `memcg.<group>.uid_<uid>.<key>` for uids and `memcg.<group>.<key>` for the
 top-level groups. Their dimensions are `memcg_group` (`apps` or `system`),
-`uid` (process and uid levels), `upid` (process level) and `memcg_key`.
+`uid` (process and uid levels), `upid` (process level) and `memcg_key`. In
+traces without process lifecycle data (no `linux.process_stats` or ftrace
+process events), a pid reused within the same uid has a single `upid`, and
+therefore a single set of tracks; a pid reused under another uid gets distinct
+tracks.
 
 A limit set to `max` (no limit) has the value -1. When the data source only
 records the values that changed (`cache_ttl_ms`), a value that isn't recorded
@@ -280,6 +284,20 @@ where t.type glob 'memcg_uid*'
 | 261187015027350 | memcg.apps.uid_10123.current   | apps        | 10123 | 189870080 |
 | 261187015027350 | memcg.apps.uid_10123.high      | apps        | 10123 | -1        |
 | 261187015027350 | memcg.apps.uid_10123.stat.anon | apps        | 10123 | 98004992  |
+
+The `android.memory.memcg` module of the
+[standard library](/docs/analysis/stdlib-docs.autogen) has the tracks with their
+level, kind and package (`android_memcg_track`), and their values as intervals
+(`android_memcg_intervals`), with limits set to `max` as NULL:
+
+```sql
+include perfetto module android.memory.memcg;
+
+select i.ts, i.dur, i.uid, t.package_name, i.value
+from android_memcg_intervals as i
+join android_memcg_track as t on i.track_id = t.id
+where i.level = 'uid' and i.key = 'current'
+```
 
 ### TraceConfig {#memcg-traceconfig}
 
