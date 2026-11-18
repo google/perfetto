@@ -32,7 +32,7 @@ namespace {
 struct MergeContext {
   std::unordered_set<std::string> known_enums;
   std::unordered_set<std::string> allowlisted_options;
-  bool lossless_changes_only = false;
+  TypeChanges type_changes = TypeChanges::kAll;
 };
 
 struct FieldParams {
@@ -325,7 +325,7 @@ bool IsLosslessTypeTransition(const std::string& from, const std::string& to) {
          (from == "sint32" && to == "sint64");
 }
 
-// Merges |input| with its |upstream| version. With |ctx.lossless_changes_only|,
+// Merges |input| with its |upstream| version. With TypeChanges::kLosslessOnly,
 // label changes and allowed type transitions which are not lossless (e.g.
 // int64 -> int32, int32 -> enum, bytes -> message) are not applied, as they
 // change how stored data is read: the field keeps its input label and type.
@@ -367,8 +367,9 @@ base::Status MergeField(const ProtoFile::Field& input,
   // Get the comments, label and the name from the source of truth.
   out.leading_comments = upstream.leading_comments;
   out.trailing_comments = upstream.trailing_comments;
-  out.is_repeated =
-      ctx.lossless_changes_only ? input.is_repeated : upstream.is_repeated;
+  out.is_repeated = ctx.type_changes == TypeChanges::kLosslessOnly
+                        ? input.is_repeated
+                        : upstream.is_repeated;
   out.name = upstream.name;
 
   // Get everything else from the input.
@@ -378,7 +379,7 @@ base::Status MergeField(const ProtoFile::Field& input,
   MergeAllowlistedOptions(upstream.options, out.options,
                           ctx.allowlisted_options);
 
-  if (ctx.lossless_changes_only
+  if (ctx.type_changes == TypeChanges::kLosslessOnly
           ? IsLosslessTypeTransition(input.packageless_type,
                                      upstream.packageless_type)
           : input.packageless_type != upstream.packageless_type) {
@@ -655,8 +656,8 @@ base::Status MergeProtoFiles(
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::unordered_set<std::string>& allowlisted_options,
-    bool lossless_changes_only) {
+    TypeChanges type_changes,
+    const std::unordered_set<std::string>& allowlisted_options) {
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
@@ -664,7 +665,7 @@ base::Status MergeProtoFiles(
 
   MergeContext ctx;
   ctx.allowlisted_options = allowlisted_options;
-  ctx.lossless_changes_only = lossless_changes_only;
+  ctx.type_changes = type_changes;
 
   for (const auto& en : upstream.enums) {
     ctx.known_enums.insert(en.name);

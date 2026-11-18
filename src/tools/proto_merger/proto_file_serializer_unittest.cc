@@ -159,7 +159,9 @@ TEST(ProtoFileSerializerTest, MergeKeepsFieldsDeletedUpstream) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
@@ -189,7 +191,9 @@ TEST(ProtoFileSerializerTest, MergeDropsNonAllowlistedUpstreamFields) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
@@ -216,7 +220,9 @@ void VerifyDeletedCommentStripped(
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, Not(HasSubstr(kDeletedCommentWarning)));
@@ -253,7 +259,8 @@ TEST(ProtoFileSerializerTest, TypeTransitionDisallowedFails) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  base::Status status =
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll);
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.c_message(), HasSubstr("changed from bool to string"));
 }
@@ -276,7 +283,8 @@ TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  base::Status status =
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll);
   ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
@@ -309,7 +317,8 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  base::Status status =
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll);
   ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
@@ -318,7 +327,7 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
 }
 
 // Merges a "Container" message whose field 1 changes from |from| to |to| with
-// lossless_changes_only, and returns the merged field.
+// TypeChanges::kLosslessOnly, and returns the merged field.
 ProtoFile::Field MergeLosslessChangesOnly(const ProtoFile::Field& from,
                                           const ProtoFile::Field& to) {
   auto make_file = [](const ProtoFile::Field& field) {
@@ -334,8 +343,8 @@ ProtoFile::Field MergeLosslessChangesOnly(const ProtoFile::Field& from,
   };
   ProtoFile merged;
   base::Status status =
-      MergeProtoFiles(make_file(from), make_file(to), Allowlist{}, merged, {},
-                      /*lossless_changes_only=*/true);
+      MergeProtoFiles(make_file(from), make_file(to), Allowlist{}, merged,
+                      TypeChanges::kLosslessOnly);
   EXPECT_TRUE(status.ok()) << status.c_message();
   return merged.messages[1].fields[0];
 }
@@ -369,8 +378,8 @@ TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsLabel) {
                   .is_repeated);
 }
 
-// Without lossless_changes_only, a field changed to a new enum would use an
-// enum that is not allowlisted, so missing from the output.
+// With TypeChanges::kAll, a field changed to a new enum would use an enum that
+// is not allowlisted, so missing from the output.
 TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsTypeOfNewEnum) {
   ProtoFile input;
   ProtoFile::Message message{};
@@ -386,8 +395,8 @@ TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsTypeOfNewEnum) {
   upstream.messages[0].enums.push_back(en);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged, {},
-                              /*lossless_changes_only=*/true)
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kLosslessOnly)
                   .ok());
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("bool state = 1;"));
@@ -414,9 +423,9 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
-          .ok());
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1 [deprecated = true];"));
@@ -442,9 +451,9 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumIsMerged) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
-          .ok());
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("ACTIVE = 1 [deprecated = true];"));
@@ -487,9 +496,9 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionRemovedUpstreamIsRemoved) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
-          .ok());
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 un_deprecated = 1;"));
@@ -520,9 +529,9 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumRemovedUpstreamIsRemoved) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
-          .ok());
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("ACTIVE = 1;"));
@@ -609,7 +618,9 @@ TEST(ProtoFileSerializerTest,
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
@@ -702,7 +713,9 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
@@ -797,7 +810,9 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
@@ -833,7 +848,9 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
@@ -922,8 +939,9 @@ TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input_file, upstream_file, Allowlist{}, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, Allowlist{}, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
@@ -1021,7 +1039,9 @@ TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
@@ -1077,7 +1097,9 @@ TEST(ProtoFileSerializerTest,
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
@@ -1126,7 +1148,9 @@ TEST(ProtoFileSerializerTest,
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("Note note = 1 [deprecated = true];"));
@@ -1510,7 +1534,7 @@ TEST(ProtoFileSerializerTest, MergeKeepsExtensionRangesOfInput) {
   ASSERT_TRUE(
       MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
                       ImportProtoFile(temp_dir.path(), "upstream.proto"),
-                      Allowlist{}, merged)
+                      Allowlist{}, merged, TypeChanges::kAll)
           .ok());
 
   std::string out = ProtoFileToDotProto(merged);
@@ -1566,7 +1590,7 @@ TEST(ProtoFileSerializerTest, MergeKeepsExtensionsStatementComments) {
   ASSERT_TRUE(
       MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
                       ImportProtoFile(temp_dir.path(), "upstream.proto"),
-                      Allowlist{}, merged)
+                      Allowlist{}, merged, TypeChanges::kAll)
           .ok());
 
   std::string out = ProtoFileToDotProto(merged);
@@ -1621,7 +1645,7 @@ TEST(ProtoFileSerializerTest, MergeAddsExtensionsOfNewAllowlistedMessage) {
   ASSERT_TRUE(
       MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
                       ImportProtoFile(temp_dir.path(), "upstream.proto"),
-                      allowlist, merged)
+                      allowlist, merged, TypeChanges::kAll)
           .ok());
 
   std::string out = ProtoFileToDotProto(merged);
@@ -1665,7 +1689,7 @@ TEST(ProtoFileSerializerTest, MergeCutsNewFieldsOutOfInputRanges) {
   ASSERT_TRUE(
       MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
                       ImportProtoFile(temp_dir.path(), "upstream.proto"),
-                      allowlist, merged)
+                      allowlist, merged, TypeChanges::kAll)
           .ok());
 
   std::string root_text = FindMessageText(ProtoFileToDotProto(merged), "Root");
@@ -1788,7 +1812,8 @@ std::string MergeWithFieldList(const std::string& dir,
   ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
   ProtoFile merged;
-  status = MergeProtoFiles(input_file, upstream_file, allowed, merged);
+  status = MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                           TypeChanges::kAll);
   EXPECT_TRUE(status.ok()) << status.message();
   std::string out = ProtoFileToDotProto(merged);
 

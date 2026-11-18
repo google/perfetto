@@ -80,7 +80,7 @@ const char kUsage[] =
 -o, --output:                Output path for writing the merged proto file.
 -O, --allowlisted-option:    Option/annotation key that should be preserved
                               from upstream (can be repeated).
--l, --lossless-changes-only: Only apply lossless type changes of existing
+--lossless-changes-only:     Only apply lossless type changes of existing
                               fields (e.g. int32 -> int64) and keep their
                               labels; other type changes keep the input type.
 
@@ -98,6 +98,10 @@ Example usage:
 )";
 
 int Main(int argc, char** argv) {
+  enum LongOption {
+    OPT_LOSSLESS_CHANGES_ONLY = 1000,
+  };
+
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
@@ -109,7 +113,8 @@ int Main(int argc, char** argv) {
       {"upstream-root-message", required_argument, nullptr, 'r'},
       {"output", required_argument, nullptr, 'o'},
       {"allowlisted-option", required_argument, nullptr, 'O'},
-      {"lossless-changes-only", no_argument, nullptr, 'l'},
+      {"lossless-changes-only", no_argument, nullptr,
+       OPT_LOSSLESS_CHANGES_ONLY},
       {nullptr, 0, nullptr, 0}};
 
   std::string input;
@@ -120,11 +125,11 @@ int Main(int argc, char** argv) {
   std::string upstream_root_message;
   std::string output;
   std::unordered_set<std::string> allowlisted_options;
-  bool lossless_changes_only = false;
+  TypeChanges type_changes = TypeChanges::kAll;
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:O:l", long_options, nullptr);
+        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:O:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -174,8 +179,8 @@ int Main(int argc, char** argv) {
       continue;
     }
 
-    if (option == 'l') {
-      lossless_changes_only = true;
+    if (option == OPT_LOSSLESS_CHANGES_ONLY) {
+      type_changes = TypeChanges::kLosslessOnly;
       continue;
     }
 
@@ -278,7 +283,7 @@ int Main(int argc, char** argv) {
 
   ProtoFile merged;
   status = MergeProtoFiles(input_file, upstream_file, allowed, merged,
-                           allowlisted_options, lossless_changes_only);
+                           type_changes, allowlisted_options);
   if (!status.ok()) {
     PERFETTO_ELOG("Failed merging protos: %s", status.c_message());
     return 1;
