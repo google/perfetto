@@ -62,7 +62,6 @@ function derivePolicy(isInternalUser: boolean): Policy {
     bugReportUrl: isInternalUser
       ? 'https://goto.google.com/perfetto-ui-bug'
       : 'https://github.com/google/perfetto/issues/new',
-    showInternalExperimentalLinks: isInternalUser,
   };
 }
 
