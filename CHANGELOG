@@ -18,6 +18,11 @@ Unreleased:
      `android_jank_cuj_slice_summary`, `android_jank_cuj` timeline metrics)
      counting frames that do not overlap with the CUJ, e.g. frames that
      finished before the CUJ started when the CUJ's `FT#beginVsync` is stale.
+   * Fixed `android_jank_cuj_layer_name` returning `NULL` for CUJs that log
+     `FT#layerId#<id>` but have no `DrawFrame` slices (e.g. surface-only CUJs),
+     which made `android_jank_cuj` timeline metrics count frames of all layers.
+     `android_frames_layers.layer_id` is now parsed from the last `#` of the
+     layer name (e.g. `TX - Task=1#42(MirrorRoot)#2281` -> 2281).
    * The `trace_trigger` metadata is now taken from the
      `authoritative_trigger` packet, when present. Older traces fall back on
      the previous logic.
