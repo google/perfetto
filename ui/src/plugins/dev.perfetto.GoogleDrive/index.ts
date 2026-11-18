@@ -63,6 +63,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
   private readonly share: ShareState = {
     fileName: '',
     location: 'root',
+    shareWithOrgOrAnyone: true,
     fileId: undefined,
     resourceKey: undefined,
     upload: undefined,
@@ -234,6 +235,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
               onCancelUpload: () => share.upload?.controller.abort(),
               onPickFolder: () =>
                 redrawAfter(pickUploadFolder(oauth, drive, share)),
+              onShareWithOrgOrAnyoneChange: (value: boolean) => {
+                share.shareWithOrgOrAnyone = value;
+              },
               onOpenSharingDialog: () =>
                 redrawAfter(openGDriveSharingDialog(oauth, drive, share)),
             }),

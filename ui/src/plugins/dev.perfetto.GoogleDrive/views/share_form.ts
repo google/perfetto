@@ -17,6 +17,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
+import {Checkbox} from '../../../widgets/checkbox';
 import {Intent} from '../../../widgets/common';
 import {CopyToClipboardButton} from '../../../widgets/copy_to_clipboard_button';
 import {Form, FormLabel} from '../../../widgets/form';
@@ -37,6 +38,10 @@ export interface ShareState {
   fileName: string;
   // Where to upload to: a Drive folder, or 'root' for "My Drive".
   location: google.picker.DocumentObject | 'root';
+  // Whether to share the uploaded file with the user's organization (or
+  // everyone if the user has no organization) and allow it to appear in
+  // search results.
+  shareWithOrgOrAnyone: boolean;
   // The Drive file ID, once the trace is in Drive: either because it was
   // uploaded, or because it was opened from Drive in the first place.
   fileId: string | undefined;
@@ -76,6 +81,8 @@ export interface ShareFormAttrs {
   readonly onCancelUpload: () => void;
   // Opens the folder picker to change the location.
   readonly onPickFolder: () => void;
+  // Toggles sharing the uploaded file with the user's organization / everyone.
+  readonly onShareWithOrgOrAnyoneChange: (share: boolean) => void;
   // Opens the Google Drive sharing dialog for the uploaded file.
   readonly onOpenSharingDialog: () => void;
 }
@@ -201,6 +208,15 @@ function renderUploadForm(attrs: ShareFormAttrs): m.Children {
           onclick: () => attrs.onPickFolder(),
         }),
       ]),
+      m(Checkbox, {
+        label: 'Share with organization (or anyone) and allow in search results',
+        checked: state.shareWithOrgOrAnyone,
+        disabled: uploading,
+        onchange: (e: Event) =>
+          attrs.onShareWithOrgOrAnyoneChange(
+            (e.target as HTMLInputElement).checked,
+          ),
+      }),
       m(Inline, {className: 'pf-gdrive-share__footer'}, [
         upload !== undefined &&
           m('span.pf-gdrive-share__progress-text', progressText(upload)),

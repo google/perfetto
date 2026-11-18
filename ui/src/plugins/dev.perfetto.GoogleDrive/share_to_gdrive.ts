@@ -16,9 +16,23 @@ import type {Trace} from '../../public/trace';
 import {describeAuthFailure} from './dialogs';
 import type {DriveClient} from './google/drive_client';
 import type {GoogleOAuthClient} from './google/oauth_client';
-import type {ShareState, UploadState} from './views/share_form';
+import type {ShareError, ShareState, UploadState} from './views/share_form';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+// Consumer Google account domains that do not belong to a Google Workspace
+// organization.
+const CONSUMER_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
+
+function domainFromEmail(email: string): string | undefined {
+  const at = email.lastIndexOf('@');
+  if (at < 0) return undefined;
+  const domain = email
+    .slice(at + 1)
+    .trim()
+    .toLowerCase();
+  return domain === '' ? undefined : domain;
+}
 
 // Custom MIME type registered under "Default MIME types" in the GCP project's
 // Drive UI Integration settings so uploaded traces appear under "Open with
@@ -47,9 +61,11 @@ export async function uploadTraceToGDrive(
   // The dialog disables "Upload" in both of these cases.
   if (share.fileName === '' || share.upload !== undefined) return;
 
-  // Fix the name and destination now: the upload outlives this click.
+  // Fix the name, destination and sharing setting now: the upload outlives this
+  // click.
   const fileName = share.fileName;
   const parentId = share.location === 'root' ? 'root' : share.location.id;
+  const shareWithOrgOrAnyone = share.shareWithOrgOrAnyone;
   const upload: UploadState = {
     controller: new AbortController(),
     uploadedBytes: 0,
@@ -118,9 +134,71 @@ export async function uploadTraceToGDrive(
 
     share.fileId = result.value.id;
     share.resourceKey = result.value.resourceKey;
+
+    if (shareWithOrgOrAnyone) {
+      const shareError = await shareUploadedFile(
+        drive,
+        auth.value,
+        result.value.id,
+      );
+      if (shareError !== undefined) {
+        share.error = shareError;
+      }
+    }
   } finally {
     share.upload = undefined;
   }
+}
+
+// Grants read access and search discoverability on an uploaded file: to the
+// user's Google Workspace organization if they belong to one, otherwise to
+// anyone.
+async function shareUploadedFile(
+  drive: DriveClient,
+  oauthToken: string,
+  fileId: string,
+): Promise<ShareError | undefined> {
+  const permissionFailure = (error: {
+    readonly type: string;
+    readonly cause?: unknown;
+  }): ShareError => ({
+    message:
+      "Uploaded to Google Drive, but couldn't update sharing permissions.",
+    ...error,
+  });
+
+  const emailResult = await drive.getUserEmail(oauthToken);
+  if (!emailResult.ok) {
+    return permissionFailure(emailResult.error);
+  }
+
+  const domain = domainFromEmail(emailResult.value);
+  if (domain !== undefined && !CONSUMER_DOMAINS.has(domain)) {
+    const domainResult = await drive.createPermission(oauthToken, fileId, {
+      type: 'domain',
+      domain,
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+    if (domainResult.ok) return undefined;
+    // Consumer accounts registered with a non-Gmail email address have no
+    // Workspace organization, so Drive rejects type: 'domain' with HTTP 400.
+    // Fall back to sharing with anyone in that case, but do not fall back on
+    // policy/access errors (e.g. HTTP 403).
+    if (domainResult.error.type !== 'bad_request') {
+      return permissionFailure(domainResult.error);
+    }
+  }
+
+  const anyoneResult = await drive.createPermission(oauthToken, fileId, {
+    type: 'anyone',
+    role: 'reader',
+    allowFileDiscovery: true,
+  });
+  if (!anyoneResult.ok) {
+    return permissionFailure(anyoneResult.error);
+  }
+  return undefined;
 }
 
 // Lets the user choose which Drive folder to upload to.
