@@ -29,6 +29,9 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const {engine} = ctx;
     const numMachines = await getMachineCount(engine);
+    await engine.query(`
+      INCLUDE PERFETTO MODULE android.cpu.cluster_type;
+    `);
 
     // Find the list of CPU frequency track ids and their corresponding CPU idle
     // track ids if they exist
@@ -40,11 +43,14 @@ export default class implements PerfettoPlugin {
         track.machine_id AS machineId,
         machine.name AS machineName,
         machine.label_index AS machineLabelIndex,
-        track.cpu AS cpu
+        track.cpu AS cpu,
+        cluster.cluster_type AS clusterType
       FROM cpu_counter_track track
       JOIN cpu
         ON track.cpu = cpu.cpu
        AND track.machine_id = cpu.machine_id
+      LEFT JOIN android_cpu_cluster_mapping cluster
+        ON cpu.ucpu = cluster.ucpu
       LEFT JOIN cpu_counter_track t2
         ON track.cpu = t2.cpu
        AND track.machine_id = t2.machine_id
@@ -83,6 +89,7 @@ export default class implements PerfettoPlugin {
         cpu: NUM,
         ucpu: NUM,
         idleTrackId: NUM_NULL,
+        clusterType: STR_NULL,
       });
       it.valid();
       it.next()
@@ -95,6 +102,7 @@ export default class implements PerfettoPlugin {
         machineLabelIndex,
         cpu,
         ucpu,
+        clusterType,
       } = it;
       const uri = `/cpu_freq_cpu${ucpu}`;
 
@@ -130,9 +138,10 @@ export default class implements PerfettoPlugin {
         },
       });
 
+      const sizeStr = clusterType === null ? '' : ` (${clusterType})`;
       const trackNode = new TrackNode({
         uri,
-        name: `CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined, machineLabelIndex ?? undefined, numMachines).toString()} Frequency`,
+        name: `CPU ${new Cpu(ucpu, cpu, machineId, machineName ?? undefined, machineLabelIndex ?? undefined, numMachines).toString()} Frequency${sizeStr}`,
       });
 
       group.addChildInOrder(trackNode);

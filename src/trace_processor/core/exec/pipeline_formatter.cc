@@ -49,6 +49,7 @@
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/exec/top_k.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_key_paths.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
 
@@ -322,7 +323,7 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     for (const Filter::Condition& c : filter.conditions_) {
       out += (out.empty() ? "" : ", ") + Column(c.column) + " " + OpName(c.op);
       if (!c.op.IsAnyOf<NullOp>()) {
-        out += " ?" + std::to_string(c.value);
+        out += " ?" + std::to_string(c.param);
       }
     }
     return "Filter(" + out + ")";
@@ -348,6 +349,15 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     return "TreeAccumulateDown(" + Column(down.spec_.node_column) + ", " +
            Column(down.spec_.parent_column) + "; " +
            Aggregates(down.spec_.aggregates) + ")";
+  }
+  if (transform.Is<TreeKeyPaths>()) {
+    const auto& paths = static_cast<const TreeKeyPaths&>(transform);
+    std::string out = "TreeKeyPaths(" + Column(paths.spec_.node_column) + ", " +
+                      Column(paths.spec_.parent_column);
+    if (!paths.spec_.key_columns.empty()) {
+      out += ", " + Columns(paths.spec_.key_columns);
+    }
+    return out + ")";
   }
   return "Transform";
 }

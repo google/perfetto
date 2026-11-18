@@ -27,10 +27,11 @@ const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 
 // The Drive REST API endpoint for uploading a file with its metadata.
 // supportsAllDrives lets the destination folder be in a shared drive; without
-// it Drive reports such a folder as not found.
+// it Drive reports such a folder as not found. fields asks for the new file's
+// resource key alongside its ID, for building links to it.
 const DRIVE_UPLOAD_URL =
   'https://www.googleapis.com/upload/drive/v3/files' +
-  '?uploadType=multipart&supportsAllDrives=true';
+  '?uploadType=multipart&supportsAllDrives=true&fields=id,resourceKey';
 
 // How long to wait for each network step of DriveClient.create() before
 // giving up. Without this a stalled request would never settle.
@@ -63,9 +64,23 @@ export type PickerResult = Result<google.picker.DocumentObject, PickerError>;
 
 export interface GoogleDriveFileMeta {
   readonly name: string;
+  // Set if the file has a resource key, which links to it must include for
+  // people who don't have direct access to it.
+  readonly resourceKey?: string;
 }
 
-const FILE_META_SCHEMA = z.object({name: z.string()});
+// A resource key that isn't a valid ID is dropped rather than failing the
+// whole response: it is only needed for links, never to read the file.
+const OPTIONAL_RESOURCE_KEY = z
+  .string()
+  .refine(isValidDriveId)
+  .optional()
+  .catch(undefined);
+
+const FILE_META_SCHEMA = z.object({
+  name: z.string(),
+  resourceKey: OPTIONAL_RESOURCE_KEY,
+});
 
 // The resource key (from the "Open with" state payload) is required to access
 // some link-shared files the user has not opened before. Drive expects it in
@@ -94,7 +109,17 @@ function httpDriveError(status: number): DriveError {
 }
 
 // What Drive returns for a successful upload: the new file's record.
-const UPLOAD_RESPONSE_SCHEMA = z.object({id: z.string()});
+const UPLOAD_RESPONSE_SCHEMA = z.object({
+  id: z.string(),
+  resourceKey: OPTIONAL_RESOURCE_KEY,
+});
+
+// A file just uploaded to Drive.
+export interface UploadedFile {
+  readonly id: string;
+  // Set if Drive gave the new file a resource key.
+  readonly resourceKey?: string;
+}
 
 export interface UploadOptions {
   // Called as the upload progresses, with the bytes sent so far and the total
@@ -146,9 +171,9 @@ function uploadHttpError(status: number, responseText: string): UploadError {
 }
 
 // Reads the new file's ID out of Drive's response to a successful upload.
-function parseUploadedFileId(
+function parseUploadedFile(
   responseText: string,
-): Result<string, UploadError> {
+): Result<UploadedFile, UploadError> {
   let json: unknown;
   try {
     json = JSON.parse(responseText);
@@ -162,7 +187,8 @@ function parseUploadedFileId(
       cause: 'Google Drive did not return a file ID',
     });
   }
-  return okResult(result.data.id);
+  const {id, resourceKey} = result.data;
+  return okResult(resourceKey === undefined ? {id} : {id, resourceKey});
 }
 
 // The body of a Drive "multipart" upload, which sends a file's metadata and
@@ -331,7 +357,7 @@ export class DriveClient {
     parentId: string,
     fileName: string,
     opts?: UploadOptions,
-  ): Promise<Result<string, UploadError>> {
+  ): Promise<Result<UploadedFile, UploadError>> {
     const {body, contentType} = buildMultipartUpload(
       {
         name: fileName,
@@ -356,7 +382,7 @@ export class DriveClient {
     if (status < 200 || status >= 300) {
       return errResult(uploadHttpError(status, responseText));
     }
-    return parseUploadedFileId(responseText);
+    return parseUploadedFile(responseText);
   }
 
   // Downloads a file's contents. Never rejects.
@@ -377,7 +403,7 @@ export class DriveClient {
     );
   }
 
-  // Fetches a file's metadata (currently just its name). Never rejects.
+  // Fetches a file's metadata: its name and resource key. Never rejects.
   async getMeta(
     oauthToken: string,
     fileId: string,
@@ -386,7 +412,7 @@ export class DriveClient {
     return this.fetchFileResult(
       oauthToken,
       fileId,
-      {fields: 'name'},
+      {fields: 'name,resourceKey'},
       resourceKey,
       async (response) => {
         const meta = FILE_META_SCHEMA.safeParse(await response.json());
@@ -567,4 +593,20 @@ export function parseGDriveStateParam(
   }
 
   return okResult({fileId, resourceKey});
+}
+
+// Builds a link that opens a Drive file in the UI at `origin`, in the same
+// ?state= format as Drive's "Open with" deep link, so parseGDriveStateParam()
+// reads it back. Include the file's resource key if it has one: without it,
+// people who don't have direct access to the file can't open it.
+export function gdriveOpenLink(
+  origin: string,
+  fileId: string,
+  resourceKey?: string,
+): string {
+  const state: z.input<typeof GDRIVE_OPEN_STATE_SCHEMA> = {ids: [fileId]};
+  if (resourceKey !== undefined) {
+    state.resourceKeys = {[fileId]: resourceKey};
+  }
+  return `${origin}/?state=${encodeURIComponent(JSON.stringify(state))}`;
 }

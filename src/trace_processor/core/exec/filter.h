@@ -35,8 +35,8 @@ namespace perfetto::trace_processor::core::exec {
 // Keeps the rows of each batch for which every condition holds. Nothing is
 // copied: the batch's selection is narrowed.
 //
-// A condition compares a column with one of the run's filter values (see
-// Context::SetFilterValues) by =, !=, <, <=, >, >=, IN or, for a string
+// A condition compares a column with one of the run's params (see
+// Context::SetParams) by =, !=, <, <=, >, >=, IN or, for a string
 // column, GLOB, or tests it with IS [NOT] NULL. The values come already cast
 // for the column and comparison, so a Filter only compares.
 //
@@ -59,8 +59,8 @@ class Filter final : public Transform {
   struct Condition {
     uint32_t column = 0;
     Op op{Eq{}};
-    // The filter value compared with. Unused by IS [NOT] NULL.
-    uint32_t value = 0;
+    // The param compared with. Unused by IS [NOT] NULL.
+    uint32_t param = 0;
   };
 
   // `pool` holds the strings of the columns, and must outlive the filter.
@@ -76,7 +76,7 @@ class Filter final : public Transform {
   struct State : OperatorState {
     explicit State(const Context& c) : context(&c) {}
     ~State() override;
-    // Where the run's filter values are.
+    // Where the run's params are.
     const Context* context;
     // The batch rows still kept, increasing.
     CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;

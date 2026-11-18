@@ -72,6 +72,6 @@ export async function openFileFromSidebar(
     // perfetto-ui-data GCS bucket via permalinks or crash reports.
     shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
-    pluginArgs: gdriveTraceArgs(file.id),
+    pluginArgs: gdriveTraceArgs(file.id, file.resourceKey),
   });
 }

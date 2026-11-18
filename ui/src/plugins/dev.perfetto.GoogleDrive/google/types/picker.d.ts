@@ -24,6 +24,8 @@ declare global {
     interface DocumentObject {
       readonly id: string;
       readonly name?: string;
+      // Set for files that have a resource key.
+      readonly resourceKey?: string;
     }
 
     interface ResponseObject {

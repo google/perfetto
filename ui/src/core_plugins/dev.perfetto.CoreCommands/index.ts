@@ -43,7 +43,6 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {
   DISCORD_URL,
-  getBugReportUrl,
   getTimeSpanOfSelectionOrVisibleWindow,
 } from '../../public/utils';
 import type {Workspace} from '../../public/workspace';
@@ -377,9 +376,9 @@ export default class CoreCommands implements PerfettoPlugin {
       section: 'support',
       sortOrder: 4,
       text: 'Report a bug',
-      // A callback, because whether the user is internal can change after
-      // startup, once the internal extension server answers.
-      href: () => getBugReportUrl(ctx),
+      // A callback, because the policy can change after startup, once the
+      // internal extension server answers.
+      href: () => ctx.policy.bugReportUrl,
       icon: 'bug_report',
     });
   }
@@ -398,9 +397,9 @@ export default class CoreCommands implements PerfettoPlugin {
       text: 'Share',
       action: async () => await shareTrace(trace),
       icon: 'share',
-      // Whether the user is internal can change after startup, once the
-      // internal extension server answers.
-      hidden: () => !app.isInternalUser,
+      // The policy can change after startup, once the internal extension
+      // server answers.
+      hidden: () => !app.policy.enableTraceSharing,
     });
     trace.sidebar.addMenuItem({
       section: 'current_trace',

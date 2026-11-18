@@ -14,6 +14,7 @@
 
 import {
   DriveClient,
+  gdriveOpenLink,
   isValidDriveId,
   parseGDriveStateParam,
 } from './drive_client';
@@ -313,6 +314,43 @@ describe('parseGDriveStateParam', () => {
   });
 });
 
+describe('gdriveOpenLink', () => {
+  function stateOf(link: string): string {
+    return new URL(link).searchParams.get('state') ?? '';
+  }
+
+  test('opens the file at the given origin', () => {
+    const link = gdriveOpenLink('https://ui.perfetto.dev', 'file_123');
+
+    expect(new URL(link).origin).toBe('https://ui.perfetto.dev');
+    expect(parseGDriveStateParam(stateOf(link))).toEqual({
+      ok: true,
+      value: {fileId: 'file_123', resourceKey: undefined},
+    });
+  });
+
+  test('includes the resource key if given', () => {
+    const link = gdriveOpenLink(
+      'https://ui.perfetto.dev',
+      'file_123',
+      '0-key_9',
+    );
+
+    expect(parseGDriveStateParam(stateOf(link))).toEqual({
+      ok: true,
+      value: {fileId: 'file_123', resourceKey: '0-key_9'},
+    });
+  });
+
+  // Links copied before resource keys were included must keep working.
+  test('without a key, matches the original link format', () => {
+    expect(gdriveOpenLink('https://ui.perfetto.dev', 'file_123')).toBe(
+      'https://ui.perfetto.dev/?state=' +
+        encodeURIComponent(JSON.stringify({ids: ['file_123']})),
+    );
+  });
+});
+
 describe('DriveClient.openFile', () => {
   const fetchMock = vi.fn();
 
@@ -470,6 +508,37 @@ describe('DriveClient.getMeta', () => {
     const result = await client.getMeta('token', 'file123');
 
     expect(result).toEqual({ok: true, value: {name: 'my.pftrace'}});
+  });
+
+  test("asks for and returns the file's resource key", async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({name: 'my.pftrace', resourceKey: '0-key_9'}),
+    );
+    const client = await createClient();
+    const result = await client.getMeta('token', 'file123');
+
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const fields = new URL(new Request(input, init).url).searchParams.get(
+      'fields',
+    );
+    expect(fields?.split(',')).toEqual(
+      expect.arrayContaining(['name', 'resourceKey']),
+    );
+    expect(result).toEqual({
+      ok: true,
+      value: {name: 'my.pftrace', resourceKey: '0-key_9'},
+    });
+  });
+
+  test('ignores an invalid resource key in the response', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({name: 'my.pftrace', resourceKey: 'bad/key'}),
+    );
+    const client = await createClient();
+    const result = await client.getMeta('token', 'file123');
+
+    expect(result).toMatchObject({ok: true, value: {name: 'my.pftrace'}});
+    expect(result.ok && result.value.resourceKey).toBeUndefined();
   });
 
   test.each([
@@ -677,7 +746,37 @@ describe('DriveClient.uploadFile', () => {
     const pending = client.uploadFile('token', TRACE, 'folder1', 'my.pftrace');
     latestRequest().respond(200, JSON.stringify({id: 'new123'}));
 
-    expect(await pending).toEqual({ok: true, value: 'new123'});
+    expect(await pending).toEqual({ok: true, value: {id: 'new123'}});
+  });
+
+  test("asks for and returns the new file's resource key", async () => {
+    const client = await createClient();
+    const pending = client.uploadFile('token', TRACE, 'folder1', 'my.pftrace');
+
+    const fields = new URL(latestRequest().url).searchParams.get('fields');
+    expect(fields?.split(',')).toEqual(
+      expect.arrayContaining(['id', 'resourceKey']),
+    );
+
+    latestRequest().respond(
+      200,
+      JSON.stringify({id: 'new123', resourceKey: '0-key_9'}),
+    );
+    expect(await pending).toEqual({
+      ok: true,
+      value: {id: 'new123', resourceKey: '0-key_9'},
+    });
+  });
+
+  test('ignores an invalid resource key in the response', async () => {
+    const client = await createClient();
+    const pending = client.uploadFile('token', TRACE, 'folder1', 'my.pftrace');
+    latestRequest().respond(
+      200,
+      JSON.stringify({id: 'new123', resourceKey: 'bad/key'}),
+    );
+
+    expect(await pending).toEqual({ok: true, value: {id: 'new123'}});
   });
 
   test("sends the file's contents, name and destination folder", async () => {
