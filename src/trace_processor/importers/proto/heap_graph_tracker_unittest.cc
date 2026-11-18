@@ -18,8 +18,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -38,7 +40,23 @@
 namespace perfetto::trace_processor {
 namespace {
 
+using ::com::android::art::tracing::pbzero::HeapGraphRoot;
+using ::com::android::art::tracing::pbzero::HeapGraphType;
 using ::testing::UnorderedElementsAre;
+
+void InitHeapGraphTestContext(TraceProcessorContext* context, UniquePid pid) {
+  context->storage = std::make_unique<TraceStorage>();
+  context->machine_tracker =
+      std::make_unique<MachineTracker>(context, kDefaultMachineId);
+  context->process_tracker = std::make_unique<ProcessTracker>(context);
+  context->process_tracker->GetOrCreateProcess(pid);
+  context->global_stats_tracker =
+      std::make_unique<GlobalStatsTracker>(context->storage.get());
+  context->trace_state =
+      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+          TraceProcessorContext::TraceState{TraceId{0}});
+  context->stats_tracker = std::make_unique<StatsTracker>(context);
+}
 
 TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
   TraceStorage storage;
@@ -72,18 +90,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   constexpr int64_t kTimestamp = 1;
 
   TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  context.machine_tracker =
-      std::make_unique<MachineTracker>(&context, kDefaultMachineId);
-  context.process_tracker = std::make_unique<ProcessTracker>(&context);
-  context.process_tracker->GetOrCreateProcess(kPid);
-
-  context.global_stats_tracker =
-      std::make_unique<GlobalStatsTracker>(context.storage.get());
-  context.trace_state =
-      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-          TraceProcessorContext::TraceState{TraceId{0}});
-  context.stats_tracker = std::make_unique<StatsTracker>(&context);
+  InitHeapGraphTestContext(&context, kPid);
   HeapGraphTracker tracker(context.storage.get(),
                            context.global_stats_tracker.get());
 
@@ -205,6 +212,188 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
     }
   }
   EXPECT_EQ(count_bitmaps, 1u);
+}
+
+TEST(HeapGraphTrackerTest, MarkReachableObjectsRootDistance) {
+  constexpr uint64_t kSeqId = 1;
+  constexpr UniquePid kPid = 1;
+  constexpr int64_t kTimestamp = 1;
+
+  TraceProcessorContext context;
+  InitHeapGraphTestContext(&context, kPid);
+  HeapGraphTracker tracker(context.storage.get(),
+                           context.global_stats_tracker.get());
+
+  constexpr uint64_t kLocation = 0;
+  tracker.AddInternedLocationName(kSeqId, kLocation,
+                                  context.storage->InternString("location"));
+
+  enum Fields : uint8_t { kReferent = 1, kStrongField };
+  tracker.AddInternedFieldName(kSeqId, kReferent,
+                               "java.lang.ref.Reference.referent");
+  tracker.AddInternedFieldName(kSeqId, kStrongField, "Foo.strong");
+
+  enum Types : uint8_t {
+    kTypeRootA = 1,
+    kTypeRootB,
+    kTypeMid1,
+    kTypeMid2,
+    kTypeShared,
+    kTypeCycleLeaf,
+    kTypeSoftRef,
+    kTypeSoftTarget,
+    kTypeWeakRef,
+    kTypeWeakTarget,
+    kTypePhantomRef,
+    kTypePhantomTarget,
+    kTypeFinalizerRef,
+    kTypeFinalizerTarget,
+    kTypeUnreachable1,
+    kTypeUnreachable2,
+  };
+
+  auto add_type = [&](uint64_t id, const char* name,
+                      std::vector<uint64_t> fields, HeapGraphType::Kind kind) {
+    tracker.AddInternedType(
+        kSeqId, id, context.storage->InternString(name), kLocation,
+        /*object_size=*/16, std::move(fields), /*superclass_id=*/0,
+        /*classloader_id=*/0, /*no_fields=*/false, kind);
+  };
+
+  add_type(kTypeRootA, "RootA",
+           {kStrongField, kStrongField, kStrongField, kStrongField,
+            kStrongField, kStrongField},
+           HeapGraphType::KIND_NORMAL);
+  add_type(kTypeRootB, "RootB", {kStrongField}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypeMid1, "Mid1", {kStrongField}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypeMid2, "Mid2", {kStrongField}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypeShared, "Shared", {kStrongField}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypeCycleLeaf, "CycleLeaf", {kStrongField},
+           HeapGraphType::KIND_NORMAL);
+  add_type(kTypeSoftRef, "SoftRef", {kReferent},
+           HeapGraphType::KIND_SOFT_REFERENCE);
+  add_type(kTypeSoftTarget, "SoftTarget", {}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypeWeakRef, "WeakRef", {kReferent},
+           HeapGraphType::KIND_WEAK_REFERENCE);
+  add_type(kTypeWeakTarget, "WeakTarget", {}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypePhantomRef, "PhantomRef", {kReferent},
+           HeapGraphType::KIND_PHANTOM_REFERENCE);
+  add_type(kTypePhantomTarget, "PhantomTarget", {}, HeapGraphType::KIND_NORMAL);
+  add_type(kTypeFinalizerRef, "FinalizerRef", {kReferent},
+           HeapGraphType::KIND_FINALIZER_REFERENCE);
+  add_type(kTypeFinalizerTarget, "FinalizerTarget", {},
+           HeapGraphType::KIND_NORMAL);
+  add_type(kTypeUnreachable1, "Unreachable1", {kStrongField},
+           HeapGraphType::KIND_NORMAL);
+  add_type(kTypeUnreachable2, "Unreachable2", {kStrongField},
+           HeapGraphType::KIND_NORMAL);
+
+  enum Objects : uint8_t {
+    kObjRootA = 1,
+    kObjRootB,
+    kObjMid1,
+    kObjMid2,
+    kObjShared,
+    kObjCycleLeaf,
+    kObjSoftRef,
+    kObjSoftTarget,
+    kObjWeakRef,
+    kObjWeakTarget,
+    kObjPhantomRef,
+    kObjPhantomTarget,
+    kObjFinalizerRef,
+    kObjFinalizerTarget,
+    kObjUnreachable1,
+    kObjUnreachable2,
+  };
+
+  auto add_obj = [&](uint64_t id, uint64_t type_id,
+                     std::vector<uint64_t> refs) {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = id;
+    obj.type_id = type_id;
+    obj.self_size = 16;
+    obj.referred_objects = std::move(refs);
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  };
+
+  // RootA reaches RootB directly (RootB must remain at distance 0), starts a
+  // longer path to Shared (RootA -> Mid1 -> Mid2 -> Shared), and holds soft,
+  // weak, phantom, and finalizer references.
+  add_obj(kObjRootA, kTypeRootA,
+          {kObjRootB, kObjMid1, kObjSoftRef, kObjWeakRef, kObjPhantomRef,
+           kObjFinalizerRef});
+  add_obj(kObjRootB, kTypeRootB, {kObjShared});
+  add_obj(kObjMid1, kTypeMid1, {kObjMid2});
+  add_obj(kObjMid2, kTypeMid2, {kObjShared});
+  add_obj(kObjShared, kTypeShared, {kObjCycleLeaf});
+  // Cycle back into Mid1; Mid1 must retain its shortest distance of 1.
+  add_obj(kObjCycleLeaf, kTypeCycleLeaf, {kObjMid1});
+  add_obj(kObjSoftRef, kTypeSoftRef, {kObjSoftTarget});
+  add_obj(kObjSoftTarget, kTypeSoftTarget, {});
+  add_obj(kObjWeakRef, kTypeWeakRef, {kObjWeakTarget});
+  add_obj(kObjWeakTarget, kTypeWeakTarget, {});
+  add_obj(kObjPhantomRef, kTypePhantomRef, {kObjPhantomTarget});
+  add_obj(kObjPhantomTarget, kTypePhantomTarget, {});
+  add_obj(kObjFinalizerRef, kTypeFinalizerRef, {kObjFinalizerTarget});
+  add_obj(kObjFinalizerTarget, kTypeFinalizerTarget, {});
+  // Unreachable 2-cycle.
+  add_obj(kObjUnreachable1, kTypeUnreachable1, {kObjUnreachable2});
+  add_obj(kObjUnreachable2, kTypeUnreachable2, {kObjUnreachable1});
+
+  // Duplicate RootA with multiple root types to verify RankRoot precedence:
+  // ROOT_STICKY_CLASS > ROOT_JNI_GLOBAL > ROOT_JNI_LOCAL.
+  tracker.AddRoot(kSeqId, kPid, kTimestamp,
+                  {HeapGraphRoot::ROOT_JNI_LOCAL, {kObjRootA}});
+  tracker.AddRoot(kSeqId, kPid, kTimestamp,
+                  {HeapGraphRoot::ROOT_STICKY_CLASS, {kObjRootA}});
+  tracker.AddRoot(kSeqId, kPid, kTimestamp,
+                  {HeapGraphRoot::ROOT_JNI_GLOBAL, {kObjRootA, kObjRootB}});
+
+  tracker.FinalizeProfile(kSeqId);
+
+  struct ExpectedState {
+    bool reachable;
+    std::optional<std::string> root_type;
+    int32_t root_distance;
+  };
+  const std::map<std::string, ExpectedState> expected = {
+      {"RootA", {true, "ROOT_STICKY_CLASS", 0}},
+      {"RootB", {true, "ROOT_JNI_GLOBAL", 0}},
+      {"Mid1", {true, std::nullopt, 1}},
+      {"Mid2", {true, std::nullopt, 2}},
+      {"Shared", {true, std::nullopt, 1}},
+      {"CycleLeaf", {true, std::nullopt, 2}},
+      {"SoftRef", {true, std::nullopt, 1}},
+      {"SoftTarget", {true, std::nullopt, 2}},
+      {"WeakRef", {true, std::nullopt, 1}},
+      {"WeakTarget", {false, std::nullopt, -1}},
+      {"PhantomRef", {true, std::nullopt, 1}},
+      {"PhantomTarget", {false, std::nullopt, -1}},
+      {"FinalizerRef", {true, std::nullopt, 1}},
+      {"FinalizerTarget", {false, std::nullopt, -1}},
+      {"Unreachable1", {false, std::nullopt, -1}},
+      {"Unreachable2", {false, std::nullopt, -1}},
+  };
+
+  const auto& objs_table = context.storage->heap_graph_object_table();
+  const auto& class_table = context.storage->heap_graph_class_table();
+  ASSERT_EQ(objs_table.row_count(), expected.size());
+  for (auto it = objs_table.IterateRows(); it; ++it) {
+    std::string cls_name =
+        context.storage->GetString(class_table[it.type_id()].name())
+            .ToStdString();
+    auto exp_it = expected.find(cls_name);
+    ASSERT_NE(exp_it, expected.end()) << "Unexpected class: " << cls_name;
+    EXPECT_EQ(it.reachable() != 0, exp_it->second.reachable) << cls_name;
+    std::optional<std::string> actual_root_type;
+    if (it.root_type().has_value()) {
+      actual_root_type =
+          context.storage->GetString(*it.root_type()).ToStdString();
+    }
+    EXPECT_EQ(actual_root_type, exp_it->second.root_type) << cls_name;
+    EXPECT_EQ(it.root_distance(), exp_it->second.root_distance) << cls_name;
+  }
 }
 
 constexpr char kArray[] = "X[]";
