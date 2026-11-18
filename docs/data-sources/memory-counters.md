@@ -288,7 +288,12 @@ where t.type glob 'memcg_uid*'
 The `android.memory.memcg` module of the
 [standard library](/docs/analysis/stdlib-docs.autogen) has the tracks with their
 level, kind and package (`android_memcg_track`), and their values as intervals
-(`android_memcg_intervals`), with limits set to `max` as NULL:
+(`android_memcg_intervals`), with limits set to `max` as NULL.
+`android_memcg_derived_intervals` has two series derived from them, for the
+cgroups that have both inputs: `file_excl_shmem` (`stat.file - stat.shmem`) and
+`headroom` (`high - current`, NULL while `high` is `max`).
+
+For example, the memory usage of each uid and its package:
 
 ```sql
 include perfetto module android.memory.memcg;

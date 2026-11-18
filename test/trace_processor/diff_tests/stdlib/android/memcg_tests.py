@@ -303,3 +303,96 @@ class AndroidMemcg(TestSuite):
         "process","apps",10004,77,4,1,4,1
         "process","system",10004,77,1,1,4,1
         """))
+
+  # Derived series. file_excl_shmem changes whenever file or shmem does (the
+  # polls only have the changes, so they don't change together) and doesn't go
+  # below 0. headroom is NULL while high is "max" and negative while current
+  # is above high.
+  def test_android_memcg_derived_intervals(self):
+    return DiffTestBlueprint(
+        trace=MEMCG_TRACE,
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.memcg;
+        SELECT
+          d.level,
+          d.memcg_group,
+          d.uid,
+          p.pid,
+          d.key,
+          d.ts,
+          d.dur,
+          d.value
+        FROM android_memcg_derived_intervals AS d
+        LEFT JOIN process AS p USING (upid)
+        ORDER BY d.level, d.uid, d.key, d.ts;
+        """,
+        out=Csv("""
+        "level","memcg_group","uid","pid","key","ts","dur","value"
+        "process","apps",10001,42,"file_excl_shmem",1000,1000,50.000000
+        "process","apps",10001,42,"file_excl_shmem",2000,500,40.000000
+        "process","apps",10001,42,"headroom",1000,1000,"[NULL]"
+        "process","apps",10001,42,"headroom",2000,500,-30.000000
+        "uid","apps",10001,"[NULL]","file_excl_shmem",1000,2000,150.000000
+        "uid","apps",10001,"[NULL]","file_excl_shmem",3000,1000,150.000000
+        "uid","apps",10001,"[NULL]","file_excl_shmem",4000,1000,0.000000
+        "uid","apps",10001,"[NULL]","headroom",1000,1000,700.000000
+        "uid","apps",10001,"[NULL]","headroom",2000,1000,-200.000000
+        "uid","apps",10001,"[NULL]","headroom",3000,2000,"[NULL]"
+        """))
+
+  # The cgroups that only have one of the inputs of a series have no
+  # intervals for it, rather than intervals with a NULL value.
+  def test_android_memcg_derived_intervals_missing_input(self):
+    return DiffTestBlueprint(
+        trace=MEMCG_TRACE,
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.memcg;
+        SELECT
+          t.name,
+          (
+            SELECT count(*)
+            FROM android_memcg_derived_intervals AS d
+            WHERE d.cgroup_key = t.cgroup_key AND d.key = 'headroom'
+          ) AS headroom_intervals
+        FROM android_memcg_track AS t
+        WHERE t.key = 'current'
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","headroom_intervals"
+        "memcg.apps.current",0
+        "memcg.apps.uid_10001.current",3
+        "memcg.apps.uid_10002.current",0
+        "memcg.apps.uid_1010001.current",0
+        "memcg.current",2
+        "memcg.system.current",0
+        "memcg.system.uid_1000.current",0
+        """))
+
+  # The inputs of a series are paired per cgroup, not per upid: the processes
+  # with the same upid but another uid or group have their own series.
+  def test_android_memcg_derived_intervals_pid_reuse(self):
+    return DiffTestBlueprint(
+        trace=PID_REUSE_TRACE,
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.memcg;
+        SELECT
+          d.level,
+          d.memcg_group,
+          d.uid,
+          p.pid,
+          d.key,
+          d.ts,
+          d.dur,
+          d.value
+        FROM android_memcg_derived_intervals AS d
+        LEFT JOIN process AS p USING (upid)
+        ORDER BY d.memcg_group, d.uid, d.key, d.ts;
+        """,
+        out=Csv("""
+        "level","memcg_group","uid","pid","key","ts","dur","value"
+        "process","apps",10003,77,"file_excl_shmem",1000,3000,20.000000
+        "process","apps",10003,77,"headroom",1000,3000,50.000000
+        "process","apps",10004,77,"file_excl_shmem",2000,2000,180.000000
+        "process","apps",10004,77,"headroom",2000,2000,700.000000
+        """))
