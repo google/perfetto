@@ -122,18 +122,67 @@ void StringFilter::AddRule(Policy policy,
     for (Rule& existing : rules_) {
       if (existing.name == new_rule.name) {
         existing = std::move(new_rule);
+        RebuildFastpathMasks();
         return;
       }
     }
   }
   rules_.push_back(std::move(new_rule));
+  RebuildFastpathMasks();
+}
+
+void StringFilter::RebuildFastpathMasks() {
+  active_semantic_types_ = SemanticTypeMask();
+  non_atrace_or_empty_prefix_types_ = SemanticTypeMask();
+  atrace_first_char_mask_ = {};
+  for (const Rule& rule : rules_) {
+    bool is_bounded_atrace =
+        (rule.policy == Policy::kAtraceMatchBreak ||
+         rule.policy == Policy::kAtraceMatchRedactGroups ||
+         rule.policy == Policy::kAtraceRepeatedSearchRedactGroups) &&
+        !rule.atrace_payload_starts_with.empty();
+    if (is_bounded_atrace) {
+      uint8_t ch = static_cast<uint8_t>(rule.atrace_payload_starts_with[0]);
+      atrace_first_char_mask_[ch >> 6] |= (uint64_t(1) << (ch & 63));
+    }
+    for (uint32_t st = 0; st < SemanticTypeMask::kLimit; ++st) {
+      if (rule.semantic_type_mask.IsSet(st)) {
+        active_semantic_types_.Set(st);
+        if (!is_bounded_atrace) {
+          non_atrace_or_empty_prefix_types_.Set(st);
+        }
+      }
+    }
+  }
 }
 
 bool StringFilter::MaybeFilterInternal(char* ptr,
                                        size_t len,
                                        uint32_t semantic_type) const {
+  if (PERFETTO_LIKELY(semantic_type < SemanticTypeMask::kLimit)) {
+    if (!active_semantic_types_.IsSet(semantic_type)) {
+      return false;
+    }
+  }
+
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
+
+  if (PERFETTO_LIKELY(
+          semantic_type < SemanticTypeMask::kLimit &&
+          !non_atrace_or_empty_prefix_types_.IsSet(semantic_type))) {
+    atrace_payload_ptr = FindAtracePayloadPtr(ptr, ptr + len);
+    if (!atrace_payload_ptr || atrace_payload_ptr >= ptr + len) {
+      return false;
+    }
+    uint8_t first_ch = static_cast<uint8_t>(*atrace_payload_ptr);
+    if ((atrace_first_char_mask_[first_ch >> 6] &
+         (uint64_t(1) << (first_ch & 63))) == 0) {
+      return false;
+    }
+    atrace_find_tried = true;
+  }
+
   std::string_view input(ptr, len);
 
   for (const Rule& rule : rules_) {

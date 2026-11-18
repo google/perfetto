@@ -160,6 +160,11 @@ class MessageFilter {
   // It gives a 20-25% speedup (265ms vs 215ms for a 25MB trace).
   void FilterOneByte(uint8_t octet) PERFETTO_ALWAYS_INLINE;
 
+  // Pops any completed submessage frames once |in_bytes| reaches
+  // |in_bytes_limit|, backfilling redundant varint lengths. Returns false if
+  // an unrecoverable framing error occurred.
+  bool PopCompletedSubmessages() PERFETTO_ALWAYS_INLINE;
+
   // No-inline because this is a slowpath (only when usage tracking is enabled).
   void IncrementCurrentFieldUsage(uint32_t field_id,
                                   bool allowed) PERFETTO_NO_INLINE;

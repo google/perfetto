@@ -722,5 +722,59 @@ TEST(StringFilterTest, UnspecifiedIsItsOwnCategory) {
   ASSERT_EQ(str5, "secret:P60RE");
 }
 
+TEST(StringFilterTest, FastpathPrefixMaskAndRuleReplacement) {
+  StringFilter filter;
+  auto mask_t1 = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
+  auto mask_t2 = StringFilter::SemanticTypeMask::FromWords(1ULL << 2, 0);
+
+  filter.AddRule(StringFilter::Policy::kAtraceMatchRedactGroups,
+                 R"(B\|\d+\|alpha:(.*))", "alpha:", "rule_a", mask_t1);
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(tok=(\d+))", "beta:", "rule_b", mask_t1);
+
+  // Unregistered semantic type skips immediately.
+  std::string unused_type = "B|100|alpha:secret";
+  EXPECT_FALSE(filter.MaybeFilter(unused_type.data(), unused_type.size(), 3));
+  EXPECT_EQ(unused_type, "B|100|alpha:secret");
+
+  // End events, empty payloads, non-matching initial bytes, and high-bit bytes.
+  std::string end_ev = "E|100";
+  EXPECT_FALSE(filter.MaybeFilter(end_ev.data(), end_ev.size(), 1));
+  std::string empty_pay = "B|100|";
+  EXPECT_FALSE(filter.MaybeFilter(empty_pay.data(), empty_pay.size(), 1));
+  std::string miss_ev = "B|100|gamma:123";
+  EXPECT_FALSE(filter.MaybeFilter(miss_ev.data(), miss_ev.size(), 1));
+  std::string hi_byte = std::string("B|100|") + char(0xff) + "payload";
+  EXPECT_FALSE(filter.MaybeFilter(hi_byte.data(), hi_byte.size(), 1));
+
+  // Matching bounded prefixes redact as expected.
+  std::string hit_a = "B|100|alpha:my_secret";
+  EXPECT_TRUE(filter.MaybeFilter(hit_a.data(), hit_a.size(), 1));
+  EXPECT_EQ(hit_a, "B|100|alpha:P60REDACT");
+
+  // Replacing a named rule rebuilds the first-character mask.
+  filter.AddRule(StringFilter::Policy::kAtraceMatchRedactGroups,
+                 R"(B\|\d+\|delta:(.*))", "delta:", "rule_a", mask_t1);
+  std::string old_a = "B|100|alpha:my_secret";
+  EXPECT_FALSE(filter.MaybeFilter(old_a.data(), old_a.size(), 1));
+  EXPECT_EQ(old_a, "B|100|alpha:my_secret");
+  std::string new_d = "B|100|delta:my_secret";
+  EXPECT_TRUE(filter.MaybeFilter(new_d.data(), new_d.size(), 1));
+  EXPECT_EQ(new_d, "B|100|delta:P60REDACT");
+
+  // Adding a non-atrace rule on type 2 leaves type 1's bounded fastpath intact
+  // while type 2 still evaluates non-atrace strings.
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(raw:(.*))", "",
+                 "raw_t2", mask_t2);
+  std::string t2_str = "raw:token";
+  EXPECT_TRUE(filter.MaybeFilter(t2_str.data(), t2_str.size(), 2));
+  EXPECT_EQ(t2_str, "raw:P60RE");
+
+  // Out-of-range semantic types (>= kLimit) fall back to applying rules safely.
+  std::string oor = "B|100|delta:val";
+  EXPECT_TRUE(filter.MaybeFilter(oor.data(), oor.size(), 128));
+  EXPECT_EQ(oor, "B|100|delta:P60");
+}
+
 }  // namespace
 }  // namespace protozero

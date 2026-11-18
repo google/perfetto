@@ -130,9 +130,13 @@ class StringFilter {
   };
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;
+  void RebuildFastpathMasks();
 
   // All rules, in the order they were added.
   std::vector<Rule> rules_;
+  SemanticTypeMask active_semantic_types_;
+  SemanticTypeMask non_atrace_or_empty_prefix_types_;
+  std::array<uint64_t, 4> atrace_first_char_mask_ = {};
 
   // Reusable buffer for regex match groups, avoiding heap allocations on each
   // filter call.
