@@ -17,8 +17,10 @@
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <utility>
@@ -31,6 +33,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/traced/memcg_field_defs.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -65,6 +68,7 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
+#include "protos/perfetto/trace/linux/memcg_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
@@ -264,6 +268,103 @@ base::StringView MaybeTruncateKworkerName(base::StringView comm) {
   return comm;
 }
 
+// Identifies a value in MemcgStats.Cgroup: the field number of its file's
+// nested message (zero for single-valued files), and its own field number.
+uint64_t MemcgValueId(uint32_t nested_field, uint32_t field) {
+  return (uint64_t{nested_field} << 32) | field;
+}
+
+// The memcg values of the cgroups of processes (pid level), of uids (uid
+// level), and of the top-level groups, as counter tracks. |key| names the
+// value, e.g. "current" or "stat.anon". The blueprints are parameterised by
+// the track type, so that the sizes, the limits and the event counts of each
+// level have distinct types (see kMemcgProcessBlueprints etc. below).
+//
+// The process tracks also have the group and the uid of the cgroup, as the
+// process table doesn't say whether it's an app, and only has the uid with
+// linux.process_stats. A pid cgroup stays under one group and uid for its
+// whole life, so they don't split the tracks of a process. They do separate
+// a pid reused under another group or uid, which has the same upid when the
+// trace doesn't say when processes end.
+constexpr auto MemcgProcessBlueprint(const char* type) {
+  return tracks::CounterBlueprint(
+      type, tracks::DynamicUnitBlueprint(),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("memcg_group"),
+          tracks::kUidDimensionBlueprint, tracks::kProcessDimensionBlueprint,
+          tracks::StringDimensionBlueprint("memcg_key")),
+      tracks::FnNameBlueprint(
+          [](base::StringView, uint32_t, UniquePid, base::StringView key) {
+            return base::StackString<1024>("memcg.%.*s", int(key.size()),
+                                           key.data());
+          }));
+}
+
+constexpr auto MemcgUidBlueprint(const char* type) {
+  return tracks::CounterBlueprint(
+      type, tracks::DynamicUnitBlueprint(),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("memcg_group"),
+          tracks::kUidDimensionBlueprint,
+          tracks::StringDimensionBlueprint("memcg_key")),
+      tracks::FnNameBlueprint(
+          [](base::StringView group, uint32_t uid, base::StringView key) {
+            return base::StackString<1024>("memcg.%.*s.uid_%u.%.*s",
+                                           int(group.size()), group.data(), uid,
+                                           int(key.size()), key.data());
+          }));
+}
+
+constexpr auto MemcgGroupBlueprint(const char* type) {
+  return tracks::CounterBlueprint(
+      type, tracks::DynamicUnitBlueprint(),
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("memcg_group"),
+          tracks::StringDimensionBlueprint("memcg_key")),
+      tracks::FnNameBlueprint([](base::StringView group, base::StringView key) {
+        return base::StackString<1024>("memcg.%.*s.%.*s", int(group.size()),
+                                       group.data(), int(key.size()),
+                                       key.data());
+      }));
+}
+
+// Indexed by MemcgFieldKind: the sizes, the limits, and the event counts.
+constexpr std::array kMemcgProcessBlueprints = {
+    MemcgProcessBlueprint("memcg_process"),
+    MemcgProcessBlueprint("memcg_process_limit"),
+    MemcgProcessBlueprint("memcg_process_event"),
+};
+constexpr std::array kMemcgUidBlueprints = {
+    MemcgUidBlueprint("memcg_uid"),
+    MemcgUidBlueprint("memcg_uid_limit"),
+    MemcgUidBlueprint("memcg_uid_event"),
+};
+constexpr std::array kMemcgGroupBlueprints = {
+    MemcgGroupBlueprint("memcg_group"),
+    MemcgGroupBlueprint("memcg_group_limit"),
+    MemcgGroupBlueprint("memcg_group_event"),
+};
+static_assert(static_cast<size_t>(MemcgFieldKind::kSize) == 0 &&
+              static_cast<size_t>(MemcgFieldKind::kLimit) == 1 &&
+              static_cast<size_t>(MemcgFieldKind::kCount) == 2);
+
+// A limit set to "max" is UINT64_MAX in the trace. It's recorded as -1 rather
+// than as 2^64, which would dwarf the sizes it's compared against, and rather
+// than skipped, as a track can't go back to having no value if a limit is
+// lifted. Sizes are never negative, so it's unambiguous.
+constexpr double kMemcgNoLimit = -1;
+
+// The cgroup directory of a MemcgStats.Group.
+base::StringView MemcgGroupName(int32_t group) {
+  switch (group) {
+    case protos::pbzero::MemcgStats::GROUP_APPS:
+      return "apps";
+    case protos::pbzero::MemcgStats::GROUP_SYSTEM:
+      return "system";
+  }
+  return "unknown";
+}
+
 }  // namespace
 
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
@@ -281,11 +382,25 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
           context->storage->InternString("cpu_features.raw_bitmap")),
       pages_per_slab_id_(context->storage->InternString("pages_per_slab")),
       num_slabs_id_(context->storage->InternString("num_slabs")),
+      bytes_id_(context->storage->InternString("bytes")),
       meminfo_strs_(BuildMeminfoCounterNames()),
       vmstat_strs_(BuildVmstatCounterNames()) {
   for (size_t i = 0; i < base::ArraySize(base::kCpuInfoFeatures); ++i) {
     base::StackString<1024> key("cpu_features.%s", base::kCpuInfoFeatures[i]);
     cpu_features_ids_[i] = context->storage->InternString(key.string_view());
+  }
+  // A key for each memcg value, named after its file, e.g. "current" for
+  // memory.current and "stat.anon" for the anon line of memory.stat.
+  for (const MemcgFieldDef& def : kMemcgFieldDefs) {
+    // MEMCG_UNSPECIFIED, and the _ALL values, which aren't values themselves.
+    if (def.proto_field == 0)
+      continue;
+    const MemcgFileDef& file = kMemcgFileDefs[static_cast<size_t>(def.file)];
+    std::string name = base::StripPrefix(file.name, "memory.");
+    if (file.nested_proto_field != 0)
+      name.append(".").append(def.key);
+    memcg_keys_.Insert(MemcgValueId(file.nested_proto_field, def.proto_field),
+                       MemcgKey{std::move(name), def.kind});
   }
 }
 
@@ -923,6 +1038,65 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       // No handling for this field, so increment the error counter.
       context_->stats_tracker->IncrementStats(
           stats::proc_stat_unknown_counters);
+    }
+  }
+}
+
+void SystemProbesParser::ParseMemcgStats(int64_t ts, ConstBytes blob) {
+  protos::pbzero::MemcgStats::Decoder stats(blob);
+  for (auto it = stats.cgroup(); it; ++it) {
+    protos::pbzero::MemcgStats::Cgroup::Decoder cgroup(*it);
+    base::StringView group = MemcgGroupName(cgroup.android_group());
+    // The level is given by which of uid and pid are set (uid 0 is a valid
+    // uid).
+    std::optional<UniquePid> upid;
+    if (cgroup.has_pid())
+      upid = context_->process_tracker->GetOrCreateProcess(cgroup.pid());
+
+    auto push = [&](uint32_t nested_field, const protozero::Field& fld) {
+      const MemcgKey* key =
+          memcg_keys_.Find(MemcgValueId(nested_field, fld.id()));
+      // The cgroup's identity, or a value unknown to this build.
+      if (!key)
+        return;
+      auto kind = static_cast<size_t>(key->kind);
+      auto unit = tracks::DynamicUnit(
+          key->kind == MemcgFieldKind::kCount ? kNullStringId : bytes_id_);
+      base::StringView name(key->name);
+      TrackId track;
+      if (upid) {
+        track = context_->track_tracker->InternTrack(
+            kMemcgProcessBlueprints[kind],
+            tracks::Dimensions(group, cgroup.uid(), *upid, name),
+            tracks::BlueprintName(), {}, unit);
+      } else if (cgroup.has_uid()) {
+        track = context_->track_tracker->InternTrack(
+            kMemcgUidBlueprints[kind],
+            tracks::Dimensions(group, cgroup.uid(), name),
+            tracks::BlueprintName(), {}, unit);
+      } else {
+        track = context_->track_tracker->InternTrack(
+            kMemcgGroupBlueprints[kind], tracks::Dimensions(group, name),
+            tracks::BlueprintName(), {}, unit);
+      }
+      uint64_t raw = fld.as_uint64();
+      double value = key->kind == MemcgFieldKind::kLimit &&
+                             raw == std::numeric_limits<uint64_t>::max()
+                         ? kMemcgNoLimit
+                         : static_cast<double>(raw);
+      context_->event_tracker->PushCounter(ts, value, track);
+    };
+    protozero::ProtoDecoder fields(*it);
+    for (auto fld = fields.ReadField(); fld.valid(); fld = fields.ReadField()) {
+      // The keyed files are nested messages, e.g. MemcgStats.Stat.
+      if (fld.type() ==
+          protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+        protozero::ProtoDecoder nested(fld.as_bytes());
+        for (auto n = nested.ReadField(); n.valid(); n = nested.ReadField())
+          push(fld.id(), n);
+        continue;
+      }
+      push(0, fld);
     }
   }
 }

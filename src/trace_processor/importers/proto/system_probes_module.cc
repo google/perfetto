@@ -37,6 +37,7 @@ SystemProbesModule::SystemProbesModule(
     : ProtoImporterModule(module_context), parser_(context) {
   RegisterForField(TracePacket::kProcessTreeFieldNumber);
   RegisterForField(TracePacket::kProcessStatsFieldNumber);
+  RegisterForField(TracePacket::kMemcgStatsFieldNumber);
   RegisterForField(TracePacket::kSysStatsFieldNumber);
   RegisterForField(TracePacket::kSystemInfoFieldNumber);
   RegisterForField(TracePacket::kCpuInfoFieldNumber);
@@ -73,6 +74,10 @@ void SystemProbesModule::ParseField(const ParseFieldArgs& args) {
     case TracePacket::kProcessStatsFieldNumber:
       parser_.ParseProcessStats(args.ts,
                                 args.field.Cast<TracePacket::kProcessStats>());
+      return;
+    case TracePacket::kMemcgStatsFieldNumber:
+      parser_.ParseMemcgStats(args.ts,
+                              args.field.Cast<TracePacket::kMemcgStats>());
       return;
     case TracePacket::kSysStatsFieldNumber:
       parser_.ParseSysStats(args.ts, args.field.Cast<TracePacket::kSysStats>());

@@ -226,6 +226,93 @@ data_sources: {
 }
 ```
 
+## Memory cgroup (memcg) counters {#memcg}
+
+On Android, the `linux.cgroup` data source periodically polls the cgroup v2
+memory controller files (`memory.current`, `memory.high`, `memory.stat`,
+`memory.events.local`, ...) of the cgroups that Android puts apps and system
+processes in:
+
+- `/sys/fs/cgroup/{apps,system}`: the top-level groups.
+- `/sys/fs/cgroup/{apps,system}/uid_<uid>`: one cgroup per uid.
+- `/sys/fs/cgroup/{apps,system}/uid_<uid>/pid_<pid>`: one cgroup per process.
+
+See the [kernel documentation][cgroup-v2-memory] for the meaning of the values.
+
+[cgroup-v2-memory]: https://docs.kernel.org/admin-guide/cgroup-v2.html#memory-interface-files
+
+### SQL {#memcg-sql}
+
+Each value of each cgroup is a counter track. Its key is the file name without
+the `memory.` prefix, followed by the line's key for files with several values
+(e.g. `current`, `high`, `stat.anon`, `events.local.high`). The track type says
+which level of the hierarchy the cgroup is at, and what the value is:
+
+| Level             | Sizes (bytes)   | Limits (bytes)        | Event counts          |
+| ----------------- | --------------- | --------------------- | --------------------- |
+| `pid_<pid>`       | `memcg_process` | `memcg_process_limit` | `memcg_process_event` |
+| `uid_<uid>`       | `memcg_uid`     | `memcg_uid_limit`     | `memcg_uid_event`     |
+| `apps` / `system` | `memcg_group`   | `memcg_group_limit`   | `memcg_group_event`   |
+
+The tracks are named `memcg.<key>` for processes,
+`memcg.<group>.uid_<uid>.<key>` for uids and `memcg.<group>.<key>` for the
+top-level groups. Their dimensions are `memcg_group` (`apps` or `system`),
+`uid` (process and uid levels), `upid` (process level) and `memcg_key`.
+
+A limit set to `max` (no limit) has the value -1. When the data source only
+records the values that changed (`cache_ttl_ms`), a value that isn't recorded
+is unchanged: as with any counter, it holds until the next one.
+
+```sql
+select
+  c.ts,
+  t.name,
+  extract_arg(t.dimension_arg_set_id, 'memcg_group') as memcg_group,
+  extract_arg(t.dimension_arg_set_id, 'uid') as uid,
+  c.value
+from counter as c
+join counter_track as t on c.track_id = t.id
+where t.type glob 'memcg_uid*'
+```
+
+| ts              | name                           | memcg_group | uid   | value     |
+| --------------- | ------------------------------ | ----------- | ----- | --------- |
+| 261187015027350 | memcg.apps.uid_10123.current   | apps        | 10123 | 189870080 |
+| 261187015027350 | memcg.apps.uid_10123.high      | apps        | 10123 | -1        |
+| 261187015027350 | memcg.apps.uid_10123.stat.anon | apps        | 10123 | 98004992  |
+
+### TraceConfig {#memcg-traceconfig}
+
+The set of supported values is available in the
+[TraceConfig reference](/docs/reference/trace-config-proto.autogen#MemcgConfig)
+
+```protobuf
+data_sources {
+  config {
+    name: "linux.cgroup"
+    cgroup_config {
+      memcg_config {
+        field: MEMCG_CURRENT
+        field: MEMCG_HIGH
+        field: MEMCG_STAT_ALL
+        field: MEMCG_EVENTS_LOCAL_HIGH
+
+        poll_period_ms: 1000
+        cache_ttl_ms: 10000
+
+        android_scope {
+          level: LEVEL_UID
+        }
+        android_scope {
+          target_cmdline: "surfaceflinger"
+          level: LEVEL_PID
+        }
+      }
+    }
+  }
+}
+```
+
 ## Low-memory Kills (LMK)
 
 #### Background
