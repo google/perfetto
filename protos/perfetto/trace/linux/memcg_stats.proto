@@ -24,6 +24,10 @@ package perfetto.protos;
 // The values are as reported by the kernel: sizes are in bytes, and limits set
 // to "max" are UINT64_MAX. See Documentation/admin-guide/cgroup-v2.rst in the
 // kernel for their meaning.
+//
+// If the config sets MemcgConfig.cache_ttl_ms, most polls only record the
+// values that changed since they were last recorded for the same cgroup, so a
+// missing value means it's unchanged.
 message MemcgStats {
   // The top-level groups of the hierarchy created by Android's
   // libprocessgroup.
