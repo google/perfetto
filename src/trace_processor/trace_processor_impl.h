@@ -161,6 +161,13 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void CacheBoundsAndBuildTable();
 
+  // Makes SQLite check |query_interrupted_| while a statement runs, and stop
+  // the statement once it is set.
+  void InstallInterruptCheck();
+
+  // Forgets an interrupt that arrived before the work about to start.
+  void ClearQueryInterrupt();
+
   struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
     TraceStorage* storage;
@@ -203,8 +210,10 @@ class TraceProcessorImpl : public TraceProcessor,
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;
 
-  // This is atomic because it is set by the CTRL-C signal handler and we need
-  // to prevent single-flow compiler optimizations in ExecuteQuery().
+  // Set by InterruptQuery(), which can run in a signal handler or on another
+  // thread, and read by the SQLite progress callback (InstallInterruptCheck).
+  // It stays set until the next query or other SQL work starts, so it also
+  // reaches the later statements of the query it interrupted.
   std::atomic<bool> query_interrupted_{false};
 
   // Track the number of objects registered with SQLite post prelude.

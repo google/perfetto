@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/trace_processor_impl.h"
 
+#include <sqlite3.h>
 #include <algorithm>
+#include <atomic>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -154,6 +156,7 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/sqlite/sqlite_export.h"
 #include "src/trace_processor/sqlite_iterator_impl.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -197,6 +200,10 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+// How often, in SQLite virtual machine steps, a running statement checks
+// whether its query was interrupted: about every 0.1-1 ms on most queries.
+constexpr int kInterruptCheckSteps = 10000;
 
 base::Status RegisterAllProtoBuilderFunctions(
     const DescriptorPool* pool,
@@ -556,6 +563,8 @@ TraceProcessorImpl::TraceProcessorImpl(
       RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
     }
   }
+
+  InstallInterruptCheck();
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
@@ -570,6 +579,7 @@ base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
 }
 
 void TraceProcessorImpl::Flush() {
+  ClearQueryInterrupt();
   TraceProcessorStorageImpl::Flush();
   CacheBoundsAndBuildTable();
 }
@@ -640,6 +650,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   }
 
   // Stage 4: prepare the connection for queries.
+  // Forget any interrupt that arrived while the trace was loading: as before,
+  // it must not stop the prelude, whose failure is fatal.
+  ClearQueryInterrupt();
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -663,6 +676,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
+  ClearQueryInterrupt();
 
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
@@ -681,6 +695,11 @@ std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
   PERFETTO_CHECK(offset);
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
+  // Only the first statement starts a new query: an interrupt that arrived
+  // between two statements of this query must still stop the next one.
+  if (*offset == 0) {
+    ClearQueryInterrupt();
+  }
 
   // Offsets are relative to the normalized SQL: since the normalization is
   // deterministic, an offset returned by one call stays valid when the same
@@ -888,13 +907,32 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  if (!engine_->sqlite_connection()->db())
-    return;
-  query_interrupted_.store(true);
-  sqlite3_interrupt(engine_->sqlite_connection()->db());
+  query_interrupted_.store(true, std::memory_order_relaxed);
+  // Without progress callbacks (e.g. Chromium's SQLite), nothing checks the
+  // flag while a statement runs: stop the running statement directly instead.
+  if (!SqliteConnection::SupportsProgressCallback() &&
+      engine_->sqlite_connection()->db()) {
+    sqlite3_interrupt(engine_->sqlite_connection()->db());
+  }
+}
+
+void TraceProcessorImpl::InstallInterruptCheck() {
+  engine_->sqlite_connection()->SetProgressCallback(
+      kInterruptCheckSteps,
+      [](void* ctx) -> int {
+        auto* interrupted = static_cast<std::atomic<bool>*>(ctx);
+        return interrupted->load(std::memory_order_relaxed) ? 1 : 0;
+      },
+      &query_interrupted_);
+}
+
+void TraceProcessorImpl::ClearQueryInterrupt() {
+  query_interrupted_.store(false, std::memory_order_relaxed);
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
+  ClearQueryInterrupt();
+
   // We should always have at least as many objects now as we did in the
   // constructor.
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
@@ -920,6 +958,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   // The registered count should now be the same as it was in the constructor.
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_after == sqlite_objects_post_prelude_);
+  InstallInterruptCheck();
   return static_cast<size_t>(registered_count_before - registered_count_after);
 }
 
@@ -929,6 +968,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
+  ClearQueryInterrupt();
   return RegisterMetricImpl(path, sql);
 }
 
@@ -995,6 +1035,7 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
     const uint8_t* data,
     size_t size,
     const std::vector<std::string>& skip_prefixes) {
+  ClearQueryInterrupt();
   RETURN_IF_ERROR(metrics_descriptor_pool_.AddFromFileDescriptorSet(
       data, size, skip_prefixes));
   RETURN_IF_ERROR(RegisterAllProtoBuilderFunctions(
@@ -1005,6 +1046,7 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
 base::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
+  ClearQueryInterrupt();
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())
