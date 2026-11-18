@@ -157,6 +157,21 @@ function renderUploaded(attrs: ShareFormAttrs, fileId: string): m.Children {
         'Open in Drive',
       ),
     ]),
+    m(Callout, {icon: 'info', className: 'pf-gdrive-share__note'}, [
+      m('p', [
+        'Recipients can only open this trace if you share it with them first (via ',
+        m('strong', 'Share'),
+        ') and allow it to appear in search results, otherwise they won\u2019t be able to open it.',
+      ]),
+      m('p', [
+        m('strong', 'Copy link'),
+        ' here copies a Perfetto link that opens this trace directly in Perfetto, whereas ',
+        m('strong', 'Copy link'),
+        ' inside the ',
+        m('strong', 'Share'),
+        ' dialog copies a Google Drive link to the file.',
+      ]),
+    ]),
   ]);
 }
 
@@ -209,7 +224,8 @@ function renderUploadForm(attrs: ShareFormAttrs): m.Children {
         }),
       ]),
       m(Checkbox, {
-        label: 'Share with organization (or anyone) and allow in search results',
+        label:
+          'Share with organization (or anyone) and allow in search results',
         checked: state.shareWithOrgOrAnyone,
         disabled: uploading,
         onchange: (e: Event) =>

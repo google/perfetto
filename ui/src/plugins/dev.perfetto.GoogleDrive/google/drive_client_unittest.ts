@@ -15,6 +15,7 @@
 import {
   DriveClient,
   gdriveOpenLink,
+  gdriveViewLink,
   isValidDriveId,
   parseGDriveStateParam,
 } from './drive_client';
@@ -347,6 +348,20 @@ describe('gdriveOpenLink', () => {
     expect(gdriveOpenLink('https://ui.perfetto.dev', 'file_123')).toBe(
       'https://ui.perfetto.dev/?state=' +
         encodeURIComponent(JSON.stringify({ids: ['file_123']})),
+    );
+  });
+});
+
+describe('gdriveViewLink', () => {
+  test('builds a Drive link from the file ID', () => {
+    expect(gdriveViewLink('file_123')).toBe(
+      'https://drive.google.com/file/d/file_123/view',
+    );
+  });
+
+  test('includes the resource key if given', () => {
+    expect(gdriveViewLink('file_123', '0-key_9')).toBe(
+      'https://drive.google.com/file/d/file_123/view?resourcekey=0-key_9',
     );
   });
 });
@@ -1071,10 +1086,7 @@ describe('DriveClient.createPermission', () => {
 
   test('reports HTTP 400 as bad_request with Drive explanation', async () => {
     fetchMock.mockResolvedValue(
-      Response.json(
-        {error: {message: 'Invalid domain'}},
-        {status: 400},
-      ),
+      Response.json({error: {message: 'Invalid domain'}}, {status: 400}),
     );
     const client = await createClient();
     const result = await client.createPermission('token', 'file123', {
@@ -1093,20 +1105,17 @@ describe('DriveClient.createPermission', () => {
     });
   });
 
-  test.each([403, 404])(
-    'reports HTTP %i as access_denied',
-    async (status) => {
-      fetchMock.mockResolvedValue(new Response(null, {status}));
-      const client = await createClient();
-      const result = await client.createPermission('token', 'file123', {
-        type: 'anyone',
-        role: 'reader',
-        allowFileDiscovery: true,
-      });
+  test.each([403, 404])('reports HTTP %i as access_denied', async (status) => {
+    fetchMock.mockResolvedValue(new Response(null, {status}));
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
 
-      expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
-    },
-  );
+    expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
 
   test('reports HTTP 500 as a generic error', async () => {
     fetchMock.mockResolvedValue(new Response(null, {status: 500}));

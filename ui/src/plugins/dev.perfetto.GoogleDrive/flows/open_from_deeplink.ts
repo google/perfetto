@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
 import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
@@ -20,8 +21,9 @@ import {
   alertPickerFailed,
 } from '../dialogs';
 import type {DriveClient} from '../google/drive_client';
-import {parseGDriveStateParam} from '../google/drive_client';
+import {gdriveViewLink, parseGDriveStateParam} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
+import {Anchor} from '../../../widgets/anchor';
 import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -94,7 +96,11 @@ export async function openFileFromDeeplink(
   ) {
     // Explain to the user that the file needs authorization to be accessed and
     // that they are about to see a file picker.
-    const choice = await authAccessToFilePrompt(hideAuthDialogSetting);
+    const choice = await authAccessToFilePrompt(
+      hideAuthDialogSetting,
+      fileId,
+      knownResourceKey,
+    );
     if (choice !== 'authorize') return;
 
     // Show the file picker containing just the file that we are trying to
@@ -163,7 +169,11 @@ async function connectGoogleDrivePrompt() {
   });
 }
 
-async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
+async function authAccessToFilePrompt(
+  hideAuthDialogSetting: Setting<boolean>,
+  fileId: string,
+  resourceKey?: string,
+) {
   if (hideAuthDialogSetting.get()) {
     return 'authorize';
   }
@@ -175,6 +185,20 @@ async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
         'p',
         'The first time you open a Google Drive file in Perfetto, you need to authorize access to it via the Google Drive picker. Click Authorize File Access to open the picker.',
       ),
+      m('p', [
+        'Note: You may need to ',
+        m(
+          Anchor,
+          {
+            href: gdriveViewLink(fileId, resourceKey),
+            target: '_blank',
+            rel: 'noopener',
+            icon: Icons.ExternalLink,
+          },
+          'open this file once in Google Drive',
+        ),
+        ' directly before it appears in the picker.',
+      ]),
       m(Checkbox, {
         label:
           "Don't show this again (go straight to the file picker in future)",

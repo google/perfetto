@@ -714,3 +714,15 @@ export function gdriveOpenLink(
   }
   return `${origin}/?state=${encodeURIComponent(JSON.stringify(state))}`;
 }
+
+// Builds a direct link to open a file in Google Drive, including its resource
+// key when known.
+export function gdriveViewLink(fileId: string, resourceKey?: string): string {
+  const url = new URL(
+    `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
+  );
+  if (resourceKey !== undefined) {
+    url.searchParams.set('resourcekey', resourceKey);
+  }
+  return url.toString();
+}
