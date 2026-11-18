@@ -243,6 +243,10 @@ BufferExhaustedPolicy TrackEventInternal::buffer_exhausted_policy_ =
     BufferExhaustedPolicy::kDrop;
 
 // static
+TrackEventInternal::ConfigTransform TrackEventInternal::config_transform_ =
+    nullptr;
+
+// static
 void TrackEventInternal::EnableRegistry(
     const TrackEventCategoryRegistry* registry,
     const protos::gen::TrackEventConfig& config,

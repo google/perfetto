@@ -44,6 +44,12 @@ namespace internal {
 class TracingMuxerImpl;
 }
 
+namespace protos {
+namespace gen {
+class TrackEventConfig;
+}  // namespace gen
+}  // namespace protos
+
 class TracingBackend;
 class Platform;
 class StartupTracingSession;  // Declared below.
@@ -71,6 +77,14 @@ struct TracingError {
 using LogLev = ::perfetto::base::LogLev;
 using LogMessageCallbackArgs = ::perfetto::base::LogMessageCallbackArgs;
 using LogMessageCallback = ::perfetto::base::LogMessageCallback;
+
+// Called on the tracing thread when a TrackEvent data source instance is set
+// up, after |track_event_config| is parsed from |data_source_config| and before
+// categories are enabled. May rewrite |track_event_config|.
+using TrackEventConfigTransform =
+    void (*)(BackendType backend,
+             const DataSourceConfig& data_source_config,
+             protos::gen::TrackEventConfig* track_event_config);
 
 struct TracingInitArgs {
   uint32_t backends = 0;                     // One or more BackendTypes.
@@ -170,6 +184,11 @@ struct TracingInitArgs {
   // when the shared memory buffer is full instead of dropping trace data.
   BufferExhaustedPolicy track_event_buffer_exhausted_policy =
       BufferExhaustedPolicy::kDrop;
+
+  // [Optional] Lets the embedder adjust the TrackEventConfig of each session,
+  // e.g. to choose categories for system-wide sessions whose config it does
+  // not control. See TrackEventConfigTransform.
+  TrackEventConfigTransform track_event_config_transform = nullptr;
 
   // If set, this function will be called by the producer client to create a
   // socket for connection to the system service. The function takes one

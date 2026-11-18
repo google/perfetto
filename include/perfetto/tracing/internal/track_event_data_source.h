@@ -258,6 +258,8 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
     auto config_raw = args.config->track_event_config_raw();
     bool ok = config_.ParseFromArray(config_raw.data(), config_raw.size());
     PERFETTO_DCHECK(ok);
+    if (auto transform = TrackEventInternal::GetConfigTransform())
+      transform(args.backend_type, *args.config, &config_);
     TrackEventInternal::GetInstance().EnableTracing(config_, args);
   }
 
@@ -371,6 +373,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
     TrackEventInternal::GetInstance().ResetRegistriesForTesting();
     TrackEventInternal::SetBufferExhaustedPolicy(
         GetDefaultBufferExhaustedPolicy());
+    TrackEventInternal::SetConfigTransform(nullptr);
   }
 
  private:

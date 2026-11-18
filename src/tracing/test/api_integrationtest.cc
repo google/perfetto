@@ -1635,6 +1635,29 @@ TEST_P(PerfettoApiTest, TrackEventCategories) {
   EXPECT_THAT(trace, Not(HasSubstr("NotEnabled")));
 }
 
+TEST_P(PerfettoApiTest, TrackEventConfigTransform) {
+  // Simulates TracingInitArgs::track_event_config_transform.
+  perfetto::internal::TrackEventInternal::SetConfigTransform(
+      [](perfetto::BackendType, const perfetto::DataSourceConfig&,
+         perfetto::protos::gen::TrackEventConfig* config) {
+        config->clear_enabled_categories();
+        config->add_enabled_categories("foo");
+      });
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+  EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
+  TRACE_EVENT_BEGIN("foo", "FooEvent");
+  TRACE_EVENT_END("foo");
+  TRACE_EVENT_BEGIN("bar", "BarEvent");
+  TRACE_EVENT_END("bar");
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  perfetto::internal::TrackEventInternal::SetConfigTransform(nullptr);
+  EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "E"));
+}
+
 TEST_P(PerfettoApiTest, ClearIncrementalState) {
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("incr_data_source");
