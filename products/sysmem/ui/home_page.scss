@@ -38,6 +38,21 @@
     color: var(--pf-color-text-muted);
   }
 
+  &__actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  &__current {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 12px 16px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+  }
+
   &__hint {
     margin-top: 24px;
     color: var(--pf-color-text-muted);

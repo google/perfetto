@@ -13,16 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {noData, xAxisFor} from '../chart_axis';
 import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
 } from '../../../components/widgets/charts_svg/line_chart_svg';
-import type {LiveSession, SnapshotData} from '../../dev.perfetto.Memscope/live';
+import type {SnapshotData} from '../../dev.perfetto.Memscope/live';
 import {
   billboardBytes,
-  chartXWindow,
-  formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
 } from '../../dev.perfetto.Memscope/live';
@@ -193,18 +192,17 @@ function buildSystemBillboards(
   };
 }
 
-export function renderSystemTab(session: LiveSession): m.Children {
-  const data = session.data;
+export function renderSystemTab(
+  data: SnapshotData | undefined,
+  live: boolean,
+): m.Children {
   if (!data) return null;
 
   const t0 = data.ts0;
   const bb = buildSystemBillboards(data);
   const chartData = buildSystemTimeSeries(data, t0);
-  // Fixed-width window ending at the latest sample; the chart clips points
-  // outside it and labels are relative to the latest sample (0s on the
-  // right, -60s on the left).
-  const xWindow = chartXWindow(data.xMax);
-  const formatX = formatRelativeXValue(data.xMax);
+  const xWindow = xAxisFor(data, live);
+  const formatX = xWindow.format;
 
   return m.fragment({}, [
     bb !== undefined &&
@@ -268,7 +266,7 @@ export function renderSystemTab(session: LiveSession): m.Children {
               formatYValue: (v: number) => formatBytesIec(v * 1024),
               yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
             })
-          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+          : noData(live),
       ),
     ),
   ]);

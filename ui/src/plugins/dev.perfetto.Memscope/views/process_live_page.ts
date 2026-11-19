@@ -21,7 +21,6 @@ import {
   type LineChartSeries,
 } from '../../../components/widgets/charts_svg/line_chart_svg';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Chip} from '../../../widgets/chip';
 import {Intent} from '../../../widgets/common';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {TextInput} from '../../../widgets/text_input';
@@ -29,6 +28,8 @@ import {Billboard, BillboardStrip} from '../components/billboard';
 import {Page} from '../components/page';
 import {Panel} from '../components/panel';
 import {PreviewBanner} from '../components/preview_banner';
+import {ProcessHeader, type ProcessOption} from '../components/process_header';
+import {matchProcessesByName} from '../process_focus';
 import type {ProcessInfo, SnapshotData} from '../sessions/live_session';
 import {
   billboardBytes,
@@ -88,14 +89,22 @@ function buildCounterChart(
   return series.length > 0 ? {series} : undefined;
 }
 
+export interface ProcessLivePageAttrs extends LiveSessionAttrs {
+  // The process named by the route's `process` arg, if any.
+  readonly focusProcess?: string;
+  readonly onFocus: (processName: string) => void;
+}
+
 // Live view of a single process: pick one from the device's running
 // processes, then watch its memory and capture heap profiles of it.
-export class ProcessLivePage implements m.ClassComponent<LiveSessionAttrs> {
-  private selectedUpid?: number;
+export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
+  // Disambiguates between processes sharing the focused name.
+  private preferredUpid?: number;
   private filter = '';
 
-  view({attrs}: m.CVnode<LiveSessionAttrs>) {
+  view({attrs}: m.CVnode<ProcessLivePageAttrs>) {
     const {session} = attrs;
+    const proc = this.resolve(attrs);
     return m(
       GateDetector,
       {
@@ -104,75 +113,82 @@ export class ProcessLivePage implements m.ClassComponent<LiveSessionAttrs> {
       },
       m(
         Page,
-        this.renderTitleBar(attrs),
+        this.renderHeader(attrs, proc),
         m(PreviewBanner, {app: attrs.app}),
         session.profile !== undefined
           ? m(LiveProfileView, attrs)
-          : this.renderBody(attrs),
+          : this.renderBody(attrs, proc),
       ),
     );
   }
 
-  private selected(data?: SnapshotData): ProcessInfo | undefined {
-    if (data === undefined || this.selectedUpid === undefined) return;
-    return data.processInfo.get(this.selectedUpid);
+  private resolve(attrs: ProcessLivePageAttrs): ProcessInfo | undefined {
+    const data = attrs.session.data;
+    const name = attrs.focusProcess;
+    if (data === undefined || name === undefined) return undefined;
+    const preferred =
+      this.preferredUpid === undefined
+        ? undefined
+        : data.processInfo.get(this.preferredUpid);
+    if (preferred?.processName === name) return preferred;
+    const rows = processRows(data);
+    const matches = matchProcessesByName(rows, name, (r) => r.info.processName);
+    // processRows() is sorted by RSS, so the first match is the biggest.
+    return matches[0]?.info;
   }
 
-  private renderTitleBar(attrs: LiveSessionAttrs): m.Children {
-    const {session} = attrs;
-    const proc = this.selected(session.data);
-    return m(
-      '.pf-memscope-title-bar',
-      m(
-        '.pf-memscope-title-bar__left',
-        m('h1', 'Memscope'),
-        proc !== undefined && [
-          m('span', proc.processName),
-          m(Chip, {label: `PID ${proc.pid}`}),
-          session.profile === undefined &&
-            m(Button, {
-              label: 'Switch process',
-              icon: 'swap_horiz',
-              onclick: () => {
-                this.selectedUpid = undefined;
-              },
-            }),
-        ],
-      ),
-      m(SessionPill, attrs),
-    );
+  private select(attrs: ProcessLivePageAttrs, info: ProcessInfo) {
+    this.preferredUpid = info.upid;
+    attrs.onFocus(info.processName);
   }
 
-  private renderBody(attrs: LiveSessionAttrs): m.Children {
+  private renderHeader(
+    attrs: ProcessLivePageAttrs,
+    proc: ProcessInfo | undefined,
+  ): m.Children {
+    const {session, focusProcess} = attrs;
+    const data = session.data;
+    const rows = data === undefined ? [] : processRows(data);
+    const options: ProcessOption[] = rows.map((r) => ({
+      key: `${r.info.upid}`,
+      name: r.info.processName,
+      pid: r.info.pid,
+      detail: formatBytesIec(r.rssBytes),
+    }));
+    const waiting =
+      focusProcess !== undefined && data !== undefined && proc === undefined;
+    return m(ProcessHeader, {
+      title: 'Memscope',
+      options,
+      selectedKey: proc === undefined ? undefined : `${proc.upid}`,
+      disabled: session.profile !== undefined,
+      onSelect: (o) => {
+        const info = data?.processInfo.get(Number(o.key));
+        if (info !== undefined) this.select(attrs, info);
+      },
+      note: waiting ? `Waiting for ${focusProcess} to start…` : undefined,
+      trailing: m(SessionPill, attrs),
+    });
+  }
+
+  private renderBody(
+    attrs: ProcessLivePageAttrs,
+    proc: ProcessInfo | undefined,
+  ): m.Children {
     const data = attrs.session.data;
     if (data === undefined) {
       return m('.pf-memscope-placeholder', 'Waiting for data…');
     }
-    if (this.selectedUpid === undefined) {
-      return this.renderPicker(data);
-    }
-    const proc = this.selected(data);
     if (proc === undefined) {
-      return m(
-        Panel,
-        m(Panel.Header, {title: 'Process no longer running'}),
-        m(
-          Panel.Body,
-          m(Button, {
-            label: 'Pick another process',
-            variant: ButtonVariant.Filled,
-            intent: Intent.Primary,
-            onclick: () => {
-              this.selectedUpid = undefined;
-            },
-          }),
-        ),
-      );
+      return this.renderPicker(attrs, data);
     }
     return this.renderProcess(attrs, data, proc);
   }
 
-  private renderPicker(data: SnapshotData): m.Children {
+  private renderPicker(
+    attrs: ProcessLivePageAttrs,
+    data: SnapshotData,
+  ): m.Children {
     const needle = this.filter.toLowerCase();
     const rows = processRows(data).filter(
       (r) =>
@@ -217,9 +233,7 @@ export class ProcessLivePage implements m.ClassComponent<LiveSessionAttrs> {
                   variant: ButtonVariant.Filled,
                   intent: Intent.Primary,
                   rounded: true,
-                  onclick: () => {
-                    this.selectedUpid = r.info.upid;
-                  },
+                  onclick: () => this.select(attrs, r.info),
                 }),
               },
               r.info.processName,

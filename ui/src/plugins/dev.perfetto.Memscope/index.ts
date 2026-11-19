@@ -26,6 +26,7 @@ import {ProcessLivePage} from './views/process_live_page';
 import {LiveSession} from './sessions/live_session';
 import {MemoryExplorerPage} from './memory_explorer/page';
 import {MEMSCOPE_SQL_PACKAGE} from './product_assets';
+import {memscopeProcessHref, processRouteArg} from './process_focus';
 import {
   MEMORY_EXPLORER_ROUTE,
   memoryExplorerHref,
@@ -81,10 +82,13 @@ export default class MemscopePlugin implements PerfettoPlugin {
     app.pages.registerPage({
       route: '/memscope',
       render: () => {
+        const focus = processRouteArg(app.getCurrentRoute().args);
         if (session) {
           return m(ProcessLivePage, {
             app,
             session,
+            focusProcess: focus,
+            onFocus: (name) => app.navigate(memscopeProcessHref(name)),
             onStopped: () => {
               session?.dispose();
               session = undefined;
@@ -94,8 +98,11 @@ export default class MemscopePlugin implements PerfettoPlugin {
           return m(ConnectionPage, {
             app,
             description:
-              'Connect to an Android device or Linux host, then pick a ' +
-              'process to watch its memory and capture heap profiles.',
+              focus === undefined
+                ? 'Connect to an Android device or Linux host, then pick a ' +
+                  'process to watch its memory and capture heap profiles.'
+                : 'Connect to an Android device or Linux host to watch the ' +
+                  `memory of ${focus} and capture heap profiles of it.`,
             onConnected: (result) => {
               session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());
@@ -131,6 +138,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
           trace,
           session,
           subpage,
+          focusProcess: processRouteArg(trace.getCurrentRoute().args),
           autoNavigated,
           openByDefault,
           hideDefaultChangedHint,

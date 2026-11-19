@@ -15,14 +15,20 @@
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
 import MemscopePlugin from '../dev.perfetto.Memscope';
 import {ConnectionPage, LiveSession} from '../dev.perfetto.Memscope/live';
 import {Dashboard} from './dashboard';
+import {
+  SYSMEM_TRACE_ROUTE,
+  TraceDashboardPage,
+  traceHasSysmemData,
+} from './trace_dashboard';
 
 export default class SysmemPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Sysmem';
   static readonly description =
-    'Live system-wide memory dashboard for Android/Linux devices';
+    'System-wide memory dashboard for Android/Linux devices and traces';
   static readonly dependencies = [MemscopePlugin];
 
   static onActivate(app: App) {
@@ -42,11 +48,13 @@ export default class SysmemPlugin implements PerfettoPlugin {
       render: () => {
         if (session) {
           return m(Dashboard, {
-            app,
-            session,
-            onStopped: () => {
-              session?.dispose();
-              session = undefined;
+            live: {
+              app,
+              session,
+              onStopped: () => {
+                session?.dispose();
+                session = undefined;
+              },
             },
           });
         }
@@ -63,5 +71,25 @@ export default class SysmemPlugin implements PerfettoPlugin {
         });
       },
     });
+  }
+
+  async onTraceLoad(trace: Trace): Promise<void> {
+    trace.pages.registerPage({
+      route: SYSMEM_TRACE_ROUTE,
+      render: () => m(TraceDashboardPage, {trace}),
+    });
+    if (!(await traceHasSysmemData(trace.engine))) return;
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 26,
+      text: 'Sysmem',
+      href: `#!${SYSMEM_TRACE_ROUTE}`,
+      icon: 'monitoring',
+      badge: 'preview',
+    });
+    // Only the Sysmem product opens here; elsewhere this is one view of many.
+    if (trace.productId === 'sysmem') {
+      trace.initialPage.suggest(SYSMEM_TRACE_ROUTE, 700);
+    }
   }
 }

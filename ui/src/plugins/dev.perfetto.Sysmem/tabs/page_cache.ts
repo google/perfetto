@@ -13,17 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {noData, xAxisFor} from '../chart_axis';
 import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
 } from '../../../components/widgets/charts_svg/line_chart_svg';
-import type {LiveSession, SnapshotData} from '../../dev.perfetto.Memscope/live';
+import type {SnapshotData} from '../../dev.perfetto.Memscope/live';
 import {
   billboardBytes,
-  chartXWindow,
   counterPoints,
-  formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
 } from '../../dev.perfetto.Memscope/live';
@@ -213,8 +212,10 @@ function getPageCacheBillboards(
   };
 }
 
-export function renderPageCacheTab(session: LiveSession): m.Children {
-  const data = session.data;
+export function renderPageCacheTab(
+  data: SnapshotData | undefined,
+  live: boolean,
+): m.Children {
   if (!data) return null;
 
   const t0 = data.ts0;
@@ -222,11 +223,8 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
   const fileCacheBreakdownData = buildFileCacheBreakdownTimeSeries(data, t0);
   const fileCacheActivityData = buildFileCacheActivityTimeSeries(data, t0);
   const bb = getPageCacheBillboards(fileCacheBreakdownData);
-  // Fixed-width window ending at the latest sample; the chart clips points
-  // outside it and labels are relative to the latest sample (0s on the
-  // right, -60s on the left).
-  const xWindow = chartXWindow(data.xMax);
-  const formatX = formatRelativeXValue(data.xMax);
+  const xWindow = xAxisFor(data, live);
+  const formatX = xWindow.format;
 
   return m.fragment({}, [
     bb !== undefined &&
@@ -281,7 +279,7 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
                 maxSeriesKb(pageCacheChartData.series),
               ),
             })
-          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+          : noData(live),
       ),
     ),
 
@@ -315,7 +313,7 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
               formatXValue: formatX,
               formatYValue: (v: number) => v.toLocaleString(),
             })
-          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+          : noData(live),
       ),
     ),
   ]);

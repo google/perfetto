@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertIsInstance} from '../../../base/assert';
 import {AsyncMemo} from '../../../base/async_memo';
 import type {Setting} from '../../../public/settings';
 import type {Trace} from '../../../public/trace';
@@ -22,7 +21,6 @@ import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
-import {Select} from '../../../widgets/select';
 import {Spinner} from '../../../widgets/spinner';
 import {Tabs, type TabsTab} from '../../../widgets/tabs';
 import {
@@ -39,6 +37,8 @@ import * as hdeQueries from '../../com.android.HeapDumpExplorer/queries';
 import type {HeapDumpExplorerSession} from '../../com.android.HeapDumpExplorer/session';
 import {Callout} from '../components/callout';
 import {Page, SubPage} from '../components/page';
+import {ProcessHeader} from '../components/process_header';
+import {matchProcessesByName} from '../process_focus';
 import {ProcessMemDetails} from '../views/landing_page/proc_mem_overview';
 import {
   type ProcMemStat,
@@ -56,6 +56,8 @@ export interface MemoryExplorerPageAttrs {
   readonly trace: Trace;
   readonly session: HeapDumpExplorerSession;
   readonly subpage: string | undefined;
+  // The route's `process` arg; picks the process when the route has no upid.
+  readonly focusProcess?: string;
   readonly autoNavigated: boolean;
   readonly openByDefault: Setting<boolean>;
   readonly hideDefaultChangedHint: Setting<boolean>;
@@ -87,7 +89,11 @@ export class MemoryExplorerPage implements m.ClassComponent<MemoryExplorerPageAt
     const loc = subpageToMemoryLocation(subpage);
     const proc = procs.find((p) => p.upid === loc.upid);
     if (proc === undefined) {
-      const best = pickBestProc(procs);
+      const named =
+        attrs.focusProcess === undefined
+          ? procs
+          : matchProcessesByName(procs, attrs.focusProcess, (p) => p.procName);
+      const best = pickBestProc(named) ?? pickBestProc(procs);
       if (best === undefined) {
         return m(EmptyState, {title: 'No processes with memory in this trace'});
       }
@@ -171,14 +177,27 @@ export class MemoryExplorerPage implements m.ClassComponent<MemoryExplorerPageAt
 
     return m(
       '.pf-hde-page',
+      m(
+        '.pf-memory-explorer__header',
+        m(ProcessHeader, {
+          title: 'Memory Explorer',
+          options: procs.map((p) => ({
+            key: `${p.upid}`,
+            name: p.procName,
+            pid: p.pid,
+            detail: captureSummary(p),
+          })),
+          selectedKey: `${upid}`,
+          onSelect: (o) => trace.navigate(memoryExplorerHref(Number(o.key))),
+          trailing: renderDumpSelector(
+            trace,
+            session.dumpsForUpid(upid),
+            dump,
+            (d) => session.selectDump(d),
+          ),
+        }),
+      ),
       this.renderDefaultChangedHint(attrs),
-      m('.pf-memory-explorer__header', [
-        m('span.pf-memory-explorer__title', 'Memory Explorer'),
-        this.renderProcessSelect(procs, upid),
-        renderDumpSelector(trace, session.dumpsForUpid(upid), dump, (d) =>
-          session.selectDump(d),
-        ),
-      ]),
       m(
         'main',
         {class: 'pf-hde-page__tabs'},
@@ -191,25 +210,6 @@ export class MemoryExplorerPage implements m.ClassComponent<MemoryExplorerPageAt
         }),
       ),
     );
-  }
-
-  private renderProcessSelect(procs: ProcWithMem, upid: number): m.Children {
-    return m('.pf-memscope-process-select', [
-      m('span.pf-memscope-process-select__label', 'Process'),
-      m(
-        Select,
-        {
-          value: upid.toString(),
-          onchange: (e: Event) => {
-            assertIsInstance(e.target, HTMLSelectElement);
-            location.href = memoryExplorerHref(Number(e.target.value));
-          },
-        },
-        procs.map((p) =>
-          m('option', {value: p.upid.toString()}, procOptionLabel(p)),
-        ),
-      ),
-    ]);
   }
 
   private renderDefaultChangedHint(attrs: MemoryExplorerPageAttrs): m.Children {
@@ -275,10 +275,10 @@ export class MemoryExplorerPage implements m.ClassComponent<MemoryExplorerPageAt
   }
 }
 
-function procOptionLabel(p: ProcMemStat): string {
+function captureSummary(p: ProcMemStat): string {
   const parts: string[] = [];
   if (p.heapDumps > 0) parts.push(`${p.heapDumps} java_hprof`);
   if (p.nativeDumps > 0) parts.push(`${p.nativeDumps} heapprofd`);
   if (p.smapsSnapshots > 0) parts.push(`${p.smapsSnapshots} smaps`);
-  return parts.length > 0 ? `${p.procName} (${parts.join(', ')})` : p.procName;
+  return parts.join(', ');
 }

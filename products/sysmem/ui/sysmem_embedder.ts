@@ -18,6 +18,7 @@ import type {
   Navigation,
 } from '../../../ui/src/core/embedder/embedder';
 import {SysmemHomePage} from './home_page';
+import {SYSMEM_TRACE_ROUTE} from '../../../ui/src/plugins/dev.perfetto.Sysmem/trace_dashboard';
 
 // Sysmem builds on Memscope's device connection and live sampling, so it
 // needs Memscope and its dependencies too.
@@ -43,6 +44,13 @@ export class SysmemEmbedder implements Embedder {
   readonly navigation: Navigation = {
     kind: 'tabs',
     brand: {text: 'Sysmem', icon: 'developer_board'},
-    tabs: [{label: 'Live', page: '/sysmem'}],
+    tabs: [
+      {label: 'Live', page: '/sysmem'},
+      {
+        label: 'Trace',
+        page: SYSMEM_TRACE_ROUTE,
+        isVisible: (app) => app.trace !== undefined,
+      },
+    ],
   };
 }

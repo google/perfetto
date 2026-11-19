@@ -18,30 +18,54 @@ import {AppImpl} from '../../../ui/src/core/app_impl';
 import {Button, ButtonVariant} from '../../../ui/src/widgets/button';
 import {Icon} from '../../../ui/src/widgets/icon';
 import {Intent} from '../../../ui/src/widgets/common';
+import {SYSMEM_TRACE_ROUTE} from '../../../ui/src/plugins/dev.perfetto.Sysmem/trace_dashboard';
 
 export class SysmemHomePage implements m.ClassComponent {
   view() {
     const app = AppImpl.instance;
+    const trace = app.trace;
     return m(
       '.pf-sysmem-home',
       m(Icon, {icon: 'developer_board', className: 'pf-sysmem-home__logo'}),
       m('h1', 'Sysmem'),
       m(
         'p.pf-sysmem-home__tagline',
-        "See where a whole device's memory goes, live: which processes use " +
-          'it, how much is page cache, and when the system is under pressure.',
+        "See where a whole device's memory goes, live or from a trace: " +
+          'which processes use it, how much is page cache, and when the ' +
+          'system is under pressure.',
       ),
       m(
         'p',
-        'Connect an Android phone over USB or a Linux machine running traced.',
+        'Connect an Android phone over USB or a Linux machine running ' +
+          'traced, or open a trace recorded with process and system stats.',
       ),
-      m(Button, {
-        label: 'Connect a device',
-        icon: 'usb',
-        intent: Intent.Primary,
-        variant: ButtonVariant.Filled,
-        onclick: () => app.navigate('#!/sysmem'),
-      }),
+      m(
+        '.pf-sysmem-home__actions',
+        m(Button, {
+          label: 'Connect a device',
+          icon: 'usb',
+          intent: Intent.Primary,
+          variant: ButtonVariant.Filled,
+          onclick: () => app.navigate('#!/sysmem'),
+        }),
+        m(Button, {
+          label: 'Open trace file',
+          icon: 'folder_open',
+          variant: ButtonVariant.Outlined,
+          onclick: () => app.commands.runCommand('dev.perfetto.OpenTrace'),
+        }),
+      ),
+      trace &&
+        m(
+          '.pf-sysmem-home__current',
+          m('span', `Loaded: ${trace.traceInfo.traceTitle}`),
+          m(Button, {
+            label: 'Open dashboard',
+            icon: 'arrow_forward',
+            intent: Intent.Primary,
+            onclick: () => app.navigate(`#!${SYSMEM_TRACE_ROUTE}`),
+          }),
+        ),
       m(
         'p.pf-sysmem-home__hint',
         'To debug the memory of one app, use Memscope.',

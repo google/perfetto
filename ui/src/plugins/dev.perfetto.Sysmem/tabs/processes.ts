@@ -13,6 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import type {App} from '../../../public/app';
+import {noData, xAxisFor} from '../chart_axis';
+import {openInMemscopeButton} from '../open_in_memscope';
 import {
   LineChartSvg,
   type LineChartData,
@@ -47,8 +50,6 @@ import {HelpTooltip} from '../../dev.perfetto.Memscope/live';
 import {ColorChip, chipColor} from '../../dev.perfetto.Memscope/live';
 import {
   billboardBytes,
-  chartXWindow,
-  formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
 } from '../../dev.perfetto.Memscope/live';
@@ -418,7 +419,10 @@ const CATEGORY_COLOR_MAP = new Map<string, string>(
 );
 
 export interface ProcessesTabAttrs {
-  readonly session: LiveSession;
+  readonly app: App;
+  readonly data: SnapshotData | undefined;
+  // Undefined when showing a loaded trace: no profiling then.
+  readonly session?: LiveSession;
 }
 
 export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
@@ -429,8 +433,9 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
   private processSearch: string = '';
 
   view({attrs}: m.CVnode<ProcessesTabAttrs>): m.Children {
-    const data = attrs.session.data;
+    const data = attrs.data;
     if (!data) return null;
+    const live = attrs.session !== undefined;
 
     const t0 = data.ts0;
     const counters = PROCESS_METRIC_OPTIONS.find(
@@ -463,8 +468,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     // Pin the x-axis to a fixed-width window ending at the latest sample.
     // All samples are passed to the chart; the x-axis is manually limited to
     // the window and the chart clips anything outside the plot area.
-    const xWindow = chartXWindow(data.xMax);
-    const formatX = formatRelativeXValue(data.xMax);
+    const xWindow = xAxisFor(data, live);
+    const formatX = xWindow.format;
 
     const latestProcesses = buildLatestProcessMemory(data);
 
@@ -616,7 +621,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                   ? undefined
                   : (seriesName: string) => this.onSeriesClick(seriesName),
               })
-            : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+            : noData(live),
         ),
       ),
       m(
@@ -624,6 +629,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         m(ProcessTable, {
           processes: filteredProcesses,
           isUserDebug: data.isUserDebug,
+          app: attrs.app,
           session: attrs.session,
           searchQuery: this.processSearch,
           onSearchChange: (q) => {
@@ -649,7 +655,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
 interface ProcessTableAttrs {
   readonly processes: ProcessMemoryRow[];
   readonly isUserDebug: boolean;
-  readonly session: LiveSession;
+  readonly app: App;
+  readonly session?: LiveSession;
   readonly searchQuery: string;
   readonly onSearchChange: (q: string) => void;
 }
@@ -684,7 +691,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
   }
 
   view({attrs}: m.CVnode<ProcessTableAttrs>): m.Children {
-    const {processes, isUserDebug, session, searchQuery, onSearchChange} =
+    const {processes, isUserDebug, app, session, searchQuery, onSearchChange} =
       attrs;
 
     const visible = processes.filter((p) => {
@@ -784,20 +791,23 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
         if (mn > 0) return `${mn}m ${s}s`;
         return `${s}s`;
       })();
-      const canProfile = p.debuggable || isUserDebug;
-      const profileButton = m(Button, {
-        label: 'Profile',
-        icon: canProfile ? undefined : 'warning',
-        rightIcon: 'arrow_forward',
-        rounded: true,
-        variant: ButtonVariant.Filled,
-        intent: Intent.Primary,
-        tooltip: canProfile
-          ? undefined
-          : 'Process is not marked debuggable. Profiling may fail if the device is not a userdebug or eng build.',
-        onclick: () =>
-          session.startProfile(p.pid, p.processName).then(() => m.redraw()),
-      });
+      // Offline there is nothing to profile, so nothing to mute.
+      const canProfile = session === undefined || p.debuggable || isUserDebug;
+      const profileButton =
+        session !== undefined &&
+        m(Button, {
+          label: 'Profile',
+          icon: canProfile ? undefined : 'warning',
+          rightIcon: 'arrow_forward',
+          rounded: true,
+          variant: ButtonVariant.Filled,
+          intent: Intent.Primary,
+          tooltip: canProfile
+            ? undefined
+            : 'Process is not marked debuggable. Profiling may fail if the device is not a userdebug or eng build.',
+          onclick: () =>
+            session.startProfile(p.pid, p.processName).then(() => m.redraw()),
+        });
       const mutedStyle = canProfile
         ? undefined
         : {color: 'var(--pf-color-text-muted)', opacity: '0.7'};
@@ -808,7 +818,13 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       return [
         m(
           GridCell,
-          {actionButtons: profileButton, style: mutedStyle},
+          {
+            actionButtons: [
+              openInMemscopeButton(app, p.processName),
+              profileButton,
+            ],
+            style: mutedStyle,
+          },
           p.processName,
         ),
         m(GridCell, {style: mutedTextOnly}, m(ColorChip, {color}, cat.name)),
@@ -847,7 +863,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       ];
     });
 
-    const profile = session.profile;
+    const profile = session?.profile;
     const isStopping = profile?.state === 'stopping';
 
     return [
@@ -865,7 +881,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
               minimal: true,
               intent: Intent.Danger,
               onclick: () =>
-                session.stopAndDownloadProfile().then(() => m.redraw()),
+                session?.stopAndDownloadProfile().then(() => m.redraw()),
             }),
             m(Button, {
               label: 'Stop & Open',
@@ -873,13 +889,13 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
               minimal: true,
               intent: Intent.Danger,
               onclick: () =>
-                session.stopAndOpenProfile().then(() => m.redraw()),
+                session?.stopAndOpenProfile().then(() => m.redraw()),
             }),
             m(Button, {
               label: 'Cancel',
               icon: 'close',
               minimal: true,
-              onclick: () => session.cancelProfile().then(() => m.redraw()),
+              onclick: () => session?.cancelProfile().then(() => m.redraw()),
             }),
           ],
         ),

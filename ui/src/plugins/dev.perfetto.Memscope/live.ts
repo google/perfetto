@@ -18,6 +18,7 @@
 
 export {ConnectionPage, type ConnectionResult} from './views/connection';
 export {
+  extractSnapshotData,
   LiveSession,
   type LmkEvent,
   type ProcessInfo,
@@ -34,6 +35,11 @@ export {
   SessionPill,
 } from './views/live_chrome';
 export * from './utils';
+export {
+  memscopeProcessHref,
+  memscopeProductProcessUrl,
+  MEMSCOPE_PRODUCT_URL,
+} from './process_focus';
 export * from './process_data';
 export {Billboard, BillboardStrip} from './components/billboard';
 export {ColorChip, chipColor} from './components/color_chip';

@@ -21,12 +21,11 @@
   padding: 8px 16px;
   border-bottom: 1px solid var(--pf-color-border);
 
+  .pf-memscope-process-header {
+    flex: 1;
+  }
+
   .pf-hde-dump-selector {
     padding: 0;
   }
-}
-
-.pf-memory-explorer__title {
-  font-weight: 600;
-  font-size: var(--pf-font-size-l);
 }
