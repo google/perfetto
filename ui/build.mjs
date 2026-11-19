@@ -254,6 +254,9 @@ Env-var overrides:
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
+  parser.add_argument('--product', {
+    help: 'Build the standalone product described by products/<id>/product.json',
+  });
   parser.add_argument('--experimental-mithril-hmr', {
     action: 'store_true',
     help: 'Hot-swap edited Mithril component modules (remounting the tree) ' +
@@ -344,6 +347,7 @@ Env-var overrides:
   cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
+  cfg.product = args.product ? loadProduct(args.product) : undefined;
   cfg.experimentalMithrilHmr = !!args.experimental_mithril_hmr;
   cfg.noTraceconv = !!args.no_traceconv;
   cfg.wasmModules = ['proto_utils', 'trace_processor_memory64'];
@@ -523,6 +527,34 @@ function runTests() {
   }
 }
 
+function loadProduct(id) {
+  const manifest = pjoin(ROOT_DIR, 'products', id, 'product.json');
+  if (!/^[a-z0-9-]+$/.test(id) || !fs.existsSync(manifest)) {
+    throw new Error(`Unknown product '${id}': ${manifest} not found`);
+  }
+  const product = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  if (product.id !== id) {
+    throw new Error(`${manifest}: id '${product.id}' does not match '${id}'`);
+  }
+  return product;
+}
+
+// Applies --product (title + product meta tag) and --title to index.html.
+function patchTitleAndProduct(html) {
+  const titleRe = /<title>[^<]*<\/title>/;
+  if (cfg.product) {
+    html = html.replace(
+      titleRe,
+      `<title>${cfg.product.title}</title>\n  ` +
+        `<meta name="perfetto-product" content="${cfg.product.id}">`,
+    );
+  }
+  if (cfg.titleOverride) {
+    html = html.replace(titleRe, `<title>${cfg.titleOverride}</title>`);
+  }
+  return html;
+}
+
 function cpHtml(src, filename) {
   let html = fs.readFileSync(src).toString();
   // First copy the html as-is into the dist/v1.2.3/ directory. This is
@@ -537,14 +569,7 @@ function cpHtml(src, filename) {
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
 
-  // If --title was provided, patch the page title. Useful when running
-  // multiple dev server instances to distinguish browser tabs.
-  if (cfg.titleOverride) {
-    html = html.replace(
-      /<title>[^<]*<\/title>/,
-      `<title>${cfg.titleOverride}</title>`,
-    );
-  }
+  html = patchTitleAndProduct(html);
 
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
 }
@@ -943,13 +968,7 @@ async function startViteDevServer() {
       /data-perfetto_version='[^']*'/,
       `data-perfetto_version='${versionMap}'`,
     );
-    if (cfg.titleOverride) {
-      html = html.replace(
-        /<title>[^<]*<\/title>/,
-        `<title>${cfg.titleOverride}</title>`,
-      );
-    }
-    return html;
+    return patchTitleAndProduct(html);
   };
 
   // Serve /test/* from the repo (used by some e2e flows). Mirrors the

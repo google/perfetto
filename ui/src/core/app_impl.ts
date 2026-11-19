@@ -286,6 +286,10 @@ export class AppImpl implements App {
     return result;
   }
 
+  get productId(): string | undefined {
+    return this.embedder.productId;
+  }
+
   navigate(newHash: string): void {
     Router.navigate(newHash);
   }

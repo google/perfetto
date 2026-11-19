@@ -15,6 +15,7 @@
 import type {Embedder} from './embedder';
 import {DefaultEmbedder} from './default_embedder';
 import {PerfettoUiEmbedder} from './perfetto_ui_embedder';
+import {PRODUCTS} from '../../products';
 
 /**
  * Returns the appropriate Embedder based on the current origin.
@@ -22,6 +23,10 @@ import {PerfettoUiEmbedder} from './perfetto_ui_embedder';
  * and DefaultEmbedder otherwise.
  */
 export function createEmbedder(): Embedder {
+  const product = PRODUCTS.get(getProductId() ?? '');
+  if (product !== undefined) {
+    return product();
+  }
   const origin = self.location?.origin ?? '';
   if (
     origin.endsWith('.perfetto.dev') ||
@@ -31,4 +36,21 @@ export function createEmbedder(): Embedder {
     return new PerfettoUiEmbedder();
   }
   return new DefaultEmbedder();
+}
+
+// Picks the product, in order: the <meta name="perfetto-product"> tag written
+// by `ui/build --product`, the `?product=` query arg (for development), or
+// the `<product>.perfetto.dev` hostname.
+function getProductId(): string | undefined {
+  if (typeof document !== 'undefined') {
+    const meta = document.querySelector('meta[name="perfetto-product"]');
+    const content = meta?.getAttribute('content');
+    if (content) return content;
+  }
+  const loc = self.location;
+  if (loc === undefined) return undefined;
+  const fromQuery = new URLSearchParams(loc.search).get('product');
+  if (fromQuery) return fromQuery;
+  const m = /^([a-z0-9-]+)\.perfetto\.dev$/.exec(loc.hostname);
+  return m?.[1];
 }

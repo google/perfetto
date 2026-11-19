@@ -12,57 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Small formatting/widget helpers shared between the Memscope overview views
-// (the per-process overview page and the top-level trace overview cards).
+// Widget helpers shared between the Memscope overview views. The byte
+// formatters live in the heap dump explorer's format module.
 
 import m from 'mithril';
-import {
-  formatBytesIec,
-  type BytesFormatOptions,
-} from '../../../../base/bytes_format';
 import {Billboard} from '../../components/billboard';
+import {
+  deltaColor,
+  formatDelta,
+} from '../../../com.android.HeapDumpExplorer/format';
 
-// Memory sizes are always shown in mebibytes (base-1024) for consistency across
-// the page, rather than auto-scaling to B/KiB/GiB. Pass an explicit forceUnit to
-// override for a specific call.
-const UNIT: BytesFormatOptions['forceUnit'] = 'MiB';
-
-export function formatBytes(
-  bytes: number,
-  options?: BytesFormatOptions,
-): string {
-  return formatBytesIec(bytes, {
-    ...options,
-    forceUnit: options?.forceUnit ?? UNIT,
-  });
-}
-
-// Formats a signed byte delta, e.g. "+1.20 MiB" / "-0.50 MiB" / "±0.00 MiB".
-// Pass {fractionDigits} to control decimal places (default 2). Uses the
-// current locale for grouping/decimals automatically.
-export function formatDelta(
-  bytes: number,
-  options?: BytesFormatOptions,
-): string {
-  if (bytes === 0) return `±${formatBytes(0, options)}`;
-  const sign = bytes > 0 ? '+' : '-';
-  const absBytes = Math.abs(bytes);
-  return `${sign}${formatBytes(absBytes, options)}`;
-}
-
-// Consistent delta coloring across the page: red when a value grew (up),
-// green when it shrank (down), neutral (default text color) at zero. Matches
-// the Billboard delta convention (--pf-color-danger / --pf-color-success).
-export function deltaColor(n: number): string | undefined {
-  if (n > 0) return 'var(--pf-color-danger)';
-  if (n < 0) return 'var(--pf-color-success)';
-  return undefined;
-}
-
-// Signed integer delta, e.g. "+1,024" / "-7".
-export function formatCountDelta(n: number): string {
-  return `${n > 0 ? '+' : ''}${n.toLocaleString()}`;
-}
+export {
+  deltaColor,
+  formatBytes,
+  formatCountDelta,
+  formatDelta,
+} from '../../../com.android.HeapDumpExplorer/format';
 
 // A delta rendered as colored text (red up / green down). `text` defaults to
 // formatDelta(n); pass a custom string for rates, counts or "Δ … vs baseline".

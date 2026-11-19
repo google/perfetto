@@ -114,6 +114,11 @@ if (enable_perfetto_tools) {
   }
 }
 
+# Standalone products, see products/README.md.
+if (enable_perfetto_tools && !is_win && !is_android) {
+  all_targets += [ "products/memscope/cli:memscope" ]
+}
+
 if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
 

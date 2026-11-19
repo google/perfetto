@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type m from 'mithril';
+
 /**
  * Configuration for an embedder-provided default extension server.
  */
@@ -62,4 +64,18 @@ export interface Embedder {
 
   // Returns the list of plugin IDs that should be enabled by default.
   readonly defaultPlugins: ReadonlyArray<string>;
+
+  // The product this embedder represents (e.g. 'memscope'), or undefined for
+  // the general purpose Perfetto UI. See products/README.md.
+  readonly productId?: string;
+
+  // Overrides the page title. Undefined keeps the title from index.html.
+  readonly appTitle?: string;
+
+  // Renders the home page (route '/'). Undefined uses Perfetto's home page.
+  readonly renderHomePage?: () => m.Children;
+
+  // If set, only these plugins (plus core plugins) are registered at all, so
+  // the user cannot enable anything outside the product's scope.
+  readonly pluginAllowlist?: ReadonlyArray<string>;
 }

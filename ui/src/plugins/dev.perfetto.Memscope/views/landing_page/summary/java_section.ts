@@ -20,7 +20,6 @@ import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
-import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
@@ -37,6 +36,7 @@ import {findProcessTrack, showInTimelineLink} from '../process_links';
 import {nearestByTs} from '../selection';
 import {
   classNameCell,
+  type HeapDumpLink,
   deltaCell,
   emptyPanel,
   loadingPanel,
@@ -438,6 +438,7 @@ async function loadArtByTs(
 export interface JavaSectionAttrs {
   readonly trace: Trace;
   readonly upid: number;
+  readonly heapDumpLink: HeapDumpLink;
   // The page-wide selection (by ts). Undefined → latest dump.
   readonly selTs?: time;
   readonly baseTs?: time;
@@ -451,7 +452,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
   }
 
   view({attrs}: m.Vnode<JavaSectionAttrs>): m.Children {
-    const {trace, upid, selTs, baseTs} = attrs;
+    const {trace, upid, selTs, baseTs, heapDumpLink} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
       compute: () => loadJavaData(trace, upid),
@@ -595,10 +596,10 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
-          trace.plugins
-            .getPlugin(HeapDumpExplorerPlugin)
-            .updateHeadDump(upid, cur.ts),
+        classNameCell(
+          c.typeName,
+          (cls) => heapDumpLink(cur.ts, {view: 'objects', params: {cls}}),
+          data.retainerOf.get(c.typeName),
         ),
         withDelta(
           c.reachableObjCount.toLocaleString(),

@@ -87,6 +87,10 @@ export interface App {
   // certain internal links or expose certain experimental features by default.
   readonly isInternalUser: boolean;
 
+  // The standalone product this UI is running as (e.g. 'memscope'), or
+  // undefined for the general purpose Perfetto UI. See products/README.md.
+  readonly productId: string | undefined;
+
   /**
    * Navigate to a new page.
    */

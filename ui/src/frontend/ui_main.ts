@@ -32,8 +32,12 @@ const showStatusBarFlag = featureFlags.register({
   defaultValue: true,
 });
 // Read the page title set by index.html. This can be overridden at build time
-// via --title (e.g. to distinguish multiple dev server instances).
-const APP_TITLE = document.title || 'Perfetto UI';
+// via --title or --product, and at runtime by the embedder.
+const INDEX_TITLE = document.title || 'Perfetto UI';
+
+function appTitle(): string {
+  return AppImpl.instance.embedder.appTitle ?? INDEX_TITLE;
+}
 
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
@@ -45,9 +49,9 @@ export class UiMain implements m.ClassComponent {
 
     // Update the title bar to reflect the loaded trace's title
     if (trace) {
-      document.title = `${trace.traceInfo.traceTitle || 'Trace'} - ${APP_TITLE}`;
+      document.title = `${trace.traceInfo.traceTitle || 'Trace'} - ${appTitle()}`;
     } else {
-      document.title = APP_TITLE;
+      document.title = appTitle();
     }
   }
 
