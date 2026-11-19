@@ -78,10 +78,10 @@ test('per-process OOM score counter track stops at process exit', async () => {
   await pth.expandTrackGroup(pth.locateTrack('Process states'));
   await pth.expandTrackGroup(pth.locateTrack('Process states/By process'));
   await pth.expandTrackGroup(
-    pth.locateTrack('Process states/By process/app 200'),
+    pth.locateTrack('Process states/By process/Process: app | PID: 200'),
   );
   await pth.expandTrackGroup(
-    pth.locateTrack('Process states/By process/sys 100'),
+    pth.locateTrack('Process states/By process/Process: sys | PID: 100'),
   );
 
   const tooltip = page.locator('.pf-cursor-tooltip');
@@ -89,7 +89,7 @@ test('per-process OOM score counter track stops at process exit', async () => {
   // Trace spans [1000, 9000]; pid 200 has samples at 2000 (999) and 4000 (200)
   // and exits at 5000.
   const exitedTrack = pth.locateTrack(
-    'Process states/By process/app 200/OOM score',
+    'Process states/By process/Process: app | PID: 200/OOM score',
   );
   expect(await hasStepFillAtFraction(exitedTrack, 0.4375)).toBe(true);
   expect(await hasStepFillAtFraction(exitedTrack, 0.75)).toBe(false);
@@ -101,7 +101,7 @@ test('per-process OOM score counter track stops at process exit', async () => {
   await expect(tooltip).toBeHidden();
 
   const liveTrack = pth.locateTrack(
-    'Process states/By process/sys 100/OOM score',
+    'Process states/By process/Process: sys | PID: 100/OOM score',
   );
   expect(await hasStepFillAtFraction(liveTrack, 0.75)).toBe(true);
   await hoverTrackAtFraction(liveTrack, 0.75);

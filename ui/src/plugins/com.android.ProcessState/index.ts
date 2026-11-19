@@ -122,6 +122,64 @@ const PROCESS_GROUP_SORT_ORDER = -100;
 // Keeps the OOM score lanes out of the aggregators.
 const TAG_OOM_SCORE_TRACK = 'android_oom_score';
 
+interface ProcessTrack {
+  readonly node: TrackNode;
+  readonly userId?: number;
+  readonly packageName?: string;
+}
+
+const GROUP_STATE_SCHEMA = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  group_key: STR,
+  state: STR,
+} as const;
+
+function packageGroupKey(
+  packageName: string,
+  userId: number | undefined,
+  byUser: boolean,
+): string {
+  return byUser ? `${userId ?? -1}:${packageName}` : packageName;
+}
+
+function packageTrackUri(key: string, byUser: boolean): string {
+  return `${ProcessState.id}#${byUser ? 'user_package' : 'package'}.${key}`;
+}
+
+function userTrackUri(userId: number): string {
+  return `${ProcessState.id}#user.${userId}`;
+}
+
+// Persistent system processes are always alive.
+const PERSISTENT_STATES = ['PERSISTENT', 'PERSISTENT_UI'];
+
+function addByPackage(
+  parent: TrackNode,
+  processes: ReadonlyArray<ProcessTrack>,
+  uriOf: (packageName: string) => string,
+): void {
+  const byPackage = new Map<string | undefined, ProcessTrack[]>();
+  for (const p of processes) {
+    getOrCreate(byPackage, p.packageName, () => []).push(p);
+  }
+  for (const [packageName, members] of byPackage) {
+    if (packageName === undefined) {
+      for (const p of members) parent.addChildLast(p.node);
+      continue;
+    }
+    // A summary node: once expanded, its few processes show the same states.
+    const node = new TrackNode({
+      name: `Package: ${packageName}`,
+      uri: uriOf(packageName),
+      isSummary: true,
+    });
+    for (const p of members) node.addChildLast(p.node);
+    parent.addChildLast(node);
+  }
+}
+
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
  *
@@ -293,12 +351,13 @@ export default class ProcessState implements PerfettoPlugin {
   }
 
   // One timeline per process, with its freezer, OOM score, and capability
-  // timelines as children when present. Ordered by uid so that the successive
-  // processes of a respawning app sit next to each other - that adjacency is
-  // the only thing tying an app's lifetimes together, since each restart gets
-  // its own upid.
+  // timelines as children when present. Grouped by package by default, with a
+  // command to also split by user.
   private async createProcessTracks(ctx: Trace): Promise<TrackNode> {
-    const byProcess = new TrackNode({name: 'By process', isSummary: true});
+    const byProcessUri = `${ProcessState.id}#by_process`;
+    // This and the user rows are not summary nodes, so their state lanes stay
+    // visible when expanded.
+    const byProcess = new TrackNode({name: 'By process', uri: byProcessUri});
     const groups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
 
     const processes = await ctx.engine.query(`
@@ -306,6 +365,8 @@ export default class ProcessState implements PerfettoPlugin {
         i.upid,
         i.pid,
         i.process_name AS name,
+        i.user_id AS userId,
+        i.package_name AS packageName,
         p.end_ts AS endTs,
         i.upid IN (SELECT upid FROM _android_freezer_intervals)
           AS hasFreezer,
@@ -335,11 +396,14 @@ export default class ProcessState implements PerfettoPlugin {
       getOrCreate(capabilitiesByUpid, it.upid, () => []).push(it.capability);
     }
 
+    const processTracks: ProcessTrack[] = [];
     for (
       const it = processes.iter({
         upid: NUM,
         pid: NUM,
         name: STR_NULL,
+        userId: NUM_NULL,
+        packageName: STR_NULL,
         endTs: LONG_NULL,
         hasFreezer: NUM,
         hasOomScore: NUM,
@@ -389,7 +453,7 @@ export default class ProcessState implements PerfettoPlugin {
       });
       const overviewNode = new TrackNode({
         uri: overviewUri,
-        name: `${name} ${pid}`,
+        name: `Process: ${name} | PID: ${pid}`,
       });
       const groupNode = new TrackNode({
         uri,
@@ -557,11 +621,213 @@ export default class ProcessState implements PerfettoPlugin {
         groupNode.addChildLast(groupCapabilitiesNode);
       }
 
-      byProcess.addChildLast(overviewNode);
+      processTracks.push({
+        node: overviewNode,
+        userId: it.userId ?? undefined,
+        packageName: it.packageName ?? undefined,
+      });
       processGroup?.addChildInOrder(groupNode);
     }
 
+    const ready = new Map<boolean, Promise<void>>();
+    const showGrouping = async (byUser: boolean) => {
+      await getOrCreate(ready, byUser, async () => {
+        await this.registerPackageStateTracks(ctx, processTracks, byUser);
+        if (byUser) await this.registerUserStateTracks(ctx, processTracks);
+      });
+      for (const child of [...byProcess.children]) child.remove();
+      if (!byUser) {
+        addByPackage(byProcess, processTracks, (pkg) =>
+          packageTrackUri(packageGroupKey(pkg, undefined, false), false),
+        );
+        return;
+      }
+      const byUserId = new Map<number | undefined, ProcessTrack[]>();
+      for (const p of processTracks) {
+        getOrCreate(byUserId, p.userId, () => []).push(p);
+      }
+      for (const [userId, members] of byUserId) {
+        const uriOf = (pkg: string) =>
+          packageTrackUri(packageGroupKey(pkg, userId, true), true);
+        if (userId === undefined) {
+          addByPackage(byProcess, members, uriOf);
+          continue;
+        }
+        const userNode = new TrackNode({
+          name: `User: ${userId}`,
+          uri: userTrackUri(userId),
+        });
+        addByPackage(userNode, members, uriOf);
+        byProcess.addChildLast(userNode);
+      }
+    };
+
+    await this.registerMinStateTracks(
+      ctx,
+      '_android_process_state_all_states',
+      `'all'`,
+      'TRUE',
+      [{key: 'all', uri: byProcessUri, label: 'all processes'}],
+      PERSISTENT_STATES,
+    );
+    await showGrouping(false);
+    ctx.commands.registerCommand({
+      id: `${ProcessState.id}#GroupByPackage`,
+      name: 'Process states: group By process by package',
+      callback: () => showGrouping(false),
+    });
+    ctx.commands.registerCommand({
+      id: `${ProcessState.id}#GroupByUserAndPackage`,
+      name: 'Process states: group By process by user > package',
+      callback: () => showGrouping(true),
+    });
+
     return byProcess;
+  }
+
+  // One lane per package (optionally split by user) with the most important
+  // state among its processes at each moment.
+  private async registerPackageStateTracks(
+    ctx: Trace,
+    processes: ReadonlyArray<ProcessTrack>,
+    byUser: boolean,
+  ): Promise<void> {
+    const packages = new Map<string, string>();
+    for (const p of processes) {
+      if (p.packageName === undefined) continue;
+      packages.set(
+        packageGroupKey(p.packageName, p.userId, byUser),
+        p.packageName,
+      );
+    }
+    const table = byUser
+      ? '_android_process_state_user_package_states'
+      : '_android_process_state_package_states';
+    const keyExpr = byUser
+      ? `coalesce(user_id, -1) || ':' || package_name`
+      : 'package_name';
+    await this.registerMinStateTracks(
+      ctx,
+      table,
+      keyExpr,
+      'package_name IS NOT NULL',
+      Array.from(packages, ([key, packageName]) => ({
+        key,
+        uri: packageTrackUri(key, byUser),
+        label: `the processes of ${packageName}`,
+      })),
+    );
+  }
+
+  private async registerUserStateTracks(
+    ctx: Trace,
+    processes: ReadonlyArray<ProcessTrack>,
+  ): Promise<void> {
+    const userIds = new Set<number>();
+    for (const p of processes) {
+      if (p.userId !== undefined) userIds.add(p.userId);
+    }
+    await this.registerMinStateTracks(
+      ctx,
+      '_android_process_state_user_states',
+      'cast(user_id AS TEXT)',
+      'user_id IS NOT NULL',
+      Array.from(userIds, (userId) => ({
+        key: `${userId}`,
+        uri: userTrackUri(userId),
+        label: `the processes of user ${userId}`,
+      })),
+      PERSISTENT_STATES,
+    );
+  }
+
+  private async registerMinStateTracks(
+    ctx: Trace,
+    table: string,
+    keyExpr: string,
+    whereExpr: string,
+    groups: ReadonlyArray<{
+      readonly key: string;
+      readonly uri: string;
+      readonly label: string;
+    }>,
+    excludedStates: ReadonlyArray<string> = [],
+  ): Promise<void> {
+    if (groups.length === 0) return;
+    const ignored = ['NONEXISTENT', 'EXITED', ...excludedStates]
+      .map((state) => `'${state}'`)
+      .join(', ');
+    const warning =
+      excludedStates.length > 0
+        ? ` Ignores ${excludedStates.join(' and ')}, which would otherwise ` +
+          `hide all other states.`
+        : '';
+
+    await ctx.engine.query(`
+      -- Open intervals (dur = -1) run to the end of the trace.
+      CREATE PERFETTO TABLE ${table}_segments AS
+      FROM (
+        SELECT
+          ${keyExpr} AS group_key,
+          ts,
+          iif(dur < 0, trace_end() - ts, dur) AS dur,
+          state_rank
+        FROM _android_process_state_intervals
+        WHERE ${whereExpr}
+          AND state NOT IN (${ignored})
+          AND dur != 0
+      )
+      |> INTERVAL FLATTEN PER group_key AGGREGATE MIN(state_rank) AS rank;
+
+      -- FLATTEN cuts at every state change of every process: merge the
+      -- contiguous segments that keep the same state.
+      CREATE PERFETTO TABLE ${table} AS
+      WITH
+        segments AS (
+          SELECT
+            *,
+            lag(rank) OVER w IS NOT rank OR lag(ts + dur) OVER w != ts
+              AS starts_run
+          FROM ${table}_segments
+          WINDOW w AS (PARTITION BY group_key ORDER BY ts)
+        ),
+        runs AS (
+          SELECT
+            *,
+            sum(starts_run) OVER (PARTITION BY group_key ORDER BY ts) AS run
+          FROM segments
+        )
+      SELECT
+        row_number() OVER (ORDER BY group_key, min(ts)) AS id,
+        min(ts) AS ts,
+        max(ts + dur) - min(ts) AS dur,
+        group_key,
+        r.state
+      FROM runs
+      JOIN _android_process_state_rank AS r USING (rank)
+      GROUP BY group_key, run;
+    `);
+
+    for (const {key, uri, label} of groups) {
+      ctx.tracks.registerTrack({
+        uri,
+        renderer: SliceTrack.create({
+          trace: ctx,
+          uri,
+          dataset: new SourceDataset({
+            schema: GROUP_STATE_SCHEMA,
+            src: table,
+            filter: {col: 'group_key', eq: key},
+          }),
+          sliceLayout: COMPACT_SLICES,
+          sliceName: (row) => row.state,
+          colorizer: (row) => getColorForSlice(row.state),
+        }),
+        description:
+          `Most important framework process state among ${label}. ` +
+          `Empty while none of them is alive.${warning}`,
+      });
+    }
   }
 
   // Registers a process-scoped track. The process group owns it when there is
