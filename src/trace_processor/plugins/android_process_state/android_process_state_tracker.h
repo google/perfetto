@@ -31,6 +31,7 @@
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
+class ArgsInserter;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
@@ -105,14 +106,27 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
-  // Populates capability_flags[i] args on the given AndroidProcessState row.
-  void AddCapabilityFlagsArgs(tables::AndroidProcessStateTable::Id id,
-                              int32_t mask);
+  // Populates decoded flag array entries (capability_flags[i],
+  // cpu_time_reasons[i], implicit_cpu_time_reasons[i], freeze_policy_flags[i])
+  // onto row.arg_set_id using a single ArgsInserter.
+  void AddFlagsArgs(tables::AndroidProcessStateTable::Id id,
+                    const tables::AndroidProcessStateTable::Row& row);
+
+  // Appends decoded flag entries for a single non-zero bitmask onto |inserter|.
+  void EmitDecodedFlags(ArgsInserter& inserter,
+                        StringId flat_key_id,
+                        const char* key_prefix,
+                        DescriptorPool::CachedDescriptor& cache,
+                        const char* enum_name,
+                        int32_t mask);
 
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
   const StringId capability_flags_id_;
+  const StringId cpu_time_reasons_id_;
+  const StringId implicit_cpu_time_reasons_id_;
+  const StringId freeze_policy_flags_id_;
   UnknownProcessLogger unknown_process_logger_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
@@ -120,6 +134,8 @@ class AndroidProcessStateTracker {
   DescriptorPool::CachedDescriptor reason_cache_;
   DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
   DescriptorPool::CachedDescriptor capability_flags_cache_;
+  DescriptorPool::CachedDescriptor cpu_time_reasons_cache_;
+  DescriptorPool::CachedDescriptor freeze_policy_flags_cache_;
   std::vector<std::string_view> flag_views_;
 
   // Map of upid -> earliest observed delta transition during the trace.
