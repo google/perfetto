@@ -47,6 +47,32 @@ Navigate to http://localhost:10000/ to see the changes.
 
 NOTE: If you made changes to Trace Processor you need to restart the server.
 
+#### If the UI is slow to load
+
+By default the devserver serves each source file as a separate module, so the
+browser makes over a thousand requests on every page load. When the devserver
+runs on a remote machine and you reach it through SSH or port forwarding, each
+request pays the network latency, and the UI can take tens of seconds to load.
+
+In that case, serve the bundled UI instead:
+
+```bash
+ui/run-dev-server --bundle
+```
+
+This loads in a couple of seconds, but it has some caveats compared to the
+default:
+
+- **No hot reload.** Changes are still rebuilt automatically, but the whole
+  page reloads instead of the changed code being swapped in place, so UI state
+  such as open tabs or the current selection is lost on every change.
+- **Slower rebuilds.** Every change rebuilds the whole bundle, rather than only
+  the files that changed.
+
+You can also add `--no-source-maps` to make the bundle smaller still. Without
+source maps, stack traces and the debugger show the bundled JavaScript instead
+of the original TypeScript sources.
+
 ### Test the change
 
 UI unit tests are located next to the functionality being tested, and have
