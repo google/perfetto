@@ -95,7 +95,7 @@ describe('fuzzySearch', () => {
       ];
       const results = fuzzySearch(items, (x) => x, 'trace');
       for (let i = 0; i < results.length - 1; i++) {
-        expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
+        expect(results[i]!.score).toBeGreaterThanOrEqual(results[i + 1]!.score);
       }
     });
 
@@ -123,20 +123,20 @@ describe('fuzzySearch', () => {
 
     it('produces valid matching segments for exact match', () => {
       const results = fuzzySearch(['foo'], (x) => x, 'foo');
-      expect(results[0].segments).toEqual([{matching: true, value: 'foo'}]);
+      expect(results[0]!.segments).toEqual([{matching: true, value: 'foo'}]);
     });
 
     it('produces non-matching single segment for empty search term', () => {
       const results = fuzzySearch(['foo'], (x) => x, '');
-      expect(results[0].segments).toEqual([{matching: false, value: 'foo'}]);
+      expect(results[0]!.segments).toEqual([{matching: false, value: 'foo'}]);
     });
 
     it('correctly splits matching and non-matching segments', () => {
       const results = fuzzySearch(['ababc'], (x) => x, 'abc');
       expect(results.length).toBe(1);
-      const reconstructed = results[0].segments.map((s) => s.value).join('');
+      const reconstructed = results[0]!.segments.map((s) => s.value).join('');
       expect(reconstructed).toBe('ababc');
-      const matchedText = results[0].segments
+      const matchedText = results[0]!.segments
         .filter((s) => s.matching)
         .map((s) => s.value)
         .join('');
@@ -159,7 +159,7 @@ describe('fuzzySearch', () => {
     const keyLookups = [
       (x: CommandItem) => x.name,
       (x: CommandItem) => x.source,
-    ];
+    ] as const;
 
     it('matches on primary or secondary keys', () => {
       const nameResults = fuzzySearch(items, keyLookups, 'Table');
@@ -186,13 +186,13 @@ describe('fuzzySearch', () => {
       const results = fuzzySearch(items, keyLookups, '');
       expect(results.length).toBe(items.length);
       for (let i = 0; i < items.length; i++) {
-        expect(results[i].item).toEqual(items[i]);
-        expect(results[i].score).toBe(1);
-        expect(results[i].segments[0]).toEqual([
-          {matching: false, value: items[i].name},
+        expect(results[i]!.item).toEqual(items[i]);
+        expect(results[i]!.score).toBe(1);
+        expect(results[i]!.segments[0]).toEqual([
+          {matching: false, value: items[i]!.name},
         ]);
-        expect(results[i].segments[1]).toEqual([
-          {matching: false, value: items[i].source},
+        expect(results[i]!.segments[1]).toEqual([
+          {matching: false, value: items[i]!.source},
         ]);
       }
     });
@@ -200,7 +200,7 @@ describe('fuzzySearch', () => {
     it('orders multi-key results by overall match score', () => {
       const results = fuzzySearch(items, keyLookups, 'Data');
       for (let i = 0; i < results.length - 1; i++) {
-        expect(results[i].score).toBeGreaterThanOrEqual(results[i + 1].score);
+        expect(results[i]!.score).toBeGreaterThanOrEqual(results[i + 1]!.score);
       }
     });
   });

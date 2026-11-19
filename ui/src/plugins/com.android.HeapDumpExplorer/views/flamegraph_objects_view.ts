@@ -46,6 +46,13 @@ interface FlamegraphObjectsViewAttrs {
   readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
+export function flamegraphObjectsPreamble(isDominator: boolean): string {
+  const hashModule = isDominator
+    ? 'android.memory.heap_graph.dominator_class_tree'
+    : 'android.memory.heap_graph.class_tree';
+  return `${SQL_PREAMBLE};\nINCLUDE PERFETTO MODULE ${hashModule}`;
+}
+
 export function flamegraphQuery(
   pathHashes: string,
   isDominator: boolean,
@@ -78,7 +85,7 @@ export function flamegraphQuery(
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
+    LEFT JOIN heap_graph_shortest_path_tree a ON a.id = o.id
   `;
 }
 
@@ -196,6 +203,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
         vnode.attrs;
       const {pathHashes, isDominator, engine} = vnode.attrs;
 
+      const preamble = flamegraphObjectsPreamble(isDominator);
       const query = pathHashes
         ? flamegraphQuery(pathHashes, isDominator)
         : undefined;
@@ -207,7 +215,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
                 new SQLDataSource({
                   engine,
                   tableOrSubquery: query,
-                  preamble: SQL_PREAMBLE,
+                  preamble,
                 }),
             })
           : undefined;
@@ -236,7 +244,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
         {
           title: rowCountHeading(
             nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
-            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
+            counter.use({engine, query, preamble, filters}),
           ),
           fillHeight: true,
           buttons: onBackToTimeline

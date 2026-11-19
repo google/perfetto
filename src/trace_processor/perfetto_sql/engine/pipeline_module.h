@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/perfetto_sql/engine/column_results.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
@@ -88,13 +90,15 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     Context* context = nullptr;
   };
   struct Cursor : sqlite::Module<PipelineModule>::Cursor {
-    using ResultFn = void (*)(sqlite3_context*,
-                              StringPool*,
-                              const core::exec::ColumnView&,
-                              uint32_t);
     struct ColumnReader {
-      const core::exec::ColumnView* view = nullptr;
-      ResultFn result = nullptr;
+      static constexpr uint32_t kNoView = std::numeric_limits<uint32_t>::max();
+      // In the plan's batches, or kNoView for a column the plan does not
+      // output.
+      uint32_t index = kNoView;
+      ColumnResultFn result = nullptr;
+      // The view `result` was chosen for.
+      core::exec::ColumnView::Kind kind{};
+      uint32_t type = 0;
     };
     std::unique_ptr<pipeline::PhysicalPlan> plan;
     StringPool* pool = nullptr;

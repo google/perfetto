@@ -26,6 +26,7 @@ class TraceProcessor;
 
 // Starts a RPC server that handles requests using protobuf-over-stdio.
 // Returns when the server completes.
+// On Windows, the caller must put stdin and stdout in binary mode first.
 base::Status RunStdioRpcServer(Rpc& rpc);
 
 }  // namespace perfetto::trace_processor

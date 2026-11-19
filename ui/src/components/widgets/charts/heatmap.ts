@@ -276,11 +276,11 @@ function buildHeatmapEventHandlers(
           if (xMin <= xMax && yMin <= yMax) {
             const selectedX: string[] = [];
             for (let i = xMin; i <= xMax; i++) {
-              selectedX.push(xLabels[i]);
+              selectedX.push(xLabels[i]!);
             }
             const selectedY: string[] = [];
             for (let i = yMin; i <= yMax; i++) {
-              selectedY.push(yLabels[i]);
+              selectedY.push(yLabels[i]!);
             }
             if (selectedX.length > 0 && selectedY.length > 0) {
               onBrush({xLabels: selectedX, yLabels: selectedY});

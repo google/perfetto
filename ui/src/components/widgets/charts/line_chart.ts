@@ -317,7 +317,7 @@ function buildLineOption(
         }>,
       ) => {
         if (!Array.isArray(params) || params.length === 0) return '';
-        const xVal = params[0].data?.[0];
+        const xVal = params[0]!.data?.[0];
         const header = xVal !== undefined ? `X: ${fmtX(xVal)}` : '';
         return renderTooltip([
           m('div', header),

@@ -40,46 +40,27 @@ JOIN track AS t
 WHERE
   t.name = 'powervr_gpu_power_state';
 
--- Gapless time slices of GPU freq from trace_start() to trace_end()
+-- Gapless time slices of GPU freq from trace_start() to trace_end(), NULL where
+-- no freq event defines it.
 CREATE PERFETTO TABLE _gapless_gpu_freq AS
-WITH
-  nominal_freqs AS (
-    -- Prepend NULL slices up to first freq events
-    SELECT
-      trace_start() AS ts,
-      min(ts) - trace_start() AS dur,
-      NULL AS freq,
-      NULL AS prev_freq,
-      next_gpu_freq AS next_freq,
-      gpu_id
-    FROM android_gpu_frequency
-    WHERE
-      gpu_id
-      = (
-        SELECT gpu_id
-        FROM _gpuid_map
-        JOIN _wattson_device
-          ON _gpuid_map.device = _wattson_device.name
-      )
-    UNION ALL
-    SELECT
-      ts,
-      dur,
-      gpu_freq AS freq,
-      prev_gpu_freq AS prev_freq,
-      next_gpu_freq AS next_freq,
-      gpu_id
-    FROM android_gpu_frequency
-    WHERE
-      gpu_id
-      = (
-        SELECT gpu_id
-        FROM _gpuid_map
-        JOIN _wattson_device
-          ON _gpuid_map.device = _wattson_device.name
-      )
-  )
-SELECT * FROM nominal_freqs;
+FROM (
+  SELECT
+    ts,
+    dur,
+    gpu_freq AS freq,
+    prev_gpu_freq AS prev_freq,
+    next_gpu_freq AS next_freq
+  FROM android_gpu_frequency
+  WHERE
+    gpu_id
+    = (
+      SELECT gpu_id
+      FROM _gpuid_map
+      JOIN _wattson_device
+        ON _gpuid_map.device = _wattson_device.name
+    )
+)
+|> INTERVAL FILL GAPS WITH (SELECT trace_start() AS ts, trace_dur() AS dur);
 
 -- A single source for GPU power state information
 -- from either mali or pvr which are mutually exclusive
@@ -88,20 +69,11 @@ SELECT ts, dur, power_state FROM android_mali_gpu_power_state
 UNION ALL
 SELECT ts, dur, power_state FROM _pvr_gpu_power_state;
 
--- Gapless time slices of GPU idle from trace_start() to trace_end()
+-- Gapless time slices of GPU idle from trace_start() to trace_end(), NULL where
+-- no power state event defines it.
 CREATE PERFETTO TABLE _gapless_gpu_power_state AS
--- Prepend NULL slices up to first idle events
-WITH
-  nominal_power_states AS (
-    SELECT
-      trace_start() AS ts,
-      min(ts) - trace_start() AS dur,
-      NULL AS power_state
-    FROM _gpu_power_state
-    UNION ALL
-    SELECT ts, dur, power_state FROM _gpu_power_state
-  )
-SELECT * FROM nominal_power_states;
+FROM _gpu_power_state
+|> INTERVAL FILL GAPS WITH (SELECT trace_start() AS ts, trace_dur() AS dur);
 
 -- GPU frequency and power state over the regions where both are defined.
 CREATE PERFETTO TABLE _gpu_freq_idle_raw AS

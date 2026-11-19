@@ -22,6 +22,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <tuple>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
@@ -138,9 +139,11 @@ template <typename Desc>
 std::pair<BumpAllocator::AllocId, uint8_t*> TraceTokenBuffer::AppendCommon(
     Desc& desc,
     const TraceBlobView& packet,
-    RefPtr<PacketSequenceStateGeneration> sequence_state) {
+    RefPtr<PacketSequenceStateGeneration> sequence_state,
+    uint32_t extra_size) {
   void* raw;
-  BumpAllocator::AllocId alloc_id = allocator_.Alloc(GetAllocSize(desc), &raw);
+  BumpAllocator::AllocId alloc_id =
+      allocator_.Alloc(GetAllocSize(desc) + extra_size, &raw);
   CurrentChunk& chunk = ChunkFor(alloc_id.chunk_index);
 
   desc.intern_blob_offset = InternTraceBlob(*chunk.blobs, packet);
@@ -189,9 +192,22 @@ TraceTokenBuffer::Id TraceTokenBuffer::Append(TrackEventData&& ted) {
   desc.has_counter_value = std::not_equal_to<double>()(ted.counter_value, 0);
   desc.extra_counter_count = ted.CountExtraCounterValues();
 
-  TracePacketData& tpd = ted.trace_packet_data;
-  auto [alloc_id, ptr] =
-      AppendCommon(desc, tpd.packet, std::move(tpd.sequence_state));
+  // The TrackEvent is stored as a slice of the packet when the packet is kept,
+  // so it does not need its own blob.
+  BumpAllocator::AllocId alloc_id;
+  uint8_t* ptr;
+  if (keep_track_event_packets_) {
+    PERFETTO_CHECK(ted.packet);
+    std::tie(alloc_id, ptr) = AppendCommon(
+        desc, *ted.packet, std::move(ted.sequence_state), 2 * sizeof(uint32_t));
+    ptr = AppendToPtr(
+        ptr, static_cast<uint32_t>(ted.event.data() - ted.packet->data()));
+    ptr = AppendToPtr(ptr, static_cast<uint32_t>(ted.event.size()));
+  } else {
+    PERFETTO_DCHECK(!ted.packet);
+    std::tie(alloc_id, ptr) =
+        AppendCommon(desc, ted.event, std::move(ted.sequence_state));
+  }
 
   if (desc.has_thread_instruction_count) {
     ptr = AppendToPtr(ptr, ted.thread_instruction_count.value());
@@ -265,7 +281,18 @@ TrackEventData TraceTokenBuffer::Extract<TrackEventData>(Id id) {
   auto allocation = allocator_.GetAllocation(id.alloc_id);
   auto [tpd, ptr] =
       ExtractCommon(id, &desc, static_cast<uint8_t*>(allocation.data()));
-  TrackEventData ted{std::move(tpd.packet), std::move(tpd.sequence_state)};
+  std::optional<TraceBlobView> packet;
+  TraceBlobView event;
+  if (keep_track_event_packets_) {
+    auto offset = ExtractFromPtr<uint32_t>(&ptr);
+    auto size = ExtractFromPtr<uint32_t>(&ptr);
+    event = tpd.packet.slice_off(offset, size);
+    packet = std::move(tpd.packet);
+  } else {
+    event = std::move(tpd.packet);
+  }
+  TrackEventData ted{std::move(event), std::move(tpd.sequence_state),
+                     std::move(packet)};
   if (desc.has_thread_instruction_count) {
     ted.thread_instruction_count = ExtractFromPtr<int64_t>(&ptr);
   }

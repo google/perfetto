@@ -24,8 +24,8 @@
 #include "perfetto/protozero/field.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/winscope/shell_transition.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/shell_transitions_tracker.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_geometry.h"
@@ -66,13 +66,15 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   winscope::ShellTransitionsTracker& transition_tracker =
       context_->shell_transitions_tracker_;
   ArgsInserter& inserter = transition_tracker.AddArgsTo(transition_id);
-  ArgsParser writer(/*packet_timestamp=*/0, inserter, *storage,
-                    *context_->trace_processor_context_->process_tracker);
+  util::ProtoArgsEnv env(
+      /*packet_timestamp=*/0,
+      context_->trace_processor_context_->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
           tables::WindowManagerShellTransitionProtosTable::Name()),
-      nullptr /* parse all fields */, writer);
+      nullptr /* parse all fields */, env, writer);
 
   if (!status.ok()) {
     context_->trace_processor_context_->stats_tracker->IncrementStats(

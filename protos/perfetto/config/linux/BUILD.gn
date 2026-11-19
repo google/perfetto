@@ -15,5 +15,8 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  sources = [ "journald_config.proto" ]
+  sources = [
+    "cgroup_config.proto",
+    "journald_config.proto",
+  ]
 }

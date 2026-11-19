@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -91,19 +92,16 @@ const uint8_t* DecodeSignedLeb128(const uint8_t* data,
 
 // Reads a simple little-endian integer from the byte stream.
 uint64_t ReadNumber(const uint8_t* ptr, size_t num_bytes) {
-  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
-                "ART Method traces are little-endian. Perfetto requires a "
-                "little-endian host to parse these effectively.");
   PERFETTO_DCHECK(num_bytes <= sizeof(uint64_t));
   uint64_t number = 0;
   memcpy(&number, ptr, num_bytes);
-  return number;
+  return base::LEToHost(number);
 }
 
 std::string ConstructPathname(base::StringView class_name,
                               base::StringView pathname) {
   size_t index = class_name.rfind('/');
-  if (index != base::StringView::npos && pathname.EndsWith(".java")) {
+  if (index != base::StringView::npos && base::EndsWith(pathname, ".java")) {
     return class_name.substr(0, index + 1).ToStdString() +
            pathname.ToStdString();
   }
@@ -286,7 +284,7 @@ void ArtMethodV2Tokenizer::ParseMethod(uint64_t id, const std::string& str) {
     pathname = context_->storage->InternString(base::StringView(pathname_str));
     line_number = base::StringToUInt32(tokens[4].ToStdString());
   } else if (tokens.size() > 2) {
-    if (tokens[2].StartsWith("(")) {
+    if (base::StartsWith(tokens[2], "(")) {
       method_name = tokens[1];
       signature = tokens[2];
       if (tokens.size() >= 4) {
@@ -497,14 +495,14 @@ class ArtMethodV2Importer : public TraceImporter<ArtMethodV2Importer> {
   ArtMethodV2Importer() : TraceImporter(MakeDescriptor()) {}
   ~ArtMethodV2Importer() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'S', 'L', 'O', 'W'};
     if (size < 6 || memcmp(data, kMagic, sizeof(kMagic)) != 0) {
-      return false;
+      return {false};
     }
     uint16_t version = data[4] | static_cast<uint16_t>(data[5] << 8);
-    return version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
-           version == 0x00f5;
+    return {version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
+            version == 0x00f5};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

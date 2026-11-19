@@ -82,7 +82,7 @@ std::string ShellQuoteIfNeeded(const std::string& value) {
     else
       out += c;
   }
-  out += "'";
+  out += '\'';
   return out;
 }
 
@@ -153,7 +153,7 @@ const char* g_pid_path_for_signal = nullptr;
 // Removes the socket + pid file and exits. Runs in a signal handler on POSIX,
 // so it must stay async-signal-safe: base::Unlink()/_exit() are, remove()
 // isn't.
-[[noreturn]] void HandleTermSignal() {
+[[noreturn]] void HandleTermSignal(int /*signal*/) {
   if (g_socket_path_for_signal)
     base::Unlink(g_socket_path_for_signal);
   if (g_pid_path_for_signal)

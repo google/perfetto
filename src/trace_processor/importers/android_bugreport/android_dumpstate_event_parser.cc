@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -46,10 +47,11 @@ namespace perfetto::trace_processor {
 
 namespace {
 base::StatusOr<std::string> GetEventFromShortName(base::StringView short_name) {
-  static const base::NoDestructor<
-      std::unordered_map<base::StringView, std::string> >
+  static const base::NoDestructor<std::unordered_map<
+      base::StringView, std::string, base::MurmurHash<base::StringView>>>
       checkin_event_name_to_enum(
-          std::unordered_map<base::StringView, std::string>({
+          std::unordered_map<base::StringView, std::string,
+                             base::MurmurHash<base::StringView>>({
               {"Enl", "null"},       {"Epr", "proc"},
               {"Efg", "fg"},         {"Etp", "top"},
               {"Esy", "sync"},       {"Ewl", "wake_lock_in"},
@@ -71,7 +73,10 @@ base::StatusOr<std::string> GetEventFromShortName(base::StringView short_name) {
 
 struct StateStringTranslationInfo {
   const std::string long_name;
-  const std::unordered_map<base::StringView, int64_t> short_string_to_value;
+  const std::unordered_map<base::StringView,
+                           int64_t,
+                           base::MurmurHash<base::StringView>>
+      short_string_to_value;
 };
 
 base::StatusOr<std::string> GetStateAndValueFromShortName(
@@ -81,9 +86,11 @@ base::StatusOr<std::string> GetStateAndValueFromShortName(
   // Mappings of all the state checkin names from BatteryStats.java and their
   // corresponding value mappings
   static const base::NoDestructor<
-      std::unordered_map<base::StringView, StateStringTranslationInfo> >
+      std::unordered_map<base::StringView, StateStringTranslationInfo,
+                         base::MurmurHash<base::StringView>>>
       checkin_state_name_to_enum_and_values(
-          std::unordered_map<base::StringView, StateStringTranslationInfo>(
+          std::unordered_map<base::StringView, StateStringTranslationInfo,
+                             base::MurmurHash<base::StringView>>(
               {{"r", {"running", {}}},
                {"w", {"wake_lock", {}}},
                {"s", {"sensor", {}}},
@@ -268,7 +275,7 @@ base::Status AndroidDumpstateEventParser::ProcessBatteryStatsHistoryItem(
 base::StatusOr<bool>
 AndroidDumpstateEventParser::ProcessBatteryStatsHistoryEvent(
     const TokenizedBatteryStatsHistoryItem& item) {
-  if (!item.key.StartsWith("E")) {
+  if (!base::StartsWith(item.key, "E")) {
     return false;
   }
   // Process a history event
@@ -351,7 +358,8 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryState(
 base::StatusOr<bool>
 AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     const TokenizedBatteryStatsHistoryItem& item) {
-  if (!item.prefix.empty() || item.value.empty() || !item.key.StartsWith("B")) {
+  if (!item.prefix.empty() || item.value.empty() ||
+      !base::StartsWith(item.key, "B")) {
     return false;
   }
   // AndroidProbesParser will use the empty string for the battery name if no

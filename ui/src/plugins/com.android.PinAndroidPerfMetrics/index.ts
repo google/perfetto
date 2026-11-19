@@ -37,7 +37,7 @@ function getMetricsFromHash(): string[] {
   if (match === null) {
     return [];
   }
-  const capturedString = match[1];
+  const capturedString = match[1]!;
   let metricList: string[] = [];
   if (capturedString.includes('--')) {
     metricList = capturedString.split('--');

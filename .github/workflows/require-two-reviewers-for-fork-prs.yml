@@ -14,9 +14,22 @@
 
 # This workflow requires that pull requests coming from a forked repo (hence
 # non-googlers) have 2 reviews from Google organization members.
+#
+# SECURITY: this deliberately uses pull_request_target, NOT pull_request.
+# Under pull_request_target GitHub always runs the copy of this file from the
+# base branch, so a fork PR cannot edit the check that gates it. This is safe
+# only as long as this workflow:
+#   1. never checks out or executes code from the PR, and
+#   2. never interpolates attacker-controlled text (PR title, body, branch
+#      name, ...) into a script. Pass values through env: instead.
+# Keep it that way.
 
 name: Enforce 2 Google org member reviews for fork PRs
 
+# NOTE: we deliberately NOT have a "pull_request_review" trigger. That would do
+# the wrong thing security-wise as it would run the PR's copy of the workflow
+# (so a malicious author could just replace it with exit 0). The workflow must
+# be manually retriggered by reviewers using Github's UI.
 on:
   pull_request_target:
     types: [opened, synchronize, labeled, edited, auto_merge_enabled, auto_merge_disabled]
@@ -34,26 +47,27 @@ jobs:
     # job like this.
     runs-on: ubuntu-latest
     steps:
-      - name: Check if PR is from a fork
-        id: fork_check
-        shell: bash
-        run: |
-          echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
-          echo "Triggered by: ${{ github.event_name }}, ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
-
       - name: Check Google org member reviews
-        if: env.is_fork == 'true'
+        # Non-fork PRs: the step is skipped and the job passes.
+        if: github.event.pull_request.head.repo.full_name != github.repository
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          LATEST_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          REPO="${{ github.repository }}"
-          LATEST_SHA="${{ github.event.pull_request.head.sha }}"
+          # Fetch all pages (the API defaults to 30 reviews per page).
+          REVIEWS=$(gh api --paginate \
+            "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" --jq '.[]' |
+            jq -s '.')
 
-          REVIEWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/reviews")
-
-          # Get unique reviewers who approved the latest commit
+          # Mirror GitHub's own semantics: a reviewer's effective state is their
+          # latest APPROVED / CHANGES_REQUESTED / DISMISSED review. Plain
+          # COMMENTED (or PENDING) reviews do not override an earlier approval.
+          # Only approvals of the latest commit count.
           REVIEWERS=$(echo "$REVIEWS" | jq -r --arg sha "$LATEST_SHA" '
+          map(select(.state != "COMMENTED" and .state != "PENDING")) |
           [group_by(.user.login)[] | last] |
           map(select(
             .state == "APPROVED" and
@@ -72,9 +86,10 @@ jobs:
           for reviewer in $REVIEWERS; do
             echo "Checking Google org membership for: $reviewer"
 
-            # Check if user is a member of Google organization
+            # Only *public* membership is visible to GITHUB_TOKEN. Googlers need
+            # to make their membership of the Google org public to be counted.
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Authorization: token $GH_TOKEN" \
               "https://api.github.com/organizations/1342004/public_members/$reviewer")
 
             if [ "$HTTP_STATUS" = "204" ]; then

@@ -46,7 +46,6 @@ constexpr char kSurfaceFlingerSkiaUsePerfettoPropertyName[] =
     "debug.tracing.ctl.renderengine.skia_use_perfetto_track_events";
 
 using ::testing::_;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
 using ::testing::Return;
 using ::testing::StrictMock;
@@ -72,10 +71,10 @@ TEST(BuiltinProducerTest, LazyHeapprofdSimple) {
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "1"))
       .WillOnce(Return(true));
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
@@ -91,10 +90,10 @@ TEST(BuiltinProducerTest, LazyTracedPerfSimple) {
   EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, "1"))
       .WillOnce(Return(true));
   EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
@@ -110,10 +109,10 @@ TEST(BuiltinProducerTest, LazyTracedPerfSmaps) {
   EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, "1"))
       .WillOnce(Return(true));
   EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
@@ -133,10 +132,10 @@ TEST(BuiltinProducerTest, LazyHeapprofdRefCount) {
   p.StopDataSource(2);
   task_runner.RunUntilIdle();
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   p.StopDataSource(1);
   task_runner.RunUntilCheckpoint("done");
 }
@@ -156,10 +155,10 @@ TEST(BuiltinProducerTest, LazyHeapprofdNoFlap) {
   task_runner.RunUntilIdle();
   p.StopDataSource(2);
   EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, ""))
-      .WillOnce(InvokeWithoutArgs([&done]() {
+      .WillOnce([&done]() {
         done();
         return true;
-      }));
+      });
   task_runner.RunUntilCheckpoint("done");
 }
 

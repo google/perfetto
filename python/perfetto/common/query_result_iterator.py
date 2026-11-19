@@ -41,6 +41,14 @@ except ModuleNotFoundError:
 except ImportError:
   HAS_POLARS = False
 
+try:
+  import pyarrow as pa
+  HAS_PYARROW = True
+except ModuleNotFoundError:
+  HAS_PYARROW = False
+except ImportError:
+  HAS_PYARROW = False
+
 # Values of these constants correspond to the QueryResponse message at
 # protos/perfetto/trace_processor/trace_processor.proto
 QUERY_CELL_INVALID_FIELD_ID = 0
@@ -67,6 +75,36 @@ def _extract_strings(x: Union[str, bytes]):
   if res:
     res.pop()
   return res
+
+
+_CELL_TYPE_NAMES = {
+    QUERY_CELL_VARINT_FIELD_ID: 'integer',
+    QUERY_CELL_FLOAT64_FIELD_ID: 'float',
+    QUERY_CELL_STRING_FIELD_ID: 'string',
+    QUERY_CELL_BLOB_FIELD_ID: 'blob',
+}
+
+_NUMERIC_CELL_TYPES = {QUERY_CELL_VARINT_FIELD_ID, QUERY_CELL_FLOAT64_FIELD_ID}
+
+
+class _Column:
+  """The cells of one result column, with the cell types seen in it."""
+
+  def __init__(self, name: str, values, types):
+    self.name = name
+    self.values = values
+    if HAS_NUMPY and isinstance(types, np.ndarray):
+      seen = set(np.unique(types).tolist())
+    else:
+      seen = set(types)
+    self.types = seen - {QUERY_CELL_NULL_FIELD_ID}
+
+  def is_mixed(self):
+    return len(self.types) > 1 and self.types != _NUMERIC_CELL_TYPES
+
+  def describe_types(self):
+    names = (_CELL_TYPE_NAMES.get(t, str(t)) for t in self.types)
+    return ', '.join(sorted(names))
 
 
 # Provides a Python interface to operate on the contents of QueryResult protos
@@ -104,9 +142,10 @@ class QueryResultIterator(Sized):
 
     if HAS_NUMPY:
       self.cells = np.empty(self.cell_count, dtype='object')
+      self._cell_types = np.empty(self.cell_count, dtype=np.int64)
       cell_count = 0
       for b in batches:
-        all_cells = np.array(b.cells)
+        all_cells = np.array(b.cells, dtype=np.int64)
         all_cells_count = len(all_cells)
         cut = self.cells[cell_count:cell_count + all_cells_count]
         cut[all_cells == QUERY_CELL_NULL_FIELD_ID] = None
@@ -115,9 +154,12 @@ class QueryResultIterator(Sized):
         cut[all_cells == QUERY_CELL_STRING_FIELD_ID] = _extract_strings(
             b.string_cells)
         cut[all_cells == QUERY_CELL_BLOB_FIELD_ID] = b.blob_cells
+        self._cell_types[cell_count:cell_count + all_cells_count] = all_cells
         cell_count += all_cells_count
     else:
       self.cells = [None] * self.cell_count
+      self._cell_types = list(
+          itertools.chain.from_iterable(b.cells for b in batches))
       cells = [
           [],
           [],
@@ -129,11 +171,17 @@ class QueryResultIterator(Sized):
           list(itertools.chain.from_iterable(b.blob_cells for b in batches)),
       ]
       cell_offsets = [0] * (QUERY_CELL_BLOB_FIELD_ID + 1)
-      for i, ct in enumerate(
-          itertools.chain.from_iterable(b.cells for b in batches)):
+      for i, ct in enumerate(self._cell_types):
         self.cells[i] = cells[ct][
             cell_offsets[ct]] if ct != QUERY_CELL_NULL_FIELD_ID else None
         cell_offsets[ct] += 1
+
+  def _columns(self) -> List[_Column]:
+    n = self.column_count
+    return [
+        _Column(name, self.cells[i::n], self._cell_types[i::n])
+        for i, name in enumerate(self.column_names)
+    ]
 
   # To use the query result as a populated Pandas dataframe, this
   # function must be called directly after calling query inside
@@ -163,6 +211,51 @@ class QueryResultIterator(Sized):
         for i, name in enumerate(self.column_names)
     }
     return pl.DataFrame(col_data)
+
+  # Converts the query result to a pyarrow Table. The conversion happens in
+  # Python, from the cells already received; it does not change what Trace
+  # Processor sends.
+  #
+  # Each column is typed from the cells in it. A column mixing integers and
+  # floats becomes float64. Raises PerfettoException for a column which mixes
+  # strings or blobs with other types, as Arrow requires one type per column.
+  def as_arrow_table(self):
+    if not HAS_PYARROW:
+      raise PerfettoException(
+          'pyarrow dependency missing. Please run `pip3 install pyarrow`')
+    arrays = []
+    for col in self._columns():
+      if col.is_mixed():
+        raise PerfettoException(
+            f"Column '{col.name}' mixes {col.describe_types()} values, which "
+            'Arrow cannot represent. CAST the column to a single type.')
+      arrays.append(
+          pa.array(self._column_values(col), type=self._arrow_type(col)))
+    return pa.Table.from_arrays(arrays, names=self.column_names)
+
+  # Implements the Arrow PyCapsule interface, so the result can be passed
+  # directly to pyarrow, polars, DuckDB and other Arrow consumers.
+  def __arrow_c_stream__(self, requested_schema=None):
+    return self.as_arrow_table().__arrow_c_stream__(requested_schema)
+
+  @staticmethod
+  def _column_values(col: _Column):
+    values = list(col.values)
+    if col.types == _NUMERIC_CELL_TYPES:
+      return [None if v is None else float(v) for v in values]
+    return values
+
+  @staticmethod
+  def _arrow_type(col: _Column):
+    if not col.types:
+      return pa.null()
+    if col.types == {QUERY_CELL_VARINT_FIELD_ID}:
+      return pa.int64()
+    if col.types <= _NUMERIC_CELL_TYPES:
+      return pa.float64()
+    if col.types == {QUERY_CELL_STRING_FIELD_ID}:
+      return pa.string()
+    return pa.binary()
 
   def __len__(self):
     return self.row_count

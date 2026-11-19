@@ -58,6 +58,29 @@ struct PbMsgSizeField {
     parent: Weak<RefCell<PbMsgSizeField>>,
 }
 
+/// How nested messages are written. The root's encoding is chosen when it is
+/// made, and each child takes its parent's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PbMsgEncoding {
+    /// Standard protobuf: a nested message is a length-delimited field, its
+    /// length written once the message is complete.
+    LengthDelimited,
+    /// The append-only format a tracing v2 writer takes: a nested message
+    /// starts with a start-group tag and ends with a closing byte, so nothing
+    /// is written after the fact.
+    ProtoGroup,
+}
+
+/// Values of the C SDK's `enum PerfettoPbMsgEncoding`, which the writer
+/// carries.
+pub(crate) const PB_MSG_ENCODING_LENGTH_DELIMITED: u32 = 0;
+const PB_MSG_ENCODING_PROTO_GROUP: u32 = 1;
+
+/// The wire type opening a nested message in proto group mode.
+const PB_WIRE_TYPE_START_GROUP: u32 = 3;
+/// The byte closing a nested message in proto group mode.
+const PB_PROTO_GROUP_END_BYTE: u8 = 0x04;
+
 impl PbMsgSizeField {
     pub fn patch(&mut self, writer: &PbMsgWriter) {
         assert!(!self.ptr.is_null());
@@ -90,14 +113,23 @@ pub struct PbMsg<'a> {
     size_field: Rc<RefCell<PbMsgSizeField>>,
     size: usize,
     writer: &'a PbMsgWriter,
+    encoding: PbMsgEncoding,
 }
 
 impl<'a> PbMsg<'a> {
-    /// Creates a new message struct using `writer`.
+    /// Creates a new root message using `writer`, its nested messages written
+    /// in the encoding the writer carries.
     pub fn new(writer: &'a PbMsgWriter) -> Result<Self, PbMsgError> {
         if !writer.writer.has_valid_writer() {
             return Err(PbMsgError::MissingOutputForWriter);
         }
+        let encoding = match writer.writer.writer.borrow().encoding {
+            PB_MSG_ENCODING_PROTO_GROUP => PbMsgEncoding::ProtoGroup,
+            e => {
+                debug_assert_eq!(e, PB_MSG_ENCODING_LENGTH_DELIMITED);
+                PbMsgEncoding::LengthDelimited
+            }
+        };
         Ok(Self {
             size_field: Rc::new(RefCell::new(PbMsgSizeField {
                 ptr: std::ptr::null_mut(),
@@ -105,7 +137,13 @@ impl<'a> PbMsg<'a> {
             })),
             size: 0,
             writer,
+            encoding,
         })
+    }
+
+    /// How this message's nested messages are written.
+    pub fn encoding(&self) -> PbMsgEncoding {
+        self.encoding
     }
 
     /// Append bytes to message.
@@ -204,6 +242,23 @@ impl<'a> PbMsg<'a> {
     where
         F: FnMut(&mut PbMsg),
     {
+        if self.encoding == PbMsgEncoding::ProtoGroup {
+            // No length field: the child ends with a closing byte.
+            self.append_varint(u64::from((field_id << 3) | PB_WIRE_TYPE_START_GROUP));
+            let mut nested = PbMsg {
+                size_field: Rc::new(RefCell::new(PbMsgSizeField {
+                    ptr: std::ptr::null_mut(),
+                    parent: Rc::downgrade(&self.size_field),
+                })),
+                size: 0,
+                writer: self.writer,
+                encoding: self.encoding,
+            };
+            cb(&mut nested);
+            self.size += nested.finalize();
+            self.append_byte(PB_PROTO_GROUP_END_BYTE);
+            return;
+        }
         let tag = pb_make_tag(field_id, PbWireType::Delimited);
         self.append_varint(tag.into());
         if crate::__unlikely!(
@@ -223,6 +278,7 @@ impl<'a> PbMsg<'a> {
             })),
             size: 0,
             writer: self.writer,
+            encoding: self.encoding,
         };
         cb(&mut nested);
         self.size += nested.finalize();
@@ -293,6 +349,31 @@ mod tests {
         assert_eq!(result, [
             102, 111, 111, 26, 133, 128, 128, 0, 82, 3, 98, 97, 114
         ]);
+        Ok(())
+    }
+
+    #[test]
+    fn append_nested_proto_group() -> Result<(), Box<dyn Error>> {
+        let writer = PbMsgWriter::new();
+        let hb = HeapBuffer::new(&writer.writer);
+        writer.writer.writer.borrow_mut().encoding = PB_MSG_ENCODING_PROTO_GROUP;
+        let mut msg = PbMsg::new(&writer)?;
+        msg.append_bytes(b"foo");
+        msg.append_nested(3, |msg| {
+            assert_eq!(msg.encoding(), PbMsgEncoding::ProtoGroup);
+            msg.append_nested(4, |msg| {
+                msg.append_cstr_field(10, "bar");
+            });
+        });
+        let size = msg.finalize();
+        assert_eq!(size, 12);
+        let written_size = writer.writer.get_written_size();
+        assert_eq!(written_size, 12);
+        let mut result: Vec<u8> = vec![0u8; written_size];
+        hb.copy_into(&mut result);
+        // Each nested message opens with a start-group tag and closes with
+        // 0x04, with no length.
+        assert_eq!(result, [102, 111, 111, 27, 35, 82, 3, 98, 97, 114, 4, 4]);
         Ok(())
     }
 }

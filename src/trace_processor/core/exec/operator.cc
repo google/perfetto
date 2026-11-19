@@ -19,6 +19,13 @@
 namespace perfetto::trace_processor::core::exec {
 
 OperatorState::~OperatorState() = default;
+
+void OperatorState::EndHeldRuns() {
+  EndRuns(*held_);
+}
+
+RunHeld::~RunHeld() = default;
+
 Operator::~Operator() = default;
 Source::~Source() = default;
 Transform::~Transform() = default;

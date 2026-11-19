@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/sd_notify.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
@@ -288,6 +289,11 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
     PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
   }
+
+  // If we are run by systemd as a Type=notify service (NOTIFY_SOCKET is set),
+  // tell it that the IPC sockets are open, so that units ordered after us do
+  // not have to retry connecting. This is a no-op otherwise.
+  base::SdNotify("READY=1");
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)

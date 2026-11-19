@@ -130,13 +130,14 @@ function matchSegments(
 ): Record<string, string> | null {
   if (pattern.length !== input.length) return null;
   const params: Record<string, string> = {};
-  for (let i = 0; i < pattern.length; i++) {
-    const p = pattern[i];
+  for (const [i, p] of pattern.entries()) {
+    // Lengths match (checked above), so input[i] is in range.
+    const segment = input[i]!;
     if (p.startsWith(':')) {
-      const value = safeDecode(input[i]);
+      const value = safeDecode(segment);
       if (value === undefined) return null;
       params[p.slice(1)] = value;
-    } else if (p !== input[i]) {
+    } else if (p !== segment) {
       return null;
     }
   }

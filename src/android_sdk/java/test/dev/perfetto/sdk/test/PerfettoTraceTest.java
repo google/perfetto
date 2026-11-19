@@ -18,6 +18,7 @@ package dev.perfetto.sdk.test;
 
 import static com.google.common.truth.Truth.assertThat;
 import static dev.perfetto.sdk.PerfettoTrace.Category;
+import static org.junit.Assert.assertThrows;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH;
 import static perfetto.protos.ChromeLatencyInfoOuterClass.ChromeLatencyInfo.LatencyComponentType.COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL;
 
@@ -1027,6 +1028,34 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testUnregisteredCategoryEmitsNothing() throws Exception {
+    Category category = new Category("reregistered").register();
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig("reregistered").toByteArray());
+    assertThat(category.isEnabled()).isTrue();
+
+    // unregister() leaves the native wrapper alive.
+    category.unregister();
+    assertThat(category.isEnabled()).isFalse();
+    PerfettoTrace.instant(category, "unregistered").emit();
+    PerfettoTrace.begin(category, "unregistered").emit();
+    PerfettoTrace.end(category).emit();
+
+    category.register();
+    assertThat(category.isEnabled()).isTrue();
+    PerfettoTrace.instant(category, "registered_again").emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+    for (TracePacket packet : trace.getPacketList()) {
+      collectInternedData(packet);
+    }
+    assertThat(getTrackEvent(trace, 0).getType()).isEqualTo(TrackEvent.Type.TYPE_INSTANT);
+    assertThat(getTrackEvent(trace, 1)).isNull();
+    assertThat(mEventNames).containsExactly("registered_again");
+    assertThat(mCategoryNames).containsExactly("reregistered");
+  }
+
+  @Test
   public void testDisabledCategory() throws Exception {
     class DisabledCategory extends Category {
       public DisabledCategory(String name) {
@@ -1062,6 +1091,90 @@ public class PerfettoTraceTest {
     assertThat(mCategoryNames).containsExactly(FOO);
     assertThat(mEventNames).containsExactly("event");
     assertThat(mDebugAnnotationNames).containsExactly("arg");
+  }
+
+  private static long emitInnerEvent(long value) {
+    PerfettoTrace.instant(FOO_CATEGORY, "inner")
+        .addArg("inner_arg", value)
+        .addArg("inner_str", "inner_string_that_clobbers_shared_buffer")
+        .emit();
+    return value;
+  }
+
+  @Test
+  public void testEventEmittedWhileBuildingAnother() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // Inner events are emitted from the outer event's argument list, both for a
+    // debug arg and inside a proto field. Strings (including one that spills
+    // into overflow_strings) are set before the inner emits to verify that the
+    // inner emit does not overwrite or free the outer event's strings.
+    PerfettoTrace.instant(FOO_CATEGORY, "outer")
+        .setCorrelationId("outer_corr")
+        .addArg("outer_str", "hello")
+        .addArg("outer_long_str", TEXT_ABOVE_4K_SIZE)
+        .addArg("outer_arg", emitInnerEvent(1))
+        .beginProto()
+        .beginNested(33L)
+        .addField(3, "outer_function")
+        .addField(4L, emitInnerEvent(2))
+        .endNested()
+        .endProto()
+        .emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+    for (TracePacket packet : trace.getPacketList()) {
+      collectInternedData(packet);
+    }
+
+    TrackEvent inner1 = getTrackEvent(trace, 0);
+    TrackEvent inner2 = getTrackEvent(trace, 1);
+    TrackEvent outer = getTrackEvent(trace, 2);
+    assertThat(getTrackEvent(trace, 3)).isNull();
+
+    assertThat(inner1.getDebugAnnotations(0).getIntValue()).isEqualTo(1);
+    assertThat(inner1.hasSourceLocation()).isFalse();
+    assertThat(inner2.getDebugAnnotations(0).getIntValue()).isEqualTo(2);
+    assertThat(inner2.hasSourceLocation()).isFalse();
+
+    assertThat(outer.getCorrelationIdStr()).isEqualTo("outer_corr");
+    assertThat(outer.getDebugAnnotationsCount()).isEqualTo(3);
+    assertThat(outer.getDebugAnnotations(0).getStringValue()).isEqualTo("hello");
+    assertThat(outer.getDebugAnnotations(1).getStringValue()).isEqualTo(TEXT_ABOVE_4K_SIZE);
+    assertThat(outer.getDebugAnnotations(2).getIntValue()).isEqualTo(1);
+    assertThat(outer.getSourceLocation().getFunctionName()).isEqualTo("outer_function");
+    assertThat(outer.getSourceLocation().getLineNumber()).isEqualTo(2);
+
+    assertThat(mEventNames).containsExactly("inner", "outer");
+    assertThat(mDebugAnnotationNames)
+        .containsExactly("inner_arg", "inner_str", "outer_str", "outer_long_str", "outer_arg");
+  }
+
+  @Test
+  public void testAbandonedEventsDoNotBreakLaterEvents() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // More abandoned (never emitted) events than there are builders pooled per
+    // thread, followed by a nested event.
+    for (int i = 0; i < 20; i++) {
+      PerfettoTrace.instant(FOO_CATEGORY, "abandoned").addArg("abandoned_arg", i);
+    }
+    PerfettoTrace.instant(FOO_CATEGORY, "outer").addArg("outer_arg", emitInnerEvent(42)).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+    for (TracePacket packet : trace.getPacketList()) {
+      collectInternedData(packet);
+    }
+
+    assertThat(getTrackEvent(trace, 0).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
+    assertThat(getTrackEvent(trace, 1).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
+    assertThat(getTrackEvent(trace, 2)).isNull();
+    assertThat(mEventNames).containsExactly("inner", "outer");
+    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "inner_str", "outer_arg");
   }
 
   private TrackEvent getTrackEvent(Trace trace, int idx) {
@@ -1449,5 +1562,70 @@ public class PerfettoTraceTest {
     // On host / default variant, system backend registration is unrestricted.
     assertThat(PerfettoTrace.register(false)).isTrue();
     assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
+  }
+
+  @Test
+  public void testTrackUuidsMatchTheCSdk() throws Exception {
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig(FOO).toByteArray());
+    PerfettoTrace.instant(FOO_CATEGORY, "event").emit();
+    Trace trace = Trace.parseFrom(session.close());
+
+    long processUuid = PerfettoTrace.getProcessTrackUuid();
+    int processes = 0;
+    int threads = 0;
+    for (TracePacket packet : trace.getPacketList()) {
+      TrackDescriptor td = packet.getTrackDescriptor();
+      if (td.hasProcess()) {
+        assertThat(td.getUuid()).isEqualTo(processUuid);
+        processes++;
+      }
+      if (td.hasThread()) {
+        assertThat(td.getUuid())
+            .isEqualTo(PerfettoTrace.getThreadTrackUuid(td.getThread().getTid()));
+        assertThat(td.getParentUuid()).isEqualTo(processUuid);
+        threads++;
+      }
+    }
+    assertThat(processes).isGreaterThan(0);
+    assertThat(threads).isGreaterThan(0);
+
+    // Preserve pid_t truncation and sign extension.
+    assertThat(PerfettoTrace.getThreadTrackUuid(0x1_0000_0005L)).isEqualTo(processUuid ^ 5);
+    assertThat(PerfettoTrace.getThreadTrackUuid(0xFFFF_FFFFL)).isEqualTo(processUuid ^ -1L);
+  }
+
+  @Test
+  public void testSameTrackNameWithDifferentIdOrParent() throws Exception {
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig(FOO).toByteArray());
+
+    // Reusing a name must not merge tracks with different ids or parents.
+    long parent = PerfettoTrace.getProcessTrackUuid();
+    long otherParent = PerfettoTrace.getThreadTrackUuid(Process.myTid());
+    PerfettoTrace.instant(FOO_CATEGORY, "a").usingNamedTrack(1, "named", parent).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "b").usingNamedTrack(2, "named", parent).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "c").usingNamedTrack(1, "named", otherParent).emit();
+    PerfettoTrace.counter(FOO_CATEGORY, 1).usingCounterTrack(parent, "counter").emit();
+    PerfettoTrace.counter(FOO_CATEGORY, 2).usingCounterTrack(otherParent, "counter").emit();
+    PerfettoTrace.state(FOO_CATEGORY, "x", "state").emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "d").usingStateTrack(otherParent, "state").emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+    Set<Long> uuids = new HashSet<>();
+    for (int i = 0; i < 7; i++) {
+      uuids.add(getTrackEvent(trace, i).getTrackUuid());
+    }
+    assertThat(uuids).hasSize(7);
+  }
+
+  @Test
+  public void testSessionCloseTwice() throws Exception {
+    PerfettoTrace.Session session =
+        new PerfettoTrace.Session(true, getTraceConfig(FOO).toByteArray());
+    PerfettoTrace.instant(FOO_CATEGORY, "event").emit();
+    assertThat(Trace.parseFrom(session.close()).getPacketCount()).isGreaterThan(0);
+
+    assertThrows(IllegalStateException.class, session::close);
   }
 }

@@ -33,6 +33,7 @@ import {Icons} from '../base/semantic_icons';
 import {Icon} from '../widgets/icon';
 import {classNames} from '../base/classnames';
 import {Router} from '../core/router';
+import {DISCORD_URL} from '../public/utils';
 import {
   type KeyboardLayoutMap,
   nativeKeyboardLayoutMap,
@@ -260,6 +261,16 @@ class Hints implements m.ClassComponent {
             target: '_blank',
           },
           'Getting started',
+        ),
+        m('.pf-home-page__links-separator'),
+        m(
+          Anchor,
+          {
+            href: DISCORD_URL,
+            icon: Icons.ExternalLink,
+            target: '_blank',
+          },
+          'Ask on Discord',
         ),
         m('.pf-home-page__links-separator'),
         m(Switch, {

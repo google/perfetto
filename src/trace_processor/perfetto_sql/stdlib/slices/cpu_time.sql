@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
 INCLUDE PERFETTO MODULE slices.with_context;
@@ -38,24 +36,26 @@ CREATE PERFETTO TABLE thread_slice_cpu_time(
   cpu_time LONG
 )
 AS
-SELECT
-  id_0 AS id,
-  name,
-  ts.utid,
-  thread_name,
-  upid,
-  process_name,
-  sum(ii.dur) AS cpu_time
-FROM _interval_intersect!((
-  (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
-  (SELECT * FROM sched WHERE dur > 0)
-  ), (utid)) AS ii
-JOIN thread_slice AS ts
-  ON ts.id = ii.id_0
+INTERVAL INTERSECTION OF (
+  (
+    SELECT id, ts, dur, name, utid, thread_name, upid, process_name
+    FROM thread_slice
+    WHERE
+      utid > 0
+      AND dur > 0
+  ) AS s,
+  (SELECT ts, dur, utid FROM sched WHERE dur > 0) AS running
+) PER utid
+|> AGGREGATE
+  SUM(dur) AS cpu_time
 GROUP BY
-  id
-ORDER BY
-  id;
+  s.id,
+  s.name,
+  utid,
+  s.thread_name,
+  s.upid,
+  s.process_name
+|> ORDER BY id;
 
 -- CPU cycles per each slice.
 CREATE PERFETTO VIEW thread_slice_cpu_cycles(

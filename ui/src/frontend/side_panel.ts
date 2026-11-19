@@ -18,7 +18,6 @@ import type {SidePanelManagerImpl} from '../core/side_panel_manager';
 import {SplitPanel} from '../widgets/split_panel';
 import {Tabs, type TabsTab} from '../widgets/tabs';
 
-const DEFAULT_WIDTH_PX = 400;
 const MIN_WIDTH_PX = 200;
 
 interface SidePanelContainerAttrs {
@@ -27,8 +26,6 @@ interface SidePanelContainerAttrs {
 }
 
 export function SidePanelContainer(): m.Component<SidePanelContainerAttrs> {
-  let widthPx = DEFAULT_WIDTH_PX;
-
   return {
     view(vnode) {
       const {sidePanelMgr, pageContent} = vnode.attrs;
@@ -63,12 +60,12 @@ export function SidePanelContainer(): m.Component<SidePanelContainerAttrs> {
       return m(SplitPanel, {
         direction: 'horizontal',
         controlledPanel: 'second',
-        split: {pixels: widthPx},
+        split: {pixels: sidePanelMgr.widthPx},
         minSize: MIN_WIDTH_PX,
         firstPanel: pageContent,
         secondPanel: sidePanel,
         onResize: (size: number) => {
-          widthPx = size;
+          sidePanelMgr.widthPx = size;
         },
       });
     },

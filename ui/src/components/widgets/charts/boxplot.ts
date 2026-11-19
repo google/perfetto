@@ -186,11 +186,11 @@ function buildBoxplotOption(
         if (v === undefined) return '';
         return renderTooltip([
           m('div', m('b', params.name ?? '')),
-          m('div', `Max: ${fmtVal(v[5] ?? v[4])}`),
-          m('div', `Q3: ${fmtVal(v[4] ?? v[3])}`),
-          m('div', `Median: ${fmtVal(v[3] ?? v[2])}`),
-          m('div', `Q1: ${fmtVal(v[2] ?? v[1])}`),
-          m('div', `Min: ${fmtVal(v[1] ?? v[0])}`),
+          m('div', `Max: ${fmtVal(v[5] ?? v[4]!)}`),
+          m('div', `Q3: ${fmtVal(v[4] ?? v[3]!)}`),
+          m('div', `Median: ${fmtVal(v[3] ?? v[2]!)}`),
+          m('div', `Q1: ${fmtVal(v[2] ?? v[1]!)}`),
+          m('div', `Min: ${fmtVal(v[1] ?? v[0]!)}`),
         ]);
       },
     }),

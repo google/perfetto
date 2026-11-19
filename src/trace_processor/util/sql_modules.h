@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -57,9 +58,24 @@ inline std::string ReplaceSlashWithDot(std::string str) {
   return str;
 }
 
+inline std::optional<base::StringView> StripSqlExtension(
+    base::StringView path) {
+  constexpr std::string_view kPfSqlExt = ".pf.sql";
+  if (base::EndsWith(path, kPfSqlExt)) {
+    return path.substr(0, path.size() - kPfSqlExt.size());
+  }
+  constexpr std::string_view kSqlExt = ".sql";
+  if (base::EndsWith(path, kSqlExt)) {
+    return path.substr(0, path.size() - kSqlExt.size());
+  }
+  return std::nullopt;
+}
+
 inline std::string GetIncludeKey(const std::string& path) {
   base::StringView path_view(path);
-  auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
+  auto stripped = StripSqlExtension(path_view);
+  auto path_no_extension =
+      stripped.value_or(path_view.substr(0, path_view.rfind('.')));
   return ReplaceSlashWithDot(path_no_extension.ToStdString());
 }
 

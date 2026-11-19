@@ -14,7 +14,94 @@
 
 INCLUDE PERFETTO MODULE counters.intervals;
 
-INCLUDE PERFETTO MODULE intervals.fill_gaps;
+-- Screen state intervals per machine, NULL where the state is unknown: every
+-- machine with data is filled between its rows, and the primary machine is
+-- filled even without data, since the trace says it was there. Other machines
+-- without data may not have emitted any, which is not the same as their state
+-- being unknown.
+CREATE PERFETTO TABLE _android_screen_state_filled AS
+FROM (
+  WITH
+    screen_state_span AS (
+      SELECT *
+      FROM counter_leading_intervals!(
+        (
+          SELECT counter.id, ts, counter.track_id, value
+          FROM counter
+          JOIN counter_track ON counter_track.id = counter.track_id
+          WHERE
+            name = 'ScreenState'
+        )
+      )
+    ),
+    mapped_names AS (
+      SELECT
+        screen_state_span.id,
+        screen_state_span.ts,
+        screen_state_span.dur,
+        counter_track.machine_id,
+        -- Should be kept in sync with the enums in Display.java
+        CASE screen_state_span.value
+          -- Display.STATE_OFF
+          WHEN 1 THEN 'off'
+          -- Display.STATE_ON
+          WHEN 2 THEN 'on'
+          -- Display.STATE_DOZE
+          WHEN 3 THEN 'doze'
+          -- Display.STATE_DOZE_SUSPEND
+          WHEN 4 THEN 'doze'
+          -- Display.STATE_VR
+          WHEN 5 THEN 'on'
+          -- Display.STATE_ON_SUSPEND
+          WHEN 6 THEN 'on'
+        END AS simple_screen_state,
+        CASE screen_state_span.value
+          -- Display.STATE_OFF
+          WHEN 1 THEN 'off'
+          -- Display.STATE_ON
+          WHEN 2 THEN 'on'
+          -- Display.STATE_DOZE
+          WHEN 3 THEN 'doze'
+          -- Display.STATE_DOZE_SUSPEND
+          WHEN 4 THEN 'doze-suspend'
+          -- Display.STATE_VR
+          WHEN 5 THEN 'on-vr'
+          -- Display.STATE_ON_SUSPEND
+          WHEN 6 THEN 'on-suspend'
+        END AS short_screen_state,
+        CASE screen_state_span.value
+          -- Display.STATE_OFF
+          WHEN 1 THEN 'Screen off'
+          -- Display.STATE_ON
+          WHEN 2 THEN 'Screen on'
+          -- Display.STATE_DOZE
+          WHEN 3 THEN 'Always-on display (doze)'
+          -- Display.STATE_DOZE_SUSPEND
+          WHEN 4 THEN 'Always-on display (doze-suspend)'
+          -- Display.STATE_VR
+          WHEN 5 THEN 'Screen on (VR)'
+          -- Display.STATE_ON_SUSPEND
+          WHEN 6 THEN 'Screen on (suspend)'
+        END AS screen_state
+      FROM screen_state_span
+      JOIN counter_track
+        ON counter_track.id = screen_state_span.track_id
+      WHERE
+        dur > 0
+    )
+  SELECT
+    ts,
+    dur,
+    machine_id,
+    simple_screen_state,
+    short_screen_state,
+    screen_state
+  FROM mapped_names
+)
+|> INTERVAL FILL GAPS WITH (SELECT trace_start() AS ts, trace_dur() AS dur) PER machine_id
+|> INTERVAL FILL GAPS WITH (
+  SELECT trace_start() AS ts, trace_dur() AS dur, 0 AS machine_id
+) PER machine_id;
 
 -- Table of the screen state - on, off or doze (always on display).
 CREATE PERFETTO TABLE android_screen_state(
@@ -34,84 +121,15 @@ CREATE PERFETTO TABLE android_screen_state(
   screen_state STRING
 )
 AS
-WITH
-  screen_state_span AS (
-    SELECT *
-    FROM counter_leading_intervals!(
-      (
-        SELECT counter.id, ts, counter.track_id, value
-        FROM counter
-        JOIN counter_track ON counter_track.id = counter.track_id
-        WHERE
-          name = 'ScreenState'
-      )
-    )
-  ),
-  mapped_names AS (
-    SELECT
-      screen_state_span.id,
-      screen_state_span.ts,
-      screen_state_span.dur,
-      counter_track.machine_id,
-      -- Should be kept in sync with the enums in Display.java
-      CASE screen_state_span.value
-        -- Display.STATE_OFF
-        WHEN 1 THEN 'off'
-        -- Display.STATE_ON
-        WHEN 2 THEN 'on'
-        -- Display.STATE_DOZE
-        WHEN 3 THEN 'doze'
-        -- Display.STATE_DOZE_SUSPEND
-        WHEN 4 THEN 'doze'
-        -- Display.STATE_VR
-        WHEN 5 THEN 'on'
-        -- Display.STATE_ON_SUSPEND
-        WHEN 6 THEN 'on'
-      END AS simple_screen_state,
-      CASE screen_state_span.value
-        -- Display.STATE_OFF
-        WHEN 1 THEN 'off'
-        -- Display.STATE_ON
-        WHEN 2 THEN 'on'
-        -- Display.STATE_DOZE
-        WHEN 3 THEN 'doze'
-        -- Display.STATE_DOZE_SUSPEND
-        WHEN 4 THEN 'doze-suspend'
-        -- Display.STATE_VR
-        WHEN 5 THEN 'on-vr'
-        -- Display.STATE_ON_SUSPEND
-        WHEN 6 THEN 'on-suspend'
-      END AS short_screen_state,
-      CASE screen_state_span.value
-        -- Display.STATE_OFF
-        WHEN 1 THEN 'Screen off'
-        -- Display.STATE_ON
-        WHEN 2 THEN 'Screen on'
-        -- Display.STATE_DOZE
-        WHEN 3 THEN 'Always-on display (doze)'
-        -- Display.STATE_DOZE_SUSPEND
-        WHEN 4 THEN 'Always-on display (doze-suspend)'
-        -- Display.STATE_VR
-        WHEN 5 THEN 'Screen on (VR)'
-        -- Display.STATE_ON_SUSPEND
-        WHEN 6 THEN 'Screen on (suspend)'
-      END AS screen_state
-    FROM screen_state_span
-    JOIN counter_track
-      ON counter_track.id = screen_state_span.track_id
-    WHERE
-      dur > 0
-  )
 SELECT
-  ROW_NUMBER() OVER () AS id,
+  ROW_NUMBER() OVER (ORDER BY ts, machine_id) AS id,
   ts,
   dur,
   machine_id,
   COALESCE(simple_screen_state, 'unknown') AS simple_screen_state,
   COALESCE(short_screen_state, 'unknown') AS short_screen_state,
   COALESCE(screen_state, 'Unknown') AS screen_state
-FROM _intervals_fill_gaps!(
-  (machine_id),
-  (simple_screen_state, short_screen_state, screen_state),
-  mapped_names
-);
+FROM _android_screen_state_filled
+ORDER BY
+  ts,
+  machine_id;

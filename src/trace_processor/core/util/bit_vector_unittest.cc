@@ -600,7 +600,7 @@ TEST(BitVectorTest, CompactSingleWord) {
 
 // Every alignment of source and destination against the word boundary, and a
 // count long enough to span several words.
-TEST(BitVectorTest, SetBitsFromEveryAlignment) {
+TEST(BitVectorTest, OrBitsFromEveryAlignment) {
   constexpr uint64_t kSize = 400;
   BitVector src = BitVector::CreateWithSize(kSize);
   for (uint64_t i = 0; i < kSize; ++i) {
@@ -614,7 +614,7 @@ TEST(BitVectorTest, SetBitsFromEveryAlignment) {
                         uint64_t{65}, uint64_t{130}}) {
       uint64_t count = kSize - std::max(from, at);
       BitVector dst = BitVector::CreateWithSize(kSize);
-      dst.SetBitsFrom(at, src, from, count);
+      dst.OrBitsFrom(at, src, from, count);
       for (uint64_t i = 0; i < kSize; ++i) {
         bool expected = i >= at && i < at + count && src.is_set(from + i - at);
         EXPECT_EQ(dst.is_set(i), expected)
@@ -624,21 +624,78 @@ TEST(BitVectorTest, SetBitsFromEveryAlignment) {
   }
 }
 
-TEST(BitVectorTest, SetBitsFromMergesRatherThanOverwrites) {
+TEST(BitVectorTest, CopyAndAndWordsFrom) {
+  BitVector x = BitVector::CreateWithSize(300);
+  BitVector y = BitVector::CreateWithSize(300);
+  for (uint32_t i = 0; i < 300; ++i) {
+    x.change(i, i % 3 == 0);
+    y.change(i, i % 5 == 0);
+  }
+  for (uint32_t from : {0u, 64u, 128u}) {
+    for (uint32_t count : {0u, 1u, 63u, 64u, 65u, 100u, 172u}) {
+      BitVector dst = BitVector::CreateWithSize(200);
+      dst.CopyWordsFrom(x, from, count);
+      dst.AndWordsFrom(y, from, count);
+      for (uint32_t i = 0; i < count; ++i) {
+        ASSERT_EQ(dst.is_set(i), x.is_set(from + i) && y.is_set(from + i))
+            << from << " " << count << " " << i;
+      }
+    }
+  }
+}
+
+TEST(BitVectorTest, OrBitsFromMergesRatherThanOverwrites) {
   BitVector src = BitVector::CreateWithSize(64);
   BitVector dst = BitVector::CreateWithSize(64);
   src.set(1);
   dst.set(2);
-  dst.SetBitsFrom(0, src, 0, 64);
+  dst.OrBitsFrom(0, src, 0, 64);
   EXPECT_TRUE(dst.is_set(1));
   EXPECT_TRUE(dst.is_set(2));
 }
 
-TEST(BitVectorTest, SetBitsFromNothing) {
+TEST(BitVectorTest, OrBitsFromNothing) {
   BitVector src = BitVector::CreateWithSize(64, true);
   BitVector dst = BitVector::CreateWithSize(64);
-  dst.SetBitsFrom(0, src, 0, 0);
+  dst.OrBitsFrom(0, src, 0, 0);
   EXPECT_EQ(dst.CountSetBits(), 0u);
+}
+
+// Every alignment of source and destination, over a destination with bits
+// both set and clear, so that both the AND and what it leaves alone show.
+TEST(BitVectorTest, AndBitsFromEveryAlignment) {
+  constexpr uint64_t kSize = 400;
+  BitVector src = BitVector::CreateWithSize(kSize);
+  for (uint64_t i = 0; i < kSize; ++i) {
+    if (i % 7 == 0 || i % 11 == 3) {
+      src.set(i);
+    }
+  }
+  for (uint64_t from : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+    for (uint64_t at : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+      for (uint64_t count : {uint64_t{0}, uint64_t{1}, uint64_t{70},
+                             kSize - std::max(from, at)}) {
+        BitVector dst = BitVector::CreateWithSize(kSize);
+        for (uint64_t i = 0; i < kSize; ++i) {
+          if (i % 3 != 0) {
+            dst.set(i);
+          }
+        }
+        dst.AndBitsFrom(at, src, from, count);
+        for (uint64_t i = 0; i < kSize; ++i) {
+          bool before = i % 3 != 0;
+          bool in_range = i >= at && i < at + count;
+          bool expected =
+              in_range ? before && src.is_set(from + i - at) : before;
+          EXPECT_EQ(dst.is_set(i), expected)
+              << "from=" << from << " at=" << at << " count=" << count
+              << " bit=" << i;
+        }
+      }
+    }
+  }
 }
 
 TEST(BitVectorTest, FillBitsEveryAlignment) {

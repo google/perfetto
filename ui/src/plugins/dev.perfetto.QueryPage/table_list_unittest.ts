@@ -102,9 +102,9 @@ describe('TableList', () => {
     // "Cannot read properties of null (reading 'tag')" as the fuzzy results
     // reordered on each keystroke. Both entries must still render.
     const names = makeNames();
-    names.splice(15, 0, names[3]);
-    names.splice(40, 0, names[3]);
-    names.splice(70, 0, names[8]);
+    names.splice(15, 0, names[3]!);
+    names.splice(40, 0, names[3]!);
+    names.splice(70, 0, names[8]!);
 
     const sqlModules = makeSqlModules(names);
     const comp = {view: () => m(TableList, {sqlModules})};

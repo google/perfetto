@@ -17,7 +17,6 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_UUID_H_
 #define INCLUDE_PERFETTO_EXT_BASE_UUID_H_
 
-#include <string.h>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -43,30 +42,16 @@ class PERFETTO_EXPORT_COMPONENT Uuid {
 
   explicit operator bool() const { return *this != Uuid(); }
 
-  int64_t msb() const {
-    uint64_t result;
-    memcpy(&result, data_.data() + 8, 8);
-    return static_cast<int64_t>(LE64ToHost(result));
-  }
+  int64_t msb() const { return LoadLE<int64_t>(data_.data() + 8); }
 
-  int64_t lsb() const {
-    uint64_t result;
-    memcpy(&result, data_.data(), 8);
-    return static_cast<int64_t>(LE64ToHost(result));
-  }
+  int64_t lsb() const { return LoadLE<int64_t>(data_.data()); }
 
   void set_lsb_msb(int64_t lsb, int64_t msb) {
     set_lsb(lsb);
     set_msb(msb);
   }
-  void set_msb(int64_t msb) {
-    uint64_t le = HostToLE64(static_cast<uint64_t>(msb));
-    memcpy(data_.data() + 8, &le, 8);
-  }
-  void set_lsb(int64_t lsb) {
-    uint64_t le = HostToLE64(static_cast<uint64_t>(lsb));
-    memcpy(data_.data(), &le, 8);
-  }
+  void set_msb(int64_t msb) { StoreLE(data_.data() + 8, msb); }
+  void set_lsb(int64_t lsb) { StoreLE(data_.data(), lsb); }
 
   std::string ToString() const;
   std::string ToPrettyString() const;

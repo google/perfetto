@@ -45,23 +45,18 @@ class PrunePerfEventsIntegrationTest
     }
     ASSERT_OK(status);
 
-    auto raw_original = LoadOriginal();
-    ASSERT_OK(raw_original);
-    trace_processor_original_ = CreateTraceProcessor(raw_original.value());
-
     auto raw_redacted = LoadRedacted();
     ASSERT_OK(raw_redacted);
     trace_processor_redacted_ = CreateTraceProcessor(raw_redacted.value());
   }
 
-  std::unique_ptr<trace_processor::TraceProcessor> trace_processor_original_;
   std::unique_ptr<trace_processor::TraceProcessor> trace_processor_redacted_;
 };
 
 TEST_F(PrunePerfEventsIntegrationTest, OnlyKeepsTargetProcessPerfSamples) {
   // This query retrieves the total number of perf samples for target process
-  // in the original trace.
-  auto original_samples_for_process_query =
+  // in the redacted trace.
+  auto target_samples_query =
       "SELECT COUNT(*) FROM perf_sample "
       "JOIN thread ON thread.utid = perf_sample.utid "
       "JOIN process ON process.upid = thread.upid "
@@ -69,10 +64,10 @@ TEST_F(PrunePerfEventsIntegrationTest, OnlyKeepsTargetProcessPerfSamples) {
       "HAVING pid = " +
       std::to_string(kPid);
 
-  auto original_rows = trace_processor_redacted_->ExecuteQuery(
-      original_samples_for_process_query);
-  ASSERT_TRUE(original_rows.Next());
-  const int64_t perf_samples_for_target_pid = original_rows.Get(0).AsLong();
+  auto target_rows =
+      trace_processor_redacted_->ExecuteQuery(target_samples_query);
+  ASSERT_TRUE(target_rows.Next());
+  const int64_t perf_samples_for_target_pid = target_rows.Get(0).AsLong();
   ASSERT_TRUE(perf_samples_for_target_pid > 0);
 
   // This query retrieves the total number of perf samples for all processes
@@ -107,8 +102,11 @@ TEST_F(PrunePerfEventsIntegrationTest,
       "HAVING pid = " +
       std::to_string(kPid);
 
+  auto raw_original = LoadOriginal();
+  ASSERT_OK(raw_original);
+  auto trace_processor_original = CreateTraceProcessor(raw_original.value());
   auto original_rows =
-      trace_processor_original_->ExecuteQuery(total_samples_for_process_query);
+      trace_processor_original->ExecuteQuery(total_samples_for_process_query);
   ASSERT_TRUE(original_rows.Next());
   const int64_t original_target_process_samples = original_rows.Get(0).AsLong();
 

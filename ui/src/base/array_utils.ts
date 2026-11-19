@@ -61,13 +61,12 @@ export function removeFalsyValues<T>(
 //       in the position before current element at `to` index.
 export function moveArrayItem<T>(array: T[], from: number, to: number) {
   if (from === to) return;
-  const value = array[from];
-  array.splice(from, 1);
+  const removed = array.splice(from, 1);
   if (from < to) {
     // We have deleted an item, therefore we need to adjust the target index.
     --to;
   }
-  array.splice(to, 0, value);
+  array.splice(to, 0, ...removed);
 }
 
 // If all values in the array are the same, returns that value. Otherwise
@@ -110,4 +109,25 @@ export function max(xs: ReadonlyArray<number>): number | undefined {
     if (x > r) r = x;
   }
   return r;
+}
+
+// An array guaranteed to contain at least one element. Unlike T[], indexing
+// element 0 yields T rather than T | undefined under noUncheckedIndexedAccess.
+export type ReadonlyNonEmpty<T> = readonly [T, ...T[]];
+
+// Maps a tuple type K to a tuple of the same length (and readonly-ness) whose
+// elements are all of type V. E.g. MapTuple<readonly [A, B, C], V> is
+// readonly [V, V, V]. Non-tuple arrays map to plain arrays (V[]).
+export type MapTuple<K extends readonly unknown[], V> = {
+  [I in keyof K]: V;
+};
+
+// Like Array.prototype.map(), but preserves the length of a tuple input in the
+// result type, so the result can be indexed at known positions without
+// non-null assertions under noUncheckedIndexedAccess.
+export function mapTuple<const T extends readonly unknown[], V>(
+  x: T,
+  fn: (item: T[number], index: number) => V,
+): MapTuple<T, V> {
+  return x.map(fn) as MapTuple<T, V>;
 }

@@ -237,6 +237,7 @@ class GraphicsParser(TestSuite):
           120,15,1000,1,2,"Layer1","On-time Present",1,0,"PowerModeChange in progress","Valid Prediction","Non-perceivable Jank","Unknown"
           140,10,666,3,"[NULL]","[NULL]","On-time Present",1,0,"Non Animating","Valid Prediction","Non-perceivable Jank","Unknown"
           160,10,666,4,"[NULL]","[NULL]","On-time Present",1,0,"Display not ON","Valid Prediction","Non-perceivable Jank","Unknown"
+          180,15,1000,4,5,"Layer1","Late Present",1,0,"DequeueBuffer Delay","Valid Prediction","Other Jank","Unknown"
         """))
 
   # Video 4 Linux 2 related tests

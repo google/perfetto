@@ -89,9 +89,18 @@ SELECT
   -- we use MAX to get at least one of the frame's layer names
   MAX(timeline.layer_name) AS frame_layer_name
 FROM _android_jank_cuj_vsync_boundary AS boundary
+JOIN android_jank_cuj AS cuj USING (cuj_id)
 JOIN actual_timeline_with_vsync AS timeline
   ON vsync >= vsync_min
   AND vsync <= vsync_max
+  -- Only keep frames overlapping with the CUJ slice, as
+  -- _android_jank_cuj_do_frames does. The begin vsync (FT#beginVsync) can
+  -- precede the CUJ by many seconds when the CUJ thread was idle before the CUJ
+  -- started, and vsync ids are not strictly ordered in time across surfaces, so
+  -- the vsync range alone can include frames that finished before the CUJ
+  -- started or started after it ended.
+  AND timeline.ts + timeline.dur >= cuj.ts
+  AND timeline.ts <= cuj.ts_end
 LEFT JOIN expected_frame_timeline_slice AS expected
   ON expected.upid = timeline.upid
   AND expected.name = timeline.name
@@ -354,15 +363,12 @@ SELECT
   s.track_id,
   cuj.slice_id
 FROM _jank_cujs_slices AS cuj
-JOIN slice AS s
-  ON s.id = cuj.slice_id
+JOIN slice AS s ON s.id = cuj.slice_id
 -- Gate frame stats and boundary on android_jank_cuj membership: canceled/invalid
 -- CUJs get NULL stats and fall back to raw slice ts/dur. Layer name covers all
 -- CUJs, so it joins on the raw cuj_id.
 LEFT JOIN android_jank_cuj AS ajc USING (cuj_id)
-LEFT JOIN frame_counts AS fc
-  ON fc.cuj_id = ajc.cuj_id
-LEFT JOIN android_jank_cuj_layer_name AS layer
-  ON layer.cuj_id = cuj.cuj_id
+LEFT JOIN frame_counts AS fc ON fc.cuj_id = ajc.cuj_id
+LEFT JOIN android_jank_cuj_layer_name AS layer ON layer.cuj_id = cuj.cuj_id
 LEFT JOIN _android_jank_cuj_main_thread_cuj_boundary AS boundary
   ON boundary.cuj_id = ajc.cuj_id;

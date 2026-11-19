@@ -32,6 +32,21 @@ pb_enum!(DataSourceConfigBufferExhaustedPolicy {
     BUFFER_EXHAUSTED_STALL_THEN_DROP: 3,
 });
 
+// `DataSourceConfig.ExperimentalTracingV2Config.ChunkSizeOption`: a chunk
+// size the producer may pick for its ring buffer.
+pb_msg!(DataSourceConfigExperimentalTracingV2ConfigChunkSizeOption {
+    size_bytes: u32, primitive, 1,
+    weight: u32, primitive, 2,
+});
+
+// `DataSourceConfig.ExperimentalTracingV2Config`: whether an instance takes
+// a tracing v2 writer, where the data source supports one, and how its
+// ring buffer is laid out.
+pb_msg!(DataSourceConfigExperimentalTracingV2Config {
+    use_v2_probability_percent: u32, primitive, 1,
+    chunk_size_options: DataSourceConfigExperimentalTracingV2ConfigChunkSizeOption, msg, 2,
+});
+
 pb_msg!(DataSourceConfig {
     name: String, primitive, 1,
     target_buffer: u32, primitive, 2,
@@ -42,6 +57,8 @@ pb_msg!(DataSourceConfig {
     session_initiator: DataSourceConfigSessionInitiator, enum, 8,
     tracing_session_id: u64, primitive, 4,
     buffer_exhausted_policy: DataSourceConfigBufferExhaustedPolicy, enum, 9,
+    supports_tracing_v2: bool, primitive, 147,
+    experimental_tracing_v2: DataSourceConfigExperimentalTracingV2Config, msg, 148,
     track_event_config: TrackEventConfig, msg, 113,
     for_testing: TestConfig, msg, 1001,
 });

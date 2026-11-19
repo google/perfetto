@@ -68,7 +68,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -442,15 +442,14 @@ PerfDataTokenizer::ParseFeatureSections() {
   // by offset. Some sections have 0 length and thus there can be offset
   // collisions. To make sure we parse sections by increasing offset parse
   // empty sections first.
-  ColdSortByKeyDescending(feature_sections_.begin(), feature_sections_.end(),
-                          [](const std::pair<uint8_t, PerfFile::Section>& s) {
-                            return s.second.size;
-                          });
-  ColdStableSortByKeyDescending(
-      feature_sections_.begin(), feature_sections_.end(),
-      [](const std::pair<uint8_t, PerfFile::Section>& s) {
-        return s.second.offset;
-      });
+  SortByKeyDescending(feature_sections_.begin(), feature_sections_.end(),
+                      [](const std::pair<uint8_t, PerfFile::Section>& s) {
+                        return s.second.size;
+                      });
+  StableSortByKeyDescending(feature_sections_.begin(), feature_sections_.end(),
+                            [](const std::pair<uint8_t, PerfFile::Section>& s) {
+                              return s.second.offset;
+                            });
 
   buffer_.PopFrontUntil(feature_headers_section_.end());
   parsing_state_ = feature_sections_.empty() ? ParsingState::kDone
@@ -666,9 +665,10 @@ class PerfDataImporter : public TraceImporter<PerfDataImporter> {
   PerfDataImporter() : TraceImporter(MakeDescriptor()) {}
   ~PerfDataImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

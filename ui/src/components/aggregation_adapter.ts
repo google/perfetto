@@ -275,7 +275,7 @@ export function getActiveGridConfig(
     throw new Error('No presets provided');
   }
   const idx = Math.min(Math.max(0, presetIndex), configOrPresets.length - 1);
-  return getPresetConfig(configOrPresets[idx]);
+  return getPresetConfig(configOrPresets[idx]!);
 }
 
 interface PreparedAggregation extends AsyncDisposable {

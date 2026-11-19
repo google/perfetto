@@ -181,4 +181,24 @@ TEST(PrunePackageListTest, RemovesPackagesInfoFromPackageList) {
   ASSERT_EQ(kPackageName, after_packet.packages_list().packages().at(0).name());
 }
 
+TEST(PrunePackageListTest, RetainsPackagesInfoForSecondaryUserUid) {
+  Context context;
+  // User 10 full UID (10 * 100000 + 1037) should match normalized UID 1037 in
+  // packages.list via NormalizeUid(*context.package_uid).
+  context.package_uid.emplace(1001037);
+
+  auto packet = CreateTestPacket();
+
+  const PrunePackageList prune;
+  ASSERT_TRUE(prune.Transform(context, &packet).ok());
+
+  protos::gen::TracePacket after_packet;
+  after_packet.ParseFromString(packet);
+
+  ASSERT_TRUE(after_packet.has_packages_list());
+  ASSERT_EQ(1, after_packet.packages_list().packages_size());
+  ASSERT_EQ(kPackageUid, after_packet.packages_list().packages().at(0).uid());
+  ASSERT_EQ(kPackageName, after_packet.packages_list().packages().at(0).name());
+}
+
 }  // namespace perfetto::trace_redaction

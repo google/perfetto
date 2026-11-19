@@ -17,7 +17,11 @@ import {
   BigtraceQueryClient,
   type ExperimentFilterSpec,
 } from './bigtrace_query_client';
-import type {QueryExecution} from './query_store';
+import {
+  TERMINAL_STATUSES,
+  toQueryExecutionPhase,
+  type QueryExecution,
+} from './query_store';
 import type {BigtraceColumnSchema} from './column_types';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
@@ -32,6 +36,7 @@ export interface RawQueryExecution {
   readonly processedRows?: number;
   readonly processedTraces?: number;
   readonly totalTraces?: number;
+  readonly phase?: string;
   readonly error?: string;
   readonly errorMessage?: string;
   readonly perfettoSql?: string;
@@ -109,18 +114,6 @@ export class QueryHistoryStorage {
     return mapped;
   }
 
-  async getMaterializedHistory(): Promise<QueryExecution[]> {
-    return (await this.getAllHistory()).filter(
-      (item) => item.materialized === true,
-    );
-  }
-
-  async getNonMaterializedHistory(): Promise<QueryExecution[]> {
-    return (await this.getAllHistory()).filter(
-      (item) => item.materialized !== true,
-    );
-  }
-
   // Takes the query's table with it; see deleteQueryExecution.
   async deleteQuery(uuid: string): Promise<void> {
     await this.client().deleteQueryExecution(uuid);
@@ -144,13 +137,17 @@ function toQueryExecution(raw: RawQueryExecution): QueryExecution {
     processedRows: raw.processedRows ?? 0,
     processedTraces: raw.processedTraces ?? 0,
     totalTraces: raw.totalTraces ?? 0,
+    phase:
+      raw.status !== undefined && TERMINAL_STATUSES.has(raw.status)
+        ? undefined
+        : toQueryExecutionPhase(raw.phase),
     error: raw.error ?? raw.errorMessage,
     perfettoSql: raw.perfettoSql,
     limit: raw.limit,
     materialized: raw.materialized,
-    tableName: raw.tableName,
-    tableLink: raw.tableLink,
-    schema: raw.schema,
+    tableName: raw.tableName || undefined,
+    tableLink: raw.tableLink || undefined,
+    schema: raw.schema && raw.schema.length > 0 ? raw.schema : undefined,
   };
 }
 

@@ -44,6 +44,12 @@ namespace trace_processor {
 // go/perfetto-tp-memory-use gives an overview of trace processor memory usage.
 class TraceTokenBuffer {
  public:
+  // |keep_track_event_packets| selects whether TrackEventData carries its whole
+  // TracePacket in addition to the TrackEvent; it must match what the
+  // tokenizer produces for the whole trace.
+  explicit TraceTokenBuffer(bool keep_track_event_packets)
+      : keep_track_event_packets_(keep_track_event_packets) {}
+
   // Identifier returned when appending items to this buffer. This id can
   // later by passed to |Extract| to retrieve the event.
   struct Id {
@@ -145,7 +151,8 @@ class TraceTokenBuffer {
   std::pair<BumpAllocator::AllocId, uint8_t*> AppendCommon(
       Desc& desc,
       const TraceBlobView& packet,
-      RefPtr<PacketSequenceStateGeneration> sequence_state);
+      RefPtr<PacketSequenceStateGeneration> sequence_state,
+      uint32_t extra_size = 0);
 
   // Common prologue shared between Extract<TrackEventData|TracePacketData|
   // FtraceData>: reads |*out_desc| and the packet size out of the buffer,
@@ -160,6 +167,7 @@ class TraceTokenBuffer {
 
   InternedIndex GetInternedIndex(BumpAllocator::AllocId);
 
+  const bool keep_track_event_packets_;
   BumpAllocator allocator_;
   base::CircularQueue<BlobWithOffsets> interned_blobs_;
   base::CircularQueue<SequenceStates> interned_seqs_;

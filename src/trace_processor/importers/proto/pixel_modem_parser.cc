@@ -116,18 +116,17 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
                                             : base::StringView()));
   context_->slice_tracker->Scoped(
       ts, id, kNullStringId, slice_name_id, 0,
-      [this, &detokenized_str,
-       trace_packet_ts](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(template_id_,
-                         Variadic::String(context_->storage->InternString(
-                             detokenized_str.template_str().c_str())));
+      [this, &detokenized_str, trace_packet_ts](ArgsInserter& inserter) {
+        inserter.AddArg(template_id_,
+                        Variadic::String(context_->storage->InternString(
+                            detokenized_str.template_str().c_str())));
         uint32_t token = detokenized_str.token();
-        inserter->AddArg(token_id_, Variadic::Integer(token));
-        inserter->AddArg(token_id_hex_,
-                         Variadic::String(context_->storage->InternString(
-                             base::IntToHexString(token).c_str())));
-        inserter->AddArg(packet_timestamp_id_,
-                         Variadic::UnsignedInteger(trace_packet_ts));
+        inserter.AddArg(token_id_, Variadic::Integer(token));
+        inserter.AddArg(token_id_hex_,
+                        Variadic::String(context_->storage->InternString(
+                            base::IntToHexString(token).c_str())));
+        inserter.AddArg(packet_timestamp_id_,
+                        Variadic::UnsignedInteger(trace_packet_ts));
         auto pw_args = detokenized_str.args();
         for (size_t i = 0; i < pw_args.size(); i++) {
           StringId arg_name = context_->storage->InternString(
@@ -136,11 +135,11 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
                   .c_str());
           auto arg = pw_args[i];
           if (auto* int_arg = std::get_if<int64_t>(&arg)) {
-            inserter->AddArg(arg_name, Variadic::Integer(*int_arg));
+            inserter.AddArg(arg_name, Variadic::Integer(*int_arg));
           } else if (auto* uint_arg = std::get_if<uint64_t>(&arg)) {
-            inserter->AddArg(arg_name, Variadic::UnsignedInteger(*uint_arg));
+            inserter.AddArg(arg_name, Variadic::UnsignedInteger(*uint_arg));
           } else {
-            inserter->AddArg(arg_name, Variadic::Real(std::get<double>(arg)));
+            inserter.AddArg(arg_name, Variadic::Real(std::get<double>(arg)));
           }
         }
       });

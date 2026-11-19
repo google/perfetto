@@ -76,7 +76,7 @@ function renderTabbedDetails(
   // not available.
   const activeTab =
     tabs.find((tab) => tab.id === trace.selection.currentSelectionSubTab) ??
-    tabs[0];
+    tabs[0]!;
 
   // Determine if any tab content is loading
   const isLoading = tabs.some((tab) => tab.isLoading);

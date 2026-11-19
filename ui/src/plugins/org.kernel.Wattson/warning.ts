@@ -53,6 +53,10 @@ export async function missingWattsonCpuConfigs(
     foundEvents.add(FtraceEvent.CPU_FREQUENCY);
   }
 
+  if (/devfreq_period_ms:\s*\d+/.test(traceConfig)) {
+    foundEvents.add(FtraceEvent.DEVFREQ_FREQUENCY);
+  }
+
   // below events are included in "freq" Atrace category.
   if (/atrace_categories:\s*"freq"/.test(traceConfig)) {
     foundEvents.add(FtraceEvent.CPU_FREQUENCY);

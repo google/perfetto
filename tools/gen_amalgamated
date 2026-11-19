@@ -316,7 +316,10 @@ class AmalgamatedProject(object):
         self._processed_header_deps.add(dep)
         self.add_target(dep)
 
-  def _iterate_dep_edges(self, target_name):
+  def _iterate_dep_edges(self, target_name, visited=None):
+    # Visit each dep once: enumerating every path through the DAG is exponential.
+    if visited is None:
+      visited = set()
     target = self.desc[target_name]
     for dep in target.get('deps', []):
       # Ignore system libraries since they will be added as build-time
@@ -326,8 +329,9 @@ class AmalgamatedProject(object):
       # Don't descend into build action dependencies.
       if self.desc[dep]['type'] == 'action':
         continue
-      for sub_target, sub_dep in self._iterate_dep_edges(dep):
-        yield sub_target, sub_dep
+      if dep not in visited:
+        visited.add(dep)
+        yield from self._iterate_dep_edges(dep, visited)
       yield target_name, dep
 
   def _iterate_target_and_deps(self, target_name):
@@ -346,12 +350,16 @@ class AmalgamatedProject(object):
         self.defines.update(system_library_map[dep].get('defines', []))
         return True
 
+    walked = set()
+
     def walk_all_deps(target_name):
       target = self.desc[target_name]
       for dep in target.get('deps', []):
         if process_dep(dep):
           return
-        walk_all_deps(dep)
+        if dep not in walked:
+          walked.add(dep)
+          walk_all_deps(dep)
 
     walk_all_deps(target_name)
 

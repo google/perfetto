@@ -101,9 +101,14 @@ perfetto_py_binary(
 perfetto_py_library(
     name = "sql_processing",
     srcs = [
-        "generators/sql_processing/docs_extractor.py",
+        "generators/sql_processing/docs_extractor_legacy.py",
         "generators/sql_processing/docs_parse.py",
+        "generators/sql_processing/docs_parse_legacy.py",
+        "generators/sql_processing/pfsql.py",
+        "generators/sql_processing/stdlib_parser.py",
+        "generators/sql_processing/stdlib_parser_legacy.py",
         "generators/sql_processing/utils.py",
+        "generators/sql_processing/utils_legacy.py",
     ],
 )
 

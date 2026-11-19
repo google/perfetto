@@ -17,11 +17,13 @@
 #include "src/trace_processor/importers/proto/profile_module.h"
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
@@ -95,7 +97,7 @@ InternedSmapsPath InternSmapsPath(TraceProcessorContext* context,
   InternedSmapsPath ret;
   ret.path_id = context->storage->InternString(path);
   base::StringView trimmed = path;
-  if (path.EndsWith(kDeletedSuffix)) {
+  if (base::EndsWith(path, kDeletedSuffix)) {
     trimmed = path.substr(0, path.size() - kDeletedSuffix.size());
     ret.is_deleted = true;
   }
@@ -237,8 +239,7 @@ void ProfileModule::ParseStreamingProfileSample(
       sequence_state, upid, event.callstack_iid);
   if (!opt_cs_id) {
     context_->import_logs_tracker->RecordParserLog(
-        stats::stackprofile_parser_error, ts,
-        [&](ArgsTracker::BoundInserter& inserter) {
+        stats::stackprofile_parser_error, ts, [&](ArgsInserter& inserter) {
           inserter.AddArg(context_->storage->InternString("callstack_iid"),
                           Variadic::UnsignedInteger(event.callstack_iid));
         });
@@ -529,15 +530,36 @@ void ProfileModule::ParseProfilePacket(
     }
 
     protos::pbzero::ProfilePacket::ProcessStats::Decoder stats(entry.stats());
-    context_->stats_tracker->IncrementIndexedStats(
-        stats::heapprofd_unwind_time_us, static_cast<int>(entry.pid()),
+    // total_unwinding_time_us and unwinding_time_us are cumulative over the
+    // lifetime of the profiled process: every dump supersedes the previous
+    // one.
+    context_->stats_tracker->SetIndexedStats(
+        stats::heapprofd_unwind_time_us, pid,
         static_cast<int64_t>(stats.total_unwinding_time_us()));
     context_->stats_tracker->IncrementIndexedStats(
-        stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
+        stats::heapprofd_unwind_samples, pid,
         static_cast<int64_t>(stats.heap_samples()));
     context_->stats_tracker->IncrementIndexedStats(
-        stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
+        stats::heapprofd_client_spinlock_blocked, pid,
         static_cast<int64_t>(stats.client_spinlock_blocked_us()));
+
+    if (stats.has_unwinding_time_us()) {
+      protos::pbzero::ProfilePacket::Histogram::Decoder hist(
+          stats.unwinding_time_us());
+
+      int64_t lower_bound = 0;
+      for (auto bucket_it = hist.buckets(); bucket_it; ++bucket_it) {
+        protos::pbzero::ProfilePacket::Histogram::Bucket::Decoder bucket(
+            *bucket_it);
+        int64_t upper_bound = bucket.max_bucket()
+                                  ? std::numeric_limits<int64_t>::max()
+                                  : static_cast<int64_t>(bucket.upper_limit());
+        context_->stats_tracker->SetIndexedHistogramBucket(
+            stats::heapprofd_unwind_time_us_histogram, pid, lower_bound,
+            upper_bound, static_cast<int64_t>(bucket.count()));
+        lower_bound = upper_bound;
+      }
+    }
 
     // orig_sampling_interval_bytes was introduced slightly after a bug with
     // self_max_count was fixed in the producer. We use this as a proxy
@@ -846,7 +868,7 @@ void ProfileModule::OnEventsFullyExtracted() {
     NullTermStringView path = context_->storage->GetString(it.name());
     NullTermStringView build_id = context_->storage->GetString(it.build_id());
 
-    if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
+    if (base::StartsWith(path, "/data/local/tmp/") && build_id.empty()) {
       context_->stats_tracker->IncrementStats(
           stats::symbolization_tmp_build_id_not_found);
     }

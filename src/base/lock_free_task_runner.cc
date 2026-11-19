@@ -30,9 +30,9 @@
 
 #include <thread>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/platform.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"

@@ -63,6 +63,26 @@ std::string JoinLineComments(const char* stmt_ptr,
   return result;
 }
 
+// Joins line comments like JoinLineComments() but keeps one per line, with only
+// the leading dashes removed so that their formatting is preserved.
+std::string JoinRawLineComments(const char* stmt_ptr,
+                                const SyntaqliteComment* comments,
+                                uint32_t count) {
+  std::string result;
+  for (uint32_t i = 0; i < count; i++) {
+    if (comments[i].kind != 0) {
+      continue;
+    }
+    std::string_view s(stmt_ptr + comments[i].offset, comments[i].length);
+    size_t dashes = s.find_first_not_of('-');
+    s = dashes == std::string_view::npos ? std::string_view()
+                                         : s.substr(dashes);
+    result.append(s);
+    result += '\n';
+  }
+  return std::string(base::TrimWhitespace(result));
+}
+
 // Returns the index of the first comment in the last contiguous block of line
 // comments. Two or more newlines between consecutive line comments (i.e. a
 // blank line) breaks the block, which is used to skip license headers.
@@ -93,6 +113,26 @@ bool IsInternal(const std::string& name) {
   return base::StartsWith(name, "_");
 }
 
+// Look up the argument name token so each argument gets its own comments
+std::string GetArgDescription(SyntaqliteParser* p,
+                              SyntaqliteTextSpan name_span,
+                              const char* stmt_ptr) {
+  uint32_t name_len = 0, name_off = 0;
+  if (!syntaqlite_parser_span_text(p, &name_span, &name_len, &name_off)) {
+    return {};
+  }
+  uint32_t tok_count = 0;
+  const SyntaqliteParserToken* toks = syntaqlite_result_tokens(p, &tok_count);
+  for (uint32_t ti = 0; ti < tok_count; ti++) {
+    if (toks[ti]._layer_id == 0 && toks[ti].offset == name_off) {
+      uint32_t c_count = 0;
+      const auto* cs = syntaqlite_token_leading_comments(p, ti, &c_count);
+      return JoinLineComments(stmt_ptr, cs, c_count);
+    }
+  }
+  return {};
+}
+
 // Extracts entries from a PerfettoArgDefList node. Entry must be a struct with
 // name/type/description fields (Column or Arg).
 template <typename Entry>
@@ -103,9 +143,6 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
   if (!syntaqlite_node_is_present(list_id)) {
     return result;
   }
-
-  uint32_t tok_count = 0;
-  const SyntaqliteParserToken* toks = syntaqlite_result_tokens(p, &tok_count);
 
   const auto* list = static_cast<const SyntaqlitePerfettoArgDefList*>(
       syntaqlite_parser_node(p, list_id));
@@ -126,20 +163,9 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
     entry.type =
         ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
-    // Locate the token for the arg name by its source offset, then fetch
-    // the leading comments attached to that token.
-    uint32_t name_len = 0, name_off = 0;
-    if (syntaqlite_parser_span_text(p, &name_node->ident_name.source, &name_len,
-                                    &name_off)) {
-      for (uint32_t ti = 0; ti < tok_count; ti++) {
-        if (toks[ti]._layer_id == 0 && toks[ti].offset == name_off) {
-          uint32_t c_count = 0;
-          const auto* cs = syntaqlite_token_leading_comments(p, ti, &c_count);
-          entry.description = JoinLineComments(stmt_ptr, cs, c_count);
-          break;
-        }
-      }
-    }
+    entry.description =
+        GetArgDescription(p, name_node->ident_name.source, stmt_ptr);
+    entry.is_variadic = item->is_variadic;
 
     result.push_back(std::move(entry));
   }
@@ -181,9 +207,7 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
     arg.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_name);
     arg.type = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t c_count = 0;
-    const auto* cs = syntaqlite_node_leading_comments(p, item_id, &c_count);
-    arg.description = JoinLineComments(stmt_ptr, cs, c_count);
+    arg.description = GetArgDescription(p, item->arg_name, stmt_ptr);
 
     result.push_back(std::move(arg));
   }
@@ -263,20 +287,39 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
     // Statement-level description: last contiguous block of leading line
     // comments on token 0 (the CREATE keyword), skipping license headers
     // separated by a blank line.
-    auto get_stmt_desc = [&]() -> std::string {
+    auto stmt_doc_comments = [&](uint32_t* out_count) {
       uint32_t count = 0;
       const auto* cs = syntaqlite_token_leading_comments(p, 0, &count);
       uint32_t start = LastBlockStart(stmt_ptr, cs, count);
-      return JoinLineComments(stmt_ptr, cs + start, count - start);
+      *out_count = count - start;
+      return cs + start;
+    };
+    auto get_stmt_desc = [&]() -> std::string {
+      uint32_t count = 0;
+      const auto* cs = stmt_doc_comments(&count);
+      return JoinLineComments(stmt_ptr, cs, count);
+    };
+    auto get_raw_stmt_desc = [&]() -> std::string {
+      uint32_t count = 0;
+      const auto* cs = stmt_doc_comments(&count);
+      return JoinRawLineComments(stmt_ptr, cs, count);
     };
 
     switch (static_cast<int>(node->tag)) {
+      case SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT:
+        result.includes.emplace_back(
+            ::perfetto::perfetto_sql::SyntaqliteSpanText(
+                p, node->include_perfetto_module_stmt.module_name));
+        break;
+
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT: {
         const auto& n = node->create_perfetto_table_stmt;
         TableOrView tv;
         tv.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.table_name);
         tv.type = "TABLE";
         tv.exposed = !IsInternal(tv.name);
+        tv.or_replace = n.or_replace;
+        tv.raw_description = get_raw_stmt_desc();
         tv.description = get_stmt_desc();
         tv.columns = ExtractColumns(p, n.schema, stmt_ptr);
         result.table_views.push_back(std::move(tv));
@@ -289,6 +332,8 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         tv.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.view_name);
         tv.type = "VIEW";
         tv.exposed = !IsInternal(tv.name);
+        tv.or_replace = n.or_replace;
+        tv.raw_description = get_raw_stmt_desc();
         tv.description = get_stmt_desc();
         tv.columns = ExtractColumns(p, n.schema, stmt_ptr);
         result.table_views.push_back(std::move(tv));
@@ -300,13 +345,16 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         SyntaqliteTextSpan fn_name_span;
         uint32_t args_list_id;
         uint32_t return_type_id;
+        bool or_replace;
         if (node->tag == SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT) {
           const auto& n = node->create_perfetto_function_stmt;
+          or_replace = n.or_replace;
           fn_name_span = n.function_name;
           args_list_id = n.args;
           return_type_id = n.return_type;
         } else {
           const auto& n = node->create_perfetto_delegating_function_stmt;
+          or_replace = n.or_replace;
           fn_name_span = n.function_name;
           args_list_id = n.args;
           return_type_id = n.return_type;
@@ -315,6 +363,8 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         Function fn;
         fn.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, fn_name_span);
         fn.exposed = !IsInternal(fn.name);
+        fn.or_replace = or_replace;
+        fn.raw_description = get_raw_stmt_desc();
         fn.description = get_stmt_desc();
         fn.args = ExtractArgs(p, args_list_id, stmt_ptr);
 
@@ -343,6 +393,8 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         macro.name =
             ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.macro_name);
         macro.exposed = !IsInternal(macro.name);
+        macro.or_replace = n.or_replace;
+        macro.raw_description = get_raw_stmt_desc();
         macro.description = get_stmt_desc();
         macro.return_type =
             ::perfetto::perfetto_sql::SyntaqliteSpanText(p, n.return_type);

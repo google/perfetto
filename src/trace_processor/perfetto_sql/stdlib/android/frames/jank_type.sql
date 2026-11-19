@@ -27,7 +27,8 @@ SELECT
   OR $jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
   OR $jank_type GLOB '*SurfaceFlinger Scheduling*'
   OR $jank_type GLOB '*Prediction Error*'
-  OR $jank_type GLOB '*Display HAL*';
+  OR $jank_type GLOB '*Display HAL*'
+  OR $jank_type GLOB '*DequeueBuffer Delay*';
 
 -- Categorizes whether the jank was caused by the app
 CREATE PERFETTO FUNCTION android_is_app_jank_type(

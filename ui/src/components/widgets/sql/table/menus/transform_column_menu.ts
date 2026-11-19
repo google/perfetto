@@ -56,7 +56,7 @@ function fromExpression(
 ): (trace: Trace, column: SqlColumn, ...params: string[]) => TableColumn {
   return (trace: Trace, column: SqlColumn, ...params: string[]) => {
     const sqlExpr = new SqlExpression(
-      (cols: string[]) => exprFn(cols[0], ...params),
+      (cols: string[]) => exprFn(cols[0]!, ...params),
       [column],
     );
     return createTableColumn({
@@ -254,7 +254,7 @@ class ConfigureTransformMenu implements m.ClassComponent<TransformMenuItemAttrs>
     if (this.paramState.length !== params.length) {
       this.paramState = range(params.length).map((index) => {
         if (index < initialValues.length) {
-          return {value: initialValues[index], error: false};
+          return {value: initialValues[index]!, error: false};
         }
         return {value: '', error: false};
       });
@@ -266,8 +266,8 @@ class ConfigureTransformMenu implements m.ClassComponent<TransformMenuItemAttrs>
         submitLabel: attrs.formSubmitLabel,
         onSubmit: (e: Event) => {
           params.forEach((param, index) => {
-            const value = this.paramState[index].value;
-            this.paramState[index].error = !(param.validate?.(value) ?? true);
+            const value = this.paramState[index]!.value;
+            this.paramState[index]!.error = !(param.validate?.(value) ?? true);
           });
 
           const hasError = this.paramState.some((state) => state.error);
@@ -278,7 +278,7 @@ class ConfigureTransformMenu implements m.ClassComponent<TransformMenuItemAttrs>
                 state: attrs.state,
                 transformType: attrs.transformType,
                 values: params.map((param, index) => {
-                  const value = this.paramState[index].value;
+                  const value = this.paramState[index]!.value;
                   if (value === '' && param.defaultValue !== undefined) {
                     return param.defaultValue;
                   }
@@ -297,12 +297,14 @@ class ConfigureTransformMenu implements m.ClassComponent<TransformMenuItemAttrs>
         m(TextInput, {
           id: `${this.uuid}_param_${index}`,
           placeholder: param.placeholder,
-          value: this.paramState[index].value,
+          value: this.paramState[index]!.value,
           oninput: (e: InputEvent) => {
-            this.paramState[index].value = (e.target as HTMLInputElement).value;
-            this.paramState[index].error = false;
+            this.paramState[index]!.value = (
+              e.target as HTMLInputElement
+            ).value;
+            this.paramState[index]!.error = false;
           },
-          style: this.paramState[index].error
+          style: this.paramState[index]!.error
             ? {
                 border: '1px solid red',
                 outline: 'none',

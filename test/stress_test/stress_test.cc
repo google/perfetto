@@ -425,7 +425,7 @@ void TestHarness::ParseTracePacket(const uint8_t* start,
   }
 }
 
-void CtrlCHandler() {
+void CtrlCHandler(int /*signal*/) {
   g_sig->aborted.store(true);
   for (auto it = g_sig->pids_to_kill.rbegin(); it != g_sig->pids_to_kill.rend();
        it++) {

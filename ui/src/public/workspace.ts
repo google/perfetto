@@ -21,6 +21,7 @@ export interface WorkspaceManager {
   readonly currentWorkspace: Workspace;
   readonly all: ReadonlyArray<Workspace>;
   createEmptyWorkspace(displayName: string, id?: string): Workspace;
+  removeWorkspace(workspace: Workspace): void;
   switchWorkspace(workspace: Workspace): void;
 }
 
@@ -475,9 +476,9 @@ export class TrackNode {
   }
 
   private collectFlatTracks(tracks: TrackNode[]): void {
-    for (let i = 0; i < this.children.length; ++i) {
-      tracks.push(this.children[i]); // Push the current node before its children
-      this.children[i].collectFlatTracks(tracks); // Recurse to collect child tracks
+    for (const child of this.children) {
+      tracks.push(child); // Push the current node before its children
+      child.collectFlatTracks(tracks); // Recurse to collect child tracks
     }
   }
 

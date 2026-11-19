@@ -14,47 +14,41 @@
 -- limitations under the License.
 
 -- Creates TPU freq counter and cluster based off of slices
--- (gapless from trace_start to trace_end)
+-- (gapless from trace_start to trace_end, 0 where no DVFS event defines it)
+-- A device without a TPU has no DVFS events, and so no TPU frequency at all.
 CREATE PERFETTO TABLE _tpu_freq AS
-WITH
-  raw_freqs AS (
-    SELECT
-      s.ts,
-      iif(s.dur = -1, trace_end() - s.ts, s.dur) AS dur,
-      CAST(s.name AS INTEGER) AS freq,
-      CASE
-        WHEN s.name GLOB '*Cluster Both*' THEN 2
-        WHEN s.name GLOB '*Cluster 0*' THEN 0
-        WHEN s.name GLOB '*Cluster 1*' THEN 1
-        ELSE 2
-      END AS cluster
-    FROM slice AS s
-    JOIN track AS t
-      ON t.id = s.track_id
-    WHERE
-      t.name = 'DVFS'
-  ),
-  all_slices AS (
-    -- Initial gap before first DVFS event
-    SELECT
-      trace_start() AS ts,
-      min(ts) - trace_start() AS dur,
-      0 AS freq,
-      0 AS cluster
-    FROM raw_freqs
-    UNION ALL
-    -- Active DVFS events
-    SELECT ts, dur, freq, cluster FROM raw_freqs
-    UNION ALL
-    -- Gaps between consecutive DVFS events and after the last DVFS event
-    SELECT
-      ts + dur AS ts,
-      lead(ts, 1, trace_end()) OVER (ORDER BY ts) - (ts + dur) AS dur,
-      0 AS freq,
-      0 AS cluster
-    FROM raw_freqs
-  )
-SELECT * FROM all_slices WHERE dur > 0 ORDER BY ts;
+FROM (
+  SELECT
+    s.ts,
+    iif(s.dur = -1, trace_end() - s.ts, s.dur) AS dur,
+    CAST(s.name AS INTEGER) AS freq,
+    CASE
+      WHEN s.name GLOB '*Cluster Both*' THEN 2
+      WHEN s.name GLOB '*Cluster 0*' THEN 0
+      WHEN s.name GLOB '*Cluster 1*' THEN 1
+      ELSE 2
+    END AS cluster
+  FROM slice AS s
+  JOIN track AS t
+    ON t.id = s.track_id
+  WHERE
+    t.name = 'DVFS'
+    AND s.dur != 0
+)
+|> INTERVAL FILL GAPS WITH (
+  SELECT trace_start() AS ts, trace_dur() AS dur, 0 AS freq, 0 AS cluster
+  WHERE
+    EXISTS (
+      SELECT 1
+      FROM slice AS s
+      JOIN track AS t
+        ON t.id = s.track_id
+      WHERE
+        t.name = 'DVFS'
+        AND s.dur != 0
+    )
+)
+|> ORDER BY ts;
 
 -- Number of parallel TPU requests at any point in time. The weight 0
 -- background row spanning the whole trace makes INTERVAL FLATTEN also emit

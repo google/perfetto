@@ -59,6 +59,7 @@ export class AndroidInputEventSource {
   use(sliceId: number): AsyncMemoResult<InputChainRow[]> {
     return this.dataSlot.use({
       key: {sliceId},
+      retainOn: ['sliceId'],
       compute: async () => {
         const resolvedSliceId = await this.resolveSliceId(sliceId);
         const rows = await this.fetchRows(resolvedSliceId);

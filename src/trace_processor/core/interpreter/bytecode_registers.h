@@ -23,6 +23,7 @@
 #include <variant>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/string_ranks.h"
@@ -30,7 +31,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -119,14 +119,14 @@ using RegValue =
     std::variant<Empty,
                  Range,
                  Slab<uint32_t>,
-                 Span<uint32_t>,
+                 base::Span<uint32_t>,
                  filter::CastFilterValueResult,
                  std::unique_ptr<filter::CastFilterValueListResult>,
                  Slab<uint8_t>,
                  StringIdToRankMap,
                  StoragePtr,
                  const BitVector*,
-                 Span<const uint32_t>,
+                 base::Span<const uint32_t>,
                  BitVector,
                  NullBitvector>;
 

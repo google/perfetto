@@ -22,6 +22,8 @@ source_set("winscope_importer") {
   sources = [
     "android_input_event_parser.cc",
     "android_input_event_parser.h",
+    "deinterning_arg_sink.cc",
+    "deinterning_arg_sink.h",
     "protolog_message_decoder.cc",
     "protolog_message_decoder.h",
     "protolog_parser.cc",
@@ -41,8 +43,8 @@ source_set("winscope_importer") {
     "surfaceflinger_layers_visibility_computation.h",
     "surfaceflinger_transactions_parser.cc",
     "surfaceflinger_transactions_parser.h",
-    "viewcapture_args_parser.cc",
-    "viewcapture_args_parser.h",
+    "viewcapture_deinterner.cc",
+    "viewcapture_deinterner.h",
     "viewcapture_parser.cc",
     "viewcapture_parser.h",
     "viewcapture_rect_computation.cc",
@@ -70,6 +72,10 @@ source_set("winscope_importer") {
     "winscope_transform_tracker.cc",
     "winscope_transform_tracker.h",
   ]
+  public_deps = [
+    "../../storage",
+    "../../types",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
@@ -92,10 +98,8 @@ source_set("winscope_importer") {
     "../../importers/proto:minimal",
     "../../importers/proto:packet_sequence_state_generation_hdr",
     "../../importers/proto:proto_importer_module",
-    "../../storage",
     "../../tables",
-    "../../types",
-    "../../util:cold_sort",
+    "../../util:sort",
   ]
 }
 
@@ -111,8 +115,10 @@ perfetto_unittest_source_set("unittests") {
     "../../../../src/protozero",
     "../../importers/common",
     "../../storage",
+    "../../types",
   ]
   sources = [
+    "deinterning_arg_sink_unittest.cc",
     "surfaceflinger_layers_extractor_unittest.cc",
     "surfaceflinger_layers_test_utils.h",
     "surfaceflinger_layers_utils_unittest.cc",

@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -170,7 +171,13 @@ class TraceWriterV2Impl : public TraceWriter,
   // - If no chunk is free, applies the policy through TryStallForSpace(). If
   //   the policy drops the packet, enters drop mode and returns the drop
   //   buffer.
-  protozero::ContiguousMemoryRange BeginPacketFragment(
+  PERFETTO_ALWAYS_INLINE protozero::ContiguousMemoryRange BeginPacketFragment(
+      bool continues_from_prev);
+
+  // BeginPacketFragment() after |range|, the first attempt, did not return
+  // space outside drop mode.
+  protozero::ContiguousMemoryRange BeginPacketFragmentSlowPath(
+      SharedRingBufferWriter::FragmentRange range,
       bool continues_from_prev);
 
   // Publishes the open fragment, if any.
@@ -182,7 +189,11 @@ class TraceWriterV2Impl : public TraceWriter,
   // - If the policy drops the fragment, enters drop mode for the rest of the
   //   packet.
   // - Returns with no relocation pending in |ring_buffer_writer_|.
-  void EndPacketFragment(bool continues_on_next);
+  PERFETTO_ALWAYS_INLINE void EndPacketFragment(bool continues_on_next);
+
+  // EndPacketFragment() after EndFragment() returned |result|, which is not
+  // kSuccess. Returns false if the rest of the packet is dropped.
+  bool RetryEndPacketFragment(SharedRingBufferWriter::EndFragmentResult result);
 
   // Decides what to do after |ring_buffer_writer_| found no free chunk: wait
   // for the reader, or drop the data.
@@ -206,10 +217,15 @@ class TraceWriterV2Impl : public TraceWriter,
 
   // Drops the rest of the open packet: its bytes go to GetDropBuffer() from now
   // on.
+  // - Counts the packet in |unreported_dropped_packets_|.
   // - If drop mode is not active yet, counts one drop and records the loss
   //   for the next publication.
   // - Drop mode lasts until a later packet gets a fragment in the ring buffer.
   void EnterDropMode();
+
+  // Adds |unreported_dropped_packets_| to the ring buffer header.
+  // Does nothing if there are none.
+  void ReportDroppedPackets();
 
   // Returns the process-wide drop buffer as a writable range. Only in drop
   // mode.
@@ -266,6 +282,12 @@ class TraceWriterV2Impl : public TraceWriter,
   // Number of times this writer entered drop mode. Consecutive dropped
   // packets count once, as in TraceWriterImpl.
   uint64_t drop_count_ = 0;
+
+  // Dropped packets that are not in the ring buffer header yet which the
+  // service reads for TraceStats.
+  // We add the count when the writer leaves drop mode and on Flush() as all
+  // writers share the header's cache line, so we don't add each drop.
+  uint32_t unreported_dropped_packets_ = 0;
 };
 
 }  // namespace perfetto::tracing_v2

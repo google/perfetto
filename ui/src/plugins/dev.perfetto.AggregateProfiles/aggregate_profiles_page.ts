@@ -102,7 +102,7 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     );
     const next = Math.max(cur, 0) + step;
     if (next >= 0 && next < attrs.profiles.length) {
-      this.selectProfile(attrs, attrs.profiles[next]);
+      this.selectProfile(attrs, attrs.profiles[next]!);
     }
   }
 

@@ -36,11 +36,12 @@
 
 namespace perfetto::trace_redaction {
 
-// Multiple packages can share the same name. This is common when a device has
-// multiple users. When this happens, each instance shares the 5 least
-// significant digits.
+// Multiple package instances across Android user profiles share the same
+// package name and normalized UID (uid % 100,000), while per-user process
+// UIDs are encoded as `user_id * 100,000 + normalized_uid`.
+constexpr uint64_t kAndroidPerUserRange = 100000;
 constexpr uint64_t NormalizeUid(uint64_t uid) {
-  return uid % 1000000;
+  return uid % kAndroidPerUserRange;
 }
 
 class SystemInfo {
@@ -183,50 +184,30 @@ class Context {
   //      pid: 18176
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 10113
+  //      uid: 10113 (User 0)
   //    }
   //    processes {
   //      pid: 21388
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 1010113
+  //      uid: 1010113 (User 10)
   //    }
   //
   // The logic from before still hold, however, if the traced process was pid
   // 21388, it will be merged with the other threads.
   //
-  // To avoid this problem from happening, we normalize the uids and treat
-  // both instances as a single process:
-  //
-  //    processes {
-  //      pid: 18176
-  //      ppid: 904
-  //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 10113
-  //    }
-  //    processes {
-  //      pid: 21388
-  //      ppid: 904
-  //      cmdline: "com.google.android.gms.persistent"
-  // -    uid: 1010113
-  // +    uid: 10113
-  //    }
-  //
-  // It sounds like there would be a privacy concern, but because both processes
-  // are from the same app and are being collected from the same user, there
-  // are no new privacy issues by doing this.
-  //
-  // But where should the uids be normalized? The dividing line is the timeline
-  // interface, specifically, should the timeline know anything about uids
-  // (other than "it's a number").
-  //
-  // To avoid expanding the timeline's scope, the uid normalizations is done
-  // outside of the timeline. When a uid is passed into the timeline, it should
-  // be normalized (i.e. 5 != 100005). When the timeline is queried, the uid
-  // should be normalized. This increases the risk for error, but there are only
-  // two places where uids are set, writing the uid to the context and writing
-  // the uid to the timeline.
+  // Holds the full per-user UID (e.g. 1010113) when an explicit target UID is
+  // passed to trace_redactor (with `normalize_uid == false`), or the normalized
+  // UID (e.g. 10113) extracted from `PackagesList` when no target UID is passed
+  // (with `normalize_uid == true`).
   std::optional<uint64_t> package_uid;
+
+  // When true (no explicit target UID was provided), process UIDs in the
+  // timeline are normalized via `NormalizeUid` so secondary user / Work Profile
+  // processes match the normalized UID from `PackagesList`. When false (an
+  // explicit `--uid` was provided), full per-user UIDs are preserved in the
+  // timeline for strict multi-user isolation.
+  bool normalize_uid = false;
 
   // The timestamp when tracing started, collected from TracingServiceEvent.
   // This is used to avoid merging events across the start of tracing, which

@@ -72,11 +72,12 @@ base::Status IncludeSqlPackage(TraceProcessor* trace_processor,
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
   sql_modules::NameToPackage modules;
   for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql") {
+    auto stripped = sql_modules::StripSqlExtension(base::StringView(path));
+    if (!stripped.has_value()) {
       continue;
     }
 
-    std::string path_no_extension = path.substr(0, path.rfind('.'));
+    std::string path_no_extension = stripped->ToStdString();
     if (path_no_extension.find('.') != std::string_view::npos) {
       PERFETTO_ELOG("Skipping module %s as it contains a dot in its path.",
                     path_no_extension.c_str());
@@ -118,7 +119,7 @@ base::Status LoadOverridenStdlib(TraceProcessor* trace_processor,
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
   sql_modules::NameToPackage packages;
   for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql") {
+    if (!sql_modules::StripSqlExtension(base::StringView(path)).has_value()) {
       continue;
     }
     std::string filename = root + "/" + path;

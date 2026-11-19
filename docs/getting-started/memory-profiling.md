@@ -73,7 +73,7 @@ implementation.
 #### Prerequisites
 
 * A device running Android 10+.
-* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/guide/topics/manifest/profileable-element)
   app. If you are running on a _"user"_ build of Android (as opposed to
   _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
   debuggable in its manifest. See the [heapprofd documentation][hdocs] for more
@@ -109,7 +109,7 @@ the libc implementation.
 * _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
   `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
 * A device running Android 10+.
-* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/guide/topics/manifest/profileable-element)
   app. If you are running on a _"user"_ build of Android (as opposed to
   _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
   debuggable in its manifest. See the [heapprofd documentation][hdocs] for more
@@ -354,7 +354,7 @@ implementation.
 #### Prerequisites
 
 * A device running Android 11+.
-* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/guide/topics/manifest/profileable-element)
   app. If you are running on a _"user"_ build of Android (as opposed to
   _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
   debuggable in its manifest.
@@ -387,7 +387,7 @@ implementation.
 * _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
   `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
 * A device running Android 11+.
-* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/guide/topics/manifest/profileable-element)
   app. If you are running on a _"user"_ build of Android (as opposed to
   _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
   debuggable in its manifest.

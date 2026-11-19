@@ -284,6 +284,38 @@ class StdlibSched(TestSuite):
         "x",35240577
       """))
 
+  def test_sched_state_to_human_readable_string(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.states;
+
+        SELECT
+          s,
+          sched_state_to_human_readable_string(s) AS readable,
+          sched_state_io_to_human_readable_string(
+            s, iif(s GLOB '*D*', 0, NULL)) AS readable_io
+        FROM (
+          SELECT 'D' AS s
+          UNION ALL SELECT 'DK'
+          UNION ALL SELECT 'TK'
+          UNION ALL SELECT 'tK'
+          UNION ALL SELECT 'R+'
+          UNION ALL SELECT 'Running'
+          UNION ALL SELECT '?'
+        );
+        """,
+        out=Csv("""
+        "s","readable","readable_io"
+        "D","Uninterruptible Sleep","Uninterruptible Sleep (non-IO)"
+        "DK","Uninterruptible Sleep + Wakekill","Uninterruptible Sleep + Wakekill (non-IO)"
+        "TK","Stopped + Wakekill","Stopped + Wakekill"
+        "tK","Traced + Wakekill","Traced + Wakekill"
+        "R+","Runnable (Preempted)","Runnable (Preempted)"
+        "Running","Running","Running"
+        "?","?","?"
+        """))
+
   def test_sched_previous_runnable_on_thread(self):
     return DiffTestBlueprint(
         trace=DataPath('android_boot.pftrace'),

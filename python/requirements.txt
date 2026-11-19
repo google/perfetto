@@ -2,5 +2,5 @@ grpcio==1.76.0
 pandas==2.3.3
 protobuf==6.33.5
 yapf==0.40.2
-brotli==1.2.0
+brotli==1.2.1
 fonttools==4.60.2

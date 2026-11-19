@@ -43,14 +43,14 @@ namespace perfetto::trace_processor::core {
 namespace {
 
 template <typename T>
-Slab<uint8_t> GatherColumnData(Span<const T> values,
-                               Span<const uint32_t> order,
+Slab<uint8_t> GatherColumnData(base::Span<const T> values,
+                               base::Span<const uint32_t> order,
                                const BitVector* source_non_null,
                                BitVector* output_non_null) {
   auto bytes = static_cast<uint64_t>(values.size()) * sizeof(T);
   auto slab = Slab<uint8_t>::Alloc(bytes);
   T* output_data = reinterpret_cast<T*>(slab.data());
-  Span<T> output(output_data, output_data + order.size());
+  base::Span<T> output(output_data, output_data + order.size());
   if (source_non_null) {
     PERFETTO_DCHECK(output_non_null);
     core::ops::GatherNullableRows(values, *source_non_null, output,
@@ -92,7 +92,7 @@ Tree::Column MoveRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc) {
 // payload copy needed when constructing a Tree from unordered input.
 Tree::Column GatherRawColumn(dataframe::AdhocDataframeBuilder::RawColumn& rc,
                              uint32_t row_count,
-                             Span<const uint32_t> order) {
+                             base::Span<const uint32_t> order) {
   Tree::Column tc;
   const BitVector* source_non_null =
       rc.null_bv.size() > 0 ? &rc.null_bv : nullptr;
@@ -136,7 +136,7 @@ constexpr uint64_t kDenseIndexMaxSizeFactor = 2;
 // (id == row index) need no storage; a reasonably dense uint32 id range uses
 // a direct index vector; arbitrary int64 ids fall back to a hash map. Fails
 // on duplicate ids.
-base::StatusOr<Tree::IdIndex> BuildIdIndex(Span<const int64_t> ids,
+base::StatusOr<Tree::IdIndex> BuildIdIndex(base::Span<const int64_t> ids,
                                            uint32_t row_count) {
   Tree::IdIndex result;
   bool identity_ids = true;
@@ -317,14 +317,15 @@ base::StatusOr<Tree> BuildFromRawColumns(
     // Gather all columns (including id/parent_id) in topological order.
     for (auto& rc : raw_cols) {
       result.names.push_back(std::move(rc.name));
-      result.columns.push_back(GatherRawColumn(rc, row_count, MakeSpan(order)));
+      result.columns.push_back(
+          GatherRawColumn(rc, row_count, base::MakeSpan(order)));
     }
     // The reorder invalidated the input-space index; rebuild it from the
     // gathered id column, which is in output row order.
     const auto* ids = result.columns[0].unchecked_data<int64_t>();
-    ASSIGN_OR_RETURN(
-        result.id_index,
-        BuildIdIndex(Span<const int64_t>(ids, ids + row_count), row_count));
+    ASSIGN_OR_RETURN(result.id_index, BuildIdIndex(base::Span<const int64_t>(
+                                                       ids, ids + row_count),
+                                                   row_count));
   }
   return std::move(result);
 }

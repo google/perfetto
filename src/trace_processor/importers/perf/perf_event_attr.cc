@@ -211,7 +211,7 @@ PerfCounter PerfEventAttr::CreateGlobalCounter() const {
       tracks::kPerfGlobalCounterBlueprint,
       tracks::Dimensions(perf_session_id_.value, name),
       tracks::DynamicName(context_->storage->InternString(name)),
-      [this](ArgsTracker::BoundInserter& inserter) {
+      [this](ArgsInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
                         Variadic::Boolean(is_timebase()));
       });
@@ -224,7 +224,7 @@ PerfCounter PerfEventAttr::CreateCpuCounter(uint32_t cpu) const {
       tracks::kPerfCpuCounterBlueprint,
       tracks::Dimensions(cpu, perf_session_id_.value, name),
       tracks::DynamicName(context_->storage->InternString(name)),
-      [this](ArgsTracker::BoundInserter& inserter) {
+      [this](ArgsInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
                         Variadic::Boolean(is_timebase()));
       });
@@ -237,7 +237,7 @@ PerfCounter PerfEventAttr::CreateThreadCounter(UniqueTid utid) const {
       tracks::kPerfThreadCounterBlueprint,
       tracks::Dimensions(utid, perf_session_id_.value, name),
       tracks::DynamicName(context_->storage->InternString(name)),
-      [this](ArgsTracker::BoundInserter& inserter) {
+      [this](ArgsInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
                         Variadic::Boolean(is_timebase()));
       });
@@ -251,7 +251,7 @@ PerfCounter PerfEventAttr::CreateThreadCpuCounter(UniqueTid utid,
       tracks::kPerfThreadCpuCounterBlueprint,
       tracks::Dimensions(utid, cpu, perf_session_id_.value, name),
       tracks::DynamicName(context_->storage->InternString(name)),
-      [this](ArgsTracker::BoundInserter& inserter) {
+      [this](ArgsInserter& inserter) {
         inserter.AddArg(context_->storage->InternString("is_timebase"),
                         Variadic::Boolean(is_timebase()));
       });

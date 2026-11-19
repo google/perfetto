@@ -715,9 +715,10 @@ def _stdlib_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--output', required=True)
+  parser.add_argument('--pfsql-binary', required=True)
   args = parser.parse_args()
 
-  stdlib_docs = _stdlib_docs(parse_all_modules(STDLIB_DIR))
+  stdlib_docs = _stdlib_docs(parse_all_modules(STDLIB_DIR, args.pfsql_binary))
 
   # Build dependency maps for all modules
   dependencies, dependents = _build_dependency_maps(stdlib_docs)

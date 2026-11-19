@@ -14,6 +14,7 @@
 
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import m from 'mithril';
+import type {Filter} from '../../components/widgets/datagrid/model';
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {FETCH_DEBOUNCE_MS} from './fetch_scheduler';
 import {
@@ -95,6 +96,7 @@ const PAGE = {
   rows: [{a: '1'}],
   columns: ['a'],
   totalFilteredRows: 5000,
+  totalFilteredTraces: 42,
   availableColumnNames: ['a'],
 };
 
@@ -120,7 +122,7 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
   // Settle the first window so later renders are range changes, not initial.
   async function loaded(ds: BigtraceAsyncDataSource, calls: Call[]) {
     ds.useRows(model(0, 100));
-    calls[0].resolve(PAGE);
+    calls[0]!.resolve(PAGE);
     await vi.advanceTimersByTimeAsync(0);
     calls.length = 0;
   }
@@ -143,7 +145,7 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     ds.useRows(model(0, 100));
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS * 4);
     expect(calls).toHaveLength(1);
-    expect(calls[0].signal?.aborted).toBe(false);
+    expect(calls[0]!.signal?.aborted).toBe(false);
   });
 
   test('a burst of scroll ticks costs one fetch, for the last window', async () => {
@@ -159,7 +161,7 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
 
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
     expect(calls).toHaveLength(1);
-    expect(calls[0].offset).toBe(800);
+    expect(calls[0]!.offset).toBe(800);
   });
 
   test('a newer window aborts the request it replaces', async () => {
@@ -170,14 +172,14 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     ds.useRows(model(200, 100));
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
     expect(calls).toHaveLength(1);
-    const superseded = calls[0];
+    const superseded = calls[0]!;
 
     // Scroll on while that one is still in flight.
     ds.useRows(model(900, 100));
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
     expect(calls).toHaveLength(2);
     expect(superseded.signal?.aborted).toBe(true);
-    expect(calls[1].signal?.aborted).toBe(false);
+    expect(calls[1]!.signal?.aborted).toBe(false);
   });
 
   test('a superseded reply does not replace the newer window', async () => {
@@ -191,9 +193,9 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
 
     // The abandoned request answers anyway, after the newer one landed.
-    calls[1].resolve({...PAGE, rows: [{a: 'new'}]});
+    calls[1]!.resolve({...PAGE, rows: [{a: 'new'}]});
     await vi.advanceTimersByTimeAsync(0);
-    calls[0].resolve({...PAGE, rows: [{a: 'stale'}]});
+    calls[0]!.resolve({...PAGE, rows: [{a: 'stale'}]});
     await vi.advanceTimersByTimeAsync(0);
 
     expect(ds.useRows(model(900, 100)).rows).toEqual([{a: 'new'}]);
@@ -208,5 +210,136 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     // Nothing has been sent yet, but the grid must not read as settled.
     expect(calls).toHaveLength(0);
     expect(ds.useRows(model(400, 100)).isPending).toBe(true);
+  });
+
+  test('refresh keeps a pending scroll window and resists duplicate initial fetch', async () => {
+    const {client, calls} = manualClient();
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 5000);
+    ds.useRows(model(0, 100));
+    expect(calls).toHaveLength(1);
+
+    // Refresh while initial load is still in flight; synchronous redraw must
+    // not abort the refresh with a duplicate needsInitial schedule.
+    void ds.refresh();
+    ds.useRows(model(0, 100));
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.signal?.aborted).toBe(true);
+    expect(calls[1]!.signal?.aborted).toBe(false);
+
+    calls[1]!.resolve(PAGE);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // User scrolls to 400 (still in debounce) when refresh() runs.
+    ds.useRows(model(400, 100));
+    void ds.refresh();
+    expect(calls).toHaveLength(3);
+    expect(calls[2]!.offset).toBe(400);
+  });
+
+  test('limit=0 triggers initial 100-row fetch and empty initial schema falls back', async () => {
+    const {client, calls} = manualClient();
+    const ds = new BigtraceAsyncDataSource(
+      'uid',
+      client,
+      () => 5000,
+      undefined,
+      () => [],
+    );
+
+    ds.useRows({mode: 'flat', columns: []});
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({offset: 0, limit: 100});
+
+    calls[0]!.resolve({
+      ...PAGE,
+      schema: [{name: 'a', type: 'STRING'}],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(ds.getSchema()).toEqual([{name: 'a', type: 'STRING'}]);
+    expect(ds.filteredTotalTraces).toBe(42);
+
+    // Changing filters clears cached filtered counts until the filtered page arrives.
+    ds.useRows({
+      ...model(0, 100),
+      filters: [{field: 'a', op: '=', value: '1'}],
+    });
+    expect(ds.filteredTotalRows).toBeUndefined();
+    expect(ds.filteredTotalTraces).toBeUndefined();
+  });
+
+  test('a superseded fetch rejecting late does not set error', async () => {
+    const rejections: Array<(e: Error) => void> = [];
+    const client = {
+      fetchResults: vi.fn(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejections.push(reject);
+          }),
+      ),
+    } as unknown as BigtraceQueryClient;
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 5000);
+    ds.useRows({mode: 'flat', columns: []});
+    ds.useRows(model(0, 100));
+    rejections[0]!(new Error('signal is aborted without reason'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ds.getError()).toBeNull();
+  });
+});
+
+describe('BigtraceAsyncDataSource Equals picker', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(m, 'redraw').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  test('lists values among the rows the grid shows', async () => {
+    const fetchColumnValues = vi.fn().mockResolvedValue(['main', 'render']);
+    const client = {
+      fetchResults: vi.fn().mockResolvedValue({...PAGE, schema: []}),
+      fetchColumnValues,
+    } as unknown as BigtraceQueryClient;
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 10);
+    const filters: Filter[] = [
+      {field: 'process_name', op: '=', value: 'com.example.app'},
+    ];
+    ds.useRows({...model(0, 100), filters});
+
+    ds.useDistinctValues('thread_name');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ds.useDistinctValues('thread_name')).toEqual({
+      data: ['main', 'render'],
+      isPending: false,
+    });
+    expect(fetchColumnValues).toHaveBeenCalledWith(
+      'uid',
+      'thread_name',
+      '',
+      filters,
+      expect.any(AbortSignal),
+    );
+
+    // Other grid filters mean other values: asked again, nothing kept.
+    const narrower: Filter[] = [
+      ...filters,
+      {field: 'thread_name', op: 'glob', value: 'r*'},
+    ];
+    ds.useRows({...model(0, 100), filters: narrower});
+    expect(ds.useDistinctValues('thread_name')).toEqual({
+      data: undefined,
+      isPending: true,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchColumnValues).toHaveBeenLastCalledWith(
+      'uid',
+      'thread_name',
+      '',
+      narrower,
+      expect.any(AbortSignal),
+    );
   });
 });

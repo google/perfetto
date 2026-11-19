@@ -31,7 +31,9 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/exec/tree_key_paths.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 // What each step costs run through a pipeline, as a plan runs it: over many
@@ -81,9 +83,13 @@ dataframe::Dataframe BuildTree(uint32_t rows,
   return df;
 }
 
-// Runs the steps `make` builds over a scan of the tree, every run.
+// Runs the steps `make` builds over a scan of the tree read in `direction`,
+// every run.
 template <typename MakeSteps>
-void Run(benchmark::State& state, bool child_first, MakeSteps make) {
+void Run(benchmark::State& state,
+         bool child_first,
+         ReadDirection direction,
+         MakeSteps make) {
   // Before every batch and state, which hold its buffers.
   Context context;
   auto rows = static_cast<uint32_t>(state.range(0));
@@ -91,8 +97,8 @@ void Run(benchmark::State& state, bool child_first, MakeSteps make) {
   dataframe::Dataframe df = BuildTree(rows, child_first, &pool);
   DataframeScan scan({df.shared_column(kId), df.shared_column(kParent),
                       df.shared_column(kValue), df.shared_column(kSmall)},
-                     df.row_count());
-  Pipeline pipeline(scan, make(), {});
+                     df.row_count(), direction);
+  Pipeline pipeline(scan, make());
   std::unique_ptr<OperatorState> run = pipeline.MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {
@@ -112,12 +118,30 @@ void Sizes(benchmark::internal::Benchmark* b) {
 }
 
 void BM_StepsScanOnly(benchmark::State& state) {
-  Run(state, false, [] { return std::vector<Pipeline::Step>(); });
+  Run(state, false, ReadDirection::kForwards,
+      [] { return std::vector<Pipeline::Step>(); });
 }
 BENCHMARK(BM_StepsScanOnly)->Apply(Sizes);
 
+// Rows in ascending id order, read in descending id order.
+void BM_StepsScanBackwards(benchmark::State& state) {
+  Run(state, false, ReadDirection::kBackwards,
+      [] { return std::vector<Pipeline::Step>(); });
+}
+BENCHMARK(BM_StepsScanBackwards)->Apply(Sizes);
+
+// The same order by a sort.
+void BM_StepsSortDescending(benchmark::State& state) {
+  Run(state, false, ReadDirection::kForwards, [] {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(std::make_unique<Sort>(SortSpec{{{kId, true}}}));
+    return steps;
+  });
+}
+BENCHMARK(BM_StepsSortDescending)->Apply(Sizes);
+
 void BM_StepsTreeNumberNodes(benchmark::State& state) {
-  Run(state, false, [] {
+  Run(state, false, ReadDirection::kForwards, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
     return steps;
@@ -126,7 +150,7 @@ void BM_StepsTreeNumberNodes(benchmark::State& state) {
 BENCHMARK(BM_StepsTreeNumberNodes)->Apply(Sizes);
 
 void BM_StepsTreeAccumulateDown(benchmark::State& state) {
-  Run(state, false, [] {
+  Run(state, false, ReadDirection::kForwards, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
     steps.push_back(std::make_unique<TreeAccumulateDown>(TreeAccumulateSpec{
@@ -137,7 +161,7 @@ void BM_StepsTreeAccumulateDown(benchmark::State& state) {
 BENCHMARK(BM_StepsTreeAccumulateDown)->Apply(Sizes);
 
 void BM_StepsTreeAccumulateUp(benchmark::State& state) {
-  Run(state, true, [] {
+  Run(state, true, ReadDirection::kForwards, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
     steps.push_back(std::make_unique<TreeAccumulateUp>(TreeAccumulateSpec{
@@ -147,9 +171,20 @@ void BM_StepsTreeAccumulateUp(benchmark::State& state) {
 }
 BENCHMARK(BM_StepsTreeAccumulateUp)->Apply(Sizes);
 
+void BM_StepsTreeKeyPaths(benchmark::State& state) {
+  Run(state, false, ReadDirection::kForwards, [] {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
+    steps.push_back(std::make_unique<TreeKeyPaths>(
+        TreeKeyPathsSpec{kNode, kParentNode, {kValue}}));
+    return steps;
+  });
+}
+BENCHMARK(BM_StepsTreeKeyPaths)->Apply(Sizes);
+
 // A column already of the type asserted passes through unchanged.
 void BM_StepsAssertTypeAsIs(benchmark::State& state) {
-  Run(state, false, [] {
+  Run(state, false, ReadDirection::kForwards, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<AssertType>(
         kValue, AssertTypeTarget(Int64{}), "value"));
@@ -160,7 +195,7 @@ BENCHMARK(BM_StepsAssertTypeAsIs)->Apply(Sizes);
 
 // A narrower integer column is widened into one of the type asserted.
 void BM_StepsAssertTypeWiden(benchmark::State& state) {
-  Run(state, false, [] {
+  Run(state, false, ReadDirection::kForwards, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<AssertType>(
         kSmall, AssertTypeTarget(Int64{}), "small"));

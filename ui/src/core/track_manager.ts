@@ -18,6 +18,7 @@ import type {
   Track,
   TrackManager,
   TrackFilterCriteria,
+  TrackFilterState,
   Overlay,
 } from '../public/track';
 import type {TrackRenderContext} from '../public/track';
@@ -31,7 +32,7 @@ export interface TrackWrapper {
   getError(): Error | undefined;
 }
 
-export class TrackFilterState {
+export class TrackFilterStateImpl implements TrackFilterState {
   public nameFilter: string = '';
   public criteriaFilters = new Map<string, string[]>();
 
@@ -70,7 +71,7 @@ export class TrackManagerImpl implements TrackManager {
   readonly filterCriteria: TrackFilterCriteria[] = [];
 
   // Current state of the track filters.
-  readonly filters = new TrackFilterState();
+  readonly filters = new TrackFilterStateImpl();
 
   registerTrack(trackDesc: Track): Disposable {
     return this.tracks.register(new TrackWrapperImpl(trackDesc));

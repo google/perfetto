@@ -57,19 +57,7 @@ class RowBatch {
   RowBatch(const RowBatch&) = delete;
   RowBatch& operator=(const RowBatch&) = delete;
   RowBatch(RowBatch&& other) noexcept { *this = std::move(other); }
-  RowBatch& operator=(RowBatch&& other) noexcept {
-    own_columns_ = std::move(other.own_columns_);
-    own_buffers_ = std::move(other.own_buffers_);
-    if (other.owned_) {
-      Repoint();
-    } else {
-      SetColumns(other.columns_, other.column_count_, other.buffers_,
-                 other.buffer_count_);
-    }
-    selection_.CopyFrom(other.selection_);
-    other.Reset();
-    return *this;
-  }
+  RowBatch& operator=(RowBatch&& other) noexcept;
 
   // How many rows are kept.
   uint32_t size() const { return selection_.size(); }
@@ -105,31 +93,14 @@ class RowBatch {
 
   // Points this batch at `other`'s columns and rows. Nothing is copied but
   // the views and selection: the buffers are shared.
-  void CopyFrom(const RowBatch& other) {
-    PERFETTO_DCHECK(&other != this);
-    own_columns_.assign(other.columns_, other.columns_ + other.column_count_);
-    own_buffers_.assign(other.buffers_, other.buffers_ + other.buffer_count_);
-    Repoint();
-    selection_.CopyFrom(other.selection_);
-  }
+  void CopyFrom(const RowBatch& other);
 
   // Points this batch at `columns` of `other`, in that order, and its rows.
-  void Project(const RowBatch& other, const std::vector<uint32_t>& columns) {
-    Reset();
-    for (uint32_t column : columns) {
-      AddColumn(other.column(column), other.buffer(column));
-    }
-    selection_.CopyFrom(other.selection_);
-  }
+  void Project(const RowBatch& other, const std::vector<uint32_t>& columns);
 
   // Adds `view`, which is onto `buffer`: one filled for this batch, or one
   // another batch is onto, null if that borrows its storage.
-  void AddColumn(const ColumnView& view, ColumnBuffer buffer) {
-    Own();
-    own_columns_.push_back(view);
-    own_buffers_.push_back(std::move(buffer));
-    Repoint();
-  }
+  void AddColumn(const ColumnView& view, ColumnBuffer buffer);
   // Adds `view`, onto storage which outlives the run, such as a dataframe's.
   // Storage refilled before then must be in a buffer instead.
   void AddBorrowedColumn(const ColumnView& view) {
@@ -150,12 +121,7 @@ class RowBatch {
                buffers.data(), static_cast<uint32_t>(buffers.size()));
   }
   // Replaces `column` with `view`, which is onto `buffer`.
-  void SetColumn(uint32_t column, const ColumnView& view, ColumnBuffer buffer) {
-    Own();
-    own_columns_[column] = view;
-    own_buffers_[column] = std::move(buffer);
-    Repoint();
-  }
+  void SetColumn(uint32_t column, const ColumnView& view, ColumnBuffer buffer);
   // Replaces `column` with a column of `type` where every row is null.
   void SetNullColumn(uint32_t column, StorageType type, Context& context) {
     const ColumnBuffer& nulls = context.NullBuffer();
@@ -163,12 +129,7 @@ class RowBatch {
   }
 
   // Removes every column and row.
-  void Reset() {
-    own_columns_.clear();
-    own_buffers_.clear();
-    Repoint();
-    selection_.Reset(0);
-  }
+  void Reset();
 
  private:
   static ColumnView NullView(StorageType type, const ColumnBuffer& nulls) {
@@ -194,13 +155,7 @@ class RowBatch {
   }
 
   // Copies lent views, to change them.
-  void Own() {
-    if (!owned_) {
-      own_columns_.assign(columns_, columns_ + column_count_);
-      own_buffers_.assign(buffers_, buffers_ + buffer_count_);
-      Repoint();
-    }
-  }
+  void Own();
 
   // Points the columns at the batch's own views.
   void Repoint() {

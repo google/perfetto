@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.class_classification;
+
 INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 
 INCLUDE PERFETTO MODULE graphs.partition;
@@ -23,47 +25,70 @@ RETURNS LONG
 AS
 SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
 
-CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
-RETURNS BOOL
-AS
-SELECT
-  ($obj_name GLOB 'java.*' AND NOT ($obj_name GLOB 'java.lang.Class<*>'))
-  OR $obj_name GLOB 'j$.*'
-  OR $obj_name GLOB 'int[[]*'
-  OR $obj_name GLOB 'long[[]*'
-  OR $obj_name GLOB 'byte[[]*'
-  OR $obj_name GLOB 'char[[]*'
-  OR $obj_name GLOB 'short[[]*'
-  OR $obj_name GLOB 'float[[]*'
-  OR $obj_name GLOB 'double[[]*'
-  OR $obj_name GLOB 'boolean[[]*'
-  OR $obj_name GLOB 'android.util.*Array*'
-  OR $obj_name GLOB 'kotlinx.coroutines.*'
-  OR $obj_name GLOB 'kotlinx.atomicfu.*';
-
-CREATE PERFETTO TABLE _heap_graph_dominator_tree_for_partition AS
-SELECT
-  tree.id,
-  coalesce(tree.idom_id, _partition_tree_super_root_fn()) AS parent_id,
-  obj.type_id AS group_key
-FROM heap_graph_dominator_tree AS tree
-JOIN heap_graph_object AS obj USING (id)
-UNION ALL
--- provide a single root required by tree partition if heap graph exists.
-SELECT
-  _partition_tree_super_root_fn() AS id,
-  NULL AS parent_id,
-  (SELECT id + 1 FROM heap_graph_class ORDER BY id DESC LIMIT 1) AS group_key
-WHERE
-  _partition_tree_super_root_fn() IS NOT NULL;
-
-CREATE PERFETTO TABLE _heap_object_marked_for_dominated_stats AS
-SELECT id, iif(parent_id IS NULL, 1, 0) AS marked
+-- Dominator tree nodes with no ancestor of the same class. Summing the
+-- dominated stats of these nodes per class counts every dominated object once.
+CREATE PERFETTO TABLE _heap_graph_class_dominated_roots AS
+SELECT id, group_key AS type_id
 FROM tree_structural_partition_by_group!(
-  _heap_graph_dominator_tree_for_partition
+  (
+    SELECT
+    tree.id,
+    coalesce(tree.idom_id, _partition_tree_super_root_fn()) AS parent_id,
+    obj.type_id AS group_key
+    FROM heap_graph_dominator_tree AS tree
+    JOIN heap_graph_object AS obj
+    USING (id)
+    UNION ALL
+    -- provide a single root required by tree partition if heap graph exists.
+    SELECT
+    _partition_tree_super_root_fn() AS id,
+    NULL AS parent_id,
+    (SELECT id + 1 FROM heap_graph_class ORDER BY id DESC LIMIT 1) AS group_key
+    WHERE
+    _partition_tree_super_root_fn() IS NOT NULL
+  )
 )
+WHERE
+  parent_id IS NULL
+  AND id != _partition_tree_super_root_fn();
+
+-- Heap graph classes are per heap dump, so type_id alone identifies the
+-- (upid, graph_sample_ts) of every per-class aggregate below.
+CREATE PERFETTO TABLE _heap_graph_class_dominated_stats AS
+SELECT
+  r.type_id,
+  sum(d.dominated_obj_count) AS dominated_obj_count,
+  sum(d.dominated_size_bytes) AS dominated_size_bytes,
+  sum(d.dominated_native_size_bytes) AS dominated_native_size_bytes
+FROM _heap_graph_class_dominated_roots AS r
+CROSS JOIN heap_graph_dominator_tree AS d USING (id)
+GROUP BY
+  r.type_id
 ORDER BY
-  id;
+  r.type_id;
+
+CREATE PERFETTO TABLE _heap_graph_class_obj_stats AS
+FROM heap_graph_object
+|> AGGREGATE
+  COUNT(*) AS obj_count,
+  SUM(self_size) AS size_bytes,
+  SUM(native_size) AS native_size_bytes
+GROUP BY
+  upid,
+  graph_sample_ts,
+  type_id
+|> ORDER BY type_id;
+
+CREATE PERFETTO TABLE _heap_graph_class_reachable_obj_stats AS
+FROM heap_graph_object
+|> WHERE reachable = 1
+|> AGGREGATE
+  COUNT(*) AS obj_count,
+  SUM(self_size) AS size_bytes,
+  SUM(native_size) AS native_size_bytes
+GROUP BY
+  type_id
+|> ORDER BY type_id;
 
 -- Class-level breakdown of the java heap.
 -- Per type name aggregates the object stats and the dominator tree stats.
@@ -76,8 +101,14 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
   type_id LONG,
   -- Class name (deobfuscated if available)
   type_name STRING,
-  -- Is type an instance of a libcore object (java.*) or array
+  -- Deprecated: use is_language_runtime, is_container, and is_static_class instead.
   is_libcore_or_array BOOL,
+  -- Whether the class is part of standard Java/Kotlin runtime libraries.
+  is_language_runtime BOOL,
+  -- Whether the class is an array or standard collection/container.
+  is_container BOOL,
+  -- Whether the object is a java.lang.Class<*> singleton.
+  is_static_class BOOL,
   -- Count of class instances
   obj_count LONG,
   -- Size of class instances
@@ -101,62 +132,33 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
   dominated_native_size_bytes LONG
 )
 AS
-WITH
-  base AS (
-    -- First level aggregation to avoid joining with class for every object
-    SELECT
-      obj.upid,
-      obj.graph_sample_ts,
-      obj.type_id,
-      count(1) AS obj_count,
-      sum(self_size) AS size_bytes,
-      sum(native_size) AS native_size_bytes,
-      sum(iif(obj.reachable, 1, 0)) AS reachable_obj_count,
-      sum(iif(obj.reachable, self_size, 0)) AS reachable_size_bytes,
-      sum(iif(obj.reachable, native_size, 0)) AS reachable_native_size_bytes,
-      sum(iif(marked, dominated_obj_count, 0)) AS dominated_obj_count,
-      sum(iif(marked, dominated_size_bytes, 0)) AS dominated_size_bytes,
-      sum(iif(marked, dominated_native_size_bytes, 0)) AS dominated_native_size_bytes
-    FROM heap_graph_object AS obj
-    -- Left joins to preserve unreachable objects.
-    LEFT JOIN _heap_object_marked_for_dominated_stats USING (id)
-    LEFT JOIN heap_graph_dominator_tree USING (id)
-    GROUP BY
-      1,
-      2,
-      3
-    ORDER BY
-      1,
-      2,
-      3
-  )
 SELECT
-  upid,
-  graph_sample_ts,
-  type_id,
-  coalesce(cls.deobfuscated_name, cls.name) AS type_name,
-  _is_libcore_or_array(coalesce(cls.deobfuscated_name, cls.name)) AS is_libcore_or_array,
-  sum(obj_count) AS obj_count,
-  sum(size_bytes) AS size_bytes,
-  sum(native_size_bytes) AS native_size_bytes,
-  sum(reachable_obj_count) AS reachable_obj_count,
-  sum(reachable_size_bytes) AS reachable_size_bytes,
-  sum(reachable_native_size_bytes) AS reachable_native_size_bytes,
-  sum(dominated_obj_count) AS dominated_obj_count,
-  sum(dominated_size_bytes) AS dominated_size_bytes,
-  sum(dominated_native_size_bytes) AS dominated_native_size_bytes
-FROM base
-JOIN heap_graph_class AS cls
-  ON base.type_id = cls.id
-GROUP BY
-  1,
-  2,
-  3,
-  4,
-  5
+  -- core dims
+  a.upid,
+  a.graph_sample_ts,
+  a.type_id,
+  cls.type_name,
+  -- properties of the type_name
+  cls.is_language_runtime
+  OR cls.is_container AS is_libcore_or_array,
+  cls.is_language_runtime,
+  cls.is_container,
+  cls.is_static_class,
+  -- metrics
+  a.obj_count,
+  a.size_bytes,
+  a.native_size_bytes,
+  coalesce(r.obj_count, 0) AS reachable_obj_count,
+  coalesce(r.size_bytes, 0) AS reachable_size_bytes,
+  coalesce(r.native_size_bytes, 0) AS reachable_native_size_bytes,
+  coalesce(d.dominated_obj_count, 0) AS dominated_obj_count,
+  coalesce(d.dominated_size_bytes, 0) AS dominated_size_bytes,
+  coalesce(d.dominated_native_size_bytes, 0) AS dominated_native_size_bytes
+FROM _heap_graph_class_obj_stats AS a
+JOIN _heap_graph_class_classification AS cls ON a.type_id = cls.id
+LEFT JOIN _heap_graph_class_reachable_obj_stats AS r USING (type_id)
+LEFT JOIN _heap_graph_class_dominated_stats AS d USING (type_id)
 ORDER BY
   1,
   2,
-  3,
-  4,
-  5;
+  3;

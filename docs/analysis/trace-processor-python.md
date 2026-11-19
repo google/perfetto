@@ -231,6 +231,37 @@ shape: (5, 3)
 └─────────────────────┴────────┴─────────────────────────────┘
 ```
 
+Results can also be converted to an [Apache Arrow](https://arrow.apache.org/)
+table using `as_arrow_table()`. pyarrow is an optional dependency. Each column
+gets an Arrow type based on the values in it: integers become `int64`, floats
+become `float64`, strings become `string` and blobs become `binary`. A column
+which mixes integers and floats becomes `float64`. A column which mixes strings
+or blobs with other types cannot be converted and raises an error; `CAST` it to
+a single type in the query. A column with only NULLs, including every column of
+an empty result, gets the Arrow `null` type.
+
+The conversion happens in Python, after the results have been received from
+trace processor.
+
+```python
+# Requires pyarrow
+# pip install perfetto[pyarrow]
+qr_it = tp.query('SELECT ts, dur, name FROM slice')
+table = qr_it.as_arrow_table()
+```
+
+Query results also implement the
+[Arrow PyCapsule interface](https://arrow.apache.org/docs/format/CDataInterface/PyCapsuleInterface.html),
+so they can be passed directly to libraries which accept Arrow data. For
+example, a result can be queried from [DuckDB](https://duckdb.org/) by name:
+
+```python
+import duckdb
+
+slices = tp.query('SELECT ts, dur, name FROM slice')
+duckdb.sql('SELECT name, sum(dur) FROM slices GROUP BY name').show()
+```
+
 You can use Pandas DataFrames to easily create visualizations from trace data.
 
 ```python

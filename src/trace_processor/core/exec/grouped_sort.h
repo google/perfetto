@@ -19,12 +19,14 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -53,6 +55,17 @@ class GroupedSort : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->reads = spec_.groups;
+    for (const SortKey& key : spec_.keys) {
+      out->reads.push_back(key.column);
+    }
+    // Each row's group number.
+    out->added = 1;
+  }
+  void SetUnreadColumns(std::vector<bool> unread) override {
+    unread_ = std::move(unread);
+  }
 
   explicit GroupedSort(GroupedSortSpec);
   ~GroupedSort() override;
@@ -62,19 +75,21 @@ class GroupedSort : public Breaker {
 
   struct State : Breaker::State {
     ~State() override;
-    void Reset() override;
 
-    GroupTable group_table;
-    SortedRows rows;
+    // The rows, as they arrive, and the group of each.
+    Held<SortedRows> rows{this};
+    Held<GroupTable> group_table{this};
     // The group of each row, in input order.
-    FlexVector<uint32_t> groups;
+    Held<FlexVector<uint32_t>> groups{this};
 
-    // The group of each row, in output order.
-    FlexVector<uint32_t> ordered_groups;
+    // Grouping the sorted rows: where each group's rows go, and the rows in
+    // group order.
+    Held<FlexVector<uint32_t>> next{this};
+    Held<FlexVector<uint32_t>> scratch{this};
 
-    FlexVector<uint32_t> next;
-    FlexVector<uint32_t> scratch;
-    uint32_t emitted = 0;
+    // The rows served, and the group of each, in output order.
+    Held<FlexVector<uint32_t>> ordered_groups{this};
+    RunValue<uint32_t> emitted{this};
   };
 
   std::unique_ptr<Breaker::State> CreateState() const override;
@@ -83,6 +98,8 @@ class GroupedSort : public Breaker {
   bool Serve(RowBatch& out, Breaker::State& state) const override;
 
   GroupedSortSpec spec_;
+  // Input columns no later step reads (see Operator::SetUnreadColumns).
+  std::vector<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

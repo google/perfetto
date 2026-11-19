@@ -40,6 +40,9 @@ export interface ChipAttrs extends HTMLAttrs {
   readonly intent?: Intent;
   // Turns the chip into a pill shape.
   readonly rounded?: boolean;
+  // Show a pointer cursor on hover, to hint that the chip is clickable.
+  // Defaults to false.
+  readonly interactive?: boolean;
 
   // TODO(stevegolton): Use a slot here + compound component to insert the
   // button in here instead of having to duplicate all the props.
@@ -64,6 +67,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       iconFilled,
       intent = Intent.None,
       rounded,
+      interactive,
       removable,
       onRemove,
       label,
@@ -77,6 +81,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       classForIntent(intent),
       className,
       rounded && 'pf-chip--rounded',
+      interactive && 'pf-chip--interactive',
     );
 
     return m(

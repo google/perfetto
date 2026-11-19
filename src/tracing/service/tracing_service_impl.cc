@@ -112,8 +112,6 @@
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/trace_buffer_protovms.h"
-#include "src/tracing/service/trace_buffer_v1.h"
-#include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -137,6 +135,8 @@
 #include "protos/perfetto/trace/perfetto/concurrent_session_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
@@ -350,21 +350,6 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
   }
 }
 
-// Creates an empty trace buffer of the given implementation.
-// Returns nullptr if the memory allocation fails.
-std::unique_ptr<TraceBuffer> CreateTraceBuffer(
-    TraceBuffer::BufType type,
-    size_t size_in_bytes,
-    TraceBuffer::OverwritePolicy policy) {
-  switch (type) {
-    case TraceBuffer::kV1:
-      return TraceBufferV1::Create(size_in_bytes, policy);
-    case TraceBuffer::kV2:
-      return TraceBufferV2::Create(size_in_bytes, policy);
-  }
-  return nullptr;
-}
-
 // Shmem emulation is only for relay (remote-host) producers whose SMB is copied
 // over IPC. An in-process producer always has a real shared SMB, so it must use
 // kDefault even when it carries a non-default machine id.
@@ -373,6 +358,15 @@ SharedMemoryABI::ShmemMode GetShmemMode(const ClientIdentity& client_identity,
   return (client_identity.machine_id() == kDefaultMachineID || in_process)
              ? SharedMemoryABI::ShmemMode::kDefault
              : SharedMemoryABI::ShmemMode::kShmemEmulation;
+}
+
+void WriteTriggerInfo(const TriggerInfo& info,
+                      protos::pbzero::Trigger* trigger) {
+  trigger->set_trigger_name(info.trigger_name);
+  trigger->set_producer_name(info.producer_name);
+  trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
+  trigger->set_stop_delay_ms(info.trigger_delay_ms);
+  trigger->set_trigger_mode(static_cast<int32_t>(info.trigger_mode));
 }
 
 }  // namespace
@@ -1257,8 +1251,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 #endif
 
   // Initialize the log buffers.
-  bool did_allocate_all_buffers = true;
-  bool invalid_buffer_config = false;
+  base::Status buffers_status = base::OkStatus();
 
   // Allocate the trace buffers. Also create a map to translate a consumer
   // relative index (TraceConfig.DataSourceConfig.target_buffer) into the
@@ -1270,50 +1263,29 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     const TraceConfig::BufferConfig& buffer_cfg = cfg.buffers()[i];
     BufferID global_id = buffer_ids_.Allocate();
     if (!global_id) {
-      did_allocate_all_buffers = false;  // We ran out of IDs.
+      buffers_status = base::ErrStatus(
+          "Failed to create buffers[%zu]: all trace buffer IDs are in use", i);
       break;
     }
     tracing_session->buffers_index.push_back(global_id);
-    // TraceBuffer size is limited to 32-bit.
-    const uint32_t buf_size_kb = buffer_cfg.size_kb();
-    const uint64_t buf_size_bytes = buf_size_kb * static_cast<uint64_t>(1024);
-    const size_t buf_size = static_cast<size_t>(buf_size_bytes);
-    if (buf_size_bytes == 0 ||
-        buf_size_bytes > std::numeric_limits<uint32_t>::max() ||
-        buf_size != buf_size_bytes) {
-      invalid_buffer_config = true;
-      did_allocate_all_buffers = false;
+    auto new_buffer = trace_buffer_factory_.Create(buffer_cfg);
+    if (!new_buffer.ok()) {
+      buffers_status = base::ErrStatus("Failed to create buffers[%zu]: %s", i,
+                                       new_buffer.status().c_message());
       break;
     }
-    total_buf_size_kb += buf_size_kb;
-    TraceBuffer::OverwritePolicy policy =
-        buffer_cfg.fill_policy() == TraceConfig::BufferConfig::DISCARD
-            ? TraceBuffer::kDiscard
-            : TraceBuffer::kOverwrite;
-    std::unique_ptr<TraceBuffer> new_buffer;
-    switch (buffer_cfg.experimental_mode()) {
-      case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
-        new_buffer = CreateTraceBuffer(TraceBuffer::kV2, buf_size, policy);
-        break;
-      case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
-        new_buffer = CreateTraceBuffer(TraceBuffer::kV1, buf_size, policy);
-        break;
-    }
-    auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
+    total_buf_size_kb += buffer_cfg.size_kb();
+    auto it_and_inserted = buffers_.emplace(global_id, std::move(*new_buffer));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
-    std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
-    if (!trace_buffer) {
-      did_allocate_all_buffers = false;
-      break;
-    }
   }
 
   // This can happen if either:
   // - All the kMaxTraceBufferID slots are taken.
   // - OOM, or, more realistically, we exhausted virtual memory.
   // - The buffer size in the config is invalid.
+  // - The config omits buffer_type and sets an unknown experimental_mode.
   // In any case, free all the previously allocated buffers and abort.
-  if (!did_allocate_all_buffers) {
+  if (!buffers_status.ok()) {
     for (BufferID global_id : tracing_session->buffers_index) {
       buffer_ids_.Free(global_id);
       buffers_.erase(global_id);
@@ -1321,12 +1293,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     MaybeLogUploadEvent(tracing_session->config, uuid,
                         PerfettoStatsdAtom::kTracedEnableTracingOom);
     tracing_sessions_.erase(tsid);
-    if (invalid_buffer_config) {
-      return PERFETTO_SVC_ERR(
-          "Failed to allocate tracing buffers: Invalid buffer sizes");
-    }
-    return PERFETTO_SVC_ERR(
-        "Failed to allocate tracing buffers: OOM or too many buffers");
+    return PERFETTO_SVC_ERR("%s", buffers_status.c_message());
   }
 
   UpdateMemoryGuardrail();
@@ -2026,11 +1993,12 @@ void TracingServiceImpl::ActivateTriggers(
                                          tracing_session.trace_uuid.msb());
       trigger_mode = GetTriggerMode(tracing_session.config);
 
-      const bool triggers_already_received =
-          !tracing_session.received_triggers.empty();
-      const TriggerInfo trigger = {static_cast<uint64_t>(now_ns), iter->name(),
-                                   producer->name_, producer->uid(),
-                                   iter->stop_delay_ms()};
+      const TriggerInfo trigger = {static_cast<uint64_t>(now_ns),
+                                   iter->name(),
+                                   producer->name_,
+                                   producer->uid(),
+                                   iter->stop_delay_ms(),
+                                   trigger_mode};
       MaybeSnapshotClocksIntoRingBuffer(&tracing_session);
       tracing_session.received_triggers.push_back(trigger);
       switch (trigger_mode) {
@@ -2047,6 +2015,8 @@ void TracingServiceImpl::ActivateTriggers(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerStartTracing, iter->name());
 
+          tracing_session.authoritative_trigger = trigger;
+
           // We override the trace duration to be the trigger's requested
           // value, this ensures that the trace will end after this amount
           // of time has passed.
@@ -2058,13 +2028,15 @@ void TracingServiceImpl::ActivateTriggers(
           // when we've already hit the first trigger we've already Posted the
           // task to FlushAndDisable. So all future triggers will just break
           // out.
-          if (triggers_already_received)
+          if (tracing_session.authoritative_trigger.has_value())
             break;
 
           trigger_activated = true;
           MaybeLogUploadEvent(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerStopTracing, iter->name());
+
+          tracing_session.authoritative_trigger = trigger;
 
           // Now that we've seen a trigger we need to stop, flush, and disable
           // this session after the configured |stop_delay_ms|.
@@ -2462,6 +2434,11 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
             *target_buffer_id, packet_count, packet_flags, chunk_complete,
             chunk->payload_begin(), chunk->payload_size());
       });
+
+  // The scrape copies chunks in page order, which can differ from ChunkID
+  // order, so this producer's write batch is complete only once the scrape is
+  // done.
+  producer->NotifyWriteCheckpoint();
 }
 
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
@@ -2786,12 +2763,13 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
+    MaybeEmitAuthoritativeTrigger(tracing_session, &packets);
   }
 
-  // All packets emitted above (clock snapshot, trace config, uuid) will not be
-  // compressed, regardless of the config. This is to allow services that
-  // consume the trace on-device to take decisions based on the metadata of the
-  // trace, without having to uncompress.
+  // All packets emitted above (clock snapshot, trace config, uuid,
+  // authoritative trigger) will not be compressed, regardless of the config.
+  // This is to allow services that consume the trace on-device to take
+  // decisions based on the metadata of the trace, without having to uncompress.
   const size_t skip_compression_of_first_n_packets = packets.size();
 
   for (auto& snapshot : tracing_session->clock_snapshot_ring_buffer) {
@@ -2915,6 +2893,10 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       if (client_identity_trusted.has_non_default_machine_id()) {
         trusted_packet->set_machine_id(client_identity_trusted.machine_id());
       }
+      // TODO(sashwinbalaji): Keep the earlier loss reasons too.
+      // A packet can carry |previous_packet_dropped| from the producer or from
+      // TraceBufferV3, and the value we append replaces it, because the last
+      // instance of a field wins.
       if (previous_packet_dropped)
         trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
       slice.size = trusted_packet.Finalize();
@@ -2944,6 +2926,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
                            false /* snapshot_clocks */);
     EmitLifecycleEvents(tracing_session, &packets);
   }
+
+  // Emit producer stats before MaybeFilterPackets to respect the session's
+  // trace filtering rules.
+  if (!*has_more && tracing_session->should_emit_stats)
+    EmitTracingV2ProducerStats(tracing_session, &packets);
 
   MaybeFilterPackets(tracing_session, &packets);
 
@@ -3570,6 +3557,21 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(global_id);
 
   const TraceBuffer* target_buffer = GetBufferByID(global_id);
+  if (target_buffer && target_buffer->buf_type() == TraceBuffer::kV3 &&
+      GetShmemMode(producer->client_identity(), producer->in_process_) ==
+          SharedMemoryABI::ShmemMode::kShmemEmulation) {
+    // TODO(sashwinbalaji): Support shared memory emulation.
+    // SharedMemoryArbiterImpl::CommitDataWithSplitting() can split one commit
+    // or scrape across requests.
+    // Notifying after each can make TraceBufferV3 skip chunks in later
+    // requests. Add a CommitDataRequest field to call
+    // NotifyWriteCheckpoint() only after the batch's last request.
+    PERFETTO_ELOG(
+        "Cannot set up data source \"%s\" on producer \"%s\": "
+        "TraceBufferV3 does not support shared memory emulation",
+        ds_cfg.name().c_str(), producer->name_.c_str());
+    return nullptr;
+  }
   const bool supports_tracing_v2 =
       (producer->protocol_abi_versions_ & kProtocolAbiV2) && target_buffer &&
       target_buffer->supports_tracing_v2();
@@ -3935,10 +3937,11 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
     total_buffer_bytes += id_to_producer.second->ring_buffer_size_bytes();
   }
 
-  // Sum up all the trace buffers.
+  // Sum up all the trace buffers and the state they share.
   for (const auto& id_to_buffer : buffers_) {
     total_buffer_bytes += id_to_buffer.second->GetMemoryUsageBytes();
   }
+  total_buffer_bytes += trace_buffer_factory_.GetMemoryUsageBytes();
 
   // Sum up all the cloned traced buffers.
   for (const auto& id_to_ts : tracing_sessions_) {
@@ -4179,6 +4182,34 @@ void TracingServiceImpl::EmitSyncMarker(std::vector<TracePacket>* packets) {
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
 
+void TracingServiceImpl::EmitTracingV2ProducerStats(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  for (const auto& stats : GetTracingV2ProducerStats(*tracing_session)) {
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    SetServiceTracePacketHeader(packet.get());
+    stats.Serialize(packet->set_experimental_tracing_v2_producer_stats());
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
+}
+
+std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+TracingServiceImpl::GetTracingV2ProducerStats(const TracingSession& session) {
+  // A cloned session has no data source instances.
+  // It keeps the copy that FinishCloneSession() took from its source session.
+  if (session.state == TracingSession::CLONED_READ_ONLY)
+    return session.tracing_v2_producer_stats_at_clone;
+
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats> producer_stats;
+  for (const auto& [producer_id, producer] : producers_) {
+    if (session.data_source_instances.count(producer_id) == 0)
+      continue;
+    if (auto stats = producer->GetTracingV2Stats())
+      producer_stats.emplace_back(std::move(*stats));
+  }
+  return producer_stats;
+}
+
 void TracingServiceImpl::EmitStats(TracingSession* tracing_session,
                                    std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
@@ -4222,7 +4253,19 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       PERFETTO_DFATAL("Buffer not found.");
       continue;
     }
-    *trace_stats.add_buffer_stats() = buf->stats();
+    auto* buffer_stats = trace_stats.add_buffer_stats();
+    *buffer_stats = buf->stats();
+    switch (buf->buf_type()) {
+      case TraceBuffer::kV1:
+        buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V1);
+        break;
+      case TraceBuffer::kV2:
+        buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V2);
+        break;
+      case TraceBuffer::kV3:
+        buffer_stats->set_buffer_type(TraceStats::BufferStats::BUFFER_TYPE_V3);
+        break;
+    }
   }  // for (buf in session).
 
   if (!tracing_session->config.builtin_data_sources()
@@ -4241,7 +4284,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       if (!buf)
         continue;
       for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
-        const auto& hist = it.value();
+        const auto& hist = it.value().chunk_payload_histogram;
         ProducerID p;
         WriterID w;
         GetProducerAndWriterID(it.key(), &p, &w);
@@ -4258,6 +4301,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
         wri_stats->set_sequence_id(
             tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
         wri_stats->set_buffer(buf_idx);
+        wri_stats->set_protocol_abi_versions(it.value().protocol_abi_versions);
         for (size_t i = 0; i < hist.num_buckets(); ++i) {
           wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
@@ -4677,17 +4721,27 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
 
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    auto* trigger = packet->set_clone_snapshot_trigger();
     const auto& info = tracing_session->clone_trigger.value();
-    trigger->set_trigger_name(info.trigger_name);
-    trigger->set_producer_name(info.producer_name);
-    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
-    trigger->set_stop_delay_ms(info.trigger_delay_ms);
+    WriteTriggerInfo(info, packet->set_clone_snapshot_trigger());
 
     packet->set_timestamp(info.boot_time_ns);
     SetServiceTracePacketHeader(packet.get());
     SerializeAndAppendPacket(packets, packet.SerializeAsArray());
   }
+}
+
+void TracingServiceImpl::MaybeEmitAuthoritativeTrigger(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  if (!tracing_session->authoritative_trigger.has_value())
+    return;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  const auto& info = tracing_session->authoritative_trigger.value();
+  WriteTriggerInfo(info, packet->set_authoritative_trigger());
+
+  packet->set_timestamp(info.boot_time_ns);
+  SetServiceTracePacketHeader(packet.get());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
@@ -4699,11 +4753,7 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
        i < tracing_session->received_triggers.size(); ++i) {
     const auto& info = tracing_session->received_triggers[i];
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    auto* trigger = packet->set_trigger();
-    trigger->set_trigger_name(info.trigger_name);
-    trigger->set_producer_name(info.producer_name);
-    trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
-    trigger->set_stop_delay_ms(info.trigger_delay_ms);
+    WriteTriggerInfo(info, packet->set_trigger());
 
     packet->set_timestamp(info.boot_time_ns);
     SetServiceTracePacketHeader(packet.get());
@@ -4835,7 +4885,9 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   // issuing the Flush(kCloneReason).
   size_t buf_idx = 0;
   for (BufferID src_buf_id : session->buffers_index) {
-    if (!session->config.buffers()[buf_idx++].clear_before_clone())
+    const TraceConfig::BufferConfig& buf_cfg =
+        session->config.buffers()[buf_idx++];
+    if (!buf_cfg.clear_before_clone())
       continue;
     auto buf_iter = buffers_.find(src_buf_id);
     PERFETTO_CHECK(buf_iter != buffers_.end());
@@ -4850,18 +4902,16 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       continue;
 
     // Some leftover data was left in the buffer. Recreate it to empty it.
-    std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    buf = CreateTraceBuffer(old_buf->buf_type(), old_buf->size(),
-                            old_buf->overwrite_policy());
-    if (!buf) {
+    auto new_buf = trace_buffer_factory_.Create(buf_cfg);
+    if (!new_buf.ok()) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
-      // allocation failed, put back the buffer where it was and fail the clone.
+      // allocation failed, keep the original buffer and fail the clone.
       // We cannot leave the original tracing session buffer-less as it would
       // cause crashes when data sources commit new data.
-      buf = std::move(old_buf);
       return base::ErrStatus(
           "Buffer allocation failed while attempting to clone");
     }
+    buf = std::move(*new_buf);
   }
 
   auto weak_consumer = consumer->GetWeakPtr();
@@ -4877,10 +4927,12 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = args.skip_trace_filter;
   if (!args.clone_trigger_name.empty()) {
-    clone_op.clone_trigger = {
-        args.clone_trigger_boot_time_ns, args.clone_trigger_name,
-        args.clone_trigger_producer_name,
-        args.clone_trigger_trusted_producer_uid, args.clone_trigger_delay_ms};
+    clone_op.clone_trigger = {args.clone_trigger_boot_time_ns,
+                              args.clone_trigger_name,
+                              args.clone_trigger_producer_name,
+                              args.clone_trigger_trusted_producer_uid,
+                              args.clone_trigger_delay_ms,
+                              TraceConfig::TriggerConfig::CLONE_SNAPSHOT};
   }
   if (args.output_file_fd) {
     clone_op.output_file_fd = std::move(args.output_file_fd);
@@ -5020,20 +5072,19 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     PERFETTO_CHECK(buf_iter != buffers_.end());
     std::unique_ptr<TraceBuffer>& src_buf = buf_iter->second;
     std::unique_ptr<TraceBuffer> new_buf;
-    if (src.config.buffers()[buf_idx].transfer_on_clone()) {
+    const TraceConfig::BufferConfig& buf_cfg = src.config.buffers()[buf_idx];
+    if (buf_cfg.transfer_on_clone()) {
+      auto new_src_buf = trace_buffer_factory_.Create(buf_cfg);
+      if (!new_src_buf.ok())
+        return false;
+
       new_buf = std::move(src_buf);
-      src_buf = CreateTraceBuffer(new_buf->buf_type(), new_buf->size(),
-                                  new_buf->overwrite_policy());
-      if (!src_buf) {
-        // If the allocation fails put the buffer back and let the code below
-        // handle the failure gracefully.
-        src_buf = std::move(new_buf);
-      }
+      src_buf = std::move(*new_src_buf);
     } else {
       new_buf = src_buf->CloneReadOnly();
-    }
-    if (!new_buf.get()) {
-      return false;
+      if (!new_buf) {
+        return false;
+      }
     }
     clone_op->buffers[buf_idx] = std::move(new_buf);
     clone_op->buffer_cloned_timestamps[buf_idx] = now;
@@ -5118,6 +5169,10 @@ base::Status TracingServiceImpl::FinishCloneSession(
   // 2. Bloating memory (see b/290798988).
   cloned_session->should_emit_stats = true;
   cloned_session->clone_trigger = clone_trigger;
+  // A clone caused by a trigger is attributed to that trigger. Other clones
+  // (e.g. bugreport) inherit the trigger of the source session, if any.
+  cloned_session->authoritative_trigger =
+      clone_trigger.has_value() ? clone_trigger : src->authoritative_trigger;
   cloned_session->received_triggers = std::move(src->received_triggers);
   src->received_triggers.clear();
   src->num_triggers_emitted_into_trace = 0;
@@ -5132,6 +5187,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
+  cloned_session->tracing_v2_producer_stats_at_clone =
+      GetTracingV2ProducerStats(*src);
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(

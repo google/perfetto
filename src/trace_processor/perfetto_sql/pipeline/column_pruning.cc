@@ -18,9 +18,12 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace {
@@ -41,6 +44,39 @@ PlanNodeId PruneNode(LogicalPlan& plan,
   return id;
 }
 
+// Removes the nodes pruning left unread, so nothing after it can reach them.
+// Inputs come before what reads them, which removing nodes keeps true.
+void RemoveUnreachableNodes(LogicalPlan& plan) {
+  std::vector<PlanNode>& nodes = plan.nodes();
+  std::vector<bool> reachable(nodes.size(), false);
+  reachable[plan.root()] = true;
+  for (auto id = static_cast<PlanNodeId>(nodes.size()); id-- > 0;) {
+    if (reachable[id]) {
+      for (PlanNodeId child : nodes[id].children()) {
+        PERFETTO_DCHECK(child < id);
+        reachable[child] = true;
+      }
+    }
+  }
+  std::vector<PlanNodeId> new_ids(nodes.size());
+  PlanNodeId kept = 0;
+  for (PlanNodeId id = 0; id < nodes.size(); ++id) {
+    if (!reachable[id]) {
+      continue;
+    }
+    for (PlanNodeId& child : nodes[id].children()) {
+      child = new_ids[child];
+    }
+    new_ids[id] = kept;
+    if (kept != id) {
+      nodes[kept] = std::move(nodes[id]);
+    }
+    ++kept;
+  }
+  nodes.erase(nodes.begin() + kept, nodes.end());
+  plan.SetRoot(new_ids[plan.root()]);
+}
+
 }  // namespace
 
 void PruneColumns(LogicalPlan& plan) {
@@ -53,6 +89,7 @@ void PruneColumns(LogicalPlan& plan) {
     needed[column.id] = true;
   }
   plan.SetRoot(PruneNode(plan, plan.root(), needed));
+  RemoveUnreachableNodes(plan);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

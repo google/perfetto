@@ -23,13 +23,13 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -42,8 +42,7 @@ class BinderTrackerTest : public ::testing::Test {
     context.storage.reset(new TraceStorage());
     context.machine_tracker =
         std::make_unique<MachineTracker>(&context, kDefaultMachineId);
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
+    context.args_tracker.reset(new ArgsTracker(context.storage.get()));
     context.args_translation_table.reset(
         new ArgsTranslationTable(context.storage.get()));
     context.slice_tracker.reset(new SliceTracker(&context));

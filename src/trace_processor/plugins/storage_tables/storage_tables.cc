@@ -41,6 +41,7 @@
 #include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -119,6 +120,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_gpu_context_table());
     AddDataframe(out, s->mutable_gpu_counter_group_table());
     AddDataframe(out, s->mutable_gpu_table());
+    AddDataframe(out, s->mutable_histogram_bucket_table());
     AddDataframe(out, s->mutable_machine_table());
     AddDataframe(out, s->mutable_memory_snapshot_edge_table());
     AddDataframe(out, s->mutable_memory_snapshot_table());

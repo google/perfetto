@@ -17,12 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_WINDOWMANAGER_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_WINDOWMANAGER_PARSER_H_
 
-#include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor::winscope {
 

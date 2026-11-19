@@ -169,9 +169,10 @@ class GzipImporter : public TraceImporter<GzipImporter> {
   GzipImporter() : TraceImporter(MakeDescriptor()) {}
   ~GzipImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'\x1f', '\x8b'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
@@ -207,9 +208,10 @@ class ZstdImporter : public TraceImporter<ZstdImporter> {
   ZstdImporter() : TraceImporter(MakeDescriptor()) {}
   ~ZstdImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'\x28', '\xb5', '\x2f', '\xfd'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
@@ -245,10 +247,10 @@ class CtraceImporter : public TraceImporter<CtraceImporter> {
   CtraceImporter() : TraceImporter(MakeDescriptor()) {}
   ~CtraceImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
-    return base::Contains(start, "TRACE:\n\x78\x9c");
+    return {base::Contains(start, "TRACE:\n\x78\x9c")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

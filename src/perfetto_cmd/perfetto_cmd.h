@@ -17,6 +17,7 @@
 #ifndef SRC_PERFETTO_CMD_PERFETTO_CMD_H_
 #define SRC_PERFETTO_CMD_PERFETTO_CMD_H_
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <list>
@@ -75,7 +76,10 @@ class PerfettoCmd : public Consumer {
   void OnObservableEvents(const ObservableEvents&) override;
   void OnSessionCloned(const OnSessionClonedArgs&) override;
 
-  void SignalCtrlC() { ctrl_c_evt_.Notify(); }
+  void SignalCtrlC(int signal) {
+    ctrl_c_signal_ = signal;
+    ctrl_c_evt_.Notify();
+  }
 
  private:
   friend class PerfettoCmdlineUnitTest;
@@ -194,6 +198,7 @@ class PerfettoCmd : public Consumer {
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
+  std::atomic<int> ctrl_c_signal_{0};
   bool ctrl_c_handler_installed_ = false;
   base::ScopedPlatformHandle notify_fd_;
   base::Pipe background_wait_pipe_;
@@ -221,10 +226,7 @@ class PerfettoCmd : public Consumer {
   bool clone_for_bugreport_ = false;
   std::function<void()> on_session_cloned_;
   bool cloned_session_was_write_into_file_ = false;
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   std::string persistent_file_path_;
-#endif
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;

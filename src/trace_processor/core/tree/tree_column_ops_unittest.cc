@@ -19,9 +19,9 @@
 #include <cstdint>
 
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/tree/tree.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::tree_ops {
@@ -35,7 +35,7 @@ TEST(TreeColumnOpsTest, HashDistinguishesNull) {
   column.null_bv.clear(0);
 
   base::MurmurHashCombiner hashes[2];
-  UpdateRowHashes(column, MakeMutableSpan(hashes));
+  UpdateRowHashes(column, base::MakeMutableSpan(hashes));
   EXPECT_NE(hashes[0].digest(), hashes[1].digest());
 }
 
@@ -48,7 +48,7 @@ TEST(TreeColumnOpsTest, GathersNullableRows) {
   column.null_bv.clear(1);
   const uint32_t rows[] = {2, 1};
 
-  Tree::Column output = Gather(column, MakeSpan(rows));
+  Tree::Column output = Gather(column, base::MakeSpan(rows));
   EXPECT_EQ(output.unchecked_span<int64_t>()[0], 30);
   EXPECT_TRUE(output.null_bv.is_set(0));
   EXPECT_FALSE(output.null_bv.is_set(1));

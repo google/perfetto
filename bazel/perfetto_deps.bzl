@@ -26,14 +26,6 @@ def _perfetto_deps_impl(module_ctx):
         build_file = "@perfetto//bazel:sqlite.BUILD",
     )
 
-    http_archive(
-        name = "perfetto_dep_sqlite_src",
-        url = "https://storage.googleapis.com/perfetto/sqlite-src-3530400.zip",
-        sha256 = "d18fa15aec74d8c17e1463f861095adc01b5ad190256acb4f91d22f0368d232b",
-        strip_prefix = "sqlite-src-3530400",
-        build_file = "@perfetto//bazel:sqlite.BUILD",
-    )
-
     new_git_repository(
         name = "perfetto_dep_linenoise",
         remote = "https://fuchsia.googlesource.com/third_party/linenoise.git",
@@ -74,7 +66,6 @@ def _perfetto_deps_impl(module_ctx):
         reproducible = True,
         root_module_direct_deps = [
             "perfetto_dep_sqlite",
-            "perfetto_dep_sqlite_src",
             "perfetto_dep_linenoise",
             "perfetto_dep_expat",
             "perfetto_dep_zlib",

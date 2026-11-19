@@ -25,6 +25,7 @@ import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
 import {QueryPage, queryRightSidebarToggleFn} from './pages/query_page';
 import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
+import {getBigtraceEndpoint} from './settings/endpoint_storage';
 import {Topbar} from './layout/topbar';
 import {BigTraceApp as BigTraceAppSingleton} from './bigtrace_app';
 import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
@@ -46,6 +47,17 @@ function getRoot() {
   return root;
 }
 
+// Allows the configured backend's origin. CSP is set once at startup, so a new
+// endpoint takes effect after a reload.
+function endpointOrigin(): string[] {
+  try {
+    return [new URL(getBigtraceEndpoint()).origin];
+  } catch {
+    // Empty or relative endpoint: 'self' covers it.
+    return [];
+  }
+}
+
 function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
@@ -54,11 +66,7 @@ function setupContentSecurityPolicy() {
     // Wasm compilation without enabling JS eval().
     'script-src': [`'self'`, `'wasm-unsafe-eval'`],
     'object-src': [`'none'`],
-    'connect-src': [
-      `'self'`,
-      'https://autopush-brush-googleapis.corp.google.com',
-      'https://brush-googleapis.corp.google.com',
-    ],
+    'connect-src': [`'self'`, ...endpointOrigin()],
     'img-src': [`'self'`, 'data:', 'blob:'],
     // unsafe-inline: the editor (CodeMirror) generates its own stylesheet at
     // runtime, so no fixed hash can cover it — pinned hashes left the editor

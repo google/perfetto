@@ -41,6 +41,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -53,6 +54,7 @@ TracingServiceModule::TracingServiceModule(
     : ProtoImporterModule(module_context), context_(context) {
   RegisterForField(TracePacket::kServiceEventFieldNumber);
   RegisterForField(TracePacket::kExtensionDescriptorFieldNumber);
+  RegisterForField(TracePacket::kExperimentalTracingV2ProducerStatsFieldNumber);
 }
 
 TracingServiceModule::~TracingServiceModule() = default;
@@ -84,6 +86,9 @@ ModuleResult TracingServiceModule::TokenizePacket(
     case TracePacket::kExtensionDescriptorFieldNumber:
       return ParseExtensionDescriptor(
           args.field.Cast<TracePacket::kExtensionDescriptor>());
+    case TracePacket::kExperimentalTracingV2ProducerStatsFieldNumber:
+      return ParseTracingV2ProducerStats(
+          args.field.Cast<TracePacket::kExperimentalTracingV2ProducerStats>());
     default:
       return ModuleResult::Ignored();
   }
@@ -168,6 +173,52 @@ base::Status TracingServiceModule::ParseExtensionDescriptor(
       data, size,
       /*skip_prefixes*/ {},
       /*merge_existing_messages=*/true);
+}
+
+base::Status TracingServiceModule::ParseTracingV2ProducerStats(
+    ConstBytes blob) {
+  // TODO(sashwinbalaji): Attribute these counters to individual tracing
+  // sessions. Keep them at kInfo for now, as they can include errors and data
+  // loss from other sessions on the same producer.
+  protos::pbzero::ExperimentalTracingV2ProducerStats::Decoder producer(blob);
+  const int idx = static_cast<int>(producer.producer_id());
+  context_->stats_tracker->SetIndexedStats(stats::tracing_v2_producer_pid, idx,
+                                           producer.pid());
+  auto set_stat = [this, idx](size_t key, uint64_t value) {
+    context_->stats_tracker->SetIndexedStats(key, idx,
+                                             static_cast<int64_t>(value));
+  };
+  set_stat(stats::tracing_v2_producer_chunk_size_bytes,
+           producer.chunk_size_bytes());
+  set_stat(stats::tracing_v2_producer_num_chunks, producer.num_chunks());
+  set_stat(stats::tracing_v2_producer_chunks_read, producer.chunks_read());
+  set_stat(stats::tracing_v2_producer_bytes_read, producer.bytes_read());
+  set_stat(stats::tracing_v2_producer_data_loss_chunks,
+           producer.data_loss_chunks());
+  set_stat(stats::tracing_v2_producer_malformed_chunks,
+           producer.malformed_chunks());
+  set_stat(stats::tracing_v2_producer_unsupported_format_chunks,
+           producer.unsupported_format_chunks());
+  set_stat(stats::tracing_v2_producer_invalid_writer_chunks,
+           producer.invalid_writer_chunks());
+  set_stat(stats::tracing_v2_producer_invalid_destination_chunks,
+           producer.invalid_destination_chunks());
+  set_stat(stats::tracing_v2_producer_trace_buffer_rejected_chunks,
+           producer.trace_buffer_rejected_chunks());
+  set_stat(stats::tracing_v2_producer_rewrite_requests,
+           producer.rewrite_requests());
+  set_stat(stats::tracing_v2_producer_positions_skipped,
+           producer.positions_skipped());
+  set_stat(stats::tracing_v2_producer_drain_passes, producer.drain_passes());
+  set_stat(stats::tracing_v2_producer_drain_time_ns, producer.drain_time_ns());
+  set_stat(stats::tracing_v2_producer_drain_max_time_ns,
+           producer.drain_max_time_ns());
+  set_stat(stats::tracing_v2_producer_writer_dropped_packets,
+           producer.writer_dropped_packets());
+  set_stat(stats::tracing_v2_producer_writer_stalls, producer.writer_stalls());
+  set_stat(stats::tracing_v2_producer_writer_stall_time_ms,
+           producer.writer_stall_time_ms());
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor

@@ -16,11 +16,21 @@
 
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
@@ -49,7 +59,14 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
     tables::AndroidFreezerStateTable* freezer_state_table)
     : context_(context),
       process_state_table_(process_state_table),
-      freezer_state_table_(freezer_state_table) {}
+      freezer_state_table_(freezer_state_table),
+      capability_flags_id_(context->storage->InternString("capability_flags")),
+      cpu_time_reasons_id_(context->storage->InternString("cpu_time_reasons")),
+      implicit_cpu_time_reasons_id_(
+          context->storage->InternString("implicit_cpu_time_reasons")),
+      freeze_policy_flags_id_(
+          context->storage->InternString("freeze_policy_flags")),
+      unknown_process_logger_(context) {}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -69,13 +86,14 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessStateChangedEvent::Decoder p(bytes);
-  if (!p.has_pid()) {
+  if (!p.has_pid() || p.pid() <= 0) {
     return;
   }
-  int32_t pid = p.pid();
+  auto pid = static_cast<uint32_t>(p.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
+      context_->process_tracker->GetProcessOrNull(pid);
   if (!opt_upid) {
+    unknown_process_logger_.Record(ts, "process_state_changed", pid);
     return;
   }
   UniquePid upid = *opt_upid;
@@ -125,10 +143,21 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_seq_id()) {
     row.seq_id = p.seq_id();
   }
-  process_state_table_->Insert(row);
+  if (p.has_cpu_time_reasons()) {
+    row.cpu_time_reasons = p.cpu_time_reasons();
+  }
+  if (p.has_implicit_cpu_time_reasons()) {
+    row.implicit_cpu_time_reasons = p.implicit_cpu_time_reasons();
+  }
+  if (p.has_freeze_policy_flags()) {
+    row.freeze_policy_flags = p.freeze_policy_flags();
+  }
+  auto id = process_state_table_->Insert(row).id;
+  AddFlagsArgs(id, row);
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
+    int64_t ts,
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
   // The trace-start dump carries no state. It is handled by
@@ -139,13 +168,19 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
   }
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
-    if (!rec.has_pid()) {
+    if (!rec.has_pid() || rec.pid() <= 0) {
       continue;
     }
+    auto pid = static_cast<uint32_t>(rec.pid());
     std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(
-            static_cast<uint32_t>(rec.pid()));
+        context_->process_tracker->GetProcessOrNull(pid);
     if (!opt_upid) {
+      std::optional<int64_t> start_seq_id;
+      if (rec.has_start_seq_id()) {
+        start_seq_id = rec.start_seq_id();
+      }
+      unknown_process_logger_.Record(ts, "process_dump", pid,
+                                     rec.process_name(), start_seq_id);
       continue;
     }
     ProcessStateValues v;
@@ -173,13 +208,14 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidFreezerEvent::Decoder evt(bytes);
-  if (!evt.has_pid()) {
+  if (!evt.has_pid() || evt.pid() <= 0) {
     return;
   }
+  auto pid = static_cast<uint32_t>(evt.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(
-          static_cast<uint32_t>(evt.pid()));
+      context_->process_tracker->GetProcessOrNull(pid);
   if (!opt_upid) {
+    unknown_process_logger_.Record(ts, "freezer_event", pid);
     return;
   }
   tables::AndroidFreezerStateTable::Row row;
@@ -201,27 +237,34 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   freezer_state_table_->Insert(row);
 }
 
-void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
+void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
+                                                  protozero::ConstBytes blob) {
   fb::AndroidFreezerStateSnapshot::Decoder dump(blob);
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidFreezerStateSnapshot::Record::Decoder rec(*it);
-    if (!rec.has_pid()) {
+    if (!rec.has_pid() || rec.pid() <= 0) {
       continue;
     }
+    auto pid = static_cast<uint32_t>(rec.pid());
     std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(
-            static_cast<uint32_t>(rec.pid()));
+        context_->process_tracker->GetProcessOrNull(pid);
     if (!opt_upid) {
+      unknown_process_logger_.Record(ts, "freezer_dump", pid);
       continue;
     }
     FreezerStateValues v;
     v.upid = *opt_upid;
-    // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
-    // during serialization on Android, so unset fields represent UFR_NONE (0).
-    v.unfreeze_reason =
-        rec.has_unfreeze_reason()
-            ? static_cast<int32_t>(rec.unfreeze_reason())
-            : static_cast<int32_t>(fb::UnfreezeReason::UFR_NONE);
+    // If the process is unfrozen in the dump, has_unfrozen_dur_ms() is true.
+    // Note: android.util.proto.ProtoOutputStream omits 0 values during
+    // serialization, so an unset unfreeze_reason on an unfrozen process
+    // represents UFR_NONE (0). When the process is frozen, unfreeze_reason is
+    // left as std::nullopt so the initial row has NULL.
+    if (rec.has_unfrozen_dur_ms()) {
+      v.unfreeze_reason =
+          rec.has_unfreeze_reason()
+              ? static_cast<int32_t>(rec.unfreeze_reason())
+              : static_cast<int32_t>(fb::UnfreezeReason::UFR_NONE);
+    }
     freezer_dump_[v.upid] = v;
   }
 }
@@ -287,7 +330,76 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
-  process_state_table_->Insert(row);
+  auto id = process_state_table_->Insert(row).id;
+  AddFlagsArgs(id, row);
+}
+
+void AndroidProcessStateTracker::AddFlagsArgs(
+    tables::AndroidProcessStateTable::Id id,
+    const tables::AndroidProcessStateTable::Row& row) {
+  auto has_non_zero = [](std::optional<int32_t> mask) {
+    return mask.has_value() && *mask != 0;
+  };
+  if (!has_non_zero(row.capability_flags) &&
+      !has_non_zero(row.cpu_time_reasons) &&
+      !has_non_zero(row.implicit_cpu_time_reasons) &&
+      !has_non_zero(row.freeze_policy_flags)) {
+    return;
+  }
+
+  auto inserter = context_->args_tracker->AddArgsTo(process_state_table_, id);
+  if (has_non_zero(row.capability_flags)) {
+    EmitDecodedFlags(inserter, capability_flags_id_, "capability_flags",
+                     capability_flags_cache_,
+                     ".com.android.internal.ProcessCapabilityEnum",
+                     *row.capability_flags);
+  }
+  if (has_non_zero(row.cpu_time_reasons)) {
+    EmitDecodedFlags(inserter, cpu_time_reasons_id_, "cpu_time_reasons",
+                     cpu_time_reasons_cache_,
+                     ".com.android.internal.CpuTimeReason",
+                     *row.cpu_time_reasons);
+  }
+  if (has_non_zero(row.implicit_cpu_time_reasons)) {
+    EmitDecodedFlags(inserter, implicit_cpu_time_reasons_id_,
+                     "implicit_cpu_time_reasons", cpu_time_reasons_cache_,
+                     ".com.android.internal.CpuTimeReason",
+                     *row.implicit_cpu_time_reasons);
+  }
+  if (has_non_zero(row.freeze_policy_flags)) {
+    EmitDecodedFlags(inserter, freeze_policy_flags_id_, "freeze_policy_flags",
+                     freeze_policy_flags_cache_,
+                     ".com.android.internal.FreezerPolicyFlag",
+                     *row.freeze_policy_flags);
+  }
+}
+
+void AndroidProcessStateTracker::EmitDecodedFlags(
+    ArgsInserter& inserter,
+    StringId flat_key_id,
+    const char* key_prefix,
+    DescriptorPool::CachedDescriptor& cache,
+    const char* enum_name,
+    int32_t mask) {
+  flag_views_.clear();
+  int64_t unmatched = context_->descriptor_pool_->FlagSetToViews(
+      cache, enum_name, static_cast<int64_t>(static_cast<uint32_t>(mask)),
+      &flag_views_);
+
+  auto emit = [&](size_t i, base::StringView flag) {
+    base::StackString<64> key("%s[%zu]", key_prefix, i);
+    StringId key_id = context_->storage->InternString(key.string_view());
+    inserter.AddArg(flat_key_id, key_id,
+                    Variadic::String(context_->storage->InternString(flag)));
+  };
+  size_t i = 0;
+  for (; i < flag_views_.size(); ++i) {
+    emit(i, base::StringView(flag_views_[i].data(), flag_views_[i].size()));
+  }
+  if (unmatched != 0) {
+    base::StackString<20> hex("0x%" PRIx64, static_cast<uint64_t>(unmatched));
+    emit(i, hex.string_view());
+  }
 }
 
 void AndroidProcessStateTracker::EmitInitialFreezerRow(

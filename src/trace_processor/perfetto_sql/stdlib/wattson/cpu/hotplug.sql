@@ -69,34 +69,18 @@ SELECT
   iif(is_different_cpu AND dur < time_from_us(100), FALSE, is_different_cpu) AS is_different_cpu
 FROM transitions_dur;
 
--- Fill gaps from beginning of trace to end of trace so that this table can be
--- used by interval_intersect().
+-- Every CPU's hotplug state from trace start to trace end, online wherever
+-- cpuhp says nothing, so that this table can be used by interval_intersect():
+-- a CPU which is never offline is online throughout.
 CREATE PERFETTO TABLE _gapless_hotplug_slices AS
-WITH
-  filled_gaps AS (
-    -- First slice from trace_start() to first offline slice per CPU
-    SELECT
-      cpu,
-      trace_start() AS ts,
-      min(ts) - trace_start() AS dur,
-      FALSE AS offline
-    FROM _cpu_hotplug_offline
-    GROUP BY
-      cpu
-    UNION ALL
-    -- All online and offline regions as defined by cpuhp. This will have
-    -- continuous slices from somewhere in the middle to the end of the trace.
-    SELECT cpu, ts, dur, is_different_cpu AS offline FROM _cpu_hotplug_offline
-    UNION ALL
-    -- Creates a single online slice spanning the entire trace for CPUs that are
-    -- never offline. This is needed for interval_intersect() to not delete
-    -- undefined time periods
-    SELECT cpu, trace_start() AS ts, trace_dur() AS dur, FALSE AS offline
-    FROM _dev_cpu_policy_map
-    WHERE
-      NOT (cpu IN (SELECT cpu FROM _cpu_hotplug_offline))
-  )
-SELECT ts, dur, cpu, offline FROM filled_gaps ORDER BY cpu, ts;
+FROM (
+  SELECT ts, dur, cpu, is_different_cpu AS offline FROM _cpu_hotplug_offline
+)
+|> INTERVAL FILL GAPS WITH (
+  SELECT trace_start() AS ts, trace_dur() AS dur, cpu, FALSE AS offline
+  FROM _dev_cpu_policy_map
+) PER cpu
+|> ORDER BY cpu, ts;
 
 -- Nominal suspend table with gapless suspended state.
 CREATE PERFETTO TABLE _gapless_suspend_slices AS

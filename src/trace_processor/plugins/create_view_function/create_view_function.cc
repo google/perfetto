@@ -75,8 +75,6 @@ void CreateViewFunction::Step(sqlite3_context* ctx,
     return sqlite::utils::SetError(ctx, parse_status);
   }
 
-  std::string function_name_str = function_name.ToStdString();
-
   NullTermStringView sql_defn(sql_defn_str);
   std::string formatted_sql(sql_defn.size() + 1024, '\0');
   size_t size = base::SprintfTrunc(formatted_sql.data(), formatted_sql.size(),

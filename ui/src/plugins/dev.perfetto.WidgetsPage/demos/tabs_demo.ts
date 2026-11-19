@@ -138,7 +138,7 @@ export function renderTabs(): m.Children {
                   if (draggedIdx === -1) return;
                   const [dragged] = tabEntries.splice(draggedIdx, 1);
                   if (beforeKey === undefined) {
-                    tabEntries.push(dragged);
+                    tabEntries.push(dragged!);
                   } else {
                     const beforeIdx = tabEntries.findIndex(
                       (e) => e.key === beforeKey,
@@ -146,7 +146,7 @@ export function renderTabs(): m.Children {
                     tabEntries.splice(
                       beforeIdx === -1 ? tabEntries.length : beforeIdx,
                       0,
-                      dragged,
+                      dragged!,
                     );
                   }
                 }

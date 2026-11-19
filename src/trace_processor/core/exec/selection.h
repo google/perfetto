@@ -21,16 +21,16 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/core/util/span.h"
+#include "perfetto/ext/base/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 inline constexpr uint32_t kMaxBatchRows = 2048;
 
-// Which rows of a batch are kept: the first of them, or some by index, in
-// increasing order. Every column of a batch has the same rows, so one
-// selection serves them all, and dropping rows narrows it in place without
-// touching a column.
+// Which rows of a batch are kept, in the order they are read: the first of
+// them, or some by index, none twice. Every column of a batch has the same
+// rows, so one selection serves them all, and dropping or reordering rows
+// changes it in place without touching a column.
 class Selection {
  public:
   Selection() = default;
@@ -61,53 +61,20 @@ class Selection {
   }
 
   // Keeps the rows kept at `positions`, which are increasing.
-  void Keep(Span<const uint32_t> positions) {
-    auto count = static_cast<uint32_t>(positions.size());
-    PERFETTO_DCHECK(count <= size_);
-    if (count == size_) {
-      // Increasing, they can only be every position.
-      return;
-    }
-    if (count == 0 || positions.b[count - 1] == count - 1) {
-      // Increasing and ending at count - 1, they are the first `count`: the
-      // rows kept stay as they are, a prefix if they were one, so readers
-      // keep their contiguous paths.
-      size_ = count;
-      return;
-    }
-    // Each index is written at or before where it is read from.
-    for (uint32_t i = 0; i < count; ++i) {
-      PERFETTO_DCHECK(positions.b[i] < size_ &&
-                      (i == 0 || positions.b[i - 1] < positions.b[i]));
-      indices_[i] = static_cast<uint16_t>((*this)[positions.b[i]]);
-    }
-    size_ = count;
-    prefix_ = false;
-  }
+  void Keep(base::Span<const uint32_t> positions);
+
+  // Keeps the batch rows `rows`, which are kept already, in the order they are
+  // kept.
+  void KeepRows(base::Span<const uint32_t> rows);
+
+  // Keeps the batch rows `rows`, which are kept already, in the order given.
+  void Reorder(base::Span<const uint32_t> rows);
 
   // Keeps `count` of the rows kept, from the `first`.
-  void KeepRange(uint32_t first, uint32_t count) {
-    PERFETTO_DCHECK(first + count <= size_);
-    if (first != 0) {
-      for (uint32_t i = 0; i < count; ++i) {
-        indices_[i] = static_cast<uint16_t>((*this)[first + i]);
-      }
-      prefix_ = false;
-    }
-    size_ = count;
-  }
+  void KeepRange(uint32_t first, uint32_t count);
 
   // Keeps the rows `other` does, copying only the indices in use.
-  void CopyFrom(const Selection& other) {
-    rows_ = other.rows_;
-    size_ = other.size_;
-    prefix_ = other.prefix_;
-    if (!prefix_) {
-      for (uint32_t i = 0; i < size_; ++i) {
-        indices_[i] = other.indices_[i];
-      }
-    }
-  }
+  void CopyFrom(const Selection& other);
 
  private:
   uint32_t rows_ = 0;

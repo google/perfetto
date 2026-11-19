@@ -33,22 +33,19 @@
 #include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 
 #include "src/tracing/service/tracing_service_structs.h"
+
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 
 namespace protozero {
 class MessageFilter;
 }
 
 namespace perfetto {
-
-namespace protos {
-namespace gen {
-enum TraceStats_FinalFlushOutcome : int;
-}
-}  // namespace protos
 
 namespace base {
 class TaskRunner;
@@ -178,6 +175,11 @@ struct TracingSession {
   // Outcome of the final Flush() done by FlushAndDisableTracing().
   protos::gen::TraceStats_FinalFlushOutcome final_flush_outcome{};
 
+  // The tracing v2 stats of the source session's producers, copied when the
+  // session was cloned.
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+      tracing_v2_producer_stats_at_clone;
+
   // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
   bool did_notify_all_data_source_started = false;
 
@@ -302,6 +304,12 @@ struct TracingSession {
 
   // This is set when the clone operation was caused by a clone trigger.
   std::optional<TriggerInfo> clone_trigger;
+
+  // The trigger that caused this trace to be finalized: the one that started
+  // (START_TRACING) or stopped (STOP_TRACING) the session, or the one that
+  // caused the clone (CLONE_SNAPSHOT). Emitted as
+  // TracePacket.authoritative_trigger.
+  std::optional<TriggerInfo> authoritative_trigger;
 
   std::optional<base::ScopedSchedBoost> priority_boost;
 

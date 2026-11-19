@@ -26,7 +26,7 @@ import {
   AtomicTaskQueue,
 } from '../../base/async_memo';
 import {Icons} from '../../base/semantic_icons';
-import type {duration, time} from '../../base/time';
+import {type duration, type time, Time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
 import type {Trace} from '../../public/trace';
 import type {
@@ -57,18 +57,22 @@ interface Limits {
 
 interface MipmapTableResult extends AsyncDisposable {
   readonly tableName: string; // The name of the virtual table containing the mipmap data which can be used in SQL queries.
-  readonly globalLimits: Limits; // Min and max values across the entire trace.
+  readonly globalLimits: Limits; // Min and max values across all samples.
 }
 
 interface DataFrame {
   readonly start: time; // Start time of the dataframe
   readonly end: time; // End time of the dataframe
   readonly limits: Limits; // Min and max values within the dataframe
+  // Global limits of the table this frame was loaded from. While a rebuilt
+  // table's data loads, the previous frame is drawn with its own limits.
+  readonly globalLimits: Limits;
   readonly timestampsRel: Float32Array; // Timestamps relative to dataStart
   readonly timestampsRelNext: Float32Array; // Timestamps of next sample relative to dataStart
   readonly minDisplayValues: Float32Array; // Min value within each bucket
   readonly maxDisplayValues: Float32Array; // Max value within each bucket
   readonly lastDisplayValues: Float32Array; // Final value within each bucket
+  readonly lastDisplayValuesF64: Float64Array; // Full-precision final value within each bucket
 }
 
 interface HoverState {
@@ -227,8 +231,14 @@ export interface CounterTrackAttrs {
   /** A unique, reproducible ID for this track. */
   readonly uri: string;
 
-  /** SQL source selecting the necessary data (must expose ts and value). */
-  readonly sqlSource: string;
+  /**
+   * SQL source selecting the necessary data (must expose ts and value).
+   *
+   * Pass a function if the data changes after the track is created. It is
+   * evaluated on every render and returning a different query rebuilds the
+   * track's tables.
+   */
+  readonly sqlSource: string | (() => string);
 
   /** Y-axis display mode: 'value' | 'delta' | 'rate'. Defaults to 'value'. */
   readonly yMode?: YMode;
@@ -260,6 +270,9 @@ export interface CounterTrackAttrs {
   /** Optional key to share y-axis range with other tracks. */
   readonly yRangeSharingKey?: string;
 
+  /** Optional end timestamp past which the counter stops rendering. */
+  readonly endTs?: time;
+
   /** Optional lifecycle callback, called once before the first render. */
   onInit?(): Promise<void>;
 }
@@ -276,7 +289,7 @@ export class CounterTrack implements TrackRenderer {
 
   protected readonly trace: Trace;
   protected readonly uri: string;
-  protected readonly sqlSource: string;
+  private readonly getSqlSource: () => string;
   private readonly rangeSharer: RangeSharer;
   private readonly onInitFn?: () => Promise<void>;
 
@@ -288,6 +301,7 @@ export class CounterTrack implements TrackRenderer {
   private chartHeightSize: ChartHeightSize;
 
   // Immutable display options (set from attrs)
+  private readonly endTs?: time;
   private readonly _unit?: string;
   private readonly _rateUnit?: string;
   private readonly yOverrideMaximum?: number;
@@ -316,11 +330,13 @@ export class CounterTrack implements TrackRenderer {
       yOverrideMaximum,
       yOverrideMinimum,
       yRangeSharingKey,
+      endTs,
       onInit,
     } = attrs;
     this.trace = trace;
     this.uri = uri;
-    this.sqlSource = sqlSource;
+    this.getSqlSource =
+      typeof sqlSource === 'string' ? () => sqlSource : sqlSource;
     this.yMode = yMode;
     this.yRange = yRange;
     this.yDisplay = yDisplay;
@@ -331,6 +347,7 @@ export class CounterTrack implements TrackRenderer {
     this.yOverrideMaximum = yOverrideMaximum;
     this.yOverrideMinimum = yOverrideMinimum;
     this.yRangeSharingKey = yRangeSharingKey;
+    this.endTs = endTs;
     this.rangeSharer = RangeSharer.getRangeSharer(trace);
     this.onInitFn = onInit;
   }
@@ -349,13 +366,15 @@ export class CounterTrack implements TrackRenderer {
    * Async factory: materializes the sqlSource into a Perfetto table first,
    * then creates the track using the table name as its source.
    * Prefer this when the underlying query is expensive to re-evaluate.
+   * A function sqlSource is evaluated once, at materialization time.
    */
   static async createMaterialized(
     attrs: CounterTrackAttrs,
   ): Promise<CounterTrack> {
+    const {sqlSource} = attrs;
     const table = await createPerfettoTable({
       engine: attrs.trace.engine,
-      as: attrs.sqlSource,
+      as: typeof sqlSource === 'string' ? sqlSource : sqlSource(),
     });
     return new CounterTrack({...attrs, sqlSource: table.name});
   }
@@ -512,7 +531,7 @@ export class CounterTrack implements TrackRenderer {
     }
 
     const hover = this.hover;
-    if (hover !== undefined) {
+    if (hover !== undefined && count >= 1) {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
@@ -571,24 +590,14 @@ export class CounterTrack implements TrackRenderer {
       );
     }
 
-    // TODO(hjd): Refactor this into checkerboardExcept
-    {
-      const counterEndPx = Infinity;
-      // Grey out RHS.
-      if (counterEndPx < endPx) {
-        ctx.fillStyle = '#0000001f';
-        ctx.fillRect(counterEndPx, 0, endPx - counterEndPx, this.getHeight());
-      }
-    }
-
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     const loadedBounds = this.bufferedBounds.bounds;
     checkerboardExcept(
       ctx,
       this.getHeight(),
-      0,
-      size.width,
+      Math.max(0, timescale.timeToPx(Time.MIN)),
+      Math.min(size.width, timescale.timeToPx(Time.MAX)),
       timescale.timeToPx(loadedBounds.start),
       timescale.timeToPx(loadedBounds.end),
     );
@@ -627,15 +636,29 @@ export class CounterTrack implements TrackRenderer {
     const data = this.dataframe;
     if (!data) return undefined;
 
+    const time = timescale.pxToHpTime(pos.x).toTime();
+    if (this.endTs !== undefined && time >= this.endTs) {
+      return undefined;
+    }
+
     // Convert the screen position to a relative NS offset matching timestampsRel.
-    const relNs = Number(timescale.pxToHpTime(pos.x).toTime() - data.start);
+    const relNs = Number(time - data.start);
     const [left, right] = searchSegment(data.timestampsRel, relNs);
     if (left === -1) return undefined;
 
+    const tsRel = data.timestampsRel[left];
+    const lastDisplayValue = data.lastDisplayValuesF64[left];
+    if (tsRel === undefined || lastDisplayValue === undefined) return undefined;
+
     return {
-      tsRel: data.timestampsRel[left],
-      tsEndRel: right === -1 ? undefined : data.timestampsRel[right],
-      lastDisplayValue: data.lastDisplayValues[left],
+      tsRel,
+      tsEndRel:
+        right === -1
+          ? this.endTs !== undefined && this.endTs < data.end
+            ? data.timestampsRelNext[left]
+            : undefined
+          : data.timestampsRel[right],
+      lastDisplayValue,
     };
   }
 
@@ -657,13 +680,18 @@ export class CounterTrack implements TrackRenderer {
     // Step 1: Get the mipmap table (created once per SQL source + options)
     // Include yMode and yDisplay in key since they affect the value expression
     const {yMode, yDisplay} = this;
+
+    // A sqlSource can change faster than its table builds. Keep rendering the
+    // previous table until the new one is ready.
+    const sqlSource = this.sqlSource;
     const tableResult = this.tableSlot.use({
       key: {
-        sqlSource: this.sqlSource,
+        sqlSource,
         yMode,
         yDisplay,
       },
-      compute: () => this.createMipmapTable(),
+      compute: () => this.createMipmapTable(sqlSource),
+      retainOn: ['sqlSource'],
     });
 
     const table = tableResult.data;
@@ -678,7 +706,9 @@ export class CounterTrack implements TrackRenderer {
     );
     const bounds = this.bufferedBounds.update(visibleSpan, bucketSize);
 
-    // Step 3: Fetch counter data using QuerySlot
+    // Step 3: Fetch counter data using QuerySlot. While the table is being
+    // rebuilt (e.g. after a dynamic sqlSource changed), keep returning the
+    // previous data instead of flashing an empty track.
     const queryStart = bounds.start;
     const queryEnd = bounds.end;
     const dataResult = this.dataSlot.use({
@@ -688,11 +718,12 @@ export class CounterTrack implements TrackRenderer {
         resolution: bounds.resolution,
         yMode,
         yDisplay,
+        tableName: table.tableName,
       },
       compute: async (signal) => {
         return await this.trace.taskTracker.track(
           this.fetchCounterData(
-            table.tableName,
+            table,
             queryStart,
             queryEnd,
             bounds.resolution,
@@ -701,13 +732,13 @@ export class CounterTrack implements TrackRenderer {
           'Loading counters',
         );
       },
-      retainOn: ['start', 'end', 'resolution'],
+      retainOn: ['start', 'end', 'resolution', 'tableName'],
     });
 
     const counters = dataResult.data;
     if (counters === undefined) return undefined;
 
-    return {counters, limits: table.globalLimits};
+    return {counters, limits: counters.globalLimits};
   }
 
   // Compute the range of values to display and range label.
@@ -769,6 +800,18 @@ export class CounterTrack implements TrackRenderer {
       },
       [yMin, yMax],
     );
+
+    // A constant series has an empty range, which would divide by zero when
+    // scaling values to pixels. Fall back to a range including zero instead.
+    if (yMin === yMax) {
+      if (yMax > 0) {
+        yMin = 0;
+      } else if (yMin < 0) {
+        yMax = 0;
+      } else {
+        yMax = 1;
+      }
+    }
 
     return {
       yMin,
@@ -850,35 +893,40 @@ export class CounterTrack implements TrackRenderer {
   }
 
   // Creates the mipmap table - called declaratively from render via QuerySlot
-  private async createMipmapTable(): Promise<MipmapTableResult> {
+  private async createMipmapTable(
+    sqlSource: string,
+  ): Promise<MipmapTableResult> {
     const table = await createVirtualTable({
       engine: this.engine,
       using: `__intrinsic_counter_mipmap((
         SELECT
           ts,
           ${this.getValueExpression()} AS value
-        FROM (${this.sqlSource})
+        FROM (${sqlSource})
       ))`,
     });
 
-    // Fetch the global limits
+    // Fetch the global limits across all time, as a single bucket. A changed
+    // sqlSource rebuilds the table, which reloads them.
     const limitsQuery = await this.engine.query(`
       SELECT
         min_value AS min,
         max_value AS max
       FROM ${table.name}(
-        trace_start(), trace_end() + 1, trace_dur() + 1
+        ${Time.MIN},
+        ${Time.MAX},
+        ${Time.MAX - Time.MIN}
       );
     `);
 
-    const {min, max} = limitsQuery.firstRow({
+    const limits = limitsQuery.maybeFirstRow({
       min: NUM,
       max: NUM,
     });
 
     return {
       tableName: table.name,
-      globalLimits: {min, max},
+      globalLimits: {min: limits?.min ?? 0, max: limits?.max ?? 0},
       [Symbol.asyncDispose]: async () => {
         await table[Symbol.asyncDispose]();
       },
@@ -887,21 +935,41 @@ export class CounterTrack implements TrackRenderer {
 
   // Fetches counter data for the given bounds - called from QuerySlot
   private async fetchCounterData(
-    tableName: string,
+    table: MipmapTableResult,
     start: time,
     end: time,
     resolution: duration,
     signal: CancellationSignal,
   ): Promise<DataFrame> {
+    const effectiveEnd =
+      this.endTs !== undefined ? Time.min(end, this.endTs) : end;
+    if (effectiveEnd <= start) {
+      return {
+        start,
+        end,
+        timestampsRel: new Float32Array(0),
+        timestampsRelNext: new Float32Array(0),
+        minDisplayValues: new Float32Array(0),
+        maxDisplayValues: new Float32Array(0),
+        lastDisplayValues: new Float32Array(0),
+        lastDisplayValuesF64: new Float64Array(0),
+        limits: {
+          min: 0,
+          max: 0,
+        },
+        globalLimits: table.globalLimits,
+      };
+    }
+
     const queryRes = await this.engine.query(`
       SELECT
         min_value AS minDisplayValue,
         max_value AS maxDisplayValue,
-        MAX(0, MIN(last_ts - ${start}, ${end} - ${start})) AS tsRel,
+        MAX(0, MIN(last_ts - ${start}, ${effectiveEnd} - ${start})) AS tsRel,
         last_value AS lastDisplayValue
-      FROM ${tableName}(
+      FROM ${table.tableName}(
         ${start},
-        ${end},
+        ${effectiveEnd},
         ${resolution}
       );
     `);
@@ -928,17 +996,17 @@ export class CounterTrack implements TrackRenderer {
     let min = 0;
     let max = 0;
     for (let row = 0; row < numRows; row++) {
-      min = Math.min(min, minCol[row]);
-      max = Math.max(max, maxCol[row]);
+      min = Math.min(min, minCol[row]!);
+      max = Math.max(max, maxCol[row]!);
     }
 
-    // timestampsRelNext[i] = timestampsRel[i+1], last element = end - start.
+    // timestampsRelNext[i] = timestampsRel[i+1], last element = effectiveEnd - start.
     const timestampsRelNext = new Float32Array(numRows);
     if (numRows > 1) {
       timestampsRelNext.set(timestampsRel.subarray(1));
     }
     if (numRows > 0) {
-      timestampsRelNext[numRows - 1] = Number(end - start);
+      timestampsRelNext[numRows - 1] = Number(effectiveEnd - start);
     }
 
     return {
@@ -949,15 +1017,22 @@ export class CounterTrack implements TrackRenderer {
       minDisplayValues,
       maxDisplayValues,
       lastDisplayValues,
+      lastDisplayValuesF64: lastCol,
       limits: {
         min,
         max,
       },
+      globalLimits: table.globalLimits,
     };
   }
 
   protected get engine() {
     return this.trace.engine;
+  }
+
+  // The current SQL source, re-evaluated on every access if it's a function.
+  protected get sqlSource(): string {
+    return this.getSqlSource();
   }
 }
 

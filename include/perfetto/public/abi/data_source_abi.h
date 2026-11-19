@@ -161,6 +161,21 @@ enum PerfettoDsFlushReason {
 PERFETTO_SDK_EXPORT uint64_t
 PerfettoDsOnFlushArgsGetReason(struct PerfettoDsOnFlushArgs* args);
 
+// Target of a trace clone operation when the flush reason is
+// PERFETTO_DS_FLUSH_REASON_TRACE_CLONE.
+// Mirrors `perfetto::FlushFlags::CloneTarget` in
+// `perfetto/tracing/core/flush_flags.h`. Keep this enum aligned with it.
+enum PerfettoDsFlushCloneTarget {
+  PERFETTO_DS_FLUSH_CLONE_TARGET_UNKNOWN = 0,
+  PERFETTO_DS_FLUSH_CLONE_TARGET_BUGREPORT = 1,
+};
+
+// Returns the clone target for the flush operation (see enum
+// PerfettoDsFlushCloneTarget).
+// `args` is valid only during the OnFlush callback.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsOnFlushArgsGetCloneTarget(struct PerfettoDsOnFlushArgs* args);
+
 // Called when the tracing service requires all the pending tracing data to be
 // flushed for a data source instance. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of

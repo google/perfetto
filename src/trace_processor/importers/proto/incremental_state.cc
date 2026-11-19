@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -45,7 +46,8 @@ RefPtr<IncrementalState> IncrementalState::CreateSuccessor(
 RefPtr<IncrementalState> IncrementalState::CreateAfterPacketLoss(
     const IncrementalState& prev) {
   auto incr = RefPtr<IncrementalState>(new IncrementalState(prev.context_));
-  incr->interned_data_ = prev.interned_data_;
+  for (auto it = prev.interned_data_.GetIterator(); it; ++it)
+    incr->interned_data_.Insert(it.key(), it.value());
   incr->thread_descriptor_ = prev.thread_descriptor_;
   // Share non-opt-in CustomStates with |prev| (RefPtr copy). Opt-in slots
   // (ClearOnPacketLoss() == true) start empty in the new IS and will be
@@ -59,19 +61,9 @@ RefPtr<IncrementalState> IncrementalState::CreateAfterPacketLoss(
   return incr;
 }
 
-InternedMessageView* IncrementalState::GetInternedMessageView(uint32_t field_id,
-                                                              uint64_t iid) {
-  auto field_it = interned_data_.find(field_id);
-  if (field_it != interned_data_.end()) {
-    auto* message_map = &field_it->second;
-    auto it = message_map->find(iid);
-    if (it != message_map->end()) {
-      return &it->second;
-    }
-  }
+void IncrementalState::OnInternedMessageMissing() {
   context_->stats_tracker->IncrementStats(
       stats::interned_data_tokenizer_errors);
-  return nullptr;
 }
 
 void IncrementalState::InternMessage(uint32_t field_id, TraceBlobView message) {
@@ -91,18 +83,18 @@ void IncrementalState::InternMessage(uint32_t field_id, TraceBlobView message) {
   }
   iid = field.as_uint64();
 
-  auto res = interned_data_[field_id].emplace(
-      iid, InternedMessageView(std::move(message)));
+  auto res = interned_data_.Insert({field_id, iid},
+                                   InternedMessageView(std::move(message)));
 
   // If a message with this ID is already interned in the same generation,
   // its data should not have changed (this is forbidden by the InternedData
   // proto).
   // TODO(eseckler): This DCHECK assumes that the message is encoded the
   // same way if it is re-emitted.
-  PERFETTO_DCHECK(res.second ||
-                  (res.first->second.message().length() == message_size &&
-                   memcmp(res.first->second.message().data(), message_start,
-                          message_size) == 0));
+  PERFETTO_DCHECK(
+      res.second ||
+      (res.first->message().length() == message_size &&
+       memcmp(res.first->message().data(), message_start, message_size) == 0));
 }
 
 }  // namespace perfetto::trace_processor

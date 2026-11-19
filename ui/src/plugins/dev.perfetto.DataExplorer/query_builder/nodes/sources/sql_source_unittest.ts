@@ -121,7 +121,7 @@ describe('SqlSourceNode', () => {
       const sq = node.getStructuredQuery();
       expect(sq).toBeDefined();
       expect(sq?.sql?.dependencies?.length).toBe(1);
-      expect(sq?.sql?.dependencies?.[0].alias).toBe('input_0');
+      expect(sq?.sql?.dependencies?.[0]!.alias).toBe('input_0');
     });
 
     it('should include multiple dependencies with correct aliases', () => {

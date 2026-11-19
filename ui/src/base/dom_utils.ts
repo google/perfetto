@@ -151,3 +151,37 @@ export function bindEventListener(
     },
   };
 }
+
+/**
+ * Loads an external <script> into the page.
+ *
+ * Resolves once the script has loaded. Rejects if it fails to load, or has not
+ * loaded within `timeoutMs`; without a timeout a stalled request would never
+ * settle. A script that fails or times out is removed again, so a later
+ * attempt starts afresh.
+ *
+ * Each call adds a new <script> element: callers that might ask for the same
+ * script twice need to guard against that themselves. The script's origin must
+ * also be allowed by the page's Content Security Policy (script-src).
+ */
+export function loadScript(src: string, timeoutMs: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      script.remove();
+      reject(new Error(`Timed out loading ${src}`));
+    }, timeoutMs);
+    script.src = src;
+    script.async = true;
+    script.onload = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    script.onerror = () => {
+      clearTimeout(timer);
+      script.remove();
+      reject(new Error(`Failed to load ${src}`));
+    };
+    document.head.append(script);
+  });
+}

@@ -23,6 +23,7 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
+import {VideoFrameLinkSection} from './video_frame_link';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -69,6 +70,8 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
     'The frame was not presented on time due to a display mode change (refresh rate or resolution).',
   'PowerModeChange in progress':
     'The frame was not presented on time due to an active display power state transition.',
+  'DequeueBuffer Delay':
+    'The frame missed its deadline due to time spent waiting for an available buffer in dequeueBuffer.',
   'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
 };
 
@@ -182,7 +185,12 @@ export function createActualFramesTrack(
     },
     initialMaxDepth: maxDepth,
     rootTableName: frameTrackRootTableName(layerName),
-    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
+    // Link, above the standard details, to the captured display-video frame
+    // this composite produced (self-hides when the trace has no video frames).
+    detailsPanel: () =>
+      new ThreadSliceDetailsPanel(trace, {
+        topSections: [new VideoFrameLinkSection(trace)],
+      }),
   });
 }
 

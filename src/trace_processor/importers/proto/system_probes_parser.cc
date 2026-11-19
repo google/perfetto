@@ -56,11 +56,12 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
@@ -254,7 +255,7 @@ const char* GetSmapsKey(uint32_t field_id) {
 }
 
 base::StringView MaybeTruncateKworkerName(base::StringView comm) {
-  if (comm.StartsWith("kworker/")) {
+  if (base::StartsWith(comm, "kworker/")) {
     size_t delim_loc = std::min(comm.find('+', 8), comm.find('-', 8));
     if (delim_loc != base::StringView::npos) {
       return comm.substr(0, delim_loc);
@@ -403,7 +404,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.devfreq(); it; ++it) {
     protos::pbzero::SysStats::DevfreqValue::Decoder vm(*it);
     TrackId track = context_->track_tracker->InternTrack(
-        tracks::kClockFrequencyBlueprint, tracks::Dimensions(vm.key()));
+        tracks::kLinuxDeviceFrequencyBlueprint, tracks::Dimensions(vm.key()));
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
   }
@@ -671,8 +672,7 @@ void SystemProbesParser::ParseSlabInfo(int64_t ts, ConstBytes blob) {
 
   auto id = context_->event_tracker->PushCounter(ts, size_bytes, track);
   if (id) {
-    ArgsTracker tracker(context_);
-    tracker.AddArgsTo(*id)
+    context_->args_tracker->AddArgsTo(*id)
         .AddArg(pages_per_slab_id_,
                 Variadic::UnsignedInteger(slab.pages_per_slab()))
         .AddArg(num_slabs_id_, Variadic::UnsignedInteger(slab.num_slabs()));
@@ -1166,8 +1166,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   }
 
   if (cpu_infos.empty()) {
-    context_->import_logs_tracker->RecordAnalysisLog(
-        stats::cpu_info_empty, [](ArgsTracker::BoundInserter&) {});
+    context_->import_logs_tracker->RecordAnalysisLog(stats::cpu_info_empty,
+                                                     [](ArgsInserter&) {});
     return;
   }
 
@@ -1181,6 +1181,14 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   bool valid_capacities = std::all_of(
       cpu_infos.begin(), cpu_infos.end(),
       [](const CpuInfo& info) { return info.capacity.has_value(); });
+  bool has_distinct_capacities = false;
+  if (valid_capacities && !cpu_infos.empty()) {
+    uint32_t first_cap = *cpu_infos[0].capacity;
+    has_distinct_capacities = std::any_of(cpu_infos.begin(), cpu_infos.end(),
+                                          [first_cap](const CpuInfo& info) {
+                                            return *info.capacity != first_cap;
+                                          });
+  }
 
   bool valid_frequencies = std::all_of(
       cpu_infos.begin(), cpu_infos.end(),
@@ -1189,8 +1197,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   std::vector<uint32_t> cluster_ids(cpu_infos.size());
   uint32_t cluster_id = 0;
 
-  if (valid_capacities) {
-    ColdSortByKey(cpu_infos.begin(), cpu_infos.end(), [](const CpuInfo& info) {
+  if (has_distinct_capacities) {
+    SortByKey(cpu_infos.begin(), cpu_infos.end(), [](const CpuInfo& info) {
       return info.capacity ? uint64_t{*info.capacity} + 1 : 0;
     });
     uint32_t previous_capacity = *cpu_infos[0].capacity;
@@ -1204,7 +1212,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       cluster_ids[cpu_info.cpu] = cluster_id;
     }
   } else if (valid_frequencies) {
-    // Use max frequency if capacities are invalid
+    // Use max frequency if capacities are missing or uniform
     std::vector<CpuMaxFrequency> cpu_max_freqs;
     cpu_max_freqs.reserve(cpu_infos.size());
     for (CpuInfo& info : cpu_infos) {
@@ -1212,8 +1220,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
           {info.cpu, *std::max_element(info.frequencies.begin(),
                                        info.frequencies.end())});
     }
-    ColdSortByKey(cpu_max_freqs.begin(), cpu_max_freqs.end(),
-                  [](const CpuMaxFrequency& f) { return f.max_frequency; });
+    SortByKey(cpu_max_freqs.begin(), cpu_max_freqs.end(),
+              [](const CpuMaxFrequency& f) { return f.max_frequency; });
 
     uint32_t previous_max_freq = cpu_max_freqs[0].max_frequency;
     for (CpuMaxFrequency& cpu_max_freq : cpu_max_freqs) {
@@ -1240,8 +1248,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
 
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(ucpu);
+    auto inserter = context_->args_tracker->AddArgsTo(ucpu);
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
       inserter
           .AddArg(arm_cpu_implementer,
@@ -1266,8 +1273,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     // version of trace_processor; they stay queryable via the raw bitmap.
     if ((cpu_info.features >> base::ArraySize(base::kCpuInfoFeatures)) != 0) {
       context_->import_logs_tracker->RecordAnalysisLog(
-          stats::cpu_info_unknown_cpu_features,
-          [](ArgsTracker::BoundInserter&) {});
+          stats::cpu_info_unknown_cpu_features, [](ArgsInserter&) {});
     }
   }
 }
@@ -1291,8 +1297,7 @@ void SystemProbesParser::ParseGpuInfo(ConstBytes blob) {
         std::string_view(uuid_hex), gpu.pci_bdf().ToStdStringView());
 
     // Store vendor-specific extra_info as args.
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(ugpu);
+    auto inserter = context_->args_tracker->AddArgsTo(ugpu);
     for (auto kv_it = gpu.extra_info(); kv_it; ++kv_it) {
       protos::pbzero::GpuInfo::Gpu::KeyValue::Decoder kv(*kv_it);
       if (kv.has_key() && kv.has_value()) {

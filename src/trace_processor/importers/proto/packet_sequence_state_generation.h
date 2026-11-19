@@ -57,12 +57,18 @@ class PacketSequenceStateGeneration : public RefCounted {
   using CustomState = ::perfetto::trace_processor::CustomState;
 
   static RefPtr<PacketSequenceStateGeneration> CreateFirst(
-      TraceProcessorContext* context);
+      TraceProcessorContext* context,
+      uint32_t trusted_packet_sequence_id);
 
   RefPtr<PacketSequenceStateGeneration> OnPacketLoss();
   RefPtr<PacketSequenceStateGeneration> OnIncrementalStateCleared();
   RefPtr<PacketSequenceStateGeneration> OnNewTracePacketDefaults(
       TraceBlobView trace_packet_defaults);
+
+  // The trusted_packet_sequence_id of the packets in this sequence.
+  uint32_t trusted_packet_sequence_id() const {
+    return trusted_packet_sequence_id_;
+  }
 
   // Persistent pid/tid for this packet sequence (set by ThreadDescriptor).
   // Carried across every transition (including SEQ_INCREMENTAL_STATE_CLEARED).
@@ -181,10 +187,12 @@ class PacketSequenceStateGeneration : public RefCounted {
   StringPool::Id InternAndCacheStringValue(InternedMessageView* view);
 
   PacketSequenceStateGeneration(
+      uint32_t trusted_packet_sequence_id,
       RefPtr<IncrementalState> incremental_state,
       std::optional<InternedMessageView> trace_packet_defaults,
       bool is_incremental_state_valid)
-      : incremental_state_(std::move(incremental_state)),
+      : trusted_packet_sequence_id_(trusted_packet_sequence_id),
+        incremental_state_(std::move(incremental_state)),
         trace_packet_defaults_(std::move(trace_packet_defaults)),
         is_incremental_state_valid_(is_incremental_state_valid) {}
 
@@ -195,6 +203,8 @@ class PacketSequenceStateGeneration : public RefCounted {
   void InternMessage(uint32_t field_id, TraceBlobView message) {
     incremental_state_->InternMessage(field_id, std::move(message));
   }
+
+  uint32_t trusted_packet_sequence_id_;
 
   // Shared with sibling generations within the same incremental-state
   // interval (one new IncrementalState is constructed on

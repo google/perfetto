@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/android_input_event_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/protolog_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/shell_transitions_parser.h"
@@ -32,7 +33,6 @@
 #include "src/trace_processor/plugins/winscope_importer/viewcapture_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_context.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor {
 

@@ -23,7 +23,9 @@ namespace base {
 // On Linux/Android/Mac: installs SIGINT + SIGTERM signal handlers.
 // On Windows: installs a SetConsoleCtrlHandler() handler.
 // The passed handler must be async safe.
-using CtrlCHandlerFunction = void (*)();
+// The handler receives the signal number as parameter- SIGINT/SIGTERM on Linux
+// and 0 on windows.
+using CtrlCHandlerFunction = void (*)(int /*signal*/);
 void InstallCtrlCHandler(CtrlCHandlerFunction);
 
 }  // namespace base

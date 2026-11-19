@@ -58,8 +58,8 @@ export default class implements PerfettoPlugin {
        SELECT
          frame_id,
          ts,
-         (ts_end - ts) AS dur
-       FROM _extended_frame_boundary`;
+         dur
+       FROM android_cuj_frame_boundaries`;
 
     return {
       data: {

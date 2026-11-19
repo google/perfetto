@@ -122,8 +122,9 @@ class LocalPresetStore {
   update(id: string, details: PresetDetails): void {
     const presets = this.list();
     const idx = presets.findIndex((p) => p.id === id);
-    if (idx < 0) return;
-    presets[idx] = {...presets[idx], ...details};
+    const existing = presets[idx];
+    if (existing === undefined) return;
+    presets[idx] = {...existing, ...details};
     this.write(presets);
   }
 

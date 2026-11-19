@@ -177,6 +177,13 @@
 "ftrace_cpu_read_events_end",7,"info","trace",39240
 "traced_buf_abi_violations",0,"data_loss","trace",0
 "traced_buf_buffer_size",0,"info","trace",0
+"traced_buf_buffer_type",0,"info","trace",0
+"traced_buf_bundles_overwritten",0,"info","trace",0
+"traced_buf_bundles_too_large",0,"data_loss","trace",0
+"traced_buf_bundles_written",0,"info","trace",0
+"traced_buf_bundling_max_us",0,"info","trace",0
+"traced_buf_bundling_passes",0,"info","trace",0
+"traced_buf_bundling_time_us",0,"info","trace",0
 "traced_buf_bytes_overwritten",0,"info","trace",0
 "traced_buf_bytes_read",0,"info","trace",0
 "traced_buf_bytes_written",0,"info","trace",18780240
@@ -189,6 +196,7 @@
 "traced_buf_chunks_written",0,"info","trace",4603
 "traced_buf_compactions",0,"info","trace",0
 "traced_buf_compactions_skipped",0,"info","trace",0
+"traced_buf_compressed_bytes_written",0,"info","trace",0
 "traced_buf_oversized_packets_dropped",0,"data_loss","trace",0
 "traced_buf_padding_bytes_cleared",0,"info","trace",0
 "traced_buf_padding_bytes_written",0,"info","trace",0
@@ -196,5 +204,8 @@
 "traced_buf_patches_succeeded",0,"info","trace",8215
 "traced_buf_readaheads_failed",0,"info","trace",0
 "traced_buf_readaheads_succeeded",0,"info","trace",0
+"traced_buf_staging_space_passes",0,"info","trace",0
 "traced_buf_trace_writer_packet_loss",0,"data_loss","trace",0
+"traced_buf_uncompressed_bytes_overwritten",0,"info","trace",0
+"traced_buf_uncompressed_bytes_written",0,"info","trace",0
 "traced_buf_write_wrap_count",0,"info","trace",0

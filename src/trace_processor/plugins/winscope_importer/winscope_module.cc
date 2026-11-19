@@ -28,10 +28,10 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/winscope/frameworks_base_winscope.pbzero.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/frameworks_native_winscope.pbzero.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/plugins/winscope_importer/shell_transitions_tracker.h"
@@ -198,15 +198,15 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
-                    *trace_processor_context->process_tracker);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::InputMethodClientsTable::Name()),
-                                nullptr /* parse all fields */, writer);
+                                nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_inputmethod_clients_parse_errors);
@@ -228,15 +228,15 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
                    ->Insert(row)
                    .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
-                    *trace_processor_context->process_tracker);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
           tables::InputMethodManagerServiceTable::Name()),
-      nullptr /* parse all fields */, writer);
+      nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_inputmethod_manager_service_parse_errors);
@@ -257,15 +257,15 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  ArgsTracker tracker(trace_processor_context);
-  auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage,
-                    *trace_processor_context->process_tracker);
+  auto inserter = trace_processor_context->args_tracker->AddArgsTo(rowId);
+  util::ProtoArgsEnv env(timestamp,
+                         trace_processor_context->process_tracker.get());
+  ArgsInserterSink writer(inserter);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::InputMethodServiceTable::Name()),
-                                nullptr /* parse all fields */, writer);
+                                nullptr /* parse all fields */, env, writer);
   if (!status.ok()) {
     trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_inputmethod_service_parse_errors);
