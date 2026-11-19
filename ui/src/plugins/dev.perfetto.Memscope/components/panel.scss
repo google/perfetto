@@ -90,3 +90,14 @@
   padding: 32px 0;
   text-align: center;
 }
+
+// Panels side by side, falling back to one column when there isn't room.
+.pf-memscope-panel-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 12px;
+
+  > * {
+    min-width: 0;
+  }
+}

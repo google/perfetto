@@ -417,6 +417,8 @@ export interface ProcessesTabAttrs {
   readonly session?: LiveSession;
   // Buttons shown on each process row, e.g. to open or profile it.
   readonly rowActions?: (p: ProcessMemoryRow) => m.Children;
+  // A panel shown beside the chart.
+  readonly companion?: m.Children;
 }
 
 export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
@@ -501,6 +503,104 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     const totalFileKb = latestProcesses.reduce((s, p) => s + p.fileKb, 0);
     const totalDmabufKb = latestProcesses.reduce((s, p) => s + p.dmabufKb, 0);
 
+    const chartPanel = m(
+      '.pf-memscope-panel',
+      m(
+        '.pf-memscope-panel__header',
+        m(
+          '.pf-memscope-panel__title-row',
+          isDrilledDown &&
+            m(Button, {
+              variant: ButtonVariant.Filled,
+              icon: 'arrow_back',
+              label:
+                this.grouping === 'category'
+                  ? 'All categories'
+                  : 'All OOM buckets',
+              minimal: true,
+              onclick: () => {
+                this.selectedCategory = undefined;
+                this.selectedOomBucket = undefined;
+              },
+            }),
+          m('h2', title),
+          m(HelpTooltip, {
+            content: m.fragment({}, [
+              m('div', [
+                'Stacked memory per process (or per category / OOM bucket). ' +
+                  'Totals may exceed actual usage because RSS counts shared ' +
+                  'pages (COW, mmap) in every process that maps them.',
+              ]),
+              m('div', [
+                'Source: linux.process_stats data source (traced_probes) polling ' +
+                  '/proc/<pid>/status, /proc/<pid>/dmabuf_rss, /proc/<pid>/oom_score_adj ' +
+                  'and /proc/<pid>/stat.',
+              ]),
+            ]),
+          }),
+          m(
+            '.pf-memscope-panel__controls',
+            m(
+              RadioGroup,
+              {
+                intent: Intent.Primary,
+                selectedValue: this.grouping,
+                onValueChange: (value) => {
+                  const g = value as ProcessGrouping;
+                  if (g === this.grouping) return;
+                  this.grouping = g;
+                  this.selectedCategory = undefined;
+                  this.selectedOomBucket = undefined;
+                },
+              },
+              m(RadioGroup.Button, {value: 'category'}, 'By Category'),
+              m(RadioGroup.Button, {value: 'oom_score'}, 'By OOM Score'),
+            ),
+            m(
+              RadioGroup,
+              {
+                intent: Intent.Primary,
+                selectedValue: this.metric,
+                onValueChange: (value) => {
+                  const newMetric = value as ProcessMetric;
+                  if (newMetric === this.metric) return;
+                  this.metric = newMetric;
+                  this.selectedCategory = undefined;
+                  this.selectedOomBucket = undefined;
+                },
+              },
+              PROCESS_METRIC_OPTIONS.map((o) =>
+                m(RadioGroup.Button, {value: o.key}, o.label),
+              ),
+            ),
+          ),
+        ),
+      ),
+      m(
+        '.pf-memscope-panel__body',
+        chartData
+          ? m(LineChartSvg, {
+              data: chartData,
+              height: 350,
+              showLegend: true,
+              showPoints: false,
+              stacked: true,
+              gridLines: 'both',
+              xAxisMin: xWindow.min,
+              xAxisMax: xWindow.max,
+              // Show time relative to the latest sample: 0s on the right,
+              // -60s on the left.
+              formatXValue: formatX,
+              formatYValue: (v: number) => formatBytesIec(v * 1024),
+              yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
+              onSeriesClick: isDrilledDown
+                ? undefined
+                : (seriesName: string) => this.onSeriesClick(seriesName),
+            })
+          : noData(live),
+      ),
+    );
+
     return m.fragment({}, [
       latestProcesses.length > 0 &&
         m(
@@ -521,103 +621,9 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             desc: 'Sum of DMA-BUF heap RSS across all processes',
           }),
         ),
-      m(
-        '.pf-memscope-panel',
-        m(
-          '.pf-memscope-panel__header',
-          m(
-            '.pf-memscope-panel__title-row',
-            isDrilledDown &&
-              m(Button, {
-                variant: ButtonVariant.Filled,
-                icon: 'arrow_back',
-                label:
-                  this.grouping === 'category'
-                    ? 'All categories'
-                    : 'All OOM buckets',
-                minimal: true,
-                onclick: () => {
-                  this.selectedCategory = undefined;
-                  this.selectedOomBucket = undefined;
-                },
-              }),
-            m('h2', title),
-            m(HelpTooltip, {
-              content: m.fragment({}, [
-                m('div', [
-                  'Stacked memory per process (or per category / OOM bucket). ' +
-                    'Totals may exceed actual usage because RSS counts shared ' +
-                    'pages (COW, mmap) in every process that maps them.',
-                ]),
-                m('div', [
-                  'Source: linux.process_stats data source (traced_probes) polling ' +
-                    '/proc/<pid>/status, /proc/<pid>/dmabuf_rss, /proc/<pid>/oom_score_adj ' +
-                    'and /proc/<pid>/stat.',
-                ]),
-              ]),
-            }),
-            m(
-              '.pf-memscope-panel__controls',
-              m(
-                RadioGroup,
-                {
-                  intent: Intent.Primary,
-                  selectedValue: this.grouping,
-                  onValueChange: (value) => {
-                    const g = value as ProcessGrouping;
-                    if (g === this.grouping) return;
-                    this.grouping = g;
-                    this.selectedCategory = undefined;
-                    this.selectedOomBucket = undefined;
-                  },
-                },
-                m(RadioGroup.Button, {value: 'category'}, 'By Category'),
-                m(RadioGroup.Button, {value: 'oom_score'}, 'By OOM Score'),
-              ),
-              m(
-                RadioGroup,
-                {
-                  intent: Intent.Primary,
-                  selectedValue: this.metric,
-                  onValueChange: (value) => {
-                    const newMetric = value as ProcessMetric;
-                    if (newMetric === this.metric) return;
-                    this.metric = newMetric;
-                    this.selectedCategory = undefined;
-                    this.selectedOomBucket = undefined;
-                  },
-                },
-                PROCESS_METRIC_OPTIONS.map((o) =>
-                  m(RadioGroup.Button, {value: o.key}, o.label),
-                ),
-              ),
-            ),
-          ),
-        ),
-        m(
-          '.pf-memscope-panel__body',
-          chartData
-            ? m(LineChartSvg, {
-                data: chartData,
-                height: 350,
-                showLegend: true,
-                showPoints: false,
-                stacked: true,
-                gridLines: 'both',
-                xAxisMin: xWindow.min,
-                xAxisMax: xWindow.max,
-                // Show time relative to the latest sample: 0s on the right,
-                // -60s on the left.
-                formatXValue: formatX,
-                formatYValue: (v: number) => formatBytesIec(v * 1024),
-                yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
-                onSeriesClick: isDrilledDown
-                  ? undefined
-                  : (seriesName: string) => this.onSeriesClick(seriesName),
-              })
-            : noData(live),
-        ),
-      ),
+      attrs.companion === undefined
+        ? chartPanel
+        : m('.pf-memscope-panel-row', attrs.companion, chartPanel),
       m(
         '.pf-memscope-panel',
         m(ProcessTable, {

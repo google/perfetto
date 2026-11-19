@@ -44,7 +44,11 @@ import {
   SessionPill,
 } from './live_chrome';
 import {ProcessesTab} from './processes_table';
-import {renderSystemSummary} from './system_summary';
+import {
+  renderSystemBillboards,
+  renderSystemChart,
+  renderSystemSummary,
+} from './system_summary';
 
 interface ProcessRow {
   readonly info: ProcessInfo;
@@ -192,11 +196,12 @@ export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
     data: SnapshotData,
   ): m.Children {
     return [
-      renderSystemSummary(data, true, SYSTEM_CHART_HEIGHT),
+      renderSystemBillboards(data),
       m(ProcessesTab, {
         app: attrs.app,
         data,
         session: attrs.session,
+        companion: renderSystemChart(data, true, 350),
         rowActions: (p) =>
           m(Button, {
             label: 'Open',
@@ -281,22 +286,25 @@ export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
         }),
       ),
       m(
-        Panel,
-        m(Panel.Header, {
-          title: 'Memory breakdown',
-          help:
-            'RSS Anon + Swap, file-backed and DMA-BUF memory, stacked. ' +
-            'Source: linux.process_stats polling /proc/<pid>/status.',
-        }),
+        '.pf-memscope-panel-row',
         m(
-          Panel.Body,
-          chart(buildProcessMemoryBreakdown(data, proc.pid, data.ts0), true),
+          Panel,
+          m(Panel.Header, {
+            title: 'Memory breakdown',
+            help:
+              'RSS Anon + Swap, file-backed and DMA-BUF memory, stacked. ' +
+              'Source: linux.process_stats polling /proc/<pid>/status.',
+          }),
+          m(
+            Panel.Body,
+            chart(buildProcessMemoryBreakdown(data, proc.pid, data.ts0), true),
+          ),
         ),
-      ),
-      m(
-        Panel,
-        m(Panel.Header, {title: 'Memory counters'}),
-        m(Panel.Body, chart(buildCounterChart(data, upid), false)),
+        m(
+          Panel,
+          m(Panel.Header, {title: 'Memory counters'}),
+          m(Panel.Body, chart(buildCounterChart(data, upid), false)),
+        ),
       ),
       m(
         Panel,
