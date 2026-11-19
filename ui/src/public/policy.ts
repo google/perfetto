@@ -29,8 +29,4 @@ export interface Policy {
 
   // Where bug reports are filed, e.g. the GitHub issue tracker.
   readonly bugReportUrl: string;
-
-  // Show links that only work for Googlers, such as the Perfetto SQL agent on
-  // the query page.
-  readonly showInternalExperimentalLinks: boolean;
 }

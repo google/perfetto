@@ -26,7 +26,10 @@ import type {Setting} from '../public/settings';
 import type {TraceStream} from '../public/stream';
 import type {DurationPrecision, TimestampFormat} from '../public/timeline';
 import type {NewEngineMode} from '../trace_processor/engine';
-import {type AnalyticsInternal, initAnalytics} from './analytics_impl';
+import {
+  type AnalyticsInternal,
+  initAnalytics,
+} from './analytics/analytics_impl';
 import {
   type CommandInvocation,
   CommandManagerImpl,
@@ -62,7 +65,6 @@ function derivePolicy(isInternalUser: boolean): Policy {
     bugReportUrl: isInternalUser
       ? 'https://goto.google.com/perfetto-ui-bug'
       : 'https://github.com/google/perfetto/issues/new',
-    showInternalExperimentalLinks: isInternalUser,
   };
 }
 

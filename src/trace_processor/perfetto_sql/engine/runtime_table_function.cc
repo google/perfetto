@@ -41,11 +41,6 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-void ResetStatement(sqlite3_stmt* stmt) {
-  sqlite3_reset(stmt);
-  sqlite3_clear_bindings(stmt);
-}
-
 auto CreateTableStrFromState(RuntimeTableFunctionModule::State* state) {
   std::vector<std::string> columns;
   columns.reserve(state->return_values.size());
@@ -168,7 +163,7 @@ int RuntimeTableFunctionModule::Close(sqlite3_vtab_cursor* cursor) {
   std::unique_ptr<Cursor> c(GetCursor(cursor));
   auto* t = GetVtab(c->pVtab);
   if (!t->reusable_stmt && c->stmt) {
-    ResetStatement(c->stmt->sqlite_stmt());
+    c->stmt->Reset();
     t->reusable_stmt = std::move(c->stmt);
   }
   return SQLITE_OK;
@@ -197,7 +192,7 @@ int RuntimeTableFunctionModule::Filter(sqlite3_vtab_cursor* cur,
     // Filter can be called multiple times for the same cursor, so if we
     // already have a statement, reset and reuse it. Otherwise, create a
     // new one.
-    ResetStatement(c->stmt->sqlite_stmt());
+    c->stmt->Reset();
   } else {
     auto stmt =
         s->connection->sqlite_connection()->PrepareStatement(s->sql_defn_str);

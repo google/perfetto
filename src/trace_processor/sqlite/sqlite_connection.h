@@ -63,6 +63,10 @@ class SqliteConnection {
     bool Step();
     bool IsDone() const;
 
+    // Resets the statement so it can run again: rewinds it, clears its
+    // bindings, and forgets the error of the last run.
+    void Reset();
+
     const char* original_sql() const;
 
     // Computed and cached on first call.

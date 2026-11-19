@@ -21,6 +21,7 @@ export interface WorkspaceManager {
   readonly currentWorkspace: Workspace;
   readonly all: ReadonlyArray<Workspace>;
   createEmptyWorkspace(displayName: string, id?: string): Workspace;
+  removeWorkspace(workspace: Workspace): void;
   switchWorkspace(workspace: Workspace): void;
 }
 

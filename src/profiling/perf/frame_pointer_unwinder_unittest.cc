@@ -17,17 +17,9 @@
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
 #include <sys/mman.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineX86_64.h>
-#include <unwindstack/RegsArm.h>
-#include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/cpu_registers.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -110,14 +102,14 @@ class FramePointerUnwinderTest : public ::testing::Test {
 };
 
 TEST_F(FramePointerUnwinderTest, UnwindUnsupportedArch) {
-  unwindstack::RegsX86 regs_x86;
+  CpuRegisters regs_x86(CpuArch::X86);
   FramePointerUnwinder unwinder_x86(kMaxFrames, maps_.get(), &regs_x86,
                                     process_memory_, kStackSize);
   unwinder_x86.Unwind();
   EXPECT_EQ(unwinder_x86.LastErrorCode(),
             unwindstack::ErrorCode::ERROR_UNSUPPORTED);
 
-  unwindstack::RegsArm regs_arm;
+  CpuRegisters regs_arm(CpuArch::ARM);
   FramePointerUnwinder unwinder_arm(kMaxFrames, maps_.get(), &regs_arm,
                                     process_memory_, kStackSize);
   unwinder_arm.Unwind();
@@ -127,7 +119,7 @@ TEST_F(FramePointerUnwinderTest, UnwindUnsupportedArch) {
 
 TEST_F(FramePointerUnwinderTest, UnwindInvalidMaps) {
   // Set up a valid stack frame
-  unwindstack::RegsX86_64 regs;
+  CpuRegisters regs(CpuArch::X86_64);
   regs.set_pc(0x1000);
   regs.set_sp(0x2000);
   memory_fake_->SetData64(0x2000, 0x3000);
@@ -150,10 +142,10 @@ TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
   maps_->Add(0x1000, 0x12000, 0, PROT_READ | PROT_WRITE, "libmock.so");
 
   {
-    unwindstack::RegsX86_64 regs_x86_64;
+    CpuRegisters regs_x86_64(CpuArch::X86_64);
     regs_x86_64.set_pc(0x1900);
     regs_x86_64.set_sp(0x1800);
-    regs_x86_64[unwindstack::X86_64_REG_RBP] = 0x2000;
+    regs_x86_64[X86_64_REG_RBP] = 0x2000;
 
     FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs_x86_64,
                                   process_memory_, kStackSize);
@@ -163,10 +155,10 @@ TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
   }
 
   {
-    unwindstack::RegsArm64 regs_arm64;
+    CpuRegisters regs_arm64(CpuArch::ARM64);
     regs_arm64.set_pc(0x1900);
     regs_arm64.set_sp(0x1800);
-    regs_arm64[unwindstack::ARM64_REG_R29] = 0x2000;
+    regs_arm64[ARM64_REG_X29] = 0x2000;
 
     FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs_arm64,
                                   process_memory_, kStackSize);

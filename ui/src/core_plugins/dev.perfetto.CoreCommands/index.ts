@@ -1035,6 +1035,10 @@ function onInputElementFileSelectionChanged(e: Event) {
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Open trace from file',
+  });
   openTraceFiles(files);
 }
