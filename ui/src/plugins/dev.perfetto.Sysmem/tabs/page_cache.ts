@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {noData, xAxisFor} from '../chart_axis';
+import {noData, xAxisFor} from '../../dev.perfetto.Memscope/live';
 import {
   LineChartSvg,
   type LineChartData,

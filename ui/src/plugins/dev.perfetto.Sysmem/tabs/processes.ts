@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {App} from '../../../public/app';
-import {noData, xAxisFor} from '../chart_axis';
+import {noData, xAxisFor} from '../../dev.perfetto.Memscope/live';
 import {openInMemscopeButton} from '../open_in_memscope';
 import {
   LineChartSvg,

@@ -37,3 +37,5 @@ export {HelpTooltip} from './components/help_tooltip';
 export {Page} from './components/page';
 export {Panel} from './components/panel';
 export {PreviewBanner} from './components/preview_banner';
+export {noData, xAxisFor} from './views/chart_axis';
+export {renderSystemSummary} from './views/system_summary';

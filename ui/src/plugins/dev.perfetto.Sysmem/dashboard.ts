@@ -23,13 +23,13 @@ import {
   type LiveSessionAttrs,
   Page,
   PreviewBanner,
+  renderSystemSummary,
   SessionPill,
   type SnapshotData,
 } from '../dev.perfetto.Memscope/live';
 import {renderPageCacheTab} from './tabs/page_cache';
 import {renderPressureSwapTab} from './tabs/pressure_swap';
 import {ProcessesTab} from './tabs/processes';
-import {renderSystemTab} from './tabs/system';
 
 type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
 
@@ -117,7 +117,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const live = session !== undefined;
     return [
       this.activeTab === 'processes' && m(ProcessesTab, {app, data, session}),
-      this.activeTab === 'system' && renderSystemTab(data, live),
+      this.activeTab === 'system' && renderSystemSummary(data, live),
       this.activeTab === 'file_cache' && renderPageCacheTab(data, live),
       this.activeTab === 'pressure_swap' &&
         renderPressureSwapTab(app, data, live),

@@ -13,21 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {noData, xAxisFor} from '../chart_axis';
+import {noData, xAxisFor} from './chart_axis';
 import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
 } from '../../../components/widgets/charts_svg/line_chart_svg';
-import type {SnapshotData} from '../../dev.perfetto.Memscope/live';
-import {
-  billboardBytes,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../../dev.perfetto.Memscope/live';
+import type {SnapshotData} from '../sessions/live_session';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../utils';
 import {formatBytesIec} from '../../../base/bytes_format';
-import {Billboard, BillboardStrip} from '../../dev.perfetto.Memscope/live';
-import {Panel} from '../../dev.perfetto.Memscope/live';
+import {Billboard, BillboardStrip} from '../components/billboard';
+import {Panel} from '../components/panel';
 
 /** System memory breakdown from /proc/meminfo, partitioning MemTotal. */
 function buildSystemTimeSeries(
@@ -192,9 +188,12 @@ function buildSystemBillboards(
   };
 }
 
-export function renderSystemTab(
+// Device-wide memory: Sysmem's System tab, and context on Memscope's live
+// page (with a shorter chart).
+export function renderSystemSummary(
   data: SnapshotData | undefined,
   live: boolean,
+  chartHeight = 400,
 ): m.Children {
   if (!data) return null;
 
@@ -255,7 +254,7 @@ export function renderSystemTab(
         chartData
           ? m(LineChartSvg, {
               data: chartData,
-              height: 400,
+              height: chartHeight,
               showLegend: true,
               showPoints: false,
               stacked: true,

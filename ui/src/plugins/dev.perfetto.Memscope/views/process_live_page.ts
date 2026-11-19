@@ -45,6 +45,7 @@ import {
   type LiveSessionAttrs,
   SessionPill,
 } from './live_chrome';
+import {renderSystemSummary} from './system_summary';
 
 interface ProcessRow {
   readonly info: ProcessInfo;
@@ -88,6 +89,9 @@ function buildCounterChart(
   }
   return series.length > 0 ? {series} : undefined;
 }
+
+// Device context is secondary to the process, so its chart is shorter.
+const SYSTEM_CHART_HEIGHT = 220;
 
 export interface ProcessLivePageAttrs extends LiveSessionAttrs {
   // The process named by the route's `process` arg, if any.
@@ -196,6 +200,16 @@ export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
         r.info.processName.toLowerCase().includes(needle) ||
         `${r.info.pid}`.includes(needle),
     );
+    return [
+      renderSystemSummary(data, true, SYSTEM_CHART_HEIGHT),
+      this.renderProcessTable(attrs, rows),
+    ];
+  }
+
+  private renderProcessTable(
+    attrs: ProcessLivePageAttrs,
+    rows: ProcessRow[],
+  ): m.Children {
     return m(
       Panel,
       m(Panel.Header, {
@@ -346,6 +360,7 @@ export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
               ),
         ),
       ),
+      renderSystemSummary(data, true, SYSTEM_CHART_HEIGHT),
     ];
   }
 }

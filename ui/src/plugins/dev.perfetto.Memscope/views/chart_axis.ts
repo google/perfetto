@@ -13,11 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  chartXWindow,
-  formatRelativeXValue,
-  type SnapshotData,
-} from '../dev.perfetto.Memscope/live';
+import type {SnapshotData} from '../sessions/live_session';
+import {chartXWindow, formatRelativeXValue} from '../utils';
 
 // Live charts show a sliding window ending at the latest sample; a loaded
 // trace is shown whole, with time relative to the trace start.
