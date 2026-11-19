@@ -47,6 +47,9 @@ packet {
       cur_process_group: PROCESS_GROUP_FOREGROUND
       reason: 3
       seq_id: 10
+      cpu_time_reasons: 0
+      implicit_cpu_time_reasons: 0
+      freeze_policy_flags: 0
     }
   }
 }
@@ -88,6 +91,9 @@ packet {
       cur_process_group: PROCESS_GROUP_BACKGROUND
       reason: 4
       seq_id: 11
+      cpu_time_reasons: 5
+      implicit_cpu_time_reasons: 2
+      freeze_policy_flags: 11
     }
   }
 }

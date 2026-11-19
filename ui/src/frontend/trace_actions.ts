@@ -32,7 +32,11 @@ import {ensureExists, assertIsArrayBufferView} from '../base/assert';
 const TRACE_SUFFIX = '.perfetto-trace';
 
 export async function convertTraceToSystrace(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Convert to .systrace',
+  });
   const file = await trace.getTraceFile();
   const result = await convertTrace(file, {
     format: 'systrace',
@@ -46,7 +50,11 @@ export async function convertTraceToSystrace(trace: Trace): Promise<void> {
 }
 
 export async function convertTraceToJson(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Convert to .json',
+  });
   const file = await trace.getTraceFile();
   const result = await convertTrace(file, {
     format: 'json',
@@ -61,7 +69,11 @@ export async function convertTraceToJson(trace: Trace): Promise<void> {
 
 export async function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Download trace',
+  });
 
   const src = trace.traceInfo.source;
   const filePickerAcceptTypes = [
@@ -112,7 +124,11 @@ export async function downloadTrace(trace: TraceImpl) {
 }
 
 function recordMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Record metatrace',
+  });
 
   const highPrecisionTimersAvailable =
     window.crossOriginIsolated || engine.mode === 'HTTP_RPC';
@@ -158,7 +174,11 @@ export async function toggleMetatrace(e: Engine) {
 }
 
 async function finaliseMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Finalise metatrace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Finalise metatrace',
+  });
 
   const jsEvents = disableMetatracingAndGetTrace();
 

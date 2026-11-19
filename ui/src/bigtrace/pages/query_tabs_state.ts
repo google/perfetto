@@ -28,13 +28,16 @@ import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {convertFromWireValues} from '../settings/tab_bound_setting';
+import {channelStorageKey} from '../settings/release_channel';
 import type {DateFilterState} from '../query/date_filter';
 import {
   formatSharedTraceListSql,
   type SharedTraceList,
 } from './shared_trace_list';
 
-const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
+// Per release channel: each runs a different build and can have its own
+// backend, which holds the tab's run.
+const QUERY_TABS_STORAGE_KEY = channelStorageKey('bigtraceQueryTabs');
 const DEFAULT_SQL = '';
 
 export const DEFAULT_ROW_LIMIT = 10_000;

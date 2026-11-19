@@ -16,13 +16,13 @@
 -- Query helpers backing the experimental_flamegraph table function for heap
 -- graph dumps.
 
-INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree;
 
 -- Expands the heap graph dump at (upid, ts) into its shortest-path object
 -- tree and produces one frame row per object: name, mapping, and the value
 -- columns (count, size, alloc_count, alloc_size) which the flamegraph
 -- pipeline aggregates into self_*/cumulative_* output pairs. The BFS tree is
--- the stdlib's canonical _heap_graph_object_min_depth_tree; the class tree
+-- the stdlib's canonical heap_graph_shortest_path_tree; the class tree
 -- module aggregates differently (path hashes keyed on heap type and root
 -- type, no root suffix in names), so the frames are built here to preserve
 -- the experimental_flamegraph output shape. Object ids are doubled so
@@ -37,7 +37,7 @@ AS (
   WITH
     tree AS MATERIALIZED (
       SELECT t.id, t.parent_id
-      FROM _heap_graph_object_min_depth_tree AS t
+      FROM heap_graph_shortest_path_tree AS t
       JOIN heap_graph_object AS o USING (id)
       WHERE o.upid = $upid AND o.graph_sample_ts = $ts
       UNION ALL
@@ -48,7 +48,7 @@ AS (
       WHERE o.upid = $upid AND o.graph_sample_ts = $ts
         AND o.root_type IS NOT NULL
         AND NOT EXISTS (
-          SELECT 1 FROM _heap_graph_object_min_depth_tree AS t WHERE t.id = o.id
+          SELECT 1 FROM heap_graph_shortest_path_tree AS t WHERE t.id = o.id
         )
     ),
     frames AS MATERIALIZED (

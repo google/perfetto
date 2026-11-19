@@ -20,6 +20,11 @@ import type {ShareState, UploadState} from './views/share_form';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
+// Custom MIME type registered under "Default MIME types" in the GCP project's
+// Drive UI Integration settings so uploaded traces appear under "Open with
+// Perfetto" in Drive regardless of their filename or extension.
+const PERFETTO_TRACE_MIME_TYPE = 'application/vnd.perfetto.trace';
+
 // The actions behind the buttons of the "Share to Google Drive" dialog. Each
 // one starts from a click on its button, so the Google popup is allowed, and
 // each is a whole flow, start to finish.
@@ -92,6 +97,7 @@ export async function uploadTraceToGDrive(
       parentId,
       fileName,
       {
+        mimeType: PERFETTO_TRACE_MIME_TYPE,
         signal,
         onProgress: (uploadedBytes, totalBytes) => {
           upload.uploadedBytes = uploadedBytes;
