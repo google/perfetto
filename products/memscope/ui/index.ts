@@ -15,8 +15,8 @@
 // Entry point of the Memscope UI. `ui/build --product memscope` swaps this in
 // for ui/src/core/embedder/product_stub.ts.
 
-import type { Embedder } from "../../../ui/src/core/embedder/embedder";
-import { MemscopeEmbedder } from "./memscope_embedder";
+import type {Embedder} from '../../../ui/src/core/embedder/embedder';
+import {MemscopeEmbedder} from './memscope_embedder';
 
 export const productEmbedder: (() => Embedder) | undefined = () =>
   new MemscopeEmbedder();

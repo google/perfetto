@@ -12,74 +12,74 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from "mithril";
-import "./home_page.scss";
-import { AppImpl } from "../../../ui/src/core/app_impl";
-import { Button, ButtonVariant } from "../../../ui/src/widgets/button";
-import { Icon } from "../../../ui/src/widgets/icon";
-import { Intent } from "../../../ui/src/widgets/common";
-import { memoryExplorerHref } from "../../../ui/src/plugins/dev.perfetto.Memscope/memory_explorer/route";
+import m from 'mithril';
+import './home_page.scss';
+import {AppImpl} from '../../../ui/src/core/app_impl';
+import {Button, ButtonVariant} from '../../../ui/src/widgets/button';
+import {Icon} from '../../../ui/src/widgets/icon';
+import {Intent} from '../../../ui/src/widgets/common';
+import {memoryExplorerHref} from '../../../ui/src/plugins/dev.perfetto.Memscope/memory_explorer/route';
 
-const CLI_EXAMPLE = "memscope record --app com.example.myapp";
+const CLI_EXAMPLE = 'memscope record --app com.example.myapp';
 
 export class MemscopeHomePage implements m.ClassComponent {
   view() {
     const app = AppImpl.instance;
     const trace = app.trace;
     return m(
-      ".pf-memscope-home",
+      '.pf-memscope-home',
       m(
-        ".pf-memscope-home__hero",
-        m(Icon, { icon: "memory", className: "pf-memscope-home__logo" }),
-        m("h1", "Memscope"),
+        '.pf-memscope-home__hero',
+        m(Icon, {icon: 'memory', className: 'pf-memscope-home__logo'}),
+        m('h1', 'Memscope'),
         m(
-          "p.pf-memscope-home__tagline",
+          'p.pf-memscope-home__tagline',
           "Find out where one app's memory goes, live, with an assistant " +
-            "that can take heap dumps and explain them.",
+            'that can take heap dumps and explain them.',
         ),
       ),
       m(
-        ".pf-memscope-home__cards",
+        '.pf-memscope-home__cards',
         m(
-          ".pf-memscope-home__card",
-          m("h2", "Profile an app live"),
+          '.pf-memscope-home__card',
+          m('h2', 'Profile an app live'),
           m(
-            "p",
-            "Connect an Android phone over USB or a Linux machine running " +
-              "traced, pick an app and watch its memory as you use it.",
+            'p',
+            'Connect an Android phone over USB or a Linux machine running ' +
+              'traced, pick an app and watch its memory as you use it.',
           ),
           m(Button, {
-            label: "Connect a device",
-            icon: "usb",
+            label: 'Connect a device',
+            icon: 'usb',
             intent: Intent.Primary,
             variant: ButtonVariant.Filled,
-            onclick: () => app.navigate("#!/memscope"),
+            onclick: () => app.navigate('#!/memscope'),
           }),
         ),
         m(
-          ".pf-memscope-home__card",
-          m("h2", "Open a recording"),
+          '.pf-memscope-home__card',
+          m('h2', 'Open a recording'),
           m(
-            "p",
-            "Open a trace with heap dumps, heap profiles or smaps snapshots, " +
-              "or record one from the command line:",
+            'p',
+            'Open a trace with heap dumps, heap profiles or smaps snapshots, ' +
+              'or record one from the command line:',
           ),
-          m("code.pf-memscope-home__cli", CLI_EXAMPLE),
+          m('code.pf-memscope-home__cli', CLI_EXAMPLE),
           m(Button, {
-            label: "Open trace file",
-            icon: "folder_open",
+            label: 'Open trace file',
+            icon: 'folder_open',
             variant: ButtonVariant.Outlined,
-            onclick: () => app.commands.runCommand("dev.perfetto.OpenTrace"),
+            onclick: () => app.commands.runCommand('dev.perfetto.OpenTrace'),
           }),
         ),
       ),
       trace &&
         m(
-          ".pf-memscope-home__current",
-          m("span", `Loaded: ${trace.traceInfo.traceTitle}`),
+          '.pf-memscope-home__current',
+          m('span', `Loaded: ${trace.traceInfo.traceTitle}`),
           m(Button, {
-            label: "Open Memory Explorer",
-            icon: "arrow_forward",
+            label: 'Open Memory Explorer',
+            icon: 'arrow_forward',
             intent: Intent.Primary,
             onclick: () => app.navigate(memoryExplorerHref()),
           }),

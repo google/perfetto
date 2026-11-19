@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type m from 'mithril';
+import type {App} from '../../public/app';
 
 /**
  * Configuration for an embedder-provided default extension server.
@@ -79,9 +80,32 @@ export interface Embedder {
   // the user cannot enable anything outside the product's scope.
   readonly pluginAllowlist?: ReadonlyArray<string>;
 
-  // Removes the sidebar. A product then navigates with renderTopbarLeft.
-  readonly hideSidebar?: boolean;
-
-  // Renders at the left of the topbar, e.g. a product's brand and tabs.
-  readonly renderTopbarLeft?: () => m.Children;
+  // How the user moves between pages. Defaults to the sidebar.
+  readonly navigation?: Navigation;
 }
+
+/** A top level page in the 'tabs' navigation style. */
+export interface NavTab {
+  readonly label: string;
+  // The route page this tab shows, e.g. '/memory'. The tab is highlighted
+  // while it is the current page.
+  readonly page: string;
+  // Where the tab goes. Defaults to `#!${page}`.
+  readonly href?: () => string;
+  // Whether to show the tab, e.g. only once a trace is loaded.
+  readonly isVisible?: (app: App) => boolean;
+}
+
+/**
+ * The navigation style of the UI:
+ * - 'sidebar': Perfetto's sidebar, filled by plugins.
+ * - 'tabs': no sidebar; a brand that links home and a fixed set of tabs in
+ *   the topbar. Suits products with a handful of pages.
+ */
+export type Navigation =
+  | {readonly kind: 'sidebar'}
+  | {
+      readonly kind: 'tabs';
+      readonly brand: {readonly text: string; readonly icon?: string};
+      readonly tabs: ReadonlyArray<NavTab>;
+    };

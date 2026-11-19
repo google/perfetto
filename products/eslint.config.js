@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Applies the UI's lint rules to products/*/ui, which lives outside ui/.
-const path = require("node:path");
-const uiConfig = require("../ui/eslint.config.js");
+const path = require('node:path');
+const uiConfig = require('../ui/eslint.config.js');
 
 module.exports = uiConfig
   .filter((c) => c.ignores === undefined)
@@ -22,12 +22,12 @@ module.exports = uiConfig
     if (c.files === undefined) return c;
     return {
       ...c,
-      files: ["*/ui/**/*.ts"],
+      files: ['*/ui/**/*.ts'],
       languageOptions: {
         ...c.languageOptions,
         parserOptions: {
           ...c.languageOptions?.parserOptions,
-          project: path.resolve(__dirname, "../ui/tsconfig.json"),
+          project: path.resolve(__dirname, '../ui/tsconfig.json'),
         },
       },
     };

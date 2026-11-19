@@ -156,7 +156,7 @@ export class AppImpl implements App {
       self.location.search.indexOf('testing=1') >= 0;
     this.embedder = createEmbedder();
     this.sidebar = new SidebarManagerImpl({
-      disabled: this.embeddedMode || this.embedder.hideSidebar,
+      disabled: this.embeddedMode || this.embedder.navigation?.kind === 'tabs',
       hidden: this.initialRouteArgs.hideSidebar,
     });
     this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);

@@ -12,38 +12,52 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from "mithril";
-import type { Embedder } from "../../../ui/src/core/embedder/embedder";
-import { MemscopeHomePage } from "./home_page";
-import { renderMemscopeNav } from "./nav";
+import m from 'mithril';
+import type {
+  Embedder,
+  Navigation,
+} from '../../../ui/src/core/embedder/embedder';
+import {MemscopeHomePage} from './home_page';
+import {memoryExplorerHref} from '../../../ui/src/plugins/dev.perfetto.Memscope/memory_explorer/route';
 
 const PLUGINS = [
-  "com.android.HeapDumpExplorer",
-  "dev.perfetto.HeapProfile",
-  "dev.perfetto.Llm",
-  "dev.perfetto.LlmProtocolChromePrompt",
-  "dev.perfetto.LlmProtocolGemini",
-  "dev.perfetto.LlmProtocolOpenAi",
-  "dev.perfetto.Memscope",
-  "dev.perfetto.Process",
-  "dev.perfetto.ProcessThreadGroups",
-  "dev.perfetto.RecordTraceV2",
-  "dev.perfetto.Sched",
-  "dev.perfetto.Smaps",
-  "dev.perfetto.StandardGroups",
-  "dev.perfetto.Thread",
-  "dev.perfetto.TraceProcessorTrack",
+  'com.android.HeapDumpExplorer',
+  'dev.perfetto.HeapProfile',
+  'dev.perfetto.Llm',
+  'dev.perfetto.LlmProtocolChromePrompt',
+  'dev.perfetto.LlmProtocolGemini',
+  'dev.perfetto.LlmProtocolOpenAi',
+  'dev.perfetto.Memscope',
+  'dev.perfetto.Process',
+  'dev.perfetto.ProcessThreadGroups',
+  'dev.perfetto.RecordTraceV2',
+  'dev.perfetto.Sched',
+  'dev.perfetto.Smaps',
+  'dev.perfetto.StandardGroups',
+  'dev.perfetto.Thread',
+  'dev.perfetto.TraceProcessorTrack',
 ];
 
 export class MemscopeEmbedder implements Embedder {
-  readonly productId = "memscope";
-  readonly appTitle = "Memscope";
+  readonly productId = 'memscope';
+  readonly appTitle = 'Memscope';
   readonly analyticsId = undefined;
   readonly extensionServer = undefined;
-  readonly brandingBadge = { text: "Memscope", icon: "memory" };
+  readonly brandingBadge = {text: 'Memscope', icon: 'memory'};
   readonly defaultPlugins = PLUGINS;
   readonly pluginAllowlist = PLUGINS;
   readonly renderHomePage = () => m(MemscopeHomePage);
-  readonly hideSidebar = true;
-  readonly renderTopbarLeft = renderMemscopeNav;
+  readonly navigation: Navigation = {
+    kind: 'tabs',
+    brand: {text: 'Memscope', icon: 'memory'},
+    tabs: [
+      {label: 'Live', page: '/memscope'},
+      {
+        label: 'Memory Explorer',
+        page: '/memory',
+        href: () => memoryExplorerHref(),
+        isVisible: (app) => app.trace !== undefined,
+      },
+    ],
+  };
 }
