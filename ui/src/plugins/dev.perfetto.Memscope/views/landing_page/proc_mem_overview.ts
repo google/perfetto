@@ -32,7 +32,7 @@ import {deltaColor, formatDelta} from './mem_format';
 import {type MemSelection, nearestByTs} from './selection';
 import type {HeapDumpLink} from './section_widgets';
 import {SmapsDetail} from './smaps_detail';
-import {SMAPS_CATEGORIES, SMAPS_CATEGORY_CASE_SQL} from './smaps_categories';
+import {SMAPS_CATEGORIES} from './smaps_categories';
 import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
 import {JavaSection} from './summary/java_section';
@@ -80,14 +80,11 @@ async function loadGrowthData(
     {ts: time; total: number; byCategory: Map<string, number>}
   >();
   const res = await trace.engine.query(`
-    SELECT
-      s.ts AS ts,
-      ${SMAPS_CATEGORY_CASE_SQL} AS category,
-      CAST(ifnull(SUM(s.rss_kb + s.swap_kb), 0) * 1024 AS INT) AS bytes
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid}
-    GROUP BY s.ts, category
-    ORDER BY s.ts ASC
+    INCLUDE PERFETTO MODULE memscope.smaps;
+    SELECT ts, category, rss_swap_bytes AS bytes
+    FROM memscope_smaps_category_breakdown
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = res.iter({ts: LONG, category: STR, bytes: NUM});

@@ -20,8 +20,26 @@ out/linux_clang_release/memscope record --app com.example.myapp --duration 60s
 
 `record` profiles native allocations for the whole run, takes Java heap dumps
 with smaps spread over it (`--java-dumps`, default 2), and polls process
-memory counters. When it finishes it saves the trace and opens it in the UI.
-`open <trace>` opens an existing trace.
+memory counters. When it finishes it saves the trace, prints a report and
+opens it in the UI. `open <trace>` opens an existing trace.
+
+`report <trace>` prints the numbers the Memory Explorer summary shows: peak
+RSS, memory change and trend, the memory breakdown by category, and the Java
+classes that grew between the first and last heap dump. It picks the process
+with the most memory data, or the one given with `--app` or `--pid`.
+
+## Shared SQL and record config
+
+The analyses behind the summary are the `memscope` PerfettoSQL package in
+`sql/memscope/`. The CLI and the UI both run it, so they report the same
+numbers. Test it with:
+
+```sh
+products/memscope/sql/tests/run_tests.py out/linux_clang_release/trace_processor_shell
+```
+
+`configs/record.pbtx` is the single-app recording config used by both
+`memscope record` and the UI's per-process profile.
 
 Over SSH, the CLI prints the `ssh -L 9001:127.0.0.1:9001` command to run from
 the machine with the browser. To use the UI from

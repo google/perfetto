@@ -26,6 +26,7 @@ import {isDebuggableAndroidBuild} from '../utils';
 import type {ConnectionResult} from '../views/connection';
 import {download} from '../../../base/download_utils';
 import {ProfileSession, type ProfileState} from './profile_session';
+import {MEMSCOPE_SQL_PACKAGE} from '../product_assets';
 
 export interface ProfileView {
   readonly pid: number;
@@ -296,6 +297,7 @@ export class LiveSession {
         ftraceDropUntilAllCpusValid: false,
         forceFullSort: false,
       });
+      await engine.registerSqlPackages(MEMSCOPE_SQL_PACKAGE);
       await engine.parse(cloneResult.value);
       await engine.notifyEof();
       const tParse = performance.now();

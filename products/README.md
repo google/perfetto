@@ -18,6 +18,8 @@ products/<id>/
   run-dev-server   # runs the UI dev server for this product
   cli/             # the command line entry point (C++, built with GN)
   ui/              # the UI shell; ui/index.ts is the entry point
+  sql/<pkg>/       # PerfettoSQL package shared by the CLI and the UI
+  configs/         # trace configs shared by the CLI and the UI
 ```
 
 The plugins that do the product's work stay in `ui/src/plugins/`, so they
@@ -57,3 +59,25 @@ with the UI.
 
 CLIs hand traces to the UI by serving them once on `127.0.0.1:9001`, the only
 port the UI's CSP allows, and opening `<origin>/#!/?url=...`.
+
+## Shared SQL and configs
+
+A product's analyses live in a PerfettoSQL package in `products/<id>/sql/<pkg>`,
+so the CLI and the UI compute the same numbers with the same queries. Module
+names follow the trace processor's convention: `sql/<pkg>/foo/bar.sql` is
+`<pkg>.foo.bar`. The package is not part of the standard library.
+
+`ui/build` bundles every `products/*/sql/<pkg>` and `products/*/configs/*` into
+`ui/src/gen/products_sql.ts`, regenerated on change in watch mode. A plugin
+registers its package with `app.addSqlPackages()` and then queries it with
+`INCLUDE PERFETTO MODULE <pkg>.<module>`.
+
+The CLI embeds the package with the `perfetto_amalgamated_sql_header` GN
+template and registers it with `TraceProcessor::RegisterSqlPackage`. Configs
+are embedded with `perfetto_cpp_blob_header`.
+
+While developing, the package can be loaded into the shell directly:
+
+```sh
+trace_processor_shell --add-sql-package products/memscope/sql/memscope trace
+```

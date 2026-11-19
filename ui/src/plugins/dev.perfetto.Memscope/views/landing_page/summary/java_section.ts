@@ -20,7 +20,12 @@ import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
-import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
@@ -104,39 +109,25 @@ interface JavaData {
 }
 
 async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
-  await trace.engine.query(
-    'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;',
-  );
-  const eventIdByTs = new Map<bigint, number>();
-  const eventRes = await trace.engine.query(`
-    SELECT ts, id AS event_id
-    FROM heap_graph
-    WHERE upid = ${upid}
-  `);
-  for (
-    const it = eventRes.iter({ts: LONG, event_id: NUM});
-    it.valid();
-    it.next()
-  ) {
-    eventIdByTs.set(it.ts, it.event_id);
-  }
-
   const dumps: DumpStats[] = [];
   const statsRes = await trace.engine.query(`
+    INCLUDE PERFETTO MODULE memscope.java;
     SELECT
-      s.graph_sample_ts AS ts,
-      s.total_heap_size AS total_heap_size,
-      s.total_obj_count AS total_obj_count,
-      s.reachable_heap_size AS reachable_heap_size,
-      s.reachable_native_alloc_registry_size AS reachable_native_size,
-      s.reachable_obj_count AS reachable_obj_count
-    FROM android_heap_graph_stats s
-    WHERE s.upid = ${upid}
-    ORDER BY s.graph_sample_ts ASC
+      ts,
+      event_id,
+      total_heap_size,
+      total_obj_count,
+      reachable_heap_size,
+      reachable_native_size,
+      reachable_obj_count
+    FROM memscope_java_dump
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = statsRes.iter({
       ts: LONG,
+      event_id: NUM_NULL,
       total_heap_size: NUM,
       total_obj_count: NUM,
       reachable_heap_size: NUM,
@@ -153,7 +144,7 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
       reachableHeapSize: it.reachable_heap_size,
       reachableNativeSize: it.reachable_native_size,
       reachableObjCount: it.reachable_obj_count,
-      eventId: eventIdByTs.get(it.ts) ?? -1,
+      eventId: it.event_id ?? -1,
     });
   }
   const classesByTs = new Map<bigint, ClassAggRow[]>();
@@ -163,41 +154,21 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
 
   // Top classes (per the three orderings) at every dump, so picking any
   // snapshot (or diffing two) is in-memory.
-  await trace.engine.query(
-    'INCLUDE PERFETTO MODULE ' +
-      'android.memory.heap_graph.heap_graph_class_aggregation;',
-  );
   const aggRes = await trace.engine.query(`
-    WITH ranked AS (
-      SELECT
-        a.*,
-        ROW_NUMBER() OVER (
-          PARTITION BY a.graph_sample_ts
-          ORDER BY a.dominated_size_bytes + a.dominated_native_size_bytes DESC
-        ) AS rn_retained,
-        ROW_NUMBER() OVER (
-          PARTITION BY a.graph_sample_ts
-          ORDER BY a.reachable_size_bytes DESC
-        ) AS rn_shallow,
-        ROW_NUMBER() OVER (
-          PARTITION BY a.graph_sample_ts ORDER BY a.reachable_obj_count DESC
-        ) AS rn_count
-      FROM android_heap_graph_class_aggregation a
-      WHERE a.upid = ${upid}
-    )
+    INCLUDE PERFETTO MODULE memscope.java;
     SELECT
-      r.graph_sample_ts AS ts,
-      ifnull(r.type_name, '[unknown]') AS type_name,
-      r.reachable_obj_count AS reachable_obj_count,
-      r.reachable_size_bytes AS reachable_size_bytes,
-      r.reachable_native_size_bytes AS reachable_native_size_bytes,
-      r.dominated_size_bytes AS dominated_size_bytes,
-      r.dominated_native_size_bytes AS dominated_native_size_bytes,
-      r.rn_retained AS rn_retained,
-      r.rn_shallow AS rn_shallow,
-      r.rn_count AS rn_count
-    FROM ranked r
-    WHERE r.rn_retained <= 8 OR r.rn_shallow <= 8 OR r.rn_count <= 8
+      ts,
+      type_name,
+      reachable_obj_count,
+      reachable_size_bytes,
+      reachable_native_size_bytes,
+      dominated_size_bytes,
+      dominated_native_size_bytes,
+      rn_retained,
+      rn_shallow,
+      rn_count
+    FROM memscope_java_top_class
+    WHERE upid = ${upid}
   `);
   for (
     const it = aggRes.iter({

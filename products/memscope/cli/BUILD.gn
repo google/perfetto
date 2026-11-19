@@ -17,6 +17,14 @@ executable("memscope") {
     "../../../gn:default_deps",
     "../../../src/base",
     "../../../src/base/http",
+    "../../../src/trace_processor",
+    "../../../src/trace_processor/util:sql_bundle",
+    "../configs:record_config",
+    "../sql:amalgamated_memscope_sql",
   ]
-  sources = [ "main.cc" ]
+  sources = [
+    "main.cc",
+    "report.cc",
+    "report.h",
+  ]
 }

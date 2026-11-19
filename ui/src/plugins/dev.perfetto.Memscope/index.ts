@@ -25,6 +25,7 @@ import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
 import {MemoryExplorerPage} from './memory_explorer/page';
+import {MEMSCOPE_SQL_PACKAGE} from './product_assets';
 import {
   MEMORY_EXPLORER_ROUTE,
   memoryExplorerHref,
@@ -44,6 +45,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.hostedElsewhere = true;
+    app.addSqlPackages([MEMSCOPE_SQL_PACKAGE]);
     MemscopePlugin.openByDefaultSetting = app.settings.register({
       id: 'dev.perfetto.OpenMemoryOverviewByDefault',
       name: 'Open Memory Explorer by default',

@@ -34,7 +34,6 @@ import {Ratio} from '../../../components/ratio';
 import {ProgressBar} from '../../../components/progress_bar';
 import {findProcessTrack, showAreaInTimelineLink} from '../process_links';
 import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
-import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
@@ -106,12 +105,10 @@ async function loadNativeData(
   let stackBytes = 0;
   if (snapTs !== null) {
     const catRes = await trace.engine.query(`
-      SELECT
-        ${SMAPS_CATEGORY_CASE_SQL} AS category,
-        CAST(ifnull(SUM(s.anonymous_kb + s.swap_kb), 0) * 1024 AS INT) AS bytes
-      FROM profiler_smaps s
-      WHERE s.upid = ${upid} AND s.ts = ${snapTs}
-      GROUP BY category
+      INCLUDE PERFETTO MODULE memscope.smaps;
+      SELECT category, anon_swap_bytes AS bytes
+      FROM memscope_smaps_category_breakdown
+      WHERE upid = ${upid} AND ts = ${snapTs}
     `);
     for (
       const it = catRes.iter({category: STR, bytes: NUM});

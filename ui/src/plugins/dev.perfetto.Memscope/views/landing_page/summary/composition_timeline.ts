@@ -35,7 +35,7 @@ import {niceKbInterval} from '../../../utils';
 import {deltaText, formatBytes} from '../mem_format';
 import {type MemSelection, nearestByTs} from '../selection';
 import {emptyPanel, loadingPanel} from '../section_widgets';
-import {SMAPS_CATEGORIES, SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
+import {SMAPS_CATEGORIES} from '../smaps_categories';
 
 // One smaps snapshot (a single ts): per-category resident+swap bytes and the
 // total footprint. The x position (seconds from trace start) is precomputed.
@@ -220,14 +220,11 @@ async function loadTimelineData(
 ): Promise<TimelineData> {
   const byTs = new Map<bigint, Map<string, number>>();
   const res = await trace.engine.query(`
-    SELECT
-      s.ts AS ts,
-      ${SMAPS_CATEGORY_CASE_SQL} AS category,
-      CAST(ifnull(SUM(s.rss_kb + s.swap_kb), 0) * 1024 AS INT) AS bytes
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid}
-    GROUP BY s.ts, category
-    ORDER BY s.ts ASC
+    INCLUDE PERFETTO MODULE memscope.smaps;
+    SELECT ts, category, rss_swap_bytes AS bytes
+    FROM memscope_smaps_category_breakdown
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = res.iter({ts: LONG, category: STR, bytes: NUM});

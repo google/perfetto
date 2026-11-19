@@ -32,6 +32,8 @@
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/utils.h"
+#include "products/memscope/cli/report.h"
+#include "products/memscope/configs/record_config.h"
 
 namespace perfetto::memscope {
 namespace {
@@ -50,6 +52,7 @@ struct Options {
   std::string ui = kDefaultUi;
   uint32_t duration_ms = 30000;
   uint32_t java_dumps = 2;
+  std::optional<int64_t> pid;
   bool open_browser = true;
   std::vector<std::string> positional;
 };
@@ -60,6 +63,7 @@ void PrintUsage() {
 Commands:
   record --app <package>   Record the memory of one Android app, then open it.
   open <trace>             Open an existing trace in the Memscope UI.
+  report <trace>           Print the memory summary of one process.
   doctor [--app <package>] Check the device and app can be profiled.
 
 Options:
@@ -70,6 +74,8 @@ Options:
   -o <file>             Where to save the trace (default <package>.pftrace).
   --ui <url>            UI to open (default %s).
   --no-open             Print the URL instead of opening a browser.
+  --pid <pid>           report: the process to summarise (default: --app, or
+                        the process with the most memory data).
 )",
           kDefaultUi);
 }
@@ -109,7 +115,7 @@ std::optional<Options> ParseArgs(int argc, char** argv) {
       return std::string(argv[++i]);
     };
     if (arg == "--app" || arg == "--serial" || arg == "-o" || arg == "--ui" ||
-        arg == "--duration" || arg == "--java-dumps") {
+        arg == "--duration" || arg == "--java-dumps" || arg == "--pid") {
       std::optional<std::string> v = next();
       if (!v)
         return std::nullopt;
@@ -128,6 +134,12 @@ std::optional<Options> ParseArgs(int argc, char** argv) {
           return std::nullopt;
         }
         opts.duration_ms = *ms;
+      } else if (arg == "--pid") {
+        opts.pid = base::StringToInt64(*v);
+        if (!opts.pid) {
+          PERFETTO_ELOG("Invalid --pid: %s", v->c_str());
+          return std::nullopt;
+        }
       } else {
         std::optional<uint32_t> n = base::StringToUInt32(*v);
         if (!n) {
@@ -190,74 +202,37 @@ std::string GetProp(const Options& opts, const std::string& prop) {
   return out ? base::TrimWhitespace(*out) : "";
 }
 
-std::string BuildTraceConfig(const Options& opts) {
-  std::string java_dumps;
-  if (opts.java_dumps > 0) {
-    // Leave time at either end so the first dump sees the app settled and the
-    // last one finishes before the session stops.
-    const uint32_t phase_ms = 2000;
-    std::string continuous;
-    if (opts.java_dumps > 1 && opts.duration_ms > 2 * phase_ms) {
-      uint32_t interval =
-          (opts.duration_ms - 2 * phase_ms) / (opts.java_dumps - 1);
-      continuous =
-          "      continuous_dump_config {\n"
-          "        dump_phase_ms: " +
-          std::to_string(phase_ms) +
-          "\n"
-          "        dump_interval_ms: " +
-          std::to_string(interval) +
-          "\n"
-          "      }\n";
-    }
-    java_dumps = R"(data_sources {
-  config {
-    name: "android.java_hprof"
-    java_hprof_config {
-      process_cmdline: ")" +
-                 opts.app + R"("
-      dump_smaps: true
-)" + continuous +
-                 R"(    }
-  }
+// Removes the "# BEGIN <name>" ... "# END <name>" block from |cfg|.
+void DropBlock(std::string* cfg, const std::string& name) {
+  std::string begin = "# BEGIN " + name + "\n";
+  std::string end = "# END " + name + "\n";
+  size_t b = cfg->find(begin);
+  size_t e = cfg->find(end);
+  PERFETTO_CHECK(b != std::string::npos && e != std::string::npos && b < e);
+  cfg->erase(b, e + end.size() - b);
 }
-)";
-  }
 
-  return R"(buffers { size_kb: 262144 fill_policy: DISCARD }
-buffers { size_kb: 8192 fill_policy: RING_BUFFER }
-duration_ms: )" +
-         std::to_string(opts.duration_ms) + R"(
-data_sources {
-  config {
-    name: "android.heapprofd"
-    target_buffer: 0
-    heapprofd_config {
-      process_cmdline: ")" +
-         opts.app + R"("
-      sampling_interval_bytes: 4096
-      shmem_size_bytes: 8388608
-      block_client: true
-    }
+// Fills the shared products/memscope/configs/record.pbtx template.
+std::string BuildTraceConfig(const Options& opts) {
+  std::string cfg(reinterpret_cast<const char*>(kRecordConfig.data()),
+                  kRecordConfig.size());
+  // Leave time at either end so the first dump sees the app settled and the
+  // last one finishes before the session stops.
+  const uint32_t phase_ms = 2000;
+  if (opts.java_dumps == 0) {
+    DropBlock(&cfg, "java_hprof");
+  } else if (opts.java_dumps > 1 && opts.duration_ms > 2 * phase_ms) {
+    uint32_t interval =
+        (opts.duration_ms - 2 * phase_ms) / (opts.java_dumps - 1);
+    cfg = base::ReplaceAll(cfg, "{{DUMP_PHASE_MS}}", std::to_string(phase_ms));
+    cfg =
+        base::ReplaceAll(cfg, "{{DUMP_INTERVAL_MS}}", std::to_string(interval));
+  } else {
+    DropBlock(&cfg, "java_hprof_continuous");
   }
-}
-data_sources {
-  config {
-    name: "linux.process_stats"
-    target_buffer: 1
-    process_stats_config {
-      scan_all_processes_on_start: true
-      proc_stats_poll_ms: 250
-    }
-  }
-}
-data_sources {
-  config {
-    name: "android.packages_list"
-    target_buffer: 1
-  }
-}
-)" + java_dumps;
+  cfg = base::ReplaceAll(cfg, "{{APP}}", opts.app);
+  return base::ReplaceAll(cfg, "{{DURATION_MS}}",
+                          std::to_string(opts.duration_ms));
 }
 
 // Serves |path| once on 127.0.0.1:kHandoffPort to |origin|, then returns.
@@ -391,6 +366,14 @@ int Doctor(const Options& opts) {
   return problems ? 1 : 0;
 }
 
+int Report(const Options& opts, const std::string& trace) {
+  ReportArgs args;
+  args.trace_path = trace;
+  args.pid = opts.pid;
+  args.app = opts.app;
+  return PrintReport(args);
+}
+
 int Record(Options opts) {
   if (opts.app.empty()) {
     PERFETTO_ELOG("record needs --app <package>");
@@ -411,7 +394,9 @@ int Record(Options opts) {
   if (!Adb(opts, {"pull", kDeviceTracePath, opts.output}))
     return 1;
   Adb(opts, {"shell", "rm", "-f", kDeviceTracePath});
-  printf("Saved %s\n", opts.output.c_str());
+  printf("Saved %s\n\n", opts.output.c_str());
+  Report(opts, opts.output);
+  printf("\n");
   return OpenInUi(opts, opts.output);
 }
 
@@ -425,11 +410,13 @@ int Main(int argc, char** argv) {
     return Record(std::move(*opts));
   if (opts->command == "doctor")
     return Doctor(*opts);
-  if (opts->command == "open") {
+  if (opts->command == "open" || opts->command == "report") {
     if (opts->positional.size() != 1) {
       PrintUsage();
       return 1;
     }
+    if (opts->command == "report")
+      return Report(*opts, opts->positional[0]);
     return OpenInUi(*opts, opts->positional[0]);
   }
   PrintUsage();

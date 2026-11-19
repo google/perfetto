@@ -1,0 +1,17 @@
+"pid","type_name","first_size_bytes","last_size_bytes","delta_size_bytes","delta_obj_count"
+4242,"byte[]",2097152,3145728,1048576,1
+4242,"com.example.demo.LeakyListener",0,80,80,2
+4242,"android.graphics.Bitmap",128,192,64,1
+4242,"java.lang.Object[]",24,28,4,0
+4242,"com.example.demo.ImageCache",32,32,0,0
+4242,"com.example.demo.MainActivity",256,256,0,0
+4242,"java.lang.String",48,48,0,0
+4242,"java.util.ArrayList",24,24,0,0
+5151,"byte[]",16777216,33554432,16777216,4
+5151,"android.graphics.Bitmap",256,512,256,4
+5151,"java.lang.Object[]",32,48,16,0
+5151,"com.example.gallery.ImageCache",32,32,0,0
+5151,"com.example.gallery.LeakyListener",40,40,0,0
+5151,"com.example.gallery.MainActivity",256,256,0,0
+5151,"java.lang.String",48,48,0,0
+5151,"java.util.ArrayList",24,24,0,0
