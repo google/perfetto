@@ -61,8 +61,6 @@ import {
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
 } from '../../dev.perfetto.Memscope/live';
-
-export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
 export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
 
 // Tiny SVG sparkline for the trend column. Min/max are derived from the

@@ -18,10 +18,10 @@
 
 import type {RouteArgs} from '../../public/route_schema';
 
-export const MEMSCOPE_LIVE_ROUTE = '/memscope';
+const MEMSCOPE_LIVE_ROUTE = '/memscope';
 
 // The standalone Memscope product, used when linking from another origin.
-export const MEMSCOPE_PRODUCT_URL = 'https://memscope.perfetto.dev/';
+const MEMSCOPE_PRODUCT_URL = 'https://memscope.perfetto.dev/';
 
 export function processRouteArg(args: RouteArgs): string | undefined {
   const v = args['process'];

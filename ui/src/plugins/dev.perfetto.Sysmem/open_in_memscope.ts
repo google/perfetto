@@ -22,7 +22,7 @@ import {
 
 // In the Perfetto UI Memscope runs alongside Sysmem, so navigate in place.
 // The standalone Sysmem product has no Memscope: open the Memscope product.
-export function openInMemscope(app: App, processName: string): void {
+function openInMemscope(app: App, processName: string): void {
   if (app.productId === undefined) {
     app.navigate(memscopeProcessHref(processName));
   } else {

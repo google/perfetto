@@ -16,30 +16,20 @@
 // device connection, the live monitoring session, per-process heap profiling
 // and the Memscope widget kit.
 
-export {ConnectionPage, type ConnectionResult} from './views/connection';
+export {ConnectionPage} from './views/connection';
 export {
   extractSnapshotData,
   LiveSession,
-  type LmkEvent,
   type ProcessInfo,
-  type ProfileView,
   type SnapshotData,
-  type TsValue,
 } from './sessions/live_session';
-export {ProfileSession, type ProfileState} from './sessions/profile_session';
-export {ProfilePage} from './views/profile_page';
 export {
-  buildProcessMemoryBreakdown,
   LiveProfileView,
   type LiveSessionAttrs,
   SessionPill,
 } from './views/live_chrome';
 export * from './utils';
-export {
-  memscopeProcessHref,
-  memscopeProductProcessUrl,
-  MEMSCOPE_PRODUCT_URL,
-} from './process_focus';
+export {memscopeProcessHref, memscopeProductProcessUrl} from './process_focus';
 export * from './process_data';
 export {Billboard, BillboardStrip} from './components/billboard';
 export {ColorChip, chipColor} from './components/color_chip';

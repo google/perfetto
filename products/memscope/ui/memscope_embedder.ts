@@ -43,7 +43,7 @@ export class MemscopeEmbedder implements Embedder {
   readonly appTitle = 'Memscope';
   readonly analyticsId = undefined;
   readonly extensionServer = undefined;
-  readonly brandingBadge = {text: 'Memscope', icon: 'memory'};
+  readonly brandingBadge = undefined;
   readonly defaultPlugins = PLUGINS;
   readonly pluginAllowlist = PLUGINS;
   readonly renderHomePage = () => m(MemscopeHomePage);

@@ -37,7 +37,7 @@ export class SysmemEmbedder implements Embedder {
   readonly appTitle = 'Sysmem';
   readonly analyticsId = undefined;
   readonly extensionServer = undefined;
-  readonly brandingBadge = {text: 'Sysmem', icon: 'developer_board'};
+  readonly brandingBadge = undefined;
   readonly defaultPlugins = PLUGINS;
   readonly pluginAllowlist = PLUGINS;
   readonly renderHomePage = () => m(SysmemHomePage);
