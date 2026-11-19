@@ -108,9 +108,11 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
       '.pf-topbar',
       {
         className: classNames(
-          !app.sidebar.visible && 'pf-topbar--hide-sidebar',
+          (!app.sidebar.visible || !app.sidebar.enabled) &&
+            'pf-topbar--hide-sidebar',
         ),
       },
+      app.embedder.renderTopbarLeft?.(),
       m(Omnibox, {trace}),
       m(
         '.pf-topbar__right',

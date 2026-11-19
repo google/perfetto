@@ -13,47 +13,48 @@ directory here is one product.
 
 ```
 products/<id>/
-  product.json   # id, title, origin; read by `ui/build --product <id>`
-  README.md      # what the product is and how to use it
-  cli/           # the command line entry point (C++, built with GN)
+  product.json     # id, title, origin; read by `ui/build --product <id>`
+  README.md        # what the product is and how to use it
+  build            # builds the CLI and the UI
+  run-dev-server   # runs the UI dev server for this product
+  cli/             # the command line entry point (C++, built with GN)
+  ui/              # the UI shell; ui/index.ts is the entry point
 ```
 
-The product's UI shell lives in `ui/src/products/<id>/`, because the UI build
-only compiles sources under `ui/src`. It is registered in
-`ui/src/products/index.ts`. The plugins that do the product's work stay in
-`ui/src/plugins/`, so they also run in ui.perfetto.dev.
+The plugins that do the product's work stay in `ui/src/plugins/`, so they
+also run in ui.perfetto.dev. `products/<id>/ui` holds only what makes the
+product a product: its embedder, home page and navigation.
 
 ## UI
 
 A product's UI is an `Embedder` (`ui/src/core/embedder/embedder.ts`) that sets
-the title, the home page and the plugin allowlist. The UI picks the product,
-in order, from:
+the title, home page, plugin allowlist and navigation, and can drop the
+sidebar. `products/<id>/ui/index.ts` exports it as `productEmbedder`.
 
-1. the `<meta name="perfetto-product">` tag written by `ui/build --product <id>`;
-2. the `?product=<id>` query argument, for development;
-3. the `<id>.perfetto.dev` hostname.
+The product is chosen at build time. `ui/build --product <id>` makes Vite
+replace `ui/src/core/embedder/product_stub.ts` with
+`products/<id>/ui/index.ts`; without `--product` the stub exports nothing
+and the UI is the general purpose Perfetto UI.
+
+Product UI code imports the Perfetto UI by relative path
+(`../../../ui/src/...`). Bare imports such as `mithril` resolve through
+`products/node_modules`, a symlink to `ui/node_modules` that `ui/build`
+creates.
 
 To work on a product's UI:
 
 ```sh
-ui/run-dev-server
-# then open http://localhost:10000/?product=memscope
+products/memscope/run-dev-server
 ```
 
-To build it for deployment:
-
-```sh
-ui/build --product memscope
-```
+Each product builds into its own `out/<id>_ui`, so the first run builds the
+Wasm modules from scratch.
 
 ## CLI
 
 A product CLI is a GN `executable` under `products/<id>/cli/`, added to
-`all_targets` in the root `BUILD.gn`:
-
-```sh
-tools/ninja -C out/linux_clang_release memscope
-```
+`all_targets` in the root `BUILD.gn`. `products/<id>/build` builds it along
+with the UI.
 
 CLIs hand traces to the UI by serving them once on `127.0.0.1:9001`, the only
 port the UI's CSP allows, and opening `<origin>/#!/?url=...`.

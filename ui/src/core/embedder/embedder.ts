@@ -78,4 +78,10 @@ export interface Embedder {
   // If set, only these plugins (plus core plugins) are registered at all, so
   // the user cannot enable anything outside the product's scope.
   readonly pluginAllowlist?: ReadonlyArray<string>;
+
+  // Removes the sidebar. A product then navigates with renderTopbarLeft.
+  readonly hideSidebar?: boolean;
+
+  // Renders at the left of the topbar, e.g. a product's brand and tabs.
+  readonly renderTopbarLeft?: () => m.Children;
 }

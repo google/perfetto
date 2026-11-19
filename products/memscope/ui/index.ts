@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {Embedder} from '../core/embedder/embedder';
-import {MemscopeEmbedder} from './memscope/memscope_embedder';
+// Entry point of the Memscope UI. `ui/build --product memscope` swaps this in
+// for ui/src/core/embedder/product_stub.ts.
 
-// Standalone products built from this UI. The key is the product id used by
-// `ui/build --product`, `?product=` and the `<id>.perfetto.dev` hostname.
-export const PRODUCTS: ReadonlyMap<string, () => Embedder> = new Map([
-  ['memscope', () => new MemscopeEmbedder()],
-]);
+import type { Embedder } from "../../../ui/src/core/embedder/embedder";
+import { MemscopeEmbedder } from "./memscope_embedder";
+
+export const productEmbedder: (() => Embedder) | undefined = () =>
+  new MemscopeEmbedder();

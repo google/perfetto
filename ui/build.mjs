@@ -539,14 +539,13 @@ function loadProduct(id) {
   return product;
 }
 
-// Applies --product (title + product meta tag) and --title to index.html.
+// Applies the --product and --title page titles to index.html.
 function patchTitleAndProduct(html) {
   const titleRe = /<title>[^<]*<\/title>/;
   if (cfg.product) {
     html = html.replace(
       titleRe,
-      `<title>${cfg.product.title}</title>\n  ` +
-        `<meta name="perfetto-product" content="${cfg.product.id}">`,
+      `<title>${cfg.product.title}</title>`,
     );
   }
   if (cfg.titleOverride) {
@@ -693,6 +692,13 @@ function updateSymlinks() {
   mklink(
     pjoin(ROOT_DIR, 'ui/node_modules'),
     pjoin(cfg.outTscDir, 'node_modules'),
+  );
+
+  // /products/node_modules -> /ui/node_modules, so product UI code outside
+  // ui/ resolves bare imports like 'mithril' (tsc, Vite and editors alike).
+  mklink(
+    pjoin(ROOT_DIR, 'ui/node_modules'),
+    pjoin(ROOT_DIR, 'products/node_modules'),
   );
 }
 
@@ -853,6 +859,7 @@ function runVite() {
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
+    PERFETTO_PRODUCT: cfg.product?.id ?? '',
   };
   const bundles = ['engine', 'service_worker', 'chrome_extension'];
   if (!cfg.useHmr) bundles.unshift('frontend');
@@ -908,6 +915,7 @@ function genServiceWorkerManifestJson() {
 async function startViteDevServer() {
   // vite.config.mjs reads these at import time; set before createServer().
   if (cfg.onlyWasmMemory64) process.env.IS_MEMORY64_ONLY = 'true';
+  if (cfg.product) process.env.PERFETTO_PRODUCT = cfg.product.id;
   if (cfg.noSourceMaps) process.env.NO_SOURCE_MAPS = 'true';
   if (cfg.noTreeshake) process.env.NO_TREESHAKE = 'true';
   if (cfg.minifyJs) process.env.MINIFY_JS = cfg.minifyJs;
