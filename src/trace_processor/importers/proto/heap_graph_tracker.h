@@ -263,7 +263,7 @@ class HeapGraphTracker : public Destructible {
 
   void GetChildren(tables::HeapGraphObjectTable::RowReference,
                    std::vector<tables::HeapGraphObjectTable::Id>&);
-  void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
+  void MarkReachableObjects(const SequenceState& sequence_state);
   size_t RankRoot(StringId type);
 
   TraceStorage* const storage_;

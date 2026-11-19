@@ -18,6 +18,9 @@
 # drawn ~1s before the CUJ. Frames rendered before the CUJ started must not be
 # attributed to the CUJ. Neither must a frame within the vsync range that only
 # started after the CUJ ended.
+#
+# The CUJ has no DrawFrame slices (like surface-only CUJs) and logs
+# FT#layerId#<id>: frames of other layers must not be attributed to it either.
 
 from os import sys
 
@@ -25,7 +28,10 @@ import synth_common
 
 # com.android.systemui
 PID = 1000
-LAYER = "TX - Task=1#0"
+# The layer tracked by the CUJ. Its name contains '#' before '#<layer id>',
+# like the mirror surface tracked while dragging a window.
+LAYER = "TX - Task=1#0(MirrorRoot)#2281"
+OTHER_LAYER = "TX - Task=1#0"
 
 PROCESS_TRACK = 1234
 CUJ_TRACK = 4321
@@ -56,7 +62,12 @@ def add_expected_surface_frame_events(trace, ts, dur, token):
   trace.add_frame_end_event(ts=ts + dur, cookie=100000 + token)
 
 
-def add_actual_surface_frame_events(trace, ts, dur, token, jank=None):
+def add_actual_surface_frame_events(trace,
+                                    ts,
+                                    dur,
+                                    token,
+                                    jank=None,
+                                    layer=LAYER):
   jank_type = jank if jank is not None else 1
   present_type = 2 if jank is not None else 1
   on_time_finish = 1 if jank is None else 0
@@ -71,7 +82,7 @@ def add_actual_surface_frame_events(trace, ts, dur, token, jank=None):
       gpu_composition=0,
       jank_type=jank_type,
       prediction_type=3,
-      layer_name=LAYER,
+      layer_name=layer,
       jank_score=0 if jank is None else 1)
   trace.add_frame_end_event(ts=ts + dur, cookie=200000 + token)
 
@@ -95,6 +106,8 @@ trace.add_atrace_instant(
 trace.add_track_event_slice_begin(ts=CUJ_TS, track=CUJ_TRACK, name=CUJ)
 trace.add_track_event_slice(
     ts=CUJ_TS + 2_000, dur=0, track=CUJ_TRACK, name="FT#beginVsync#11")
+trace.add_track_event_slice(
+    ts=CUJ_TS + 3_000, dur=0, track=CUJ_TRACK, name="FT#layerId#2281")
 trace.add_track_event_slice(
     ts=CUJ_TS_END - 2_000, dur=0, track=CUJ_TRACK, name="FT#end#0")
 trace.add_track_event_slice(
@@ -130,6 +143,17 @@ add_expected_surface_frame_events(
     trace, ts=CUJ_TS + 16_000_000, dur=16_000_000, token=110)
 add_actual_surface_frame_events(
     trace, ts=CUJ_TS + 16_000_000, dur=16_000_000, token=110)
+
+# A janky frame of another layer during the CUJ.
+add_expected_surface_frame_events(
+    trace, ts=CUJ_TS + 8_000_000, dur=16_000_000, token=108)
+add_actual_surface_frame_events(
+    trace,
+    ts=CUJ_TS + 8_000_000,
+    dur=30_000_000,
+    token=108,
+    jank=64,
+    layer=OTHER_LAYER)
 
 # A janky frame whose vsync (105) is within [FT#beginVsync, FT#endVsync] but
 # which started ~1s after the CUJ ended (out-of-order vsync tokens can happen

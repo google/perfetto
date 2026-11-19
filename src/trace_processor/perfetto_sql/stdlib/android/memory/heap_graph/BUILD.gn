@@ -32,5 +32,6 @@ perfetto_sql_source_set("heap_graph") {
     "helpers.sql",
     "object_tree.sql",
     "oome.sql",
+    "shortest_path_tree.sql",
   ]
 }

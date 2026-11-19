@@ -50,8 +50,7 @@ SELECT
   dur,
   ts + dur AS ts_end
 FROM slice
-JOIN process_track
-  ON slice.track_id = process_track.id
+JOIN process_track ON slice.track_id = process_track.id
 JOIN process USING (upid)
 WHERE
   _is_jank_slice!(slice, process)
@@ -64,8 +63,7 @@ WITH
   cuj_named_tracks AS MATERIALIZED (
     SELECT DISTINCT track.id AS track_id, track.name AS track_name
     FROM track
-    JOIN _jank_cujs_slices AS cuj
-      ON track.name = cuj.cuj_slice_name
+    JOIN _jank_cujs_slices AS cuj ON track.name = cuj.cuj_slice_name
   ),
   candidate_markers AS MATERIALIZED (
     SELECT s.ts, s.name, s.track_id, cnt.track_name
@@ -97,8 +95,7 @@ FROM _jank_cujs_slices AS cuj
 JOIN candidate_markers AS cuj_state_marker
   ON cuj_state_marker.ts >= cuj.ts
   AND cuj_state_marker.ts < cuj.ts_end
-LEFT JOIN thread_track
-  ON cuj_state_marker.track_id = thread_track.id
+LEFT JOIN thread_track ON cuj_state_marker.track_id = thread_track.id
 WHERE
   -- e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility
   cuj_state_marker.name GLOB (cuj.cuj_slice_name || '#FT#*')
@@ -177,8 +174,7 @@ FROM android_frames_layers AS frame
 JOIN _cuj_instant_events AS cie
   ON frame.ui_thread_utid = cie.ui_thread
   AND frame.layer_id IS NOT NULL
-JOIN _jank_cujs_slices AS cuj
-  ON cie.cuj_id = cuj.cuj_id
+JOIN _jank_cujs_slices AS cuj ON cie.cuj_id = cuj.cuj_id
 -- Check whether the frame_id falls within the begin and end vsync of the cuj.
 -- Also check if the frame start or end timestamp falls within the cuj boundary.
 WHERE
@@ -289,7 +285,7 @@ WHERE
 -- The layer can be identified in two ways:
 -- 1. Explicit Marker: The Android framework may log a 'layerId#<id>' instant event. If
 --    present, this is extracted into `cuj_layer_id` inside `_cuj_instant_events`.
---    We then filter `_all_frames_in_cuj` to exactly that layer.
+--    We then take the name of the layer with that id from FrameTimeline.
 -- 2. Fallback Inference: On older versions and when the proper way to report CUJs
 --    is not used (e.g. on some apps that copy the same convention to report CUJs),
 --    we try to infer the layer name. We check if the app rendered exactly one layer
@@ -305,14 +301,15 @@ CREATE PERFETTO TABLE android_jank_cuj_layer_name(
 AS
 WITH
   -- 1. Explicit Marker
-  -- If the CUJ logged a 'layerId#<id>' marker, _all_frames_in_cuj contains
-  -- the extracted cuj_layer_id. We simply filter frames by that layer ID.
+  -- If the CUJ logged a 'layerId#<id>' marker, take the name of the layer with
+  -- that id from FrameTimeline. Unlike _all_frames_in_cuj, this does not need
+  -- DrawFrame slices, which surface-only CUJs (Configuration.Builder.withSurface)
+  -- do not have.
   explicit_layer_name AS (
-    SELECT cuj_id, MAX(layer_name) AS layer_name
-    FROM _all_frames_in_cuj
-    WHERE
-      cuj_layer_id IS NOT NULL
-      AND layer_id = cuj_layer_id
+    SELECT cuj_id, MAX(act.layer_name) AS layer_name
+    FROM _cuj_instant_events AS cie
+    JOIN _distinct_layer_actual_timeline_slice_per_process AS act
+      ON act.layer_id = cie.layer_id
     GROUP BY
       cuj_id
   ),
