@@ -39,6 +39,9 @@ Unreleased:
      `android.memory.heap_graph.shortest_path_tree`, exposing each reachable
      Java heap object's shortest strong-reference path parent, depth and
      subtree sizes from GC roots.
+   * Fixed Fuchsia trace (FXT) strings with NUL bytes inside their declared
+     length (e.g. trailing NUL padding) not matching string equality filters.
+     Such strings are now truncated at the first NUL byte.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.
