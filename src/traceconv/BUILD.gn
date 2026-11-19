@@ -18,14 +18,6 @@ import("../../gn/perfetto_host_executable.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-executable("traceconv") {
-  testonly = true
-  deps = [
-    ":main",
-    "../../gn:default_deps",
-  ]
-}
-
 source_set("utils") {
   deps = [
     "../../gn:default_deps",
@@ -119,28 +111,6 @@ source_set("lib") {
   ]
 }
 
-source_set("main") {
-  deps = [
-    ":traceconv_lib",
-    "../../gn:default_deps",
-  ]
-  sources = [ "main.cc" ]
-}
-
-source_set("traceconv_lib") {
-  deps = [
-    ":gen_cc_android_extension_descriptor",
-    ":gen_cc_trace_descriptor",
-    ":lib",
-    "../../gn:default_deps",
-    "../../include/perfetto/ext/base",
-    "../base:version",
-    "../protozero/text_to_proto",
-  ]
-  public_deps = [ "../../include/perfetto/ext/traceconv" ]
-  sources = [ "traceconv.cc" ]
-}
-
 if (enable_perfetto_ui) {
   wasm_lib("traceconv_wasm") {
     name = "traceconv"
@@ -172,7 +142,6 @@ if (enable_perfetto_integration_tests) {
     testonly = true
     deps = [
       ":lib",
-      ":traceconv_lib",
       ":utils",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
@@ -192,7 +161,6 @@ if (enable_perfetto_integration_tests) {
       "trace_to_json_integrationtest.cc",
       "trace_to_pprof_integrationtest.cc",
       "trace_to_text_integrationtest.cc",
-      "traceconv_bundle_integrationtest.cc",
     ]
   }
 }
