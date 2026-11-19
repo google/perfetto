@@ -34,6 +34,7 @@ pb_enum!(GpuApi {
 pb_msg!(GpuTrackDescriptor {
     gpu_id: i32, primitive, 1,
     hw_queue_iid: u64, primitive, 2,
+    logical_queue_id: u64, primitive, 3,
 });
 
 pb_msg!(GpuCorrelation {
