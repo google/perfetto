@@ -17,11 +17,11 @@ import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts_svg/line_chart_svg';
-import {Button, ButtonVariant} from '../../../../widgets/button';
-import {Intent} from '../../../../widgets/common';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {PopupPosition} from '../../../../widgets/popup';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
 import {
   Grid,
   GridCell,
@@ -29,37 +29,37 @@ import {
   GridHeaderCell,
   renderSortMenuItems,
   type SortDirection,
-} from '../../../../widgets/grid';
-import {TextInput} from '../../../../widgets/text_input';
-import {RadioGroup} from '../../../../widgets/radio_group';
+} from '../../../widgets/grid';
+import {TextInput} from '../../../widgets/text_input';
+import {RadioGroup} from '../../../widgets/radio_group';
 import type {
   LiveSession,
   ProcessInfo,
   SnapshotData,
-} from '../../sessions/live_session';
+} from '../../dev.perfetto.Memscope/live';
 import {
   categorizeProcess,
   CATEGORIES,
   type CategoryId,
-} from '../../process_categories';
-import {Billboard, BillboardStrip} from '../../components/billboard';
-import {HelpTooltip} from '../../components/help_tooltip';
-import {ColorChip, chipColor} from '../../components/color_chip';
+} from '../process_categories';
+import {Billboard, BillboardStrip} from '../../dev.perfetto.Memscope/live';
+import {HelpTooltip} from '../../dev.perfetto.Memscope/live';
+import {ColorChip, chipColor} from '../../dev.perfetto.Memscope/live';
 import {
   billboardBytes,
   chartXWindow,
   formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
-} from '../../utils';
-import {formatBytesIec} from '../../../../base/bytes_format';
+} from '../../dev.perfetto.Memscope/live';
+import {formatBytesIec} from '../../../base/bytes_format';
 import {
   type ProcessGrouping,
   type ProcessMetric,
   type ProcessMemoryRow,
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
-} from '../../process_data';
+} from '../../dev.perfetto.Memscope/live';
 
 export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
 export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};

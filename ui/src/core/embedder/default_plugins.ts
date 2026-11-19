@@ -79,6 +79,7 @@ export const defaultPlugins = [
   'dev.perfetto.LlmProtocolGemini',
   'dev.perfetto.LlmProtocolOpenAi',
   'dev.perfetto.Memscope',
+  'dev.perfetto.Sysmem',
   'dev.perfetto.MetricsPage',
   'dev.perfetto.MultiTraceOpen',
   'dev.perfetto.Notes',

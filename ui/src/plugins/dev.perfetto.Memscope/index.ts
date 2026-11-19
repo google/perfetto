@@ -22,7 +22,7 @@ import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import HeapDumpExplorerPlugin from '../com.android.HeapDumpExplorer';
 import {ConnectionPage} from './views/connection';
-import {Dashboard} from './views/dashboard';
+import {ProcessLivePage} from './views/process_live_page';
 import {LiveSession} from './sessions/live_session';
 import {MemoryExplorerPage} from './memory_explorer/page';
 import {MEMSCOPE_SQL_PACKAGE} from './product_assets';
@@ -38,7 +38,7 @@ export {memoryExplorerHref, memoryExplorerRoute} from './memory_explorer/route';
 export default class MemscopePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
-    'Live memory profiler for Android/Linux devices';
+    'Single-process memory debugger for Android/Linux devices';
   static readonly dependencies = [RecordPageV2, HeapDumpExplorerPlugin];
   private static openByDefaultSetting: Setting<boolean>;
   private static hideDefaultChangedHintSetting: Setting<boolean>;
@@ -82,7 +82,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
       route: '/memscope',
       render: () => {
         if (session) {
-          return m(Dashboard, {
+          return m(ProcessLivePage, {
             app,
             session,
             onStopped: () => {
@@ -93,6 +93,9 @@ export default class MemscopePlugin implements PerfettoPlugin {
         } else {
           return m(ConnectionPage, {
             app,
+            description:
+              'Connect to an Android device or Linux host, then pick a ' +
+              'process to watch its memory and capture heap profiles.',
             onConnected: (result) => {
               session = new LiveSession(app, result);
               session.onSnapshot(() => m.redraw());

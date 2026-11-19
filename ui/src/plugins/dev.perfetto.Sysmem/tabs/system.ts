@@ -17,18 +17,18 @@ import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts_svg/line_chart_svg';
-import type {LiveSession, SnapshotData} from '../../sessions/live_session';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
+import type {LiveSession, SnapshotData} from '../../dev.perfetto.Memscope/live';
 import {
   billboardBytes,
   chartXWindow,
   formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
-} from '../../utils';
-import {formatBytesIec} from '../../../../base/bytes_format';
-import {Billboard, BillboardStrip} from '../../components/billboard';
-import {Panel} from '../../components/panel';
+} from '../../dev.perfetto.Memscope/live';
+import {formatBytesIec} from '../../../base/bytes_format';
+import {Billboard, BillboardStrip} from '../../dev.perfetto.Memscope/live';
+import {Panel} from '../../dev.perfetto.Memscope/live';
 
 /** System memory breakdown from /proc/meminfo, partitioning MemTotal. */
 function buildSystemTimeSeries(

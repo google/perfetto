@@ -17,18 +17,18 @@ import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts_svg/line_chart_svg';
-import type {LiveSession, SnapshotData} from '../../sessions/live_session';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
+import type {LiveSession, SnapshotData} from '../../dev.perfetto.Memscope/live';
 import {
   chartXWindow,
   counterPoints,
   formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
-} from '../../utils';
-import {formatBytesIec} from '../../../../base/bytes_format';
-import {Panel} from '../../components/panel';
-import {Grid, GridCell, GridHeaderCell} from '../../../../widgets/grid';
+} from '../../dev.perfetto.Memscope/live';
+import {formatBytesIec} from '../../../base/bytes_format';
+import {Panel} from '../../dev.perfetto.Memscope/live';
+import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 
 // Note: the cumulative→per-second-rate conversion for psi/vmstat counters
 // happens in SQL (see extractSnapshotData in live_session.ts), so samples
