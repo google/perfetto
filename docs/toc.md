@@ -3,6 +3,7 @@
   - [What is Perfetto?](README.md)
   - [What is Tracing?](tracing-101.md)
   - [How do I start using Perfetto?](getting-started/start-using-perfetto.md)
+  - [Community and getting help](community.md)
 
 - [Getting Started](#)
 
@@ -108,6 +109,7 @@
       - [UI Automation](visualization/ui-automation.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
       - [Commands Reference](visualization/commands-automation-reference.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
       - [Extension Servers](visualization/extension-servers.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
+      - [Googler Features](visualization/googler-features.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
 
   - [Trace Analysis](#)
 

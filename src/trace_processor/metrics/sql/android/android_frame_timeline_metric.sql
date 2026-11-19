@@ -56,7 +56,8 @@ WITH frames AS (
       OR jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
       OR jank_type GLOB '*SurfaceFlinger Scheduling*'
       OR jank_type GLOB '*Prediction Error*'
-      OR jank_type GLOB '*Display HAL*' AS missed_sf_frame,
+      OR jank_type GLOB '*Display HAL*'
+      OR jank_type GLOB '*DequeueBuffer Delay*' AS missed_sf_frame,
     jank_type GLOB '*App Deadline Missed*'
       OR jank_type GLOB '*App Resynced Jitter*'
       OR jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
@@ -64,6 +65,7 @@ WITH frames AS (
       OR jank_type GLOB '*SurfaceFlinger Scheduling*'
       OR jank_type GLOB '*Prediction Error*'
       OR jank_type GLOB '*Display HAL*'
+      OR jank_type GLOB '*DequeueBuffer Delay*'
       OR jank_type GLOB '*Dropped Frame*' AS missed_frame,
     jank_type GLOB '*Dropped Frame*' AS dropped_frame,
     -- discard dropped frame duration as it is not a meaningful value

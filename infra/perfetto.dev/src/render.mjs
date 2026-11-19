@@ -26,11 +26,14 @@
 //    it is just a return value that feeds the next build's cache signature.
 
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import ejs from "ejs";
 import { Renderer, marked } from "marked";
 import hljs from "highlight.js";
 import { headingAnchor } from "./md_utils.mjs";
+
+const railroad = createRequire(import.meta.url)("railroad-diagrams");
 
 const CS_BASE_URL = "https://github.com/google/perfetto/blob/main/";
 
@@ -162,9 +165,33 @@ function renderLink(ctx, originalLinkFn, href, title, text) {
   return originalLinkFn(href, title, text);
 }
 
+// Makes a diagram item, such as a Terminal, a link to `href`.
+function railroadLink(item, href) {
+  item.tagName = "a";
+  item.attrs.href = href;
+  return item;
+}
+
+// A ```railroad block is an expression over the railroad-diagrams
+// constructors, e.g. Diagram(Terminal('FROM'), NonTerminal('table')), plus
+// Link(item, href). ```railroad <name> labels the diagram with a rule name.
+function renderRailroad(text, name) {
+  const scope = { ...railroad, Link: railroadLink };
+  const names = Object.keys(scope);
+  const diagram = new Function(...names, `return (${text});`)(
+    ...names.map((n) => scope[n]),
+  );
+  const label = name ? `<div class="railroad-name">${name}</div>` : "";
+  return `<div class="railroad">${label}${diagram.toString()}</div>`;
+}
+
 function renderCode(text, lang) {
   if (lang === "mermaid") {
     return `<div class="mermaid">${text}</div>`;
+  }
+  const [kind, ...rest] = (lang || "").split(/\s+/);
+  if (kind === "railroad") {
+    return renderRailroad(text, rest.join(" "));
   }
 
   let hlHtml = "";

@@ -46,6 +46,22 @@ CREATE PERFETTO MACRO _dsu_dep()
 RETURNS Expr
 AS 255;
 
+-- Merges an external Wattson table with an in-tree table, preferring the
+-- external model when present.
+CREATE PERFETTO MACRO _prefer_external_table(
+  ext_table TableOrSubquery,
+  intree_table TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (
+  SELECT * FROM $ext_table
+  UNION ALL
+  SELECT *
+  FROM $intree_table
+  WHERE
+    NOT EXISTS (SELECT 1 FROM __intrinsic_wattson_external_device_info)
+);
+
 -- Constructs an 8-bit mask from 8 boolean expressions
 CREATE PERFETTO MACRO _bitmask8(
   b0 Expr,

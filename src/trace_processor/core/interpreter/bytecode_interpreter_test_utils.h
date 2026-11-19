@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
@@ -45,7 +46,6 @@
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -188,8 +188,8 @@ inline std::string ResultToString(const filter::CastFilterValueResult& res) {
 }
 
 template <typename T>
-inline Span<T> GetSpan(std::vector<T>& vec) {
-  return Span<T>{vec.data(), vec.data() + vec.size()};
+inline base::Span<T> GetSpan(std::vector<T>& vec) {
+  return base::Span<T>{vec.data(), vec.data() + vec.size()};
 }
 
 inline Bytecode ParseBytecode(const std::string& bytecode_str) {

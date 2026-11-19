@@ -28,7 +28,6 @@ import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
 import {renderDataGrid as renderDataGridDemo} from './demos/datagrid_demo';
-import {renderDataGrid as renderDataGridPlayground} from './demos/datagrid_playground';
 import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
@@ -90,12 +89,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
   {id: 'datagrid', label: 'DataGrid', view: renderDataGridDemo},
-  {
-    id: 'datagrid-playground',
-    label: 'DataGrid Playground',
-    view: renderDataGridPlayground,
-    fullWidth: true,
-  },
   {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},

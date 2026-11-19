@@ -86,6 +86,15 @@ class TypeSet {
 
   uint32_t index() const { return type_idx_; }
 
+  // The inverse of index(): the TypeSet holding the type at `index`, or
+  // nullopt if there is no such type. For reading back a stored index().
+  static std::optional<TypeSet> FromIndex(uint32_t index) {
+    if (index >= kSize) {
+      return std::nullopt;
+    }
+    return TypeSet(index);
+  }
+
   template <typename T>
   constexpr bool Is() const {
     return type_idx_ == GetTypeIndex<T>();

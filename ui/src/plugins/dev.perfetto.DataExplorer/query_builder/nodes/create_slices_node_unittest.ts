@@ -118,12 +118,12 @@ describe('CreateSlicesNode', () => {
       const finalCols = createSlicesNode.finalCols;
 
       expect(finalCols.length).toBe(2);
-      expect(finalCols[0].name).toBe('ts');
-      expect(finalCols[0].type).toEqual({kind: 'timestamp'});
-      expect(finalCols[0].checked).toBe(true);
-      expect(finalCols[1].name).toBe('dur');
-      expect(finalCols[1].type).toEqual({kind: 'duration'});
-      expect(finalCols[1].checked).toBe(true);
+      expect(finalCols[0]!.name).toBe('ts');
+      expect(finalCols[0]!.type).toEqual({kind: 'timestamp'});
+      expect(finalCols[0]!.checked).toBe(true);
+      expect(finalCols[1]!.name).toBe('dur');
+      expect(finalCols[1]!.type).toEqual({kind: 'duration'});
+      expect(finalCols[1]!.checked).toBe(true);
     });
 
     it('should always return the same ts and dur columns regardless of input columns', () => {

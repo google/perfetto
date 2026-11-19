@@ -186,6 +186,9 @@ class TraceToPprofRealTraceTest : public ::testing::Test {
 #if defined(LEAK_SANITIZER)
     GTEST_SKIP() << "trace is too big to be tested in sanitizer builds";
 #endif
+#if PERFETTO_DCHECK_IS_ON()
+    GTEST_SKIP() << "trace is too big to be tested in debug builds";
+#endif
   }
 };
 

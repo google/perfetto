@@ -113,6 +113,7 @@ default_targets = [
     '//src/base:perfetto_base_default_platform',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
+    '//src/perfetto_sql/syntaqlite:perfetto_fmt_dialect',
     '//src/protozero:protozero',
     '//src/protozero/protoc_plugin:cppgen_plugin',
     '//src/protozero/protoc_plugin:protozero_plugin',

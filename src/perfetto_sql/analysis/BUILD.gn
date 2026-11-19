@@ -16,16 +16,11 @@ import("../../../gn/test.gni")
 
 source_set("analysis") {
   sources = [
-    "program.cc",
-    "program.h",
     "relation.cc",
     "relation.h",
-    "source_tree.cc",
-    "source_tree.h",
     "string_arena.h",
   ]
   deps = [
-    "..:intrinsic_macro_expansion",
     "../../../gn:default_deps",
     "../../base",
     "../syntaqlite",
@@ -35,11 +30,7 @@ source_set("analysis") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [
-    "program_unittest.cc",
-    "relation_unittest.cc",
-    "source_tree_unittest.cc",
-  ]
+  sources = [ "relation_unittest.cc" ]
   deps = [
     ":analysis",
     "../../../gn:default_deps",

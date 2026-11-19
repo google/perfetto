@@ -459,7 +459,7 @@ export class TrackView {
 
     if (searchIndex !== -1 && searchResults !== undefined) {
       // using _ = autoTimer();
-      const uri = searchResults.trackUris[searchIndex];
+      const uri = searchResults.trackUris[searchIndex]!;
       // Highlight if this or any children match the search results
       if (uri === node.uri || node.getTrackByUri(uri)) {
         return true;

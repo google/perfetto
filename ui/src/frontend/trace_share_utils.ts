@@ -22,7 +22,9 @@ import {CopyableLink} from '../widgets/copyable_link';
 import {AppImpl} from '../core/app_impl';
 
 export function isShareable(trace: Trace) {
-  return AppImpl.instance.isInternalUser && trace.traceInfo.shareable;
+  return (
+    AppImpl.instance.policy.enableTraceSharing && trace.traceInfo.shareable
+  );
 }
 
 const STATE_HASH_PLACEHOLDER = 'perfettoStateHashPlaceholder';

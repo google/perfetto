@@ -260,7 +260,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         ? this.activeCuj
         : anchorCuj !== undefined && byCuj.has(anchorCuj)
           ? anchorCuj
-          : groups[0][0];
+          : groups[0]![0];
     const options = byCuj.get(active) ?? [];
     const appliedInActive = options.some((p) => p.id === appliedId);
     const shown = appliedInActive ? applied : undefined;

@@ -16,12 +16,6 @@ import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
 import type {Trace} from '../../public/trace';
-import type {
-  QueryResult,
-  Row,
-  SpecType,
-  InferRowType,
-} from '../../trace_processor/query_result';
 import {SqlRef} from '../../widgets/sql_ref';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {MenuItem} from '../../widgets/menu';
@@ -136,27 +130,6 @@ export function stdlibRef(args: {
 export function infoTooltip(text: string): m.Child {
   // https://fonts.google.com/icons?selected=Material+Symbols+Sharp:info
   return m(Tooltip, {trigger: m(Icon, {icon: 'info'})}, text);
-}
-
-/**
- * Returns an array of the rows in `queryResult`.
- *
- * Warning: Only use this function in contexts where the number of rows is
- * guaranteed to be small. Prefer doing transformations in SQL where possible.
- */
-export function rows<R extends SpecType>(
-  queryResult: QueryResult,
-  spec: R,
-): InferRowType<R>[] {
-  const results: InferRowType<R>[] = [];
-  for (const it = queryResult.iter(spec); it.valid(); it.next()) {
-    const row: Row = {};
-    for (const key of Object.keys(spec)) {
-      row[key] = it[key];
-    }
-    results.push(row as InferRowType<R>);
-  }
-  return results;
 }
 
 /**

@@ -142,7 +142,7 @@ export class ProtoRingBuffer {
     let len = 0;
 
     if (this.mode === 'PROTO_PREAMBLE') {
-      const tag = data[pos++]; // Assume one-byte tag.
+      const tag = data[pos++]!; // Assume one-byte tag.
       if (tag >= 0x80 || (tag & 0x07) !== 2 /* len delimited */) {
         throw new Error(
           `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`,
@@ -153,7 +153,7 @@ export class ProtoRingBuffer {
         if (pos >= dataEnd) {
           return undefined; // Not enough data to read varint.
         }
-        const val = data[pos++];
+        const val = data[pos++]!;
         len |= ((val & 0x7f) << shift) >>> 0;
         if (val < 0x80) break;
       }
@@ -162,7 +162,7 @@ export class ProtoRingBuffer {
         if (pos >= dataEnd) {
           return undefined; // Not enough data to read a uint32.
         }
-        const val = data[pos++] & 0xff;
+        const val = data[pos++]! & 0xff;
         len |= (val << (i * 8)) >>> 0;
       }
     } else {

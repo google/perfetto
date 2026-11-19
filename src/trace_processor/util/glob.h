@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto::trace_processor::util {
@@ -110,7 +111,7 @@ class GlobMatcher {
   // glob matching rules.
   bool StartsWith(base::StringView input, const Segment& segment) const {
     if (!contains_char_class_or_question_) {
-      return input.StartsWith(segment.pattern);
+      return base::StartsWith(input, segment.pattern);
     }
     return StartsWithSlow(input, segment);
   }
@@ -119,7 +120,7 @@ class GlobMatcher {
   // glob matching rules.
   bool EndsWith(base::StringView input, const Segment& segment) const {
     if (!contains_char_class_or_question_) {
-      return input.EndsWith(segment.pattern);
+      return base::EndsWith(input, segment.pattern);
     }
     // Ending with |segment| is the same as taking the substring of |in|
     size_t start = input.size() - segment.matched_chars;

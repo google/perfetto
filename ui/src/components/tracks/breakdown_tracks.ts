@@ -501,7 +501,7 @@ export class BreakdownTracks {
         children = new Map<string, TrackNode>();
         cache.set(currentNode.uri!, children);
       }
-      const colName = columns[colIndex];
+      const colName = columns[colIndex]!;
       const colResRaw = iter.get(colName);
       const childName = colResRaw === null ? 'NULL' : colResRaw.toString();
 

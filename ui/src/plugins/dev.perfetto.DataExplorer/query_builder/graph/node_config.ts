@@ -138,14 +138,16 @@ export function buildReadOnlyNodeConfig(
   // avoid ambiguity — the outer graph's docking logic handles multi-child
   // cases differently via layout positions.
   let next: Omit<Node, 'x' | 'y'> | undefined;
+  const onlyChild =
+    qnode.nextNodes.length === 1 ? qnode.nextNodes[0] : undefined;
   if (
-    qnode.nextNodes.length === 1 &&
-    singleNodeOperation(qnode.nextNodes[0].type) &&
-    qnode.nextNodes[0].primaryInput === qnode &&
-    innerSet.has(qnode.nextNodes[0].nodeId)
+    onlyChild !== undefined &&
+    singleNodeOperation(onlyChild.type) &&
+    onlyChild.primaryInput === qnode &&
+    innerSet.has(onlyChild.nodeId)
   ) {
     next = buildReadOnlyNodeConfig(
-      qnode.nextNodes[0],
+      onlyChild,
       innerSet,
       connectedInputs,
       connectedOutputs,

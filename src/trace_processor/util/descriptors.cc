@@ -59,6 +59,27 @@ bool IsIntentionallyRemovedType(const std::string& raw_type_name) {
   return false;
 }
 
+// Pre-renumbering revision of frameworks_base_wattson_soc_model.proto (landed
+// in early November 2026 Android builds), where WattsonCurve had
+// `oneof unit { cluster = 1; policy = 2; }` (putting uint64 dep_freq at
+// tag 5 vs packed float active_mw at tag 5 in the built-in schema) and
+// WattsonSocModel used WattsonCpuPolicy instead of WattsonCpuCluster.
+// TODO(b/524094370): remove once Nov 2026 trunk builds (b/584282228) age out.
+bool IsObsoleteWattsonSocModelFile(
+    const std::string& file_name,
+    const protos::pbzero::FileDescriptorProto::Decoder& file) {
+  if (!base::EndsWith(file_name, "frameworks_base_wattson_soc_model.proto")) {
+    return false;
+  }
+  for (auto it = file.message_type(); it; ++it) {
+    protos::pbzero::DescriptorProto::Decoder msg(*it);
+    if (msg.name().ToStdStringView() == "WattsonCpuPolicy") {
+      return true;
+    }
+  }
+  return false;
+}
+
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
     bool is_extension) {
@@ -380,8 +401,7 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
                                               merge_existing_messages));
   }
   for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
-    extensions->push_back(
-        {package_name, proto_descriptor.full_name(), *ext_it});
+    extensions->push_back({package_name, full_name, *ext_it});
   }
   return base::OkStatus();
 }
@@ -443,6 +463,12 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     const std::string file_name = file.name().ToStdString();
     if (base::StartsWithAny(file_name, skip_prefixes))
       continue;
+    if (merge_existing_messages &&
+        FindDescriptorIdx(".com.android.internal.WattsonSocModel")
+            .has_value() &&
+        IsObsoleteWattsonSocModelFile(file_name, file)) {
+      continue;
+    }
     if (!merge_existing_messages &&
         processed_files_.find(file_name) != processed_files_.end()) {
       // This file has been loaded once already. Skip.
@@ -605,6 +631,12 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
     protos::pbzero::UninterpretedOption::NamePart::Decoder name_part(*it);
     const auto* option_field_desc =
         field_options_desc.FindFieldByName(name_part.name_part().ToStdString());
+    if (!option_field_desc) {
+      return base::ErrStatus("Unknown option %s for field %s in message %s",
+                             name_part.name_part().ToStdString().c_str(),
+                             field_desc.name().c_str(),
+                             proto_desc.full_name().c_str());
+    }
 
     // It's not immediately clear how options with multiple names should
     // be parsed. This likely requires digging into protobuf compiler
@@ -707,17 +739,24 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
   return it->second;
 }
 
+std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
+    CachedDescriptor& cache,
+    std::string_view full_name) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(full_name));
+  }
+  return cache.descriptor_idx_;
+}
+
 std::optional<std::string> DescriptorPool::FindEnumString(
     CachedDescriptor& cache,
     std::string_view enum_name,
     int32_t value) const {
-  if (!cache.descriptor_idx_) {
-    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
-  }
-  if (!cache.descriptor_idx_) {
+  auto idx = FindDescriptorIdx(cache, enum_name);
+  if (!idx) {
     return std::nullopt;
   }
-  return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+  return descriptors_[*idx].FindEnumString(value);
 }
 
 int64_t DescriptorPool::FlagSetToViews(
@@ -743,6 +782,18 @@ int64_t DescriptorPool::FlagSetToViews(
     }
   }
   return static_cast<int64_t>(unmatched);
+}
+
+int64_t DescriptorPool::FlagSetToViews(
+    CachedDescriptor& cache,
+    std::string_view enum_name,
+    int64_t mask,
+    std::vector<std::string_view>* out) const {
+  auto idx = FindDescriptorIdx(cache, enum_name);
+  if (!idx) {
+    return mask;
+  }
+  return FlagSetToViews(*idx, mask, out);
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {

@@ -18,16 +18,17 @@ source_set("storage") {
   sources = [
     "metadata.h",
     "stats.h",
+    "stats_types.h",
     "trace_storage.cc",
     "trace_storage.h",
   ]
+  public_deps = [ "../tables" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
     "../core/dataframe",
-    "../tables",
     "../types",
   ]
 }

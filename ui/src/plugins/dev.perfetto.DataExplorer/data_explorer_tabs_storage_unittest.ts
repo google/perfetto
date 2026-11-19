@@ -12,14 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  parseDataExplorerPersistedState,
-  STORE_VERSION,
-} from './data_explorer_tabs_storage';
+import {DATA_EXPLORER_PERSISTED_STATE_SCHEMA} from './data_explorer_tabs_storage';
 
-describe('parseDataExplorerPersistedState', () => {
-  const EMPTY_STATE = {version: STORE_VERSION};
-
+describe('DATA_EXPLORER_PERSISTED_STATE_SCHEMA', () => {
   describe('valid state', () => {
     test('accepts v2 multi-tab state', () => {
       const state = {
@@ -38,22 +33,22 @@ describe('parseDataExplorerPersistedState', () => {
           },
         ],
       };
-      expect(parseDataExplorerPersistedState(state)).toEqual(state);
+      expect(DATA_EXPLORER_PERSISTED_STATE_SCHEMA.parse(state)).toEqual(state);
     });
 
     test('accepts v1 single-graph state', () => {
       const state = {version: 1, graphJson: '{}'};
-      expect(parseDataExplorerPersistedState(state)).toEqual(state);
+      expect(DATA_EXPLORER_PERSISTED_STATE_SCHEMA.parse(state)).toEqual(state);
     });
 
     test('accepts state with only a version', () => {
-      expect(parseDataExplorerPersistedState({version: 2})).toEqual({
+      expect(DATA_EXPLORER_PERSISTED_STATE_SCHEMA.parse({version: 2})).toEqual({
         version: 2,
       });
     });
 
     test('strips unknown top-level keys', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.parse({
         version: 2,
         unexpected: 'value',
       });
@@ -61,7 +56,7 @@ describe('parseDataExplorerPersistedState', () => {
     });
 
     test('strips unknown keys inside tabs', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.parse({
         version: 2,
         tabs: [{id: 'tab-1', title: 'Graph 1', dashboards: []}],
       });
@@ -72,9 +67,9 @@ describe('parseDataExplorerPersistedState', () => {
     });
   });
 
-  describe('invalid state falls back to empty state', () => {
+  describe('invalid state is rejected', () => {
     test('rejects non-string tab title', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({
         version: 2,
         tabs: [
           {
@@ -84,62 +79,73 @@ describe('parseDataExplorerPersistedState', () => {
         ],
         activeTabId: 'tab-1',
       });
-      expect(result).toEqual(EMPTY_STATE);
+      expect(result.success).toBe(false);
     });
 
     test('rejects non-string tab id', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({
         version: 2,
         tabs: [{id: 123, title: 'Graph 1'}],
       });
-      expect(result).toEqual(EMPTY_STATE);
+      expect(result.success).toBe(false);
     });
 
     test('rejects non-string graphJson', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({
         version: 1,
         graphJson: {nodes: []},
       });
-      expect(result).toEqual(EMPTY_STATE);
+      expect(result.success).toBe(false);
     });
 
     test('rejects non-array tabs', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({
         version: 2,
         tabs: {id: 'tab-1', title: 'Graph 1'},
       });
-      expect(result).toEqual(EMPTY_STATE);
+      expect(result.success).toBe(false);
     });
 
     test('rejects malformed dashboard', () => {
-      const result = parseDataExplorerPersistedState({
+      const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({
         version: 2,
         dashboards: [{id: 'db-1'}],
       });
-      expect(result).toEqual(EMPTY_STATE);
+      expect(result.success).toBe(false);
     });
 
     test('rejects unsupported version', () => {
-      expect(parseDataExplorerPersistedState({version: 3})).toEqual(
-        EMPTY_STATE,
-      );
-      expect(parseDataExplorerPersistedState({version: '2'})).toEqual(
-        EMPTY_STATE,
-      );
+      expect(
+        DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({version: 3}).success,
+      ).toBe(false);
+      expect(
+        DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({version: '2'}).success,
+      ).toBe(false);
     });
 
     test('rejects missing version', () => {
-      expect(parseDataExplorerPersistedState({graphJson: '{}'})).toEqual(
-        EMPTY_STATE,
-      );
+      expect(
+        DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse({graphJson: '{}'})
+          .success,
+      ).toBe(false);
     });
 
     test('rejects non-object input', () => {
-      expect(parseDataExplorerPersistedState(undefined)).toEqual(EMPTY_STATE);
-      expect(parseDataExplorerPersistedState(null)).toEqual(EMPTY_STATE);
-      expect(parseDataExplorerPersistedState('state')).toEqual(EMPTY_STATE);
-      expect(parseDataExplorerPersistedState(42)).toEqual(EMPTY_STATE);
-      expect(parseDataExplorerPersistedState([])).toEqual(EMPTY_STATE);
+      expect(
+        DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse(undefined).success,
+      ).toBe(false);
+      expect(DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse(null).success).toBe(
+        false,
+      );
+      expect(
+        DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse('state').success,
+      ).toBe(false);
+      expect(DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse(42).success).toBe(
+        false,
+      );
+      expect(DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse([]).success).toBe(
+        false,
+      );
     });
   });
 });

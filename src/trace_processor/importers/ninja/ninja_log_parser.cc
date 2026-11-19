@@ -35,7 +35,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -127,8 +127,8 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
 // been populated.
 base::Status NinjaLogParser::OnPushDataToSorter() {
   // Phase 1: Sort jobs and write slices directly to storage
-  ColdSortByKey(jobs_.begin(), jobs_.end(),
-                [](const Job& job) { return job.start_ms; });
+  SortByKey(jobs_.begin(), jobs_.end(),
+            [](const Job& job) { return job.start_ms; });
 
   // Now we need to work out the job parallelism. There's no direct indication
   // of that in the ninja logs, so it must be inferred by observing overlapping
@@ -200,10 +200,10 @@ class NinjaLogImporter : public TraceImporter<NinjaLogImporter> {
   NinjaLogImporter() : TraceImporter(MakeDescriptor()) {}
   ~NinjaLogImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = "# ninja log";
     size_t n = sizeof(kMagic) - 1;
-    return size >= n && memcmp(data, kMagic, n) == 0;
+    return {size >= n && memcmp(data, kMagic, n) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

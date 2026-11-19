@@ -65,8 +65,8 @@ describe('IntervalIntersectNode', () => {
       const node = makeIIN([node1, node2]);
 
       const cols = node.finalCols;
-      expect(cols[0].name).toBe('ts');
-      expect(cols[1].name).toBe('dur');
+      expect(cols[0]!.name).toBe('ts');
+      expect(cols[1]!.name).toBe('dur');
     });
 
     it('should include partition columns without suffix', () => {
@@ -82,9 +82,9 @@ describe('IntervalIntersectNode', () => {
       const node = makeIIN([node1, node2], ['utid']);
 
       const cols = node.finalCols;
-      expect(cols[0].name).toBe('ts');
-      expect(cols[1].name).toBe('dur');
-      expect(cols[2].name).toBe('utid');
+      expect(cols[0]!.name).toBe('ts');
+      expect(cols[1]!.name).toBe('dur');
+      expect(cols[2]!.name).toBe('utid');
     });
 
     it('should include id_N, ts_N, dur_N for each input with correct types', () => {
@@ -97,28 +97,28 @@ describe('IntervalIntersectNode', () => {
       const cols = node.finalCols;
 
       // After ts, dur (indexes 0, 1), we should have id_0, ts_0, dur_0
-      expect(cols[2].name).toBe('id_0');
-      expect(cols[2].type).toEqual({kind: 'int'});
-      expect(cols[3].name).toBe('ts_0');
-      expect(cols[3].type).toEqual({kind: 'timestamp'}); // ts columns are TIMESTAMP type
-      expect(cols[4].name).toBe('dur_0');
-      expect(cols[4].type).toEqual({kind: 'duration'}); // dur columns are DURATION type
+      expect(cols[2]!.name).toBe('id_0');
+      expect(cols[2]!.type).toEqual({kind: 'int'});
+      expect(cols[3]!.name).toBe('ts_0');
+      expect(cols[3]!.type).toEqual({kind: 'timestamp'}); // ts columns are TIMESTAMP type
+      expect(cols[4]!.name).toBe('dur_0');
+      expect(cols[4]!.type).toEqual({kind: 'duration'}); // dur columns are DURATION type
 
       // Then id_1, ts_1, dur_1
-      expect(cols[5].name).toBe('id_1');
-      expect(cols[5].type).toEqual({kind: 'int'});
-      expect(cols[6].name).toBe('ts_1');
-      expect(cols[6].type).toEqual({kind: 'timestamp'});
-      expect(cols[7].name).toBe('dur_1');
-      expect(cols[7].type).toEqual({kind: 'duration'});
+      expect(cols[5]!.name).toBe('id_1');
+      expect(cols[5]!.type).toEqual({kind: 'int'});
+      expect(cols[6]!.name).toBe('ts_1');
+      expect(cols[6]!.type).toEqual({kind: 'timestamp'});
+      expect(cols[7]!.name).toBe('dur_1');
+      expect(cols[7]!.type).toEqual({kind: 'duration'});
 
       // Then id_2, ts_2, dur_2
-      expect(cols[8].name).toBe('id_2');
-      expect(cols[8].type).toEqual({kind: 'int'});
-      expect(cols[9].name).toBe('ts_2');
-      expect(cols[9].type).toEqual({kind: 'timestamp'});
-      expect(cols[10].name).toBe('dur_2');
-      expect(cols[10].type).toEqual({kind: 'duration'});
+      expect(cols[8]!.name).toBe('id_2');
+      expect(cols[8]!.type).toEqual({kind: 'int'});
+      expect(cols[9]!.name).toBe('ts_2');
+      expect(cols[9]!.type).toEqual({kind: 'timestamp'});
+      expect(cols[10]!.name).toBe('dur_2');
+      expect(cols[10]!.type).toEqual({kind: 'duration'});
     });
 
     it('should include non-duplicated columns from all inputs', () => {
@@ -254,10 +254,10 @@ describe('IntervalIntersectNode', () => {
       const node = makeIIN([node1, node2], ['utid', 'upid']);
 
       const cols = node.finalCols;
-      expect(cols[0].name).toBe('ts');
-      expect(cols[1].name).toBe('dur');
-      expect(cols[2].name).toBe('utid');
-      expect(cols[3].name).toBe('upid');
+      expect(cols[0]!.name).toBe('ts');
+      expect(cols[1]!.name).toBe('dur');
+      expect(cols[2]!.name).toBe('utid');
+      expect(cols[3]!.name).toBe('upid');
     });
 
     it('should set all columns as checked', () => {
@@ -1224,7 +1224,7 @@ describe('IntervalIntersectNode', () => {
         (c) => c.name === 'id',
       );
       modifyNode.attrs.selectedColumns[idColIndex] = {
-        ...modifyNode.attrs.selectedColumns[idColIndex],
+        ...modifyNode.attrs.selectedColumns[idColIndex]!,
         type: customType,
         typeUserModified: true,
       };

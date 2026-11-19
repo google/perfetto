@@ -320,6 +320,8 @@ SharedRingBuffer::SharedRingBuffer(SharedRingBuffer&& other) noexcept {
 
 SharedRingBuffer& SharedRingBuffer::operator=(
     SharedRingBuffer&& other) noexcept {
+  if (this == &other)
+    return *this;
   mem_fd_ = std::move(other.mem_fd_);
   std::tie(meta_, mem_, size_, size_mask_) =
       std::tie(other.meta_, other.mem_, other.size_, other.size_mask_);

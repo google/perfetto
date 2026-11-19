@@ -451,7 +451,7 @@ export class MultiTraceController {
     }
     const copy = [...this._traces];
     const [anchor] = copy.splice(idx, 1);
-    return [anchor, ...copy];
+    return [anchor!, ...copy];
   }
 
   private mergeFiles(): MergeFile[] {

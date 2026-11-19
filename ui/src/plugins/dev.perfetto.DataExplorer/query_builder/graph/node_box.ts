@@ -76,8 +76,8 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
     if (i > 0) {
       menuItems.push(m(MenuDivider));
     }
-    menuItems.push(m(MenuTitle, {label: sections[i].title}));
-    menuItems.push(...sections[i].items);
+    menuItems.push(m(MenuTitle, {label: sections[i]!.title}));
+    menuItems.push(...sections[i]!.items);
   }
 
   return m(

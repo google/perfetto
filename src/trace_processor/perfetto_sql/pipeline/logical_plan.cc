@@ -16,7 +16,31 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto::trace_processor::pipeline {
+
+// A plan has tens of names, so a scan beats a hash table, in code as in time.
+NameId NameTable::Intern(std::string_view text) {
+  auto id = static_cast<NameId>(texts_.size());
+  NameId key = id;
+  for (NameId i = 0; i < texts_.size(); ++i) {
+    if (texts_[i] == text) {
+      return i;
+    }
+    if (key == id && base::CaseInsensitiveEqual(texts_[i], text)) {
+      key = keys_[i];
+    }
+  }
+  texts_.emplace_back(text);
+  keys_.push_back(key);
+  return id;
+}
 
 PlanNode::PlanNode(std::unique_ptr<PlanOperation> operation,
                    std::vector<PlanNodeId> inputs)
@@ -38,19 +62,60 @@ PlanNode& PlanNode::operator=(const PlanNode& other) {
 PlanNode::PlanNode(PlanNode&&) noexcept = default;
 PlanNode& PlanNode::operator=(PlanNode&&) noexcept = default;
 
+void LogicalPlan::Bypass(PlanNodeId node) {
+  PlanNodeId input = nodes_[node].children()[0];
+  for (PlanNode& other : nodes_) {
+    for (PlanNodeId& child : other.children()) {
+      if (child == node) {
+        child = input;
+      }
+    }
+  }
+  if (root_ == node) {
+    root_ = input;
+  }
+}
+
 PlanOperation::~PlanOperation() = default;
 
-void PlanOperation::MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) {}
+void PlanOperation::MoveSqlSourcesToDataframeArgs(const NameTable&,
+                                                  std::vector<std::string>*) {}
 
-base::Status PlanOperation::ResolveDataframes(LogicalPlan*, const Catalog&) {
+void PlanOperation::Rewrite(BoundPlan*,
+                            PlanNodeId,
+                            const LoweringContext&) const {}
+
+InputNeeds PlanOperation::Needs(uint32_t) const {
+  return {};
+}
+
+std::vector<std::vector<InputColumn>> PlanOperation::CommonTypes() const {
+  return {};
+}
+
+base::Status PlanOperation::ResolveDataframes(const LogicalPlan&,
+                                              PlanNodeId,
+                                              const Catalog&,
+                                              const PlanKey*,
+                                              Bindings*) const {
   return base::OkStatus();
 }
 
 base::Status PlanOperation::BindDataframeArgs(
-    LogicalPlan*,
+    const LogicalPlan&,
+    PlanNodeId,
     const std::vector<const core::dataframe::Dataframe*>&,
-    StringPool*) {
+    StringPool*,
+    Bindings*) const {
   return base::OkStatus();
+}
+
+BoundPlan::BoundPlan(LogicalPlan p) : plan(std::move(p)) {
+  bindings.dataframes.resize(plan.nodes().size());
+  bindings.types.reserve(plan.columns().size());
+  for (const PlanColumn& column : plan.columns()) {
+    bindings.types.push_back(column.type);
+  }
 }
 
 }  // namespace perfetto::trace_processor::pipeline

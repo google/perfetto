@@ -91,7 +91,7 @@ function renderSidePanelToggle(mgr: SidePanelManagerImpl): m.Children {
       } else {
         // If no tab is open, show the first registered one.
         if (!mgr.currentTabUri && mgr.registeredTabs.length > 0) {
-          mgr.showTab(mgr.registeredTabs[0].uri);
+          mgr.showTab(mgr.registeredTabs[0]!.uri);
         } else {
           mgr.visible = true;
         }

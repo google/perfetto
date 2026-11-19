@@ -199,8 +199,7 @@ base::StatusOr<DetokenizedString> PigweedDetokenizer::Detokenize(
         return base::ErrStatus("Truncated Pigweed float");
       }
 
-      float value_float;
-      memcpy(&value_float, ptr, sizeof(value_float));
+      float value_float = base::LoadLE<float>(ptr);
       ptr += sizeof(value_float);
       double value = static_cast<double>(value_float);
       args.push_back(value);

@@ -15,28 +15,15 @@
 import './sidebar.scss';
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
-import {AppImpl} from '../../core/app_impl';
+import type {AppImpl} from '../../core/app_impl';
 import {getCurrentChannel} from '../../core/channels';
-import {isMetatracingEnabled} from '../../core/metatracing';
 import {raf} from '../../core/raf_scheduler';
 import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
-import type {TraceImpl} from '../../core/trace_impl';
 import {SCM_REVISION, VERSION} from '../../virtual/version';
-import type {App} from '../../public/app';
 import {SIDEBAR_SECTIONS, type SidebarSections} from '../../public/sidebar';
-import {getBugReportUrl} from '../../public/utils';
 import {Icon} from '../../widgets/icon';
 import {Animation} from '../animation';
-import {toggleHelp} from '../help_modal';
-import {
-  convertTraceToJson,
-  convertTraceToSystrace,
-  downloadTrace,
-  toggleMetatrace,
-} from '../trace_actions';
-import {shareTrace} from '../trace_share_utils';
 import {EngineStatusBadge} from './engine_status_badge';
-import {HiringBanner, shouldShowHiringBanner} from './hiring_banner';
 import {ServiceWorkerStatusBadge} from './service_worker_status_badge';
 import {SidebarSection} from './sidebar_section';
 
@@ -68,7 +55,6 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
           this._redrawWhileAnimating.stop();
         },
       },
-      shouldShowHiringBanner(app) && m(HiringBanner),
       this.renderSidebarHeader(app),
       this.renderSidebarContent(app),
       this.renderSidebarFooter(app),
@@ -151,26 +137,23 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
     switch (sectionId) {
       case 'current_trace':
         if (trace !== undefined) {
-          items.push(...getCurrentTraceItems(trace));
-          if (trace.traceInfo.traceTitle) {
+          const traceTitle = trace.traceInfo.traceTitle;
+          const fileSizeBytes = trace.traceInfo.fileSizeBytes;
+
+          if (traceTitle) {
             leading = m(
               'span.pf-sidebar__trace-file-name',
-              trace.traceInfo.traceTitle,
+              traceTitle,
+              fileSizeBytes !== undefined &&
+                ` (${Math.ceil(fileSizeBytes / 1e6)} MB)`,
             );
           }
         }
         break;
       case 'convert_trace':
-        if (trace !== undefined) {
-          items.push(...getConvertTraceItems(trace));
-        }
         defaultCollapsed = true;
         break;
       case 'support':
-        items.push(...getSupportGlobalItems(app));
-        if (trace !== undefined) {
-          items.push(...getSupportTraceItems(trace));
-        }
         defaultCollapsed = true;
         break;
     }
@@ -184,115 +167,4 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
       leading,
     });
   }
-}
-
-// TODO(primiano): The items below should be moved to dedicated
-// plugins (most of this really belongs to core_plugins/commands/index.ts).
-// For now keeping everything here as splitting these require moving some
-// functions like share_trace() out of core, splitting out permalink, etc.
-
-// Returns menu items for the 'current_trace' section.
-function getCurrentTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
-  const items: SidebarMenuItemInternal[] = [];
-  const downloadDisabled = trace.traceInfo.downloadable
-    ? false
-    : 'Cannot download external trace';
-
-  if (AppImpl.instance.isInternalUser) {
-    items.push({
-      id: 'perfetto.ShareTrace',
-      section: 'current_trace',
-      sortOrder: 50,
-      text: 'Share',
-      action: async () => await shareTrace(trace),
-      icon: 'share',
-    });
-  }
-
-  items.push({
-    id: 'perfetto.DownloadTrace',
-    section: 'current_trace',
-    sortOrder: 51,
-    text: 'Download',
-    action: async () => await downloadTrace(trace),
-    icon: 'file_download',
-    disabled: downloadDisabled,
-  });
-
-  return items;
-}
-
-// Returns menu items for the 'convert_trace' section.
-function getConvertTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
-  const items: SidebarMenuItemInternal[] = [];
-  const downloadDisabled = trace.traceInfo.downloadable
-    ? false
-    : 'Cannot download external trace';
-
-  items.push({
-    id: 'perfetto.ConvertToJson',
-    section: 'convert_trace',
-    text: 'Convert to .json',
-    action: async () => await convertTraceToJson(trace),
-    icon: 'file_download',
-    disabled: downloadDisabled,
-  });
-
-  if (trace.traceInfo.hasFtrace) {
-    items.push({
-      id: 'perfetto.ConvertToSystrace',
-      section: 'convert_trace',
-      text: 'Convert to .systrace',
-      action: async () => await convertTraceToSystrace(trace),
-      icon: 'file_download',
-      disabled: downloadDisabled,
-    });
-  }
-
-  return items;
-}
-
-// Returns global menu items for the 'support' section (always visible).
-function getSupportGlobalItems(app: App): SidebarMenuItemInternal[] {
-  // TODO(primiano): The Open file / Open with legacy entries are registered by
-  // the 'perfetto.CoreCommands' plugin. These built-in items should move there too.
-  return [
-    {
-      id: 'perfetto.KeyboardShortcuts',
-      section: 'support',
-      text: 'Keyboard shortcuts',
-      action: toggleHelp,
-      icon: 'help',
-    },
-    {
-      id: 'perfetto.Documentation',
-      section: 'support',
-      text: 'Documentation',
-      href: 'https://perfetto.dev/docs',
-      icon: 'find_in_page',
-    },
-    {
-      id: 'perfetto.ReportBug',
-      section: 'support',
-      sortOrder: 4,
-      text: 'Report a bug',
-      href: getBugReportUrl(app),
-      icon: 'bug_report',
-    },
-  ];
-}
-
-// Returns trace-specific menu items for the 'support' section.
-function getSupportTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
-  return [
-    {
-      id: 'perfetto.Metatrace',
-      section: 'support',
-      sortOrder: 5,
-      text: () =>
-        isMetatracingEnabled() ? 'Finalize metatrace' : 'Record metatrace',
-      action: () => toggleMetatrace(trace.engine),
-      icon: () => (isMetatracingEnabled() ? 'download' : 'fiber_smart_record'),
-    },
-  ];
 }

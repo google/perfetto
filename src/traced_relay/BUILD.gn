@@ -26,7 +26,10 @@ executable("traced_relay") {
 }
 
 source_set("lib") {
-  public_deps = [ "../../include/perfetto/ext/tracing/ipc" ]
+  public_deps = [
+    "../../include/perfetto/ext/tracing/ipc",
+    "../tracing/ipc/producer:relay",
+  ]
   sources = [
     "relay_service.cc",
     "relay_service.h",
@@ -44,7 +47,6 @@ source_set("lib") {
     "../base:version",
     "../ipc:perfetto_ipc",
     "../tracing/ipc:default_socket",
-    "../tracing/ipc/producer:relay",  # For relay_ipc_client.h
   ]
 }
 

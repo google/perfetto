@@ -131,7 +131,7 @@ interface Cell {
 }
 
 // Renders a cell into the {label, value, sub} shape statCard expects, mapping
-// the loading/absent states to "…" / "N/A — not available".
+// the loading/absent states to "…" / "N/A - not available".
 function renderCell(c: Cell): {
   label: string;
   value: m.Children;
@@ -144,7 +144,7 @@ function renderCell(c: Cell): {
   return {label: c.label, value: c.value, sub: c.sub};
 }
 
-// A card whose stats are all Cells — always rendered, so missing facts surface
+// A card whose stats are all Cells - always rendered, so missing facts surface
 // as "N/A" rather than dropping the whole card.
 function cellCard(cells: Cell[]): m.Child {
   return statCard(cells.map(renderCell));
@@ -273,13 +273,12 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
     ]);
 
     // GC / Java allocation churn: not yet wired to a data source (needs ART GC
-    // events + allocation-rate sampling), so both cells report "not available"
-    // rather than placeholder numbers.
-    const churnCard = cellCard([
-      {label: 'GC churn', loading: false, value: undefined},
-      {label: 'Java churn', loading: false, value: undefined},
-    ]);
+    // events + allocation-rate sampling). Hidden until then.
+    // const churnCard = cellCard([
+    //   {label: 'GC churn', loading: false, value: undefined},
+    //   {label: 'Java churn', loading: false, value: undefined},
+    // ]);
 
-    return m(BillboardStrip, [uptimeCard, rssCard, deltaCard, churnCard]);
+    return m(BillboardStrip, [uptimeCard, rssCard, deltaCard]);
   }
 }

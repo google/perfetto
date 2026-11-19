@@ -221,8 +221,8 @@ void SystraceParser::ParseSystracePoint(
             tracks::DynamicName(name_id));
         row.name = name_id;
         context_->slice_tracker->BeginLegacyUnnestable(
-            row, [this, cookie](ArgsTracker::BoundInserter* inserter) {
-              inserter->AddArg(cookie_id_, Variadic::Integer(cookie));
+            row, [this, cookie](ArgsInserter& inserter) {
+              inserter.AddArg(cookie_id_, Variadic::Integer(cookie));
             });
       } else {
         TrackId track_id = context_->track_compressor->InternEnd(
@@ -271,9 +271,9 @@ void SystraceParser::ParseSystracePoint(
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->Scoped(
             ts, track_id, kNullStringId, name_id, 0,
-            [this, utid](ArgsTracker::BoundInserter* inserter) {
-              inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
-                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            [this, utid](ArgsInserter& inserter) {
+              inserter.AddArg(utid_id_, Variadic::UnsignedInteger(utid),
+                              ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       } else if (point.phase == 'G') {
         TrackId track_id = context_->track_compressor->InternBegin(
@@ -282,9 +282,9 @@ void SystraceParser::ParseSystracePoint(
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->Begin(
             ts, track_id, kNullStringId, name_id,
-            [this, utid](ArgsTracker::BoundInserter* inserter) {
-              inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
-                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            [this, utid](ArgsInserter& inserter) {
+              inserter.AddArg(utid_id_, Variadic::UnsignedInteger(utid),
+                              ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       } else if (point.phase == 'H') {
         TrackId track_id = context_->track_compressor->InternEnd(
@@ -292,10 +292,9 @@ void SystraceParser::ParseSystracePoint(
             point.int_value, tracks::DynamicName(track_name_id));
         auto utid = context_->process_tracker->GetOrCreateThread(pid);
         context_->slice_tracker->End(
-            ts, track_id, {}, {},
-            [this, utid](ArgsTracker::BoundInserter* inserter) {
-              inserter->AddArg(end_utid_id_, Variadic::UnsignedInteger(utid),
-                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+            ts, track_id, {}, {}, [this, utid](ArgsInserter& inserter) {
+              inserter.AddArg(end_utid_id_, Variadic::UnsignedInteger(utid),
+                              ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       }
       break;
@@ -334,7 +333,7 @@ void SystraceParser::ParseSystracePoint(
       } else if (point.name == "PlugType") {
         promoted = context_->track_tracker->InternTrack(
             tracks::kAndroidPlugTypeBlueprint);
-      } else if (point.name.StartsWith("battery_stats.")) {
+      } else if (base::StartsWith(point.name, "battery_stats.")) {
         // Promote battery_stats conters to global tracks.
         // Track name and definition should be kept in sync with
         // android_probes_parser.cc
@@ -360,10 +359,10 @@ void SystraceParser::ParseSystracePoint(
           tracks::Dimensions(upid, point.name));
       context_->event_tracker->PushCounter(
           ts, static_cast<double>(point.int_value), track_id,
-          [this, opt_utid](ArgsTracker::BoundInserter* inserter) {
+          [this, opt_utid](ArgsInserter& inserter) {
             if (opt_utid) {
-              inserter->AddArg(utid_id_, Variadic::UnsignedInteger(*opt_utid),
-                               ArgsTracker::UpdatePolicy::kSkipIfExists);
+              inserter.AddArg(utid_id_, Variadic::UnsignedInteger(*opt_utid),
+                              ArgsTracker::UpdatePolicy::kSkipIfExists);
             }
           });
     }
@@ -372,7 +371,7 @@ void SystraceParser::ParseSystracePoint(
 
 void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
                                                   base::StringView name) {
-  if (name.StartsWith("lmk,")) {
+  if (base::StartsWith(name, "lmk,")) {
     // LMK events introduced with http://aosp/1782391 are treated specially
     // to parse the killed process oom_score_adj out of them.
     // Format is 'lmk,pid,reason,oom adj,...'

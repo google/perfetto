@@ -30,4 +30,10 @@ message Trigger {
   optional int32 trusted_producer_uid = 3;
   // The value of stop_delay_ms from the configuration.
   optional uint64 stop_delay_ms = 4;
+  // The effective trigger mode of the session that received the trigger.
+  // See TraceConfig.TriggerConfig.TriggerMode. This can differ from the
+  // TraceConfig: e.g. STOP_TRACING with use_clone_snapshot_if_available=true
+  // is reported as CLONE_SNAPSHOT.
+  // Introduced in v60.
+  optional int32 trigger_mode = 5;
 }

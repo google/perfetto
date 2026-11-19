@@ -39,7 +39,6 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
@@ -66,6 +65,7 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -246,8 +246,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.args_tracker =
+        std::make_unique<ArgsTracker>(context_.storage.get());
     context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(context_.storage.get());
     context_.global_stats_tracker =
@@ -3200,6 +3200,28 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, CpuInfoUniformCapacityFallsBackToFrequencies) {
+  auto* cpu_info = trace_->add_packet()->set_cpu_info();
+  auto* ecore = cpu_info->add_cpus();
+  ecore->set_processor("12th Gen Intel(R) Core(TM) i5-1235U");
+  ecore->set_capacity(1024);
+  ecore->add_frequencies(3300000);
+  auto* pcore = cpu_info->add_cpus();
+  pcore->set_processor("12th Gen Intel(R) Core(TM) i5-1235U");
+  pcore->set_capacity(1024);
+  pcore->add_frequencies(4400000);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& cpu_table = context_.storage->cpu_table();
+  ASSERT_GE(cpu_table.row_count(), 2u);
+  EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+  EXPECT_EQ(cpu_table[1].capacity(), 1024u);
+  EXPECT_EQ(cpu_table[0].cluster_id(), 0u);
+  EXPECT_EQ(cpu_table[1].cluster_id(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, SystemInfoDeviceTreeCompatible) {

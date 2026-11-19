@@ -82,8 +82,14 @@ source_set("trace_redaction") {
     "trace_redaction_framework.h",
     "trace_redactor.cc",
     "trace_redactor.h",
+    "trace_redactor_options.cc",
+    "trace_redactor_options.h",
     "verify_integrity.cc",
     "verify_integrity.h",
+  ]
+  public_deps = [
+    "../../protos/perfetto/trace:non_minimal_zero",
+    "../trace_processor/util:clock",
   ]
   deps = [
     "../../gn:default_deps",
@@ -91,7 +97,6 @@ source_set("trace_redaction") {
     "../../include/perfetto/trace_processor:util",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:minimal_zero",
-    "../../protos/perfetto/trace:non_minimal_zero",
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/perfetto:zero",
@@ -101,7 +106,6 @@ source_set("trace_redaction") {
     "../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../base",
     "../trace_processor/util:blob",
-    "../trace_processor/util:clock",
   ]
 }
 
@@ -160,6 +164,7 @@ perfetto_unittest_source_set("unittests") {
     "redact_process_events_unittest.cc",
     "redact_sched_events_unittest.cc",
     "timeline_validation_unittest.cc",
+    "trace_redactor_options_unittest.cc",
     "trace_redactor_unittest.cc",
     "verify_integrity_unittest.cc",
   ]
@@ -188,4 +193,15 @@ perfetto_unittest_source_set("unittests") {
     "../base:test_support",
     "../trace_processor/util:blob",
   ]
+}
+
+if (enable_perfetto_unittests) {
+  executable("trace_redactor_unittests") {
+    testonly = true
+    deps = [
+      ":unittests",
+      "../../gn:default_deps",
+      "../../gn:gtest_main",
+    ]
+  }
 }

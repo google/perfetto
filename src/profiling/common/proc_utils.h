@@ -61,6 +61,13 @@ std::optional<uint32_t> GetRssAnonAndSwap(const std::string&);
 // entries satisfying the minimum size criteria for anonymous memory.
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
 
+// Returns the path within the cgroup v2 hierarchy, given /proc/pid/cgroup
+// contents.
+std::optional<std::string> GetCgroupV2Path(const std::string& proc_pid_cgroup);
+
+// Whether the process' own cgroup v2 has cgroup.freeze set.
+bool IsProcessFrozen(pid_t pid);
+
 std::optional<Uids> GetUids(const std::string&);
 
 // Returns the effective process UID from stat(/proc/pid).

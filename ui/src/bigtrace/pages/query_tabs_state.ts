@@ -16,6 +16,7 @@ import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import {debounce} from '../../base/rate_limiters';
+import {arrayEquals} from '../../base/array_utils';
 import {shortUuid} from '../../base/uuid';
 import type {
   BigtraceQueryClient,
@@ -26,23 +27,21 @@ import {queryStore, type QueryExecution} from '../query/query_store';
 import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+import {convertFromWireValues} from '../settings/tab_bound_setting';
+import {channelStorageKey} from '../settings/release_channel';
 import type {DateFilterState} from '../query/date_filter';
 import {
   formatSharedTraceListSql,
   type SharedTraceList,
 } from './shared_trace_list';
 
-const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
+// Per release channel: each runs a different build and can have its own
+// backend, which holds the tab's run.
+const QUERY_TABS_STORAGE_KEY = channelStorageKey('bigtraceQueryTabs');
 const DEFAULT_SQL = '';
 
-// Row cap on the query and cap on how many traces it fans out to, defaulted per
-// execution mode: an ephemeral run is a quick look, a persistent one is a full
-// sweep whose results are saved.
-export const MODE_DEFAULTS = {
-  ephemeral: {rowLimit: 1_000, traceLimit: 10_000},
-  persistent: {rowLimit: 10_000, traceLimit: 100_000},
-} as const;
-
+export const DEFAULT_ROW_LIMIT = 10_000;
+export const DEFAULT_TRACE_LIMIT = 100_000;
 export const DEFAULT_TABLE_TTL_DAYS = 30;
 
 // The backend setting carrying an explicit list of trace UUIDs — the second
@@ -148,27 +147,6 @@ export function isTraceSelectionSetting(setting: {
     setting.category === 'TRACE_ADDRESS' ||
     setting.category === 'TRACE_METADATA'
   );
-}
-
-function modeDefaults(materialize: boolean): {
-  readonly rowLimit: number;
-  readonly traceLimit: number;
-} {
-  return materialize ? MODE_DEFAULTS.persistent : MODE_DEFAULTS.ephemeral;
-}
-
-// Switch a tab's execution mode, moving both limits to the new mode's defaults
-// — but only where they still hold the old mode's default, so a value the user
-// typed (or a preset set) survives the flip.
-export function applyModeDefaults(
-  tab: BigTraceEditorTab,
-  materialize: boolean,
-): void {
-  const from = modeDefaults(tab.materialize);
-  const to = modeDefaults(materialize);
-  if (tab.limit === from.rowLimit) tab.limit = to.rowLimit;
-  if (tab.traceLimit === from.traceLimit) tab.traceLimit = to.traceLimit;
-  tab.materialize = materialize;
 }
 
 // Whether there is anything to run: a line that isn't blank or a `--`
@@ -327,7 +305,6 @@ export interface TabConfigSnapshot {
   readonly limit: number;
   readonly traceLimit: number;
   readonly tableTtlDays: number;
-  readonly materialize: boolean;
 }
 
 // Flat primitives throughout, so a spread detaches it fully.
@@ -394,7 +371,6 @@ export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
     limit: tab.limit,
     traceLimit: tab.traceLimit,
     tableTtlDays: tab.tableTtlDays,
-    materialize: tab.materialize,
   };
 }
 
@@ -413,7 +389,31 @@ export function restoreTabConfig(
   tab.limit = snap.limit;
   tab.traceLimit = snap.traceLimit;
   tab.tableTtlDays = snap.tableTtlDays;
-  tab.materialize = snap.materialize;
+}
+
+// On Apply in the gear: query options changed there, values and on/off
+// switches, become the global values that new tabs start with. Only changes
+// count, so applying other edits in an old run's tab doesn't overwrite them.
+export function rememberQueryOptions(
+  tab: BigTraceEditorTab,
+  before: TabConfigSnapshot,
+): void {
+  const valuesOf = (
+    config: Pick<TabConfigSnapshot, 'querySettings'>,
+    id: string,
+  ) => config.querySettings.find((s) => s.settingId === id)?.values;
+  for (const setting of bigTraceSettingsStorage.getAllSettings()) {
+    if (isTraceSelectionSetting(setting)) continue;
+    const off = tab.disabledSettings.includes(setting.id);
+    if (off !== before.disabledSettings.includes(setting.id)) {
+      setting.setDisabled(off);
+    }
+    const values = valuesOf(tab, setting.id);
+    const was = valuesOf(before, setting.id);
+    if (values === undefined) continue;
+    if (was !== undefined && arrayEquals(values, was)) continue;
+    setting.set(convertFromWireValues(values, setting) ?? setting.defaultValue);
+  }
 }
 
 // Open Settings on a tab that already has a configuration: the launcher takes
@@ -482,10 +482,8 @@ export interface BigTraceEditorTab {
   // Per-execute request: Cancel aborts this without tearing down the tab.
   activeRequest?: AbortController;
   queryClient?: BigtraceQueryClient;
-  materialize: boolean;
   queryUuid?: string;
   pollInterval?: number;
-  lastProcessedRows: number;
   clientStartTime?: number;
   execution?: QueryExecution;
   // Stale-poll guard: bumped on each startPolling() call.
@@ -512,7 +510,6 @@ interface StoredTab {
   readonly limit: number;
   readonly traceLimit?: number;
   readonly tableTtlDays?: number;
-  readonly materialize: boolean;
   readonly queryUuid?: string;
   readonly error?: string;
   // Per-tab trace-selection snapshot, persisted so edits to the tab's
@@ -564,7 +561,6 @@ export class QueryTabsState {
     initialQuery?: string,
     limit?: number,
     queryUuid?: string,
-    materialize?: boolean,
     forceNew?: boolean,
     stored?: Partial<StoredTab>,
     traceLimit?: number,
@@ -590,11 +586,10 @@ export class QueryTabsState {
     const derivedTitle = title;
     // Seed the per-tab settings snapshot. Restored tabs use the persisted
     // one; history-reopen tabs start empty (the runner rehydrates from
-    // /query_executions/{uuid}); fresh tabs start from the backend defaults.
+    // /query_executions/{uuid}); fresh tabs start from the global values
+    // (see rememberQueryOptions).
     const isFromStorage = stored !== undefined;
     const isFromHistory = queryUuid !== undefined && !isFromStorage;
-    // Default to persistent; ?? (not ||) keeps an explicit/restored ephemeral.
-    const isPersistent = materialize ?? true;
     const querySettings: SettingFilter[] = isFromStorage
       ? [...(stored?.querySettings ?? [])]
       : isFromHistory
@@ -630,8 +625,9 @@ export class QueryTabsState {
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)
       : null;
-    // Per-tab enable/disable. Fresh tabs mirror what the backend declares
-    // disabled, then diverge; restored tabs use their persisted set.
+    // Per-tab enable/disable. Fresh tabs start from the global on/off state
+    // (see rememberQueryOptions), then diverge; restored tabs use their
+    // persisted set.
     const disabledSettings: string[] = isFromStorage
       ? [...(stored?.disabledSettings ?? [])]
       : isFromHistory
@@ -644,15 +640,14 @@ export class QueryTabsState {
       id: shortUuid(),
       title: derivedTitle || this.nextTabName(),
       editorText: initialQuery ?? '',
-      // No caller-supplied caps: take the ones that fit the execution mode.
-      limit: limit ?? modeDefaults(isPersistent).rowLimit,
+      limit: limit ?? DEFAULT_ROW_LIMIT,
       traceLimit:
         traceLimit ??
         (isFromStorage &&
         typeof stored?.traceLimit === 'number' &&
         stored.traceLimit >= 0
           ? stored.traceLimit
-          : modeDefaults(isPersistent).traceLimit),
+          : DEFAULT_TRACE_LIMIT),
       tableTtlDays:
         isFromStorage &&
         typeof stored?.tableTtlDays === 'number' &&
@@ -672,8 +667,6 @@ export class QueryTabsState {
       disabledSettings,
       lifecycle: new AbortController(),
       activeRequest: undefined,
-      materialize: isPersistent,
-      lastProcessedRows: 0,
       queryUuid,
       pollGeneration: 0,
       // Tabs predating the launcher have no flag; treat them as configured so
@@ -685,9 +678,7 @@ export class QueryTabsState {
           : false,
       lastPresetId: isFromStorage ? stored?.lastPresetId : undefined,
     };
-    tab.execution = queryStore.getOrCreate(queryUuid || tab.id, {
-      materialized: tab.materialize,
-    });
+    tab.execution = queryStore.getOrCreate(queryUuid || tab.id);
     this.tabs.push(tab);
     this.activeTabId = tab.id;
     this.markDirty();
@@ -705,7 +696,6 @@ export class QueryTabsState {
       src.editorText,
       src.limit,
       undefined,
-      src.materialize,
       true, // forceNew
       {
         querySettings: src.querySettings,
@@ -738,7 +728,6 @@ export class QueryTabsState {
       formatSharedTraceListSql(shared),
       undefined,
       undefined,
-      undefined,
       true,
     );
     tab.configured = true;
@@ -756,7 +745,7 @@ export class QueryTabsState {
     if (this.tabs.length <= 1) return;
     const index = this.tabs.findIndex((t) => t.id === tabId);
     if (index === -1) return;
-    const tabToClose = this.tabs[index];
+    const tabToClose = this.tabs[index]!;
     if (tabToClose.pollInterval !== undefined) {
       window.clearTimeout(tabToClose.pollInterval);
       tabToClose.pollInterval = undefined;
@@ -767,7 +756,7 @@ export class QueryTabsState {
     this.tabs.splice(index, 1);
     if (this.activeTabId === tabId) {
       const newIndex = Math.min(index, this.tabs.length - 1);
-      this.activeTabId = this.tabs[newIndex].id;
+      this.activeTabId = this.tabs[newIndex]!.id;
     }
     this.markDirty();
   }
@@ -785,14 +774,14 @@ export class QueryTabsState {
     if (draggedIndex === -1) return;
     const [dragged] = this.tabs.splice(draggedIndex, 1);
     if (beforeId === undefined) {
-      this.tabs.push(dragged);
+      this.tabs.push(dragged!);
       return;
     }
     const beforeIndex = this.tabs.findIndex((t) => t.id === beforeId);
     if (beforeIndex === -1) {
-      this.tabs.push(dragged);
+      this.tabs.push(dragged!);
     } else {
-      this.tabs.splice(beforeIndex, 0, dragged);
+      this.tabs.splice(beforeIndex, 0, dragged!);
     }
   }
 
@@ -807,7 +796,6 @@ export class QueryTabsState {
         limit: t.limit,
         traceLimit: t.traceLimit,
         tableTtlDays: t.tableTtlDays,
-        materialize: t.materialize,
         queryUuid: t.queryUuid,
         error: t.queryResult?.error,
         // Persist the per-tab snapshot so Settings-sub-tab edits survive
@@ -851,7 +839,6 @@ export class QueryTabsState {
         t.editorText,
         typeof t.limit === 'number' && t.limit >= 0 ? t.limit : undefined,
         t.queryUuid,
-        t.materialize,
         true,
         t,
       );
@@ -864,8 +851,9 @@ export class QueryTabsState {
       if (!found) {
         // Restored tabs get new IDs, so activate by index instead.
         const idx = parsed.tabs.findIndex((t) => t.id === parsed.activeTabId);
-        if (idx >= 0 && idx < this.tabs.length) {
-          this.activeTabId = this.tabs[idx].id;
+        const tab = this.tabs[idx];
+        if (tab !== undefined) {
+          this.activeTabId = tab.id;
         }
       }
     }

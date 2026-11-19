@@ -17,10 +17,10 @@
 #include "src/trace_processor/core/dataframe/query_plan.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 namespace {
@@ -66,7 +66,7 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
       return nbv;
     }
     case RegisterInit::Type::GetTypeIndex<RegisterInit::IndexVector>():
-      return Span<uint32_t>(
+      return base::Span<uint32_t>(
           indexes[init.source_index].permutation_vector()->data(),
           indexes[init.source_index].permutation_vector()->data() +
               indexes[init.source_index].permutation_vector()->size());
@@ -82,7 +82,7 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
       const auto& sve = columns[init.source_index]
                             ->specialized_storage
                             .unchecked_get<SpecializedStorage::SmallValueEq>();
-      return Span<const uint32_t>(
+      return base::Span<const uint32_t>(
           sve.prefix_popcount.data(),
           sve.prefix_popcount.data() + sve.prefix_popcount.size());
     }

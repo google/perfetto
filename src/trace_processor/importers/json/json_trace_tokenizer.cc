@@ -557,8 +557,7 @@ void JsonTraceTokenizer::RecordEventError(size_t stat_key,
   StringId error_key = context_->storage->InternString("error");
   context_->import_logs_tracker->RecordTokenizationLog(
       stat_key, CurrentByteOffset(),
-      [raw_key, raw_id, error_key,
-       error_id](ArgsTracker::BoundInserter& inserter) {
+      [raw_key, raw_id, error_key, error_id](ArgsInserter& inserter) {
         inserter.AddArg(raw_key, Variadic::String(raw_id));
         if (error_id) {
           inserter.AddArg(error_key, Variadic::String(*error_id));
@@ -844,7 +843,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   }
 
   // Make the tid equal to the pid if tid is not set.
-  if (event.tid == 0 && event.pid != 0 && !event.tid_is_string_id) {
+  if (!event.tid_exists && event.pid != 0) {
     event.tid = event.pid;
   }
 
@@ -1143,12 +1142,12 @@ class JsonImporter : public TraceImporter<JsonImporter> {
   JsonImporter() : TraceImporter(MakeDescriptor()) {}
   ~JsonImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
                 start.end());
-    return base::StartsWith(start, "{\"") || base::StartsWith(start, "[{\"");
+    return {base::StartsWith(start, "{\"") || base::StartsWith(start, "[{\"")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

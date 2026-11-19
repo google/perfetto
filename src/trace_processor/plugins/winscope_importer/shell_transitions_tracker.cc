@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <optional>
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
@@ -35,7 +36,7 @@ ArgsInserter& ShellTransitionsTracker::AddArgsTo(int32_t transition_id) {
   auto* transition_info = GetOrInsertTransition(transition_id);
   if (!transition_info->args_inserter) {
     transition_info->args_inserter =
-        ArgsTracker(context_).AddArgsTo(transition_info->row_id);
+        context_->args_tracker->AddArgsTo(transition_info->row_id);
   }
   return *transition_info->args_inserter;
 }

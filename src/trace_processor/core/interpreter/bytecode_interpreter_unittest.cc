@@ -33,6 +33,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/regex.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
@@ -52,7 +53,6 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -179,7 +179,7 @@ TEST_F(BytecodeInterpreterTest, AllocateIndices) {
     EXPECT_THAT(slab, SizeIs(132u));
   }
   {
-    const auto& span = GetRegister<Span<uint32_t>>(1);
+    const auto& span = GetRegister<base::Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));
     EXPECT_EQ(span.b, slab.begin());
     EXPECT_EQ(span.e, slab.end());
@@ -201,7 +201,7 @@ TEST_F(BytecodeInterpreterTest, AllocateIndicesAlreadyAllocated) {
     EXPECT_EQ(slab.end(), expected_end);
   }
   {
-    const auto& span = GetRegister<Span<uint32_t>>(1);
+    const auto& span = GetRegister<base::Span<uint32_t>>(1);
     EXPECT_THAT(span, SizeIs(132u));
     EXPECT_EQ(span.b, slab.begin());
     EXPECT_EQ(span.e, slab.end());
@@ -214,7 +214,7 @@ TEST_F(BytecodeInterpreterTest, Iota) {
       "Iota: [source_register=Register(0), update_register=Register(1)]",
       Range{5, 10}, GetSpan(res));
 
-  const auto& update = GetRegister<Span<uint32_t>>(1);
+  const auto& update = GetRegister<base::Span<uint32_t>>(1);
   ASSERT_THAT(update.b, AllOf(testing::Ge(res.data()),
                               testing::Le(res.data() + res.size())));
   ASSERT_THAT(update.e, AllOf(testing::Ge(res.data()),
@@ -227,7 +227,7 @@ TEST_F(BytecodeInterpreterTest, Reverse) {
   SetRegistersAndExecute("Reverse: [update_register=Register(0)]",
                          GetSpan(res));
 
-  const auto& update = GetRegister<Span<uint32_t>>(0);
+  const auto& update = GetRegister<base::Span<uint32_t>>(0);
   ASSERT_THAT(update.b, AllOf(testing::Ge(res.data()),
                               testing::Le(res.data() + res.size())));
   ASSERT_THAT(update.e, AllOf(testing::Ge(res.data()),
@@ -748,7 +748,7 @@ TEST_F(BytecodeInterpreterTest, FilterIdEq) {
                            filter::CastFilterValueResult::Valid(
                                filter::CastFilterValueResult::Id{5}),
                            GetSpan(indices), GetSpan(indices));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(5u));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), ElementsAre(5u));
   }
   {
     // Test case 2: Value above range
@@ -757,14 +757,14 @@ TEST_F(BytecodeInterpreterTest, FilterIdEq) {
                            filter::CastFilterValueResult::Valid(
                                filter::CastFilterValueResult::Id{11}),
                            GetSpan(indices), GetSpan(indices));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
     std::vector<uint32_t> indices = indices_spec;
     SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            GetSpan(indices), GetSpan(indices));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
 }
 
@@ -787,7 +787,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
     SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(4u),
                            GetSpan(indices), GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2),
                 ElementsAre(3u, 3u, 5u, 0u, 0u));
   }
   {
@@ -796,7 +796,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
     SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                            GetSpan(indices), GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
@@ -804,7 +804,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
     SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            GetSpan(indices), GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
 }
 
@@ -817,7 +817,7 @@ TEST_F(BytecodeInterpreterTest, StrideCopy) {
   std::vector<uint32_t> dest(source.size() * 3);
   SetRegistersAndExecute(bytecode, GetSpan(source), GetSpan(dest));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(1),
               ElementsAre(10u, 0u, 0u, 3u, 0u, 0u, 12u, 0u, 0u, 4u, 0u, 0u));
 }
 
@@ -915,7 +915,7 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
         SetRegistersAndExecute(
             bytecode_str, filter::CastFilterValueResult::Valid(filter_value),
             GetSpan(res), GetSpan(res), GetStoragePtr<String>(0));
-        EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+        EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2),
                     ElementsAreArray(expected_indices))
             << test_label;
       };
@@ -966,7 +966,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
       GetStoragePtr<String>(0));
 
   // All 4 indices should be returned since "nonexistent" != any string.
-  const auto& res = GetRegister<Span<uint32_t>>(2);
+  const auto& res = GetRegister<base::Span<uint32_t>>(2);
   EXPECT_THAT(res, ElementsAre(100, 101, 102, 103));
 
   // Also verify that the underlying buffer was not touched at all.
@@ -994,11 +994,11 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeInPool) {
       "val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]",
       filter::CastFilterValueResult::Valid("apple"), GetSpan(source_indices),
-      Span<uint32_t>{update_buffer.data(), update_buffer.data() + 4},
+      base::Span<uint32_t>{update_buffer.data(), update_buffer.data() + 4},
       GetStoragePtr<String>(0));
 
   // Should return indices 11 (banana) and 13 (cherry).
-  const auto& res = GetRegister<Span<uint32_t>>(2);
+  const auto& res = GetRegister<base::Span<uint32_t>>(2);
   EXPECT_THAT(res, ElementsAre(11, 13));
 
   // The first two elements of update_buffer should have been updated.
@@ -1028,7 +1028,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeEmpty) {
       filter::CastFilterValueResult::Valid("anything"), GetSpan(source_indices),
       GetSpan(update_buffer), GetStoragePtr<String>(0));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, NullFilter) {
@@ -1068,7 +1068,7 @@ TEST_F(BytecodeInterpreterTest, NullFilter) {
     for (uint32_t i = 0; i < kNumIndices; i += 2) {
       expected_isnull.push_back(i);
     }
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0),
                 ElementsAreArray(expected_isnull));
   }
   {
@@ -1083,7 +1083,7 @@ TEST_F(BytecodeInterpreterTest, NullFilter) {
     for (uint32_t i = 1; i < kNumIndices; i += 2) {
       expected_isnotnull.push_back(i);
     }
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0),
                 ElementsAreArray(expected_isnotnull));
   }
 }
@@ -1189,7 +1189,8 @@ TEST_F(BytecodeInterpreterTest, TranslateSparseNullIndices) {
   // Index 70 -> Storage 3 (Popcnt[1] + 0)
   // Index 150 -> Storage 7 (Popcnt[2] + 2)
   // Index 200 -> Storage 9 (Popcnt[3] + 0)
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(0u, 2u, 3u, 7u, 9u));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(1),
+              ElementsAre(0u, 2u, 3u, 7u, 9u));
 }
 
 TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
@@ -1267,7 +1268,7 @@ TEST_F(BytecodeInterpreterTest, StrideTranslateAndCopySparseNullIndices) {
       199, N, 999,  // Row 6 (Index 199 -> Null)
       200, 9, 999   // Row 7 (Index 200 -> Storage 9)
   };
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0),
               ElementsAreArray(expected_buffer));
 }
 
@@ -1337,7 +1338,7 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
       199, N,    // Row 6 (Index 199 -> Null)
       200, 200   // Row 7 (Index 200 -> Not Null)
   };
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0),
               ElementsAreArray(expected_buffer));
 }
 
@@ -1378,7 +1379,7 @@ TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
   // 3         | 3       | 15   | 102        | False     | -
   // 4         | 4       | 10   | 103        | True      | W/r 103 to output[1]
   // 5         | 5       | 20   | 104        | False     | -
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2),
               ElementsAre(101u, 103u));  // Indices 101 and 103 are kept
 }
 
@@ -1487,7 +1488,7 @@ TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_SimpleDuplicates) {
       bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
       GetStoragePtr<Int32>(0), NullBitvector{GetNullBv(0), {}},
       GetStoragePtr<String>(1), NullBitvector{GetNullBv(1), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 3));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(0, 1, 3));
 }
 
 TEST_F(BytecodeInterpreterTest,
@@ -1517,9 +1518,9 @@ TEST_F(BytecodeInterpreterTest,
       bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
       GetStoragePtr<Int32>(0), NullBitvector{GetNullBv(0), {}},
       GetStoragePtr<String>(1), NullBitvector{GetNullBv(1), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0),
               testing::UnorderedElementsAre(0, 1, 2, 3));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), SizeIs(4));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), SizeIs(4));
 }
 
 TEST_F(BytecodeInterpreterTest,
@@ -1553,9 +1554,9 @@ TEST_F(BytecodeInterpreterTest,
       bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
       GetStoragePtr<Int32>(0), NullBitvector{GetNullBv(0), {}},
       GetStoragePtr<String>(1), NullBitvector{GetNullBv(1), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0),
               testing::UnorderedElementsAre(0, 1, 2, 3));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), SizeIs(4));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), SizeIs(4));
 }
 
 TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_InputAlreadyDistinct) {
@@ -1580,7 +1581,7 @@ TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_InputAlreadyDistinct) {
       bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
       GetStoragePtr<Int32>(0), NullBitvector{GetNullBv(0), {}},
       GetStoragePtr<String>(1), NullBitvector{GetNullBv(1), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(0, 1, 2));
 }
 
 TEST_F(BytecodeInterpreterTest, Distinct_EmptyInput) {
@@ -1605,7 +1606,7 @@ TEST_F(BytecodeInterpreterTest, Distinct_EmptyInput) {
       bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
       GetStoragePtr<Int32>(0), NullBitvector{GetNullBv(0), {}},
       GetStoragePtr<String>(1), NullBitvector{GetNullBv(1), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, Distinct_OneNonNullCol_SimpleDuplicates) {
@@ -1625,7 +1626,7 @@ TEST_F(BytecodeInterpreterTest, Distinct_OneNonNullCol_SimpleDuplicates) {
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
                          GetStoragePtr<Int32>(0),
                          NullBitvector{GetNullBv(0), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 3));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(0, 1, 3));
 }
 
 TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesCombined) {
@@ -1640,7 +1641,7 @@ TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesCombined) {
   SetRegistersAndExecute(bytecode, GetSpan(initial_indices));
 
   // Expected result: Indices 5, 6, ..., 14 (size 10)
-  const auto& result_span = GetRegister<Span<uint32_t>>(0);
+  const auto& result_span = GetRegister<base::Span<uint32_t>>(0);
   std::vector<uint32_t> expected_result(10);
   std::iota(expected_result.begin(), expected_result.end(), 5);
   EXPECT_THAT(result_span, ElementsAreArray(expected_result));
@@ -1657,7 +1658,7 @@ TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesOffsetMakesEmpty) {
   SetRegistersAndExecute(bytecode, GetSpan(initial_indices));
 
   // Expected result: Empty span
-  EXPECT_TRUE(GetRegister<Span<uint32_t>>(0).empty());
+  EXPECT_TRUE(GetRegister<base::Span<uint32_t>>(0).empty());
 
   // Test offset > size as well
   initial_indices.assign(10, 0);
@@ -1666,7 +1667,7 @@ TEST_F(BytecodeInterpreterTest, LimitOffsetIndicesOffsetMakesEmpty) {
       "LimitOffsetIndices: [offset_value=15, limit_value=5, "
       "update_register=Register(0)]";
   SetRegistersAndExecute(bytecode, GetSpan(initial_indices));
-  EXPECT_TRUE(GetRegister<Span<uint32_t>>(0).empty());
+  EXPECT_TRUE(GetRegister<base::Span<uint32_t>>(0).empty());
 }
 
 TEST_F(BytecodeInterpreterTest, FindMinMaxIndexUint32) {
@@ -1682,7 +1683,7 @@ TEST_F(BytecodeInterpreterTest, FindMinMaxIndexUint32) {
     SetRegistersAndExecute(bytecode, GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
     // Expected result: Span containing only index 1 (where value 10u is)
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1u));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(1u));
   }
   {
     // Use a fresh copy for testing MaxOp
@@ -1693,7 +1694,7 @@ TEST_F(BytecodeInterpreterTest, FindMinMaxIndexUint32) {
     SetRegistersAndExecute(bytecode, GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
     // Expected result: Span containing only index 0 (where value 50u is)
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0u));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(0u));
   }
 }
 
@@ -1710,7 +1711,7 @@ TEST_F(BytecodeInterpreterTest, FindMinMaxIndexString) {
         "update_register=Register(0)]";
     SetRegistersAndExecute(bytecode, GetSpan(indices),
                            GetStoragePtr<String>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1u));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(1u));
   }
   {
     std::vector<uint32_t> indices = initial_indices;
@@ -1719,7 +1720,7 @@ TEST_F(BytecodeInterpreterTest, FindMinMaxIndexString) {
         "update_register=Register(0)]";
     SetRegistersAndExecute(bytecode, GetSpan(indices),
                            GetStoragePtr<String>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(3u));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(3u));
   }
 }
 
@@ -1740,7 +1741,8 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueExists) {
       bytecode_str, filter::CastFilterValueResult::Valid(20u), GetSpan(p_vec),
       GetStoragePtr<Uint32>(0), NullBitvector{GetNullBv(0), {}});
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), testing::ElementsAre(1, 4, 2));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(1),
+              testing::ElementsAre(1, 4, 2));
 }
 
 TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueNotExists) {
@@ -1758,7 +1760,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueNotExists) {
   SetRegistersAndExecute(
       bytecode_str, filter::CastFilterValueResult::Valid(25u), GetSpan(p_vec),
       GetStoragePtr<Uint32>(0), NullBitvector{GetNullBv(0), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(1), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, IndexedFilterEq_String_SparseNull_ValueExists) {
@@ -1781,7 +1783,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterEq_String_SparseNull_ValueExists) {
                          filter::CastFilterValueResult::Valid("apple"),
                          GetSpan(p_vec), GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), testing::ElementsAre(0, 3));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(1), testing::ElementsAre(0, 3));
 }
 
 TEST_F(BytecodeInterpreterTest,
@@ -1804,7 +1806,7 @@ TEST_F(BytecodeInterpreterTest,
                          filter::CastFilterValueResult::Valid("bird"),
                          GetSpan(p_vec), GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(1), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_MultipleValues) {
@@ -1831,7 +1833,8 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_MultipleValues) {
                          GetStoragePtr<Uint32>(0),
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4),
+              testing::ElementsAre(1, 2, 4, 5));
 }
 
 TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_NoMatch) {
@@ -1853,7 +1856,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_NoMatch) {
                          GetStoragePtr<Uint32>(0),
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_SingleValue) {
@@ -1876,7 +1879,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_SingleValue) {
                          GetStoragePtr<Uint32>(0),
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(3));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4), testing::ElementsAre(3));
 }
 
 TEST_F(BytecodeInterpreterTest,
@@ -1908,7 +1911,8 @@ TEST_F(BytecodeInterpreterTest,
                          GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(0, 2, 3));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4),
+              testing::ElementsAre(0, 2, 3));
 }
 
 // Regression test: binary search on indexed String columns must compare by
@@ -1949,7 +1953,8 @@ TEST_F(BytecodeInterpreterTest,
                          GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(0, 2, 4, 5));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4),
+              testing::ElementsAre(0, 2, 4, 5));
 }
 
 // Regression test: IN values in reverse order relative to the index should
@@ -1978,7 +1983,8 @@ TEST_F(BytecodeInterpreterTest,
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
   // Output is sorted by permutation index.
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4),
+              testing::ElementsAre(1, 2, 4, 5));
 }
 
 // Large IN list (>16 values) that would trigger BitVector/HashMap lookup in
@@ -2024,7 +2030,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_LargeInList) {
   for (uint32_t i = 0; i < 20; ++i) {
     expected.push_back(i * 2);
   }
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4),
               testing::ElementsAreArray(expected));
 }
 
@@ -2053,7 +2059,7 @@ TEST_F(BytecodeInterpreterTest,
 
   // Row 1 should appear once even though the IN value is repeated, because
   // IndexedFilterIn deduplicates results after sorting.
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(1));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4), testing::ElementsAre(1));
 }
 
 // IN with mixed hit/miss values — some values exist in the column, some don't.
@@ -2078,7 +2084,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_MixedHitMiss) {
                          GetStoragePtr<Uint32>(0),
                          NullBitvector{GetNullBv(0), {}}, GetSpan(dest_buf));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4), testing::ElementsAre(1, 4));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4), testing::ElementsAre(1, 4));
 }
 
 // Regression test: when the IN list exceeds
@@ -2135,7 +2141,7 @@ TEST_F(BytecodeInterpreterTest,
   for (uint32_t i = kN - kInSize; i < kN; ++i) {
     expected.push_back(i);
   }
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(4),
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(4),
               testing::ElementsAreArray(expected));
 }
 
@@ -2148,7 +2154,8 @@ TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_PartialOverlap) {
   )";
   SetRegistersAndExecute(bytecode_str, GetSpan(source_span_data), Range{25, 45},
                          GetSpan(update_buffer));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(30, 40));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2),
+              testing::ElementsAre(30, 40));
 }
 
 TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
@@ -2160,7 +2167,7 @@ TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
   )";
   SetRegistersAndExecute(bytecode_str, GetSpan(source_span_data),
                          Range{100, 200}, GetSpan(update_buffer));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueExists) {
@@ -2182,7 +2189,7 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueExists) {
       GetSpan(update_data), GetStoragePtr<Uint32>(0));
 
   // Expected indices where data[i] == 20u: 1, 2, 4
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(1u, 2u, 4u));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), ElementsAre(1u, 2u, 4u));
 }
 
 TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueNotExists) {
@@ -2201,7 +2208,7 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueNotExists) {
       bytecode_str, filter::CastFilterValueResult::Valid(25u), source_range,
       GetSpan(update_data), GetStoragePtr<Uint32>(0));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, LinearFilterEq_String_NonNull_ValueExists) {
@@ -2222,7 +2229,7 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_String_NonNull_ValueExists) {
       GetSpan(update_data), GetStoragePtr<String>(0));
 
   // Expected indices where data[i] == "apple": 0, 2
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0u, 2u));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), ElementsAre(0u, 2u));
 }
 
 TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_NoneMatch) {
@@ -2244,7 +2251,7 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_NoneMatch) {
 
   // HandleInvalidCastFilterValueResult should make the source_range empty,
   // then the iota in the user's corrected LinearFilterEq will copy 0 elements.
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
 }
 
 TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_AllMatch) {
@@ -2264,7 +2271,7 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_AllMatch) {
   // HandleInvalidCastFilterValueResult returns early, source_range is not
   // modified. The iota in LinearFilterEq (user corrected version) copies all
   // original indices from the range.
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0u, 1u, 2u));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), ElementsAre(0u, 1u, 2u));
 }
 
 TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
@@ -2280,9 +2287,10 @@ TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
     InitRankMap: [dest_register=Register(1)]
     CollectIdIntoRankMap: [storage_register=Register(2), source_register=Register(0), rank_map_register=Register(1)]
   )";
-  SetRegistersAndExecute(bytecode_str,
-                         Span<uint32_t>(data.data(), data.data() + data.size()),
-                         Empty{}, GetStoragePtr<String>(0));
+  SetRegistersAndExecute(
+      bytecode_str,
+      base::Span<uint32_t>(data.data(), data.data() + data.size()), Empty{},
+      GetStoragePtr<String>(0));
 
   const auto& rank_map = *GetRegister<StringIdToRankMap>(1);
   EXPECT_EQ(rank_map.size(), 2u);
@@ -2338,7 +2346,7 @@ TEST_F(BytecodeInterpreterTest, Sort_SingleUint32Column_Ascending) {
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices), Empty{},
                          GetStoragePtr<Uint32>(0),
                          NullBitvector{GetNullBv(0), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 0, 2));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(1, 3, 0, 2));
 }
 
 TEST_F(BytecodeInterpreterTest,
@@ -2377,7 +2385,7 @@ TEST_F(BytecodeInterpreterTest,
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices), Empty{}, Empty{},
                          GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 2, 1));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(0, 2, 1));
 }
 
 TEST_F(BytecodeInterpreterTest,
@@ -2442,7 +2450,7 @@ TEST_F(BytecodeInterpreterTest,
       GetStoragePtr<Int64>(0), NullBitvector{GetNullBv(0), {}},
       GetStoragePtr<String>(1), NullBitvector{GetNullBv(1), {}},
       GetStoragePtr<Int32>(2), NullBitvector{GetNullBv(2), {}});
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 2, 0));
+  EXPECT_THAT(GetRegister<base::Span<uint32_t>>(0), ElementsAre(1, 3, 2, 0));
 }
 
 TEST_F(BytecodeInterpreterTest, InId) {
@@ -2468,7 +2476,7 @@ TEST_F(BytecodeInterpreterTest, InId) {
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(44, 10, 5));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), ElementsAre(44, 10, 5));
   }
   {
     // Test case 2: No values exist in range
@@ -2478,7 +2486,7 @@ TEST_F(BytecodeInterpreterTest, InId) {
                                   filter::CastFilterValueResult::Id{200}});
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
@@ -2486,7 +2494,7 @@ TEST_F(BytecodeInterpreterTest, InId) {
     auto value_list = CreateNoneMatch();
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
 }
 
@@ -2513,7 +2521,8 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Uint32>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 6, 0));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2),
+                ElementsAre(3, 3, 5, 0, 6, 0));
   }
   {
     // Test case 2: No values exist
@@ -2521,7 +2530,7 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
     auto value_list = CreateFilterInResult<Uint32>({100u, 200u});
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Uint32>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), IsEmpty());
   }
 }
 
@@ -2548,7 +2557,7 @@ TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(5, 500));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2), ElementsAre(5, 500));
   }
 }
 
@@ -2575,7 +2584,8 @@ TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Uint32>(0));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 0));
+    EXPECT_THAT(GetRegister<base::Span<uint32_t>>(2),
+                ElementsAre(3, 3, 5, 0, 0));
   }
 }
 
@@ -2626,7 +2636,7 @@ TEST_F(BytecodeInterpreterTest, InUint32LargeList) {
                          GetSpan(indices), GetStoragePtr<Uint32>(0));
 
   // Should match rows 0, 2, 4, ..., 98 (the 50 even-valued rows).
-  auto output = GetRegister<Span<uint32_t>>(2);
+  auto output = GetRegister<base::Span<uint32_t>>(2);
   EXPECT_EQ(output.size(), 50u);
 }
 

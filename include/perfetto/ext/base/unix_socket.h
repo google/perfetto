@@ -481,7 +481,7 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
 
 // Creates a LinuxFileWatch for the given unix socket.
 // Returns nullptr if:
-// - flags::use_unix_socket_inotify == false
+// - The build disables it (enable_perfetto_sock_inotify in gn/perfetto.gni).
 // - `sock_name` is not a file-system linked unix socket.
 // - The underlying filesystem doesn't support inotify (or other errors occur).
 // - Any platform other than Linux/Android.

@@ -122,7 +122,8 @@ def load_shell(
   for _ in range(load_timeout + 1):
     try:
       if p.poll() is None:
-        _ = request.urlretrieve(f'http://{url}/status')
+        with request.urlopen(f'http://{url}/status') as response:
+          response.read()
         success = True
       break
     except (error.URLError, ConnectionError):

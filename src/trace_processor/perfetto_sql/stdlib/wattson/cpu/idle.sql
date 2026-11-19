@@ -36,9 +36,8 @@ CREATE PERFETTO TABLE _deep_idle_before_exit AS
 SELECT i.track_id, i.ts + i.dur AS exit_ts, i.ts AS prev_ts
 FROM counter_leading_intervals!((
     SELECT c.id, c.ts, c.track_id, c.value
-    FROM _track_idle_offsets AS t
-    JOIN counter AS c ON c.track_id = t.track_id
-    WHERE t.offset_ns > 0
+    FROM counter AS c
+    WHERE c.track_id IN (SELECT track_id FROM _track_idle_offsets WHERE offset_ns > 0)
   )) AS i
 CROSS JOIN _deepest_idle AS deepest
 WHERE
@@ -105,8 +104,8 @@ WITH
       cast_int!(i.value) AS idle
     FROM counter_leading_intervals!((
         SELECT c.id, c.ts, c.track_id, c.value
-        FROM _track_idle_offsets AS t
-        JOIN counter AS c ON c.track_id = t.track_id
+        FROM counter AS c
+        WHERE c.track_id IN (SELECT track_id FROM _track_idle_offsets)
       )) AS i
     JOIN _track_idle_offsets AS t
       ON t.track_id = i.track_id

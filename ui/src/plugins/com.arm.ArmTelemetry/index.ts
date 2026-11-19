@@ -368,7 +368,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
         });
 
         if (exists(found)) {
-          const cpu = m.cpus[0];
+          const cpu = m.cpus[0]!;
           if (!found.cpus.includes(cpu)) {
             found.cpus.push(cpu);
           }
@@ -446,11 +446,11 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
       // Optimize query if it is applicable to all the CPUS
       if (
         metrics.length == 1 &&
-        metrics[0].cpus.length == applicableCpus.length &&
-        metrics[0].cpus.every((c) => applicableCpus.includes(c))
+        metrics[0]!.cpus.length == applicableCpus.length &&
+        metrics[0]!.cpus.every((c) => applicableCpus.includes(c))
       ) {
-        const metric = metrics[0];
-        const firstTable = eventTableName(metric.events[0]);
+        const metric = metrics[0]!;
+        const firstTable = eventTableName(metric.events[0]!);
         const fromClause = metric.events.slice(1).reduce((acc, counter) => {
           const counterTable = eventTableName(counter);
           return (
@@ -478,7 +478,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
           DROP TABLE IF EXISTS ${tableName};
           CREATE TABLE ${tableName} AS
           ${metrics.reduce<string>((acc, metric) => {
-            const firstTable = eventTableName(metric.events[0]);
+            const firstTable = eventTableName(metric.events[0]!);
             const fromClause = metric.events.slice(1).reduce((acc, counter) => {
               const counterTable = eventTableName(counter);
               return (

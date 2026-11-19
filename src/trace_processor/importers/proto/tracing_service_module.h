@@ -28,9 +28,9 @@ namespace perfetto::trace_processor {
 class TraceProcessorContext;
 
 // Handles the packets the tracing service emits about the trace itself and
-// that nothing else in the pipeline depends on: service lifecycle events
-// and extension descriptors. Clock snapshots stay in ProtoTraceReader,
-// since resolving any packet's timestamp depends on them.
+// that nothing else in the pipeline depends on: service lifecycle events,
+// extension descriptors and tracing v2 producer stats. Clock snapshots stay
+// in ProtoTraceReader, since resolving any packet's timestamp depends on them.
 class TracingServiceModule : public ProtoImporterModule {
  public:
   using ConstBytes = protozero::ConstBytes;
@@ -44,6 +44,7 @@ class TracingServiceModule : public ProtoImporterModule {
  private:
   base::Status ParseServiceEvent(int64_t ts, ConstBytes blob);
   base::Status ParseExtensionDescriptor(ConstBytes descriptor);
+  base::Status ParseTracingV2ProducerStats(ConstBytes blob);
 
   TraceProcessorContext* const context_;
 };

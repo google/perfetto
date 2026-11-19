@@ -45,6 +45,13 @@ export interface TrackFilterCriteria {
   readonly options: ReadonlyArray<{key: string; label: string}>;
 }
 
+export interface TrackFilterState {
+  nameFilter: string;
+  readonly criteriaFilters: Map<string, string[]>;
+  clearAll(): void;
+  areFiltersSet(): boolean;
+}
+
 export interface TrackManager {
   /**
    * Register a new track against a unique key known as a URI. The track is not
@@ -67,6 +74,9 @@ export interface TrackManager {
    * power to the user compared to e.g. purely filtering by name.
    */
   registerTrackFilterCriteria(filter: TrackFilterCriteria): void;
+
+  readonly trackFilterCriteria: ReadonlyArray<TrackFilterCriteria>;
+  readonly filters: TrackFilterState;
 
   /**
    * Register a timeline overlay renderer.

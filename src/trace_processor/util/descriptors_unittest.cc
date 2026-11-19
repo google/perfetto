@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -1043,6 +1044,78 @@ TEST(DescriptorsTest, MergedFieldWithUnresolvableTypeKeepsExisting) {
   ASSERT_NE(field, nullptr);
   EXPECT_EQ(field->resolved_type_name(), ".android.net.NetworkPacketContext");
   EXPECT_TRUE(field->is_extension());
+}
+
+// Nested types grow the pool while the enclosing message is being added; the
+// message-scoped extension must still record the right scope.
+TEST(DescriptorsTest, NestedExtensionAfterManyNestedTypes) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+  auto* outer = file->add_message_type();
+  outer->set_name("Outer");
+  for (int i = 0; i < 64; ++i) {
+    outer->add_nested_type()->set_name("Nested" + std::to_string(i));
+  }
+  auto* ext = outer->add_extension();
+  ext->set_name("ext_field");
+  ext->set_number(10);
+  ext->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext->set_extendee(".test.BaseMessage");
+  std::vector<uint8_t> fds_bytes = fds.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  ASSERT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  const auto* field = pool.descriptors()[*base_idx].FindFieldByTag(10);
+  ASSERT_NE(field, nullptr);
+  EXPECT_EQ(field->extension_full_name(), "test.Outer.ext_field");
+}
+
+// An uninterpreted option whose name is not a FieldOptions field is skipped
+// rather than dereferenced.
+TEST(DescriptorsTest, UnknownUninterpretedOptionIgnored) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* options_file = fds->add_file();
+  options_file->set_name("google/protobuf/descriptor.proto");
+  options_file->set_package("google.protobuf");
+  auto* field_options = options_file->add_message_type();
+  field_options->set_name("FieldOptions");
+  auto* packed = field_options->add_field();
+  packed->set_name("packed");
+  packed->set_number(2);
+  packed->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  packed->set_type(FieldDescriptorProto::TYPE_BOOL);
+
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+  auto* msg = file->add_message_type();
+  msg->set_name("Message");
+  auto* field = msg->add_field();
+  field->set_name("value");
+  field->set_number(1);
+  field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  field->set_type(FieldDescriptorProto::TYPE_INT32);
+  auto* option = field->set_options()->add_uninterpreted_option();
+  option->add_name()->set_name_part("does_not_exist");
+  option->set_identifier_value("true");
+  std::vector<uint8_t> fds_bytes = fds.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  ASSERT_TRUE(status.ok()) << status.message();
+  auto idx = pool.FindDescriptorIdx(".test.Message");
+  ASSERT_TRUE(idx.has_value());
+  EXPECT_NE(pool.descriptors()[*idx].FindFieldByTag(1), nullptr);
 }
 
 }  // namespace

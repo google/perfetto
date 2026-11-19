@@ -29,6 +29,7 @@ source_set("video_frame_importer") {
     "video_frame_module.cc",
     "video_frame_module.h",
   ]
+  public_deps = [ "../../importers/proto:proto_importer_module" ]
   deps = [
     ":tables",
     "../../../../gn:default_deps",
@@ -37,12 +38,12 @@ source_set("video_frame_importer") {
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../base",
     "../../../protozero",
     "../../core/plugin",
     "../../importers/common",
     "../../importers/common:parser_types",
-    "../../importers/proto:proto_importer_module",
     "../../perfetto_sql/engine",
     "../../sorter",
     "../../sqlite",
@@ -62,6 +63,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../include/perfetto/trace_processor:storage",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../protozero",
     "../../importers/common",
     "../../importers/common:parser_types",

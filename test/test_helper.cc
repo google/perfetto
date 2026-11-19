@@ -24,14 +24,59 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/tracing/default_socket.h"
 
 #include "protos/perfetto/common/tracing_service_state.gen.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
 namespace {
+
+// Packets emitted by the tracing service itself, rather than by a producer.
+bool IsServicePacket(const protos::pbzero::TracePacket::Decoder& packet) {
+  return packet.has_clock_snapshot() || packet.has_trace_uuid() ||
+         packet.has_trace_config() || packet.has_trace_stats() ||
+         packet.synchronization_marker().size > 0 || packet.has_system_info() ||
+         packet.has_service_event() || packet.has_remote_clock_sync() ||
+         packet.has_trace_provenance() || packet.has_extension_descriptor();
+}
+
+// Invokes |fn| with each encoded packet in |trace|.
+// Note: not using pbzero::Trace::Decoder, as it would store the position of
+// every packet upfront.
+template <typename Fn>
+void ForEachEncodedPacket(const std::string& trace,
+                          bool skip_service_packets,
+                          Fn fn) {
+  protozero::ProtoDecoder decoder(trace);
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    PERFETTO_CHECK(field.id() == protos::pbzero::Trace::kPacketFieldNumber);
+    if (skip_service_packets &&
+        IsServicePacket(protos::pbzero::TracePacket::Decoder(field.as_bytes())))
+      continue;
+    fn(field.as_bytes());
+  }
+  PERFETTO_CHECK(decoder.bytes_left() == 0);
+}
+
+std::vector<protos::gen::TracePacket> DecodePackets(const std::string& trace,
+                                                    bool skip_service_packets) {
+  std::vector<protos::gen::TracePacket> packets;
+  ForEachEncodedPacket(
+      trace, skip_service_packets, [&packets](protozero::ConstBytes encoded) {
+        packets.emplace_back();
+        PERFETTO_CHECK(
+            packets.back().ParseFromArray(encoded.data, encoded.size));
+      });
+  return packets;
+}
+
 const char* ProducerSocketForMode(TestHelper::Mode mode) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   base::ignore_result(mode);
@@ -130,21 +175,35 @@ void TestHelper::OnTracingDisabled(const std::string& /*error*/) {
 }
 
 void TestHelper::ReadTraceData(std::vector<TracePacket> packets) {
-  for (auto& encoded_packet : packets) {
-    protos::gen::TracePacket packet;
-    PERFETTO_CHECK(
-        packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
-    full_trace_.push_back(packet);
-    if (packet.has_clock_snapshot() || packet.has_trace_uuid() ||
-        packet.has_trace_config() || packet.has_trace_stats() ||
-        !packet.synchronization_marker().empty() || packet.has_system_info() ||
-        packet.has_service_event() || packet.has_remote_clock_sync() ||
-        packet.has_trace_provenance() || packet.has_extension_descriptor()) {
-      continue;
-    }
-    PERFETTO_CHECK(packet.has_trusted_uid());
-    trace_.push_back(std::move(packet));
+  for (auto& packet : packets) {
+    std::string raw_packet = packet.GetRawBytesForTesting();
+    protos::pbzero::TracePacket::Decoder decoder(raw_packet);
+    if (!IsServicePacket(decoder))
+      PERFETTO_CHECK(decoder.has_trusted_uid());
+
+    auto [preamble, preamble_size] = packet.GetProtoPreamble();
+    serialized_trace_.append(preamble, preamble_size);
+    serialized_trace_.append(raw_packet);
   }
+}
+
+std::vector<protos::gen::TracePacket> TestHelper::full_trace() const {
+  return DecodePackets(serialized_trace_, /*skip_service_packets=*/false);
+}
+
+std::vector<protos::gen::TracePacket> TestHelper::trace() const {
+  return DecodePackets(serialized_trace_, /*skip_service_packets=*/true);
+}
+
+void TestHelper::ForEachPacket(
+    const std::function<void(const protos::gen::TracePacket&)>& fn) const {
+  ForEachEncodedPacket(
+      serialized_trace_, /*skip_service_packets=*/true,
+      [&fn](protozero::ConstBytes encoded) {
+        protos::gen::TracePacket packet;
+        PERFETTO_CHECK(packet.ParseFromArray(encoded.data, encoded.size));
+        fn(packet);
+      });
 }
 
 void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
@@ -226,7 +285,7 @@ void TestHelper::ProduceStartupEventBatch(
 void TestHelper::StartTracing(const TraceConfig& config,
                               base::ScopedFile file) {
   PERFETTO_CHECK(!on_stop_tracing_callback_);
-  trace_.clear();
+  serialized_trace_.clear();
   on_stop_tracing_callback_ =
       CreateCheckpoint("stop.tracing" + std::to_string(++trace_count_));
   on_all_ds_started_callback_ = CreateCheckpoint("all.datasources.started" +

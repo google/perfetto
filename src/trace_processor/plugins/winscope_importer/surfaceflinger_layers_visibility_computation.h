@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_LAYERS_VISIBILITY_COMPUTATION_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_LAYERS_VISIBILITY_COMPUTATION_H_
 
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 #include "perfetto/protozero/field.h"
@@ -72,6 +73,11 @@ class VisibilityComputation {
   StringPool::Id empty_visible_region_id_;
   StringPool::Id null_visible_region_id_;
   StringPool::Id occluded_id_;
+  // Strings for LayerProto.visibility_reason values, indexed by the enum.
+  std::array<StringPool::Id,
+             com::android::internal::pbzero::VisibilityReason_MAX + 1>
+      frontend_reason_ids_{};
+  StringPool::Id unknown_reason_id_;
 
   std::vector<int32_t> opaque_layer_ids = {};
   std::vector<int32_t> translucent_layer_ids = {};

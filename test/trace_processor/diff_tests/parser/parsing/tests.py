@@ -773,6 +773,74 @@ class Parsing(TestSuite):
     "testClone"
     """))
 
+  def test_trigger_metadata_authoritative_trigger_packet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        trigger {
+          trigger_name: "test1"
+          trusted_producer_uid: 1
+          producer_name: "producer1"
+        }
+        timestamp: 101000002
+      }
+      packet {
+        trigger {
+          trigger_name: "test2"
+          trusted_producer_uid: 2
+          producer_name: "producer2"
+        }
+        timestamp: 101000004
+      }
+      packet {
+        clone_snapshot_trigger {
+          trigger_name: "testClone"
+          trusted_producer_uid: 3
+          producer_name: "producer3"
+        }
+        timestamp: 101000003
+      }
+      packet {
+        authoritative_trigger {
+          trigger_name: "test1"
+          trusted_producer_uid: 1
+          producer_name: "producer1"
+        }
+        timestamp: 101000002
+      }
+      """),
+        query=Path('trigger_metadata_test.sql'),
+        out=Csv("""
+    "str_value"
+    "test1"
+    """))
+
+  def test_triggers_packets_authoritative_trigger_no_slice(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+      packet {
+        authoritative_trigger {
+          trigger_name: "test1"
+          trusted_producer_uid: 3
+          producer_name: "producer1"
+        }
+        timestamp: 101000002
+      }
+      packet {
+        trigger {
+          trigger_name: "test1"
+          trusted_producer_uid: 3
+          producer_name: "producer1"
+        }
+        timestamp: 101000002
+      }
+      """),
+        query=Path('triggers_packets_test.sql'),
+        out=Csv("""
+      "ts","name","string_value","int_value"
+      101000002,"test1","producer1",3
+      """))
+
   def test_chrome_metadata(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -1222,12 +1290,12 @@ class Parsing(TestSuite):
         FROM thread_state
         JOIN thread USING (utid)
         WHERE state = 'D'
-        ORDER BY ts;
+        ORDER BY ts, pid;
         """,
         out=Csv("""
         "ts","pid","func"
-        999000,105,"some_fn"
         999000,102,"filemap_fault"
+        999000,105,"some_fn"
         1000000,100,"filemap_fault"
         1001000,101,"[NULL]"
         1002000,103,"[NULL]"
@@ -1595,6 +1663,100 @@ class Parsing(TestSuite):
         out=Csv("""
         "name","int_value"
         "tracing_started_ns",150
+        """))
+
+  def test_primary_trace_clock_without_boottime_no_import_error(self):
+    # A trace whose clock snapshots only mention its primary_trace_clock (e.g.
+    # perf.data converted with clocks in BUILTIN_CLOCK_PERF or MONOTONIC) never
+    # uses BOOTTIME, so it must import without clock errors.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          timestamp_clock_id: 3
+          process_tree {
+            processes {
+              pid: 10
+              cmdline: "p"
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT count(*) FROM stats
+           WHERE value > 0 AND severity IN ('error', 'data_loss')) AS errors,
+          (SELECT name FROM process WHERE pid = 10) AS process
+        """,
+        out=Csv("""
+        "errors","process"
+        0,"p"
+        """))
+
+  def test_remote_machine_uses_primary_trace_clock(self):
+    # Packets of a remote machine which do not name a clock are in the
+    # primary_trace_clock of the trace, so they must be converted through it
+    # rather than through BOOTTIME, which the snapshots here do not relate to
+    # MONOTONIC across machines.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 1000
+            }
+            clocks {
+              clock_id: 1  # BUILTIN_CLOCK_REALTIME
+              timestamp: 5000
+            }
+          }
+        }
+        packet {
+          machine_id: 7
+          clock_snapshot {
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 3000
+            }
+            clocks {
+              clock_id: 1  # BUILTIN_CLOCK_REALTIME
+              timestamp: 5000
+            }
+          }
+        }
+        packet {
+          machine_id: 7
+          trusted_packet_sequence_id: 2
+          timestamp: 3500
+          process_tree {
+            processes {
+              pid: 20
+              cmdline: "remote"
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (SELECT count(*) FROM stats
+           WHERE value > 0 AND severity IN ('error', 'data_loss')) AS errors,
+          (SELECT name FROM process WHERE pid = 20) AS process
+        """,
+        out=Csv("""
+        "errors","process"
+        0,"remote"
         """))
 
   def test_slow_starting_data_sources(self):

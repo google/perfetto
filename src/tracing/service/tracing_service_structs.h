@@ -31,6 +31,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/trace_config.h"
 
 // This file contains common structs that are part of TracingServiceImpl and are
 // used across its various parts (e.g. tracing_service_session.cc,
@@ -51,6 +52,8 @@ struct TriggerInfo {
   std::string producer_name;
   uid_t producer_uid = 0;
   uint64_t trigger_delay_ms = 0;
+  TraceConfig::TriggerConfig::TriggerMode trigger_mode =
+      TraceConfig::TriggerConfig::UNSPECIFIED;
 };
 
 struct PendingClone {

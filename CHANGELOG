@@ -1,3 +1,63 @@
+Unreleased:
+  Tracing service and probes:
+   * Added an s390x syscall table.
+   * `traced` and `traced_probes` now signal readiness to systemd (`READY=1` on
+     `$NOTIFY_SOCKET`) when run as `Type=notify` services.
+   * Added `TracePacket.authoritative_trigger`, emitted uncompressed together
+     with the other initial packets. It reports the trigger that caused the
+     trace to be finalized (START_TRACING, STOP_TRACING or CLONE_SNAPSHOT).
+   * Added `Trigger.trigger_mode` to the `trigger`, `clone_snapshot_trigger`
+     and `authoritative_trigger` packets, reporting the effective trigger
+     mode of the session.
+  Trace Processor:
+   * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
+     one call failed (e.g. an interrupted query), until they were redefined.
+   * Fixed `heap_graph_object.root_distance` always being `-1` for
+     `android.java_hprof` heap graphs (regression introduced in v59.0).
+   * Fixed `android.cujs` jank CUJ frame metrics (e.g.
+     `android_jank_cuj_slice_summary`, `android_jank_cuj` timeline metrics)
+     counting frames that do not overlap with the CUJ, e.g. frames that
+     finished before the CUJ started when the CUJ's `FT#beginVsync` is stale.
+   * Fixed `android_jank_cuj_layer_name` returning `NULL` for CUJs without
+     `DrawFrame` slices, which made their timeline metrics count the frames of
+     all layers.
+   * Fixed `android_frames_layers.layer_id` for layer names with more than one
+     `#`.
+   * The `trace_trigger` metadata is now taken from the
+     `authoritative_trigger` packet, when present. Older traces fall back on
+     the previous logic.
+   * Added producer-declared track dimensions (`TrackDescriptor.dimensions`).
+     Canonical values are available in `track.dimension_arg_set_id` under
+     `custom_dimension.<name>`. Optional display labels are available in
+     `track.source_arg_set_id` under `custom_dimension_display_name.<name>`.
+   * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
+     socket sessions.
+   * Python query results can now be converted to typed Arrow tables with
+     `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
+     can be passed straight to pyarrow, polars and DuckDB.
+   * Added `heap_graph_shortest_path_tree` in
+     `android.memory.heap_graph.shortest_path_tree`, exposing each reachable
+     Java heap object's shortest strong-reference path parent, depth and
+     subtree sizes from GC roots.
+  UI:
+    * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
+      selected, with the latency grid in an "Input Lifecycle" details tab.
+    * Embedders can now hide the status bar with the `hideStatusbar` route
+      arg.
+    * Added the `com.android.ProcessState` plugin (enabled by default),
+      visualizing Android framework process states and freezer state per
+      process and per state, with residency and transition breakdowns for area
+      selections.
+    * Added a Google Drive plugin (disabled by default).
+    * Fixed the area selection slice flamegraph dropping slices which had not
+      ended by the end of the trace, along with all their descendants. This
+      left the flamegraph empty for ART method traces.
+  SDK:
+    * Android Java SDK: events started while another event is being built on
+      the same thread are no longer dropped.
+  Misc:
+    * Added s390x cross-compilation support.
+
 v59.1 - 2026-10-23:
   Misc:
     * Fixed the Linux and Android release builds, which failed on the

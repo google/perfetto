@@ -24,12 +24,12 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
@@ -150,6 +150,12 @@ TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
                      ? std::make_optional(job.back_off_policy_type())
                      : std::nullopt,
                  ProtoJob::BACKOFF_POLICY_UNKNOWN),
+      job.has_pending_queue_wait_ms()
+          ? std::make_optional(job.pending_queue_wait_ms())
+          : std::nullopt,
+      job.has_outside_pending_queue_ms()
+          ? std::make_optional(job.outside_pending_queue_ms())
+          : std::nullopt,
   });
 
   if (job.has_job_state_flags()) {

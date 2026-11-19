@@ -26,15 +26,16 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
-#include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/test/fake_packet.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
@@ -47,9 +48,6 @@ class ServiceRingBufferDrainerTestPeer {
  public:
   static SharedRingBufferReader* reader(ServiceRingBufferDrainer* drainer) {
     return &drainer->reader_;
-  }
-  static bool retry_scheduled(const ServiceRingBufferDrainer& drainer) {
-    return drainer.retry_scheduled_;
   }
 };
 
@@ -113,7 +111,7 @@ class ServiceRingBufferDrainerTest : public testing::Test {
         static_cast<uint8_t*>(memory->start()), memory->size(), kChunkSize);
     drainer_ = std::make_unique<ServiceRingBufferDrainer>(
         std::move(memory), kChunkSize, kProducer, ClientIdentity(1000, 1001),
-        &delegate_, &task_runner_);
+        &delegate_);
   }
 
   std::vector<ReadPacket> ReadPackets() {
@@ -137,7 +135,12 @@ class ServiceRingBufferDrainerTest : public testing::Test {
 
   uint32_t ReadPos() { return Internals::GetReadPos(ring_buffer_.get()); }
 
-  base::TestTaskRunner task_runner_;
+  protos::gen::ExperimentalTracingV2ProducerStats Stats() {
+    protos::gen::ExperimentalTracingV2ProducerStats stats;
+    drainer_->FillStats(&stats);
+    return stats;
+  }
+
   FakeDelegate delegate_;
   std::unique_ptr<SharedRingBuffer> ring_buffer_;
   std::unique_ptr<ServiceRingBufferDrainer> drainer_;
@@ -150,7 +153,7 @@ TEST_F(ServiceRingBufferDrainerTest, DrainsIntoDestination) {
   ASSERT_TRUE(WriteFragment(&writer, Packet("second")));
   writer.FinishCurrentChunk();
 
-  drainer_->Drain();
+  EXPECT_FALSE(drainer_->Drain());
 
   EXPECT_EQ(ReadPos(), 1u);
   EXPECT_EQ(delegate_.chunks_discarded, 0u);
@@ -164,6 +167,15 @@ TEST_F(ServiceRingBufferDrainerTest, DrainsIntoDestination) {
     EXPECT_EQ(packet.writer_id, kWriter);
     EXPECT_FALSE(packet.previous_packet_dropped);
   }
+
+  const auto stats = Stats();
+  EXPECT_EQ(stats.chunk_size_bytes(), kChunkSize);
+  EXPECT_EQ(stats.num_chunks(), kNumChunks);
+  EXPECT_EQ(stats.chunks_read(), 1u);
+  EXPECT_EQ(stats.bytes_read(),
+            Packet("first").size() + Packet("second").size());
+  EXPECT_EQ(stats.drain_passes(), 1u);
+  EXPECT_EQ(stats.drain_max_time_ns(), stats.drain_time_ns());
 }
 
 TEST_F(ServiceRingBufferDrainerTest, DiscardsInvalidWriterIds) {
@@ -182,6 +194,7 @@ TEST_F(ServiceRingBufferDrainerTest, DiscardsInvalidWriterIds) {
 
   EXPECT_EQ(ReadPos(), 2u);
   EXPECT_EQ(delegate_.chunks_discarded, 2u);
+  EXPECT_EQ(Stats().invalid_writer_chunks(), 2u);
   EXPECT_TRUE(ReadPackets().empty());
 }
 
@@ -202,6 +215,7 @@ TEST_F(ServiceRingBufferDrainerTest, ForbiddenDestinationRecordsLoss) {
   // The service drops the chunk before any trace buffer sees it. The
   // writer's sequence in the allowed buffer shows the gap.
   EXPECT_EQ(delegate_.chunks_discarded, 1u);
+  EXPECT_EQ(Stats().invalid_destination_chunks(), 1u);
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "before");
@@ -228,11 +242,31 @@ TEST_F(ServiceRingBufferDrainerTest, ProducerLossIsNotAServiceDiscard) {
   drainer_->Drain();
 
   EXPECT_EQ(delegate_.chunks_discarded, 0u);
+  EXPECT_EQ(Stats().data_loss_chunks(), 1u);
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "before");
   EXPECT_EQ(packets[1].str, "after");
   EXPECT_TRUE(packets[1].previous_packet_dropped);
+}
+
+// The trace buffer can refuse a chunk that the reader delivered. Here the
+// writer ID already has SMB chunks in the buffer.
+TEST_F(ServiceRingBufferDrainerTest, CountsChunksRejectedByTraceBuffer) {
+  FakeChunk(delegate_.buffer.get(), kProducer, kWriter, ChunkID(0))
+      .AddPacket(4, 'a')
+      .CopyIntoTraceBuffer();
+
+  SharedRingBufferWriter writer =
+      MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, Packet("rejected")));
+  writer.FinishCurrentChunk();
+  drainer_->Drain();
+
+  const auto stats = Stats();
+  EXPECT_EQ(stats.chunks_read(), 1u);
+  EXPECT_EQ(stats.trace_buffer_rejected_chunks(), 1u);
+  EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
 }
 
 TEST_F(ServiceRingBufferDrainerTest, MalformedAndUnknownChunksAreDiscards) {
@@ -257,6 +291,10 @@ TEST_F(ServiceRingBufferDrainerTest, MalformedAndUnknownChunksAreDiscards) {
   EXPECT_EQ(ReadPos(), 2u);
   EXPECT_EQ(delegate_.chunks_discarded, 2u);
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 0u);
+  const auto stats = Stats();
+  EXPECT_EQ(stats.malformed_chunks(), 1u);
+  EXPECT_EQ(stats.unsupported_format_chunks(), 1u);
+  EXPECT_EQ(stats.positions_skipped(), 2u);
 }
 
 TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
@@ -267,20 +305,22 @@ TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
   Internals::SetChunkStateWord(ring_buffer_.get(), ChunkIndex::FromIndex(0),
                                static_cast<uint32_t>(ChunkState::kReserved5));
 
-  drainer_->Drain();
+  EXPECT_FALSE(drainer_->Drain());
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
 
   // The reader stays stopped. Later drains read and count nothing.
   ASSERT_TRUE(WriteFragment(&writer, Packet("ignored")));
   writer.FinishCurrentChunk();
-  drainer_->Drain();
-  task_runner_.RunUntilIdle();
+  EXPECT_FALSE(drainer_->Drain());
   EXPECT_EQ(ReadPos(), 0u);
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
   EXPECT_TRUE(ReadPackets().empty());
+
+  // Only the first drain ran the reader.
+  EXPECT_EQ(Stats().drain_passes(), 1u);
 }
 
-TEST_F(ServiceRingBufferDrainerTest, LostRacesPostOneDelayedRetry) {
+TEST_F(ServiceRingBufferDrainerTest, LostRacesRequestAnotherDrain) {
   SharedRingBufferWriter writer =
       MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
   ASSERT_TRUE(WriteFragment(&writer, Packet("first")));
@@ -305,54 +345,19 @@ TEST_F(ServiceRingBufferDrainerTest, LostRacesPostOneDelayedRetry) {
     }
   });
 
-  drainer_->Drain();
-  drainer_->Drain();
+  EXPECT_TRUE(drainer_->Drain());
+  EXPECT_TRUE(drainer_->Drain());
   EXPECT_EQ(ReadPos(), 1u);
-  // Both drains stopped early. The second one found the retry pending.
-  EXPECT_TRUE(
-      test::ServiceRingBufferDrainerTestPeer::retry_scheduled(*drainer_));
 
-  // The retry runs after the retry delay and consumes the position.
+  // The caller can retry once the writer stops winning the transition.
   Internals::SetBeforeStateTransitionCallback(reader, {});
-  task_runner_.AdvanceTimeAndRunUntilIdle(1);
+  EXPECT_FALSE(drainer_->Drain());
   EXPECT_EQ(ReadPos(), 2u);
-  EXPECT_FALSE(
-      test::ServiceRingBufferDrainerTestPeer::retry_scheduled(*drainer_));
 
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "first");
   EXPECT_EQ(packets[1].str, "second");
-}
-
-TEST_F(ServiceRingBufferDrainerTest, DestructionCancelsRetry) {
-  {
-    SharedRingBufferWriter writer =
-        MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
-    ASSERT_TRUE(WriteFragment(&writer, Packet("first")));
-    writer.FinishCurrentChunk();
-  }
-  SharedRingBufferReader* reader =
-      test::ServiceRingBufferDrainerTestPeer::reader(drainer_.get());
-  Internals::SetBeforeStateTransitionCallback(reader, [&] {
-    const ChunkIndex chunk_idx = ChunkIndex::FromIndex(0);
-    uint32_t word = ring_buffer_->LoadChunkStateWordAcquire(chunk_idx);
-    if (ChunkStateOf(word) == ChunkState::kComplete) {
-      ASSERT_TRUE(ring_buffer_->TryReacquireChunkForWriting(chunk_idx, word));
-    } else {
-      ASSERT_TRUE(ring_buffer_->TryReleaseChunkAsComplete(
-          chunk_idx, ReplaceChunkState(word, ChunkState::kComplete), &word));
-    }
-  });
-  drainer_->Drain();
-  EXPECT_EQ(ReadPos(), 0u);
-
-  // The drainer holds the only reference to the mapping, so the writer view is
-  // invalid after this.
-  // The pending retry must not run. ASan reports it if it does.
-  ring_buffer_.reset();
-  drainer_.reset();
-  task_runner_.AdvanceTimeAndRunUntilIdle(1);
 }
 
 }  // namespace

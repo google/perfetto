@@ -33,11 +33,12 @@
 
 // Evalues |rhs| which should return a base::StatusOr<T> and assigns this
 // to |lhs|. If the status is an error status, returns the status from the
-// current function.
-#define ASSIGN_OR_RETURN(lhs, rhs)                                   \
-  PERFETTO_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;    \
-  RETURN_IF_ERROR(                                                   \
-      PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
+// current function, moved rather than copied out.
+#define ASSIGN_OR_RETURN(lhs, rhs)                                        \
+  PERFETTO_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;         \
+  if (!PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).ok())          \
+    return std::move(PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__)) \
+        .status();                                                        \
   lhs = std::move(PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_STATUS_MACROS_H_

@@ -78,7 +78,7 @@ function pushTag(arr: number[], field: number, wireType: number): void {
 function pushLenDelim(arr: number[], field: number, payload: number[]): void {
   pushTag(arr, field, 2);
   pushVarint(arr, payload.length);
-  for (let i = 0; i < payload.length; i++) arr.push(payload[i]);
+  for (let i = 0; i < payload.length; i++) arr.push(payload[i]!);
 }
 
 const textEncoder = new TextEncoder();
@@ -142,7 +142,7 @@ function buildInstantTrackResult(
       pushInt(depth);
       pushInt(upid);
       cellTypes.push(CELL_STRING);
-      stringCells.push(NAMES[r % NAMES.length]);
+      stringCells.push(NAMES[r % NAMES.length]!);
     }
     const isLast = row + n >= numRows;
 
@@ -247,12 +247,12 @@ function instantChecksumColumns(qr: QueryResult): number {
   let checksum = 0;
   for (let i = 0; i < count; i++) {
     checksum +=
-      (ids[i] +
+      (ids[i]! +
         Number(tss[i]) +
         Number(durs[i]) +
-        counts[i] +
-        depths[i] +
-        upids[i] +
+        counts[i]! +
+        depths[i]! +
+        upids[i]! +
         (names[i] ?? '').length) %
       65521;
   }
@@ -409,7 +409,7 @@ function numVarintChecksumColumns(qr: QueryResult): number {
   const depths = cols.depth;
   let checksum = 0;
   for (let i = 0; i < count; i++) {
-    checksum += (tss[i] + durs[i] + counts[i] + depths[i]) % 65521;
+    checksum += (tss[i]! + durs[i]! + counts[i]! + depths[i]!) % 65521;
   }
   return checksum;
 }
@@ -514,7 +514,7 @@ function float64ChecksumColumns(qr: QueryResult): number {
   const scales = cols.__scale;
   let checksum = 0;
   for (let i = 0; i < count; i++) {
-    checksum += tss[i] + durs[i] + values[i] + scales[i];
+    checksum += tss[i]! + durs[i]! + values[i]! + scales[i]!;
   }
   return checksum;
 }
@@ -539,7 +539,7 @@ function longChecksumColumns(qr: QueryResult): bigint {
   const upids = cols.upid;
   let checksum = 0n;
   for (let i = 0; i < count; i++) {
-    checksum += (tss[i] + durs[i] + trackIds[i] + upids[i]) % 65521n;
+    checksum += (tss[i]! + durs[i]! + trackIds[i]! + upids[i]!) % 65521n;
   }
   return checksum;
 }
@@ -594,8 +594,8 @@ function bench<R>(
   samples.sort((a, b) => a - b);
   return {
     label,
-    min: samples[0],
-    median: samples[Math.floor(samples.length / 2)],
+    min: samples[0]!,
+    median: samples[Math.floor(samples.length / 2)]!,
     mean: samples.reduce((a, b) => a + b, 0) / samples.length,
     checksum,
   };

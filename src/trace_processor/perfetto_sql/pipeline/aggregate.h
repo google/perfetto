@@ -25,8 +25,8 @@
 namespace perfetto::trace_processor::pipeline {
 
 class Lowering;
-class PlanReader;
-class PlanWriter;
+struct InputNeeds;
+class PlanCodec;
 
 // One aggregate a stage computes, e.g. `SUM(dur) AS total`: one of the
 // executor's shared functions, the column it reads and the column it adds.
@@ -34,10 +34,12 @@ class PlanWriter;
 // executor needs no stage of its own changed.
 struct Aggregate {
   using Function = core::exec::AggregateCall::Function;
-  Function function = Function::kCountStar;
   // Unused by COUNT(*).
   ColumnId column = 0;
   ColumnId output = 0;
+  Function function = Function::kCountStar;
+  // Explicit, so a plan's aggregates can be copied as bytes.
+  uint8_t pad_[3] = {};
 
   bool reads_column() const { return function != Function::kCountStar; }
 };
@@ -48,15 +50,14 @@ void PruneAggregates(std::vector<Aggregate>* aggregates,
                      std::vector<bool>* needed);
 
 // The executor's call for `aggregate`, its column at its lowered position.
+// What `aggregates` need of the rows they read.
+void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
+                       InputNeeds* needs);
+
 core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate&);
 
-// Writes the aggregates, and reads them back adding their output columns.
-void WriteAggregates(PlanWriter* c,
-                     const std::vector<Aggregate>& aggregates,
-                     const Available& available);
-void ReadAggregates(PlanReader* c,
-                    const Available& available,
-                    std::vector<Aggregate>* aggregates);
+// Writes or reads the aggregates.
+void SerializeAggregates(PlanCodec& c, std::vector<Aggregate>* aggregates);
 
 }  // namespace perfetto::trace_processor::pipeline
 

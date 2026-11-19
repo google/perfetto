@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 618> descriptors{{
+std::array<FtraceMessageDescriptor, 620> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6900,6 +6900,24 @@ std::array<FtraceMessageDescriptor, 618> descriptors{{
             {"vec_nr", ProtoSchemaType::kInt32},
             {"latency", ProtoSchemaType::kUint32},
             {"count", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "gti_field_slice",
+        2,
+        {
+            {},
+            {"track_event_type", ProtoSchemaType::kUint32},
+            {"slice_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "gti_field_counter",
+        2,
+        {
+            {},
+            {"track_name", ProtoSchemaType::kString},
+            {"counter_value", ProtoSchemaType::kInt32},
         },
     },
 }};

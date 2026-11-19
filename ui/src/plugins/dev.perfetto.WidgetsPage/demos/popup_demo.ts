@@ -124,5 +124,91 @@ export function renderPopup(): m.Children {
           ]),
         ),
     }),
+
+    renderDocSection('Trigger Scrolled Out of View', [
+      m('p', [
+        `When the trigger is scrolled out of view inside a scrolling container
+      (or the window), the popup hides itself, and reappears when the trigger
+      is scrolled back into view. The popup stays open while hidden. Scroll the
+      box below up or down until the trigger disappears.`,
+      ]),
+    ]),
+
+    renderWidgetShowcase({
+      renderWidget: ({isOpen}) =>
+        m(
+          // Used by popup.test.ts.
+          '.pf-popup-demo-scroll-container',
+          {
+            style: {
+              height: '200px',
+              width: '300px',
+              overflow: 'auto',
+              border: '1px solid var(--pf-color-border)',
+            },
+            // Start scrolled to the middle, so the trigger is in view and can
+            // be scrolled out of view in either direction.
+            oncreate: ({dom}: m.VnodeDOM) => {
+              dom.scrollTop = (dom.scrollHeight - dom.clientHeight) / 2;
+            },
+          },
+          m(
+            '',
+            {style: {padding: '400px 16px'}},
+            m(
+              Popup,
+              {
+                trigger: m(Button, {label: 'Trigger'}),
+                isOpen,
+                position: PopupPosition.Right,
+                // Used by popup.test.ts.
+                className: 'pf-popup-demo-scrolled-out',
+              },
+              lorem(),
+            ),
+          ),
+        ),
+      initialOpts: {
+        isOpen: true,
+      },
+    }),
+
+    renderDocSection('Trigger Hidden', [
+      m('p', [
+        `When the trigger, or one of its ancestors, gets display:none, the popup
+      hides itself, and reappears when the trigger is displayed again. The
+      popup stays open while hidden. Toggle 'hideContainer' to hide the
+      container around the trigger.`,
+      ]),
+    ]),
+
+    renderWidgetShowcase({
+      renderWidget: ({isOpen, hideContainer}) =>
+        m(
+          '',
+          {
+            style: {
+              display: hideContainer ? 'none' : 'block',
+              padding: '16px',
+              border: '1px solid var(--pf-color-border)',
+            },
+          },
+          m(
+            Popup,
+            {
+              trigger: m(Button, {label: 'Trigger'}),
+              isOpen,
+              position: PopupPosition.Right,
+              // Used by popup.test.ts.
+              className: 'pf-popup-demo-hidden',
+            },
+            lorem(),
+          ),
+        ),
+      initialOpts: {
+        isOpen: true,
+        hideContainer: false,
+      },
+    }),
   ];
 }

@@ -219,12 +219,25 @@ SELECT
   base.cpu6_mw,
   base.cpu7_mw,
   base.static_mw
-  + (coalesce(slices.l3_hit_count * base.l3_hit, 0)
-  + coalesce(slices.l3_miss_count * base.l3_miss, 0))
+  + (coalesce(cast_int!(slices.l3_hit_rate * slices.dur) * base.l3_hit, 0)
+  + coalesce(cast_int!(slices.l3_miss_rate * slices.dur) * base.l3_miss, 0))
   * 1000
   / slices.dur
   + coalesce(base.interconnect_mw, 0) AS dsu_scu_mw
-FROM _w_cpu_slices AS slices
-JOIN _unique_estimates_mw AS base USING (config_hash)
+FROM _w_cpu_slices_raw AS slices
+JOIN _unique_estimates_mw AS base
+  ON base.config_hash
+  = hash(
+    slices.state_id_0,
+    slices.state_id_1,
+    slices.state_id_2,
+    slices.state_id_3,
+    slices.state_id_4,
+    slices.state_id_5,
+    slices.state_id_6,
+    slices.state_id_7,
+    slices.dsu_freq,
+    slices.suspended
+  )
 WHERE
   slices.dur > 0;

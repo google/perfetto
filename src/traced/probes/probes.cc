@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
+#include "perfetto/ext/base/sd_notify.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/traced/traced.h"
@@ -135,12 +136,18 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   // when all data sources have been registered. This is used for //src/tracebox
   // --background-wait, to make sure that the data sources are registered before
   // waiting for them to be started.
+  // The same point is used to tell systemd that we are ready, when run as a
+  // Type=notify service (NOTIFY_SOCKET is set).
   const char* env_notif = getenv("TRACED_PROBES_NOTIFY_FD");
-  if (env_notif) {
-    int notif_fd = atoi(env_notif);
+  const bool notify_systemd = getenv("NOTIFY_SOCKET") != nullptr;
+  if (env_notif || notify_systemd) {
+    int notif_fd = env_notif ? atoi(env_notif) : -1;
     producer.SetAllDataSourcesRegisteredCb([notif_fd] {
-      PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
-      PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
+      if (notif_fd >= 0) {
+        PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
+        PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
+      }
+      base::SdNotify("READY=1");
     });
   }
   producer.ConnectWithRetries(GetProducerSocket(), &task_runner);

@@ -72,6 +72,14 @@
 #define PERFETTO_RESTRICT
 #endif
 
+// Marks a condition the CPU cannot predict, so the compiler chooses between
+// its outcomes with a conditional move rather than a branch.
+#if defined(__clang__)
+#define PERFETTO_UNPREDICTABLE(x) __builtin_unpredictable(x)
+#else
+#define PERFETTO_UNPREDICTABLE(x) (x)
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)
@@ -93,6 +101,22 @@
 #else
 #include <intrin.h>
 #define PERFETTO_POPCOUNT(x) __popcnt64(x)
+#endif
+
+// Hints that the cache line holding `addr` will soon be read, so it is loaded
+// into every level of the cache. Only a hint: where the compiler and CPU give
+// no way to make it, it does nothing.
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_PREFETCH(addr) __builtin_prefetch((addr), 0, 3)
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#include <intrin.h>
+#define PERFETTO_PREFETCH(addr) \
+  _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T0)
+#elif defined(_MSC_VER) && defined(_M_ARM64)
+#include <intrin.h>
+#define PERFETTO_PREFETCH(addr) __prefetch(addr)
+#else
+#define PERFETTO_PREFETCH(addr) static_cast<void>(addr)
 #endif
 
 #if defined(__clang__)
@@ -158,6 +182,24 @@ extern "C" void __msan_unpoison(void const volatile*, size_t);
 #else
 #define PERFETTO_HAS_NO_DESTROY() 0
 #define PERFETTO_NO_DESTROY
+#endif
+
+// Lets a class with a non-trivial destructor or copy still be passed and
+// returned in registers, as a trivial one is. The class must not depend on
+// its address staying the same across a move: the bytes are just copied.
+#if defined(__clang__) && PERFETTO_HAS_ATTRIBUTE(trivial_abi)
+#define PERFETTO_TRIVIAL_ABI __attribute__((trivial_abi))
+#else
+#define PERFETTO_TRIVIAL_ABI
+#endif
+
+// Asks for the loop which follows to be neither vectorized nor unrolled: for a
+// loop vector instructions do not speed up, where they would only add code.
+#if defined(__clang__)
+#define PERFETTO_NO_VECTORIZE_LOOP \
+  _Pragma("clang loop vectorize(disable) unroll(disable)")
+#else
+#define PERFETTO_NO_VECTORIZE_LOOP
 #endif
 
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.

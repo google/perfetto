@@ -178,9 +178,9 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
   protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
   context_->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, mali_CSF_INTERRUPT_id_,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
-                         Variadic::UnsignedInteger(evt.info_val()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(mali_CSF_INTERRUPT_info_val_id_,
+                        Variadic::UnsignedInteger(evt.info_val()));
       });
 }
 
@@ -191,9 +191,9 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptEnd(int64_t timestamp,
 
   context_->slice_tracker->End(
       timestamp, track_id, kNullStringId, mali_CSF_INTERRUPT_id_,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
-                         Variadic::UnsignedInteger(evt.info_val()));
+      [&, this](ArgsInserter& inserter) {
+        inserter.AddArg(mali_CSF_INTERRUPT_info_val_id_,
+                        Variadic::UnsignedInteger(evt.info_val()));
       });
 }
 }  // namespace perfetto::trace_processor

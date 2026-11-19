@@ -50,12 +50,13 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
-#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/json_value.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::json {
 
@@ -213,7 +214,7 @@ class JsonExporter {
       // is emitted before its parent's end event, even if both end events have
       // the same timestamp. To accomplish this, we perform a stable sort in
       // descending order and later iterate via reverse iterators.
-      ColdStableSortByKeyDescending(
+      StableSortByKeyDescending(
           async_end_events_.begin(), async_end_events_.end(),
           [](const Dom& event) { return event["ts"].AsInt64(); });
 
@@ -1367,17 +1368,21 @@ class JsonExporter {
         continue;
       }
       size_t key = static_cast<size_t>(it.key());
+      // Dynamic stats have no entry in stats.h and are not part of the legacy
+      // JSON shape. See GlobalStatsTracker::InternDynamicStatDescriptor.
+      if (key >= stats::kNumKeys) {
+        continue;
+      }
       if (stats::kTypes[key] == stats::kSingle) {
         single_values[key] = it.value();
-      } else {
-        PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
+      } else if (stats::kTypes[key] == stats::kIndexed) {
         indexed_values[key][static_cast<int>(*it.idx())] = it.value();
       }
     }
     for (size_t key = 0; key < stats::kNumKeys; key++) {
       if (stats::kTypes[key] == stats::kSingle) {
         writer_.SetStats(stats::kNames[key], single_values[key]);
-      } else {
+      } else if (stats::kTypes[key] == stats::kIndexed) {
         writer_.SetStats(stats::kNames[key], indexed_values[key]);
       }
     }

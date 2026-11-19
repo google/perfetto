@@ -113,7 +113,6 @@ bool ProcessThreadTimeline::PidConnectsToUid(uint64_t ts,
       return false;  // Close is sitting between open and ts.
     }
 
-    // TODO(vaage): Normalize the uid values.
     if (prev_open->uid == uid) {
       return true;
     }

@@ -63,6 +63,10 @@ class SqliteConnection {
     bool Step();
     bool IsDone() const;
 
+    // Resets the statement so it can run again: rewinds it, clears its
+    // bindings, and forgets the error of the last run.
+    void Reset();
+
     const char* original_sql() const;
 
     // Computed and cached on first call.
@@ -102,6 +106,11 @@ class SqliteConnection {
   // per-connection state (registered functions, vtab modules etc.); only the
   // underlying in-memory store is shared.
   std::unique_ptr<SqliteConnection> Fork();
+
+  // Disabled by default; see the constructor.
+  void SetAttachReadEnabled(bool enabled) { attach_read_enabled_ = enabled; }
+  bool attach_read_enabled() const { return attach_read_enabled_; }
+  void SetAttachCreateWriteEnabled(bool enabled);
 
   // Prepares a SQLite statement for the given SQL.
   PreparedStatement PrepareStatement(SqlSource);
@@ -165,10 +174,19 @@ class SqliteConnection {
   sqlite3* db() const { return db_.get(); }
 
  private:
+  static int Authorizer(void* user_data,
+                        int action,
+                        const char*,
+                        const char*,
+                        const char*,
+                        const char*);
+
   std::optional<uint32_t> GetErrorOffset() const;
 
   std::shared_ptr<SqliteDatabase> database_;
   ScopedDb db_;
+  bool attach_read_enabled_ = false;
+  bool attach_create_write_enabled_ = false;
 };
 
 }  // namespace perfetto::trace_processor

@@ -41,7 +41,6 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/variadic.h"
@@ -197,17 +196,14 @@ class TraceStorage {
   // Return an unique identifier for the contents of each string.
   // The string is copied internally and can be destroyed after this called.
   // Virtual for testing.
-  virtual StringId InternString(base::StringView str) {
+  virtual StringId InternString(std::string_view str) {
     return string_pool_.InternString(str);
   }
   virtual StringId InternString(const char* str) {
-    return InternString(base::StringView(str));
+    return InternString(std::string_view(str));
   }
   virtual StringId InternString(const std::string& str) {
-    return InternString(base::StringView(str));
-  }
-  virtual StringId InternString(std::string_view str) {
-    return InternString(base::StringView(str.data(), str.size()));
+    return InternString(std::string_view(str));
   }
 
   // Reading methods.
@@ -1093,6 +1089,13 @@ class TraceStorage {
     return mutable_table<tables::WinscopeTransformTable>();
   }
 
+  const tables::HistogramBucketTable& histogram_bucket_table() const {
+    return table<tables::HistogramBucketTable>();
+  }
+  tables::HistogramBucketTable* mutable_histogram_bucket_table() {
+    return mutable_table<tables::HistogramBucketTable>();
+  }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return table<tables::ExperimentalProtoPathTable>();
@@ -1146,6 +1149,20 @@ class TraceStorage {
   bool has_android_video_frames() const { return has_android_video_frames_; }
   void set_has_android_video_frames() { has_android_video_frames_ = true; }
 
+  // Returns the table of type |T|, which must be in tables::AllTables.
+  template <typename T>
+  T* mutable_table() {
+    constexpr size_t idx = tables::TableIndex<T>::kValue;
+    return reinterpret_cast<T*>(
+        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+  }
+  template <typename T>
+  const T& table() const {
+    constexpr size_t idx = tables::TableIndex<T>::kValue;
+    return *reinterpret_cast<const T*>(
+        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+  }
+
  private:
   using StringHash = uint64_t;
 
@@ -1162,20 +1179,6 @@ class TraceStorage {
   Destructible* etm_target_memory() { return etm_target_memory_.get(); }
   void set_etm_target_memory(std::unique_ptr<Destructible> target_memory) {
     etm_target_memory_ = std::move(target_memory);
-  }
-
-  // Helper to get a table by type.
-  template <typename T>
-  T* mutable_table() {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
-    return reinterpret_cast<T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
-  }
-  template <typename T>
-  const T& table() const {
-    constexpr size_t idx = base::variant_index<tables::AllTables, T>();
-    return *reinterpret_cast<const T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
   }
 
   // One entry for each unique string in the trace.

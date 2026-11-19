@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
@@ -39,7 +40,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -64,7 +64,7 @@ class BytecodeLowering {
   // Register holding the set of matching rows, either as a contiguous range
   // or as a materialized list of indices.
   using IndicesReg = std::variant<interpreter::RwHandle<Range>,
-                                  interpreter::RwHandle<Span<uint32_t>>>;
+                                  interpreter::RwHandle<base::Span<uint32_t>>>;
 
   // Parameters for conversion to row layout.
   struct RowLayoutParams {
@@ -140,7 +140,7 @@ class BytecodeLowering {
   // Given a list of indices, prunes any indices that point to null rows
   // in the given column. The indices are pruned in-place.
   void PruneNullIndices(uint32_t col,
-                        interpreter::RwHandle<Span<uint32_t>> indices,
+                        interpreter::RwHandle<base::Span<uint32_t>> indices,
                         NullPruneScope scope);
 
   // Given a list of table indices pointing to *only* non-null rows,
@@ -149,13 +149,13 @@ class BytecodeLowering {
   // If translation *is* needed, the value of `in_place` determines
   // whether the translation is done in-place or whether the data is stored
   // in the scratch register.
-  interpreter::RwHandle<Span<uint32_t>> TranslateNonNullIndices(
+  interpreter::RwHandle<base::Span<uint32_t>> TranslateNonNullIndices(
       uint32_t col,
-      interpreter::RwHandle<Span<uint32_t>> indices_register,
+      interpreter::RwHandle<base::Span<uint32_t>> indices_register,
       bool in_place);
 
   // Ensures indices are stored in a Slab, converting from Range if necessary.
-  PERFETTO_NO_INLINE interpreter::RwHandle<Span<uint32_t>>
+  PERFETTO_NO_INLINE interpreter::RwHandle<base::Span<uint32_t>>
   EnsureIndicesAreInSlab();
 
   // Adds a new bytecode instruction of type T to the plan.
@@ -184,7 +184,7 @@ class BytecodeLowering {
       StorageType storage_type);
 
   // Returns the index register for the given position.
-  interpreter::RwHandle<Span<uint32_t>> IndexRegisterFor(uint32_t pos);
+  interpreter::RwHandle<base::Span<uint32_t>> IndexRegisterFor(uint32_t pos);
 
   // Returns the null bitvector register for the given column.
   // For NonNull columns, returns an empty handle.
@@ -202,10 +202,10 @@ class BytecodeLowering {
       uint32_t col);
 
   // Returns the SmallValueEq popcount register for the given column.
-  interpreter::ReadHandle<Span<const uint32_t>> SmallValueEqPopcountRegisterFor(
-      uint32_t col);
+  interpreter::ReadHandle<base::Span<const uint32_t>>
+  SmallValueEqPopcountRegisterFor(uint32_t col);
 
-  interpreter::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
+  interpreter::RwHandle<base::Span<uint32_t>> GetOrCreateScratchSpanRegister(
       uint32_t size);
 
   void MaybeReleaseScratchSpanRegister();
@@ -215,7 +215,7 @@ class BytecodeLowering {
 
   interpreter::RwHandle<Slab<uint8_t>> CopyToRowLayout(
       const RowLayout& layout,
-      interpreter::RwHandle<Span<uint32_t>> indices,
+      interpreter::RwHandle<base::Span<uint32_t>> indices,
       interpreter::ReadHandle<interpreter::StringIdToRankMap> rank_map,
       const std::vector<RowLayoutParams>& row_layout_params);
 

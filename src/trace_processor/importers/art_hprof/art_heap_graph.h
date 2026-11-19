@@ -79,36 +79,36 @@ class HeapGraph {
   static std::string GetRootTypeName(HprofHeapRootTag root_type_id) {
     switch (root_type_id) {
       case HprofHeapRootTag::kJniGlobal:
-        return "JNI_GLOBAL";
+        return "ROOT_JNI_GLOBAL";
       case HprofHeapRootTag::kJniLocal:
-        return "JNI_LOCAL";
+        return "ROOT_JNI_LOCAL";
       case HprofHeapRootTag::kJavaFrame:
-        return "JAVA_FRAME";
+        return "ROOT_JAVA_FRAME";
       case HprofHeapRootTag::kNativeStack:
-        return "NATIVE_STACK";
+        return "ROOT_NATIVE_STACK";
       case HprofHeapRootTag::kStickyClass:
-        return "STICKY_CLASS";
+        return "ROOT_STICKY_CLASS";
       case HprofHeapRootTag::kThreadBlock:
-        return "THREAD_BLOCK";
+        return "ROOT_THREAD_BLOCK";
       case HprofHeapRootTag::kMonitorUsed:
-        return "MONITOR_USED";
+        return "ROOT_MONITOR_USED";
       case HprofHeapRootTag::kThreadObj:
-        return "THREAD_OBJECT";
+        return "ROOT_THREAD_OBJECT";
       case HprofHeapRootTag::kInternedString:
-        return "INTERNED_STRING";
+        return "ROOT_INTERNED_STRING";
       case HprofHeapRootTag::kFinalizing:
-        return "FINALIZING";
+        return "ROOT_FINALIZING";
       case HprofHeapRootTag::kDebugger:
-        return "DEBUGGER";
+        return "ROOT_DEBUGGER";
       case HprofHeapRootTag::kVmInternal:
-        return "VM_INTERNAL";
+        return "ROOT_VM_INTERNAL";
       case HprofHeapRootTag::kJniMonitor:
-        return "JNI_MONITOR";
+        return "ROOT_JNI_MONITOR";
       case HprofHeapRootTag::kUnknown:
-        return "UNKNOWN";
+        return "ROOT_UNKNOWN";
     }
 
-    return "UNKNOWN";
+    return "ROOT_UNKNOWN";
   }
 
  private:

@@ -118,9 +118,9 @@ rendered when the component is present on the page.
 
 Local state of components can reside in class members and accessed directly in
 methods via accessing `this`. State that needs to be persisted (e.g. into
-permalinks) is kept in a `Store` mounted via `trace.mountStore()`, see
+permalinks) is registered via `trace.registerStorage()`, see
 [UI plugins](ui-plugins#state).
 
-There are restrictions on what can be used in a store: plain JS objects
+There are restrictions on what can be persisted: plain JS objects
 are OK, but class instances are not (this limitation is due to state
 serialization: the state should be a valid JSON object).

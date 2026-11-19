@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {
   LONG,
   NUM,
@@ -19,6 +20,8 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
+import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
@@ -58,6 +61,44 @@ type GpuSliceDataset = SourceDataset<{
   depth: typeof NUM;
 }>;
 
+// gpu_slice columns the leaves partition on, with the device/stream launch
+// args extracted once rather than per slice in every leaf query. Only integer
+// args identify a CUDA/HIP stream; other values (e.g. Kineto's string stream
+// names) count as absent, which also keeps each column single-typed.
+async function createGpuSliceTable(engine: Engine) {
+  return createPerfettoTable({
+    engine,
+    as: `
+      SELECT
+        id,
+        name,
+        ts,
+        dur,
+        track_id,
+        upid,
+        hw_queue_id,
+        context_id,
+        iif(typeof(device) = 'integer', device, NULL) AS device,
+        iif(typeof(stream) = 'integer', stream, NULL) AS stream
+      FROM (
+        SELECT
+          id,
+          name,
+          ts,
+          dur,
+          track_id,
+          upid,
+          hw_queue_id,
+          context_id,
+          extract_arg(arg_set_id, 'device') AS device,
+          extract_arg(arg_set_id, 'stream') AS stream
+        FROM gpu_slice
+        WHERE upid IS NOT NULL
+      )
+    `,
+  });
+}
+
 // A GPU-by-process leaf can combine slices from multiple global GPU hardware
 // queue tracks. Slice depths are local to each global track, so using them
 // directly allows unrelated slices at the same depth to overlap in the merged
@@ -67,26 +108,52 @@ type GpuSliceDataset = SourceDataset<{
 // arbitrary slice query. It can therefore reserve rows for slices on source
 // tracks that the leaf filters out, but the result is always collision-free.
 // Keeping that conservative whitespace is preferable to rendering overlapping
-// slices.
-function createGpuSliceDataset(whereClause: string): GpuSliceDataset {
+// slices. Leaves over the same source tracks share one layout table.
+//
+// ORDER BY ts is required because SliceTrack's __intrinsic_slice_mipmap
+// operator runs a galloping binary search (slice_mipmap_operator.cc) that
+// assumes the per-depth timestamps array is sorted. The filter unions events
+// across multiple raw track_ids (e.g. Channel #1 + Channel #2 for the same
+// stream), and without an explicit ORDER BY SQLite's row order is unspecified,
+// causing the mipmap to silently skip out-of-order rows.
+async function createLeafDataset(
+  engine: Engine,
+  sliceTable: string,
+  whereClause: string,
+  layoutByTrackIds: Map<string, string>,
+  trash: AsyncDisposableStack,
+): Promise<GpuSliceDataset> {
+  const {trackIds} = (
+    await engine.query(`
+      SELECT COALESCE(group_concat(track_id), '') AS trackIds
+      FROM (
+        SELECT DISTINCT track_id
+        FROM ${sliceTable}
+        WHERE ${whereClause}
+        ORDER BY track_id
+      )
+    `)
+  ).firstRow({trackIds: STR});
+  let layoutTable = layoutByTrackIds.get(trackIds);
+  if (layoutTable === undefined) {
+    const table = trash.use(
+      await createPerfettoTable({
+        engine,
+        as: `
+          SELECT id, layout_depth AS depth
+          FROM experimental_slice_layout('${trackIds}')
+        `,
+      }),
+    );
+    layoutTable = table.name;
+    layoutByTrackIds.set(trackIds, layoutTable);
+  }
   return new SourceDataset({
     src: `(
-      WITH filtered AS (
-        SELECT id, name, ts, dur, track_id
-        FROM gpu_slice
-        WHERE ${whereClause}
-      ), relayout AS (
-        SELECT id, layout_depth AS depth
-        FROM experimental_slice_layout(COALESCE(
-          (SELECT group_concat(track_id) FROM (
-            SELECT DISTINCT track_id FROM filtered ORDER BY track_id
-          )),
-          ''
-        ))
-      )
       SELECT id, name, ts, dur, depth
-      FROM filtered
-      JOIN relayout USING (id)
+      FROM ${sliceTable}
+      JOIN ${layoutTable} USING (id)
+      WHERE ${whereClause}
       ORDER BY ts
     )`,
     schema: {
@@ -113,8 +180,8 @@ interface LeafTrack {
   leafSortOrder: number;
   // Stable URI suffix appended after the per-process URI prefix.
   uriSuffix: string;
-  // The relaid-out dataset that drives the SliceTrack.
-  dataset: GpuSliceDataset;
+  // Filter over the GPU slice table selecting this leaf's slices.
+  whereClause: string;
 }
 
 // CUDA / HIP: events that carry both a "device" and "stream" launch arg get
@@ -127,7 +194,10 @@ interface LeafTrack {
 //     InternedGraphicsContext IID) are all per-process. Two processes can
 //     reuse the same numeric values for distinct logical entities; including
 //     upid in every URI / partition key keeps them disambiguated.
-async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
+async function discoverCudaHipTracks(
+  ctx: Trace,
+  sliceTable: string,
+): Promise<LeafTrack[]> {
   // Pick up the API name (CUDA / HIP / OPEN_CL / VULKAN / ...) from
   // gpu_context so we can label the per-process top group with the right
   // API. gpu_context is populated from InternedGraphicsContext.api, which
@@ -137,21 +207,20 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
     INCLUDE PERFETTO MODULE std.gpu.context;
     SELECT
       s.upid AS upid,
-      extract_arg(s.arg_set_id, 'device') AS device,
+      s.device AS device,
       s.context_id AS context,
-      extract_arg(s.arg_set_id, 'stream') AS stream,
+      s.stream AS stream,
       gc.api AS api,
       p.pid AS pid,
       p.name AS process_name
-    FROM gpu_slice s
+    FROM ${sliceTable} s
     JOIN process p USING (upid)
     LEFT JOIN gpu_context gc ON gc.context_id = s.context_id
-    WHERE s.upid IS NOT NULL
-      AND s.context_id IS NOT NULL
-      AND extract_arg(s.arg_set_id, 'device') IS NOT NULL
-      AND extract_arg(s.arg_set_id, 'stream') IS NOT NULL
-    GROUP BY s.upid, device, s.context_id, stream
-    ORDER BY s.upid, device, s.context_id, stream
+    WHERE s.context_id IS NOT NULL
+      AND s.device IS NOT NULL
+      AND s.stream IS NOT NULL
+    GROUP BY s.upid, s.device, s.context_id, s.stream
+    ORDER BY s.upid, s.device, s.context_id, s.stream
   `);
 
   const it = result.iter({
@@ -224,18 +293,11 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
         key: `${apiKey}_device_${r.device}_context_${r.context}`,
       });
     }
-    // ORDER BY ts is required because SliceTrack's
-    // __intrinsic_slice_mipmap operator runs a galloping binary search
-    // (slice_mipmap_operator.cc) that assumes the per-depth timestamps
-    // array is sorted. Our filter unions events across multiple raw
-    // track_ids (e.g. Channel #1 + Channel #2 for the same stream), and
-    // without an explicit ORDER BY SQLite's row order is unspecified,
-    // causing the mipmap to silently skip out-of-order rows.
     const whereClause =
       `upid = ${r.upid}` +
-      ` AND extract_arg(arg_set_id, 'device') = ${r.device}` +
+      ` AND device = ${r.device}` +
       ` AND context_id = ${r.context}` +
-      ` AND extract_arg(arg_set_id, 'stream') = ${r.stream}`;
+      ` AND stream = ${r.stream}`;
     return {
       upid: r.upid,
       pid: r.pid,
@@ -244,7 +306,7 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
       leafName: `Stream #${r.stream}`,
       leafSortOrder: r.stream,
       uriSuffix: `${apiKey}_d${r.device}_c${r.context}_s${r.stream}`,
-      dataset: createGpuSliceDataset(whereClause),
+      whereClause,
     };
   });
 }
@@ -256,6 +318,7 @@ async function discoverCudaHipTracks(ctx: Trace): Promise<LeafTrack[]> {
 // multiple GPUs, those leaves are nested under per-GPU sub-groups.
 async function discoverFallbackTracks(
   ctx: Trace,
+  sliceTable: string,
   numMachines: number,
 ): Promise<LeafTrack[]> {
   const result = await ctx.engine.query(`
@@ -271,14 +334,13 @@ async function discoverFallbackTracks(
       m.label_index AS machine_label_index,
       p.pid AS pid,
       p.name AS process_name
-    FROM gpu_slice s
+    FROM ${sliceTable} s
     JOIN gpu_track t ON s.track_id = t.id
     JOIN process p USING (upid)
     LEFT JOIN gpu g ON extract_arg(t.dimension_arg_set_id, 'ugpu') = g.id
     LEFT JOIN machine m ON m.id = t.machine_id
-    WHERE s.upid IS NOT NULL AND s.hw_queue_id IS NOT NULL
-      AND (extract_arg(s.arg_set_id, 'device') IS NULL
-           OR extract_arg(s.arg_set_id, 'stream') IS NULL)
+    WHERE s.hw_queue_id IS NOT NULL
+      AND (s.device IS NULL OR s.stream IS NULL)
     GROUP BY s.upid, s.hw_queue_id
     ORDER BY s.upid, ugpu, s.hw_queue_id
   `);
@@ -349,18 +411,10 @@ async function discoverFallbackTracks(
         key: `gpu_${row.gpu.ugpu}`,
       });
     }
-    // ORDER BY ts is required because SliceTrack's
-    // __intrinsic_slice_mipmap operator runs a galloping binary search
-    // (slice_mipmap_operator.cc) that assumes the per-depth timestamps
-    // array is sorted. Our filter unions events across multiple raw
-    // track_ids (e.g. Channel #1 + Channel #2 for the same stream), and
-    // without an explicit ORDER BY SQLite's row order is unspecified,
-    // causing the mipmap to silently skip out-of-order rows.
     const whereClause =
       `upid = ${row.upid}` +
       ` AND hw_queue_id = ${row.hwqId}` +
-      ` AND (extract_arg(arg_set_id, 'device') IS NULL` +
-      ` OR extract_arg(arg_set_id, 'stream') IS NULL)`;
+      ` AND (device IS NULL OR stream IS NULL)`;
     return {
       upid: row.upid,
       pid: row.pid,
@@ -369,7 +423,7 @@ async function discoverFallbackTracks(
       leafName: row.trackName,
       leafSortOrder: row.hwqId,
       uriSuffix: `hwq_${row.hwqId}`,
-      dataset: createGpuSliceDataset(whereClause),
+      whereClause,
     };
   });
 }
@@ -379,8 +433,11 @@ async function discoverFallbackTracks(
 // a new API, write an async discoverer returning LeafTrack[] and append it
 // here, plus update discoverFallbackTracks()'s WHERE clause to also
 // exclude that API's slices.
-async function discoverApiTracks(ctx: Trace): Promise<LeafTrack[]> {
-  const cuda = await discoverCudaHipTracks(ctx);
+async function discoverApiTracks(
+  ctx: Trace,
+  sliceTable: string,
+): Promise<LeafTrack[]> {
+  const cuda = await discoverCudaHipTracks(ctx, sliceTable);
   return cuda;
 }
 
@@ -389,9 +446,16 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    // Only needed until every leaf is materialized below.
+    await using trash = new AsyncDisposableStack();
+    const sliceTable = trash.use(await createGpuSliceTable(ctx.engine)).name;
     const numMachines = await getMachineCount(ctx.engine);
-    const apiTracks = await discoverApiTracks(ctx);
-    const fallbackTracks = await discoverFallbackTracks(ctx, numMachines);
+    const apiTracks = await discoverApiTracks(ctx, sliceTable);
+    const fallbackTracks = await discoverFallbackTracks(
+      ctx,
+      sliceTable,
+      numMachines,
+    );
     const allTracks = [...apiTracks, ...fallbackTracks];
 
     const processGroups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
@@ -410,14 +474,24 @@ export default class implements PerfettoPlugin {
       }
     }
 
+    const layoutByTrackIds = new Map<string, string>();
     for (const t of allTracks) {
       const uri = `dev.perfetto.GpuByProcess#${t.upid}#${t.uriSuffix}`;
+      // Materialized: SliceTrack re-runs its dataset query inside every
+      // render query, once per visible slice, so the dataset must be a plain
+      // table rather than a filter + relayout over the GPU slices.
       ctx.tracks.registerTrack({
         uri,
-        renderer: SliceTrack.create({
+        renderer: await SliceTrack.createMaterialized({
           trace: ctx,
           uri,
-          dataset: t.dataset,
+          dataset: await createLeafDataset(
+            ctx.engine,
+            sliceTable,
+            t.whereClause,
+            layoutByTrackIds,
+            trash,
+          ),
           detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
         }),
       });

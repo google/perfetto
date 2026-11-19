@@ -40,4 +40,16 @@ STDLIB_DOCS_OBJECTS_TABLE = Table(
     ],
 )
 
-ALL_TABLES = [STDLIB_DOCS_OBJECTS_TABLE]
+STDLIB_DOCS_MODULE_INCLUDES_TABLE = Table(
+    python_module=__file__,
+    class_name="StdlibDocsModuleIncludesTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
+    sql_name="not_exposed_to_sql",
+    columns=[
+        C("package", CppString()),
+        C("module", CppString()),
+        C("included_module", CppString()),
+    ],
+)
+
+ALL_TABLES = [STDLIB_DOCS_OBJECTS_TABLE, STDLIB_DOCS_MODULE_INCLUDES_TABLE]

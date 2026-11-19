@@ -43,7 +43,8 @@ export class BufferedBounds {
     visibleSpan: TimeSpan,
     resolution: duration,
   ): {start: time; end: time; resolution: duration} {
-    const {start: visStart, end: visEnd} = visibleSpan;
+    const clampedSpan = visibleSpan.clamp(Time.MIN, Time.MAX);
+    const {start: visStart, end: visEnd} = clampedSpan;
 
     const needsUpdate =
       visStart < this.loadedStart ||
@@ -51,12 +52,17 @@ export class BufferedBounds {
       resolution !== this.loadedResolution;
 
     if (needsUpdate) {
-      // Pad each side by the visible duration (so total is 3x visible width)
-      const padded = visibleSpan.pad(visibleSpan.duration);
+      // Pad each side by the visible duration (so total is 3x visible width),
+      // clamped to valid trace processor timestamp bounds [Time.MIN, Time.MAX].
+      const padded = clampedSpan
+        .pad(clampedSpan.duration)
+        .clamp(Time.MIN, Time.MAX);
       this.loadedStart = Time.fromRaw(
         BIMath.quantFloor(padded.start, resolution),
       );
-      this.loadedEnd = Time.fromRaw(BIMath.quantCeil(padded.end, resolution));
+      this.loadedEnd = Time.fromRaw(
+        BIMath.min(BIMath.quantCeil(padded.end, resolution), Time.MAX),
+      );
       this.loadedResolution = resolution;
     }
 

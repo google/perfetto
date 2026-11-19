@@ -711,7 +711,7 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            std::to_string(suffix) + " ON ii.id_" + std::to_string(suffix) +
            " = source_" + std::to_string(suffix) + ".id";
   }
-  sql += ")";
+  sql += ')';
 
   return sql;
 }
@@ -1048,7 +1048,7 @@ base::StatusOr<std::string> GeneratorImpl::Union(
     sql += "\n  " + union_keyword + "\n  SELECT *\n  FROM union_query_" +
            std::to_string(i);
   }
-  sql += ")";
+  sql += ')';
 
   return sql;
 }

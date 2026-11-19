@@ -182,7 +182,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
   } else {
     ops.push_back(std::make_unique<TreeAccumulateDown>(spec));
   }
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   std::unique_ptr<OperatorState> state =
       pipeline.MakeState(test::TestContext());
@@ -255,7 +255,7 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
   EXPECT_FALSE(test::ProcessCopy(up, in, out, *up_state));
   EXPECT_THAT(up.status(*up_state).message(), testing::HasSubstr("overflow"));
   values[0] = 1;
-  up_state->Reset();
+  up_state->EndRun();
   EXPECT_TRUE(test::ProcessCopy(up, in, out, *up_state));
   EXPECT_TRUE(up.status(*up_state).ok());
 }

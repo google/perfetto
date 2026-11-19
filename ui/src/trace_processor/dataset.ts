@@ -250,7 +250,8 @@ WHERE ${filterSql}`;
 
   implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
     return Object.entries(required).every(([name, required]) => {
-      return name in this.schema && checkExtends(required, this.schema[name]);
+      const existing = this.schema[name];
+      return existing !== undefined && checkExtends(required, existing);
     });
   }
 
@@ -311,8 +312,9 @@ export class UnionDataset<
       } else {
         const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
-          if (key in dsSchema) {
-            const commonType = unionTypes(value, dsSchema[key]);
+          const dsValue = dsSchema[key];
+          if (dsValue !== undefined) {
+            const commonType = unionTypes(value, dsValue);
             if (commonType !== undefined) {
               newSch[key] = commonType;
             }
@@ -350,8 +352,10 @@ export class UnionDataset<
     const mergedDatasets: Dataset[] = [];
 
     for (const srcGroup of combinedSrcSets.values()) {
+      const firstDs = srcGroup[0];
+      if (firstDs === undefined) continue;
       if (srcGroup.length === 1) {
-        mergedDatasets.push(srcGroup[0]);
+        mergedDatasets.push(firstDs);
       } else {
         // Combine schema across all members in the union
         const combinedSchema = srcGroup.reduce((acc, e) => {
@@ -394,7 +398,7 @@ export class UnionDataset<
         const mergedFilter = mergeFilters(inFilters);
         mergedDatasets.push(
           new SourceDataset({
-            src: srcGroup[0].src,
+            src: firstDs.src,
             schema: combinedSchema,
             filter: mergedFilter,
             select:
@@ -412,8 +416,9 @@ export class UnionDataset<
 
     // If we merged everything into a single dataset, use its query directly
     // Pass the querySchema to enable column and join elimination
-    if (mergedDatasets.length === 1) {
-      return mergedDatasets[0].query(querySchema);
+    const onlyDataset = mergedDatasets[0];
+    if (onlyDataset !== undefined && mergedDatasets.length === 1) {
+      return onlyDataset.query(querySchema);
     }
 
     // Generate union query from merged datasets
@@ -484,7 +489,7 @@ FROM ${name}`,
 
   implements<T extends DatasetSchema>(required: T): this is Dataset<T> {
     return Object.entries(required).every(([name, required]) => {
-      return name in this.schema && checkExtends(required, this.schema[name]);
+      return name in this.schema && checkExtends(required, this.schema[name]!);
     });
   }
 }
@@ -497,8 +502,9 @@ function getJoinSignature(dataset: SourceDataset): string {
 }
 
 function mergeFilters(filters: InFilter[]): InFilter | undefined {
-  if (filters.length === 0) return undefined;
-  const col = filters[0].col;
+  const first = filters[0];
+  if (first === undefined) return undefined;
+  const col = first.col;
   const values = new Set(filters.flatMap((filter) => filter.in));
   return {col, in: Array.from(values)};
 }
@@ -594,8 +600,9 @@ export class UnionDatasetWithLineage<
       } else {
         const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
-          if (key in dsSchema) {
-            const commonType = unionTypes(value, dsSchema[key]);
+          const dsValue = dsSchema[key];
+          if (dsValue !== undefined) {
+            const commonType = unionTypes(value, dsValue);
             if (commonType !== undefined) {
               newSch[key] = commonType;
             }
@@ -624,8 +631,7 @@ export class UnionDatasetWithLineage<
     // Build per-group queries with __groupid and __partition columns
     const groupQueries: string[] = [];
 
-    for (let groupId = 0; groupId < this.sourceGroupArray.length; groupId++) {
-      const [src, group] = this.sourceGroupArray[groupId];
+    for (const [groupId, [src, group]] of this.sourceGroupArray.entries()) {
       const partitionMap = this.partitionMaps.get(src)!;
       const partitionColumns = Array.from(partitionMap.columns.keys());
 
@@ -642,8 +648,7 @@ export class UnionDatasetWithLineage<
       const baseQuery = unionDataset.query(groupQuerySchema);
 
       // Normalize partition to single __partition column (use first partition col or NULL)
-      const partitionExpr =
-        partitionColumns.length > 0 ? partitionColumns[0] : 'NULL';
+      const partitionExpr = partitionColumns[0] ?? 'NULL';
 
       // Select result columns + groupid + partition
       const selectCols = resultColNames.join(',\n');
@@ -669,8 +674,9 @@ WHERE FALSE`;
     }
 
     // Single group - no need for UNION
-    if (groupQueries.length === 1) {
-      return groupQueries[0];
+    const onlyQuery = groupQueries[0];
+    if (onlyQuery !== undefined && groupQueries.length === 1) {
+      return onlyQuery;
     }
 
     // Small number of groups - use simple UNION ALL
@@ -701,7 +707,7 @@ ${indent(chunk.join('\nUNION ALL\n'), 2)}
 
   implements<T extends DatasetSchema>(schema: T): this is Dataset<T> {
     return Object.entries(schema).every(([name, required]) => {
-      return name in this.schema && checkExtends(required, this.schema[name]);
+      return name in this.schema && checkExtends(required, this.schema[name]!);
     });
   }
 
@@ -722,7 +728,7 @@ ${indent(chunk.join('\nUNION ALL\n'), 2)}
       return [];
     }
 
-    const [src, group] = this.sourceGroupArray[groupId];
+    const [src, group] = this.sourceGroupArray[groupId]!;
     const partitionMap = this.partitionMaps.get(src)!;
 
     const results: Dataset[] = [];

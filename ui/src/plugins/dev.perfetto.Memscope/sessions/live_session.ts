@@ -38,7 +38,8 @@ export interface ProfileView {
 
 const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
 const INITIAL_SNAPSHOT_INTERVAL_MS = 1_000; // Use a shorter interval for the first snapshot to get data on screen faster.
-const POLLING_INTERVAL_MS = 1_000; // Recording config polling interval for process stats and system stats.
+const POLLING_INTERVAL_MS = 1_000; // Recording config polling interval for system stats.
+const PROCESS_STATS_POLL_MS = 500; // 2x the default polling resolution for process memory counters.
 
 let engineCounter = 0;
 
@@ -172,15 +173,6 @@ export class LiveSession {
     }
   }
 
-  /** Toggles between paused and running. */
-  togglePause(): void {
-    if (this.isPaused) {
-      this.resume();
-    } else {
-      this.pause();
-    }
-  }
-
   /** Starts a heap profiling session for a single process. */
   async startProfile(pid: number, processName: string): Promise<void> {
     if (this.profileImpl) {
@@ -190,7 +182,6 @@ export class LiveSession {
       this.linuxTarget ?? this.device!,
       pid,
       processName,
-      this.data?.xMax ?? 0,
     );
     this.profileImpl = {session, startMs: Date.now()};
   }
@@ -245,13 +236,14 @@ export class LiveSession {
     // the engine again, and the finally block doesn't reschedule.
     this.isDisposed = true;
     clearTimeout(this.timer);
-    if (this.session) {
-      await this.session.cancel();
-      this.session = undefined;
-    }
     if (this.engine) {
       this.engine[Symbol.dispose]();
       this.engine = undefined;
+    }
+    if (this.session) {
+      const session = this.session;
+      this.session = undefined;
+      await session.cancel();
     }
   }
 
@@ -389,7 +381,7 @@ function createMonitoringConfig(
           targetBufferName: 'polled_stats',
           processStatsConfig: {
             scanAllProcessesOnStart: false,
-            procStatsPollMs: POLLING_INTERVAL_MS,
+            procStatsPollMs: PROCESS_STATS_POLL_MS,
             recordProcessDmabufRss: true,
           },
         },

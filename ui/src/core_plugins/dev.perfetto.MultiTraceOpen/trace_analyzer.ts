@@ -181,7 +181,7 @@ export class WasmTraceAnalyzer implements TraceAnalyzer {
 
     const signals = await queryFileSignals(engine);
     return {
-      format: mapTraceType(leafNodes[0]),
+      format: mapTraceType(leafNodes[0]!),
       ...signals,
     };
   }

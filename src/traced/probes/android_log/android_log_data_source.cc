@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <optional>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
@@ -79,7 +80,7 @@ template <typename T>
 inline bool ReadAndAdvance(const char** ptr, const char* end, T* out) {
   if (*ptr > end - sizeof(T))
     return false;
-  memcpy(reinterpret_cast<void*>(out), *ptr, sizeof(T));
+  *out = base::LoadLE<T>(*ptr);
   *ptr += sizeof(T);
   return true;
 }
@@ -250,8 +251,10 @@ void AndroidLogDataSource::ReadLogSocket() {
     }
     char* buf = reinterpret_cast<char*>(buf_.Get());
     PERFETTO_DCHECK(reinterpret_cast<uintptr_t>(buf) % 16 == 0);
-    size_t payload_size = reinterpret_cast<logger_entry_v4*>(buf)->len;
-    size_t hdr_size = reinterpret_cast<logger_entry_v4*>(buf)->hdr_size;
+    size_t payload_size =
+        base::LEToHost(reinterpret_cast<logger_entry_v4*>(buf)->len);
+    size_t hdr_size =
+        base::LEToHost(reinterpret_cast<logger_entry_v4*>(buf)->hdr_size);
     if (payload_size + hdr_size > static_cast<size_t>(rsize)) {
       PERFETTO_DLOG(
           "Invalid Android log frame (hdr: %zu, payload: %zu, rsize: %zd)",
@@ -266,6 +269,14 @@ void AndroidLogDataSource::ReadLogSocket() {
     // always zero-initialized.
     logger_entry_v4 entry{};
     memcpy(&entry, buf, std::min(hdr_size, sizeof(entry)));
+    entry.len = base::LEToHost(entry.len);
+    entry.hdr_size = base::LEToHost(entry.hdr_size);
+    entry.pid = base::LEToHost(entry.pid);
+    entry.tid = base::LEToHost(entry.tid);
+    entry.sec = base::LEToHost(entry.sec);
+    entry.nsec = base::LEToHost(entry.nsec);
+    entry.lid = base::LEToHost(entry.lid);
+    entry.uid = base::LEToHost(entry.uid);
     buf += hdr_size;
 
     if (!packet) {

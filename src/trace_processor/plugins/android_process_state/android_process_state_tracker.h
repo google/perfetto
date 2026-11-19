@@ -21,13 +21,17 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <string_view>
+#include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
+class ArgsInserter;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
@@ -50,13 +54,13 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidProcessState dump TracePacket.
-  void ParseProcessStateDump(protozero::ConstBytes bytes);
+  // An AndroidProcessState dump TracePacket at |ts|.
+  void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
   // An AndroidFreezerEvent TrackEvent extension at |ts|.
   void ParseFreezerEvent(int64_t ts, protozero::ConstBytes bytes);
-  // An AndroidFreezerState dump TracePacket.
-  void ParseFreezerDump(protozero::ConstBytes bytes);
+  // An AndroidFreezerState dump TracePacket at |ts|.
+  void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
 
   // Synthesizes the per-process initial-state rows.
   void Finalize();
@@ -102,14 +106,37 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
+  // Populates decoded flag array entries (capability_flags[i],
+  // cpu_time_reasons[i], implicit_cpu_time_reasons[i], freeze_policy_flags[i])
+  // onto row.arg_set_id using a single ArgsInserter.
+  void AddFlagsArgs(tables::AndroidProcessStateTable::Id id,
+                    const tables::AndroidProcessStateTable::Row& row);
+
+  // Appends decoded flag entries for a single non-zero bitmask onto |inserter|.
+  void EmitDecodedFlags(ArgsInserter& inserter,
+                        StringId flat_key_id,
+                        const char* key_prefix,
+                        DescriptorPool::CachedDescriptor& cache,
+                        const char* enum_name,
+                        int32_t mask);
+
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
+  const StringId capability_flags_id_;
+  const StringId cpu_time_reasons_id_;
+  const StringId implicit_cpu_time_reasons_id_;
+  const StringId freeze_policy_flags_id_;
+  UnknownProcessLogger unknown_process_logger_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
   DescriptorPool::CachedDescriptor process_group_cache_;
   DescriptorPool::CachedDescriptor reason_cache_;
   DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
+  DescriptorPool::CachedDescriptor capability_flags_cache_;
+  DescriptorPool::CachedDescriptor cpu_time_reasons_cache_;
+  DescriptorPool::CachedDescriptor freeze_policy_flags_cache_;
+  std::vector<std::string_view> flag_views_;
 
   // Map of upid -> earliest observed delta transition during the trace.
   std::map<UniquePid, EarliestDelta> earliest_prev_;

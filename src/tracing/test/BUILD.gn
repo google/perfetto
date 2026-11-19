@@ -73,6 +73,7 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/ext/ipc",
       "../../../protos/perfetto/ipc:cpp",
+      "../../../protos/perfetto/trace/perfetto:cpp",
       "../../base",
       "../../base:test_support",
       "../ipc:common",

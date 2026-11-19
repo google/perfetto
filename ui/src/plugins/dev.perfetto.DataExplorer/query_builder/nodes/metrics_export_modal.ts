@@ -102,11 +102,9 @@ export function parseMetricBundleForValue(
   const rows: Row[] = [];
   for (const row of bundle.row ?? []) {
     const rowData: Row = {};
-    for (let i = 0; i < dimensionNames.length; i++) {
+    for (const [i, dimName] of dimensionNames.entries()) {
       const dimValue = row.dimension?.[i];
-      rowData[dimensionNames[i]] = dimValue
-        ? getDimensionValue(dimValue)
-        : null;
+      rowData[dimName] = dimValue ? getDimensionValue(dimValue) : null;
     }
     // Extract the value at the specific index for this value column.
     const val = row.values?.[valueIndex];
@@ -197,10 +195,10 @@ export async function showMetricsExportModal(
           '.pf-metrics-result-box',
           valueColumns.length === 1
             ? [
-                m('.pf-metrics-result-header', valueColumns[0].column),
+                m('.pf-metrics-result-header', valueColumns[0]!.column),
                 m(
                   '.pf-metrics-result-content',
-                  renderResultForValue(valueColumns[0].column),
+                  renderResultForValue(valueColumns[0]!.column),
                 ),
               ]
             : m(Tabs, {
@@ -263,12 +261,12 @@ export async function showMetricsExportModal(
             i,
           );
           if (parsed !== undefined && parsed.rows.length > 0) {
-            resultStates.set(valueColumns[i].column, {
+            resultStates.set(valueColumns[i]!.column, {
               kind: 'data',
               result: parsed,
             });
           } else {
-            resultStates.set(valueColumns[i].column, {
+            resultStates.set(valueColumns[i]!.column, {
               kind: 'error',
               message: 'No metric data found',
             });

@@ -52,6 +52,8 @@ CheckedScope::CheckedScope(CheckedScope&& other) {
 }
 
 CheckedScope& CheckedScope::operator=(CheckedScope&& other) {
+  if (this == &other)
+    return *this;
   is_active_ = other.is_active_;
   parent_scope_ = other.parent_scope_;
   deleted_ = other.deleted_;

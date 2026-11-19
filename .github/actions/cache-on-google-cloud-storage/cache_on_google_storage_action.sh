@@ -40,7 +40,7 @@ function do_restore_cache() {
     tar_args=("--extract" "--preserve-permissions" "--keep-old-files")
     # '--exclude-from' is used to not overwrite files that already exists in the output directory.
     if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
-      tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
+      tar_args+=("--anchored" "--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
     fi
     if [[ -d "$INPUT_DIRECTORY" ]]; then
       # Extract to the existing directory.
@@ -75,7 +75,7 @@ function do_save_cache() {
   tar_args=("--create" "--preserve-permissions" "--sort=name")
   # '--exclude-from' is used to not cache files or directories that we don't want to.
   if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
-    tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
+    tar_args+=("--anchored" "--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
   fi
   tar_args+=("--file=$TAR_PATH" "--directory=$INPUT_DIRECTORY" ".")
 

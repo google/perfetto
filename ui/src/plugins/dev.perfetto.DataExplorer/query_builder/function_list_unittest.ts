@@ -144,7 +144,7 @@ describe('FunctionList search logic', () => {
       );
 
       expect(results.length).toBe(1);
-      expect(results[0].fn.name).toBe('dur_ns_to_ms');
+      expect(results[0]!.fn.name).toBe('dur_ns_to_ms');
     });
 
     it('should find functions by partial name match', () => {
@@ -184,7 +184,7 @@ describe('FunctionList search logic', () => {
       );
 
       expect(results.length).toBe(1);
-      expect(results[0].fn.name).toBe('dur_ns_to_ms');
+      expect(results[0]!.fn.name).toBe('dur_ns_to_ms');
     });
   });
 
@@ -206,7 +206,7 @@ describe('FunctionList search logic', () => {
       );
 
       expect(results.length).toBe(1);
-      expect(results[0].fn.name).toBe('ts_to_unix_ms');
+      expect(results[0]!.fn.name).toBe('ts_to_unix_ms');
     });
   });
 
@@ -249,7 +249,7 @@ describe('FunctionList search logic', () => {
       );
 
       expect(filteredFunctions.length).toBe(1);
-      expect(filteredFunctions[0].fn.name).toBe('format_duration');
+      expect(filteredFunctions[0]!.fn.name).toBe('format_duration');
     });
   });
 });

@@ -1586,6 +1586,131 @@ TEST(DataframeTest, TypedCursor) {
   }
 }
 
+TEST(DataframeTest, TypedCursorCreatedBeforeDataframeReplacement) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  TypedCursor cursor(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
+
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{7});
+  replacement.Finalize();
+  df = std::move(replacement);
+
+  cursor.SetFilterValueUnchecked(0, int64_t{7});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{7});
+  cursor.Next();
+  EXPECT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorReplansAfterDataframeReplacement) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.InsertUnchecked(kSpec, int64_t{20});
+  df.Finalize();
+  TypedCursor filtered(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
+  TypedCursor sorted(&df, {}, {{0, SortDirection::kAscending}});
+  filtered.SetFilterValueUnchecked(0, int64_t{10});
+  filtered.ExecuteUnchecked();
+  ASSERT_FALSE(filtered.Eof());
+  EXPECT_EQ(filtered.GetCellUnchecked<0>(kSpec), int64_t{10});
+  sorted.ExecuteUnchecked();
+  ASSERT_FALSE(sorted.Eof());
+  EXPECT_EQ(sorted.GetCellUnchecked<0>(kSpec), int64_t{10});
+
+  // Same row count and mutation history, but different values and sort order.
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{40});
+  replacement.InsertUnchecked(kSpec, int64_t{30});
+  replacement.Finalize();
+  df = std::move(replacement);
+
+  filtered.SetFilterValueUnchecked(0, int64_t{30});
+  filtered.ExecuteUnchecked();
+  ASSERT_FALSE(filtered.Eof());
+  EXPECT_EQ(filtered.GetCellUnchecked<0>(kSpec), int64_t{30});
+  filtered.Next();
+  EXPECT_TRUE(filtered.Eof());
+  sorted.ExecuteUnchecked();
+  ASSERT_FALSE(sorted.Eof());
+  EXPECT_EQ(sorted.GetCellUnchecked<0>(kSpec), int64_t{30});
+  sorted.Next();
+  ASSERT_FALSE(sorted.Eof());
+  EXPECT_EQ(sorted.GetCellUnchecked<0>(kSpec), int64_t{40});
+  sorted.Next();
+  EXPECT_TRUE(sorted.Eof());
+}
+
+TEST(DataframeTest, TypedCursorReplacementWithRepeatedFilterColumn) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.SetCellUnchecked<0>(kSpec, 0, int64_t{20});
+  ASSERT_EQ(df.mutations(), uint64_t{2});
+  TypedCursor cursor(
+      &df, {FilterSpec{0, 0, Eq{}, {}}, FilterSpec{0, 1, Eq{}, {}}}, {});
+  cursor.SetFilterValueUnchecked(0, int64_t{20});
+  cursor.SetFilterValueUnchecked(1, int64_t{20});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{30});
+  ASSERT_EQ(replacement.mutations(), uint64_t{1});
+  df = std::move(replacement);
+  // Both watched sums are 3: the independent generation must force a replan.
+  ASSERT_EQ(df.mutations(), uint64_t{3});
+  cursor.SetFilterValueUnchecked(0, int64_t{30});
+  cursor.SetFilterValueUnchecked(1, int64_t{30});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{30});
+}
+
+TEST(DataframeTest, TypedCursorFilterListAndResetAfterDataframeReplacement) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.Finalize();
+  TypedCursor cursor(&df, {FilterSpec{0, 0, In{}, {}}}, {});
+  TypedCursor::FilterValue value = int64_t{10};
+  cursor.SetFilterValueListUnchecked(0, &value, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{10});
+
+  Dataframe replacement = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  replacement.InsertUnchecked(kSpec, int64_t{30});
+  replacement.Finalize();
+  df = std::move(replacement);
+  value = int64_t{30};
+  cursor.SetFilterValueListUnchecked(0, &value, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{30});
+
+  Dataframe next = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  next.InsertUnchecked(kSpec, int64_t{50});
+  next.Finalize();
+  df = std::move(next);
+  cursor.Reset();
+  value = int64_t{50};
+  cursor.SetFilterValueListUnchecked(0, &value, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  EXPECT_EQ(cursor.GetCellUnchecked<0>(kSpec), int64_t{50});
+}
+
 TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"id", "col2", "col3", "col4"},

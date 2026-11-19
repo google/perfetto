@@ -20,15 +20,16 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -44,6 +45,7 @@ class DropOddRows final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -59,7 +61,7 @@ class DropOddRows final : public Operator {
     }
     out.CopyFrom(in);
     out.mutable_selection().Keep(
-        Span<const uint32_t>(selected, selected + count));
+        base::Span<const uint32_t>(selected, selected + count));
     return OpResult::kNeedMoreInput;
   }
 
@@ -88,6 +90,7 @@ class Twice final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -105,7 +108,7 @@ class Twice final : public Operator {
  private:
   struct State : OperatorState {
     ~State() override;
-    bool again = false;
+    RunValue<bool> again{this, false};
   };
 };
 
@@ -117,7 +120,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   for (int i = 0; i < 3; ++i) {
     ops.push_back(std::make_unique<DropOddRows>());
   }
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   // Keeping every second row three times leaves every eighth. The third
   // operator narrows a selection the batch already composed, in place.
@@ -127,7 +130,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
 // Reads every row of every batch, and reads them all again when reopened.
 TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
 
   for (int run = 0; run < 2; ++run) {
     std::vector<uint32_t> rows = Drain(pipeline);
@@ -201,7 +204,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 // must still report eof.
 TEST(SinkTest, EofStaysEof) {
   ArraySource source({1, 2});
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
   RowCursor cursor(pipeline);
   EXPECT_TRUE(cursor.eof());
   cursor.Open();
@@ -219,6 +222,7 @@ class Trailer final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
@@ -253,11 +257,9 @@ class Trailer final : public Operator {
 
  private:
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
-    void Reset() override { let_go = 0; }
-    uint32_t let_go = 0;
-    base::Status status = base::OkStatus();
+    RunValue<uint32_t> let_go{this};
+    Held<base::Status> status{this};
   };
 
   int64_t first_;
@@ -266,6 +268,70 @@ class Trailer final : public Operator {
 
 Trailer::State::~State() = default;
 
+// Passes every batch through, holding the rows it has seen for the run in
+// a vector `seen` points at.
+class Recording final : public Operator {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
+
+  explicit Recording(const std::vector<uint32_t>** seen) : seen_(seen) {}
+
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
+    auto state = std::make_unique<State>();
+    *seen_ = &state->seen;
+    return state;
+  }
+  OpResult Execute(const RowBatch& in,
+                   RowBatch& out,
+                   OperatorState& state) const override {
+    State& s = state.Cast<State>();
+    for (uint32_t i = 0; i < in.size(); ++i) {
+      s.seen.push_back(in.Value<uint32_t>(0, i));
+    }
+    out.CopyFrom(in);
+    return OpResult::kNeedMoreInput;
+  }
+
+ private:
+  struct State : OperatorState {
+    Held<std::vector<uint32_t>> seen{this};
+  };
+
+  const std::vector<uint32_t>** seen_;
+};
+
+// What a step holds for a run is let go as soon as nothing more comes out of
+// the step, before the steps above it are done, and every run starts empty.
+TEST(StateTest, AStepsRunEndsWithItsStream) {
+  ArraySource source({10, 20});
+  const std::vector<uint32_t>* seen = nullptr;
+  std::vector<Pipeline::Step> ops;
+  ops.push_back(std::make_unique<Recording>(&seen));
+  ops.push_back(std::make_unique<Trailer>(99, 2));
+  Pipeline pipeline(source, std::move(ops));
+  std::unique_ptr<OperatorState> state =
+      pipeline.MakeState(test::TestContext());
+  for (uint32_t run = 0; run < 2; ++run) {
+    if (run) {
+      Restart(pipeline, *state);
+    }
+    EXPECT_TRUE(seen->empty());
+    std::vector<uint32_t> rows;
+    RowBatch scratch;
+    while (RowBatch* batch = pipeline.Next(scratch, *state)) {
+      // The first row of each batch.
+      uint32_t row = batch->Value<uint32_t>(0, 0);
+      rows.push_back(row);
+      // Let go by the trailer once everything below it is done.
+      EXPECT_EQ(seen->size(), row >= 99 ? 0u : 2u);
+    }
+    EXPECT_THAT(rows, ElementsAre(0, 99, 100));
+    EXPECT_TRUE(seen->empty());
+  }
+}
+
 // The deepest operator with more output is drained before the one above it is
 // called again.
 TEST(OperatorTest, FanOutNestsInnermostFirst) {
@@ -273,7 +339,7 @@ TEST(OperatorTest, FanOutNestsInnermostFirst) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Twice>());
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
@@ -285,7 +351,7 @@ TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(99, 1));
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
 }
@@ -297,7 +363,7 @@ TEST(FinishTest, OperatorsAreFinishedBottomUp) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(7, 1));
   ops.push_back(std::make_unique<Trailer>(8, 1));
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
 }
@@ -307,6 +373,7 @@ class DropOddRowsInPlace final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -320,7 +387,7 @@ class DropOddRowsInPlace final : public Transform {
       s.selected[count++] = row;
     }
     batch.mutable_selection().Keep(
-        Span<const uint32_t>(s.selected, s.selected + count));
+        base::Span<const uint32_t>(s.selected, s.selected + count));
     return true;
   }
 
@@ -341,7 +408,7 @@ TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   const DropOddRowsInPlace* transform = drop.get();
   std::vector<Pipeline::Step> steps;
   steps.push_back(std::move(drop));
-  Pipeline pipeline(source, std::move(steps), {});
+  Pipeline pipeline(source, std::move(steps));
 
   auto state = pipeline.MakeState(test::TestContext());
   RowBatch scratch;

@@ -757,24 +757,39 @@ class PerfettoTable(TestSuite):
         "view_id","view_id","[NULL]","NO_ID"
         """))
 
-  def test_winscope_surfaceflinger_hierarchy_paths(self):
+  def test_mipmap_operator_int64_max_window_end(self):
     return DiffTestBlueprint(
-        trace=Path('../parser/android/surfaceflinger_layers.textproto'),
+        trace=TextProto(''),
         query="""
-          SELECT * FROM __intrinsic_winscope_surfaceflinger_hierarchy_path() as tbl
-          ORDER BY tbl.id
-          LIMIT 10
-          """,
+        CREATE PERFETTO TABLE test_slices AS
+        SELECT 1 AS id, 100 AS ts, 50 AS dur, 0 AS depth
+        UNION ALL
+        SELECT 2 AS id, 6949342971933024256 AS ts, 100 AS dur, 0 AS depth;
+
+        CREATE VIRTUAL TABLE slice_mipmap USING __intrinsic_slice_mipmap(
+          test_slices
+        );
+
+        CREATE PERFETTO TABLE test_counters AS
+        SELECT 100 AS ts, 10.0 AS value
+        UNION ALL
+        SELECT 6949342971933024256 AS ts, 20.0 AS value;
+
+        CREATE VIRTUAL TABLE counter_mipmap USING __intrinsic_counter_mipmap(
+          test_counters
+        );
+
+        SELECT
+          (
+            SELECT COUNT(*)
+            FROM slice_mipmap(0, 9223372036854775807, 9007199254740992)
+          ) AS slice_cnt,
+          (
+            SELECT COUNT(*)
+            FROM counter_mipmap(0, 9223372036854775807, 9007199254740992)
+          ) AS counter_cnt;
+        """,
         out=Csv("""
-          "id","snapshot_id","layer_id","ancestor_id"
-          0,0,3,3
-          1,0,4,3
-          2,0,4,4
-          3,1,3,3
-          4,1,4,3
-          5,1,4,4
-          6,2,4294967294,4294967294
-          7,2,1,1
-          8,2,2,2
-          9,2,3,3
-          """))
+        "slice_cnt","counter_cnt"
+        2,2
+        """))

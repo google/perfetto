@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -29,6 +30,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -75,7 +77,7 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   for (bool change_type : {false, true}) {
     // Recover from the rejected batch, then reuse a completed sort with a
     // different key width. Both runs must establish their own row layout.
-    state->Reset();
+    state->EndRun();
     ASSERT_TRUE(sort.status(*state).ok());
     if (change_type) {
       in.SetColumn(1,
@@ -93,9 +95,54 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   }
 }
 
+// Strings sort by their contents, not by the order the pool interned them,
+// with nulls first ascending and last descending.
+// Rows sorted within one batch held are served where they are held, not
+// copied.
+TEST(SortTest, ServesRowsWhereTheyAreHeld) {
+  std::vector<int64_t> values = {3, 1, 2};
+  Sort sort(SortSpec{{{0, false}}});
+  auto state = sort.MakeState(test::TestContext());
+  RowBatch in;
+  RowBatch out;
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  in.SetRowCount(3);
+  ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_EQ(sort.Finish(out, *state), OpResult::kHaveMoreOutput);
+  EXPECT_EQ(out.column(0).data(), values.data());
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3));
+}
+
+TEST(SortTest, StringsSortByTheirContents) {
+  StringPool pool;
+  std::vector<StringPool::Id> strings = {
+      pool.InternString("b"), pool.InternString("c"), pool.InternString("a"),
+      StringPool::Id::Null(), pool.InternString("b")};
+  auto valid = BitVector::CreateWithSize(5, true);
+  valid.clear(3);
+  RowBatch in;
+  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{String{}}, strings.data(), &valid));
+  in.SetRowCount(5);
+  for (bool descending : {false, true}) {
+    Sort sort(SortSpec{{{1, descending}}, &pool});
+    auto state = sort.MakeState(test::TestContext());
+    RowBatch out;
+    ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kNeedMoreInput);
+    ASSERT_EQ(sort.Finish(out, *state), OpResult::kHaveMoreOutput);
+    std::vector<uint32_t> expected = {3, 2, 0, 4, 1};
+    if (descending) {
+      expected = {1, 0, 4, 2, 3};
+    }
+    EXPECT_EQ(test::ReadColumn<uint32_t>(out, 0), expected);
+  }
+}
+
 TEST(SortTest, IdsSortAsTheirValues) {
   test::ArraySource source({5, 4, 3});
-  Pipeline sorted(source, SortBy({{0, true}}), {});
+  Pipeline sorted(source, SortBy({{0, true}}));
   base::Status status;
   EXPECT_THAT(Ids(sorted, &status), ElementsAre(2, 1, 0));
 }

@@ -24,20 +24,18 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 struct IntervalFlattenSpec {
-  uint32_t ts_column = 0;
-  uint32_t dur_column = 0;
-  std::vector<uint32_t> key_columns;
-  // The group number column appended by GroupedSort. Unused without keys.
-  uint32_t group_column = 0;
+  IntervalLaneSpec lanes;
   std::vector<AggregateCall> aggregates;
 };
 
@@ -54,6 +52,14 @@ class IntervalFlatten : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns* out) const override {
+    out->keeps = StepColumns::Keeps::kNone;
+    DescribeLaneReads(spec_.lanes, out);
+    DescribeAggregateReads(spec_.aggregates, out);
+    // The bounds, the keys, the aggregates and each row's group number.
+    out->added = static_cast<uint32_t>(2 + spec_.lanes.key_columns.size() +
+                                       spec_.aggregates.size() + 1);
+  }
 
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;
@@ -81,80 +87,90 @@ class IntervalFlatten : public Operator {
   };
 
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
+    explicit State(const IntervalLaneSpec& lanes)
+        : keys(this, lanes.key_columns) {}
     ~State() override;
-    void Reset() override;
 
-    base::Status status = base::OkStatus();
+    // Every aggregate's states: the tree's first nodes are there from the
+    // start of every run, and zeroed as used.
+    struct TreeStates : FlexVector<int64_t> {
+      uint64_t first = 0;
+      void EndRun() {
+        EndRunOf(static_cast<FlexVector<int64_t>*>(this));
+        resize(first);
+      }
+    };
+
     // What output columns are copied out to.
     Context* context = nullptr;
+    // Words of state a group.
+    uint32_t stride = 0;
+
+    Held<base::Status> status{this};
+
+    // Where the input is up to.
     // The first unconsumed row when Execute yields a full output batch.
-    uint32_t input_row = 0;
+    RunValue<uint32_t> input_row{this};
     // input_row can still be zero when draining the preceding group yields.
-    bool input_pending = false;
-    uint32_t input_group = 0;
-    uint32_t output_group = 0;
-    bool in_group = false;
+    RunValue<bool> input_pending{this, false};
+    RunValue<uint32_t> input_group{this};
+    RunValue<uint32_t> output_group{this};
+    RunValue<bool> in_group{this, false};
     // The next segment starts at cursor. input_ts is the last accepted input
     // timestamp; its points remain pending until all rows at that time arrive.
-    int64_t cursor = 0;
-    int64_t input_ts = 0;
-    // How many intervals of width are live, and the points at input_ts.
-    int64_t live = 0;
-    FlexVector<Live> instants;
-    // A min-heap on end.
-    FlexVector<Live> ends;
+    RunValue<int64_t> cursor{this};
+    RunValue<int64_t> input_ts{this};
+    // The keys of the input batch's lanes, and the current lane's handle.
+    Held<LaneKeys> keys;
+    RunValue<uint32_t> key_row{this};
 
-    // Every aggregate's states, `stride` words a group: the tree's nodes,
-    // then slots.
-    FlexVector<int64_t> states;
-    uint32_t stride = 0;
-    uint32_t slots = 0;
+    // The live intervals.
+    // How many intervals of width are live, and the points at input_ts.
+    RunValue<int64_t> live{this};
+    Held<FlexVector<Live>> instants{this};
+    // A min-heap on end.
+    Held<FlexVector<Live>> ends{this};
+
+    // The aggregates' states.
+    // `stride` words a group: the tree's nodes, then slots.
+    Held<TreeStates> states{this};
+    RunValue<uint32_t> slots{this};
     // Free slots, zeroed.
-    FlexVector<uint32_t> free_slots;
+    Held<FlexVector<uint32_t>> free_slots{this};
     // The intervals ended since the batch's last aggregation; then, while
     // aggregating, those still live.
-    FlexVector<Range> ranges;
-    // The input rows added since the last aggregation (all from the input of
-    // this call), and their slots.
-    FlexVector<uint32_t> rows;
-    FlexVector<uint32_t> row_slots;
+    Held<FlexVector<Range>> ranges{this};
     // The slots merged into the tree's nodes, or into and out of deltas.
-    FlexVector<GroupMerge> merges;
-    FlexVector<GroupMerge> subtracts;
+    Held<FlexVector<GroupMerge>> merges{this};
+    Held<FlexVector<GroupMerge>> subtracts{this};
     // By aggregate.
-    std::vector<SeenBytes> seen_bytes;
-    AggregateInputLoader input;
+    Held<RunEach<SeenBytes>> seen_bytes{this};
 
-    // Keys for the current input batch plus one carried key from the previous
-    // input batch. Groups can share an output batch without retaining earlier
-    // input.
-    RowStore key_rows;
-    RowBatch retained;
-    RowBatch saved_key;
-    uint32_t key_row = 0;
-    uint32_t first_key = 0;
-
+    // The output segments.
     // At most kMaxBatchRows completed segments, reused after each yield.
     // Active intervals remain in the heap until their ends are reached.
-    uint32_t segments = 0;
-    uint32_t segment_capacity = 0;
+    RunValue<uint32_t> segments{this};
+    RunValue<uint32_t> segment_capacity{this};
     // The segments' columns, written straight into the buffers the batch
     // served holds: taken as its first segment is emitted.
-    ColumnBuffer ts_buffer;
-    ColumnBuffer dur_buffer;
-    ColumnBuffer group_buffer;
-    int64_t* segment_ts = nullptr;
-    int64_t* segment_dur = nullptr;
-    uint32_t* segment_groups = nullptr;
-    FlexVector<uint32_t> segment_key_rows;
+    Held<BoundsColumns> bounds{this};
+    Held<ColumnBuffer> group_buffer{this};
+    RunValue<uint32_t*> segment_groups{this, nullptr};
+    Held<FlexVector<uint32_t>> segment_key_rows{this};
     // By aggregate, the buffer the batch being served has its values in.
-    std::vector<ColumnBuffer> outputs;
-    RowBatch served_keys;
+    Held<RunEach<ColumnBuffer>> outputs{this};
+    Held<RowBatch> served_keys{this};
+
+    // The input rows added since the last aggregation (all from the input of
+    // this call), and their slots. An error can leave them unaggregated.
+    Held<FlexVector<uint32_t>> rows{this};
+    Held<FlexVector<uint32_t>> row_slots{this};
+
+    // Scratch for one call.
+    CallScratch<AggregateInputLoader> input;
   };
 
-  bool RetainKeys(const RowBatch&, State&) const;
-  bool AddInterval(State&, uint32_t row, int64_t start, int64_t length) const;
+  void AddInterval(State&, uint32_t row, int64_t start, int64_t end) const;
   uint32_t TakeSlot(State&) const;
   // Aggregates the batch, publishes any completed segments, or
   // propagates an error. `in` is the input batch, if any.
@@ -175,6 +191,8 @@ class IntervalFlatten : public Operator {
   void TakeSegmentBuffers(State&) const;
 
   IntervalFlattenSpec spec_;
+  // Whether the input has PER columns.
+  bool keyed_;
   // By aggregate of the spec.
   std::vector<std::unique_ptr<AggregateFunction>> functions_;
   std::vector<uint32_t> offsets_;

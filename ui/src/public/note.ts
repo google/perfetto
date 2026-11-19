@@ -15,6 +15,8 @@
 import type {time} from '../base/time';
 
 export interface NoteManager {
+  readonly notes: ReadonlyMap<string, Note | SpanNote>;
+
   getNote(id: string): Note | SpanNote | undefined;
 
   // Adds a note (a flag on the timeline marker). Returns the id.
@@ -22,6 +24,12 @@ export interface NoteManager {
 
   // Adds a span note (a flagged range). Returns the id.
   addSpanNote(args: AddSpanNoteArgs): string;
+
+  // Updates an existing note's color and/or text.
+  changeNote(id: string, args: {color?: string; text?: string}): void;
+
+  // Removes a note by id.
+  removeNote(id: string): void;
 }
 
 export interface AddNoteArgs {

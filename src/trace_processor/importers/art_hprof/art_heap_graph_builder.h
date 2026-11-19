@@ -285,21 +285,12 @@ T ReadBigEndian(TraceProcessorContext* context,
   switch (length) {
     case 1:
       return static_cast<T>(*p);
-    case 2: {
-      uint16_t value;
-      memcpy(&value, p, sizeof(value));
-      return static_cast<T>(base::BE16ToHost(value));
-    }
-    case 4: {
-      uint32_t value;
-      memcpy(&value, p, sizeof(value));
-      return static_cast<T>(base::BE32ToHost(value));
-    }
-    case 8: {
-      uint64_t value;
-      memcpy(&value, p, sizeof(value));
-      return static_cast<T>(base::BE64ToHost(value));
-    }
+    case 2:
+      return static_cast<T>(base::LoadBE<uint16_t>(p));
+    case 4:
+      return static_cast<T>(base::LoadBE<uint32_t>(p));
+    case 8:
+      return static_cast<T>(base::LoadBE<uint64_t>(p));
     default:
       break;
   }

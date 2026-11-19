@@ -64,6 +64,19 @@
     color: var(--pf-color-text-muted);
   }
 
+  // Must come after __groupby-column so it wins on group-by cells.
+  &__cell--quick-filter-match {
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-accent) 15%,
+      transparent
+    );
+  }
+
+  &__quick-filter {
+    width: 200px;
+  }
+
   &__table {
     flex: 1;
     overflow: auto;

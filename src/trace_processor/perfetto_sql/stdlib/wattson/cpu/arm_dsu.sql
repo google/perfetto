@@ -15,7 +15,11 @@
 
 INCLUDE PERFETTO MODULE linux.devfreq;
 
+INCLUDE PERFETTO MODULE wattson.curves.utils;
+
 INCLUDE PERFETTO MODULE wattson.device_infos;
+
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Converts event counter from count to rate (num of accesses per ns).
 CREATE PERFETTO FUNCTION _get_rate(event STRING)
@@ -37,8 +41,7 @@ FROM (
     * 1.0
     / (lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts) AS access_rate
   FROM counter AS c
-  JOIN counter_track AS t
-    ON c.track_id = t.id
+  JOIN counter_track AS t ON c.track_id = t.id
   WHERE
     t.name = $event
 )
@@ -102,38 +105,32 @@ CREATE PERFETTO TABLE _arm_l3_rates AS
 INTERVAL INTERSECTION OF (_arm_l3_miss_rate AS miss, _arm_l3_hit_rate AS hit)
 |> SELECT ts, dur, miss.l3_miss_rate, hit.l3_hit_rate;
 
--- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
--- The VM doesn't have a DSU, so the placeholder value of FMin is put in. The
--- DSU frequency is a prerequisite for power estimation on Pixel 9.
+-- Gapless DSU frequency slices from trace_start() to trace_end().
+-- Fills any leading gap prior to the first devfreq event (or the entire trace
+-- when no devfreq events are present, e.g. on VMs or when DSU frequency is
+-- pinned) with the device's minimum DSU frequency.
 CREATE PERFETTO TABLE _wattson_dsu_frequency AS
-WITH
-  base AS (
-    SELECT * FROM linux_devfreq_dsu_counter
-    UNION ALL
-    SELECT
-      0 AS id,
-      trace_start() AS ts,
-      trace_end() - trace_start() AS dur,
-      610000 AS dsu_freq
-    -- Only add this for traces from a VM on Pixel 9 where DSU values aren't present
-    WHERE
-      (
-        SELECT str_value
-        FROM metadata
-        WHERE
-          name = 'android_guest_soc_model'
-        LIMIT 1
-      ) IN (SELECT device FROM _use_devfreq)
-      AND NOT EXISTS (SELECT 1 FROM linux_devfreq_dsu_counter)
-  )
-SELECT id, ts, dur, dsu_freq
-FROM _use_devfreq_for_calc
-CROSS JOIN base
-UNION ALL
--- Create fake entry for use with ii()
-SELECT
-  0 AS id,
-  trace_start() AS ts,
-  trace_end() - trace_start() AS dur,
-  0 AS dsu_freq
-FROM _skip_devfreq_for_calc;
+FROM (
+  SELECT ts, dur, dsu_freq
+  FROM _use_devfreq_for_calc
+  CROSS JOIN linux_devfreq_dsu_counter
+)
+|> INTERVAL FILL GAPS WITH (
+  SELECT
+    trace_start() AS ts,
+    trace_dur() AS dur,
+    iif(
+      EXISTS (SELECT 1 FROM _use_devfreq_for_calc),
+      coalesce(
+        (SELECT min(dsu_freq) FROM _filtered_curves_dsu_1d),
+        (
+          SELECT min(dep_freq)
+          FROM _cpu_w_dependency_default_vote
+          WHERE
+            dep_policy = _dsu_dep!()
+        ),
+        0
+      ),
+      0
+    ) AS dsu_freq
+);

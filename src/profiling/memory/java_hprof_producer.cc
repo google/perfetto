@@ -85,6 +85,10 @@ void JavaHprofProducer::DataSource::SendSignal() const {
                     uids->effective);
       continue;
     }
+    if (config_.skip_frozen_processes() && IsProcessFrozen(pid)) {
+      PERFETTO_DLOG("%d is frozen. Not signalling.", pid);
+      continue;
+    }
     PERFETTO_DLOG("Sending %d to %d", kJavaHeapprofdSignal, pid);
     union sigval signal_value;
     signal_value.sival_int = static_cast<int32_t>(

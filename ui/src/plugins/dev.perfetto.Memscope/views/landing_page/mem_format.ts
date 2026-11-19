@@ -70,7 +70,7 @@ export function deltaText(n: number, text: string = formatDelta(n)): m.Child {
   return m('span', {style: {color: deltaColor(n)}}, text);
 }
 
-// One score card holding 1–2 stat groups (label above, value, optional
+// One score card holding 1-2 stat groups (label above, value, optional
 // sub-line). Used for the top billboard row and the per-section cards. Each
 // group is a Billboard.Section, so multiple groups lay out side by side.
 export function statCard(

@@ -67,8 +67,8 @@ export function utf8Decode(buffer: AllowSharedBufferSource): string {
 
 export function binaryEncode(buf: Uint8Array): string {
   let str = '';
-  for (let i = 0; i < buf.length; i++) {
-    str += String.fromCharCode(buf[i]);
+  for (const b of buf) {
+    str += String.fromCharCode(b);
   }
   return str;
 }

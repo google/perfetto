@@ -68,10 +68,13 @@ class IntervalTree {
  public:
   // Creates an interval tree from the vector of intervals if needed. Otherwise
   // copies the vector of intervals.
-  explicit IntervalTree(const std::vector<Interval>& sorted_intervals) {
-    PERFETTO_CHECK(!sorted_intervals.empty());
-    nodes_.reserve(sorted_intervals.size());
-    Node root_node(sorted_intervals.data(), sorted_intervals.size(), nodes_);
+  explicit IntervalTree(const std::vector<Interval>& sorted_intervals)
+      : IntervalTree(sorted_intervals.data(), sorted_intervals.size()) {}
+
+  IntervalTree(const Interval* sorted_intervals, size_t size) {
+    PERFETTO_CHECK(size > 0);
+    nodes_.reserve(size);
+    Node root_node(sorted_intervals, size, nodes_);
     nodes_.emplace_back(std::move(root_node));
     root_ = nodes_.size() - 1;
   }

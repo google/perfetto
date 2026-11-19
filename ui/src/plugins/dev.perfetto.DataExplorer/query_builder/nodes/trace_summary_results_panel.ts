@@ -100,7 +100,7 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
       });
     } else {
       for (let i = 0; i < specs.length; i++) {
-        const spec = specs[i];
+        const spec = specs[i]!;
         metrics.push({
           metricId: spec.id ?? `${bundle.bundleId ?? 'unknown'}_${i}`,
           valueName: spec.value ?? 'value',
@@ -128,7 +128,7 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
         const rowData: Row = {};
         for (let i = 0; i < dimensionNames.length; i++) {
           const dimValue = row.dimension?.[i];
-          rowData[dimensionNames[i]] =
+          rowData[dimensionNames[i]!] =
             dimValue !== undefined && dimValue !== null
               ? parseDimensionValue(dimValue)
               : null;
@@ -308,7 +308,7 @@ export class TraceSummaryResultsPanel implements m.ClassComponent<TraceSummaryRe
           });
         }
         if (bundles.length === 1) {
-          const bundle = bundles[0];
+          const bundle = bundles[0]!;
           return m(DataGrid, {
             data: bundle.rows,
             schema: bundle.schema,
@@ -404,7 +404,7 @@ export class TraceSummaryResultsPanel implements m.ClassComponent<TraceSummaryRe
         const bundles = parseTraceSummaryProto(result.protoSummary);
         this.executionState = {kind: 'done', bundles, durationMs};
         if (bundles.length > 0) {
-          this.activeTab ??= bundles[0].metricId;
+          this.activeTab ??= bundles[0]!.metricId;
         }
       } else {
         this.executionState = {kind: 'error', message: 'No results returned'};

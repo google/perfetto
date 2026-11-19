@@ -77,7 +77,7 @@ export class WattsonTaskSummary {
     if (utids.length > 0) {
       filters.push(`utid IN (${utids.join()})`);
     }
-    const whereClause = `WHERE ${filters.join(' OR ')}`;
+    const whereClause = `WHERE (${filters.join(' OR ')})`;
 
     await this.engine.query(`
       INCLUDE PERFETTO MODULE wattson.aggregation;
@@ -87,24 +87,23 @@ export class WattsonTaskSummary {
         ${duration} as dur,
         0 as period_id;
 
-      -- Prefilter tasks table to be small
-      CREATE OR REPLACE PERFETTO VIEW _wattson_ui_selected_tasks AS
-      SELECT *
+      -- Clip the selected tasks to the window.
+      CREATE OR REPLACE PERFETTO VIEW _wattson_ui_windowed_tasks AS
+      SELECT
+        0 AS period_id,
+        utid,
+        cpu,
+        estimated_mw,
+        min(ts + dur, ${area.end}) - max(ts, ${area.start}) AS dur
       FROM _estimates_w_tasks_attribution
-      ${whereClause};
+      ${whereClause}
+        AND ts < ${area.end}
+        AND ts + dur > ${area.start};
 
       -- Use a dedicated CPUs table to avoid incorrectly filtering idle costs
       CREATE OR REPLACE PERFETTO TABLE _wattson_ui_selected_cpus AS
       SELECT cpu FROM _wattson_cpus
       ${cpus.length > 0 ? `WHERE cpu IN (${cpus.join()})` : ''};
-
-      -- Use SPAN_JOIN to clip tasks to the window
-      DROP TABLE IF EXISTS _wattson_ui_windowed_tasks;
-      CREATE VIRTUAL TABLE _wattson_ui_windowed_tasks
-      USING SPAN_JOIN(
-        wattson_plugin_ui_selection_window,
-        _wattson_ui_selected_tasks PARTITIONED cpu
-      );
 
       -- Materialize the thread-level summary once.
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_thread_summary AS

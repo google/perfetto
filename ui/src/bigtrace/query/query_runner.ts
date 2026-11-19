@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {getBigtraceEndpoint} from '../settings/endpoint_storage';
 import type {SettingFilter} from '../settings/settings_types';
@@ -28,7 +27,6 @@ import {
 } from './bigtrace_query_client';
 import {forwardAbort} from './abort_utils';
 import {
-  isoToEpochMs,
   snapshotSettingsToFilters,
   type RawQueryExecution,
 } from './query_history_storage';
@@ -41,7 +39,7 @@ import {
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
 import {dateFilterToFilters, extractDateFilter} from './date_filter';
 import {todayIso} from '../base/iso_date';
-import {PollingController} from './polling_controller';
+import {applyExecutionDetails, PollingController} from './polling_controller';
 
 interface QueryRunnerCallbacks {
   readonly onHistoryChanged: () => void;
@@ -66,10 +64,15 @@ export class QueryRunner {
     if (!query) return;
 
     tab.activeRequest?.abort();
-
-    tab.isLoading = true;
+    this.poller.stop(tab);
+    tab.pollGeneration++;
+    tab.queryUuid = undefined;
+    tab.execution = undefined;
+    tab.dataSource = undefined;
     tab.queryResult = undefined;
-    tab.lastProcessedRows = 0;
+    tab.resultColumns = null;
+    tab.resultsTabKey = undefined;
+    tab.isLoading = true;
     tab.clientStartTime = Date.now();
     this.cb.markDirty?.();
     this.redraw();
@@ -83,7 +86,6 @@ export class QueryRunner {
           'Set the BigTrace endpoint from the connection button (top right) ' +
           'before running queries.',
       });
-      tab.dataSource = new InMemoryDataSource([]);
       tab.isLoading = false;
       this.redraw();
       return;
@@ -93,7 +95,7 @@ export class QueryRunner {
 
     // Global defaults overridden by per-tab values, minus per-tab-disabled
     // settings. Same helper the trace grid uses, so /trace_metadata and
-    // /execute_* stay in sync.
+    // /execute_bigtrace_query_async stay in sync.
     const settings = effectiveTabSettings(tab);
 
     // Per-tab snapshot is the trace-selection source of truth: what the user
@@ -132,33 +134,21 @@ export class QueryRunner {
       traceOrderBy,
       traceLimit: tab.traceLimit,
       experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
-      tableTtlDays: tab.materialize ? tab.tableTtlDays : undefined,
+      tableTtlDays: tab.tableTtlDays,
     };
 
     const wallStartMs = performance.now();
 
     try {
-      if (tab.materialize) {
-        await this.runAsync(
-          tab,
-          query,
-          queryClient,
-          settings,
-          executeOptions,
-          requestController.signal,
-          wallStartMs,
-        );
-      } else {
-        await this.runSync(
-          tab,
-          query,
-          queryClient,
-          settings,
-          executeOptions,
-          requestController.signal,
-          wallStartMs,
-        );
-      }
+      await this.runAsync(
+        tab,
+        query,
+        queryClient,
+        settings,
+        executeOptions,
+        requestController.signal,
+        wallStartMs,
+      );
     } catch (e) {
       if (e instanceof QueryCancelledError) {
         tab.isLoading = false;
@@ -175,39 +165,64 @@ export class QueryRunner {
       tab.activeRequest = undefined;
     }
 
-    if (tab.queryResult !== undefined && !tab.materialize) {
-      tab.dataSource = new InMemoryDataSource(tab.queryResult.rows);
-      tab.isLoading = false;
-      this.cb.onHistoryChanged();
-    }
     this.redraw();
   }
 
-  // Aborts the local request and, for materialized queries, the remote run too.
+  // Aborts the local request and cancels the remote query execution.
   async cancel(tab: BigTraceEditorTab): Promise<void> {
     this.redraw();
 
     const queryUuid = tab.queryUuid;
+    const queryClient = tab.queryClient;
     tab.activeRequest?.abort();
     this.poller.stop(tab);
+    tab.pollGeneration++;
 
-    if (tab.execution && tab.execution.status === 'IN_PROGRESS') {
+    if (tab.execution && !TERMINAL_STATUSES.has(tab.execution.status)) {
       tab.execution.status = 'CANCELLED';
+      tab.execution.phase = undefined;
       tab.execution.endTime = Date.now();
     }
 
-    if (tab.materialize && queryUuid && tab.queryClient) {
+    tab.activeRequest = undefined;
+    tab.isLoading = false;
+
+    if (queryUuid && queryClient) {
       try {
-        await tab.queryClient.cancelQuery(queryUuid);
+        await queryClient.cancelQuery(queryUuid);
+        const details = await queryClient.getQueryExecution(
+          queryUuid,
+          tab.lifecycle.signal,
+        );
+        if (tab.queryUuid === queryUuid) {
+          applyExecutionDetails(tab, details);
+          if (!TERMINAL_STATUSES.has(tab.execution?.status ?? '')) {
+            this.poller.start(tab);
+          } else if (
+            tab.dataSource instanceof BigtraceAsyncDataSource &&
+            Boolean(tab.execution?.tableName) &&
+            (tab.execution?.processedRows ?? 0) > 0
+          ) {
+            await tab.dataSource.refresh();
+          }
+        }
       } catch (e) {
         console.error(`Failed to cancel query ${queryUuid} on backend:`, e);
       }
     }
 
-    tab.activeRequest = undefined;
-    tab.isLoading = false;
     this.cb.onHistoryChanged();
     this.redraw();
+  }
+
+  // Rehydrate a tab restored from localStorage (page reload).
+  async rehydrateTab(tab: BigTraceEditorTab): Promise<void> {
+    await this.loadExecution(tab, {restoreSettings: false});
+  }
+
+  // Status-bar refresh button.
+  refreshStatus(tab: BigTraceEditorTab): void {
+    this.poller.refreshNow(tab);
   }
 
   // Pick up a tab whose `queryUuid` was set externally (e.g. history click).
@@ -215,152 +230,118 @@ export class QueryRunner {
     tab: BigTraceEditorTab,
     fallbackQuery: string,
   ): Promise<void> {
-    if (!tab.queryUuid) return;
+    await this.loadExecution(tab, {restoreSettings: true, fallbackQuery});
+  }
+
+  // ----- Internals -----
+
+  private async loadExecution(
+    tab: BigTraceEditorTab,
+    opts: {readonly restoreSettings: boolean; readonly fallbackQuery?: string},
+  ): Promise<void> {
+    const uuid = tab.queryUuid;
+    if (!uuid) return;
     const queryClient = new BigtraceQueryClient(getBigtraceEndpoint());
     tab.queryClient = queryClient;
+    tab.execution = queryStore.getOrCreate(uuid);
+    if (!(tab.dataSource instanceof BigtraceAsyncDataSource)) {
+      tab.dataSource = new BigtraceAsyncDataSource(
+        uuid,
+        queryClient,
+        () => tab.execution?.processedRows ?? 0,
+        tab.lifecycle.signal,
+        () => tab.execution?.schema,
+      );
+    }
+    tab.queryResult ??= makeQueryResponse(tab.editorText);
 
-    // The disabled-set reconstruction below needs the global registry (the
-    // complement of the snapshot against every categoried setting). Cached, so
-    // a no-op once loaded.
-    await bigTraceSettingsStorage.loadSettings();
-
-    if (
-      !tab.dataSource ||
-      (tab.materialize && !(tab.dataSource instanceof BigtraceAsyncDataSource))
-    ) {
-      tab.dataSource = tab.materialize
-        ? new BigtraceAsyncDataSource(
-            tab.queryUuid,
-            queryClient,
-            () => tab.execution?.processedRows ?? 0,
-            tab.lifecycle.signal,
-            () => tab.execution?.schema,
-          )
-        : new InMemoryDataSource([]);
+    if (opts.restoreSettings) {
+      // The disabled-set reconstruction below needs the global registry (the
+      // complement of the snapshot against every categoried setting). Cached,
+      // so a no-op once loaded.
+      await bigTraceSettingsStorage.loadSettings();
+      if (tab.queryUuid !== uuid) return;
     }
 
     let details: RawQueryExecution;
     try {
-      details = await queryClient.getQueryExecution(
-        tab.queryUuid,
-        tab.lifecycle.signal,
-      );
+      details = await queryClient.getQueryExecution(uuid, tab.lifecycle.signal);
     } catch (e) {
+      if (tab.queryUuid !== uuid) return;
       if (e instanceof QueryNotFoundError) {
         this.poller.dropStaleQueryUuid(tab);
         return;
       }
       console.error('Failed to fetch query details on open:', e);
+      tab.isLoading = true;
       this.poller.start(tab);
+      this.redraw();
       return;
     }
+    if (tab.queryUuid !== uuid) return;
 
-    if (!tab.execution) return;
-    const exec = tab.execution;
-    if (details.schema !== undefined) {
-      exec.schema = details.schema;
-    }
-    if (details.tableName !== undefined) {
-      exec.tableName = details.tableName;
-    }
-    exec.status = details.status ?? 'N/A';
-    exec.processedRows = details.processedRows ?? 0;
-    exec.processedTraces = details.processedTraces ?? 0;
-    exec.totalTraces = details.totalTraces ?? 0;
-    if (details.limit !== undefined) tab.limit = details.limit;
-    if (typeof details.traceLimit === 'number' && details.traceLimit >= 0) {
-      tab.traceLimit = details.traceLimit;
-    }
-    // Restore the submit-time snapshot so the settings bar reflects what this
-    // query ran with (only the full GET echoes it; the list endpoint omits it).
-    // `settings` arrives camelCase (settingId); convert to SettingFilter[].
-    const snapshotSettings = snapshotSettingsToFilters(details.settings);
-    tab.querySettings = snapshotSettings;
-    // Reconstruct the per-tab disabled set: the snapshot lists exactly the
-    // settings active for this run, so any categoried global absent from it was
-    // disabled at submit time. Skip empty snapshots — there "nothing disabled"
-    // and "no snapshot" are indistinguishable, so keep the default (nothing
-    // disabled) rather than blanking every toggle.
-    if (snapshotSettings.length > 0) {
-      tab.disabledSettings = disabledSettingsFromSnapshot(
-        snapshotSettings.map((s) => s.settingId),
-        bigTraceSettingsStorage
-          .buildSettingFilters({includeDisabled: true})
-          .map((s) => s.settingId),
-      );
-    }
-    if (Array.isArray(details.traceFilters)) {
-      // The run's absolute date pair becomes the tab's fixed range, so it is
-      // shown on the chip and not doubled up with a default.
-      const {rest, dateFilter} = extractDateFilter(details.traceFilters);
-      tab.traceFilters = rest;
-      if (dateFilter !== undefined) tab.dateFilter = dateFilter;
-    }
-    if (Array.isArray(details.traceMetadataColumns)) {
-      tab.traceMetadataColumns = details.traceMetadataColumns;
-    }
-    if (typeof details.traceOrderBy === 'string') {
-      tab.traceOrderBy = details.traceOrderBy;
-    }
-    // Ids restore now; the names for them are resolved by whichever view
-    // shows the filter first.
-    if (details.experimentFilter !== undefined) {
-      tab.experimentFilter = {...details.experimentFilter};
-    }
-    this.cb.markDirty?.();
-    tab.editorText = details.perfettoSql || fallbackQuery;
-    const startMs = isoToEpochMs(details.startTime);
-    if (startMs !== undefined) exec.startTime = startMs;
-
-    const isTerminal = TERMINAL_STATUSES.has(exec.status);
-    if (isTerminal) {
-      const endMs = isoToEpochMs(details.endTime);
-      if (endMs !== undefined) exec.endTime = endMs;
-    }
-    tab.isLoading = !isTerminal;
-
-    const durationMs =
-      exec.endTime !== undefined && exec.startTime !== undefined
-        ? exec.endTime - exec.startTime
-        : 0;
-
-    if (!tab.queryResult) {
-      tab.queryResult = makeQueryResponse(tab.editorText, {
-        totalRowCount: exec.processedRows,
-        durationMs,
-        statementWithOutputCount: 1,
-      });
-    } else {
-      if (tab.materialize) {
-        tab.queryResult.totalRowCount = exec.processedRows;
+    if (opts.restoreSettings) {
+      if (details.limit !== undefined) tab.limit = details.limit;
+      if (typeof details.traceLimit === 'number' && details.traceLimit >= 0) {
+        tab.traceLimit = details.traceLimit;
       }
-      tab.queryResult.lastStatementSql = tab.editorText;
-      tab.queryResult.query = tab.editorText;
+      // Restore the submit-time snapshot so the settings bar reflects what
+      // this query ran with (only the full GET echoes it; the list endpoint
+      // omits it). `settings` arrives camelCase (`settingId`); convert to
+      // SettingFilter[].
+      const snapshotSettings = snapshotSettingsToFilters(details.settings);
+      tab.querySettings = snapshotSettings;
+      // Reconstruct the per-tab disabled set: the snapshot lists exactly the
+      // settings active for this run, so any categoried global absent from it
+      // was disabled at submit time. Skip empty snapshots — there "nothing
+      // disabled" and "no snapshot" are indistinguishable, so keep the default
+      // (nothing disabled) rather than blanking every toggle.
+      if (snapshotSettings.length > 0) {
+        tab.disabledSettings = disabledSettingsFromSnapshot(
+          snapshotSettings.map((s) => s.settingId),
+          bigTraceSettingsStorage
+            .buildSettingFilters({includeDisabled: true})
+            .map((s) => s.settingId),
+        );
+      }
+      if (Array.isArray(details.traceFilters)) {
+        // The run's absolute date pair becomes the tab's fixed range, so it is
+        // shown on the chip and not doubled up with a default.
+        const {rest, dateFilter} = extractDateFilter(details.traceFilters);
+        tab.traceFilters = rest;
+        if (dateFilter !== undefined) tab.dateFilter = dateFilter;
+      }
+      if (Array.isArray(details.traceMetadataColumns)) {
+        tab.traceMetadataColumns = details.traceMetadataColumns;
+      }
+      if (typeof details.traceOrderBy === 'string') {
+        tab.traceOrderBy = details.traceOrderBy;
+      }
+      // Ids restore now; the names for them are resolved by whichever view
+      // shows the filter first.
+      if (details.experimentFilter !== undefined) {
+        tab.experimentFilter = {...details.experimentFilter};
+      }
+      tab.editorText =
+        details.perfettoSql || opts.fallbackQuery || tab.editorText;
+      this.cb.markDirty?.();
     }
 
-    if (!isTerminal) {
+    applyExecutionDetails(tab, details);
+    const exec = tab.execution!;
+
+    if (!TERMINAL_STATUSES.has(exec.status)) {
       this.poller.start(tab);
-    } else if (
-      (exec.status === 'SUCCESS' || exec.status === 'CANCELLED') &&
+    }
+    if (
       tab.dataSource instanceof BigtraceAsyncDataSource &&
-      (details.tableName ?? '') !== '' &&
+      Boolean(exec.tableName) &&
       exec.processedRows > 0
     ) {
       await tab.dataSource.ensureResultsLoaded();
-    } else if (exec.status === 'FAILED') {
-      tab.queryResult.error =
-        details.errorMessage ??
-        'Query failed without a specific error message.';
     }
     this.redraw();
   }
-
-  // For external callers (e.g. resumeFromHistory fallback).
-  startPolling(tab: BigTraceEditorTab): void {
-    this.poller.start(tab);
-  }
-
-  // ----- Internals -----
 
   private redraw(): void {
     (this.cb.redraw ?? m.redraw)();
@@ -386,28 +367,18 @@ export class QueryRunner {
       throw new Error('Backend did not return a queryUuid for async execute');
     }
     tab.queryUuid = data.queryUuid;
+    // The backend inserts the row as IN_PROGRESS / PREVIEW; seeding the same
+    // values lets polling start at once, with no extra round-trip that a
+    // Cancel or re-run could race. The server start time replaces the local
+    // one on the first full fetch.
     tab.execution = queryStore.getOrCreate(tab.queryUuid, {
       perfettoSql: query,
+      status: 'IN_PROGRESS',
+      phase: 'PREVIEW',
+      startTime: Date.now(),
     });
+    this.cb.onHistoryChanged();
 
-    try {
-      const details = await client.getQueryExecution(
-        tab.queryUuid,
-        tab.lifecycle.signal,
-      );
-      const serverStartMs = isoToEpochMs(details?.startTime);
-      queryStore.update(tab.queryUuid, {
-        ...(serverStartMs !== undefined ? {startTime: serverStartMs} : {}),
-        ...(details?.schema !== undefined ? {schema: details.schema} : {}),
-        ...(details?.tableName !== undefined
-          ? {tableName: details.tableName}
-          : {}),
-      });
-    } catch (e) {
-      console.error('Failed to fetch query details after executeAsync:', e);
-    }
-
-    this.poller.start(tab);
     tab.dataSource = new BigtraceAsyncDataSource(
       tab.queryUuid,
       client,
@@ -418,42 +389,6 @@ export class QueryRunner {
     tab.queryResult = makeQueryResponse(query, {
       durationMs: performance.now() - wallStartMs,
     });
-  }
-
-  private async runSync(
-    tab: BigTraceEditorTab,
-    query: string,
-    client: BigtraceQueryClient,
-    settings: ReadonlyArray<SettingFilter>,
-    options: ExecuteOptions,
-    signal: AbortSignal,
-    wallStartMs: number,
-  ): Promise<void> {
-    const result = await client.executeSync(
-      query,
-      tab.limit,
-      settings,
-      signal,
-      options,
-    );
-    if (result.queryUuid === undefined || result.queryUuid === '') {
-      throw new Error('Backend did not return a queryUuid for sync execute');
-    }
-    tab.queryUuid = result.queryUuid;
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
-      perfettoSql: query,
-    });
-    tab.queryResult = makeQueryResponse(query, {
-      rows: [...result.rows],
-      columns: [...result.columns],
-      schema: result.schema,
-      totalRowCount: result.rows.length,
-      durationMs: performance.now() - wallStartMs,
-      statementWithOutputCount: 1,
-    });
-    queryStore.update(tab.queryUuid, {
-      processedRows: result.rows.length,
-    });
-    tab.isLoading = false;
+    this.poller.start(tab);
   }
 }

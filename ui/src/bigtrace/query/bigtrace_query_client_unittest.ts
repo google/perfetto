@@ -17,6 +17,7 @@ import {
   BigtraceHttpError,
   BigtraceQueryClient,
   parseQueryResponse,
+  QueryCancelledError,
   QueryNotFoundError,
   toExperimentFilterSpec,
 } from './bigtrace_query_client';
@@ -234,7 +235,7 @@ describe('BigtraceQueryClient trace-metadata wire', () => {
       'file_name',
       'size_bytes',
     ]);
-    expect(schema.columns[0].defaultVisible).toBe(true);
+    expect(schema.columns[0]!.defaultVisible).toBe(true);
   });
 
   test('listTraceMetadataColumnValues POSTs column, search and coerced trace_filters', async () => {
@@ -321,7 +322,7 @@ describe('BigtraceQueryClient execute trace-selection snapshot', () => {
   test('ships trace_metadata_columns / trace_order_by when set', async () => {
     const fetchMock = captureFetch();
     const client = new BigtraceQueryClient('http://example/');
-    await client.executeSync('select 1', 100, [], undefined, {
+    await client.executeAsync('select 1', 100, [], undefined, {
       traceMetadataColumns: ['device_name', 'android_id'],
       traceOrderBy: 'size_bytes desc',
     });
@@ -477,11 +478,19 @@ describe('BigtraceQueryClient error responses', () => {
     expect(err.detail).toBe('upstream exploded');
   });
 
-  test('a 404 throws QueryNotFoundError, not BigtraceHttpError', async () => {
-    failWith(404, JSON.stringify({detail: 'gone'}));
+  test('404 on POST :fetch_results throws BigtraceHttpError while GET :status throws QueryNotFoundError', async () => {
+    failWith(404, JSON.stringify({detail: 'table dropped'}));
     const client = new BigtraceQueryClient('http://example/');
-    const err = await client.fetchResults('uid', 10, 0).catch((e) => e);
-    expect(err).toBeInstanceOf(QueryNotFoundError);
+    const fetchErr = await client.fetchResults('uid', 10, 0).catch((e) => e);
+    expect(fetchErr).toBeInstanceOf(BigtraceHttpError);
+    expect(fetchErr.status).toBe(404);
+    expect(fetchErr.detail).toBe('table dropped');
+
+    const statusErr = await client.getStatus('uid').catch((e) => e);
+    expect(statusErr).toBeInstanceOf(QueryNotFoundError);
+
+    const getErr = await client.getQueryExecution('uid').catch((e) => e);
+    expect(getErr).toBeInstanceOf(QueryNotFoundError);
   });
 });
 
@@ -513,18 +522,18 @@ describe('parseQueryResponse', () => {
       ],
     });
     expect(page.columns).toEqual(['id', 'score', 'data', 'name']);
-    expect(page.rows[0].id).toBe(123n);
-    expect(page.rows[0].score).toBe(3.14);
-    expect(page.rows[0].data).toBeInstanceOf(Uint8Array);
-    expect(Array.from(page.rows[0].data as Uint8Array)).toEqual([
+    expect(page.rows[0]!.id).toBe(123n);
+    expect(page.rows[0]!.score).toBe(3.14);
+    expect(page.rows[0]!.data).toBeInstanceOf(Uint8Array);
+    expect(Array.from(page.rows[0]!.data as Uint8Array)).toEqual([
       104, 101, 108, 108, 111,
     ]);
-    expect(page.rows[0].name).toBe('alice');
+    expect(page.rows[0]!.name).toBe('alice');
 
-    expect(page.rows[1].id).toBeNull();
-    expect(page.rows[1].score).toBeNull();
-    expect(page.rows[1].data).toBeNull();
-    expect(page.rows[1].name).toBeNull();
+    expect(page.rows[1]!.id).toBeNull();
+    expect(page.rows[1]!.score).toBeNull();
+    expect(page.rows[1]!.data).toBeNull();
+    expect(page.rows[1]!.name).toBeNull();
   });
 
   test('derives columns from schema', () => {
@@ -546,6 +555,17 @@ describe('parseQueryResponse', () => {
     expect(page.columns).toEqual([]);
     expect(page.rows).toEqual([]);
     expect(page.schema).toEqual([]);
+  });
+
+  test('coerces int64 string totalFilteredRows and totalFilteredTraces to numbers', () => {
+    const page = parseQueryResponse({
+      schema: [{name: 'dur', type: 'INT64'}],
+      rows: [{values: ['10']}],
+      totalFilteredRows: '420',
+      totalFilteredTraces: '7',
+    });
+    expect(page.totalFilteredRows).toBe(420);
+    expect(page.totalFilteredTraces).toBe(7);
   });
 });
 
@@ -601,8 +621,8 @@ describe('BigtraceQueryClient experiments', () => {
     // Ids stay numbers and denial flags stay booleans: the wire types are
     // the UI's types, with nothing in between to drift.
     expect(got).toEqual([item]);
-    expect(typeof got[0].experimentId).toBe('number');
-    expect(got[0].isControlDenied).toBe(true);
+    expect(typeof got[0]!.experimentId).toBe('number');
+    expect(got[0]!.isControlDenied).toBe(true);
   });
 
   test('listExperiments reads an absent list as no matches', async () => {
@@ -800,18 +820,41 @@ describe('BigtraceQueryClient result tables', () => {
     expect(method).toBe('DELETE');
   });
 
-  test('fetchColumnValues asks one column of the result table', async () => {
+  test('fetchColumnValues asks one column of the result table, under the grid filters', async () => {
     const fetchMock = captureFetch({values: ['a', 'b']});
     const client = new BigtraceQueryClient('http://example');
     const values = await client.fetchColumnValues(
       'uid-1',
       'process_name',
       'sys',
+      [{field: 'pid', op: '=', value: 42}],
     );
     const {url, method, body} = callOf(fetchMock);
     expect(url).toBe('http://example/query_executions/uid-1:column_values');
     expect(method).toBe('POST');
-    expect(body).toEqual({column_name: 'process_name', search_pattern: 'sys'});
+    expect(body).toEqual({
+      column_name: 'process_name',
+      search_pattern: 'sys',
+      filters: [{field: 'pid', op: '=', value: '42'}],
+    });
     expect(values).toEqual(['a', 'b']);
+  });
+
+  test('an abort while reading the response body throws QueryCancelledError', async () => {
+    const controller = new AbortController();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => {
+        controller.abort();
+        return Promise.reject(
+          new DOMException('signal is aborted without reason', 'AbortError'),
+        );
+      },
+    }) as unknown as typeof fetch;
+    const client = new BigtraceQueryClient('http://example');
+    await expect(
+      client.fetchResults('uid-1', 100, 0, controller.signal),
+    ).rejects.toBeInstanceOf(QueryCancelledError);
   });
 });

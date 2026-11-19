@@ -64,7 +64,7 @@ function renderCell(
   addColumn: (column: TableColumn) => void,
 ): RenderedCell {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]];
+  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]!]!;
 
   const result = column.renderCell(
     sqlValue,
@@ -165,7 +165,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     const additionalColumnMenuItems: AdditionalColumnMenuItems = {};
     this.state.getSelectedColumns().forEach((column) => {
       const columnAlias =
-        this.state.getCurrentRequest().columns[sqlColumnId(column.column)];
+        this.state.getCurrentRequest().columns[sqlColumnId(column.column)]!;
 
       additionalColumnMenuItems[columnAlias] = addColumnMenuItems(
         column,
@@ -216,7 +216,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         ),
         additionalColumnMenuItems &&
           additionalColumnMenuItems[
-            this.state.getCurrentRequest().columns[sqlColumnId(column.column)]
+            this.state.getCurrentRequest().columns[sqlColumnId(column.column)]!
           ],
         // Menu items before divider apply to selected column
         m(MenuDivider),

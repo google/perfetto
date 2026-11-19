@@ -33,6 +33,11 @@ class StringRanks {
   // Sorts the string IDs added and assigns each its rank.
   void Rank(const StringPool& pool);
 
+  // Compares two strings in the order Rank() puts them.
+  static int Compare(const StringPool& pool,
+                     StringPool::Id a,
+                     StringPool::Id b);
+
   const uint32_t* Find(StringPool::Id id) const { return ranks_.Find(id); }
 
   size_t size() const { return ranks_.size(); }

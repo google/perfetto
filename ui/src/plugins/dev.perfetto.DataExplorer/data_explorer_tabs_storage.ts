@@ -64,7 +64,7 @@ export type PersistedDataExplorerTabsState = z.infer<
 export const STORE_VERSION = 2;
 
 // Schema for the permalink store.
-const DATA_EXPLORER_PERSISTED_STATE_SCHEMA = z.object({
+export const DATA_EXPLORER_PERSISTED_STATE_SCHEMA = z.object({
   // Only version numbers allowed are 1 and 2.
   // v1 = old single-graph format, v2 = multi-tab format.
   version: z.union([z.literal(1), z.literal(STORE_VERSION)]),
@@ -81,18 +81,6 @@ const DATA_EXPLORER_PERSISTED_STATE_SCHEMA = z.object({
 export type DataExplorerPersistedState = z.infer<
   typeof DATA_EXPLORER_PERSISTED_STATE_SCHEMA
 >;
-
-/**
- * Validates permalink state for the Data Explorer. Permalink state comes from
- * untrusted JSON, so anything that doesn't match the schema is discarded and
- * an empty state is returned instead.
- */
-export function parseDataExplorerPersistedState(
-  init: unknown,
-): DataExplorerPersistedState {
-  const result = DATA_EXPLORER_PERSISTED_STATE_SCHEMA.safeParse(init);
-  return result.data ?? {version: STORE_VERSION};
-}
 
 /**
  * Storage class for data explorer tabs state.

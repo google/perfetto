@@ -228,11 +228,11 @@ describe('GroupNode', () => {
 
       expect(cloned.externalConnections).toHaveLength(1);
       // The inner target should be a cloned node, not the original
-      const clonedTarget = cloned.externalConnections[0].innerTargetNode;
+      const clonedTarget = cloned.externalConnections[0]!.innerTargetNode;
       expect(clonedTarget).not.toBe(a);
       expect(cloned.innerNodes).toContain(clonedTarget);
       // The source node should still reference the original external node
-      expect(cloned.externalConnections[0].sourceNode).toBe(ext);
+      expect(cloned.externalConnections[0]!.sourceNode).toBe(ext);
     });
 
     it('should not share state between original and clone', () => {

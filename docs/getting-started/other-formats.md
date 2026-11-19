@@ -693,8 +693,6 @@ source directly.**
   kernel source)
 - **`trace-cmd` Man Page:** `man trace-cmd` (or find it online, e.g., on
   [Arch Linux man pages](https://man.archlinux.org/man/trace-cmd.1.en))
-- **Tracefs Documentation:**
-  [The Tracefs Pseudo Filesystem (kernel.org)](https://www.kernel.org/doc/html/latest/trace/tracefs.html)
 
 ## {#strace-format} Linux `strace` textual format
 

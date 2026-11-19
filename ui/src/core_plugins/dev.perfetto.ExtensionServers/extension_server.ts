@@ -388,7 +388,7 @@ export function initializeServerFromManifest(
       const rs = await Promise.all(macrosPerMod);
       return rs.flatMap((r, i) => {
         if (!r.ok) return [];
-        const source = sourceLabel(m, server.enabledModules[i]);
+        const source = sourceLabel(m, server.enabledModules[i]!);
         return r.value.map((macro) => ({...macro, source}));
       });
     }),

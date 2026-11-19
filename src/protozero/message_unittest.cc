@@ -303,8 +303,6 @@ TEST_F(MessageTest, AppendScatteredBytesFinalizesNestedMessage) {
 }
 
 TEST_F(MessageTest, StressTest) {
-  std::vector<Message*> nested_msgs;
-
   Message* root_msg = NewMessage();
   BuildNestedMessages(root_msg, /*max_depth=*/10);
   root_msg->Finalize();

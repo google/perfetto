@@ -83,6 +83,10 @@ class TracingSession {
       disabled_categories_.push_back(std::move(category));
       return *this;
     }
+    Builder& add_enabled_tag(std::string tag) {
+      enabled_tags_.push_back(std::move(tag));
+      return *this;
+    }
     Builder& set_clear_period_ms(uint32_t clear_period_ms) {
       clear_period_ms_ = clear_period_ms;
       return *this;
@@ -103,6 +107,7 @@ class TracingSession {
     std::string data_source_name_;
     std::vector<std::string> enabled_categories_;
     std::vector<std::string> disabled_categories_;
+    std::vector<std::string> enabled_tags_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
     std::optional<uint32_t> v2_probability_;

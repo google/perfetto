@@ -19,7 +19,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <functional>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -382,10 +386,17 @@ class TestHelper : public Consumer {
   }
 
   size_t num_producers() { return fake_producer_threads_.size(); }
-  const std::vector<protos::gen::TracePacket>& full_trace() {
-    return full_trace_;
-  }
-  const std::vector<protos::gen::TracePacket>& trace() { return trace_; }
+
+  // Invokes |fn| for each packet of the trace.
+  void ForEachPacket(
+      const std::function<void(const protos::gen::TracePacket&)>& fn) const;
+  // All packets. Prefer ForEachPacket() for traces with nontrivial packet
+  // counts (each protos::gen::TracePacket is ~25KB).
+  std::vector<protos::gen::TracePacket> full_trace() const;
+  // All packets, except the ones emitted by the tracing service itself. Prefer
+  // ForEachPacket() for traces with nontrivial packet counts (each
+  // protos::gen::TracePacket is ~25KB).
+  std::vector<protos::gen::TracePacket> trace() const;
 
   // Some fixtures want to reuse a global TestHelper in different testcases
   // without destroying and recreating it, but they still need to avoid
@@ -408,8 +419,8 @@ class TestHelper : public Consumer {
   std::function<void()> on_detach_callback_;
   std::function<void(bool)> on_attach_callback_;
 
-  std::vector<protos::gen::TracePacket> full_trace_;
-  std::vector<protos::gen::TracePacket> trace_;
+  // Packets read back since the last StartTracing(), in the trace file format.
+  std::string serialized_trace_;
 
   Mode mode_;
   const char* producer_socket_;
@@ -533,6 +544,15 @@ class Exec {
     // This code is never used on Windows tests, not bothering.
     if (subprocess_.pid())  // Always true, but avoids Wnoreturn compile errors.
       PERFETTO_FATAL("SendSigterm() not implemented on this platform");
+#endif
+  }
+
+  void SendSigint() {
+#ifdef SIGINT
+    kill(subprocess_.pid(), SIGINT);
+#else
+    if (subprocess_.pid())
+      PERFETTO_FATAL("SendSigint() not implemented on this platform");
 #endif
   }
 

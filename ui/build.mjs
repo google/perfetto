@@ -83,6 +83,7 @@ const cfg = {
   minifyJs: '',
   noSourceMaps: false,
   noTreeshake: false,
+  noTraceconv: false,
   watch: false,
   verbose: false,
   debug: false,
@@ -214,6 +215,10 @@ Env-var overrides:
   parser.add_argument('--no-build', '-n', {action: 'store_true'});
   parser.add_argument('--no-wasm', '-W', {action: 'store_true'});
   parser.add_argument('--only-wasm-memory64', {action: 'store_true'});
+  parser.add_argument('--no-traceconv', {
+    action: 'store_true',
+    help: 'Skip traceconv. The UI then cannot convert traces (JSON, pprof)',
+  });
   parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
   parser.add_argument('--debug', '-d', {action: 'store_true'});
   parser.add_argument('--bigtrace', {action: 'store_true'});
@@ -340,7 +345,11 @@ Env-var overrides:
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.experimentalMithrilHmr = !!args.experimental_mithril_hmr;
-  cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
+  cfg.noTraceconv = !!args.no_traceconv;
+  cfg.wasmModules = ['proto_utils', 'trace_processor_memory64'];
+  if (!cfg.noTraceconv) {
+    cfg.wasmModules.push('traceconv');
+  }
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
@@ -373,7 +382,14 @@ Env-var overrides:
     // Check that deps are current before starting.
     const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
     const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
-    let args = [installBuildDeps, `--check-only=${checkDepsPath}`, '--ui'];
+    // Skip dev tools (the python venv): building doesn't need them. Same as
+    // GN's check_build_deps.
+    let args = [
+      installBuildDeps,
+      `--check-only=${checkDepsPath}`,
+      '--ui',
+      '--no-dev-tools',
+    ];
 
     if (process.platform === 'darwin') {
       const result = childProcess.spawnSync('arch', ['-arm64', 'true']);
@@ -687,6 +703,13 @@ function buildWasm(skipWasmBuild) {
       addTask(cp, [pjoin(wasmOutDir, fname), pjoin(cfg.outGenDir, fname)]);
     }
   }
+
+  // tsc still type-checks ui/src/traceconv, which imports ../gen/traceconv.
+  // All Wasm modules share the same declarations (see gn/standalone/wasm.gni).
+  if (cfg.noTraceconv) {
+    const dts = 'gn/standalone/wasm_typescript_declaration.d.ts';
+    addTask(cp, [pjoin(ROOT_DIR, dts), pjoin(cfg.outGenDir, 'traceconv.d.ts')]);
+  }
 }
 
 function copySyntaqliteRuntime() {
@@ -806,8 +829,9 @@ function runVite() {
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
-  const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
+  const bundles = ['engine', 'service_worker', 'chrome_extension'];
   if (!cfg.useHmr) bundles.unshift('frontend');
+  if (!cfg.noTraceconv) bundles.push('traceconv');
   if (cfg.bigtrace) bundles.push('bigtrace');
   if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
@@ -1178,7 +1202,7 @@ function isDistComplete() {
   const requiredArtifacts = [
     ...(cfg.useHmr ? [] : ['frontend_bundle.js', 'frontend.css']),
     'engine_bundle.js',
-    'traceconv_bundle.js',
+    ...(cfg.noTraceconv ? [] : ['traceconv_bundle.js']),
     ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),
   ];
   const relPaths = new Set();
@@ -1400,8 +1424,11 @@ function cp(src, dst) {
 function mklink(src, dst) {
   // If the symlink already points to the right place don't touch it. This is
   // to avoid changing the mtime of the ui/ dir when unnecessary.
-  if (fs.existsSync(dst)) {
-    if (fs.lstatSync(dst).isSymbolicLink() && fs.readlinkSync(dst) === src) {
+  // lstat, unlike existsSync, also sees dangling symlinks (e.g. ui/out after
+  // its out dir was deleted), which would make symlinkSync fail with EEXIST.
+  const stat = fs.lstatSync(dst, {throwIfNoEntry: false});
+  if (stat !== undefined) {
+    if (stat.isSymbolicLink() && fs.readlinkSync(dst) === src) {
       return;
     } else {
       fs.unlinkSync(dst);

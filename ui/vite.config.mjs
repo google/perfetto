@@ -547,11 +547,8 @@ export default defineConfig(({command}) => {
           // needs to be explicit.
           cssCodeSplit: false,
           sourcemap: !NO_SOURCE_MAPS,
-          minify: MINIFY_JS ? 'terser' : false,
-          terserOptions:
-            MINIFY_JS === 'preserve_comments'
-              ? {format: {comments: 'all'}}
-              : undefined,
+          // Vite's built-in minifier. terser isn't a dependency.
+          minify: MINIFY_JS ? 'oxc' : false,
           rolldownOptions: {
             input: {[BUNDLE]: inputPath},
             treeshake: NO_TREESHAKE ? false : undefined,
@@ -563,6 +560,11 @@ export default defineConfig(({command}) => {
               name: BUNDLE,
               entryFileNames,
               intro: IMPORT_META_URL_INTRO,
+              // Minified output keeps no comments. preserve_comments keeps the
+              // legal ones (@license, @preserve, /*! */); Oxc drops the rest.
+              ...(MINIFY_JS === 'preserve_comments'
+                ? {comments: {legal: true}}
+                : {}),
               // With cssCodeSplit:false Vite emits the CSS as "style.css" by
               // default. Rename it to <bundle>.css so that index.html's preload
               // and the assetSrc('frontend.css') call match.

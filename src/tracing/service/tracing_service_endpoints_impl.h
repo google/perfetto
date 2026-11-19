@@ -49,6 +49,10 @@ namespace perfetto {
 
 class SharedMemoryArbiterImpl;
 
+namespace protos::gen {
+class ExperimentalTracingV2ProducerStats;
+}
+
 namespace tracing_service {
 
 class TracingServiceImpl;
@@ -154,6 +158,16 @@ class ProducerEndpointImpl
   ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
   ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
+  // Returns this producer's ring buffer stats, or nullopt if no ring buffer
+  // is attached.
+  std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2Stats() const;
+
+  // Tells this producer's target buffers that a write batch is complete, so
+  // they can bundle without skipping chunks that this batch has yet to copy.
+  // A batch is a CommitData request, an SMB v2 drain pass or an SMB v1 scrape.
+  void NotifyWriteCheckpoint();
+
   ProducerID const id_;
   ClientIdentity const client_identity_;
   TracingServiceImpl* const service_;
@@ -214,6 +228,8 @@ class ProducerEndpointImpl
   // DisconnectProducer() runs the final drain through |v2_ring_buffer_drainer_|
   // before |allowed_target_buffers_| is destroyed.
   std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> v2_ring_buffer_drainer_;
+  // True while a delayed DrainV2RingBuffer() retry is pending.
+  bool v2_drain_retry_scheduled_ = false;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
 };

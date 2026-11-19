@@ -12,140 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {Trace} from '../../public/trace';
-import type {PerfettoPlugin} from '../../public/plugin';
-import {TrackNode} from '../../public/workspace';
 import {SliceTrack} from '../../components/tracks/slice_track';
+import type {PerfettoPlugin} from '../../public/plugin';
+import type {Trace} from '../../public/trace';
+import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
-
-const METRIC_QUERY = `
-INCLUDE PERFETTO MODULE chrome.loadline_2;
-
-DROP TABLE IF EXISTS _chrome_loadline2_plugin_metric;
-CREATE PERFETTO TABLE _chrome_loadline2_plugin_metric AS
-WITH all_generated_slices AS (
-  SELECT
-    page,
-    'visual' AS name,
-    story_start AS ts,
-    visual_presentation - story_start AS dur
-  FROM chrome_loadline2_stages
-
-  UNION ALL
-  SELECT
-    page,
-    'interactive' AS name,
-    story_start AS ts,
-    interactive_presentation - story_start AS dur
-  FROM chrome_loadline2_stages
-
-  UNION ALL
-  SELECT
-    page,
-    page AS name,
-    story_start AS ts,
-    story_finish - story_start AS dur
-  FROM chrome_loadline2_stages
-)
-SELECT *
-FROM all_generated_slices
-ORDER BY page, ts, dur DESC;
-`;
-
-function generateBreakdownQuery(metric: string): string {
-  return `
-    DROP TABLE IF EXISTS _chrome_loadline2_plugin_${metric}_breakdown;
-    CREATE PERFETTO TABLE _chrome_loadline2_plugin_${metric}_breakdown AS
-    WITH all_generated_slices AS (
-      SELECT
-        page,
-        '${metric}' AS name,
-        story_start AS ts,
-        ${metric}_presentation - story_start AS dur
-      FROM chrome_loadline2_stages
-
-      UNION ALL
-      SELECT
-        page,
-        'browser' AS name,
-        story_start AS ts,
-        start_request - story_start AS dur
-      FROM chrome_loadline2_stages
-
-      UNION ALL
-      SELECT
-        page,
-        'network' AS name,
-        start_request AS ts,
-        end_request - start_request AS dur
-      FROM chrome_loadline2_stages
-
-      UNION ALL
-      SELECT
-        page,
-        'process_start' AS name,
-        start_request AS ts,
-        renderer_ready - start_request AS dur
-      FROM chrome_loadline2_stages
-      WHERE renderer_ready > start_request
-
-      UNION ALL
-      SELECT
-        page,
-        'renderer' AS name,
-        MAX(renderer_ready, end_request) AS ts,
-        ${metric}_mark - MAX(renderer_ready, end_request) AS dur
-      FROM chrome_loadline2_stages
-
-      UNION ALL
-      SELECT
-        page,
-        '${metric}_raf' AS name,
-        ${metric}_raf AS ts,
-        0 AS dur
-      FROM chrome_loadline2_stages
-      WHERE ${metric}_raf IS NOT NULL
-
-      UNION ALL
-      SELECT
-        page,
-        'presentation' AS name,
-        ${metric}_mark AS ts,
-        ${metric}_presentation - ${metric}_mark AS dur
-      FROM chrome_loadline2_stages
-    )
-    SELECT *
-    FROM all_generated_slices
-    ORDER BY page, ts, dur DESC;
-  `;
-}
+import {registerBreakdownTrack} from './breakdown_track';
+import {registerJsScriptLifecycleTrack} from './js_script_track';
+import {
+  JS_SCRIPT_LIFECYCLE_QUERY,
+  METRIC_QUERY,
+  generateBreakdownQuery,
+} from './queries';
 
 const METRIC_TRACK_URI = 'org.chromium.LoadLine2#MetricTrack';
 const VISUAL_TRACK_URI = 'org.chromium.LoadLine2#VisualBreakdownTrack';
 const INTERACTIVE_TRACK_URI =
   'org.chromium.LoadLine2#InteractiveBreakdownTrack';
+const JS_SCRIPT_LIFECYCLE_TRACK_URI =
+  'org.chromium.LoadLine2#JsScriptLifecycleTrack';
 
-export default class implements PerfettoPlugin {
+export default class LoadLine2Plugin implements PerfettoPlugin {
   static readonly id = 'org.chromium.LoadLine2';
   static readonly description =
-    'Show breakdown of LoadLine 2 metrics on a separate track.';
+    'Breakdown of LoadLine 2 metrics, renderer subsystems, frame presentation, and JS scripts.';
 
   async onTraceLoad(trace: Trace): Promise<void> {
     if (!(await isLoadLineTrace(trace))) {
       return;
     }
-    prepareTables(trace);
-    registerTrack(trace, METRIC_TRACK_URI, '_chrome_loadline2_plugin_metric');
-    registerTrack(
+    await prepareTables(trace);
+    registerMetricTrack(
+      trace,
+      METRIC_TRACK_URI,
+      '_chrome_loadline2_plugin_metric',
+    );
+    registerBreakdownTrack(
       trace,
       VISUAL_TRACK_URI,
       '_chrome_loadline2_plugin_visual_breakdown',
+      'visual',
+      'Breakdown of LoadLine 2 visual metric stages and subsystems.',
     );
-    registerTrack(
+    registerBreakdownTrack(
       trace,
       INTERACTIVE_TRACK_URI,
       '_chrome_loadline2_plugin_interactive_breakdown',
+      'interactive',
+      'Breakdown of LoadLine 2 interactive metric stages and subsystems.',
+    );
+    registerJsScriptLifecycleTrack(
+      trace,
+      JS_SCRIPT_LIFECYCLE_TRACK_URI,
+      '_chrome_loadline2_plugin_js_script_lifecycle',
     );
     addTracks(trace);
   }
@@ -153,30 +73,39 @@ export default class implements PerfettoPlugin {
 
 async function isLoadLineTrace(trace: Trace): Promise<boolean> {
   const queryRes = await trace.engine.query(`
-      SELECT EXISTS(SELECT * FROM slice WHERE name GLOB 'LoadLine2/*') AS res;
+      SELECT EXISTS(
+        SELECT 1 FROM slice
+        WHERE category = 'blink.user_timing' AND name GLOB 'LoadLine2/*/*'
+      ) AS res;
     `);
   const it = queryRes.iter({res: NUM});
   return it.res > 0;
 }
 
 async function prepareTables(trace: Trace): Promise<void> {
+  await trace.engine.query('INCLUDE PERFETTO MODULE chrome.loadline_2;');
   await trace.engine.query(METRIC_QUERY);
   await trace.engine.query(generateBreakdownQuery('visual'));
   await trace.engine.query(generateBreakdownQuery('interactive'));
+  await trace.engine.query(JS_SCRIPT_LIFECYCLE_QUERY);
 }
 
-function registerTrack(trace: Trace, uri: string, src: string): void {
+function registerMetricTrack(trace: Trace, uri: string, src: string): void {
   trace.tracks.registerTrack({
     uri,
+    description: 'High-level story, interactive, and visual durations.',
     renderer: SliceTrack.create({
       trace,
       uri,
       dataset: new SourceDataset({
         src,
         schema: {
+          id: NUM,
           ts: LONG,
           dur: LONG,
+          depth: NUM,
           name: STR,
+          page: STR,
         },
       }),
     }),
@@ -188,6 +117,8 @@ function addTracks(trace: Trace): void {
     uri: METRIC_TRACK_URI,
     name: 'LoadLine 2 metrics',
   });
+  trace.defaultWorkspace.addChildInOrder(metricTrack);
+
   const visualBreakdownTrack = new TrackNode({
     uri: VISUAL_TRACK_URI,
     name: 'Visual metric breakdown',
@@ -196,8 +127,12 @@ function addTracks(trace: Trace): void {
     uri: INTERACTIVE_TRACK_URI,
     name: 'Interactive metric breakdown',
   });
+  const jsScriptLifecycleTrack = new TrackNode({
+    uri: JS_SCRIPT_LIFECYCLE_TRACK_URI,
+    name: 'JS script lifecycle',
+  });
 
-  trace.defaultWorkspace.addChildInOrder(metricTrack);
   metricTrack.addChildLast(visualBreakdownTrack);
   metricTrack.addChildLast(interactiveBreakdownTrack);
+  metricTrack.addChildLast(jsScriptLifecycleTrack);
 }

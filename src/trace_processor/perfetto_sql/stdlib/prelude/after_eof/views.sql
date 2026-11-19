@@ -257,7 +257,7 @@ CREATE PERFETTO VIEW args(
 AS
 SELECT
   *,
-  -- This should be kept in sync with GlobalArgsTracker::AddArgSet.
+  -- This should be kept in sync with ArgsTracker::AddArgSet.
   CASE value_type
     WHEN 'int' THEN cast_string!(int_value)
     WHEN 'uint' THEN printf('%u', int_value)

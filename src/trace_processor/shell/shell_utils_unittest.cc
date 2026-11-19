@@ -118,13 +118,52 @@ TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToSqliteWritesToDisk)) {
       expected_views);
   sqlite3_close(db);
 
-  // Reload the exported database into a fresh trace processor and query it.
-  auto reloaded = TraceProcessor::CreateInstance(Config());
+  // Without enable_sql_file_access, ATTACH DATABASE is rejected by the
+  // authorizer before reaching the OS VFS.
+  {
+    auto denied = TraceProcessor::CreateInstance(Config());
+    auto it = denied->ExecuteQuery(
+        "ATTACH DATABASE '" + MakeAttachUri(output.path()) + "' AS reimported");
+    EXPECT_FALSE(it.Next());
+    EXPECT_FALSE(it.Status().ok());
+  }
+
+  // Reload the exported database into a fresh trace processor with SQL file
+  // access enabled and query it.
+  Config reloaded_config;
+  reloaded_config.enable_sql_file_access = true;
+  auto reloaded = TraceProcessor::CreateInstance(reloaded_config);
   {
     auto it = reloaded->ExecuteQuery(
         "ATTACH DATABASE '" + MakeAttachUri(output.path()) + "' AS reimported");
     EXPECT_FALSE(it.Next());
     ASSERT_TRUE(it.Status().ok()) << it.Status().c_message();
+  }
+  // Attached databases are always read-only; writes, creating new files via
+  // ATTACH, and VACUUM INTO are denied.
+  {
+    auto it =
+        reloaded->ExecuteQuery("CREATE TABLE reimported.disallowed(x INT)");
+    EXPECT_FALSE(it.Next());
+    EXPECT_FALSE(it.Status().ok());
+  }
+  {
+    base::TempDir temp_dir = base::TempDir::Create();
+    std::string missing_target = temp_dir.path() + "/missing.db";
+    auto it = reloaded->ExecuteQuery(
+        "ATTACH DATABASE '" + MakeAttachUri(missing_target) + "' AS missing");
+    EXPECT_FALSE(it.Next());
+    EXPECT_FALSE(it.Status().ok());
+    EXPECT_FALSE(base::FileExists(missing_target));
+  }
+  {
+    base::TempDir temp_dir = base::TempDir::Create();
+    std::string vacuum_target = temp_dir.path() + "/vacuum_out.db";
+    auto it = reloaded->ExecuteQuery("VACUUM INTO '" +
+                                     MakeAttachUri(vacuum_target) + "'");
+    EXPECT_FALSE(it.Next());
+    EXPECT_FALSE(it.Status().ok());
+    EXPECT_FALSE(base::FileExists(vacuum_target));
   }
   std::string table;
   {

@@ -75,12 +75,11 @@ void Message::AppendBytes(uint32_t field_id, const void* src, size_t size) {
 
   PERFETTO_DCHECK(size < proto_utils::kMaxMessageLength);
   // Write the proto preamble (field id, type and length of the field).
-  uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-  uint8_t* pos = buffer;
-  pos = proto_utils::WriteVarInt(proto_utils::MakeTagLengthDelimited(field_id),
-                                 pos);
-  pos = proto_utils::WriteVarInt(static_cast<uint32_t>(size), pos);
-  WriteToStream(buffer, pos);
+  WriteSimpleField([field_id, size](uint8_t* pos) {
+    pos = proto_utils::WriteVarInt(
+        proto_utils::MakeTagLengthDelimited(field_id), pos);
+    return proto_utils::WriteVarInt(static_cast<uint32_t>(size), pos);
+  });
 
   const uint8_t* src_u8 = reinterpret_cast<const uint8_t*>(src);
   WriteToStream(src_u8, src_u8 + size);
@@ -100,12 +99,11 @@ size_t Message::AppendScatteredBytes(uint32_t field_id,
 
   PERFETTO_DCHECK(size < proto_utils::kMaxMessageLength);
 
-  uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-  uint8_t* pos = buffer;
-  pos = proto_utils::WriteVarInt(proto_utils::MakeTagLengthDelimited(field_id),
-                                 pos);
-  pos = proto_utils::WriteVarInt(static_cast<uint32_t>(size), pos);
-  WriteToStream(buffer, pos);
+  WriteSimpleField([field_id, size](uint8_t* pos) {
+    pos = proto_utils::WriteVarInt(
+        proto_utils::MakeTagLengthDelimited(field_id), pos);
+    return proto_utils::WriteVarInt(static_cast<uint32_t>(size), pos);
+  });
 
   for (size_t i = 0; i < num_ranges; ++i) {
     auto& range = ranges[i];
@@ -191,9 +189,8 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
   const uint32_t tag = is_length_delimited
                            ? proto_utils::MakeTagLengthDelimited(field_id)
                            : proto_utils::MakeTagStartGroup(field_id);
-  uint8_t data[proto_utils::kMaxTagEncodedSize];
-  uint8_t* data_end = proto_utils::WriteVarInt(tag, data);
-  WriteToStream(data, data_end);
+  WriteSimpleField(
+      [tag](uint8_t* pos) { return proto_utils::WriteVarInt(tag, pos); });
 
   Message* message = arena_->NewMessage();
   message->Reset(stream_writer_, arena_, encoding_);

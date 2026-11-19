@@ -178,6 +178,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     () => this.attrs.data,
     () => this.canvasWidth,
     () => this.zoomRegion,
+    () => this.yOffset,
   ]);
   private renderNodes?: ReadonlyArray<RenderNode>;
 
@@ -196,9 +197,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private hoveredY?: number;
 
   private canvasWidth = 0;
+  private canvasHeight = 0;
+  // Pushes the graph down so a bottom up graph's root sits at the bottom.
+  private yOffset = 0;
   private labelCharWidth = 0;
   private viewportRect?: Rect2D;
-  private lastPopupVisible = false;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -283,22 +286,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             this.canvasApi = api;
             this.flushPendingScroll();
           },
-          onscroll: (e: MithrilEvent<Event>) => {
-            // Only redraw if popup visibility would change
-            if (!this.tooltipPos) {
-              e.redraw = false;
-              return;
-            }
-            const target = e.target as HTMLElement;
-            const scrollTop = target.scrollTop;
-            const clientHeight = target.clientHeight;
-            const tooltipY = this.tooltipPos.y;
-            const nowVisible =
-              tooltipY >= scrollTop && tooltipY <= scrollTop + clientHeight;
-            if (nowVisible === this.lastPopupVisible) {
-              e.redraw = false;
-            }
-          },
           onCanvasRedraw: ({
             ctx,
             virtualCanvasSize,
@@ -313,6 +300,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           {
             style: {
               height: `${canvasHeight}px`,
+              flexGrow: 1,
               cursor: hoveredNode === undefined ? 'default' : 'pointer',
             },
             onmousemove: (e: MithrilEvent<MouseEvent>) => {
@@ -339,7 +327,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 this.tooltipPos = undefined;
                 return;
               }
-              const renderNode = this.renderNodes![newHoveredIdx];
+              const renderNode = this.renderNodes![newHoveredIdx]!;
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -395,10 +383,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           },
           (() => {
             const popupVisible =
-              this.isPopupAnchorVisible() &&
-              (this.tooltipPos?.state === 'HOVER' ||
-                this.tooltipPos?.state === 'CLICK');
-            this.lastPopupVisible = popupVisible;
+              this.tooltipPos?.state === 'HOVER' ||
+              this.tooltipPos?.state === 'CLICK';
             return m(
               Popup,
               {
@@ -428,8 +414,32 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     canvasRect: Rect2D,
     viewportRect: Rect2D,
   ) {
+    // On resize in bottom up, keep the same distance from the bottom edge so
+    // the root stays where it was.
+    const prevRect = this.viewportRect;
+    if (
+      this.attrs.state.view.kind === 'BOTTOM_UP' &&
+      this.canvasApi !== undefined &&
+      prevRect !== undefined &&
+      prevRect.height > 0 &&
+      (prevRect.height !== viewportRect.height ||
+        this.canvasHeight !== size.height)
+    ) {
+      const prevDist = this.canvasHeight - prevRect.bottom;
+      const dist = size.height - viewportRect.bottom;
+      const {y} = this.canvasApi.scrollTo({});
+      this.canvasApi.scrollTo({y: y + dist - prevDist});
+    }
     this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
+    this.canvasHeight = size.height;
+    // The canvas is at least as tall as the viewport, so in bottom up the
+    // padding goes above the leaves and the root sits on the bottom edge.
+    const data = this.attrs.data;
+    this.yOffset =
+      data !== undefined && this.attrs.state.view.kind === 'BOTTOM_UP'
+        ? size.height - (data.maxDepth - data.minDepth + 1) * NODE_HEIGHT
+        : 0;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
       if (this.attrs.data === undefined) {
@@ -444,6 +454,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             type: 'ROOT',
           },
           size.width,
+          this.yOffset,
         );
         this.lastClickedNode = this.renderNodes?.find((n) =>
           isIntersecting(this.lastClickedNode?.x, this.lastClickedNode?.y, n),
@@ -482,7 +493,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       .trim();
 
     for (let i = 0; i < this.renderNodes.length; i++) {
-      const node = this.renderNodes[i];
+      const node = this.renderNodes[i]!;
       const {x, y, width: width, source, state} = node;
       if (y + NODE_HEIGHT <= yStart || y >= yEnd) {
         continue;
@@ -503,7 +514,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         name = '(merged)';
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
-        name = nodes[source.queryIdx].name;
+        name = nodes[source.queryIdx]!.name;
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
       const highlighted =
@@ -563,14 +574,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     }
   }
 
-  private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos || !this.viewportRect) {
-      return false;
-    }
-    const {y} = this.tooltipPos;
-    return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
-  }
-
   private renderTooltip() {
     if (this.tooltipPos === undefined) {
       return undefined;
@@ -616,7 +619,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
-    } = nodes[queryIdx];
+    } = nodes[queryIdx]!;
 
     const percent = displayPercentage(
       cumulativeValue,
@@ -674,10 +677,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }
         return null;
       }),
-      this.renderNodeActionBar(source, name, nodes[queryIdx], nodeActions),
+      this.renderNodeActionBar(source, name, nodes[queryIdx]!, nodeActions),
     ];
     const {renderNodeTooltip} = this.attrs;
-    const node = nodes[queryIdx];
+    const node = nodes[queryIdx]!;
     return m(
       'div',
       renderNodeTooltip === undefined
@@ -1191,6 +1194,7 @@ function computeRenderNodes(
   {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
   zoomRegion: ZoomRegion,
   canvasWidth: number,
+  yOffset: number,
 ): ReadonlyArray<RenderNode> {
   const renderNodes: RenderNode[] = [];
 
@@ -1198,7 +1202,7 @@ function computeRenderNodes(
   const keyToChildMergedIdx = new Map<string, number>();
   renderNodes.push({
     x: 0,
-    y: -minDepth * NODE_HEIGHT,
+    y: yOffset - minDepth * NODE_HEIGHT,
     width: canvasWidth,
     source: {
       kind: 'ROOT',
@@ -1215,7 +1219,7 @@ function computeRenderNodes(
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
-    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
     assertTrue(depth !== 0);
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
@@ -1237,7 +1241,7 @@ function computeRenderNodes(
     const relativeWidth = relativeXEnd - relativeXStart;
 
     const x = Math.max(0, relativeXStart) / queryXPerPx;
-    const y = NODE_HEIGHT * (depth - minDepth);
+    const y = yOffset + NODE_HEIGHT * (depth - minDepth);
     const width = depthMatchingZoom
       ? Math.min(relativeWidth, zoomQueryWidth) / queryXPerPx
       : relativeWidth / queryXPerPx;
@@ -1257,7 +1261,7 @@ function computeRenderNodes(
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
-        const r = renderNodes[childMergedIdx];
+        const r = renderNodes[childMergedIdx]!;
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
           ? Math.min(qXEnd - r.source.queryXStart, zoomQueryWidth) / queryXPerPx
           : (qXEnd - r.source.queryXStart) / queryXPerPx;

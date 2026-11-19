@@ -28,6 +28,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -285,6 +286,106 @@ class StdlibDocsObjects : public StaticTableFunction {
   const PerfettoSqlConnection* engine_ = nullptr;
 };
 
+// Returns the modules an INCLUDE of |key| brings in, resolving wildcards the
+// same way INCLUDE does. A key without a wildcard is returned as written even
+// if no such module exists.
+std::vector<std::string> ExpandInclude(const PerfettoSqlConnection& connection,
+                                       const std::string& key) {
+  if (key.empty() || key.back() != '*') {
+    return {key};
+  }
+  std::vector<std::string> expanded;
+  if (key == "*") {
+    for (const auto& package_and_module : connection.GetModules()) {
+      expanded.push_back(package_and_module.second);
+    }
+    return expanded;
+  }
+  const auto* package = connection.FindPackageForModule(key);
+  if (!package) {
+    return expanded;
+  }
+  std::string prefix = key.substr(0, key.size() - 1);
+  for (auto module = package->modules.GetIterator(); module; ++module) {
+    if (base::StartsWith(module.key(), prefix)) {
+      expanded.push_back(module.key());
+    }
+  }
+  return expanded;
+}
+
+// __intrinsic_stdlib_module_includes is a zero-argument, table-like intrinsic
+// with one row per module a module directly includes.
+class StdlibDocsModuleIncludes : public StaticTableFunction {
+ public:
+  class Cursor : public StaticTableFunction::Cursor {
+   public:
+    Cursor(StringPool* pool, const PerfettoSqlConnection* connection)
+        : string_pool_(pool), engine_(connection), table_(pool) {}
+
+    bool Run(const std::vector<SqlValue>& arguments) override {
+      PERFETTO_DCHECK(arguments.empty());
+      table_.Clear();
+      for (const auto& package_and_module : engine_->GetModules()) {
+        const std::string& package = package_and_module.first;
+        const std::string& module = package_and_module.second;
+        auto parsed = ParseModule(engine_->FindPackage(package), module);
+        if (!parsed.ok()) {
+          return OnFailure(parsed.status());
+        }
+        std::vector<std::string> included;
+        for (const std::string& key : parsed->includes) {
+          for (std::string& expanded : ExpandInclude(*engine_, key)) {
+            if (expanded != module) {
+              included.push_back(std::move(expanded));
+            }
+          }
+        }
+        std::sort(included.begin(), included.end());
+        included.erase(std::unique(included.begin(), included.end()),
+                       included.end());
+        for (const std::string& included_module : included) {
+          tables::StdlibDocsModuleIncludesTable::Row row;
+          row.package = string_pool_->InternString(base::StringView(package));
+          row.module = string_pool_->InternString(base::StringView(module));
+          row.included_module =
+              string_pool_->InternString(base::StringView(included_module));
+          table_.Insert(row);
+        }
+      }
+      return OnSuccess(&table_.dataframe());
+    }
+
+   private:
+    StringPool* string_pool_ = nullptr;
+    const PerfettoSqlConnection* engine_ = nullptr;
+    tables::StdlibDocsModuleIncludesTable table_;
+  };
+
+  StdlibDocsModuleIncludes(StringPool* pool,
+                           const PerfettoSqlConnection* connection)
+      : string_pool_(pool), engine_(connection) {}
+
+  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override {
+    return std::make_unique<Cursor>(string_pool_, engine_);
+  }
+
+  dataframe::DataframeSpec CreateSpec() override {
+    return tables::StdlibDocsModuleIncludesTable::kSpec
+        .ToUntypedDataframeSpec();
+  }
+
+  std::string TableName() override {
+    return "__intrinsic_stdlib_module_includes";
+  }
+
+  uint32_t GetArgumentCount() const override { return 0; }
+
+ private:
+  StringPool* string_pool_ = nullptr;
+  const PerfettoSqlConnection* engine_ = nullptr;
+};
+
 class StdlibDocsPlugin : public Plugin<StdlibDocsPlugin> {
  public:
   ~StdlibDocsPlugin() override;
@@ -295,6 +396,8 @@ class StdlibDocsPlugin : public Plugin<StdlibDocsPlugin> {
     StringPool* pool = trace_context_->storage->mutable_string_pool();
     functions.emplace_back(
         std::make_unique<StdlibDocsObjects>(pool, connection));
+    functions.emplace_back(
+        std::make_unique<StdlibDocsModuleIncludes>(pool, connection));
   }
 };
 

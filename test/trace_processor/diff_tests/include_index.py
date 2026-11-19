@@ -163,7 +163,6 @@ from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
-from diff_tests.stdlib.intervals.fill_gaps_tests import IntervalsFillGaps
 from diff_tests.stdlib.intervals.intersect_duration_tests import IntervalsIntersectDurations
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
@@ -386,7 +385,6 @@ def fetch_all_diff_tests(
       SpanJoinSmoke,
       Stacks,
       CreateIntervals,
-      IntervalsFillGaps,
       IntervalsIntersect,
       IntervalsIntersectDurations,
       StdlibIntervals,

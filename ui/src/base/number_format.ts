@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {ReadonlyNonEmpty} from './array_utils';
+
 type Formatter = (value: number, unit: string) => string;
 
 // Per-unit formatter registry. Maps a unit string (or the empty string for
@@ -111,7 +113,7 @@ function formatUnknownUnit(value: number, unit: string): string {
 // ---------------------------------------------------------------------------
 
 // Standard metric SI prefixes.
-const SI_METRIC_PREFIXES: [number, string][] = [
+const SI_METRIC_PREFIXES = [
   [1e-12, 'p'],
   [1e-9, 'n'],
   [1e-6, 'µ'],
@@ -121,7 +123,7 @@ const SI_METRIC_PREFIXES: [number, string][] = [
   [1e6, 'M'],
   [1e9, 'G'],
   [1e12, 'T'],
-];
+] as const;
 
 // Decimal byte/bit prefixes (KB = 1000 B, MB = 1e6 B, etc.), upward only.
 //
@@ -134,22 +136,22 @@ const SI_METRIC_PREFIXES: [number, string][] = [
 //
 // The sub-byte direction (mB, µB, …) is intentionally omitted; fractional
 // bytes are shown as plain decimals instead (e.g. "0.5 B").
-const BYTE_PREFIXES: [number, string][] = [
+const BYTE_PREFIXES = [
   [1, ''],
   [1e3, 'K'],
   [1e6, 'M'],
   [1e9, 'G'],
   [1e12, 'T'],
-];
+] as const;
 
 // Sub-second time prefixes only (ns, us, ms, s). No mega-seconds etc.
-const TIME_SUB_PREFIXES: [number, string][] = [
+const TIME_SUB_PREFIXES = [
   [1e-12, 'p'],
   [1e-9, 'n'],
   [1e-6, 'µ'],
   [1e-3, 'm'],
   [1, ''],
-];
+] as const;
 
 // Returns true if a mantissa is within the expressible prefix range [0.01, 1000).
 // Outside this range the value should fall back to engineering notation.
@@ -162,10 +164,9 @@ function inPrefixRange(mantissa: number): boolean {
 // returns the scaled mantissa and prefix string.
 function siPrefix(
   value: number,
-  prefixes: [number, string][],
+  prefixes: ReadonlyNonEmpty<readonly [number, string]>,
 ): {mantissa: number; prefix: string} {
-  let multiplier = prefixes[0][0];
-  let prefix = prefixes[0][1];
+  let [multiplier, prefix] = prefixes[0];
   const absV = Math.abs(value);
   for (const [m, p] of prefixes) {
     if (m > absV) break;

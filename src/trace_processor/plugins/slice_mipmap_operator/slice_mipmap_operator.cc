@@ -36,7 +36,7 @@
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/galloping_search.h"
+#include "src/trace_processor/util/sorted_search.h"
 
 namespace perfetto::trace_processor::slice_mipmap_operator {
 namespace {
@@ -191,13 +191,19 @@ void SliceMipmapOperator::FilterImpl(State& state,
                                      std::vector<int64_t>& queries,
                                      std::vector<uint32_t>& positions,
                                      std::vector<Result>& results) {
+  PERFETTO_CHECK(window_start >= 0 && window_end >= window_start &&
+                 window_step > 0);
+
   // Build the array of query timestamps (window boundaries).
+  const auto steps =
+      static_cast<size_t>((window_end - window_start) / window_step);
   queries.clear();
-  queries.reserve(
-      static_cast<size_t>((window_end - window_start) / window_step) + 2);
-  queries.push_back(window_start);
-  for (int64_t s = window_start; s < window_end; s += window_step) {
-    queries.push_back(s + window_step);
+  queries.reserve(steps + 2);
+  for (size_t i = 0; i <= steps; ++i) {
+    queries.push_back(window_start + static_cast<int64_t>(i) * window_step);
+  }
+  if (queries.back() < window_end) {
+    queries.push_back(window_end);
   }
 
   for (uint32_t depth = 0; depth < state.by_depth.size(); ++depth) {

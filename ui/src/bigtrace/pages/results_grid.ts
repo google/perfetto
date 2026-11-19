@@ -31,7 +31,6 @@ import type {
   QueryResponse,
   QueryTabsState,
 } from './query_tabs_state';
-import {formatDurationS} from './status_box';
 
 // Per-tab results sort. DataGrid carries sort on the Column object, so
 // controlled-mode `columns` must splice it back each render or a header click
@@ -199,23 +198,33 @@ function renderDataGrid(
         ? 'Query returned no rows'
         : 'No rows match the visible columns',
     toolbarItemsLeft: [
-      m('span.pf-bt-results-summary', renderResultsSummary(tab, queryResult)),
+      m('span.pf-bt-results-summary', renderResultsSummary(tab)),
     ],
   });
 }
 
-function renderResultsSummary(
-  tab: BigTraceEditorTab,
-  queryResult: QueryResponse,
-): string {
-  if (!tab.materialize) {
-    const durationStr = formatDurationS(Math.max(0, queryResult.durationMs));
-    return `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${durationStr}`;
-  }
+function renderResultsSummary(tab: BigTraceEditorTab): string {
   const asyncDs =
     tab.dataSource instanceof BigtraceAsyncDataSource
       ? tab.dataSource
       : undefined;
-  const count = asyncDs?.filteredTotalRows ?? tab.execution?.processedRows ?? 0;
-  return `Showing ${Number(count).toLocaleString()} rows`;
+  const rows = shownRowCount(tab);
+  const traces = Number(asyncDs?.filteredTotalTraces ?? 0);
+  const rowsLabel = `${rows.toLocaleString()} ${rows === 1 ? 'row' : 'rows'}`;
+  if (traces > 0) {
+    const tracesLabel = `${traces.toLocaleString()} ${traces === 1 ? 'trace' : 'traces'}`;
+    return `Showing ${rowsLabel} from ${tracesLabel}`;
+  }
+  return `Showing ${rowsLabel}`;
+}
+
+// Rows the grid shows: the last page's total, or the run's count before that.
+export function shownRowCount(tab: BigTraceEditorTab): number {
+  const asyncDs =
+    tab.dataSource instanceof BigtraceAsyncDataSource
+      ? tab.dataSource
+      : undefined;
+  return Number(
+    asyncDs?.filteredTotalRows ?? tab.execution?.processedRows ?? 0,
+  );
 }

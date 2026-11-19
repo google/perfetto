@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 
 namespace perfetto {
 namespace trace_processor {

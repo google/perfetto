@@ -246,8 +246,7 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
         context_->storage->mutable_ftrace_event_table()->Insert(row).id;
 
     using SW = protos::pbzero::SchedWakingFtraceEvent;
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(id);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
     auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
       StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
       inserter.AddArg(key, var);
@@ -291,8 +290,7 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
     // to index these events using the field ids.
     using SS = protos::pbzero::SchedSwitchFtraceEvent;
 
-    ArgsTracker args_tracker(context_);
-    auto inserter = args_tracker.AddArgsTo(id);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
     auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
       StringId key = sched_switch_field_ids_[static_cast<size_t>(field_num)];
       inserter.AddArg(key, var);

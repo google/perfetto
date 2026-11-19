@@ -23,6 +23,7 @@
 #include <optional>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/utils.h"
@@ -596,21 +597,20 @@ std::optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
 
   uint32_t size_and_flags;
 
-  // On little endian, we can just read a uint32_t and reject the rest of the
-  // number later.
-  if (!CpuReader::ReadAndAdvance<uint32_t>(
-          ptr, end_of_page, base::AssumeLittleEndian(&size_and_flags)))
+  // Read the low 32 bits of the host-endian commit field and skip the rest.
+  PERFETTO_DCHECK(page_header_size_len >= 4);
+  const size_t rest_len = page_header_size_len - 4u;
+  constexpr bool kIsLittleEndian = PERFETTO_IS_LITTLE_ENDIAN();
+  const size_t low_word_off = kIsLittleEndian ? 0 : rest_len;
+  *ptr += low_word_off;
+  if (!CpuReader::ReadAndAdvance<uint32_t>(ptr, end_of_page, &size_and_flags))
     return std::nullopt;
 
   page_header.size = size_and_flags & kDataSizeMask;
   page_header.lost_events = bool(size_and_flags & kMissedEventsFlag);
   PERFETTO_DCHECK(page_header.size <= base::GetSysPageSize());
 
-  // Reject rest of the number, if applicable. On 32-bit, size_bytes - 4 will
-  // evaluate to 0 and this will be a no-op. On 64-bit, this will advance by 4
-  // bytes.
-  PERFETTO_DCHECK(page_header_size_len >= 4);
-  *ptr += page_header_size_len - 4;
+  *ptr += rest_len - low_word_off;
 
   return std::make_optional(page_header);
 }
@@ -938,7 +938,9 @@ bool CpuReader::ParseField(const Field& field,
       // should avoid making things worse by corrupting the stack but we
       // don't need to handle it correctly.
       size_t size = std::min<size_t>(field.ftrace_size, sizeof(n));
-      memcpy(base::AssumeLittleEndian(&n),
+      constexpr bool kIsLittleEndian = PERFETTO_IS_LITTLE_ENDIAN();
+      const size_t low_bytes_off = kIsLittleEndian ? 0 : sizeof(n) - size;
+      memcpy(reinterpret_cast<uint8_t*>(&n) + low_bytes_off,
              reinterpret_cast<const void*>(field_start), size);
       // Look up the address in the printk format map and write it into the
       // proto.

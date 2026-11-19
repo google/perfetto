@@ -101,7 +101,7 @@ export class TouchscreenHandler {
 
     if (e.touches.length !== 1) return;
 
-    const t = e.touches[0];
+    const t = e.touches[0]!;
     this.tapStart = t;
     this.tapStartTime = performance.now();
     this.lastTouch = t;
@@ -156,7 +156,7 @@ export class TouchscreenHandler {
     // 1. A pan, which is a tapdown followed by a rapid movement.
     // 2. A mouse-like touchmouse_emulation event, which we trigger when the user
     //    taps down and then doesn't move for TAP_TIMEOUT_MS.
-    const t = e.touches[0];
+    const t = e.touches[0]!;
     const dXInit = t.clientX - this.tapStart.clientX;
     const dYInit = t.clientY - this.tapStart.clientY;
     const distSq = dXInit * dXInit + dYInit * dYInit;
@@ -201,7 +201,7 @@ export class TouchscreenHandler {
     this.lastPinch = undefined;
 
     if (mode === 'mouse_emulation') {
-      const t = e.changedTouches[0];
+      const t = e.changedTouches[0]!;
       this.callbacks.onTapUp?.({
         deltaX: 0,
         deltaY: 0,
@@ -215,20 +215,20 @@ export class TouchscreenHandler {
     if (e.touches.length !== 2) return;
 
     if (this.lastPinch === undefined) {
-      this.lastPinch = [e.touches[0], e.touches[1]];
+      this.lastPinch = [e.touches[0]!, e.touches[1]!];
     }
 
     function distance(t: ArrayLike<Touch>) {
-      const dX = t[0].clientX - t[1].clientX;
-      const dY = t[0].clientY - t[1].clientY;
+      const dX = t[0]!.clientX - t[1]!.clientX;
+      const dY = t[0]!.clientY - t[1]!.clientY;
       return Math.sqrt(dX * dX + dY * dY);
     }
 
-    const delta = Math.round(distance(this.lastPinch) - distance(e.touches));
-    this.lastPinch = [e.touches[0], e.touches[1]];
+    const delta = Math.round(distance(this.lastPinch!) - distance(e.touches));
+    this.lastPinch = [e.touches[0]!, e.touches[1]!];
 
-    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const midX = (e.touches[0]!.clientX + e.touches[1]!.clientX) / 2;
+    const midY = (e.touches[0]!.clientY + e.touches[1]!.clientY) / 2;
 
     this.callbacks.onPinchZoom?.({
       clientX: Math.round(midX),
