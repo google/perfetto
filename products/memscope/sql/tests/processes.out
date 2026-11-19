@@ -1,3 +1,0 @@
-"pid","process_name","heap_dumps","smaps_snapshots","native_dumps","score","best_pid"
-4242,"com.example.demo",2,2,0,10,4242
-5151,"com.example.gallery",2,2,0,10,4242

@@ -32,11 +32,7 @@ with the most memory data, or the one given with `--app` or `--pid`.
 
 The analyses behind the summary are the `memscope` PerfettoSQL package in
 `sql/memscope/`. The CLI and the UI both run it, so they report the same
-numbers. Test it with:
-
-```sh
-products/memscope/sql/tests/run_tests.py out/linux_clang_release/trace_processor_shell
-```
+numbers.
 
 `configs/record.pbtx` is the single-app recording config used by both
 `memscope record` and the UI's per-process profile.
