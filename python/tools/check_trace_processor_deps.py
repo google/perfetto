@@ -32,6 +32,10 @@ import gn_utils
 
 TP_PREFIX = '//src/trace_processor'
 ALLOWED_TP_PREFIX = '//src/trace_processor/util'
+# Products (//products/*) may link the library behind the public
+# include/perfetto/trace_processor API.
+PRODUCTS_PREFIX = '//products'
+PUBLIC_TP_LIBRARY = '//src/trace_processor:trace_processor'
 
 # These root executables aggregate Trace Processor's own tests and benchmarks.
 TP_TEST_AGGREGATORS = {
@@ -82,6 +86,8 @@ def check(desc):
       edge = (source, dependency)
       if (is_in(dependency, TP_PREFIX) and
           not is_in(dependency, ALLOWED_TP_PREFIX) and
+          not (is_in(source, PRODUCTS_PREFIX) and
+               dependency == PUBLIC_TP_LIBRARY) and
           edge not in LEGACY_ALLOWED_EDGES):
         errors.append(
             f'target "{source}" depends on Trace Processor internal target '
