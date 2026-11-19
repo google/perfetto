@@ -1178,3 +1178,143 @@ class WattsonStdlib(TestSuite):
         "tpu","c=0|req=0|f=1100000|a=180.0"
         "tpu","c=0|req=1|f=1100000|a=360.0"
         """))
+
+  def test_wattson_1d_dsu_active_static(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          [com.android.internal.FrameworksBaseTracePacket.wattson_soc_model] {
+            device_name: "Custom_1D_DSU_SoC"
+            use_devfreq: true
+            cpu_clusters {
+              cluster: 0
+              cpus: [0, 1]
+            }
+            cpu_clusters {
+              cluster: 2
+              cpus: [2, 3]
+            }
+            subsystems {
+              name: "cpu"
+              curves {
+                cluster: 0 freq: 1000000 static_mw: 20.0
+                active_mw: [40.0] idle_mw: [2.0, 0.0]
+              }
+              curves {
+                cluster: 2 freq: 2000000 static_mw: 30.0
+                active_mw: [80.0] idle_mw: [3.0, 0.0]
+              }
+              curves {
+                cluster: 255 freq: 400000000 active_mw: [25.0]
+              }
+              curves {
+                cluster: 255 freq: 1000000000 active_mw: [90.0]
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_frequency { state: 1000000 cpu_id: 0 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_frequency { state: 1000000 cpu_id: 1 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_frequency { state: 2000000 cpu_id: 2 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_frequency { state: 2000000 cpu_id: 3 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              devfreq_frequency { dev_name: "dsu_target" freq: 400000000 }
+            }
+            # [1000, 2000): all CPUs deep idle (state 1) -> DSU 25.0
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_idle { state: 1 cpu_id: 0 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_idle { state: 1 cpu_id: 1 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_idle { state: 1 cpu_id: 2 }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              cpu_idle { state: 1 cpu_id: 3 }
+            }
+            # [2000, 3000): cpu0 & cpu2 in WFI (state 0) -> still DSU 25.0 (WFI adds 0)
+            event {
+              timestamp: 2000
+              pid: 1
+              cpu_idle { state: 0 cpu_id: 0 }
+            }
+            event {
+              timestamp: 2000
+              pid: 1
+              cpu_idle { state: 0 cpu_id: 2 }
+            }
+            # [3000, 4000): cpu0 active (-1), cpu2 WFI (0) -> 25.0 + 20.0 = 45.0
+            event {
+              timestamp: 3000
+              pid: 1
+              cpu_idle { state: 4294967295 cpu_id: 0 }
+            }
+            # [4000, 5000): cpu0 & cpu2 active (-1), DSU 1000 MHz -> 90.0 + 20.0 + 30.0 = 140.0
+            event {
+              timestamp: 4000
+              pid: 1
+              cpu_idle { state: 4294967295 cpu_id: 2 }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              devfreq_frequency { dev_name: "dsu_target" freq: 1000000000 }
+            }
+            event {
+              timestamp: 5000
+              pid: 1
+              cpu_idle { state: 1 cpu_id: 0 }
+            }
+            event {
+              timestamp: 5000
+              pid: 1
+              cpu_idle { state: 1 cpu_id: 2 }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.estimates;
+        SELECT ts, dur, round(dsu_scu_mw, 2) AS dsu_mw
+        FROM _system_state_mw
+        WHERE ts >= 1000 AND ts < 5000
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","dsu_mw"
+        1000,1000,25.000000
+        2000,1000,25.000000
+        3000,1000,45.000000
+        4000,1000,140.000000
+        """))

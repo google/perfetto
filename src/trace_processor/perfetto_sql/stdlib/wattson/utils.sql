@@ -180,6 +180,10 @@ CREATE PERFETTO MACRO _is_cpu_active(state_id Expr)
 RETURNS Expr
 AS (($state_id) & _cpu_active_bit!());
 
+CREATE PERFETTO MACRO _is_cpu_running(state_id Expr)
+RETURNS Expr
+AS ((($state_id) & _idle_id_mask!()) = _encode_idle!(-1));
+
 CREATE PERFETTO MACRO _cpu_state_cpu_shift()
 RETURNS Expr
 AS 26;
