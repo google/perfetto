@@ -22,8 +22,6 @@ import {
 } from '../../../components/widgets/charts_svg/line_chart_svg';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
-import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
-import {TextInput} from '../../../widgets/text_input';
 import {Billboard, BillboardStrip} from '../components/billboard';
 import {Page} from '../components/page';
 import {Panel} from '../components/panel';
@@ -45,6 +43,7 @@ import {
   type LiveSessionAttrs,
   SessionPill,
 } from './live_chrome';
+import {ProcessesTab} from './processes_table';
 import {renderSystemSummary} from './system_summary';
 
 interface ProcessRow {
@@ -104,7 +103,6 @@ export interface ProcessLivePageAttrs extends LiveSessionAttrs {
 export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
   // Disambiguates between processes sharing the focused name.
   private preferredUpid?: number;
-  private filter = '';
 
   view({attrs}: m.CVnode<ProcessLivePageAttrs>) {
     const {session} = attrs;
@@ -193,72 +191,28 @@ export class ProcessLivePage implements m.ClassComponent<ProcessLivePageAttrs> {
     attrs: ProcessLivePageAttrs,
     data: SnapshotData,
   ): m.Children {
-    const needle = this.filter.toLowerCase();
-    const rows = processRows(data).filter(
-      (r) =>
-        needle === '' ||
-        r.info.processName.toLowerCase().includes(needle) ||
-        `${r.info.pid}`.includes(needle),
-    );
     return [
       renderSystemSummary(data, true, SYSTEM_CHART_HEIGHT),
-      this.renderProcessTable(attrs, rows),
-    ];
-  }
-
-  private renderProcessTable(
-    attrs: ProcessLivePageAttrs,
-    rows: ProcessRow[],
-  ): m.Children {
-    return m(
-      Panel,
-      m(Panel.Header, {
-        title: 'Pick a process',
-        subtitle: 'Running processes, sorted by RSS.',
-        controls: m(TextInput, {
-          placeholder: 'Search name or PID…',
-          leftIcon: 'search',
-          value: this.filter,
-          autofocus: true,
-          onInput: (v: string) => {
-            this.filter = v;
-          },
-        }),
-      }),
-      m(
-        Panel.Body,
-        m(Grid, {
-          columns: [
-            {
-              key: 'name',
-              header: m(GridHeaderCell, 'Process'),
-              maxInitialWidthPx: 500,
+      m(ProcessesTab, {
+        app: attrs.app,
+        data,
+        session: attrs.session,
+        rowActions: (p) =>
+          m(Button, {
+            label: 'Open',
+            rightIcon: 'arrow_forward',
+            variant: ButtonVariant.Filled,
+            intent: Intent.Primary,
+            rounded: true,
+            onclick: () => {
+              const info = [...data.processInfo.values()].find(
+                (i) => i.pid === p.pid,
+              );
+              if (info !== undefined) this.select(attrs, info);
             },
-            {key: 'pid', header: m(GridHeaderCell, 'PID')},
-            {key: 'rss', header: m(GridHeaderCell, 'RSS')},
-          ],
-          rowData: rows.map((r) => [
-            m(
-              GridCell,
-              {
-                actionButtons: m(Button, {
-                  label: 'Open',
-                  rightIcon: 'arrow_forward',
-                  variant: ButtonVariant.Filled,
-                  intent: Intent.Primary,
-                  rounded: true,
-                  onclick: () => this.select(attrs, r.info),
-                }),
-              },
-              r.info.processName,
-            ),
-            m(GridCell, {align: 'right'}, `${r.info.pid}`),
-            m(GridCell, {align: 'right'}, formatBytesIec(r.rssBytes)),
-          ]),
-          fillHeight: false,
-        }),
-      ),
-    );
+          }),
+      }),
+    ];
   }
 
   private renderProcess(

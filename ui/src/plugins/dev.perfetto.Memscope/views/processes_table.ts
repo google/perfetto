@@ -14,8 +14,7 @@
 
 import m from 'mithril';
 import type {App} from '../../../public/app';
-import {noData, xAxisFor} from '../../dev.perfetto.Memscope/live';
-import {openInMemscopeButton} from '../open_in_memscope';
+import {noData, xAxisFor} from './chart_axis';
 import {
   LineChartSvg,
   type LineChartData,
@@ -39,20 +38,16 @@ import type {
   LiveSession,
   ProcessInfo,
   SnapshotData,
-} from '../../dev.perfetto.Memscope/live';
+} from '../sessions/live_session';
 import {
   categorizeProcess,
   CATEGORIES,
   type CategoryId,
 } from '../process_categories';
-import {Billboard, BillboardStrip} from '../../dev.perfetto.Memscope/live';
-import {HelpTooltip} from '../../dev.perfetto.Memscope/live';
-import {ColorChip, chipColor} from '../../dev.perfetto.Memscope/live';
-import {
-  billboardBytes,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../../dev.perfetto.Memscope/live';
+import {Billboard, BillboardStrip} from '../components/billboard';
+import {HelpTooltip} from '../components/help_tooltip';
+import {ColorChip, chipColor} from '../components/color_chip';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../utils';
 import {formatBytesIec} from '../../../base/bytes_format';
 import {
   type ProcessGrouping,
@@ -60,8 +55,7 @@ import {
   type ProcessMemoryRow,
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
-} from '../../dev.perfetto.Memscope/live';
-export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
+} from '../process_data';
 
 // Tiny SVG sparkline for the trend column. Min/max are derived from the
 // values themselves (so a flat series renders as a flat line at mid-height).
@@ -419,8 +413,10 @@ const CATEGORY_COLOR_MAP = new Map<string, string>(
 export interface ProcessesTabAttrs {
   readonly app: App;
   readonly data: SnapshotData | undefined;
-  // Undefined when showing a loaded trace: no profiling then.
+  // Undefined when showing a loaded trace.
   readonly session?: LiveSession;
+  // Buttons shown on each process row, e.g. to open or profile it.
+  readonly rowActions?: (p: ProcessMemoryRow) => m.Children;
 }
 
 export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
@@ -627,8 +623,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
         m(ProcessTable, {
           processes: filteredProcesses,
           isUserDebug: data.isUserDebug,
-          app: attrs.app,
           session: attrs.session,
+          rowActions: attrs.rowActions,
           searchQuery: this.processSearch,
           onSearchChange: (q) => {
             this.processSearch = q;
@@ -653,8 +649,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
 interface ProcessTableAttrs {
   readonly processes: ProcessMemoryRow[];
   readonly isUserDebug: boolean;
-  readonly app: App;
   readonly session?: LiveSession;
+  readonly rowActions?: (p: ProcessMemoryRow) => m.Children;
   readonly searchQuery: string;
   readonly onSearchChange: (q: string) => void;
 }
@@ -689,7 +685,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
   }
 
   view({attrs}: m.CVnode<ProcessTableAttrs>): m.Children {
-    const {processes, isUserDebug, app, session, searchQuery, onSearchChange} =
+    const {processes, isUserDebug, session, searchQuery, onSearchChange} =
       attrs;
 
     const visible = processes.filter((p) => {
@@ -791,21 +787,6 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       })();
       // Offline there is nothing to profile, so nothing to mute.
       const canProfile = session === undefined || p.debuggable || isUserDebug;
-      const profileButton =
-        session !== undefined &&
-        m(Button, {
-          label: 'Profile',
-          icon: canProfile ? undefined : 'warning',
-          rightIcon: 'arrow_forward',
-          rounded: true,
-          variant: ButtonVariant.Filled,
-          intent: Intent.Primary,
-          tooltip: canProfile
-            ? undefined
-            : 'Process is not marked debuggable. Profiling may fail if the device is not a userdebug or eng build.',
-          onclick: () =>
-            session.startProfile(p.pid, p.processName).then(() => m.redraw()),
-        });
       const mutedStyle = canProfile
         ? undefined
         : {color: 'var(--pf-color-text-muted)', opacity: '0.7'};
@@ -817,10 +798,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
         m(
           GridCell,
           {
-            actionButtons: [
-              openInMemscopeButton(app, p.processName),
-              profileButton,
-            ],
+            actionButtons: attrs.rowActions?.(p),
             style: mutedStyle,
           },
           p.processName,

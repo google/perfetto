@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {GateDetector} from '../../base/mithril_utils';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {RadioGroup} from '../../widgets/radio_group';
 import type {App} from '../../public/app';
@@ -23,13 +24,15 @@ import {
   type LiveSessionAttrs,
   Page,
   PreviewBanner,
+  ProcessesTab,
+  type ProcessMemoryRow,
   renderSystemSummary,
   SessionPill,
   type SnapshotData,
 } from '../dev.perfetto.Memscope/live';
 import {renderPageCacheTab} from './tabs/page_cache';
 import {renderPressureSwapTab} from './tabs/pressure_swap';
-import {ProcessesTab} from './tabs/processes';
+import {openInMemscopeButton} from './open_in_memscope';
 
 type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
 
@@ -116,7 +119,16 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   ): m.Children {
     const live = session !== undefined;
     return [
-      this.activeTab === 'processes' && m(ProcessesTab, {app, data, session}),
+      this.activeTab === 'processes' &&
+        m(ProcessesTab, {
+          app,
+          data,
+          session,
+          rowActions: (p) => [
+            openInMemscopeButton(app, p.processName),
+            session && profileButton(session, p, data?.isUserDebug ?? false),
+          ],
+        }),
       this.activeTab === 'system' && renderSystemSummary(data, live),
       this.activeTab === 'file_cache' && renderPageCacheTab(data, live),
       this.activeTab === 'pressure_swap' &&
@@ -124,4 +136,26 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       !data && m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
     ];
   }
+}
+
+function profileButton(
+  session: LiveSession,
+  p: ProcessMemoryRow,
+  isUserDebug: boolean,
+): m.Children {
+  const canProfile = p.debuggable || isUserDebug;
+  return m(Button, {
+    label: 'Profile',
+    icon: canProfile ? undefined : 'warning',
+    rightIcon: 'arrow_forward',
+    rounded: true,
+    variant: ButtonVariant.Filled,
+    intent: Intent.Primary,
+    tooltip: canProfile
+      ? undefined
+      : 'Process is not marked debuggable. Profiling may fail if the ' +
+        'device is not a userdebug or eng build.',
+    onclick: () =>
+      session.startProfile(p.pid, p.processName).then(() => m.redraw()),
+  });
 }
