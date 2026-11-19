@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {ErrorDetails} from '../base/logging';
-import {getCurrentChannel} from './channels';
-import {VERSION} from '../virtual/version';
-import {Router} from './router';
-import type {Analytics, TraceCategories} from '../public/analytics';
+import type {ErrorDetails} from '../../base/logging';
+import {getCurrentChannel} from '../channels';
+import {VERSION} from '../../virtual/version';
+import {Router} from '../router';
+import type {Analytics, TraceCategories} from '../../public/analytics';
 
 const PAGE_TITLE = 'no-page-title';
 
