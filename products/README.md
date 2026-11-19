@@ -8,6 +8,7 @@ directory here is one product.
 | Product | Site | What it is for |
 |---|---|---|
 | [memscope](memscope/) | memscope.perfetto.dev | Debugging the memory of one app |
+| [sysmem](sysmem/) | sysmem.perfetto.dev | Memory of a whole device |
 
 ## Layout
 
@@ -16,7 +17,7 @@ products/<id>/
   README.md        # what the product is and how to use it
   build            # builds the CLI and the UI
   run-dev-server   # runs the UI dev server for this product
-  cli/             # the command line entry point (C++, built with GN)
+  cli/             # optional command line entry point (C++, built with GN)
   ui/              # the UI shell; ui/index.ts is the entry point
   sql/<pkg>/       # PerfettoSQL package shared by the CLI and the UI
   configs/         # trace configs shared by the CLI and the UI
