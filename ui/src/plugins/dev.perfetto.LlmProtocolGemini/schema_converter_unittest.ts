@@ -117,4 +117,98 @@ describe('zodToGeminiSchema', () => {
       'slow',
     ]);
   });
+
+  it('strips exclusiveMinimum and exclusiveMaximum while keeping minimum and maximum', () => {
+    const schema = zodToGeminiSchema(
+      z.object({
+        positive: z.number().positive(),
+        boundedInt: z.number().int().positive().max(500),
+        clamped: z.number().min(0).max(1),
+        strictRange: z.number().gt(1).lt(10),
+      }),
+    );
+
+    const keys = allKeys(schema);
+    expect(keys.has('exclusiveMinimum')).toBe(false);
+    expect(keys.has('exclusiveMaximum')).toBe(false);
+
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(properties.positive).toEqual({type: 'number'});
+    expect(properties.boundedInt).toEqual({type: 'integer', maximum: 500});
+    expect(properties.clamped).toEqual({
+      type: 'number',
+      minimum: 0,
+      maximum: 1,
+    });
+    expect(properties.strictRange).toEqual({type: 'number'});
+  });
+
+  it('strips propertyNames and additionalProperties from z.record()', () => {
+    const schema = zodToGeminiSchema(
+      z.object({
+        criteriaFilters: z
+          .record(z.string(), z.array(z.string()))
+          .optional()
+          .describe('Map of criterion name to option keys.'),
+      }),
+    );
+
+    const keys = allKeys(schema);
+    expect(keys.has('propertyNames')).toBe(false);
+    expect(keys.has('additionalProperties')).toBe(false);
+
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(properties.criteriaFilters).toEqual({
+      type: 'object',
+      description: 'Map of criterion name to option keys.',
+    });
+  });
+
+  it('recursively sanitizes anyOf branches', () => {
+    const schema = zodToGeminiSchema(
+      z.object({
+        value: z.union([z.number().positive(), z.string()]),
+      }),
+    );
+
+    const keys = allKeys(schema);
+    expect(keys.has('exclusiveMinimum')).toBe(false);
+
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(properties.value).toEqual({
+      anyOf: [{type: 'number'}, {type: 'string'}],
+    });
+  });
+
+  it('preserves parameter names that collide with stripped schema keywords', () => {
+    const schema = zodToGeminiSchema(
+      z.object({
+        propertyNames: z.array(z.string()),
+        exclusiveMinimum: z.number().positive(),
+      }),
+    );
+
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(Object.keys(properties).sort()).toEqual([
+      'exclusiveMinimum',
+      'propertyNames',
+    ]);
+    expect(properties.propertyNames).toEqual({
+      type: 'array',
+      items: {type: 'string'},
+    });
+    expect(properties.exclusiveMinimum).toEqual({type: 'number'});
+  });
 });

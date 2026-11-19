@@ -38,7 +38,7 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_relationship;
 
-INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
+INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree;
 
 CREATE OR REPLACE PERFETTO TABLE _leak_activities AS
 SELECT
@@ -49,10 +49,8 @@ SELECT
 FROM android_heap_graph_class_find_descendants!(
   (SELECT id FROM heap_graph_class WHERE name = 'android.app.Activity')
 ) AS d
-JOIN heap_graph_object AS o
-  ON o.type_id = d.id
-JOIN heap_graph_class AS c
-  ON c.id = d.id
+JOIN heap_graph_object AS o ON o.type_id = d.id
+JOIN heap_graph_class AS c ON c.id = d.id
 WHERE
   o.reachable;
 
@@ -75,8 +73,7 @@ WITH RECURSIVE
     UNION ALL
     SELECT chain.start_id, t.parent_id, chain.id, chain.depth + 1
     FROM chain
-    JOIN _heap_graph_object_min_depth_tree AS t
-      ON t.id = chain.id
+    JOIN heap_graph_shortest_path_tree AS t ON t.id = chain.id
     WHERE
       t.parent_id IS NOT NULL
   )
@@ -87,10 +84,8 @@ SELECT
   coalesce(c.deobfuscated_name, c.name) AS cls,
   o.root_type
 FROM chain AS ch
-JOIN heap_graph_object AS o
-  ON o.id = ch.id
-JOIN heap_graph_class AS c
-  ON c.id = o.type_id;
+JOIN heap_graph_object AS o ON o.id = ch.id
+JOIN heap_graph_class AS c ON c.id = o.type_id;
 
 -- Keep only the first object of each run of same-class objects (root side).
 CREATE OR REPLACE PERFETTO TABLE _leak_runs AS

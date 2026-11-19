@@ -18,17 +18,21 @@ import {
   LocalSettingsStorage,
   BIGTRACE_SETTINGS_STORAGE_KEY,
 } from './settings_storage';
+import {channelStorageKey, getReleaseChannel} from './release_channel';
 
 export const endpointStorage = new LocalSettingsStorage(
-  new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
+  new LocalStorage(channelStorageKey(BIGTRACE_SETTINGS_STORAGE_KEY)),
 );
 
 // The server that serves bigtrace.html can set the default endpoint with
-// <meta name="bigtrace-endpoint" content="https://...">.
+// <meta name="bigtrace-endpoint" content="https://...">, and a release
+// channel's own with <meta name="bigtrace-endpoint-<channel>">.
 function defaultEndpoint(): string {
-  const meta = document.querySelector<HTMLMetaElement>(
-    'meta[name="bigtrace-endpoint"]',
-  );
+  const meta =
+    document.querySelector<HTMLMetaElement>(
+      `meta[name="bigtrace-endpoint-${getReleaseChannel()}"]`,
+    ) ??
+    document.querySelector<HTMLMetaElement>('meta[name="bigtrace-endpoint"]');
   return meta?.content ?? '';
 }
 

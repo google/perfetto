@@ -232,6 +232,26 @@ TEST_F(PerfettoSqlConnectionTest, DelegatingFunction_Error_TargetNotFound) {
                   "Target function 'nonexistent_func' not found in registry"));
 }
 
+// A RETURNS TABLE function reuses its statement across calls, so an error in
+// one call (here an overflow; an interrupt behaves the same) must not stick to
+// the statement and fail every later call.
+TEST_F(PerfettoSqlConnectionTest, TableFunction_ErrorDoesNotBreakLaterCalls) {
+  ASSERT_OK(connection_->Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO FUNCTION f(x LONG) RETURNS TABLE(y LONG) AS "
+      "SELECT abs($x) AS y")));
+
+  // abs() of the smallest 64-bit integer overflows.
+  ASSERT_THAT(connection_->Execute(SqlSource::FromExecuteQuery(
+                  "SELECT * FROM f(-9223372036854775808)")),
+              IsError());
+
+  auto res = connection_->ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("SELECT y FROM f(-5)"));
+  ASSERT_OK(res);
+  ASSERT_FALSE(res->stmt.IsDone());
+  EXPECT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 5);
+}
+
 TEST(SqlModulesTest, IsPackagePrefixOf) {
   // Exact match
   EXPECT_TRUE(sql_modules::IsPackagePrefixOf("foo", "foo"));

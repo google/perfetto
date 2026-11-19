@@ -476,22 +476,25 @@ class AndroidParser(TestSuite):
           t.process_group,
           t.reason,
           t.seq_id,
+          t.cpu_time_reasons,
+          t.implicit_cpu_time_reasons,
+          t.freeze_policy_flags,
           t.is_initial
         FROM __intrinsic_android_process_state t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts, t.reason;
         """,
         out=Csv("""
-          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
-          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0
-          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,0
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
-          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
-          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,0
-          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","cpu_time_reasons","implicit_cpu_time_reasons","freeze_policy_flags","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0,0,0,0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,5,2,11,0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,"[NULL]","[NULL]","[NULL]",0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,"[NULL]","[NULL]","[NULL]",0
         """))
 
   def test_android_freezer_state(self):
@@ -643,6 +646,96 @@ class AndroidParser(TestSuite):
           2000,0,-2147483131,"capability_flags","capability_flags[0]","PROCESS_CAPABILITY_FOREGROUND_LOCATION","string"
           2000,0,-2147483131,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_FOREGROUND_MICROPHONE","string"
           2000,0,-2147483131,"capability_flags","capability_flags[2]","0x80000200","string"
+        """))
+
+  def test_android_process_state_freeze_and_cpu_flags(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_CACHED_ACTIVITY
+              prev_capability_flags: 0
+              cur_capability_flags: 384
+              cpu_time_reasons: 5
+              implicit_cpu_time_reasons: 26
+              freeze_policy_flags: 59
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_CACHED_ACTIVITY
+              cur_proc_state: PROCESS_STATE_TOP
+              prev_capability_flags: 384
+              cur_capability_flags: 0
+              cpu_time_reasons: 0
+              implicit_cpu_time_reasons: 0
+              freeze_policy_flags: 0
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          t.is_initial,
+          t.capability_flags,
+          t.cpu_time_reasons,
+          t.implicit_cpu_time_reasons,
+          t.freeze_policy_flags,
+          a.flat_key,
+          a.key,
+          a.string_value
+        FROM __intrinsic_android_process_state t
+        LEFT JOIN args a USING (arg_set_id)
+        ORDER BY t.is_initial DESC, t.ts, a.key;
+        """,
+        out=Csv("""
+          "ts","is_initial","capability_flags","cpu_time_reasons","implicit_cpu_time_reasons","freeze_policy_flags","flat_key","key","string_value"
+          "[NULL]",1,0,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
+          2000,0,384,5,26,59,"capability_flags","capability_flags[0]","PROCESS_CAPABILITY_CPU_TIME"
+          2000,0,384,5,26,59,"capability_flags","capability_flags[1]","PROCESS_CAPABILITY_IMPLICIT_CPU_TIME"
+          2000,0,384,5,26,59,"cpu_time_reasons","cpu_time_reasons[0]","CPU_TIME_REASON_OTHER"
+          2000,0,384,5,26,59,"cpu_time_reasons","cpu_time_reasons[1]","CPU_TIME_REASON_TRANSMITTED_LEGACY"
+          2000,0,384,5,26,59,"freeze_policy_flags","freeze_policy_flags[0]","FREEZER_FLAG_IS_FROZEN"
+          2000,0,384,5,26,59,"freeze_policy_flags","freeze_policy_flags[1]","FREEZER_FLAG_IS_PENDING_FREEZE"
+          2000,0,384,5,26,59,"freeze_policy_flags","freeze_policy_flags[2]","FREEZER_FLAG_FREEZE_POLICY"
+          2000,0,384,5,26,59,"freeze_policy_flags","freeze_policy_flags[3]","FREEZER_FLAG_AGGRESSIVE_FREEZING"
+          2000,0,384,5,26,59,"freeze_policy_flags","freeze_policy_flags[4]","0x20"
+          2000,0,384,5,26,59,"implicit_cpu_time_reasons","implicit_cpu_time_reasons[0]","CPU_TIME_REASON_TRANSMITTED"
+          2000,0,384,5,26,59,"implicit_cpu_time_reasons","implicit_cpu_time_reasons[1]","CPU_TIME_REASON_ALLOW_LIST"
+          2000,0,384,5,26,59,"implicit_cpu_time_reasons","implicit_cpu_time_reasons[2]","0x10"
+          3000,0,0,0,0,0,"[NULL]","[NULL]","[NULL]"
         """))
 
   def test_android_service_state_changed_flags(self):

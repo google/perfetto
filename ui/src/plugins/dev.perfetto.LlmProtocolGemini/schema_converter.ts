@@ -19,8 +19,10 @@ import {z} from 'zod';
  * `functionDeclarations[].parameters` accepts.
  *
  * Emits base JSON Schema via zod 4's `z.toJSONSchema()` with subschemas
- * inlined, then strips the meta/structural keys Gemini rejects ($schema,
- * additionalProperties, $ref, $defs).
+ * inlined, then keeps only the fields defined on Gemini's `Schema` proto
+ * (dropping unsupported JSON Schema keywords such as `$schema`,
+ * `additionalProperties`, `$defs`, `$ref`, `exclusiveMinimum`,
+ * `exclusiveMaximum`, and `propertyNames`).
  *
  * @param schema The tool's input schema, authored in zod.
  * @returns A plain JSON-Schema object ready to drop into a Gemini function
@@ -31,29 +33,62 @@ export function zodToGeminiSchema(schema: z.ZodType): Record<string, unknown> {
     // Inline subschemas: Gemini does not accept $ref/$defs.
     target: 'draft-2020-12',
   }) as Record<string, unknown>;
-  return sanitize(json) as Record<string, unknown>;
+  return sanitizeSchema(json);
 }
 
-// Recursively remove JSON Schema keys Gemini's parameters validator rejects.
-function sanitize(node: unknown): unknown {
-  if (Array.isArray(node)) {
-    return node.map(sanitize);
-  }
-  if (node !== null && typeof node === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(node)) {
-      // Gemini rejects these meta/structural keys.
-      if (
-        key === '$schema' ||
-        key === 'additionalProperties' ||
-        key === '$defs' ||
-        key === '$ref'
-      ) {
-        continue;
+// Scalar/non-recursive fields accepted by Gemini's v1beta `Schema` proto
+// (https://ai.google.dev/api/caching#Schema). Recursive fields (`properties`,
+// `items`, `anyOf`) are handled explicitly in `sanitizeSchema`.
+const ALLOWED_SCALAR_KEYS: ReadonlySet<string> = new Set([
+  'type',
+  'format',
+  'title',
+  'description',
+  'nullable',
+  'enum',
+  'maxItems',
+  'minItems',
+  'required',
+  'minProperties',
+  'maxProperties',
+  'minLength',
+  'maxLength',
+  'pattern',
+  'example',
+  'propertyOrdering',
+  'default',
+  'minimum',
+  'maximum',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Recursively strip any JSON Schema keys not present on Gemini's `Schema`
+// proto, while preserving arbitrary parameter names inside `properties`.
+function sanitizeSchema(
+  node: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (key === 'properties' && isRecord(value)) {
+      const props: Record<string, unknown> = {};
+      for (const [propName, propSchema] of Object.entries(value)) {
+        props[propName] = isRecord(propSchema)
+          ? sanitizeSchema(propSchema)
+          : propSchema;
       }
-      out[key] = sanitize(value);
+      out.properties = props;
+    } else if (key === 'items' && isRecord(value)) {
+      out.items = sanitizeSchema(value);
+    } else if (key === 'anyOf' && Array.isArray(value)) {
+      out.anyOf = value.map((item) =>
+        isRecord(item) ? sanitizeSchema(item) : item,
+      );
+    } else if (ALLOWED_SCALAR_KEYS.has(key)) {
+      out[key] = value;
     }
-    return out;
   }
-  return node;
+  return out;
 }

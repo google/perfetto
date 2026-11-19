@@ -48,7 +48,10 @@ export class PageManagerImpl implements PageManager {
     // Log page changes to analytics
     if (this.currentPage !== route.page) {
       this.currentPage = route.page;
-      setTimeout(() => this.analytics.logEvent('User Actions', route.page), 0);
+      setTimeout(
+        () => this.analytics.logEvent({kind: 'page_view', page: route.page}),
+        0,
+      );
     }
 
     this.previousPages.set(route.page, {

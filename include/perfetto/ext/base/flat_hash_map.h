@@ -19,6 +19,7 @@
 
 #include "perfetto/base/bits.h"
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map_v1.h"
@@ -612,12 +613,11 @@ class FlatHashMapV2 : private flat_hash_map_v2_internal::FlatHashMapV2Base {
     const uint8_t* ctrl = ctrl_;
 
     // Prefetch control bytes (like Absl's prefetch_heap_block).
-    // Use locality hint 3 (high temporal locality) for better L1 cache usage.
-    __builtin_prefetch(ctrl_ + offset, 0, 3);
+    PERFETTO_PREFETCH(ctrl_ + offset);
 
     while (true) {
       // Prefetch slots at current probe offset (like Absl).
-      __builtin_prefetch(slots() + offset, 0, 3);
+      PERFETTO_PREFETCH(slots() + offset);
 
       Group group(ctrl + offset);
 
