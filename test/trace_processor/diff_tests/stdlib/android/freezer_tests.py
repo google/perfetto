@@ -36,20 +36,20 @@ class Freezer(TestSuite):
         trace=Path('freezer_intervals.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.freezer;
-        SELECT ts, dur, pid, state
+        SELECT ts, dur, pid, state, unfreeze_reason, prev_state_duration
         FROM _android_freezer_intervals
         ORDER BY ts, pid;
         """,
         out=Csv("""
-        "ts","dur","pid","state"
-        500,-1,400,"UNFROZEN"
-        500,8500,500,"UNFROZEN"
-        1000,2000,200,"UNFROZEN"
-        3000,2000,200,"FROZEN"
-        5000,1000,200,"UNFROZEN"
-        6000,2000,200,"FROZEN"
-        7000,-1,300,"FROZEN"
-        9000,-1,500,"FROZEN"
+        "ts","dur","pid","state","unfreeze_reason","prev_state_duration"
+        500,-1,400,"UNFROZEN","UFR_PING","[NULL]"
+        500,8500,500,"UNFROZEN","[NULL]","[NULL]"
+        1000,2000,200,"UNFROZEN","[NULL]","[NULL]"
+        3000,2000,200,"FROZEN","[NULL]",2000
+        5000,1000,200,"UNFROZEN","UFR_BIND_SERVICE",2000
+        6000,2000,200,"FROZEN","[NULL]",1000
+        7000,-1,300,"FROZEN","[NULL]","[NULL]"
+        9000,-1,500,"FROZEN","[NULL]",8500
         """))
 
   def test_android_freezer_intervals_bounded_by_event_duration(self):
