@@ -15,5 +15,4 @@
 
 # Runs the Memscope UI dev server. Extra args go to ui/build.mjs.
 ROOT_DIR="$(cd -P "${BASH_SOURCE[0]%/*}/../.."; pwd)"
-exec "$ROOT_DIR/ui/run-dev-server" --product memscope \
-  --out "$ROOT_DIR/out/memscope_ui" "$@"
+exec "$ROOT_DIR/ui/run-dev-server" --product memscope "$@"

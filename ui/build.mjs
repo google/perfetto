@@ -103,6 +103,7 @@ const cfg = {
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
   // out/xxx/    -> outDir         : Root build dir, for both ninja/wasm and UI.
+  //                                 Product builds take Wasm from out/ui.
   //   ui/       -> outUiDir       : UI dir. All outputs from this script.
   //    tsc/     -> outTscDir      : Transpiled .ts -> .js.
   //      gen/   -> outGenDir      : Auto-generated .ts/.js (e.g. protos).
@@ -110,6 +111,7 @@ const cfg = {
   //      v1.2/  -> outDistDir     : JS bundles and assets
   //    chrome_extension/          : Chrome extension.
   outDir: pjoin(ROOT_DIR, 'out/ui'),
+  wasmOutDir: '',
   version: '', // v1.2.3, derived from the CHANGELOG + git.
   outUiDir: '',
   outUiTestArtifactsDir: '',
@@ -255,7 +257,8 @@ Env-var overrides:
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
   parser.add_argument('--product', {
-    help: 'Build the standalone product described by products/<id>/product.json',
+    help: 'Build the standalone product in products/<id> ' +
+          '(default --out: out/<id>_ui)',
   });
   parser.add_argument('--experimental-mithril-hmr', {
     action: 'store_true',
@@ -286,7 +289,16 @@ Env-var overrides:
   }
   const args = parser.parse_args([...syntheticArgv, ...process.argv.slice(2)]);
   const clean = !args.no_build;
-  cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
+  cfg.product = args.product ? checkProduct(args.product) : undefined;
+  const defaultOut = cfg.product
+    ? pjoin(ROOT_DIR, 'out', `${cfg.product}_ui`)
+    : cfg.outDir;
+  cfg.outDir = path.resolve(ensureDir(args.out || defaultOut));
+  // Products share the Wasm build with the default UI: it does not depend on
+  // the product, and building it from scratch takes minutes.
+  cfg.wasmOutDir = cfg.product
+    ? path.resolve(ensureDir(pjoin(ROOT_DIR, 'out/ui')))
+    : cfg.outDir;
   cfg.lockFile = pjoin(cfg.outDir, 'watch.lock');
 
   // Only create the build lock if we are actually going to build If --no-build
@@ -347,7 +359,6 @@ Env-var overrides:
   cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
-  cfg.product = args.product ? loadProduct(args.product) : undefined;
   cfg.experimentalMithrilHmr = !!args.experimental_mithril_hmr;
   cfg.noTraceconv = !!args.no_traceconv;
   cfg.wasmModules = ['proto_utils', 'trace_processor_memory64'];
@@ -527,31 +538,22 @@ function runTests() {
   }
 }
 
-function loadProduct(id) {
-  const manifest = pjoin(ROOT_DIR, 'products', id, 'product.json');
-  if (!/^[a-z0-9-]+$/.test(id) || !fs.existsSync(manifest)) {
-    throw new Error(`Unknown product '${id}': ${manifest} not found`);
+// Returns the product id after checking products/<id>/ui/index.ts exists.
+function checkProduct(id) {
+  const entry = pjoin(ROOT_DIR, 'products', id, 'ui', 'index.ts');
+  if (!/^[a-z0-9-]+$/.test(id) || !fs.existsSync(entry)) {
+    throw new Error(`Unknown product '${id}': ${entry} not found`);
   }
-  const product = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-  if (product.id !== id) {
-    throw new Error(`${manifest}: id '${product.id}' does not match '${id}'`);
-  }
-  return product;
+  return id;
 }
 
-// Applies the --product and --title page titles to index.html.
-function patchTitleAndProduct(html) {
-  const titleRe = /<title>[^<]*<\/title>/;
-  if (cfg.product) {
-    html = html.replace(
-      titleRe,
-      `<title>${cfg.product.title}</title>`,
-    );
-  }
-  if (cfg.titleOverride) {
-    html = html.replace(titleRe, `<title>${cfg.titleOverride}</title>`);
-  }
-  return html;
+// Applies --title to index.html. A product sets its title at runtime.
+function patchTitle(html) {
+  if (!cfg.titleOverride) return html;
+  return html.replace(
+    /<title>[^<]*<\/title>/,
+    `<title>${cfg.titleOverride}</title>`,
+  );
 }
 
 function cpHtml(src, filename) {
@@ -568,7 +570,7 @@ function cpHtml(src, filename) {
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
 
-  html = patchTitleAndProduct(html);
+  html = patchTitle(html);
 
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
 }
@@ -712,17 +714,20 @@ function buildWasm(skipWasmBuild) {
       if (childProcess.spawnSync('which', ['ccache']).status === 0) {
         gnVars += ` cc_wrapper="ccache"`;
       }
-      const gnArgs = ['gen', `--args=${gnVars}`, cfg.outDir];
+      const gnArgs = ['gen', `--args=${gnVars}`, cfg.wasmOutDir];
       addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
     }
-    const ninjaArgs = ['-C', cfg.outDir];
+    const ninjaArgs = ['-C', cfg.wasmOutDir];
     ninjaArgs.push(...cfg.wasmModules.map((x) => `${x}_wasm`));
     addTask(exec, [pjoin(ROOT_DIR, 'tools/ninja'), ninjaArgs]);
   }
 
   for (const wasmMod of cfg.wasmModules) {
     const isMem64 = wasmMod.endsWith('_memory64');
-    const wasmOutDir = pjoin(cfg.outDir, isMem64 ? 'wasm_memory64' : 'wasm');
+    const wasmOutDir = pjoin(
+      cfg.wasmOutDir,
+      isMem64 ? 'wasm_memory64' : 'wasm',
+    );
     // The .wasm file goes directly into the dist dir (also .map in debug)
     for (const ext of ['.wasm'].concat(cfg.debug ? ['.wasm.map'] : [])) {
       const src = `${wasmOutDir}/${wasmMod}${ext}`;
@@ -859,7 +864,7 @@ function runVite() {
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
-    PERFETTO_PRODUCT: cfg.product?.id ?? '',
+    PERFETTO_PRODUCT: cfg.product ?? '',
   };
   const bundles = ['engine', 'service_worker', 'chrome_extension'];
   if (!cfg.useHmr) bundles.unshift('frontend');
@@ -915,7 +920,7 @@ function genServiceWorkerManifestJson() {
 async function startViteDevServer() {
   // vite.config.mjs reads these at import time; set before createServer().
   if (cfg.onlyWasmMemory64) process.env.IS_MEMORY64_ONLY = 'true';
-  if (cfg.product) process.env.PERFETTO_PRODUCT = cfg.product.id;
+  if (cfg.product) process.env.PERFETTO_PRODUCT = cfg.product;
   if (cfg.noSourceMaps) process.env.NO_SOURCE_MAPS = 'true';
   if (cfg.noTreeshake) process.env.NO_TREESHAKE = 'true';
   if (cfg.minifyJs) process.env.MINIFY_JS = cfg.minifyJs;
@@ -976,7 +981,7 @@ async function startViteDevServer() {
       /data-perfetto_version='[^']*'/,
       `data-perfetto_version='${versionMap}'`,
     );
-    return patchTitleAndProduct(html);
+    return patchTitle(html);
   };
 
   // Serve /test/* from the repo (used by some e2e flows). Mirrors the

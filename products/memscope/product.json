@@ -1,8 +1,0 @@
-{
-  "id": "memscope",
-  "title": "Memscope",
-  "description": "A memory profiler for a single app, with an assistant that can take heap dumps and explain them.",
-  "origin": "https://memscope.perfetto.dev",
-  "ui": "products/memscope/ui",
-  "cli": "products/memscope/cli"
-}

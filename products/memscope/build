@@ -19,4 +19,4 @@ set -e
 ROOT_DIR="$(cd -P "${BASH_SOURCE[0]%/*}/../.."; pwd)"
 OUT="${OUT:-$ROOT_DIR/out/linux_clang_release}"
 "$ROOT_DIR/tools/ninja" -C "$OUT" memscope
-"$ROOT_DIR/ui/build" --product memscope --out "$ROOT_DIR/out/memscope_ui" "$@"
+"$ROOT_DIR/ui/build" --product memscope "$@"

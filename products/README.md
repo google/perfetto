@@ -13,7 +13,6 @@ directory here is one product.
 
 ```
 products/<id>/
-  product.json     # id, title, origin; read by `ui/build --product <id>`
   README.md        # what the product is and how to use it
   build            # builds the CLI and the UI
   run-dev-server   # runs the UI dev server for this product
@@ -27,9 +26,9 @@ product a product: its embedder, home page and navigation.
 
 ## UI
 
-A product's UI is an `Embedder` (`ui/src/core/embedder/embedder.ts`) that sets
-the title, home page, plugin allowlist and navigation, and can drop the
-sidebar. `products/<id>/ui/index.ts` exports it as `productEmbedder`.
+A product is described entirely by its `Embedder`
+(`ui/src/core/embedder/embedder.ts`): title, home page, plugin allowlist and
+navigation. `products/<id>/ui/index.ts` exports it as `productEmbedder`.
 
 The product is chosen at build time. `ui/build --product <id>` makes Vite
 replace `ui/src/core/embedder/product_stub.ts` with
@@ -47,8 +46,8 @@ To work on a product's UI:
 products/memscope/run-dev-server
 ```
 
-Each product builds into its own `out/<id>_ui`, so the first run builds the
-Wasm modules from scratch.
+Each product builds into its own `out/<id>_ui`, but takes the Wasm modules
+from `out/ui`, which they do not depend on.
 
 ## CLI
 
