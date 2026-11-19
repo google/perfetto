@@ -47,6 +47,7 @@ struct DebuginfodConfig {
   // they would have changed: one that looked up frames, and for
   // |disabled_warning| left some of them unresolved.
   std::string llvm_opts_warning;
+  std::string ima_policy_warning;
   std::string disabled_warning;
 };
 
@@ -68,6 +69,8 @@ struct DebuginfodStats {
   // Servers that could not be connected to or stopped responding.
   std::vector<std::string> unreachable_servers;
   std::string warnings;
+  // Policy warnings that remain visible when routine output is quiet.
+  std::string quiet_warnings;
 };
 
 std::unique_ptr<Symbolizer> CreateDebuginfodSymbolizer(const DebuginfodConfig&,
