@@ -220,10 +220,32 @@
 .pf-memscope-toptable {
   min-width: 0;
 
-  .pf-memscope-toptable__title {
+  .pf-memscope-toptable__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
     margin-bottom: 4px;
+  }
+
+  .pf-memscope-toptable__title {
     font-weight: 600;
     color: var(--pf-color-text);
+  }
+
+  .pf-memscope-toptable__controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+}
+
+.pf-memscope-show-more {
+  color: var(--pf-color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 
@@ -273,6 +295,11 @@ a.pf-memscope-classname {
   font-size: var(--pf-font-size-xs);
   line-height: 1.5;
   word-break: break-all;
+
+  .pf-memscope-stack__empty {
+    color: var(--pf-color-text-muted);
+    font-style: italic;
+  }
 
   // Each caller is indented and prefixed with a connector so the chain reads
   // vertically.

@@ -74,6 +74,11 @@ message GpuTrackDescriptor {
     // sequence. Producers must not reuse the iid for a different queue after
     // an incremental state reset.
     uint64 hw_queue_iid = 2;
+
+    // Matches GpuRenderStageEvent.logical_queue_id of the events whose
+    // graphics context belongs to the process of this track, which it inherits
+    // from a process TrackDescriptor ancestor.
+    uint64 logical_queue_id = 3;
   }
 }
 

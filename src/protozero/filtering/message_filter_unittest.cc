@@ -1013,5 +1013,100 @@ TEST(MessageFilterTest, SemanticTypeEndToEnd) {
   }
 }
 
+TEST(MessageFilterTest, FragmentedSlicesBulkCopyAndRedaction) {
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadFromDescriptorSet(
+      perfetto::kFilterUtilTestMessagesDescriptor.data(),
+      perfetto::kFilterUtilTestMessagesDescriptor.size(),
+      "protozero.test.MsgFilterSemanticTypeRoot"));
+  auto bc = filter.GenerateFilterBytecode(
+      FilterBytecodeGenerator::BytecodeVersion::kV54);
+  ASSERT_GT(bc.bytecode.size(), 0u);
+
+  HeapBuffered<Message> msg;
+  // Disallowed top-level bytes field to test bulk kDrop across slices.
+  msg->AppendString(/*field_id=*/99, std::string(64, 'x'));
+  {
+    auto* pkt = msg->BeginNestedMessage<Message>(/*field_id=*/1);
+    // Empty, 1-byte, and 2-byte strings exercise eat_next_bytes == 0, 1, and 2.
+    pkt->AppendString(/*field_id=*/2, "");
+    pkt->AppendString(/*field_id=*/2, "a");
+    pkt->AppendString(/*field_id=*/2, "ab");
+    // Multi-byte redacted string split across slices.
+    pkt->AppendString(/*field_id=*/2, "B|1234|secret_op user_token_abcdef");
+    // Disallowed nested string field in middle of submessage.
+    pkt->AppendString(/*field_id=*/77, "dropped_nested_payload_1234567890");
+    // Unmatched atrace string ending right at the submessage boundary.
+    pkt->AppendString(/*field_id=*/2, "B|1234|benign_event_payload");
+    pkt->Finalize();
+  }
+  // Second packet ending with a redacted string at the root message boundary.
+  {
+    auto* pkt2 = msg->BeginNestedMessage<Message>(/*field_id=*/1);
+    pkt2->AppendString(/*field_id=*/3, "job:sensitive_account_name");
+    pkt2->Finalize();
+  }
+
+  std::vector<uint8_t> encoded = msg.SerializeAsArray();
+
+  auto init_filter = [&](MessageFilter* flt) {
+    EXPECT_TRUE(
+        flt->LoadFilterBytecode(bc.bytecode.data(), bc.bytecode.size()));
+    auto mask_atrace = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
+    auto mask_job = StringFilter::SemanticTypeMask::FromWords(1ULL << 2, 0);
+    flt->string_filter().AddRule(StringFilter::Policy::kAtraceMatchRedactGroups,
+                                 R"(B\|\d+\|secret_op (.*))", "secret_op", "",
+                                 mask_atrace);
+    flt->string_filter().AddRule(StringFilter::Policy::kMatchRedactGroups,
+                                 R"(job:(.*))", "", "", mask_job);
+  };
+
+  MessageFilter baseline_flt;
+  init_filter(&baseline_flt);
+  auto single_slice =
+      baseline_flt.FilterMessage(encoded.data(), encoded.size());
+  ASSERT_FALSE(single_slice.error);
+  ASSERT_GT(single_slice.size, 0u);
+
+  for (size_t step : {size_t(1), size_t(2), size_t(3), size_t(7), size_t(19)}) {
+    std::vector<MessageFilter::InputSlice> slices;
+    slices.push_back({nullptr, 0});
+    for (size_t off = 0; off < encoded.size(); off += step) {
+      size_t len = std::min(step, encoded.size() - off);
+      slices.push_back({encoded.data() + off, len});
+      if ((off / step) % 3 == 0) {
+        slices.push_back({encoded.data() + off, 0});
+      }
+    }
+    MessageFilter chunk_flt;
+    init_filter(&chunk_flt);
+    auto res = chunk_flt.FilterMessageFragments(slices.data(), slices.size());
+    ASSERT_FALSE(res.error) << "step=" << step;
+    ASSERT_EQ(res.size, single_slice.size) << "step=" << step;
+    EXPECT_EQ(memcmp(res.data.get(), single_slice.data.get(), res.size), 0)
+        << "step=" << step;
+  }
+
+  ProtoDecoder root_dec(single_slice.data.get(), single_slice.size);
+  EXPECT_FALSE(root_dec.FindField(99).valid());
+  auto pkt_it = root_dec.ReadField();
+  ASSERT_TRUE(pkt_it.valid());
+  ProtoDecoder pkt1_dec(pkt_it.as_bytes());
+  EXPECT_FALSE(pkt1_dec.FindField(77).valid());
+  EXPECT_EQ(pkt1_dec.ReadField().as_std_string(), "");
+  EXPECT_EQ(pkt1_dec.ReadField().as_std_string(), "a");
+  EXPECT_EQ(pkt1_dec.ReadField().as_std_string(), "ab");
+  EXPECT_EQ(pkt1_dec.ReadField().as_std_string(),
+            "B|1234|secret_op P60REDACTED------");
+  EXPECT_EQ(pkt1_dec.ReadField().as_std_string(),
+            "B|1234|benign_event_payload");
+
+  auto pkt2_it = root_dec.ReadField();
+  ASSERT_TRUE(pkt2_it.valid());
+  ProtoDecoder pkt2_dec(pkt2_it.as_bytes());
+  EXPECT_EQ(pkt2_dec.FindField(3).as_std_string(),
+            "job:P60REDACTED-----------");
+}
+
 }  // namespace
 }  // namespace protozero

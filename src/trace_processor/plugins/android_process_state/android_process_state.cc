@@ -33,6 +33,7 @@ namespace perfetto::trace_processor::android_process_state {
 namespace {
 
 using tables::AndroidFreezerStateTable;
+using tables::AndroidProcessGroupTable;
 using tables::AndroidProcessStateTable;
 
 class AndroidProcessState : public Plugin<AndroidProcessState> {
@@ -46,6 +47,9 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
                    {}});
     out.push_back({&freezer_state_table_->dataframe(),
                    AndroidFreezerStateTable::Name(),
+                   {}});
+    out.push_back({&process_group_table_->dataframe(),
+                   AndroidProcessGroupTable::Name(),
                    {}});
   }
 
@@ -77,19 +81,25 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
       freezer_state_table_ = std::make_unique<AndroidFreezerStateTable>(
           trace_context_->storage->mutable_string_pool());
     }
+    if (!process_group_table_) {
+      process_group_table_ = std::make_unique<AndroidProcessGroupTable>(
+          trace_context_->storage->mutable_string_pool());
+    }
   }
 
   AndroidProcessStateTracker* EnsureTracker(TraceProcessorContext* ctx) {
     EnsureTables();
     if (!tracker_) {
       tracker_ = std::make_unique<AndroidProcessStateTracker>(
-          ctx, process_state_table_.get(), freezer_state_table_.get());
+          ctx, process_state_table_.get(), freezer_state_table_.get(),
+          process_group_table_.get());
     }
     return tracker_.get();
   }
 
   std::unique_ptr<AndroidProcessStateTable> process_state_table_;
   std::unique_ptr<AndroidFreezerStateTable> freezer_state_table_;
+  std::unique_ptr<AndroidProcessGroupTable> process_group_table_;
   std::unique_ptr<AndroidProcessStateTracker> tracker_;
 };
 
