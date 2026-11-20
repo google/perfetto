@@ -171,6 +171,17 @@ class SqliteConnection {
   using RollbackCallback = void(void*);
   void* SetRollbackCallback(RollbackCallback callback, void* ctx);
 
+  // Sets a callback which SQLite calls every |steps| virtual machine steps
+  // while a statement runs. If it returns non-zero, the statement stops with
+  // SQLITE_INTERRUPT. A null |callback| removes it.
+  //
+  // Returns false, and does nothing, if SQLite was built without progress
+  // callbacks (SQLITE_OMIT_PROGRESS_CALLBACK), as Chromium's SQLite is.
+  //
+  // See https://www.sqlite.org/c3ref/progress_handler.html for more details.
+  using ProgressCallback = int(void*);
+  bool SetProgressCallback(int steps, ProgressCallback callback, void* ctx);
+
   sqlite3* db() const { return db_.get(); }
 
  private:
