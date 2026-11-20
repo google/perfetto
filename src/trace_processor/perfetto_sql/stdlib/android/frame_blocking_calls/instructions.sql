@@ -26,7 +26,8 @@ INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
--- Per-thread time bounds of blocking call intervals in completed jank CUJs.
+-- Per-thread time bounds of blocking call (`bc`) intervals in completed jank
+-- CUJs. Private helper tables below use `bc` as shorthand for blocking calls.
 -- Materialized so `sched` and `counter` scans are bounded to the CUJ window
 -- and so `cuj_bounds` remains populated even if all blocking calls slept
 -- off-CPU.
@@ -67,9 +68,9 @@ WHERE
   ii.dur > 0;
 
 -- Per-CPU hardware instruction counter intervals covering the CUJ blocking
--- call window, retaining straddling boundary samples before `min_ts` and after
--- `max_ts_end`. Materialized so joining with `_interval_intersect!` uses
--- indexed lookups on `id`.
+-- call window, including the nearest surrounding boundary samples at or before
+-- `min_ts` and at or after `max_ts_end`. Materialized so joining with
+-- `_interval_intersect!` uses indexed lookups on `id`.
 CREATE PERFETTO TABLE _android_cuj_bc_perf_instruction_intervals AS
 WITH
   cuj_bounds AS (
