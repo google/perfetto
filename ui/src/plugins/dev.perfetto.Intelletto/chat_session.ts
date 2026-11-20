@@ -65,6 +65,11 @@ export class ChatSession {
   // fresh turn. Cancelling drops the queue.
   private pendingFollowUps: string[] = [];
 
+  /** Follow-up messages queued while a turn is in flight, in FIFO order. */
+  get queuedFollowUps(): readonly string[] {
+    return this.pendingFollowUps;
+  }
+
   /**
    * @param gateway - The LLM gateway used to drive the agent.
    * @param tools - The registry of tools available to the agent.
@@ -95,13 +100,13 @@ export class ChatSession {
     if (text === '') return;
 
     this.input = '';
-    this.lines.push({role: 'user', text});
 
     if (this.loading) {
-      // Typed mid-turn: queue it as a follow-up. The running turn picks it up
-      // at its next tool-use round, or the loop below starts a new turn with
-      // it once the current one finishes.
+      // Typed mid-turn: hold it in the follow-up queue until the running turn
+      // picks it up at its next tool-use round, or until the loop below starts
+      // a new turn with it once the current one finishes.
       this.pendingFollowUps.push(text);
+      m.redraw();
       return;
     }
 
@@ -132,6 +137,8 @@ export class ChatSession {
   }
 
   private async runTurn(text: string, model: ModelPath): Promise<void> {
+    this.lines.push({role: 'user', text});
+
     // Fold in any non-excluded context as a preamble the model can see.
     const context = this.context
       .buildContextItems()
@@ -152,7 +159,14 @@ export class ChatSession {
         prompt,
         model,
         this.abort.signal,
-        () => this.pendingFollowUps.shift(),
+        () => {
+          const followUp = this.pendingFollowUps.shift();
+          if (followUp !== undefined) {
+            this.lines.push({role: 'user', text: followUp});
+            m.redraw();
+          }
+          return followUp;
+        },
       )) {
         switch (evt.type) {
           case 'text':

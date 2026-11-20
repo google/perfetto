@@ -200,6 +200,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       ),
       m(
         '.pf-intelletto__footer',
+        this.renderQueuedFollowUps(session),
         this.renderContextStrip(attrs),
         currentModel &&
           m(
@@ -346,6 +347,22 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       content: m('pre.pf-intelletto__system-prompt', session.systemPrompt),
       buttons: [{text: 'Close', primary: true}],
     });
+  }
+
+  private renderQueuedFollowUps(session: ChatSession): m.Children {
+    const queued = session.queuedFollowUps;
+    if (queued.length === 0) return null;
+    return m(
+      '.pf-intelletto__queued',
+      queued.map((text, idx) =>
+        m(
+          '.pf-intelletto__queued-item',
+          {key: idx},
+          m('span.pf-intelletto__queued-label', 'Queued'),
+          m('span.pf-intelletto__queued-text', text),
+        ),
+      ),
+    );
   }
 
   private renderContextStrip(attrs: ChatPanelAttrs): m.Children {

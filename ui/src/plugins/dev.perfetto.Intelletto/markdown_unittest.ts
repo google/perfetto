@@ -156,7 +156,10 @@ describe('renderMarkdown tables', () => {
   });
 
   test('falls back to CodeSnippet when ```datagrid block has no table yet', () => {
-    const vnodes = renderMarkdown(md, ['```datagrid', '| Name |', '```'].join('\n'));
+    const vnodes = renderMarkdown(
+      md,
+      ['```datagrid', '| Name |', '```'].join('\n'),
+    );
     const dom = renderToDom(vnodes);
     expect(dom.querySelector('.pf-intelletto__table')).toBeNull();
     expect(dom.querySelector('.pf-code-snippet pre')?.textContent).toBe(

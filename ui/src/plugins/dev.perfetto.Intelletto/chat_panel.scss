@@ -252,6 +252,41 @@
     border-top: 1px solid var(--pf-color-border);
   }
 
+  &__queued {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__queued-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 10px;
+    border: 1px dashed
+      color-mix(in srgb, var(--pf-color-primary) 50%, var(--pf-color-border));
+    background: color-mix(in srgb, var(--pf-color-primary) 8%, transparent);
+    font-size: 0.9em;
+    line-height: 1.4;
+    min-width: 0;
+  }
+
+  &__queued-label {
+    flex-shrink: 0;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--pf-color-primary);
+  }
+
+  &__queued-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--pf-color-text);
+  }
+
   &__context {
     flex-shrink: 0;
     display: flex;
