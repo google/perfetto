@@ -58,6 +58,10 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+    * C SDK: added `PerfettoTeNamedGlobalFlow()` and
+      `PerfettoTeNamedProcessScopedFlow()`, which combine the flow id with a
+      hash of a named scope, matching the C++ SDK's
+      `perfetto::Flow::Global()`/`ProcessScoped()` overloads.
   Tools:
     * Removed the standalone `traceconv` binary. The `traceconv` build
       target now builds `trace_processor_shell` running its
