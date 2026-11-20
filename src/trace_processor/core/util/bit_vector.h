@@ -106,6 +106,9 @@ struct BitVector {
     return BitVector(std::move(words), size);
   }
 
+  // The words holding the bits, bit i at bit i % 64 of word i / 64.
+  const uint64_t* data() const { return words_.data(); }
+
   // Returns the number of set bits in the vector.
   PERFETTO_ALWAYS_INLINE uint64_t CountSetBits() const {
     uint64_t count = 0;
