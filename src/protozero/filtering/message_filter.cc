@@ -16,6 +16,9 @@
 
 #include "src/protozero/filtering/message_filter.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -130,8 +133,27 @@ MessageFilter::FilteredMessage MessageFilter::FilterMessageFragments(
   for (size_t slice_idx = 0; slice_idx < num_slices; ++slice_idx) {
     const InputSlice& slice = slices[slice_idx];
     const uint8_t* data = static_cast<const uint8_t*>(slice.data);
-    for (size_t i = 0; i < slice.len; ++i)
-      FilterOneByte(data[i]);
+    for (size_t i = 0; i < slice.len;) {
+      auto& state = stack_.back();
+      // Fast path: bulk-copy or skip length-delimited string/bytes payloads
+      // instead of feeding them byte-by-byte through FilterOneByte. Stop at
+      // |eat_next_bytes - 1| so the final byte still passes through
+      // FilterOneByte.
+      if (state.eat_next_bytes > 1) {
+        uint32_t n = static_cast<uint32_t>(
+            std::min<size_t>(state.eat_next_bytes - 1, slice.len - i));
+        if (state.action != StackState::kDrop) {
+          PERFETTO_DCHECK(n <= static_cast<size_t>(out_end_ - out_));
+          memcpy(out_, data + i, n);
+          out_ += n;
+        }
+        state.eat_next_bytes -= n;
+        state.in_bytes += n;
+        i += n;
+        continue;
+      }
+      FilterOneByte(data[i++]);
+    }
   }
 
   // Construct the output object.
