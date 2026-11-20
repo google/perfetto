@@ -130,8 +130,6 @@ void DataframeWindows::Init(
   PERFETTO_DCHECK(lent_.empty());
   lent_.resize(columns.size());
   buffers_.resize(columns.size());
-  gathered_.resize(columns.size());
-  gathered_buffers_.resize(columns.size());
   for (uint32_t i = 0; i < columns.size(); ++i) {
     const dataframe::Column& column = *columns[i];
     StorageType type = column.storage.type();
@@ -162,6 +160,8 @@ void DataframeWindows::Init(
 void DataframeWindows::Gather(base::Span<const uint32_t> rows,
                               Context& context,
                               RowBatch& out) {
+  gathered_.resize(lent_.size());
+  gathered_buffers_.resize(lent_.size());
   for (uint32_t i = 0; i < lent_.size(); ++i) {
     const ColumnView& view = lent_[i];
     uint32_t width = ValueWidth(view.type());
