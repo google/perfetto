@@ -57,11 +57,11 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
     TraceProcessorContext* context,
     tables::AndroidProcessStateTable* process_state_table,
     tables::AndroidFreezerStateTable* freezer_state_table,
-    tables::AndroidProcessGroupRequestTable* process_group_request_table)
+    tables::AndroidProcessGroupTable* process_group_table)
     : context_(context),
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table),
-      process_group_request_table_(process_group_request_table),
+      process_group_table_(process_group_table),
       capability_flags_id_(context->storage->InternString("capability_flags")),
       unknown_process_logger_(context) {}
 
@@ -79,18 +79,31 @@ void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
   earliest.values = prev_state;
 }
 
+std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
+    int64_t ts,
+    const char* source,
+    int64_t pid,
+    protozero::ConstChars process_name,
+    std::optional<int64_t> start_seq_id) {
+  // A missing pid decodes as 0. pids <= 0 don't identify a target process.
+  if (pid <= 0) {
+    return std::nullopt;
+  }
+  std::optional<UniquePid> upid =
+      context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
+  if (!upid) {
+    unknown_process_logger_.Record(ts, source, pid, process_name, start_seq_id);
+  }
+  return upid;
+}
+
 void AndroidProcessStateTracker::ParseProcessStateChange(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessStateChangedEvent::Decoder p(bytes);
-  if (!p.has_pid() || p.pid() <= 0) {
-    return;
-  }
-  auto pid = static_cast<uint32_t>(p.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(pid);
+      ResolveLiveProcess(ts, "process_state_changed", p.pid());
   if (!opt_upid) {
-    unknown_process_logger_.Record(ts, "process_state_changed", pid);
     return;
   }
   UniquePid upid = *opt_upid;
@@ -158,19 +171,11 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
   }
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
-    if (!rec.has_pid() || rec.pid() <= 0) {
-      continue;
-    }
-    auto pid = static_cast<uint32_t>(rec.pid());
-    std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(pid);
+    std::optional<UniquePid> opt_upid = ResolveLiveProcess(
+        ts, "process_dump", rec.pid(), rec.process_name(),
+        rec.has_start_seq_id() ? std::make_optional(rec.start_seq_id())
+                               : std::nullopt);
     if (!opt_upid) {
-      std::optional<int64_t> start_seq_id;
-      if (rec.has_start_seq_id()) {
-        start_seq_id = rec.start_seq_id();
-      }
-      unknown_process_logger_.Record(ts, "process_dump", pid,
-                                     rec.process_name(), start_seq_id);
       continue;
     }
     ProcessStateValues v;
@@ -198,14 +203,9 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidFreezerEvent::Decoder evt(bytes);
-  if (!evt.has_pid() || evt.pid() <= 0) {
-    return;
-  }
-  auto pid = static_cast<uint32_t>(evt.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(pid);
+      ResolveLiveProcess(ts, "freezer_event", evt.pid());
   if (!opt_upid) {
-    unknown_process_logger_.Record(ts, "freezer_event", pid);
     return;
   }
   tables::AndroidFreezerStateTable::Row row;
@@ -232,14 +232,9 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
   fb::AndroidFreezerStateSnapshot::Decoder dump(blob);
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidFreezerStateSnapshot::Record::Decoder rec(*it);
-    if (!rec.has_pid() || rec.pid() <= 0) {
-      continue;
-    }
-    auto pid = static_cast<uint32_t>(rec.pid());
     std::optional<UniquePid> opt_upid =
-        context_->process_tracker->GetProcessOrNull(pid);
+        ResolveLiveProcess(ts, "freezer_dump", rec.pid());
     if (!opt_upid) {
-      unknown_process_logger_.Record(ts, "freezer_dump", pid);
       continue;
     }
     FreezerStateValues v;
@@ -263,19 +258,12 @@ void AndroidProcessStateTracker::ParseProcessGroupChange(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessGroupChangedEvent::Decoder evt(bytes);
-  // Process.setProcessGroup(0, ...) targets the calling process. Like the
-  // other parsers, ignore non-positive pids rather than guess.
-  if (!evt.has_pid() || evt.pid() <= 0) {
-    return;
-  }
-  auto pid = static_cast<uint32_t>(evt.pid());
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(pid);
+      ResolveLiveProcess(ts, "process_group_changed", evt.pid());
   if (!opt_upid) {
-    unknown_process_logger_.Record(ts, "process_group_changed", pid);
     return;
   }
-  tables::AndroidProcessGroupRequestTable::Row row;
+  tables::AndroidProcessGroupTable::Row row;
   row.ts = ts;
   row.upid = *opt_upid;
   if (evt.has_uid()) {
@@ -286,7 +274,7 @@ void AndroidProcessStateTracker::ParseProcessGroupChange(
         context_, process_group_cache_, ".com.android.internal.ProcessGroup",
         static_cast<int32_t>(evt.cur_process_group()));
   }
-  process_group_request_table_->Insert(row);
+  process_group_table_->Insert(row);
 }
 
 // Combines the trace-stop snapshot dump with earliest observed delta events:

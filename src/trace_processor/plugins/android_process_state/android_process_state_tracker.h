@@ -51,7 +51,7 @@ class AndroidProcessStateTracker {
       TraceProcessorContext* context,
       tables::AndroidProcessStateTable* process_state_table,
       tables::AndroidFreezerStateTable* freezer_state_table,
-      tables::AndroidProcessGroupRequestTable* process_group_request_table);
+      tables::AndroidProcessGroupTable* process_group_table);
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
@@ -75,6 +75,17 @@ class AndroidProcessStateTracker {
   void Finalize();
 
  private:
+  // Returns the live process for |pid|, or std::nullopt if |pid| is <= 0 (also
+  // when it is missing from the event, as it then decodes as 0) or has no live
+  // process. In the latter case, records an android_track_event_process_unknown
+  // notice for |source|, with |process_name| and |start_seq_id| when known.
+  std::optional<UniquePid> ResolveLiveProcess(
+      int64_t ts,
+      const char* source,
+      int64_t pid,
+      protozero::ConstChars process_name = {},
+      std::optional<int64_t> start_seq_id = std::nullopt);
+
   // Information captured for a process from dumps or delta events.
   struct ProcessStateValues {
     UniquePid upid = 0;
@@ -122,7 +133,7 @@ class AndroidProcessStateTracker {
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
-  tables::AndroidProcessGroupRequestTable* const process_group_request_table_;
+  tables::AndroidProcessGroupTable* const process_group_table_;
   const StringId capability_flags_id_;
   UnknownProcessLogger unknown_process_logger_;
 

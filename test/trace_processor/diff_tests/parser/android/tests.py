@@ -518,7 +518,7 @@ class AndroidParser(TestSuite):
           "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
         """))
 
-  def test_android_process_group_request(self):
+  def test_android_process_group(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state.textproto'),
         query="""
@@ -527,7 +527,7 @@ class AndroidParser(TestSuite):
           p.pid,
           t.uid,
           t.process_group
-        FROM __intrinsic_android_process_group_request t
+        FROM __intrinsic_android_process_group t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts;
         """,
@@ -536,7 +536,7 @@ class AndroidParser(TestSuite):
           3500,200,10002,"PROCESS_GROUP_DEFAULT"
         """))
 
-  def test_android_process_group_request_events(self):
+  def test_android_process_group_events(self):
     # pid 100: several calls, including a repeated group (not deduplicated).
     # pid 200: a call without cur_process_group (defensive: producers always
     # write it).
@@ -659,7 +659,7 @@ class AndroidParser(TestSuite):
           p.pid,
           t.uid,
           t.process_group
-        FROM __intrinsic_android_process_group_request t
+        FROM __intrinsic_android_process_group t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts;
         """,
@@ -672,7 +672,7 @@ class AndroidParser(TestSuite):
           2200,400,"[NULL]","PROCESS_GROUP_FOREGROUND"
         """))
 
-  def test_android_process_group_request_unknown_pid(self):
+  def test_android_process_group_unknown_pid(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state.textproto'),
         query="""
@@ -738,7 +738,7 @@ class AndroidParser(TestSuite):
         trace=Path('android_process_state_metadata.textproto'),
         query="""
         SELECT t.ts, p.pid, t.process_group
-        FROM __intrinsic_android_process_group_request t
+        FROM __intrinsic_android_process_group t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts;
         """,

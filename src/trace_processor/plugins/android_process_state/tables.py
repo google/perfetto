@@ -64,7 +64,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
             'process_group':
                 'Process group enum name or value, as seen by OomAdjuster '
                 '(the scheduling group it computed for the process). See '
-                '__intrinsic_android_process_group_request for the groups '
+                '__intrinsic_android_process_group for the groups '
                 'requested through Process.setProcessGroup.',
             'reason':
                 'Reason for state change (if from track event).',
@@ -118,15 +118,15 @@ ANDROID_FREEZER_STATE_TABLE = Table(
     ),
 )
 
-ANDROID_PROCESS_GROUP_REQUEST_TABLE = Table(
+ANDROID_PROCESS_GROUP_TABLE = Table(
     python_module=__file__,
-    class_name='AndroidProcessGroupRequestTable',
-    sql_name='__intrinsic_android_process_group_request',
+    class_name='AndroidProcessGroupTable',
+    sql_name='__intrinsic_android_process_group',
     columns=[
-        C('ts', CppInt64(), cpp_access=CppAccess.READ),
-        C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
-        C('uid', CppOptional(CppInt32()), cpp_access=CppAccess.READ),
-        C('process_group', CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C('ts', CppInt64()),
+        C('upid', CppTableId(PROCESS_TABLE)),
+        C('uid', CppOptional(CppInt32())),
+        C('process_group', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -159,5 +159,5 @@ ANDROID_PROCESS_GROUP_REQUEST_TABLE = Table(
 ALL_TABLES = [
     ANDROID_PROCESS_STATE_TABLE,
     ANDROID_FREEZER_STATE_TABLE,
-    ANDROID_PROCESS_GROUP_REQUEST_TABLE,
+    ANDROID_PROCESS_GROUP_TABLE,
 ]
