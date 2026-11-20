@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Android Heap Dump Caching Optimizer
 
 This workflow walks an AI agent through analyzing a perfetto java heap dump to identify memory savings by finding duplicated objects, objects that could be consolidated into a single object instance, or objects that are highly repeated and propose a caching strategy along with potential memory savings. If the agent has access to the codebase, then it would also propose a concrete implementation plan to implement caching and improve memory usage.

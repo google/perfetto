@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # NVIDIA — Speed of Light extraction
 
 The NVIDIA counter extraction behind the compute-vs-memory-vs-latency verdict.

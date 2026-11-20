@@ -1,3 +1,6 @@
+---
+requires: [record]
+---
 # Synthesizing Perfetto Trace Configs (Mix & Match)
 
 Read this when you need a custom trace config — a mixture of data sources

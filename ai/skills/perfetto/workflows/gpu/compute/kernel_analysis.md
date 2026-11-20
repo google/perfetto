@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # GPU compute kernels — which kernel is the bottleneck, and why?
 
 This workflow decomposes a trace's GPU **compute** work (CUDA / ROCm / compute

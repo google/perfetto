@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Investigating Android Native Heap Profiles
 
 This workflow walks an AI agent through investigating memory leaks, active memory growth, and allocation hot paths in Android native heap profiles. It assumes the trace was recorded with the native heap profiler (`heapprofd`).

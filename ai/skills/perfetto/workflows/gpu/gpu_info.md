@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # GPU inventory — what GPUs (and machines) is this trace from?
 
 Before any GPU analysis, know what hardware the trace describes: how many GPUs,

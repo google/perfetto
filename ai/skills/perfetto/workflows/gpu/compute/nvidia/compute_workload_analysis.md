@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # NVIDIA — Compute Workload Analysis extraction
 
 The NVIDIA extraction behind the saturated-pipe / instruction-mix analysis. Run

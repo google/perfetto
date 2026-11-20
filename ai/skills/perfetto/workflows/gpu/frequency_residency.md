@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # GPU frequency residency — the GPU is busy, but at what clock?
 
 This workflow looks at the GPU's clock while it is doing work. Whether the GPU

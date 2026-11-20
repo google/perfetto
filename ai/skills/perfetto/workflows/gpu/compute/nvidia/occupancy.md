@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # NVIDIA — occupancy extraction
 
 The NVIDIA extraction behind the occupancy analysis. Run it, then apply the

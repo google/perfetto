@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Compute kernel — launch statistics
 
 The launch configuration defines the size of the work, how it divides into

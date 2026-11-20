@@ -1,3 +1,6 @@
+---
+requires: [query, multi_trace, record]
+---
 # Android Memory in System Traces
 
 Investigates device-wide and per-process memory in **regular system traces**

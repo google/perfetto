@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # GPU timeline occupancy — is the GPU actually working?
 
 This workflow decomposes the GPU timeline into **device-busy** vs **idle** time,

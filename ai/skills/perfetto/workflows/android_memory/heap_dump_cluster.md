@@ -1,3 +1,6 @@
+---
+requires: [query, python]
+---
 # Clustering Android Java Heap Dumps
 
 This workflow walks an AI agent through processing, clustering, and summarizing large sets

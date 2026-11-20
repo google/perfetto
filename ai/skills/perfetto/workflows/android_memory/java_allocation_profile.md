@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Investigating Android Java Allocation Profiles
 
 This workflow walks an AI agent through investigating memory allocation churn and temporary object allocation in Android Java/Kotlin code. It assumes the trace was recorded with the ART heap subscription (`heapprofd` with `art` heap enabled, or `track_event` with Java allocation tracking).
