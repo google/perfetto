@@ -253,8 +253,8 @@ int UnixTaskRunner::GetDelayMsToNextTaskLocked() const {
   if (!delayed_tasks_.empty()) {
     TimeMillis diff = delayed_tasks_.begin()->first - GetWallTimeMs() -
                       advanced_time_for_testing_;
-    return static_cast<int>(std::clamp<int64_t>(
-        diff.count(), 0, std::numeric_limits<int>::max()));
+    return static_cast<int>(
+        std::clamp<int64_t>(diff.count(), 0, std::numeric_limits<int>::max()));
   }
   return -1;
 }
