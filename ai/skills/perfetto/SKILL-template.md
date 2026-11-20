@@ -18,7 +18,9 @@ trace.
    - Linux host: [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md)
 
 2. **Memory** (RSS/swap, graphics & buffers, GC, LMK, heap dumps, profiles)
-   - Memory in a system trace — RSS/swap, Java heap & GC, GPU/graphics/DMA-BUF, memory pressure, LMK (one trace or before/after): [system_trace_memory.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory.md)
+   - Memory in a system trace — RSS/swap, Java heap & GC, GPU/graphics/DMA-BUF, memory pressure, LMK: [system_trace_memory.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory.md)
+   - Compare memory across two system traces (before/after): [system_trace_memory_compare.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory_compare.md)
+   - Record the memory signals that a system trace is missing: [recording_memory_signals.md]($SKILL_ROOT/workflows/android_memory/recording_memory_signals.md)
    - Leak or retention in one Java heap dump: [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md)
    - Compare two Java heap dumps (before/after diff): [heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md)
    - Duplicate objects, caching opportunities: [heap_dump_caching_optimizer.md]($SKILL_ROOT/workflows/android_memory/heap_dump_caching_optimizer.md)
