@@ -311,20 +311,34 @@ struct PerfettoTeFlow {
   uint64_t id;
 };
 
-// Returns a flow that's scoped to this process. It can be used to link events
-// inside this process.
-static inline struct PerfettoTeFlow PerfettoTeProcessScopedFlow(uint64_t id) {
-  struct PerfettoTeFlow ret;
-  ret.id = id ^ perfetto_te_process_track_uuid;
-  return ret;
-}
-
 // Returns a global flow. It can be used to link events between different
 // processes.
 static inline struct PerfettoTeFlow PerfettoTeGlobalFlow(uint64_t id) {
   struct PerfettoTeFlow ret;
   ret.id = id;
   return ret;
+}
+
+// Same as above, but combines the flow id with an extra `named_scope`'s hash.
+static inline struct PerfettoTeFlow PerfettoTeNamedGlobalFlow(
+    uint64_t id,
+    const char* named_scope) {
+  return PerfettoTeGlobalFlow(id ^
+                              PerfettoFnv1a(named_scope, strlen(named_scope)));
+}
+
+// Returns a flow that's scoped to this process. It can be used to link events
+// inside this process.
+static inline struct PerfettoTeFlow PerfettoTeProcessScopedFlow(uint64_t id) {
+  return PerfettoTeGlobalFlow(id ^ perfetto_te_process_track_uuid);
+}
+
+// Same as above, but combines the flow id with an extra `named_scope`'s hash.
+static inline struct PerfettoTeFlow PerfettoTeNamedProcessScopedFlow(
+    uint64_t id,
+    const char* named_scope) {
+  return PerfettoTeGlobalFlow(id ^ perfetto_te_process_track_uuid ^
+                              PerfettoFnv1a(named_scope, strlen(named_scope)));
 }
 
 // Returns a static-category-like object used when dynamic categories are passed
