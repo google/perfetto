@@ -133,10 +133,7 @@ class RowBatch {
 
  private:
   static ColumnView NullView(StorageType type, const ColumnBuffer& nulls) {
-    // An Id column has no storage for nulls, so use Uint32, which holds the
-    // same values.
-    StorageType stored = type.Is<Id>() ? StorageType{Uint32{}} : type;
-    return ColumnView::Reference(stored, nulls.chunk().storage.data(),
+    return ColumnView::Reference(type, nulls.chunk().storage.data(),
                                  &nulls.chunk().validity);
   }
 

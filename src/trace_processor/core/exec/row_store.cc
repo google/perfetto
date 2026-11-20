@@ -78,12 +78,8 @@ void RowStore::SetShape(const RowBatch& in, Context& context) {
     const ColumnView& column = in.column(c);
     if (c < unread_.size() && unread_[c] &&
         column.kind() != ColumnView::Kind::kVariant) {
-      // Read back as nulls, typed as a stored Id would be.
-      StorageType type =
-          column.kind() == ColumnView::Kind::kSequence || column.type().Is<Id>()
-              ? StorageType{Uint32{}}
-              : column.type();
-      shape_.SetNullColumn(c, type, context);
+      // Read back as nulls.
+      shape_.SetNullColumn(c, column.type(), context);
       continue;
     }
     stored_column_[c] = static_cast<uint32_t>(held_columns_.size());

@@ -119,8 +119,7 @@ class ArraySource final : public Source {
     }
     uint32_t count = std::min(kMaxBatchRows, rows - s.emitted);
     out.Reset();
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, s.emitted));
+    out.AddBorrowedColumn(ColumnView::Sequence(nullptr, s.emitted));
     out.AddBorrowedColumn(ColumnView::Reference(
         StorageType{Int64{}}, values_.data(), nullptr, s.emitted));
     out.SetRowCount(count);
@@ -172,8 +171,7 @@ class FailingSource final : public Source {
       return false;
     }
     out.Reset();
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    out.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
     out.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, values_));
     out.SetRowCount(2);
     s.emitted = true;

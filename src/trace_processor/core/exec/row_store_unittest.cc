@@ -347,7 +347,7 @@ TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
       std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});
   RowStore store;
   RowBatch batch;
-  batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  batch.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
   test::Window(&batch, 5, 2);
   ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
 

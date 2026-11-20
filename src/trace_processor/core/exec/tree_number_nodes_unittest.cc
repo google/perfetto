@@ -156,8 +156,7 @@ struct Scanned {
 
   bool Process(uint32_t offset, uint32_t count) {
     RowBatch in;
-    in.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    in.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
     in.AddBorrowedColumn(ColumnView::Reference(StorageType{Uint32{}},
                                                parents_.data(), &validity_));
     test::Window(&in, offset, count);

@@ -55,8 +55,7 @@ class OneRowBatches final : public Source {
       return false;
     }
     out.Reset();
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, s.next++));
+    out.AddBorrowedColumn(ColumnView::Sequence(nullptr, s.next++));
     out.SetRowCount(1);
     return true;
   }
