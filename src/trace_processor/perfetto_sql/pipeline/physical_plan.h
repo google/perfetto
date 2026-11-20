@@ -121,8 +121,9 @@ class RunParams {
                             ? core::exec::GetParamListCaster<Fetcher>(s.type)
                             : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
                         s.literals[0].bound, i};
-        (s.state == PlannedParam::State::kBound ? bindings_ : literals_)
-            .push_back(binding);
+        std::vector<Binding>& to =
+            s.state == PlannedParam::State::kBound ? bindings_ : literals_;
+        to.push_back(binding);
       } else if (!s.literals.empty()) {
         params_[i] = CastLiterals(s.op, s.literals.data(),
                                   static_cast<uint32_t>(s.literals.size()),
