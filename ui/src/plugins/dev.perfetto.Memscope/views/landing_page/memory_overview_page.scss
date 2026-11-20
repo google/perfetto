@@ -240,6 +240,15 @@
   }
 }
 
+.pf-memscope-show-more {
+  color: var(--pf-color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 // Monospace class-name cell + its "↳ via <owner>" retainer annotation lines.
 .pf-memscope-classname {
   font-family: var(--pf-font-family-mono, monospace);

@@ -40,6 +40,7 @@ import {BillboardStrip} from '../../../components/billboard';
 import {Checkbox} from '../../../../../widgets/checkbox';
 
 const TITLE = 'Native Memory';
+const MAX_STACK_ROWS = 5;
 
 interface NativeFrame {
   readonly name: string;
@@ -48,6 +49,7 @@ interface NativeFrame {
 
 // One top-unreleased heapprofd callsite with its frame chain (leaf → root).
 interface NativeStack {
+  readonly topId: number;
   readonly unreleased: number;
   readonly allocs: number;
   readonly frames: NativeFrame[];
@@ -213,17 +215,9 @@ async function loadNativeStacks(
 
     WITH
     ${unrelCte},
-    top_sites AS (
-      SELECT * FROM (
-        SELECT u.*, ROW_NUMBER() OVER (
-          ORDER BY u.unreleased DESC
-        ) AS rn
-        FROM unrel u
-      ) WHERE rn <= 5
-    ),
     chain(top_id, unreleased, allocs, node_id, depth) AS (
-      SELECT t.callsite_id, t.unreleased, t.allocs, f.id, 0
-      FROM top_sites t
+      SELECT u.callsite_id, u.unreleased, u.allocs, f.id, 0
+      FROM unrel u
       JOIN _callstack_spc_forest f USING (callsite_id)
       WHERE f.is_leaf_function_in_callsite_frame
       UNION ALL
@@ -244,7 +238,7 @@ async function loadNativeStacks(
     LEFT JOIN stack_profile_mapping mp ON f.mapping_id = mp.id
     ORDER BY c.top_id, c.depth ASC
   `);
-  let cur: (NativeStack & {topId: number}) | undefined;
+  let cur: NativeStack | undefined;
   for (
     const it = stackRes.iter({
       top_id: NUM,
@@ -308,13 +302,46 @@ function isAppMapping(mapping?: string): boolean {
   return /^\/data\/(app|data)\//.test(mapping);
 }
 
-// Shrinks a frame chain (leaf → root) to a short snippet.
-function stackSnippet(frames: string[]): string[] {
-  if (frames.length <= 7) return frames;
+// Renders a frame chain (leaf → root), collapsing the middle when > 7 frames
+// unless expanded, with an inline toggle link.
+function renderStackFrames(
+  frames: string[],
+  expanded: boolean,
+  onToggle: () => void,
+): m.Children {
+  const frameEl = (f: string) => m('.pf-memscope-stack__frame', {title: f}, f);
+  const toggleLink = (label: string) =>
+    m(
+      '.pf-memscope-stack__frame',
+      m(
+        'a.pf-memscope-show-more',
+        {
+          href: '#',
+          onclick: (e: Event) => {
+            e.preventDefault();
+            onToggle();
+          },
+        },
+        label,
+      ),
+    );
+
+  if (frames.length <= 7) {
+    return frames.map(frameEl);
+  }
+  if (expanded) {
+    return [...frames.map(frameEl), toggleLink('Show less')];
+  }
   const leaf = frames[0]!;
   const middle = frames.slice(1, -2).slice(0, 4);
   const root = frames.slice(-2);
-  return [leaf, ...middle, '…', ...root];
+  const hiddenCount = frames.length - 1 - middle.length - root.length;
+  return [
+    frameEl(leaf),
+    ...middle.map(frameEl),
+    toggleLink(`Show all (${hiddenCount} more)…`),
+    ...root.map(frameEl),
+  ];
 }
 
 export interface NativeSectionAttrs {
@@ -328,6 +355,8 @@ export interface NativeSectionAttrs {
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
   private readonly slot = new AsyncMemo<NativeData>();
   private appOnly = true;
+  private rowLimit = MAX_STACK_ROWS;
+  private readonly expandedStacks = new Set<number>();
 
   onremove() {
     this.slot.dispose();
@@ -365,17 +394,22 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const coveragePct = nativeRss > 0 ? (seen / nativeRss) * 100 : undefined;
     const overhead = nativeRss > seen ? nativeRss - seen : 0;
 
-    const stackRows = data.stacks.slice(0, 5).map((s) => {
+    const stackRows = data.stacks.slice(0, this.rowLimit).map((s) => {
       const frames = s.frames
         .filter((f) => !this.appOnly || isAppMapping(f.mapping))
         .map((f) => f.name);
+      const expanded = this.expandedStacks.has(s.topId);
       return [
         m(
           '.pf-memscope-stack',
           frames.length > 0
-            ? stackSnippet(frames).map((f) =>
-                m('.pf-memscope-stack__frame', {title: f}, f),
-              )
+            ? renderStackFrames(frames, expanded, () => {
+                if (this.expandedStacks.has(s.topId)) {
+                  this.expandedStacks.delete(s.topId);
+                } else {
+                  this.expandedStacks.add(s.topId);
+                }
+              })
             : m('.pf-memscope-stack__empty', '(all frames hidden by filter)'),
         ),
         formatBytes(s.unreleased),
@@ -385,6 +419,24 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
         }),
       ];
     });
+    if (data.stacks.length > this.rowLimit) {
+      stackRows.push([
+        m(
+          'a.pf-memscope-show-more',
+          {
+            href: '#',
+            onclick: (e: Event) => {
+              e.preventDefault();
+              this.rowLimit += 10;
+            },
+          },
+          'Show more…',
+        ),
+        '',
+        '',
+        '',
+      ]);
+    }
 
     return m(
       Panel,
