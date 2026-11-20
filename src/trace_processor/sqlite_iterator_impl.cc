@@ -41,6 +41,7 @@ SqliteIteratorImpl::~SqliteIteratorImpl() {
     auto* sql_stats =
         trace_processor_.get()->context()->storage->mutable_sql_stats();
     sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
+    trace_processor_.get()->EndQuery();
   }
 }
 

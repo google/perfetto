@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -306,6 +307,19 @@ class PerfettoSqlConnection {
                                       int argc,
                                       typename Function::Context* ctx,
                                       bool deterministic = true);
+
+  // While |flag| is non-null, a running statement stops, with
+  // SQLITE_INTERRUPT, once |*flag| is set: statements check it every few
+  // thousand virtual machine steps. A null |flag| turns the check off.
+  //
+  // Returns false, and does nothing, if this build of SQLite can't run the
+  // check (it has no progress callbacks, as in Chromium). Use
+  // InterruptRunningStatements() there instead.
+  bool SetInterruptFlag(std::atomic<bool>* flag);
+
+  // Stops the statements running now, as sqlite3_interrupt() does. Only for
+  // builds where SetInterruptFlag() isn't supported.
+  void InterruptRunningStatements();
 
   SqliteConnection* sqlite_connection() { return connection_.get(); }
 

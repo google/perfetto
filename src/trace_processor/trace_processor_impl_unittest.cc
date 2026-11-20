@@ -23,7 +23,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -91,12 +90,10 @@ TEST(TraceProcessorImplTest, InterruptWhileIdleDoesNotAffectNextQuery) {
 }
 
 // An interrupt arriving between two statements of a query, while no statement
-// runs, still stops the next statement.
+// runs, still stops the next statement. Without SQLite progress callbacks (as
+// in Chromium's SQLite), such an interrupt is still lost.
+#if !defined(SQLITE_OMIT_PROGRESS_CALLBACK)
 TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
-  if (!SqliteConnection::SupportsProgressCallback()) {
-    GTEST_SKIP() << "Needs SQLite progress callbacks: without them, an "
-                    "interrupt between statements is lost";
-  }
   auto tp = CreateTraceProcessor();
   std::string sql = std::string("SELECT 1; ") + kLongQuery;
   uint32_t offset = 0;
@@ -105,6 +102,9 @@ TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
   ASSERT_TRUE(first.has_value());
   CountRows(*first);
   ASSERT_TRUE(first->Status().ok()) << first->Status().message();
+  // As in the RPC server, the first statement's iterator is gone before the
+  // next statement starts.
+  first.reset();
 
   tp->InterruptQuery();
 
@@ -112,6 +112,22 @@ TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
   ASSERT_TRUE(second.has_value());
   CountRows(*second);
   EXPECT_THAT(second->Status().message(), HasSubstr("interrupted"));
+}
+#endif
+
+// Ending one query doesn't stop the interrupt check for another query whose
+// results are still being read.
+TEST(TraceProcessorImplTest, InterruptStopsQueryAfterAnotherQueryEnds) {
+  auto tp = CreateTraceProcessor();
+  auto it = tp->ExecuteQuery(kLongQuery);
+  ASSERT_TRUE(it.Next());
+  {
+    auto other = tp->ExecuteQuery("SELECT 1");
+    CountRows(other);
+  }
+  tp->InterruptQuery();
+  CountRows(it);
+  EXPECT_THAT(it.Status().message(), HasSubstr("interrupted"));
 }
 
 // RestoreInitialTables() replaces the SQLite connection, which must keep

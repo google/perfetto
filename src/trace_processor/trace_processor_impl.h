@@ -161,12 +161,16 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void CacheBoundsAndBuildTable();
 
-  // Makes SQLite check |query_interrupted_| while a statement runs, and stop
-  // the statement once it is set.
-  void InstallInterruptCheck();
+  // Called when ExecuteQuery() or ExecuteNextStatement() starts running SQL:
+  // only queries can be interrupted, so the interrupt check is on only while
+  // one runs. |new_query| is false for the later statements of a query run
+  // statement by statement, so that an interrupt which arrived between two of
+  // them still stops the next one.
+  void BeginQuery(bool new_query);
 
-  // Forgets an interrupt that arrived before the work about to start.
-  void ClearQueryInterrupt();
+  // Called when a query's iterator is destroyed, or when
+  // ExecuteNextStatement() finds no statement left to run.
+  void EndQuery();
 
   struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
@@ -211,10 +215,19 @@ class TraceProcessorImpl : public TraceProcessor,
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;
 
   // Set by InterruptQuery(), which can run in a signal handler or on another
-  // thread, and read by the SQLite progress callback (InstallInterruptCheck).
-  // It stays set until the next query or other SQL work starts, so it also
-  // reaches the later statements of the query it interrupted.
+  // thread, and checked by running statements while a query runs. It is
+  // cleared only when a new query starts, so it also reaches the later
+  // statements of the query it interrupted.
   std::atomic<bool> query_interrupted_{false};
+
+  // Number of queries whose iterators are alive. The interrupt check is on
+  // while it is non-zero.
+  uint32_t running_queries_ = 0;
+
+  // True if SQLite can't run the interrupt check in this build (no progress
+  // callbacks, as in Chromium), so InterruptQuery() falls back to
+  // sqlite3_interrupt().
+  std::atomic<bool> use_sqlite_interrupt_{false};
 
   // Track the number of objects registered with SQLite post prelude.
   uint64_t sqlite_objects_post_prelude_ = 0;
