@@ -39,6 +39,12 @@ const OperationRegistration OrderBy::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY, &BuildPlan,
     OperationRegistration::Encoding{4, &MakeOperation<OrderBy>}};
 
+void OrderBy::AddToPlan(LogicalPlan* plan, std::vector<SortKey> keys) {
+  OrderBy order;
+  order.keys_ = std::move(keys);
+  plan->AddNode(std::move(order), {plan->root()});
+}
+
 base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("ORDER BY");
   const auto* n = Node<SyntaqlitePerfettoPipeOrderBy>(c->parser(), stage);

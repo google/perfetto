@@ -227,6 +227,45 @@ TEST(RowStoreTest, PacksAFewRowsOfABatchWithBuffers) {
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(40, 20, 7));
 }
 
+// Rows of batches shared are placed where they are held, in any order.
+TEST(RowStoreTest, PlacesRowsOfSharedBatches) {
+  std::vector<int64_t> values = {1, 2, 3, 4, 5};
+  RowStore store;
+  RowBatch input;
+  Fill(&input, values, 0, 3);
+  input.mutable_selection().KeepRange(1, 2);
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  Fill(&input, values, 3, 2);
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+
+  std::vector<uint32_t> rows = {3, 0, 2, 1};
+  RowsInPlace placed;
+  ASSERT_TRUE(store.Place(
+      base::Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
+      &placed));
+  std::vector<int64_t> read;
+  for (uint32_t i = 0; i < rows.size(); ++i) {
+    const RowBatch& batch = *placed.batches[placed.batch[i]];
+    EXPECT_EQ(batch.column(0).data(), values.data());
+    read.push_back(batch.column(0).At<int64_t>(placed.row[i]));
+  }
+  EXPECT_THAT(read, ElementsAre(5, 2, 4, 3));
+}
+
+// Rows packed are not placed: their columns can differ in kind from those of
+// the batches shared.
+TEST(RowStoreTest, DoesNotPlaceRowsPacked) {
+  RowStore store;
+  RowBatch input;
+  FillBuffer(&input, {10, 20, 30});
+  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  std::vector<uint32_t> rows = {2, 0};
+  RowsInPlace placed;
+  EXPECT_FALSE(store.Place(
+      base::Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
+      &placed));
+}
+
 // Rows asked for in one ascending run of one batch held are viewed where
 // they are held, not copied.
 TEST(RowStoreTest, GathersARunOfOneBatchWithoutCopying) {

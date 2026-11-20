@@ -94,6 +94,7 @@ void RowStore::Keep(const RowBatch& in, Context& context) {
     Hold(in);
     return;
   }
+  packed_ = true;
   RowBatch part;
   for (uint32_t done = 0; done < in.size();) {
     uint32_t take = std::min(in.size() - done, kMaxBatchRows - packing_.size());
@@ -111,12 +112,15 @@ bool RowStore::Shares(const RowBatch& in) {
   if (uint64_t{in.size()} * 2 >= kMaxBatchRows) {
     return true;
   }
+  bool buffers = false;
   for (uint32_t c = 0; c < in.column_count(); ++c) {
-    if (in.buffer(c)) {
-      return false;
+    // A sparse column cannot be packed, and borrows its storage.
+    if (in.column(c).kind() == ColumnView::Kind::kSparse) {
+      return true;
     }
+    buffers |= static_cast<bool>(in.buffer(c));
   }
-  return true;
+  return !buffers;
 }
 
 void RowStore::Hold(const RowBatch& in) {
@@ -132,6 +136,12 @@ void RowStore::Hold(const RowBatch& in) {
   held.CopyFrom(in);
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     const ColumnView& column = held.column(c);
+    if (column.kind() == ColumnView::Kind::kSparse) {
+      // Read only in place (see Place()): never gathered.
+      holds_sparse_ = true;
+      sources_[c].push_back({nullptr, nullptr, 0});
+      continue;
+    }
     sources_[c].push_back(GatherSource::Of(column));
     if (column.validity()) {
       nullable_[c] = true;
@@ -164,6 +174,11 @@ void RowStore::Clear() {
   }
   nullable_.clear();
   packing_.Clear();
+  packed_ = false;
+  holds_sparse_ = false;
+  for (uint32_t i = 0; i < views_.size(); ++i) {
+    views_[i]->Reset();
+  }
   shape_.Reset();
   has_shape_ = false;
   held_columns_.clear();
@@ -196,27 +211,59 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) {
   uint32_t batch = Find(offset);
   uint32_t start = batch ? ends_[batch - 1] : 0;
   count = std::min(count, ends_[batch] - offset);
-  const RowBatch& held = *batches_[batch];
-  if (!drops()) {
-    out->CopyFrom(held);
-  } else {
-    out->Project(held, {});
-    for (uint32_t c = 0; c < shape_.column_count(); ++c) {
-      uint32_t stored = stored_column_[c];
-      if (stored == kNotHeld) {
-        out->AddColumn(shape_.column(c), shape_.buffer(c));
-      } else {
-        out->AddColumn(held.column(stored), held.buffer(stored));
-      }
-    }
-  }
+  ViewHeld(*batches_[batch], out);
   out->mutable_selection().KeepRange(offset - start, count);
   return count;
+}
+
+void RowStore::ViewHeld(const RowBatch& held, RowBatch* out) const {
+  if (!drops()) {
+    out->CopyFrom(held);
+    return;
+  }
+  out->Project(held, {});
+  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+    uint32_t stored = stored_column_[c];
+    if (stored == kNotHeld) {
+      out->AddColumn(shape_.column(c), shape_.buffer(c));
+    } else {
+      out->AddColumn(held.column(stored), held.buffer(stored));
+    }
+  }
+}
+
+bool RowStore::Place(base::Span<const uint32_t> rows, RowsInPlace* out) {
+  if (packed_ || packing_.size()) {
+    return false;
+  }
+  out->batches.clear();
+  for (uint32_t b = 0; b < held_; ++b) {
+    if (!drops()) {
+      out->batches.push_back(batches_[b].get());
+      continue;
+    }
+    if (views_.size() == b) {
+      views_.push_back(std::make_unique<RowBatch>());
+    }
+    ViewHeld(*batches_[b], views_[b].get());
+    out->batches.push_back(views_[b].get());
+  }
+  auto count = static_cast<uint32_t>(rows.size());
+  out->batch.resize(count);
+  out->row.resize(count);
+  for (uint32_t r = 0; r < count; ++r) {
+    PERFETTO_DCHECK(rows[r] < size_);
+    uint32_t batch = Find(rows[r]);
+    out->batch[r] = batch;
+    out->row[r] = RowInBatch(rows[r], batch);
+  }
+  return true;
 }
 
 uint32_t RowStore::Gather(RowBatch* out,
                           base::Span<const uint32_t> rows,
                           Context& context) {
+  PERFETTO_DCHECK(!holds_sparse_);
   out->Reset();
   auto count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));

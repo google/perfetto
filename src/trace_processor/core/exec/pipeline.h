@@ -55,6 +55,8 @@ class Pipeline final : public Source {
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
+  // The last step's rows in place, if it is an operator serving them so.
+  const RowsInPlace* InPlace(const OperatorState& state) const override;
 
   // The pipeline's input.
   const Source& input() const { return source_; }
