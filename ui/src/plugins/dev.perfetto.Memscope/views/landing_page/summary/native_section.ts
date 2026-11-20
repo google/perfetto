@@ -37,15 +37,20 @@ import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
+import {Checkbox} from '../../../../../widgets/checkbox';
 
 const TITLE = 'Native Memory';
 
-// One top-unreleased heapprofd callsite with its app-only frame chain
-// (leaf → root).
+interface NativeFrame {
+  readonly name: string;
+  readonly mapping?: string;
+}
+
+// One top-unreleased heapprofd callsite with its frame chain (leaf → root).
 interface NativeStack {
-  unreleased: number;
-  allocs: number;
-  frames: string[];
+  readonly unreleased: number;
+  readonly allocs: number;
+  readonly frames: NativeFrame[];
 }
 
 interface NativeData {
@@ -261,10 +266,10 @@ async function loadNativeStacks(
       };
       stacks.push(cur);
     }
-    // Keep only frames from the app under test; drop system/runtime libraries.
-    if (isAppMapping(it.mapping_name ?? undefined)) {
-      cur.frames.push(it.frame_name);
-    }
+    cur.frames.push({
+      name: it.frame_name,
+      mapping: it.mapping_name ?? undefined,
+    });
   }
   stacks.sort((a, b) => b.unreleased - a.unreleased);
 
@@ -303,9 +308,8 @@ function isAppMapping(mapping?: string): boolean {
   return /^\/data\/(app|data)\//.test(mapping);
 }
 
-// Shrinks an (already app-only) frame chain (leaf → root) to a short snippet.
+// Shrinks a frame chain (leaf → root) to a short snippet.
 function stackSnippet(frames: string[]): string[] {
-  if (frames.length === 0) return ['(no app frames)'];
   if (frames.length <= 7) return frames;
   const leaf = frames[0]!;
   const middle = frames.slice(1, -2).slice(0, 4);
@@ -323,6 +327,7 @@ export interface NativeSectionAttrs {
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
   private readonly slot = new AsyncMemo<NativeData>();
+  private appOnly = true;
 
   onremove() {
     this.slot.dispose();
@@ -360,19 +365,26 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const coveragePct = nativeRss > 0 ? (seen / nativeRss) * 100 : undefined;
     const overhead = nativeRss > seen ? nativeRss - seen : 0;
 
-    const stackRows = data.stacks.slice(0, 5).map((s) => [
-      m(
-        '.pf-memscope-stack',
-        stackSnippet(s.frames).map((f) =>
-          m('.pf-memscope-stack__frame', {title: f}, f),
+    const stackRows = data.stacks.slice(0, 5).map((s) => {
+      const frames = s.frames
+        .filter((f) => !this.appOnly || isAppMapping(f.mapping))
+        .map((f) => f.name);
+      return [
+        m(
+          '.pf-memscope-stack',
+          frames.length > 0
+            ? stackSnippet(frames).map((f) =>
+                m('.pf-memscope-stack__frame', {title: f}, f),
+              )
+            : m('.pf-memscope-stack__empty', '(all frames hidden by filter)'),
         ),
-      ),
-      formatBytes(s.unreleased),
-      s.allocs.toLocaleString(),
-      m(ProgressBar, {
-        pct: profileTotal > 0 ? (s.unreleased / profileTotal) * 100 : 0,
-      }),
-    ]);
+        formatBytes(s.unreleased),
+        s.allocs.toLocaleString(),
+        m(ProgressBar, {
+          pct: profileTotal > 0 ? (s.unreleased / profileTotal) * 100 : 0,
+        }),
+      ];
+    });
 
     return m(
       Panel,
@@ -456,6 +468,16 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
           stackRows.length > 0
             ? topTable({
                 title: 'Top allocation call-stacks',
+                controls: m(
+                  '.pf-memscope-toptable__controls',
+                  m(Checkbox, {
+                    label: 'Show frames from this app only',
+                    checked: this.appOnly,
+                    onchange: (e) => {
+                      this.appOnly = (e.target as HTMLInputElement).checked;
+                    },
+                  }),
+                ),
                 cols: [
                   {label: 'Call-stack snippet'},
                   {label: comparing ? 'Δ unreleased' : 'Unreleased', num: true},
