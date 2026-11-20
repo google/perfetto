@@ -34,8 +34,26 @@
 #include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::exec {
+
+// A GLOB literal's pattern, compiled, and the strings matched with it so far:
+// a string's result depends only on the pattern, so whatever reads the literal
+// fills this in as it goes.
+struct GlobMatch {
+  explicit GlobMatch(base::StringView pattern)
+      : matcher(util::GlobMatcher::FromPattern(pattern)) {}
+
+  util::GlobMatcher matcher;
+  // Rows matched one at a time.
+  uint64_t rows = 0;
+  // The result of every string with an id below `matched_below`, once the
+  // pool has been matched. Strings interned after are above it.
+  BitVector matches;
+  uint32_t matched_below = 0;
+};
 
 // A param of a run: a value its operators compare a column with, already cast
 // to the column's storage type for one comparison (see filter_value_cast.h): a
@@ -43,8 +61,9 @@ namespace perfetto::trace_processor::core::exec {
 //
 // Whoever runs a plan keeps one per param from run to run, and casts each
 // run's values into them with casters it picked when the plan was built (see
-// GetParamCaster). Everything after only reads them: nothing is
-// allocated, and nothing dispatches on the column's type or the comparison,
+// GetParamCaster). Everything after only reads them, except a GLOB literal's
+// GlobMatch, which is filled in as it is read. Nothing on a run's path
+// allocates, and nothing dispatches on the column's type or the comparison,
 // which matters when each run looks up one row.
 struct ParamValue {
   filter::CastFilterValueResult value =
@@ -59,7 +78,23 @@ struct ParamValue {
   // For IN: the list's values, while `value` says whether any can match. Its
   // allocations are reused from run to run.
   filter::CastFilterValueListResult::Ptr list;
+  // For a GLOB literal with wildcards (see AttachGlob).
+  std::unique_ptr<GlobMatch> glob;
 };
+
+// Gives `value`, a GLOB literal just cast, its GlobMatch, so that it is
+// matched against the pool once however many runs read it. A pattern without
+// wildcards still compares string ids, and needs none.
+inline void AttachGlob(ParamValue* value) {
+  value->glob.reset();
+  if (value->value.validity != filter::CastFilterValueResult::kValid) {
+    return;
+  }
+  auto glob = std::make_unique<GlobMatch>(base::StringView(value->text));
+  if (!glob->matcher.IsEquality()) {
+    value->glob = std::move(glob);
+  }
+}
 
 namespace internal {
 
