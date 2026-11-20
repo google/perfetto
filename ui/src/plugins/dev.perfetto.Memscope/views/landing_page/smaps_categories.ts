@@ -55,15 +55,15 @@ export const SMAPS_FILE_BUCKET_CASE_SQL = `
 // Display metadata for the smaps categories, in stack/legend order. The keys
 // match the `category` values produced by SMAPS_CATEGORY_CASE_SQL.
 export const SMAPS_CATEGORIES = [
-  {key: 'native', label: 'Native', color: '#4285f4'},
-  {key: 'java', label: 'Java', color: '#f4b400'},
-  {key: 'file', label: 'File-backed', color: '#34a853'},
-  {key: 'graphics', label: 'Graphics', color: '#a142f4'},
-  {key: 'stack', label: 'Thread stacks', color: '#26c6da'},
-  {key: 'other', label: 'Other', color: '#9aa0a6'},
+  {key: 'native', label: 'Native', color: '#5c85c4'},
+  {key: 'java', label: 'Java', color: '#d1a843'},
+  {key: 'file', label: 'File-backed', color: '#5b9e6d'},
+  {key: 'graphics', label: 'Graphics', color: '#966ec4'},
+  {key: 'stack', label: 'Thread stacks', color: '#5aa8b3'},
+  {key: 'other', label: 'Other', color: '#8f959b'},
 ];
 
-export const MEMMAP_GREY = '#9aa0a6';
+export const MEMMAP_GREY = '#8f959b';
 
 // Color for a smaps category key, falling back to grey for unknown keys.
 export function smapsCategoryColor(key: string): string {

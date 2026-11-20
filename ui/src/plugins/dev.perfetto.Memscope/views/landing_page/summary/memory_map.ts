@@ -47,17 +47,17 @@ import {
 // order. Keys match the buckets produced by SMAPS_FILE_BUCKET_CASE_SQL. All
 // share the file-backed colour; they're distinguished by label.
 const FILE_BUCKETS = [
-  {key: 'so', label: 'Native libs (.so)', color: '#34a853'},
-  {key: 'java_code', label: 'Java code (.jar/.oat)', color: '#2e7d46'},
-  {key: 'resources', label: 'Resources / APK', color: '#46b966'},
-  {key: 'other_file', label: 'Other files', color: '#7cc596'},
+  {key: 'so', label: 'Native libs (.so)', color: '#5b9e6d'},
+  {key: 'java_code', label: 'Java code (.jar/.oat)', color: '#497d58'},
+  {key: 'resources', label: 'Resources / APK', color: '#6eb07f'},
+  {key: 'other_file', label: 'Other files', color: '#8ec29e'},
 ];
 
 // Lightens a block colour for its "remainder" sub-block (the part we can't
 // attribute to a profiler/reachability figure).
 const MEMMAP_LIGHTEN: Record<string, string> = {
-  '#4285f4': '#a6c8fa', // native blue → light
-  '#f4b400': '#fad470', // java amber → light
+  '#5c85c4': '#9bb5dc', // native blue → light
+  '#d1a843': '#e6cc8a', // java amber → light
 };
 
 // Plain-language explanation shown under the block breakdown while hovering
