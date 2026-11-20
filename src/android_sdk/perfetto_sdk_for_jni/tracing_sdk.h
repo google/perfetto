@@ -325,11 +325,16 @@ class ProtoField {
     str_ = val;
     return str_.c_str();
   }
+  uint8_t* resize_bytes(size_t len) {
+    bytes_.resize(len);
+    return bytes_.data();
+  }
   PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
 
  private:
   PerfettoTeHlProtoFieldUnion arg_;
   std::string str_;
+  std::vector<uint8_t> bytes_;
 };
 
 class ProtoFieldNested {

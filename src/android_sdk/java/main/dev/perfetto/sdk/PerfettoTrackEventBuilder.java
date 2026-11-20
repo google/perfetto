@@ -751,6 +751,20 @@ public final class PerfettoTrackEventBuilder {
     return this;
   }
 
+  /** Adds a proto field with field id {@code id} and value {@code val}. */
+  public PerfettoTrackEventBuilder addField(long id, byte[] val) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    if (mIsDebug) {
+      checkBuildingProto();
+    }
+    Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+    field.setValueBytes(id, val);
+    addFieldToContainer(field);
+    return this;
+  }
+
   /**
    * Adds a proto field with field id { @code id} and value { @code val}.
    * { @code internedTypeId} must be non-zero, in which case the string { @code val} will be interned
