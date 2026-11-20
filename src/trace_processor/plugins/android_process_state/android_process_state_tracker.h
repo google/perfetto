@@ -44,7 +44,8 @@ StringId InternEnum(TraceProcessorContext* context,
 
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
-// (is_initial = 1, ts = NULL) at finalization.
+// (is_initial = 1, ts = NULL) at finalization. Initial process state rows carry
+// the time the state was entered, when known, in state_start_ts.
 class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
@@ -73,6 +74,9 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
     std::optional<int32_t> process_group;
+    // Trace time at which the process entered |proc_state|, converted from
+    // the CLOCK_BOOTTIME proc_state_start_ns / prev_proc_state_start_ns.
+    std::optional<int64_t> start_ts;
   };
 
   // Information captured for freezer state from trace-stop dumps.

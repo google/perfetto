@@ -497,6 +497,106 @@ class AndroidParser(TestSuite):
           2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,"[NULL]","[NULL]","[NULL]",0
         """))
 
+  def test_android_process_state_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.reason;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",1,500
+          "[NULL]",200,"PROCESS_STATE_TOP",1,1200
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
+          3000,200,"PROCESS_STATE_CACHED_ACTIVITY",0,"[NULL]"
+          "[NULL]",300,"PROCESS_STATE_TOP",1,"[NULL]"
+          2000,300,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",1,"[NULL]"
+          "[NULL]",500,"PROCESS_STATE_RECEIVER",1,1500
+          "[NULL]",600,"PROCESS_STATE_SERVICE",1,2500
+          2000,600,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+        """))
+
+  def test_android_process_state_start_ts_clock_conversion(self):
+    # The trace clock is MONOTONIC, which is BOOTTIME - 9000. Packets are
+    # timestamped in BOOTTIME, like the proc_state_start_ns /
+    # prev_proc_state_start_ns values, and both must be converted to trace time.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_MONOTONIC
+            clocks { clock_id: 6 timestamp: 10000 }
+            clocks { clock_id: 3 timestamp: 1000 }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 10000
+          timestamp_clock_id: 6
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+          }
+        }
+        packet {
+          timestamp: 12000
+          timestamp_clock_id: 6
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_proc_state_start_ns: 11000
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 20000
+          timestamp_clock_id: 6
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            record {
+              pid: 100
+              uid: 10001
+              proc_state: 1002
+              proc_state_start_ns: 10500
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",1,1500
+          "[NULL]",200,"PROCESS_STATE_TOP",1,2000
+          3000,200,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+        """))
+
   def test_android_freezer_state(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state.textproto'),
