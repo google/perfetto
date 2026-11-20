@@ -207,7 +207,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
             m(
               '.pf-intelletto__prompt-box',
               m('textarea.pf-intelletto__textarea', {
-                rows: 3,
+                rows: 2,
                 value: session.input,
                 // Grow the textarea to fit its content (capped by max-height in
                 // CSS). Done on create/update too so it shrinks back after send.
@@ -255,6 +255,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                   : m(Button, {
                       icon: 'send',
                       title: 'Send',
+                      disabled: session.input.trim().length === 0,
                       onclick: () => session.send(currentModel),
                       variant: ButtonVariant.Filled,
                       rounded: true,

@@ -35,6 +35,21 @@
     flex: 0 1 auto;
     min-width: 0;
     max-width: 220px;
+    font-size: 0.85em;
+    color: var(--pf-color-text-muted);
+    background: transparent;
+    border-color: transparent;
+    border-radius: 6px;
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease;
+
+    &:hover,
+    &:focus {
+      background: var(--pf-color-background-secondary);
+      color: var(--pf-color-text);
+      border-color: transparent;
+    }
   }
 
   &__no-model {
@@ -232,8 +247,8 @@
   &__footer {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 6px;
+    gap: 8px;
+    padding: 8px 10px 10px;
     border-top: 1px solid var(--pf-color-border);
   }
 
@@ -247,17 +262,29 @@
   &__context-chip {
     cursor: pointer;
     user-select: none;
-    font-size: 0.8em;
-    padding: 1px 6px;
-    border-radius: 8px;
+    font-size: 0.78em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--pf-color-border-secondary);
     background-color: var(--pf-color-background-secondary);
+    color: var(--pf-color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    transition:
+      opacity 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+
+    &:hover {
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+    }
 
     &--off {
-      opacity: 0.5;
+      opacity: 0.45;
+      text-decoration: line-through;
     }
   }
 
@@ -289,7 +316,11 @@
     flex-direction: column;
     background: var(--pf-color-void);
     border: 1px solid var(--pf-color-border-secondary);
-    border-radius: 12px;
+    border-radius: 15px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
 
     &:hover {
       border-color: var(--pf-color-border);
@@ -297,6 +328,8 @@
 
     &:focus-within {
       border-color: var(--pf-color-primary);
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--pf-color-primary) 22%, transparent);
     }
   }
 
@@ -309,13 +342,17 @@
     box-sizing: border-box;
     font-family: var(--pf-font-compact);
     font-size: inherit;
-    line-height: 1.4;
+    line-height: 1.45;
     color: inherit;
-    padding: 8px 10px 4px;
+    padding: 10px 12px 4px;
     margin: 0;
     outline: none;
     background: transparent;
     border: none;
+
+    &::placeholder {
+      color: var(--pf-color-text-muted);
+    }
   }
 
   &__prompt-toolbar {
@@ -323,6 +360,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: 6px;
-    padding: 4px 8px 8px;
+    padding: 4px 5px 6px 12px;
   }
 }
