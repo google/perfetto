@@ -818,6 +818,39 @@ class TestApi(unittest.TestCase):
       finally:
         os.unlink(output_path)
 
+  @unittest.skipUnless(HAS_PYARROW, 'pyarrow not installed')
+  def test_export_arrow_tar_reads_with_pyarrow(self):
+    import io
+    import tarfile
+    import pyarrow as pa
+    with create_tp(trace=example_android_trace_path()) as tp:
+      with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as f:
+        output_path = f.name
+      try:
+        tp.export(output_path, 'arrow_tar')
+        null_columns = 0
+        with tarfile.open(output_path) as tf:
+          names = tf.getnames()
+          self.assertGreater(len(names), 0)
+          for name in names:
+            with self.subTest(name=name):
+              data = tf.extractfile(name).read()
+              table = pa.ipc.open_file(io.BytesIO(data)).read_all()
+              count = tp.query(
+                  f'SELECT COUNT(*) AS c FROM {name[:-len(".arrow")]}'
+              ).as_pandas_dataframe()['c'][0]
+              self.assertEqual(table.num_rows, count)
+              for field in table.schema:
+                if field.type == pa.null():
+                  null_columns += 1
+                  self.assertEqual(
+                      table.column(field.name).to_pylist(),
+                      [None] * table.num_rows)
+        # Columns null in every row are written as Arrow Null.
+        self.assertGreater(null_columns, 0)
+      finally:
+        os.unlink(output_path)
+
 
 class TestApiUnixSession(unittest.TestCase):
   """Tests TraceProcessor(remote=...) against a real `server unix` session."""
