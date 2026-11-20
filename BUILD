@@ -4135,6 +4135,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_frame_blocking_calls_frame_blocking_calls",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls/blocking_calls_aggregation.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls/instructions.sql",
     ],
 )
 
