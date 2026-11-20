@@ -60,6 +60,7 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
@@ -430,6 +431,13 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.tid = static_cast<int64_t>(thread.tid());
     reservation.use_separate_track =
         track.disallow_merging_with_system_tracks();
+    if (track.has_chrome_thread()) {
+      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_thread(
+          track.chrome_thread());
+      if (chrome_thread.has_is_sandboxed_tid()) {
+        reservation.is_sandboxed_tid = chrome_thread.is_sandboxed_tid();
+      }
+    }
     reserve();
 
     if (args.state->IsIncrementalStateValid()) {

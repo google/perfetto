@@ -72,8 +72,8 @@ ProcessTracker::ProcessTracker(TraceProcessorContext* context)
 
 ProcessTracker::~ProcessTracker() = default;
 
-UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
-                                         int64_t tid) {
+UniqueTid ProcessTracker::InsertThreadRow(std::optional<int64_t> timestamp,
+                                          int64_t tid) {
   tables::ThreadTable::Row row;
   row.tid = tid;
   row.start_ts = timestamp;
@@ -81,7 +81,6 @@ UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
 
   auto* thread_table = context_->storage->mutable_thread_table();
   UniqueTid new_utid = thread_table->Insert(row).row;
-  tids_[tid].emplace_back(new_utid);
 
   if (PERFETTO_UNLIKELY(thread_name_priorities_.size() <= new_utid)) {
     // This condition can happen in a multi-machine tracing session:
@@ -91,6 +90,13 @@ UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
     thread_name_priorities_.resize(new_utid + 1);
   }
   thread_name_priorities_[new_utid] = ThreadNamePriority::kOther;
+  return new_utid;
+}
+
+UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
+                                         int64_t tid) {
+  UniqueTid new_utid = InsertThreadRow(timestamp, tid);
+  tids_[tid].emplace_back(new_utid);
   return new_utid;
 }
 
@@ -163,6 +169,12 @@ UniqueTid ProcessTracker::GetOrCreateThreadWithParentInternal(
     bool associate_main_threads) {
   auto& thread_table = *context_->storage->mutable_thread_table();
   PERFETTO_DCHECK(IsProcessAlive(upid));
+
+  if (auto* sandboxed_utid = sandboxed_tids_.Find({upid, tid});
+      sandboxed_utid) {
+    PERFETTO_DCHECK(IsThreadAlive(*sandboxed_utid));
+    return *sandboxed_utid;
+  }
 
   // Iterate backwards through the live incarnations of |tid| so ones seen more
   // recently are preferred.
@@ -280,7 +292,9 @@ void ProcessTracker::InvalidateProcessThreads(UniquePid upid) {
     return;
   auto& thread_table = *context_->storage->mutable_thread_table();
   for (UniqueTid utid : *threads) {
-    EraseFromTids(thread_table[utid].tid(), utid);
+    int64_t tid = thread_table[utid].tid();
+    EraseFromTids(tid, utid);
+    sandboxed_tids_.Erase({upid, tid});
   }
   process_threads_.Erase(upid);
 }
@@ -289,6 +303,49 @@ UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
   return GetOrCreateThreadWithParentInternal(tid, GetOrCreateProcess(pid),
                                              /*is_main_thread*/ tid == pid,
                                              /*associate_main_threads*/ true);
+}
+
+UniqueTid ProcessTracker::UpdateSandboxedThread(int64_t tid, int64_t pid) {
+  UniquePid upid = GetOrCreateProcess(pid);
+  if (auto* sandboxed_utid = sandboxed_tids_.Find({upid, tid});
+      sandboxed_utid) {
+    PERFETTO_DCHECK(IsThreadAlive(*sandboxed_utid));
+    return *sandboxed_utid;
+  }
+
+  // If another importer (e.g. StackSample) already created a thread for this
+  // exact (upid, tid) in |tids_| before we saw is_sandboxed_tid, migrate it out
+  // of |tids_| into |sandboxed_tids_| so both share the same utid and bare tid
+  // lookups stop returning it. Never match unparented threads here, as those
+  // belong to bare tid-only sources like ftrace.
+  auto& thread_table = *context_->storage->mutable_thread_table();
+  if (auto* vec = tids_.Find(tid); vec) {
+    for (size_t i = vec->size(); i > 0; --i) {
+      UniqueTid current_utid = (*vec)[i - 1];
+      auto rr = thread_table[current_utid];
+      PERFETTO_DCHECK(rr.tid() == tid);
+      PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
+      PERFETTO_DCHECK(IsThreadAlive(current_utid));
+      if (rr.upid() == upid) {
+        EraseFromTids(tid, current_utid);
+        sandboxed_tids_.Insert({upid, tid}, current_utid);
+        return current_utid;
+      }
+    }
+  }
+
+  return StartNewSandboxedThread(std::nullopt, tid, pid);
+}
+
+UniqueTid ProcessTracker::StartNewSandboxedThread(
+    std::optional<int64_t> timestamp,
+    int64_t tid,
+    int64_t pid) {
+  UniquePid upid = GetOrCreateProcess(pid);
+  UniqueTid utid = InsertThreadRow(timestamp, tid);
+  AssociateThreadToProcessInternal(utid, upid, /*is_main_thread=*/false);
+  sandboxed_tids_[{upid, tid}] = utid;
+  return utid;
 }
 
 void ProcessTracker::UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid) {
@@ -751,6 +808,7 @@ void ProcessTracker::OnEventsFullyExtracted() {
   thread_args_.Clear();
 
   tids_.Clear();
+  sandboxed_tids_.Clear();
   process_threads_.Clear();
   pids_.Clear();
   pending_assocs_.clear();

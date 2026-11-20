@@ -231,7 +231,10 @@ void ProfileModule::ParseStreamingProfileSample(
 
   const auto& thread = sequence_state->thread_descriptor();
   uint32_t pid = static_cast<uint32_t>(thread.pid());
-  uint32_t tid = static_cast<uint32_t>(thread.tid());
+  int64_t tid = static_cast<uint32_t>(thread.tid());
+  if (auto resolved_tid = procs->ResolveNamespacedTid(pid, tid); resolved_tid) {
+    tid = *resolved_tid;
+  }
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 

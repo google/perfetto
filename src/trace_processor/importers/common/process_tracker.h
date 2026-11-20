@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -119,6 +120,19 @@ class ProcessTracker {
   // for the tid and the matching upid for the tgid and stores both.
   // Virtual for testing.
   virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
+
+  // Like UpdateThread, but for a thread whose tid is PID-namespaced (e.g.
+  // Chromium's Linux sandbox) and could not be resolved to a root-level tid.
+  // The thread is indexed per (upid, tid) rather than in the global root tid
+  // lookup table, so bare tid-only lookups (e.g. ftrace sched_switch) never
+  // resolve to it while (tid, pid) lookups still share the same utid.
+  UniqueTid UpdateSandboxedThread(int64_t tid, int64_t pid);
+
+  // Starts a new utid for a sandboxed thread when its namespaced tid is reused
+  // within the same process, without inserting it into the global tid table.
+  UniqueTid StartNewSandboxedThread(std::optional<int64_t> timestamp,
+                                    int64_t tid,
+                                    int64_t pid);
 
   // Mark whether a thread is the main thread or not.
   void SetMainThread(UniqueTid utid, bool is_main_thread);
@@ -279,14 +293,16 @@ class ProcessTracker {
   UniquePid swapper_upid() const { return swapper_upid_; }
 
  private:
+  UniqueTid InsertThreadRow(std::optional<int64_t> timestamp, int64_t tid);
+
   bool IsProcessAlive(UniquePid upid);
 
   // Removes |utid| from |tids_[tid]|, erasing the |tid| entry if no live
   // incarnations remain.
   void EraseFromTids(int64_t tid, UniqueTid utid);
 
-  // Removes every thread of |upid| from |tids_| when |upid| ends or is
-  // recycled.
+  // Removes every thread of |upid| from |tids_| and |sandboxed_tids_| when
+  // |upid| ends or is recycled.
   void InvalidateProcessThreads(UniquePid upid);
 
   // Returns the utid of a thread whos parent matches the provided pid
@@ -335,8 +351,16 @@ class ProcessTracker {
   // where pid 0 isn't the swapper.
   base::FlatHashMap<int64_t /* tid */, base::SmallVector<UniqueTid, 1>> tids_;
 
-  // upid -> its utids, used to remove dead threads from tids_ when a process
-  // ends or its pid is recycled.
+  // Live threads whose tid is PID-namespaced and unresolved, keyed by
+  // (upid, tid). Kept out of |tids_| so bare tid-only lookups (ftrace, etc.)
+  // never match them, while (upid, tid) lookups still resolve to the same utid.
+  base::FlatHashMap<std::pair<UniquePid, int64_t /* tid */>,
+                    UniqueTid,
+                    base::MurmurHash<std::pair<UniquePid, int64_t>>>
+      sandboxed_tids_;
+
+  // upid -> its utids, used to remove dead threads from tids_ and
+  // sandboxed_tids_ when a process ends or its pid is recycled.
   base::FlatHashMap<UniquePid, std::vector<UniqueTid>> process_threads_;
 
   // Mapping of the most recently seen pid to the associated upid.
