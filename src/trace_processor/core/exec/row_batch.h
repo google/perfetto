@@ -185,14 +185,14 @@ class FlatColumnReader {
       : data_(static_cast<const T*>(column.data())),
         start_(column.start()),
         validity_(column.validity()),
-        selection_(&selection) {
+        indices_(selection.prefix() ? nullptr : selection.indices()) {
     PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kFlat);
     PERFETTO_DCHECK(column.type().Is<typename TypeTagFor<T>::type>());
   }
 
   // False if the `row`th row kept holds no value.
   PERFETTO_ALWAYS_INLINE bool Read(uint32_t row, T* out) const {
-    uint32_t index = start_ + (*selection_)[row];
+    uint32_t index = start_ + (indices_ ? indices_[row] : row);
     if (validity_ && !validity_->is_set(index)) {
       return false;
     }
@@ -204,7 +204,9 @@ class FlatColumnReader {
   const T* data_;
   uint32_t start_;
   const BitVector* validity_;
-  const Selection* selection_;
+  // The selection's rows, or null when they are its first: read once, not
+  // through the selection for every row.
+  const uint16_t* indices_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

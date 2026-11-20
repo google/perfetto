@@ -53,14 +53,15 @@ base::StackString<128> Prefix(const IntervalInputName& name) {
 
 }  // namespace
 
-base::Status LaneBatch::Error(Result result,
-                              const IntervalInputName& name) const {
+base::Status LaneBatch::ErrorOf(Result result,
+                                bool forever,
+                                const IntervalInputName& name) {
   if (result == Result::kOverflow) {
     return base::ErrStatus("%.*s: integer overflow",
                            static_cast<int>(name.op.size()), name.op.data());
   }
   PERFETTO_DCHECK(result == Result::kNegative);
-  if (forever_) {
+  if (forever) {
     return base::ErrStatus(
         "%s has a row whose ts is below zero, or whose dur is below zero and "
         "not -1",
@@ -82,8 +83,11 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
   // looked up in the shared table.
   first_rows_.clear();
   uint32_t last = last_group_;
-  for (uint32_t row = 0; row < in.size(); ++row) {
-    uint32_t group = in.Value<uint32_t>(spec_->group_column, row);
+  uint32_t n = in.size();
+  // Without lanes set, a LaneBatch reads the group numbers.
+  LaneBatch groups(in, *spec_);
+  for (uint32_t row = 0; row < n; ++row) {
+    uint32_t group = groups.lane(row);
     if (group != last) {
       first_rows_.push_back(row);
       last = group;
@@ -101,14 +105,16 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
           Prefix(name_).c_str(), *bad + 1);
     }
   }
-  lanes_.resize(in.size());
+  lanes_.resize(n);
+  uint32_t lane = last_lane_;
   size_t next = 0;
-  for (uint32_t row = 0; row < in.size(); ++row) {
+  for (uint32_t row = 0; row < n; ++row) {
     if (next < first_rows_.size() && first_rows_[next] == row) {
-      last_lane_ = first_lanes_[next++];
+      lane = first_lanes_[next++];
     }
-    lanes_[row] = last_lane_;
+    lanes_[row] = lane;
   }
+  last_lane_ = lane;
   last_group_ = last;
   return base::OkStatus();
 }
@@ -122,7 +128,8 @@ base::Status CollectedLanes::Collect(OperatorState& state,
     RETURN_IF_ERROR(reader_.Start(batch_, shared));
     LaneBatch lanes = reader_.batch();
     uint32_t first_row = rows_.size();
-    for (uint32_t row = 0; row < batch_.size(); ++row) {
+    uint32_t n = batch_.size();
+    for (uint32_t row = 0; row < n; ++row) {
       int64_t start;
       int64_t end;
       LaneBatch::Result result = lanes.Read(row, &start, &end);
