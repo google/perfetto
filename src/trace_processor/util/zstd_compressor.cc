@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/utils.h"
@@ -53,12 +54,87 @@ std::unique_ptr<uint8_t, base::FreeDeleter> ZstdCompressor::CompressFully(
   return out;
 }
 
+void ZstdStreamCompressor::Deleter::operator()(ZSTD_CCtx_s* cctx) const {
+  ZSTD_freeCCtx(cctx);
+}
+
+ZstdStreamCompressor::ZstdStreamCompressor(int level)
+    : cctx_(ZSTD_createCCtx()) {
+  ZSTD_CCtx_setParameter(cctx_.get(), ZSTD_c_compressionLevel, level);
+}
+
+ZstdStreamCompressor::~ZstdStreamCompressor() = default;
+
+bool ZstdStreamCompressor::BeginFrame(uint64_t size) {
+  return !ZSTD_isError(ZSTD_CCtx_reset(cctx_.get(), ZSTD_reset_session_only)) &&
+         !ZSTD_isError(ZSTD_CCtx_setPledgedSrcSize(cctx_.get(), size));
+}
+
+bool ZstdStreamCompressor::Append(const uint8_t* data,
+                                  size_t size,
+                                  std::vector<uint8_t>* out) {
+  return Compress(data, size, false, out);
+}
+
+bool ZstdStreamCompressor::EndFrame(std::vector<uint8_t>* out) {
+  return Compress(nullptr, 0, true, out);
+}
+
+bool ZstdStreamCompressor::Compress(const uint8_t* data,
+                                    size_t size,
+                                    bool end,
+                                    std::vector<uint8_t>* out) {
+  ZSTD_inBuffer in{data, size, 0};
+  ZSTD_EndDirective mode = end ? ZSTD_e_end : ZSTD_e_continue;
+  for (;;) {
+    size_t used = out->size();
+    size_t room = ZSTD_compressBound(in.size - in.pos);
+    out->resize(used + room);
+    ZSTD_outBuffer output{out->data() + used, room, 0};
+    size_t remaining = ZSTD_compressStream2(cctx_.get(), &output, &in, mode);
+    out->resize(used + output.pos);
+    if (ZSTD_isError(remaining)) {
+      return false;
+    }
+    if (end ? remaining == 0 : in.pos == in.size) {
+      return true;
+    }
+  }
+}
+
 #else  // !PERFETTO_ZSTD
 
 // static
 std::unique_ptr<uint8_t, base::FreeDeleter>
 ZstdCompressor::CompressFully(const uint8_t*, size_t, size_t*, int) {
   return nullptr;
+}
+
+void ZstdStreamCompressor::Deleter::operator()(ZSTD_CCtx_s*) const {}
+
+ZstdStreamCompressor::ZstdStreamCompressor(int) {}
+
+ZstdStreamCompressor::~ZstdStreamCompressor() = default;
+
+bool ZstdStreamCompressor::BeginFrame(uint64_t) {
+  return false;
+}
+
+bool ZstdStreamCompressor::Append(const uint8_t*,
+                                  size_t,
+                                  std::vector<uint8_t>*) {
+  return false;
+}
+
+bool ZstdStreamCompressor::EndFrame(std::vector<uint8_t>*) {
+  return false;
+}
+
+bool ZstdStreamCompressor::Compress(const uint8_t*,
+                                    size_t,
+                                    bool,
+                                    std::vector<uint8_t>*) {
+  return false;
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
