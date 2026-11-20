@@ -171,6 +171,20 @@ pub type PerfettoDsOnFlushCb = ::std::option::Option<
         args: *mut PerfettoDsOnFlushArgs,
     ),
 >;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoDsWillClearIncrementalStateArgs {
+    _unused: [u8; 0],
+}
+pub type PerfettoDsWillClearIncrementalStateCb = ::std::option::Option<
+    unsafe extern "C" fn(
+        arg1: *mut PerfettoDsImpl,
+        inst_id: PerfettoDsInstanceIndex,
+        user_arg: *mut ::std::os::raw::c_void,
+        inst_ctx: *mut ::std::os::raw::c_void,
+        args: *mut PerfettoDsWillClearIncrementalStateArgs,
+    ),
+>;
 pub type PerfettoDsOnCreateCustomState = ::std::option::Option<
     unsafe extern "C" fn(
         arg1: *mut PerfettoDsImpl,
@@ -201,6 +215,12 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn PerfettoDsSetOnFlushCallback(arg1: *mut PerfettoDsImpl, arg2: PerfettoDsOnFlushCb);
+}
+unsafe extern "C" {
+    pub fn PerfettoDsSetWillClearIncrementalStateCallback(
+        arg1: *mut PerfettoDsImpl,
+        arg2: PerfettoDsWillClearIncrementalStateCb,
+    );
 }
 unsafe extern "C" {
     pub fn PerfettoDsSetOnCreateTls(arg1: *mut PerfettoDsImpl, arg2: PerfettoDsOnCreateCustomState);
