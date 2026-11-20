@@ -24,6 +24,24 @@ import urllib.request
 from os import path
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCREENSHOT_DIR = os.path.join(ROOT_DIR, 'test', 'data', 'ui-screenshots')
+
+
+def _check_within_screenshots(local_path):
+  """Reject a screenshot path that escapes test/data/ui-screenshots/.
+
+  The fileName and attachment name used to build local_path come from
+  report.json inside a downloaded CI artifact, which is untrusted: artifacts
+  are produced by CI runs, including runs triggered from unmerged pull
+  requests. A '..' in either field would otherwise let os.makedirs and
+  urlretrieve below write a .png anywhere on the machine running this tool.
+  Confirm the resolved path stays under the screenshots directory first.
+  """
+  base = os.path.realpath(SCREENSHOT_DIR)
+  full = os.path.realpath(os.path.join(ROOT_DIR, local_path))
+  if os.path.commonpath([base, full]) != base:
+    raise ValueError(
+        'Refusing screenshot path outside %s: %r' % (SCREENSHOT_DIR, local_path))
 
 
 def get_artifact_url(run, name):
@@ -65,6 +83,7 @@ def handle_report(report: str, run: str):
             continue
           path = 'test/data/ui-screenshots/%s/%s.png' % (
               test_file, name.removesuffix('-actual.png'))
+          _check_within_screenshots(path)
           pngs[path] = a['path']
 
   for local_path, remote_path in pngs.items():
