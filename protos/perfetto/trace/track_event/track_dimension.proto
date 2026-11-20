@@ -32,7 +32,8 @@ package perfetto.protos;
 // Reserved names: the names of the well-known dimensions are reserved and
 // cannot be used for custom dimensions. They are:
 //  * `machine`: the machine the track belongs to.
-//  * `gpu`: the GPU the track belongs to.
+//  * `gpu`: the GPU the track belongs to (`GpuTrackDescriptor.gpu_id` for
+//    TrackDescriptor tracks).
 //  * `cpu`: the CPU the track belongs to.
 //  * `process`: the process the track belongs to.
 //  * `thread`: the thread the track belongs to.

@@ -14058,7 +14058,7 @@ message GpuMemTotalEvent {
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
-// next id: 22
+// next id: 23
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -14178,6 +14178,11 @@ message GpuRenderStageEvent {
 
   // optional. Compute kernel launch parameters for this event.
   optional ComputeKernelLaunch launch = 21;
+
+  // optional. Producer-defined logical queue (e.g. a CUDA stream) the event was
+  // submitted to. The ID is scoped to the process of the event's graphics
+  // `context`. See GpuTrackDescriptor.logical_queue_id.
+  optional uint64 logical_queue_id = 22;
 
   // DEPRECATED
 
@@ -18751,7 +18756,8 @@ message StateDescriptor {}
 // Reserved names: the names of the well-known dimensions are reserved and
 // cannot be used for custom dimensions. They are:
 //  * `machine`: the machine the track belongs to.
-//  * `gpu`: the GPU the track belongs to.
+//  * `gpu`: the GPU the track belongs to (`GpuTrackDescriptor.gpu_id` for
+//    TrackDescriptor tracks).
 //  * `cpu`: the CPU the track belongs to.
 //  * `process`: the process the track belongs to.
 //  * `thread`: the thread the track belongs to.
@@ -19211,6 +19217,10 @@ message TrackDescriptor {
   // context: their names are reserved and producers must *not* declare them
   // here. See TrackDimension for the full list of reserved names.
   repeated TrackDimension dimensions = 21;
+
+  // Extension range for domain-specific track descriptors. See
+  // protos/perfetto/trace/extensions.json for the allocation registry.
+  extensions 1000 to 9999;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

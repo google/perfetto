@@ -19,6 +19,7 @@
 use crate::pb_enum;
 use crate::pb_msg;
 use crate::pb_msg_ext;
+use perfetto_sdk::protos::trace::track_event::track_descriptor::*;
 use perfetto_sdk::protos::trace::track_event::track_event::*;
 
 pb_enum!(GpuApi {
@@ -30,9 +31,19 @@ pb_enum!(GpuApi {
     GPU_API_HIP: 5,
 });
 
+pb_msg!(GpuTrackDescriptor {
+    gpu_id: i32, primitive, 1,
+    hw_queue_iid: u64, primitive, 2,
+    logical_queue_id: u64, primitive, 3,
+});
+
 pb_msg!(GpuCorrelation {
     render_stage_submission_event_ids: u64, primitive, 1,
     render_stage_wait_event_ids: u64, primitive, 2,
+});
+
+pb_msg_ext!(TrackDescriptor {
+    gpu_track: GpuTrackDescriptor, msg, 3000,
 });
 
 pb_msg_ext!(TrackEvent {

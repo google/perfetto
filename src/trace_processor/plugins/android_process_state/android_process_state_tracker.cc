@@ -61,6 +61,11 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
       process_state_table_(process_state_table),
       freezer_state_table_(freezer_state_table),
       capability_flags_id_(context->storage->InternString("capability_flags")),
+      cpu_time_reasons_id_(context->storage->InternString("cpu_time_reasons")),
+      implicit_cpu_time_reasons_id_(
+          context->storage->InternString("implicit_cpu_time_reasons")),
+      freeze_policy_flags_id_(
+          context->storage->InternString("freeze_policy_flags")),
       unknown_process_logger_(context) {}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
@@ -138,10 +143,17 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_seq_id()) {
     row.seq_id = p.seq_id();
   }
-  auto id = process_state_table_->Insert(row).id;
-  if (row.capability_flags.has_value()) {
-    AddCapabilityFlagsArgs(id, *row.capability_flags);
+  if (p.has_cpu_time_reasons()) {
+    row.cpu_time_reasons = p.cpu_time_reasons();
   }
+  if (p.has_implicit_cpu_time_reasons()) {
+    row.implicit_cpu_time_reasons = p.implicit_cpu_time_reasons();
+  }
+  if (p.has_freeze_policy_flags()) {
+    row.freeze_policy_flags = p.freeze_policy_flags();
+  }
+  auto id = process_state_table_->Insert(row).id;
+  AddFlagsArgs(id, row);
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -319,27 +331,65 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
   auto id = process_state_table_->Insert(row).id;
-  if (row.capability_flags.has_value()) {
-    AddCapabilityFlagsArgs(id, *row.capability_flags);
+  AddFlagsArgs(id, row);
+}
+
+void AndroidProcessStateTracker::AddFlagsArgs(
+    tables::AndroidProcessStateTable::Id id,
+    const tables::AndroidProcessStateTable::Row& row) {
+  auto has_non_zero = [](std::optional<int32_t> mask) {
+    return mask.has_value() && *mask != 0;
+  };
+  if (!has_non_zero(row.capability_flags) &&
+      !has_non_zero(row.cpu_time_reasons) &&
+      !has_non_zero(row.implicit_cpu_time_reasons) &&
+      !has_non_zero(row.freeze_policy_flags)) {
+    return;
+  }
+
+  auto inserter = context_->args_tracker->AddArgsTo(process_state_table_, id);
+  if (has_non_zero(row.capability_flags)) {
+    EmitDecodedFlags(inserter, capability_flags_id_, "capability_flags",
+                     capability_flags_cache_,
+                     ".com.android.internal.ProcessCapabilityEnum",
+                     *row.capability_flags);
+  }
+  if (has_non_zero(row.cpu_time_reasons)) {
+    EmitDecodedFlags(inserter, cpu_time_reasons_id_, "cpu_time_reasons",
+                     cpu_time_reasons_cache_,
+                     ".com.android.internal.CpuTimeReason",
+                     *row.cpu_time_reasons);
+  }
+  if (has_non_zero(row.implicit_cpu_time_reasons)) {
+    EmitDecodedFlags(inserter, implicit_cpu_time_reasons_id_,
+                     "implicit_cpu_time_reasons", cpu_time_reasons_cache_,
+                     ".com.android.internal.CpuTimeReason",
+                     *row.implicit_cpu_time_reasons);
+  }
+  if (has_non_zero(row.freeze_policy_flags)) {
+    EmitDecodedFlags(inserter, freeze_policy_flags_id_, "freeze_policy_flags",
+                     freeze_policy_flags_cache_,
+                     ".com.android.internal.FreezerPolicyFlag",
+                     *row.freeze_policy_flags);
   }
 }
 
-void AndroidProcessStateTracker::AddCapabilityFlagsArgs(
-    tables::AndroidProcessStateTable::Id id,
+void AndroidProcessStateTracker::EmitDecodedFlags(
+    ArgsInserter& inserter,
+    StringId flat_key_id,
+    const char* key_prefix,
+    DescriptorPool::CachedDescriptor& cache,
+    const char* enum_name,
     int32_t mask) {
-  if (mask == 0) {
-    return;
-  }
   flag_views_.clear();
   int64_t unmatched = context_->descriptor_pool_->FlagSetToViews(
-      capability_flags_cache_, ".com.android.internal.ProcessCapabilityEnum",
-      static_cast<int64_t>(static_cast<uint32_t>(mask)), &flag_views_);
+      cache, enum_name, static_cast<int64_t>(static_cast<uint32_t>(mask)),
+      &flag_views_);
 
-  auto inserter = context_->args_tracker->AddArgsTo(process_state_table_, id);
   auto emit = [&](size_t i, base::StringView flag) {
-    base::StackString<64> key("capability_flags[%zu]", i);
+    base::StackString<64> key("%s[%zu]", key_prefix, i);
     StringId key_id = context_->storage->InternString(key.string_view());
-    inserter.AddArg(capability_flags_id_, key_id,
+    inserter.AddArg(flat_key_id, key_id,
                     Variadic::String(context_->storage->InternString(flag)));
   };
   size_t i = 0;

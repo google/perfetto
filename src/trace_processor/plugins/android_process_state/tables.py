@@ -42,6 +42,9 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('process_group', CppOptional(CppString())),
         C('reason', CppOptional(CppString())),
         C('seq_id', CppOptional(CppInt64())),
+        C('cpu_time_reasons', CppOptional(CppInt32())),
+        C('implicit_cpu_time_reasons', CppOptional(CppInt32())),
+        C('freeze_policy_flags', CppOptional(CppInt32())),
         C('arg_set_id',
           CppOptional(CppUint32()),
           cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
@@ -67,9 +70,20 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Reason for state change (if from track event).',
             'seq_id':
                 'OOM adjuster sequence ID (if from track event).',
+            'cpu_time_reasons':
+                'Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME '
+                '(if from track event).',
+            'implicit_cpu_time_reasons':
+                'Bitmask of reasons for granting '
+                'PROCESS_CAPABILITY_IMPLICIT_CPU_TIME (if from track event).',
+            'freeze_policy_flags':
+                'Bitmask of boolean freeze policy states '
+                '(if from track event).',
             'arg_set_id':
                 ColumnDoc(
-                    'Argument set holding decoded capability_flags[i] entries.',
+                    'Argument set holding decoded capability_flags[i], '
+                    'cpu_time_reasons[i], implicit_cpu_time_reasons[i], and '
+                    'freeze_policy_flags[i] entries.',
                     joinable='args.arg_set_id'),
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
