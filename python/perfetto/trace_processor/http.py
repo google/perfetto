@@ -101,6 +101,8 @@ class TraceProcessorHttp(TraceProcessorBackend):
       args.format = self.protos.ExportArgs.Format.PERFETTO
     elif export_format == 'arrow_tar':
       args.format = self.protos.ExportArgs.Format.ARROW_TAR
+    elif export_format == 'arrow_zstd_tar':
+      args.format = self.protos.ExportArgs.Format.ARROW_ZSTD_TAR
     elif export_format == 'sqlite':
       args.format = self.protos.ExportArgs.Format.SQLITE
     else:

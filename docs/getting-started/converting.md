@@ -1426,12 +1426,14 @@ out with the `export` subcommand:
 ```bash
 trace_processor export perfetto -o archive.tar my_custom_trace.pftrace
 trace_processor export arrow_tar -o tables.tar my_custom_trace.pftrace
+trace_processor export arrow_zstd_tar -o tables_zstd.tar my_custom_trace.pftrace
 trace_processor export sqlite -o trace.db my_custom_trace.pftrace
 ```
 
 `perfetto` can be loaded back by a trace processor instance from the same
 version, `arrow_tar` targets external tools such as pandas, Polars or pyarrow,
-and `sqlite` produces a database any SQLite tool can open. For how to choose
+`arrow_zstd_tar` is the same with zstd-compressed Arrow buffers, and `sqlite`
+produces a database any SQLite tool can open. For how to choose
 between the formats and the exact contents of each, see
 [Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data)
 and the
