@@ -18,6 +18,7 @@ import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
+import type {EvidenceStore} from './evidence';
 import {runQueryForModel} from './query';
 import type {ToolRegistry} from './tools';
 
@@ -25,7 +26,11 @@ import type {ToolRegistry} from './tools';
  * Register the core tools (run_query, find_sql_objects, describe_sql_object,
  * show_query, navigate) the assistant always has, backed by the open trace.
  */
-export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
+export function registerCoreTools(
+  reg: ToolRegistry,
+  trace: Trace,
+  evidence: EvidenceStore,
+): void {
   const engine = trace.engine;
 
   reg.registerTool({
@@ -43,7 +48,12 @@ export function registerCoreTools(reg: ToolRegistry, trace: Trace): void {
     shape: {
       sql: z.string().describe('The PerfettoSQL query to execute.'),
     },
-    callback: async ({sql}) => runQueryForModel(engine, sql),
+    callback: async ({sql}) => {
+      const result = await runQueryForModel(engine, sql);
+      // Only queries that ran successfully become citable evidence.
+      const id = evidence.addQuery(sql);
+      return `Evidence id: ${id} (cite as [[${id}]])\n${result}`;
+    },
   });
 
   reg.registerTool({

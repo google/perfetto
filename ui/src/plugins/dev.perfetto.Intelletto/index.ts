@@ -20,6 +20,7 @@ import type {SkillInfo} from '../../public/skills';
 import type {ZodRawShape} from 'zod';
 import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
+import {Time} from '../../base/time';
 import LlmPlugin, {LLM_PROVIDER_SETTING_ID} from '../dev.perfetto.Llm';
 import type {
   LlmGateway,
@@ -43,6 +44,7 @@ import {
   registerCoreContextProviders,
 } from './context';
 import {registerCoreTools} from './core_tools';
+import {type Evidence, EvidenceStore} from './evidence';
 import {registerSkillTools, skillsPromptSection} from './skill_tools';
 import {SYSTEM_PROMPT} from './system_prompt';
 import {registerTimelineTools} from './timeline_tools';
@@ -208,6 +210,7 @@ export default class IntellettoPlugin
                   void session.retry(selectedModel);
                 }
               : undefined,
+          onEvidence: (ev) => IntellettoPlugin.activeInstance?.openEvidence(ev),
           conversation: session?.lines ?? [],
           onSendMessage: (msg) => {
             if (selectedModel === undefined) return;
@@ -308,8 +311,11 @@ export default class IntellettoPlugin
   // panel samples it for the context strip and the prompt.
   private readonly context = new ContextRegistry();
 
+  // Queries the assistant has run, so evidence chips citing them can be
+  // reopened. Trace-scoped, so ids survive starting a new chat session.
+  private readonly evidence = new EvidenceStore();
   constructor(private readonly trace: Trace) {
-    registerCoreTools(this.tools, this.trace);
+    registerCoreTools(this.tools, this.trace, this.evidence);
     registerTimelineTools(this.tools, this.trace);
     registerSkillTools(this.tools, this.trace.skills, this.trace.engine);
     registerCoreContextProviders(this.context, this.trace);
@@ -344,6 +350,33 @@ export default class IntellettoPlugin
    */
   registerContextProvider(provider: ContextProviderRegistration): void {
     this.context.registerContextProvider(provider);
+  }
+
+  // Show the user the evidence behind an evidence chip they clicked.
+  private openEvidence(ev: Evidence): void {
+    switch (ev.kind) {
+      case 'query': {
+        const sql = this.evidence.getQuery(ev.id);
+        if (sql === undefined) return;
+        this.trace.plugins
+          .getPlugin(QueryPagePlugin)
+          .addQueryResultsTab({query: sql, title: `Evidence ${ev.id}`});
+        return;
+      }
+      case 'event':
+        this.trace.selection.selectSqlEvent(ev.table, ev.id, {
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: true,
+        });
+        return;
+      case 'range':
+        this.trace.timeline.panSpanIntoView(
+          Time.fromRaw(ev.start),
+          Time.fromRaw(ev.end),
+          {align: 'zoom'},
+        );
+        return;
+    }
   }
 
   /** Register trace-scoped tools (Data Explorer, WebMCP) for a loaded trace. */

@@ -221,6 +221,27 @@
     margin-top: 6px;
   }
 
+  // An evidence chip citing what backs a claim (see evidence.ts).
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 2px;
+    padding: 0 6px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+    background: var(--pf-color-background-secondary);
+    color: var(--pf-color-primary);
+    font-family: var(--pf-font-monospace);
+    font-size: 0.8em;
+    line-height: 1.5;
+    vertical-align: baseline;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--pf-color-primary);
+    }
+  }
+
   // A markdown table from the model, shown as a DataGrid.
   &__table {
     margin: 4px 0;
