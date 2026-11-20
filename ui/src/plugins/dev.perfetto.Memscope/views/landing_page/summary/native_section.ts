@@ -38,13 +38,22 @@ import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 import {Checkbox} from '../../../../../widgets/checkbox';
+import {Tooltip} from '../../../../../widgets/tooltip';
+import {PopupPosition} from '../../../../../widgets/popup';
 
 const TITLE = 'Native Memory';
 const MAX_STACK_ROWS = 5;
+const COLLAPSED_MIDDLE_FRAMES = 3;
+const COLLAPSED_ROOT_FRAMES = 2;
+const COLLAPSED_FRAME_THRESHOLD =
+  1 + COLLAPSED_MIDDLE_FRAMES + COLLAPSED_ROOT_FRAMES;
+
+type FrameCategory = 'app' | 'system' | 'runtime';
 
 interface NativeFrame {
   readonly name: string;
   readonly mapping?: string;
+  readonly category: FrameCategory;
 }
 
 // One top-unreleased heapprofd callsite with its frame chain (leaf → root).
@@ -57,7 +66,7 @@ interface NativeStack {
 
 interface NativeData {
   readonly hasProfile: boolean;
-  // Top app-attributed callsites by unreleased bytes in the selected window.
+  // App-attributed callsites by unreleased bytes in the selected window.
   readonly stacks: NativeStack[];
   // Total positive-net unreleased bytes in the window (share-bar denominator).
   readonly profileTotal: number;
@@ -209,7 +218,13 @@ async function loadNativeStacks(
       HAVING SUM(a.size) > 0
     )`;
 
-  const stacks: NativeStack[] = [];
+  const procRes = await trace.engine.query(
+    `SELECT name FROM process WHERE upid = ${upid}`,
+  );
+  const procToken = extractProcessToken(
+    procRes.maybeFirstRow({name: STR_NULL})?.name ?? undefined,
+  );
+
   const stackRes = await trace.engine.query(`
     INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
@@ -238,6 +253,7 @@ async function loadNativeStacks(
     LEFT JOIN stack_profile_mapping mp ON f.mapping_id = mp.id
     ORDER BY c.top_id, c.depth ASC
   `);
+  const stacks: NativeStack[] = [];
   let cur: NativeStack | undefined;
   for (
     const it = stackRes.iter({
@@ -260,11 +276,15 @@ async function loadNativeStacks(
       };
       stacks.push(cur);
     }
+    const name = it.frame_name.trim() || 'unknown';
+    const mapping = it.mapping_name ?? undefined;
     cur.frames.push({
-      name: it.frame_name,
-      mapping: it.mapping_name ?? undefined,
+      name,
+      mapping,
+      category: categorizeFrame(name, mapping, procToken),
     });
   }
+
   stacks.sort((a, b) => b.unreleased - a.unreleased);
 
   const totRes = await trace.engine.query(`
@@ -295,21 +315,75 @@ async function loadNativeStacks(
   };
 }
 
-// True when a frame's mapping belongs to the app under test rather than a
-// system/runtime library. App code is installed under /data/app or /data/data.
-function isAppMapping(mapping?: string): boolean {
-  if (mapping === undefined) return false;
-  return /^\/data\/(app|data)\//.test(mapping);
+// Extracts a package or binary token from a process name for matching frames
+// belonging to the target process (e.g. "com.example.app:remote" -> "com.example.app",
+// "/usr/bin/my_app" -> "my_app").
+function extractProcessToken(procName?: string): string | undefined {
+  if (procName === undefined) return undefined;
+  const noSuffix = procName.split(':')[0] ?? '';
+  const base = noSuffix.split('/').pop() ?? '';
+  return base.length >= 3 ? base : undefined;
 }
 
-// Renders a frame chain (leaf → root), collapsing the middle when > 7 frames
-// unless expanded, with an inline toggle link.
+const APP_MAPPING_RE =
+  /^\/(?:(?:(?:data|product|system|system_ext|vendor)\/(?:priv-)?(?:app|data)|data\/user|apex\/[^/]+\/(?:priv-)?app)\/|data\/dalvik-cache\/[^/]+\/(?:data|product|system|system_ext|vendor)@(?:priv-)?app@)/;
+
+// True when a frame's mapping belongs to the app under test rather than a
+// system/runtime library.
+function isAppMapping(mapping?: string, procToken?: string): boolean {
+  if (mapping === undefined) return false;
+  if (APP_MAPPING_RE.test(mapping)) return true;
+  if (procToken !== undefined && mapping.includes(`/${procToken}`)) {
+    return true;
+  }
+  return false;
+}
+
+const RUNTIME_MAPPING_RE =
+  /\/(?:(?:libc|libc\+\+|libc\+\+_shared|libmalloc[^/]*|libheapprofd[^/]*|libscudo[^/]*|libjemalloc[^/]*|libartd?)\.so\b|app_process(?:32|64)?$)/;
+
+// Allocators, JNI/ART glue, thread/Zygote/Looper/IPC/executor/coroutine
+// scaffolding, and synthetic unwinder placeholders that obscure the real
+// allocation site regardless of mapping.
+const RUNTIME_FRAME_RE =
+  /^(?:malloc|calloc|realloc|art_.*trampoline|libutil_thread_trampoline|INVALID_ELF|INVALID_MAP|UNWIND_INFO)\b|^operator new(?:\[\])?(?:\b|\(|$)|^(?:_?JNIEnv|_JNI|art::JNI|art::interpreter|android::AndroidRuntime)::|^(?:nterp_helper|unknown_frame|java\.lang\.Thread\.run)$|^android::(?:Thread::_threadLoop|A?Looper|IPCThreadState|BpBinder::transact|hardware::IPCThreadState)\b|^JavaBBinderExt::onTransact\b|^com\.android\.internal\.os\.(?:ZygoteInit|RuntimeInit)\b|^android\.os\.(?:Looper\.loop(?:Once)?|Handler\.dispatchMessage|HandlerThread\.run|Binder\.execTransact(?:Internal)?)\b|^java\.util\.concurrent\.(?:ThreadPoolExecutor|Executors\$)|^kotlinx?\.coroutines\.|\[(?:DEDUPED|ambiguous)\]/;
+
+// Framework/JDK package prefixes used to split JIT-cache frames between
+// system and app code.
+const SYSTEM_JIT_FRAME_RE =
+  /^(?:android|com\.android\.internal|java|javax|dalvik|libcore|sun|jdk)\./;
+
+function categorizeFrame(
+  name: string,
+  mapping?: string,
+  procToken?: string,
+): FrameCategory {
+  if (RUNTIME_FRAME_RE.test(name)) return 'runtime';
+  if (mapping === undefined) return 'system';
+  if (RUNTIME_MAPPING_RE.test(mapping)) return 'runtime';
+  if (mapping.includes('jit-cache')) {
+    if (name.startsWith('art_')) return 'runtime';
+    return SYSTEM_JIT_FRAME_RE.test(name) ? 'system' : 'app';
+  }
+  if (isAppMapping(mapping, procToken)) return 'app';
+  return 'system';
+}
+
+// Renders a frame chain (leaf → root), collapsing the middle when
+// > COLLAPSED_FRAME_THRESHOLD frames unless expanded, with an inline toggle
+// link.
 function renderStackFrames(
-  frames: string[],
+  frames: NativeFrame[],
   expanded: boolean,
   onToggle: () => void,
 ): m.Children {
-  const frameEl = (f: string) => m('.pf-memscope-stack__frame', {title: f}, f);
+  const frameEl = (f: NativeFrame) => {
+    const title =
+      f.mapping !== undefined
+        ? `[${f.category}] ${f.name}\n${f.mapping}`
+        : `[${f.category}] ${f.name}`;
+    return m('.pf-memscope-stack__frame', {title}, f.name);
+  };
   const toggleLink = (label: string) =>
     m(
       '.pf-memscope-stack__frame',
@@ -326,15 +400,17 @@ function renderStackFrames(
       ),
     );
 
-  if (frames.length <= 7) {
+  if (frames.length <= COLLAPSED_FRAME_THRESHOLD) {
     return frames.map(frameEl);
   }
   if (expanded) {
     return [...frames.map(frameEl), toggleLink('Show less')];
   }
   const leaf = frames[0]!;
-  const middle = frames.slice(1, -2).slice(0, 4);
-  const root = frames.slice(-2);
+  const middle = frames
+    .slice(1, -COLLAPSED_ROOT_FRAMES)
+    .slice(0, COLLAPSED_MIDDLE_FRAMES);
+  const root = frames.slice(-COLLAPSED_ROOT_FRAMES);
   const hiddenCount = frames.length - 1 - middle.length - root.length;
   return [
     frameEl(leaf),
@@ -354,7 +430,8 @@ export interface NativeSectionAttrs {
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
   private readonly slot = new AsyncMemo<NativeData>();
-  private appOnly = true;
+  private hideSystemFrames = false;
+  private hideRuntimeFrames = true;
   private rowLimit = MAX_STACK_ROWS;
   private readonly expandedStacks = new Set<number>();
 
@@ -395,9 +472,11 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const overhead = nativeRss > seen ? nativeRss - seen : 0;
 
     const stackRows = data.stacks.slice(0, this.rowLimit).map((s) => {
-      const frames = s.frames
-        .filter((f) => !this.appOnly || isAppMapping(f.mapping))
-        .map((f) => f.name);
+      const frames = s.frames.filter((f) => {
+        if (f.category === 'system' && this.hideSystemFrames) return false;
+        if (f.category === 'runtime' && this.hideRuntimeFrames) return false;
+        return true;
+      });
       const expanded = this.expandedStacks.has(s.topId);
       return [
         m(
@@ -517,19 +596,44 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
               bLabel: 'Unseen (pre-trace)',
               bBytes: overhead,
             }),
-          stackRows.length > 0
+          data.stacks.length > 0
             ? topTable({
                 title: 'Top allocation call-stacks',
-                controls: m(
-                  '.pf-memscope-toptable__controls',
-                  m(Checkbox, {
-                    label: 'Show frames from this app only',
-                    checked: this.appOnly,
-                    onchange: (e) => {
-                      this.appOnly = (e.target as HTMLInputElement).checked;
+                controls: m('.pf-memscope-toptable__controls', [
+                  m(
+                    Tooltip,
+                    {
+                      trigger: m(Checkbox, {
+                        label: 'Hide system frames',
+                        checked: this.hideSystemFrames,
+                        onchange: (e) => {
+                          this.hideSystemFrames = (
+                            e.target as HTMLInputElement
+                          ).checked;
+                        },
+                      }),
+                      position: PopupPosition.Top,
                     },
-                  }),
-                ),
+                    'Android framework and native OS/vendor libraries',
+                  ),
+                  m(
+                    Tooltip,
+                    {
+                      trigger: m(Checkbox, {
+                        label: 'Hide runtime frames',
+                        checked: this.hideRuntimeFrames,
+                        onchange: (e) => {
+                          this.hideRuntimeFrames = (
+                            e.target as HTMLInputElement
+                          ).checked;
+                        },
+                      }),
+                      position: PopupPosition.Top,
+                    },
+                    'Allocators, libc/ART/JNI glue, event-loop/IPC/coroutine ' +
+                      'scaffolding, and unwinder markers',
+                  ),
+                ]),
                 cols: [
                   {label: 'Call-stack snippet'},
                   {label: comparing ? 'Δ unreleased' : 'Unreleased', num: true},
