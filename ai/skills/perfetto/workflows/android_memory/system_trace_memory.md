@@ -19,32 +19,23 @@ or callstacks** own it. Hand off to the profiler workflows for that:
 [heap_profile_diff.md]($SKILL_ROOT/workflows/android_memory/heap_profile_diff.md)
 (two profiles).
 
-## Step 1: Load the trace(s) and check what they recorded
+## Step 1: Check what the trace(s) recorded
 
-Load each trace once into a warm session and query it by name:
-
-```bash
-trace_processor server unix --name tp --daemonize '<trace>'
-trace_processor query --remote tp "<SQL>"  # or -f query.sql
-# when done: trace_processor server kill tp
-```
-
-For a comparison, load `before_tp` and `after_tp` (`--name before_tp`,
-`--name after_tp`) and run every query on both.
+For a comparison, load them as `before_tp` and `after_tp` and run
+every query on both.
 
 **Before any analysis**, check that each trace recorded the signals the
 question needs. Most memory signals come from data sources, ftrace events or
 atrace categories that are off unless the trace config enables them, and a
 signal that was never recorded looks exactly like one that never changed.
-Read the config embedded in the trace, keeping only the lines that matter
-(full configs can be tens of KB):
+Read the config embedded in the trace:
 
-```bash
-trace_processor query --remote tp \
-  "SELECT str_value FROM metadata WHERE name = 'trace_config_pbtxt'" |
-  grep -E 'linux\.(process|sys)_stats|android\.(gpu\.memory|heapprofd|java_hprof)|atrace_categories|atrace_apps: "(lmkd|\*)"|_period_ms|_poll_ms|rss_stat|oom_score_adj|gpu_mem|dma_heap|lowmemory' |
-  sort -u
+```sql
+SELECT str_value FROM metadata WHERE name = 'trace_config_pbtxt'
 ```
+
+Full configs can be tens of KB, so keep only the distinct lines that match
+`linux\.(process|sys)_stats|android\.(gpu\.memory|heapprofd|java_hprof)|atrace_categories|atrace_apps: "(lmkd|\*)"|_period_ms|_poll_ms|rss_stat|oom_score_adj|gpu_mem|dma_heap|lowmemory`
 
 and check it against what each signal needs:
 

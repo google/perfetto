@@ -15,30 +15,23 @@ Compares two Android heap allocation profiles (before vs after) captured with
   frees.** Use `unreleased_bytes` (`SUM(size)`) for native leaks / active heap
   growth, and `alloc_bytes` (`SUM(MAX(size, 0))`) for allocation churn.
 
-## Step 1: Load both traces into warm sessions and check available profiles
+## Step 1: Load both traces and check available profiles
 
-Load each trace once into a named session and list the recorded `(upid,
-process_name, heap_name)` profiles:
+Load the two traces as `before_tp` and `after_tp`, and keep them loaded for all
+the steps below. List the recorded `(upid, process_name, heap_name)` profiles.
+Run on `before_tp`:
 
-```bash
-trace_processor server kill before_tp 2>/dev/null; trace_processor server kill after_tp 2>/dev/null
-trace_processor server unix --name before_tp --daemonize <before_trace>
-trace_processor server unix --name after_tp --daemonize <after_trace>
-trace_processor query --remote before_tp -f - << 'EOF'
-    SELECT
-      a.upid,
-      COALESCE(p.name, 'pid=' || p.pid) AS process_name,
-      a.heap_name,
-      SUM(MAX(a.size, 0)) AS alloc_bytes,
-      SUM(a.size) AS unreleased_bytes
-    FROM heap_profile_allocation a
-    JOIN process p USING (upid)
-    GROUP BY a.upid, process_name, a.heap_name;
-EOF
+```sql
+SELECT
+  a.upid,
+  COALESCE(p.name, 'pid=' || p.pid) AS process_name,
+  a.heap_name,
+  SUM(MAX(a.size, 0)) AS alloc_bytes,
+  SUM(a.size) AS unreleased_bytes
+FROM heap_profile_allocation a
+JOIN process p USING (upid)
+GROUP BY a.upid, process_name, a.heap_name;
 ```
-
-Kill both sessions when finished:
-`trace_processor server kill before_tp && trace_processor server kill after_tp`.
 
 ## Step 2: Diff profile totals, functions, and callstacks
 
@@ -68,29 +61,27 @@ frame** immediately above the runtime frames in the callstack (e.g.
 `ImageDecoder.decodeBitmap` or `libfoo.so`).
 
 If you need to inspect raw frames or source line numbers for a specific
-function in `after_tp`, query `android_heap_profile_summary_tree` using
-`-f - << 'EOF'` so `$` in inner class names (e.g. `Foo$Bar`) is not expanded by
-the shell:
+function in `after_tp`, query `android_heap_profile_summary_tree`.
 
-```bash
-trace_processor query --remote after_tp -f - << 'EOF'
-    INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
+Run on `after_tp`:
 
-    SELECT
-      id,
-      parent_id,
-      name AS function_name,
-      mapping_name,
-      source_file,
-      line_number,
-      self_size AS self_unreleased_bytes,
-      cumulative_size AS cumulative_unreleased_bytes,
-      self_alloc_size AS self_alloc_bytes,
-      cumulative_alloc_size AS cumulative_alloc_bytes
-    FROM android_heap_profile_summary_tree
-    WHERE name GLOB '*<FUNCTION_SUBSTRING>*'
-    ORDER BY cumulative_alloc_bytes DESC;
-EOF
+```sql
+INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
+
+SELECT
+  id,
+  parent_id,
+  name AS function_name,
+  mapping_name,
+  source_file,
+  line_number,
+  self_size AS self_unreleased_bytes,
+  cumulative_size AS cumulative_unreleased_bytes,
+  self_alloc_size AS self_alloc_bytes,
+  cumulative_alloc_size AS cumulative_alloc_bytes
+FROM android_heap_profile_summary_tree
+WHERE name GLOB '*<FUNCTION_SUBSTRING>*'
+ORDER BY cumulative_alloc_bytes DESC;
 ```
 
 ## Further investigation and reporting

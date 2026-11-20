@@ -10,9 +10,6 @@ This workflow walks an AI agent through investigating memory leaks and object
 retention in Android Java heap dumps. It assumes the trace was recorded with the
 ART perfetto data source (`java_heap_profiler`).
 
-If the user has not yet loaded a trace into `trace_processor`, follow
-`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-
 ---
 
 ## Phase 1: First-Pass Triage
@@ -21,16 +18,14 @@ Run these two scripts first, before any open-ended queries. They are cheap
 relative to exploration (each takes well under a minute even on a 250 MB heap)
 and they answer the two questions a leak investigation always starts with:
 *where does the memory live?* and *are destroyed Activities being kept alive?*
-Both scripts run against the warm session and return CSV. A trace can contain
-**more than one heap dump** (several processes, or one process sampled at
-different times); every row carries `process_name` and `graph_sample_ts`, so
-handle each dump separately and label your sections by those two values.
+Both scripts return CSV. A trace can contain **more than one heap dump**
+(several processes, or one process sampled at different times); every row
+carries `process_name` and `graph_sample_ts`, so handle each dump separately
+and label your sections by those two values.
 
 1.  **Retention hotspots.**
 
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_retention_hotspots.sql
-    ```
+    Run `$SKILL_ROOT/workflows/android_memory/scripts/triage_retention_hotspots.sql`.
 
     Up to 5 rows per dump, ranked by *spread*: the retained bytes of a
     dominator-class-tree node that are not explained by its single largest
@@ -61,9 +56,7 @@ handle each dump separately and label your sections by those two values.
 
 2.  **Leaked Activities.**
 
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_leaked_activities.sql
-    ```
+    Run `$SKILL_ROOT/workflows/android_memory/scripts/triage_leaked_activities.sql`.
 
     Two result sets. The first counts reachable instances of every
     `android.app.Activity` subclass next to the number of

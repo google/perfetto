@@ -15,14 +15,9 @@ This information comes from the `gpu` table, which trace_processor builds from
 `GpuInfo` trace packets
 ([gpu\_info.proto](/protos/perfetto/trace/system_info/gpu_info.proto)).
 
-If the user has not yet loaded a trace into `trace_processor`, follow
-`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-
 ## Enumerate the GPUs
 
-```bash
-trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_info.sql
-```
+Run `$SKILL_ROOT/workflows/gpu/scripts/gpu_info.sql`.
 
 Columns: `machine_id`, `is_host`, `ugpu`, `gpu_index`, `vendor`, `name`,
 `model`, `architecture`, `uuid`, `pci_bdf`. One row per GPU.

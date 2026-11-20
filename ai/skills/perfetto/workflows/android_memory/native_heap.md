@@ -5,19 +5,15 @@ requires: [query]
 
 This workflow walks an AI agent through investigating memory leaks, active memory growth, and allocation hot paths in Android native heap profiles. It assumes the trace was recorded with the native heap profiler (`heapprofd`).
 
-If the user has not yet loaded a trace into `trace_processor`, follow `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-
 ---
 
 ## Phase 1: Mandatory First-Pass Triage (Quickstart)
 
 This section is the mandatory first-pass triage for analyzing a native heap profile. You MUST follow these instructions verbatim before attempting any open-ended exploratory queries. You MUST only proceed to Phase 2 (Open-Ended Exploratory Deep Dive) if the user explicitly states that this first pass triage is not good, not working, or inconclusive.
 
-1.  Run the trace query using the provided compiled script to extract the top unreleased allocation path. The script runs against the warm session and returns the query result as CSV.
+1.  Run the trace query using the provided compiled script to extract the top unreleased allocation path. The script returns the query result as CSV.
 
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/android_memory/scripts/triage_native_heap.sql
-    ```
+    Run `$SKILL_ROOT/workflows/android_memory/scripts/triage_native_heap.sql`.
 
 2.  Parse the returned string CSV to identify the columns and extract the values for `process_name`, `path` (callstack), `class_name` (leaf function), and `self_size` (allocated bytes). If the response is empty or contains only a header, inform the user that the query returned no matching data for this trace.
 

@@ -5,34 +5,8 @@ requires: [query]
 
 How to get data out of a trace (`.pftrace`, `.perfetto-trace`, `.pb`,
 systrace, ftrace text, Chrome JSON) with `trace_processor` and PerfettoSQL.
-`trace_processor` must be on the `PATH` (see `SKILL.md`).
 
-## 1. Load once, query many
-
-Parsing is the slow part (seconds to minutes for large traces), so load
-the trace into a named background session and run every query against it
-with `--remote`:
-
-```sh
-trace_processor server unix --name mysession --daemonize TRACE_FILE
-trace_processor query --remote mysession "SELECT ts, dur, name FROM slice WHERE dur > 5e8 LIMIT 5"
-trace_processor query --remote mysession -f queries.sql   # long SQL from a file
-trace_processor server kill mysession                     # when completely done
-```
-
-- Session state persists between calls: a `CREATE PERFETTO TABLE` or
-  `INCLUDE PERFETTO MODULE` done once is available in the next call.
-- Several `;`-separated statements per call are fine. Each result set is
-  printed as CSV, separated by a blank line.
-- Trace-loading flags (`--full-sort`, `--add-sql-package`, ...) go on the
-  `server unix` invocation, not on `query --remote`.
-- `TRACE_FILE` may be a local path, an `http(s)://` URL or a Perfetto UI
-  share link; gzipped traces load directly.
-- Idle sessions are reaped after 30 minutes; kill yours when done.
-- `trace_processor query TRACE_FILE "..."` without a session re-parses on
-  every call. Use it only for a single quick question.
-
-## 2. Discover, don't guess
+## 1. Discover, don't guess
 
 ```sql
 -- Exact columns of any table, view or query (no rows scanned):
@@ -84,7 +58,7 @@ Modules that answer most questions:
 Static references: <https://perfetto.dev/docs/analysis/stdlib-docs>,
 <https://perfetto.dev/docs/analysis/sql-tables>.
 
-## 3. PerfettoSQL rules of thumb
+## 2. PerfettoSQL rules of thumb
 
 - Join on `utid` / `upid` (unique for the trace), not `tid` / `pid` (the
   OS recycles them). Ids like `id`, `utid`, `track_id` are fine as join
@@ -115,7 +89,7 @@ Static references: <https://perfetto.dev/docs/analysis/stdlib-docs>,
 - Per-row `CREATE PERFETTO FUNCTION` calls are expensive; prefer plain
   SQL, CTEs and stdlib views.
 
-## 4. Working loop
+## 3. Working loop
 
 1. State the question and which tables/modules should answer it; search
    the stdlib before writing custom joins.

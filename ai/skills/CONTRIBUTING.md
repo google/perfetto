@@ -24,7 +24,7 @@ The findings that shaped it:
   rules.
 - **Warm sessions are the single biggest efficiency win.** Without
   guidance agents re-parse the trace for every query, dozens of times
-  per investigation. `querying.md` makes `server unix` plus
+  per investigation. The CLI adapter makes `server unix` plus
   `query --remote` the default.
 - **Workflows carry their own scripts.** A workflow that says "run this
   SQL file, then interpret these columns" is repeatable and cheap to
@@ -43,13 +43,13 @@ costs more or scores lower is not an improvement.
 ai/skills/perfetto/
 ├── SKILL-template.md            the router (becomes SKILL.md when bundled)
 ├── infra-references/
-│   ├── querying.md              trace_processor sessions, discovery, PerfettoSQL
+│   ├── querying.md              discovery, PerfettoSQL
 │   ├── recording_android_traces.md
 │   ├── recording_linux_traces.md
 │   ├── trace_config_reference.md
 │   └── example-configs/
 ├── environment-references/
-│   ├── cli.md                   CLI adapter: $SKILL_ROOT, trace_processor
+│   ├── cli.md                   CLI adapter: $SKILL_ROOT, sessions
 │   └── ui.md                    UI adapter: the skill inside the Perfetto UI
 └── workflows/
     ├── android_memory/          heap dumps, native heap, allocations + scripts/
@@ -82,7 +82,8 @@ host of that adapter. What differs between hosts goes in that host's
 adapter in `environment-references/` (`cli.md`, `ui.md`), including the
 skill `description` in its frontmatter. The adapter body says how the
 host performs each action, and replaces the `{{environment_setup}}`
-line of `SKILL-template.md`. Each file lists
+line of `SKILL-template.md`. Other files say what to run ("Run
+`$SKILL_ROOT/<path>.sql`"), and the adapter says how. Each file lists
 every action it needs in its `requires` frontmatter, such as `[query]`,
 and a host whose adapter lacks one does not get the file (see
 `drop_reports/`, one checked-in report per adapter).

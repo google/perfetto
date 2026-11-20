@@ -6,21 +6,11 @@ requires: [query, multi_trace, python]
 Compares two Android Java heap dumps (before vs after), either Perfetto
 `java_heap_profiler` traces or Android `.hprof` dumps.
 
-## Step 1: Load both dumps into warm sessions
+## Step 1: Load both dumps
 
-Load each dump once into a named session so every query reuses the parsed heap
-graph instead of re-parsing the file. Load them in parallel:
-
-```bash
-trace_processor server unix --name before_tp --daemonize <before_dump> &
-trace_processor server unix --name after_tp --daemonize <after_dump> &
-wait
-```
-
-A large heap dump can take about a minute to load.
-
-Kill both sessions when finished:
-`trace_processor server kill before_tp && trace_processor server kill after_tp`.
+Load the two dumps as `before_tp` and `after_tp`, both at the same time, and
+keep them loaded for all the steps below. A large heap dump can take about a
+minute to load.
 
 ## Step 2: Find which classes grew
 
@@ -91,14 +81,10 @@ Phase 1 triage scripts from
 [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md)
 (`triage_retention_hotspots.sql`, `triage_leaked_activities.sql`) on
 `after_tp`. To find what holds a specific class from Step 2 alive, fill in
-`<class_name>` in `explain_retention.sql` and run it on `after_tp` (single
-quotes prevent the shell from expanding `$` in inner class names):
-
-```bash
-sed 's/<class_name>/com.example.LeakedThing$Inner/' \
-  $SKILL_ROOT/workflows/android_memory/scripts/explain_retention.sql |
-  trace_processor query --remote after_tp -f -
-```
+`<class_name>` in
+`$SKILL_ROOT/workflows/android_memory/scripts/explain_retention.sql` (for
+example `com.example.LeakedThing$Inner`) and run the edited query on
+`after_tp`.
 
 The query groups reachable instances of the class by their shortest
 strong-reference path from a GC root and returns up to 20 paths per dump,
@@ -140,27 +126,26 @@ Field values are only recorded in Android `.hprof` dumps; Perfetto
 `java_heap_profiler` traces store the object graph without them, so these
 queries return nothing for them.
 
-Values live in two places, so there is one query for each. Use `-f - << 'EOF'`
-so `$` in inner class names (e.g. `Foo$Bar`) is not expanded by the shell.
+Values live in two places, so there is one query for each.
 
 **String fields** are ordinary references: the owner points at a
 `java.lang.String` instance through `heap_graph_reference`, and that instance
 carries the text in `heap_graph_object_data.value_string`.
 
-```bash
-trace_processor query --remote after_tp -f - << 'EOF'
-    SELECT r.field_name, d.value_string, COUNT(*) AS instances
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    JOIN heap_graph_reference r ON o.id = r.owner_id
-    JOIN heap_graph_object s ON r.owned_id = s.id
-    JOIN heap_graph_object_data d ON s.object_data_id = d.id
-    WHERE o.reachable = 1
-      AND COALESCE(c.deobfuscated_name, c.name) = '<LEAKED_CLASS>'
-      AND d.value_string IS NOT NULL
-    GROUP BY 1, 2
-    ORDER BY instances DESC;
-EOF
+Run on `after_tp`:
+
+```sql
+SELECT r.field_name, d.value_string, COUNT(*) AS instances
+FROM heap_graph_object o
+JOIN heap_graph_class c ON o.type_id = c.id
+JOIN heap_graph_reference r ON o.id = r.owner_id
+JOIN heap_graph_object s ON r.owned_id = s.id
+JOIN heap_graph_object_data d ON s.object_data_id = d.id
+WHERE o.reachable = 1
+  AND COALESCE(c.deobfuscated_name, c.name) = '<LEAKED_CLASS>'
+  AND d.value_string IS NOT NULL
+GROUP BY 1, 2
+ORDER BY instances DESC;
 ```
 
 **Primitive fields** hang off the owner itself: `heap_graph_object.object_data_id`
@@ -168,25 +153,25 @@ leads to `heap_graph_primitive`, which has one nullable column per primitive typ
 (`int_value`, `bool_value`, ...) and sets exactly one of them per row, hence the
 `COALESCE`.
 
-```bash
-trace_processor query --remote after_tp -f - << 'EOF'
-    SELECT
-      p.field_name,
-      p.field_type,
-      COALESCE(p.bool_value, p.byte_value, p.char_value, p.short_value,
-               p.int_value, p.long_value, p.float_value, p.double_value) AS value,
-      COUNT(*) AS instances
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    JOIN heap_graph_object_data d ON o.object_data_id = d.id
-    JOIN heap_graph_primitive p ON d.field_set_id = p.field_set_id
-    WHERE o.reachable = 1
-      AND COALESCE(c.deobfuscated_name, c.name) = '<LEAKED_CLASS>'
-      -- Exclude ART's synthetic Object lock-word header (shadow$_monitor_).
-      AND p.field_name NOT GLOB 'java.lang.Object.shadow*'
-    GROUP BY 1, 2, 3
-    ORDER BY instances DESC;
-EOF
+Run on `after_tp`:
+
+```sql
+SELECT
+  p.field_name,
+  p.field_type,
+  COALESCE(p.bool_value, p.byte_value, p.char_value, p.short_value,
+           p.int_value, p.long_value, p.float_value, p.double_value) AS value,
+  COUNT(*) AS instances
+FROM heap_graph_object o
+JOIN heap_graph_class c ON o.type_id = c.id
+JOIN heap_graph_object_data d ON o.object_data_id = d.id
+JOIN heap_graph_primitive p ON d.field_set_id = p.field_set_id
+WHERE o.reachable = 1
+  AND COALESCE(c.deobfuscated_name, c.name) = '<LEAKED_CLASS>'
+  -- Exclude ART's synthetic Object lock-word header (shadow$_monitor_).
+  AND p.field_name NOT GLOB 'java.lang.Object.shadow*'
+GROUP BY 1, 2, 3
+ORDER BY instances DESC;
 ```
 
 Read the results top-down: a value shared by many instances is a configuration,
@@ -202,15 +187,15 @@ memory. The Java object's `self_size` is only a small header; the pixel byte
 size is in `heap_graph_object.native_size`. Group reachable Bitmaps by
 `native_size` in both sessions to see which Bitmap sizes grew:
 
-```bash
-trace_processor query --remote after_tp -f - << 'EOF'
-    SELECT o.native_size, COUNT(*) AS bitmaps, SUM(o.native_size) AS native_bytes
-    FROM heap_graph_object o
-    INNER JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE o.reachable = 1 AND c.name = 'android.graphics.Bitmap'
-    GROUP BY 1
-    ORDER BY native_bytes DESC;
-EOF
+Run on `after_tp`:
+
+```sql
+SELECT o.native_size, COUNT(*) AS bitmaps, SUM(o.native_size) AS native_bytes
+FROM heap_graph_object o
+INNER JOIN heap_graph_class c ON o.type_id = c.id
+WHERE o.reachable = 1 AND c.name = 'android.graphics.Bitmap'
+GROUP BY 1
+ORDER BY native_bytes DESC;
 ```
 
 Then run `explain_retention.sql` with `<class_name>` set to

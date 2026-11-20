@@ -34,7 +34,7 @@ trace.
 4. **Everything else** (startup, jank, ANRs, CPU, scheduling, counters,
    any custom question): read
    [querying.md]($SKILL_ROOT/infra-references/querying.md) and write
-   PerfettoSQL against a warm session.
+   PerfettoSQL.
 
 Workflows carry their own queries and scripts; read `querying.md` only for
 ad-hoc work.
@@ -43,13 +43,3 @@ ad-hoc work.
 
 Answer with numbers from the trace and the query that produced them, and
 keep model-generated theories clearly separate from measured facts.
-
-For any investigation that took more than a handful of queries, or that
-followed a workflow, also save a markdown report in the working directory
-(default `perfetto_analysis_report.md`, or where the user asked) so a
-human can follow what was done without reading the whole session. It
-should contain the question, the trace file(s), the findings with
-concrete numbers, the validated queries so the analysis can be re-run,
-and open questions or next steps. Mention its path in your final message.
-A single quick question answered by one or two queries does not need a
-file.

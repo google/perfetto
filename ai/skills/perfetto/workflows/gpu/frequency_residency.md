@@ -21,9 +21,6 @@ workload-agnostic clock pathologies:
 - **Sustained throttling**: the clock held below peak *while busy*, usually
   because of a physical limit — correlated here against temperature and power.
 
-If the user has not yet loaded a trace into `trace_processor`, follow
-`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-
 > If `$SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql` returns no rows, the trace has no `gpufreq`
 > track and this workflow does not apply.
 
@@ -33,12 +30,8 @@ If the user has not yet loaded a trace into `trace_processor`, follow
 
 Run this before any open-ended exploration. It produces the headline verdict.
 
-1.  Run the residency script against the warm session. It returns one row
-    per GPU (that has a frequency track) as CSV.
-
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql
-    ```
+1.  Run `$SKILL_ROOT/workflows/gpu/scripts/gpu_frequency_residency.sql`.
+    It returns one row per GPU (that has a frequency track) as CSV.
 
     Columns: `gpu`, `gpu_name`, `active_span_ns`, `gpu_busy_ns`,
     `busy_pct_of_active`, `fmax_mhz`, `mean_busy_mhz`, `eff_occupancy_pct`,
@@ -135,9 +128,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
 1.  List the ramp events — idle→busy edges where the clock had to climb to reach
     a healthy state:
 
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_dvfs_ramp.sql
-    ```
+    Run `$SKILL_ROOT/workflows/gpu/scripts/gpu_dvfs_ramp.sql`.
 
     Returns, worst first: `gpu`, `gpu_name`, `edge_rel_ns`, `idle_gap_ns`,
     `freq_at_edge_mhz`, `target_mhz` (90% of `fmax`), `ramp_ns`, `completed`.
@@ -208,9 +199,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
 1.  List sustained throttle intervals — the clock held below target *after* it
     had already reached target in the same burst — with thermal/power context:
 
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_sustained_throttle.sql
-    ```
+    Run `$SKILL_ROOT/workflows/gpu/scripts/gpu_sustained_throttle.sql`.
 
     Returns, longest first: `gpu`, `gpu_name`, `start_rel_ns`, `dur_ns`,
     `freq_mhz`, `target_mhz`, `temp_c`, `power_w`.

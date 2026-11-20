@@ -16,9 +16,6 @@ is what tells you whether you have a GPU problem or a host problem. The gaps
 point you upstream: submission/launch latency, host-side synchronization,
 allocation, host-device copies, or host work starving the device.
 
-If the user has not yet loaded a trace into `trace_processor`, follow
-`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-
 > If `$SKILL_ROOT/workflows/gpu/scripts/gpu_timeline_decomposition.sql` returns no rows, the trace has no GPU
 > render-stage activity and this workflow does not apply.
 
@@ -28,12 +25,8 @@ If the user has not yet loaded a trace into `trace_processor`, follow
 
 Run this before any open-ended exploration. It produces the headline verdict.
 
-1.  Run the decomposition script against the warm session. It returns one
-    row per GPU as CSV.
-
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_timeline_decomposition.sql
-    ```
+1.  Run `$SKILL_ROOT/workflows/gpu/scripts/gpu_timeline_decomposition.sql`.
+    It returns one row per GPU as CSV.
 
     Columns: `gpu`, `gpu_name`, `activities`, `trace_wall_ns`, `active_span_ns`,
     `gpu_busy_ns`, `busy_pct_of_active`, `busy_pct_of_trace`.
@@ -94,9 +87,7 @@ Run this before any open-ended exploration. It produces the headline verdict.
 
 1.  List the largest idle gaps on the GPU timeline:
 
-    ```bash
-    trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/scripts/gpu_idle_gaps.sql
-    ```
+    Run `$SKILL_ROOT/workflows/gpu/scripts/gpu_idle_gaps.sql`.
 
     Returns `gap_start_rel_ns` (relative to trace start) and `gap_dur_ns`,
     biggest first.
