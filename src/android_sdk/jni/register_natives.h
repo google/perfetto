@@ -20,8 +20,6 @@
 #include <android/log.h>
 #include <jni.h>
 
-#include <cstddef>
-
 #include "src/android_sdk/nativehelper/scoped_local_ref.h"
 
 namespace perfetto {
@@ -82,9 +80,9 @@ inline void UnregisterNativeMethods(JNIEnv* env, const char* class_name) {
 [[nodiscard]] inline bool RegisterNativeClassesMayFail(
     JNIEnv* env,
     const NativeClass* classes,
-    size_t num_classes) {
+    int num_classes) {
   bool ok = true;
-  for (size_t i = 0; i < num_classes; i++) {
+  for (int i = 0; i < num_classes; i++) {
     ok &= RegisterNativeMethodsMayFail(env, classes[i].name, classes[i].methods,
                                        classes[i].num_methods);
   }
@@ -94,8 +92,8 @@ inline void UnregisterNativeMethods(JNIEnv* env, const char* class_name) {
 // Unregisters every class in |classes|.
 inline void UnregisterNativeClasses(JNIEnv* env,
                                     const NativeClass* classes,
-                                    size_t num_classes) {
-  for (size_t i = 0; i < num_classes; i++) {
+                                    int num_classes) {
+  for (int i = 0; i < num_classes; i++) {
     UnregisterNativeMethods(env, classes[i].name);
   }
 }

@@ -71,6 +71,9 @@ final class PerfettoNativeLibrary {
     return sIsAvailable;
   }
 
+  // Returns void on purpose, like loadLibrary(). Ravenwood uses the "ignore"
+  // policy for both, which makes them empty methods, so the SDK stays
+  // available there. A boolean would come back as false.
   @CriticalNative
   private static native void native_probe();
 

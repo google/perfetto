@@ -379,18 +379,16 @@ public final class PerfettoTrace {
    * @return whether the process is registered with the requested backend
    */
   public static boolean register(boolean isBackendInProcess) {
+    if (!isBackendInProcess && !TracingPolicy.allowSystemBackend()) {
+      return false;
+    }
     if (!PerfettoNativeLibrary.isAvailable()) {
       return false;
     }
     if (!isBackendInProcess) {
-      if (!TracingPolicy.allowSystemBackend()) {
-        return false;
-      }
-    }
-    native_register(isBackendInProcess);
-    if (!isBackendInProcess) {
       sAttemptedSystemRegistration.set(true);
     }
+    native_register(isBackendInProcess);
     sProcessTrackUuid = native_get_process_track_uuid();
     return true;
   }
