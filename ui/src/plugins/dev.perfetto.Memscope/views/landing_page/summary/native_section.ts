@@ -204,6 +204,8 @@ async function loadNativeStacks(
 
   const stacks: NativeStack[] = [];
   const stackRes = await trace.engine.query(`
+    INCLUDE PERFETTO MODULE callstacks.stack_profile;
+
     WITH
     ${unrelCte},
     top_sites AS (
@@ -214,26 +216,27 @@ async function loadNativeStacks(
         FROM unrel u
       ) WHERE rn <= 5
     ),
-    chain(top_id, unreleased, allocs, callsite_id, depth) AS (
-      SELECT callsite_id, unreleased, allocs, callsite_id, 0
-      FROM top_sites
+    chain(top_id, unreleased, allocs, node_id, depth) AS (
+      SELECT t.callsite_id, t.unreleased, t.allocs, f.id, 0
+      FROM top_sites t
+      JOIN _callstack_spc_forest f USING (callsite_id)
+      WHERE f.is_leaf_function_in_callsite_frame
       UNION ALL
-      SELECT c.top_id, c.unreleased, c.allocs, sc.parent_id, c.depth + 1
+      SELECT c.top_id, c.unreleased, c.allocs, f.parent_id, c.depth + 1
       FROM chain c
-      JOIN stack_profile_callsite sc ON sc.id = c.callsite_id
-      WHERE sc.parent_id IS NOT NULL AND c.depth < 128
+      JOIN _callstack_spc_forest f ON f.id = c.node_id
+      WHERE f.parent_id IS NOT NULL AND c.depth < 128
     )
     SELECT
       c.top_id AS top_id,
       CAST(c.unreleased AS INT) AS unreleased,
       CAST(c.allocs AS INT) AS allocs,
       c.depth AS depth,
-      coalesce(f.deobfuscated_name, f.name, '<unknown>') AS frame_name,
+      f.name AS frame_name,
       mp.name AS mapping_name
     FROM chain c
-    JOIN stack_profile_callsite sc ON sc.id = c.callsite_id
-    JOIN stack_profile_frame f ON sc.frame_id = f.id
-    LEFT JOIN stack_profile_mapping mp ON f.mapping = mp.id
+    JOIN _callstack_spc_forest f ON f.id = c.node_id
+    LEFT JOIN stack_profile_mapping mp ON f.mapping_id = mp.id
     ORDER BY c.top_id, c.depth ASC
   `);
   let cur: (NativeStack & {topId: number}) | undefined;
