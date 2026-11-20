@@ -27,9 +27,14 @@
     border-bottom: 1px solid var(--pf-color-border);
   }
 
-  &__model {
+  &__header-spacer {
     flex: 1;
+  }
+
+  &__model {
+    flex: 0 1 auto;
     min-width: 0;
+    max-width: 220px;
   }
 
   &__no-model {
@@ -62,9 +67,15 @@
   &__msg {
     margin-bottom: 1rem;
     max-width: 90%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0.5rem 1rem;
     border-radius: 12px;
     line-height: 1.5;
+
+    p {
+      margin-block: 10px 2px;
+    }
 
     &-role {
       font-weight: bold;
@@ -72,9 +83,46 @@
       margin-bottom: 4px;
     }
 
+    &-text {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+
+      // Keep any code blocks nested inside lists/blockquotes horizontally
+      // scrollable within the message bubble too.
+      pre {
+        overflow-x: auto;
+        max-width: 100%;
+      }
+
+      // Informational markdown tables rendered as plain HTML.
+      table {
+        border-collapse: collapse;
+        margin: 6px 0;
+        font-size: 0.9em;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+
+        th,
+        td {
+          border: 1px solid var(--pf-color-border);
+          padding: 4px 8px;
+          text-align: left;
+        }
+
+        th {
+          font-weight: 600;
+          background-color: var(--pf-color-background);
+        }
+      }
+    }
+
     &--ai {
       background-color: var(--pf-color-background-secondary);
       align-self: flex-start;
+      border-top-left-radius: 2px;
     }
 
     &--user {
@@ -82,6 +130,7 @@
       color: var(--pf-color-text-on-primary);
       align-self: flex-end;
       margin-left: auto;
+      border-top-right-radius: 2px;
     }
 
     &--error {
@@ -113,6 +162,20 @@
       margin: 0;
       padding: 0;
     }
+  }
+
+  // A markdown table from the model, shown as a DataGrid.
+  &__table {
+    margin: 4px 0;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__code {
+    margin: 4px 0;
+    background-color: var(--pf-color-background);
+    color: var(--pf-color-text);
   }
 
   &__tool {
@@ -166,13 +229,19 @@
     font-size: 0.95em;
   }
 
+  &__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    border-top: 1px solid var(--pf-color-border);
+  }
+
   &__context {
     flex-shrink: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 4px 0.5rem;
-    border-top: 1px solid var(--pf-color-border);
   }
 
   &__context-chip {
@@ -204,6 +273,7 @@
   }
 
   &__tokens {
+    margin-right: auto;
     font-size: 0.8em;
     color: var(--pf-color-text-muted);
     white-space: nowrap;
@@ -211,16 +281,48 @@
 
   &__input {
     flex-shrink: 0;
+    box-sizing: border-box;
+  }
+
+  &__prompt-box {
+    display: flex;
+    flex-direction: column;
+    background: var(--pf-color-void);
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 12px;
+
+    &:hover {
+      border-color: var(--pf-color-border);
+    }
+
+    &:focus-within {
+      border-color: var(--pf-color-primary);
+    }
+  }
+
+  &__textarea {
+    width: 100%;
+    min-width: 0;
+    max-height: 12em;
+    resize: none;
+    overflow-y: auto;
+    box-sizing: border-box;
+    font-family: var(--pf-font-compact);
+    font-size: inherit;
+    line-height: 1.4;
+    color: inherit;
+    padding: 8px 10px 4px;
+    margin: 0;
+    outline: none;
+    background: transparent;
+    border: none;
+  }
+
+  &__prompt-toolbar {
     display: flex;
     align-items: center;
-    padding: 0.5rem;
-    border-top: 1px solid var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
-    box-sizing: border-box;
-    gap: 4px;
-
-    .pf-text-input {
-      flex: 1;
-    }
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 4px 8px 8px;
   }
 }

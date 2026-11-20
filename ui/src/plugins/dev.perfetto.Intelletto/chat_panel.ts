@@ -26,7 +26,6 @@ import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {showModal} from '../../widgets/modal';
 import {Select} from '../../widgets/select';
-import {TextInput} from '../../widgets/text_input';
 import type {
   LlmGateway,
   ModelDetails,
@@ -35,6 +34,7 @@ import type {
 import './chat_panel.scss';
 import type {ChatLine, ChatSession} from './chat_session';
 import type {ContextItem, ContextRegistry} from './context';
+import {renderMarkdown} from './markdown';
 import {maybeUndefined} from '../../base/utils';
 import type {Setting} from '../../public/settings';
 import {assertExists} from '../../base/assert';
@@ -86,12 +86,20 @@ function getValidModel(
   return undefined;
 }
 
+// Resize a textarea's height to fit its content.
+function autoResize(el: HTMLTextAreaElement) {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 /**
  * The Intelletto chat panel: a pure view over a ChatSession. Renders the
  * transcript, input box, model header, and context strip.
  */
 export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
-  private readonly md = markdownit();
+  // Explicitly disable raw HTML and external image rendering so untrusted
+  // model output cannot inject markup or trigger outbound image requests.
+  private readonly md = markdownit({html: false}).disable('image');
   // Whether the conversation was scrolled to (near) the bottom as of the last
   // render. We only auto-scroll on update when this holds, so new content keeps
   // the view pinned to the bottom but a user who has scrolled up to read is
@@ -100,13 +108,34 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
 
   view({attrs}: m.CVnode<ChatPanelAttrs>): m.Children {
     const {session, selectedModelSetting, gateway} = attrs;
+    const agenticModels = gateway
+      .listModels()
+      .filter((rm) => rm.model.roles.includes('agentic'));
     const currentModel = getValidModel(selectedModelSetting.get(), gateway);
+    const onModelChange = (model: ModelPath) => selectedModelSetting.set(model);
 
     return m(
       '.pf-intelletto',
-      this.renderHeader(attrs, currentModel, (m) =>
-        selectedModelSetting.set(m),
-      ),
+      {
+        // Clicking anywhere in the panel focuses the text input, unless the
+        // click landed on an interactive element or the user is selecting
+        // text (e.g. to copy part of the transcript).
+        onclick: (e: MouseEvent) => {
+          const target = e.target as HTMLElement;
+          if (target.closest('input, textarea, select, button, a, summary')) {
+            return;
+          }
+          const selection = window.getSelection();
+          if (selection !== null && !selection.isCollapsed) return;
+          const root = e.currentTarget as HTMLElement;
+          root
+            .querySelector<HTMLTextAreaElement>(
+              '.pf-intelletto__input textarea',
+            )
+            ?.focus();
+        },
+      },
+      this.renderHeader(attrs, agenticModels),
       m(
         '.pf-intelletto__conversation',
         {
@@ -158,7 +187,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                 m('b.pf-intelletto__msg-role', labels[msg.role]),
                 m(
                   'span.pf-intelletto__msg-text',
-                  m.trust(this.md.render(msg.text)),
+                  renderMarkdown(this.md, msg.text),
                 ),
               );
             }),
@@ -169,67 +198,86 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
             'Working...',
           ),
       ),
-      this.renderContextStrip(attrs),
-      currentModel &&
-        m(
-          'footer.pf-intelletto__input',
-          m(TextInput, {
-            value: session.input,
-            oninput: (e: Event) => {
-              session.input = (e.target as HTMLInputElement).value;
-            },
-            onkeydown: (e: KeyboardEvent) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                session.send(currentModel);
-              }
-            },
-            placeholder: session.loading
-              ? 'Queue a follow-up...'
-              : 'Ask about your trace...',
-          }),
-          session.totalTokens !== undefined
-            ? m(
-                '.pf-intelletto__tokens',
-                `${(session.totalTokens / 1000).toFixed(1)} ktok`,
-              )
-            : null,
-          session.loading
-            ? m(Button, {
-                icon: 'stop',
-                title: 'Cancel',
-                onclick: () => session.cancel(),
-                variant: ButtonVariant.Filled,
-                intent: Intent.Danger,
-              })
-            : m(Button, {
-                icon: 'arrow_forward',
-                title: 'Send',
-                onclick: () => session.send(currentModel),
-                variant: ButtonVariant.Filled,
-                rounded: true,
-                intent: Intent.Primary,
+      m(
+        '.pf-intelletto__footer',
+        this.renderContextStrip(attrs),
+        currentModel &&
+          m(
+            'footer.pf-intelletto__input',
+            m(
+              '.pf-intelletto__prompt-box',
+              m('textarea.pf-intelletto__textarea', {
+                rows: 3,
+                value: session.input,
+                // Grow the textarea to fit its content (capped by max-height in
+                // CSS). Done on create/update too so it shrinks back after send.
+                oncreate: (vnode: m.VnodeDOM) =>
+                  autoResize(vnode.dom as HTMLTextAreaElement),
+                onupdate: (vnode: m.VnodeDOM) =>
+                  autoResize(vnode.dom as HTMLTextAreaElement),
+                oninput: (e: Event) => {
+                  const el = e.target as HTMLTextAreaElement;
+                  session.input = el.value;
+                  autoResize(el);
+                },
+                onkeydown: (e: KeyboardEvent) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    session.send(currentModel);
+                  }
+                },
+                placeholder: session.loading
+                  ? 'Queue a follow-up...'
+                  : 'Ask about your trace...',
               }),
-        ),
+              m(
+                '.pf-intelletto__prompt-toolbar',
+                session.totalTokens !== undefined
+                  ? m(
+                      '.pf-intelletto__tokens',
+                      `${(session.totalTokens / 1000).toFixed(1)} ktok`,
+                    )
+                  : null,
+                this.renderModelPicker(
+                  agenticModels,
+                  currentModel,
+                  onModelChange,
+                ),
+                session.loading
+                  ? m(Button, {
+                      icon: 'stop',
+                      title: 'Cancel',
+                      onclick: () => session.cancel(),
+                      variant: ButtonVariant.Filled,
+                      rounded: true,
+                      intent: Intent.Danger,
+                    })
+                  : m(Button, {
+                      icon: 'send',
+                      title: 'Send',
+                      onclick: () => session.send(currentModel),
+                      variant: ButtonVariant.Filled,
+                      rounded: true,
+                      intent: Intent.Primary,
+                    }),
+              ),
+            ),
+          ),
+      ),
     );
   }
 
   private renderHeader(
     attrs: ChatPanelAttrs,
-    currentModel: ModelPath | undefined,
-    onModelChange: (m: ModelPath) => void,
+    agenticModels: readonly ModelDetails[],
   ): m.Children {
-    const {gateway, session, onNewSession} = attrs;
-    // All models with the 'agentic' role, for the picker dropdown.
-    const agenticModels = gateway
-      .listModels()
-      .filter((rm) => rm.model.roles.includes('agentic'));
+    const {session, onNewSession} = attrs;
 
     return m(
       '.pf-intelletto__header',
       agenticModels.length === 0
         ? m('span.pf-intelletto__no-model', 'No agentic model configured')
-        : this.renderModelPicker(agenticModels, currentModel, onModelChange),
+        : m('span.pf-intelletto__header-spacer'),
       m(Button, {
         icon: 'manage_search',
         title: 'Show system prompt',
