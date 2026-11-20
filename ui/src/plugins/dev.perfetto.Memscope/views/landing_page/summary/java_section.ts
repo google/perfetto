@@ -768,7 +768,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
               'objects are garbage awaiting collection.',
             pct: reachPct,
             headline: 'of the Java heap is reachable',
-            color: '#d1a843',
+            color: '#e0b038',
             aLabel: 'Reachable',
             aBytes: cur.reachableHeapSize,
             bLabel: 'Unreachable',

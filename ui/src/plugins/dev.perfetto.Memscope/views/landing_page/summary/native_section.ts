@@ -622,7 +622,7 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
                 'allocator footprint from smaps. The rest predates the trace.',
               pct: coveragePct,
               headline: 'of native RSS explained by the profiler',
-              color: '#5c85c4',
+              color: '#5284d4',
               aLabel: 'Seen by profiler',
               aBytes: seen,
               bLabel: 'Unseen (pre-trace)',
