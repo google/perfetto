@@ -60,7 +60,6 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
@@ -431,21 +430,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.tid = static_cast<int64_t>(thread.tid());
     reservation.use_separate_track =
         track.disallow_merging_with_system_tracks();
-
-    // If tid is sandboxed then use a unique synthetic tid, to avoid
-    // having concurrent threads with the same tid.
-    if (track.has_chrome_thread()) {
-      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_thread(
-          track.chrome_thread());
-      if (chrome_thread.has_is_sandboxed_tid()) {
-        reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
-      }
-    }
     reserve();
 
     if (args.state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(*args.state, thread,
-                               reservation.use_synthetic_tid);
+      TokenizeThreadDescriptor(*args.state, thread);
     }
 
     return ModuleResult::Ignored();
@@ -577,7 +565,7 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
   protos::pbzero::ThreadDescriptor::Decoder thread(
       args.field.Cast<protos::pbzero::TracePacket::kThreadDescriptor>());
-  TokenizeThreadDescriptor(*args.state, thread, /*use_synthetic_tid=*/false);
+  TokenizeThreadDescriptor(*args.state, thread);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
@@ -585,11 +573,10 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
     PacketSequenceStateGeneration& state,
-    const protos::pbzero::ThreadDescriptor::Decoder& thread,
-    bool use_synthetic_tid) {
+    const protos::pbzero::ThreadDescriptor::Decoder& thread) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.thread_descriptor().Set(thread, use_synthetic_tid);
+  state.thread_descriptor().Set(thread);
   state.GetCustomState<TrackEventSequenceState>()->SetReferenceTimestamps(
       base::SaturatingMultiply(thread.reference_timestamp_us(), 1000),
       base::SaturatingMultiply(thread.reference_thread_time_us(), 1000),

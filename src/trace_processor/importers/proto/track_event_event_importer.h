@@ -53,7 +53,6 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -395,15 +394,10 @@ class TrackEventEventImporter {
         auto tid = thread.tid();
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
-          // Create a synthetic tid while avoiding using the exact same tid in
-          // different processes.
-          tid = CreateSyntheticTid(-1, pid);
+          tid = static_cast<uint32_t>(-1);
         }
         if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
-          if (IsSyntheticTid(thread.tid())) {
-            tid = CreateSyntheticTid(tid, pid);
-          }
         }
 
         if (!pid || !tid) {

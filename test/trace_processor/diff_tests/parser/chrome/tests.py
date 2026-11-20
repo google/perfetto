@@ -303,10 +303,137 @@ class ChromeParser(TestSuite):
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
         """,
-        # A synthetic TID should be used for the sandboxed tid
+        # Sandboxed TIDs should be preserved without synthetic (pid << 32) | tid
+        # tagging; ProcessTracker disambiguates threads by (upid, tid).
         out=Csv("""
         "utid","tid","name","upid","pid","is_main_thread"
         0,0,"swapper",0,0,1
         1,1234,"[NULL]",1,1234,1
-        2,5299989643265,"thread1",1,1234,0
+        2,1,"thread1",1,1234,0
+        """))
+
+  def test_chrome_sandboxed_tid_shared_with_stack_sample(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 100
+            process {
+              pid: 1234
+              process_name: "process1"
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 0
+          track_descriptor {
+            uuid: 101
+            parent_uuid: 100
+            thread {
+              pid: 1234
+              tid: 1
+              thread_name: "thread1"
+            }
+            chrome_thread {
+              is_sandboxed_tid: true
+            }
+          }
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 200
+            process {
+              pid: 5678
+              process_name: "process2"
+            }
+          }
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          timestamp: 0
+          track_descriptor {
+            uuid: 201
+            parent_uuid: 200
+            thread {
+              pid: 5678
+              tid: 1
+              thread_name: "thread2"
+            }
+            chrome_thread {
+              is_sandboxed_tid: true
+            }
+          }
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          timestamp: 500
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 3
+          trace_packet_defaults {
+            stack_sample_defaults {
+              source: "org.chromium.native_heap_profiler"
+              primary_descriptor {
+                name: "allocations"
+                unit: UNIT_BYTES
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 3
+          stack_sample {
+            task_context {
+              pid: 1234
+              tid: 1
+            }
+            callstack {
+              frames {
+                function_name: "alloc1"
+              }
+            }
+            primary_weight: 64
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 3
+          stack_sample {
+            task_context {
+              pid: 5678
+              tid: 1
+            }
+            callstack {
+              frames {
+                function_name: "alloc2"
+              }
+            }
+            primary_weight: 128
+          }
+        }
+        """),
+        query="""
+        SELECT
+          ss.ts,
+          p.pid,
+          p.name AS process_name,
+          t.tid,
+          t.name AS thread_name,
+          (SELECT count(*) FROM thread WHERE tid = 1) AS tid1_thread_count
+        FROM stack_sample ss
+        JOIN stack_sample_task_context tc ON tc.id = ss.task_context_id
+        JOIN thread t ON t.utid = tc.utid
+        JOIN process p ON p.upid = t.upid
+        ORDER BY ss.ts;
+        """,
+        out=Csv("""
+        "ts","pid","process_name","tid","thread_name","tid1_thread_count"
+        1000,1234,"process1",1,"thread1",2
+        2000,5678,"process2",1,"thread2",2
         """))

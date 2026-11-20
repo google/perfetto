@@ -34,7 +34,6 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -335,16 +334,13 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       reservation.pid = resolved_pid;
     }
   }
-  std::optional<uint32_t> resolved_tid;
   if (trusted_pid && reservation.tid) {
-    resolved_tid = context_->process_tracker->ResolveNamespacedTid(
-        *trusted_pid, *reservation.tid);
-  }
-  if (resolved_tid) {
-    reservation.tid = resolved_tid;
-  } else if (reservation.use_synthetic_tid && reservation.tid &&
-             reservation.pid) {
-    reservation.tid = CreateSyntheticTid(*reservation.tid, *reservation.pid);
+    std::optional<uint32_t> resolved_tid =
+        context_->process_tracker->ResolveNamespacedTid(*trusted_pid,
+                                                        *reservation.tid);
+    if (resolved_tid) {
+      reservation.tid = resolved_tid;
+    }
   }
 
   // Try to resolve any parent tracks recursively, too.
