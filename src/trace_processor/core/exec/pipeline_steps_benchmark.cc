@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -98,7 +99,14 @@ void Run(benchmark::State& state,
   DataframeScan scan({df.shared_column(kId), df.shared_column(kParent),
                       df.shared_column(kValue), df.shared_column(kSmall)},
                      df.row_count(), direction);
-  Pipeline pipeline(scan, make());
+  // The scan lends parent_id sparse: lay it out before the steps, as lowering
+  // would.
+  std::vector<Pipeline::Step> steps = make();
+  if (!steps.empty()) {
+    steps.insert(steps.begin(),
+                 std::make_unique<Expand>(std::vector<uint32_t>{kParent}));
+  }
+  Pipeline pipeline(scan, std::move(steps));
   std::unique_ptr<OperatorState> run = pipeline.MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {
