@@ -44,7 +44,7 @@ traces. The expected CSV columns are
 `trace_uuid,process_name,path,class_name,self_size`.
 
 If the user provides raw traces, run the standard dominator tree query
-(`$SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql`, also used by `$SKILL_ROOT/workflows/android_memory/heap_dump.md`) on each
+(`$SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql`, the single largest dominated path per dump) on each
 trace and prepend a `trace_uuid` column yourself when assembling
 the CSV — that query returns `process_name, graph_sample_ts, path, class_name,
 self_size` but does NOT carry the trace identifier. Use the trace file name (or
@@ -53,7 +53,9 @@ query emits **one row per heap dump** contained in the trace (a trace can hold
 several dumps — multiple processes, or one process sampled over time), so a
 single multi-dump trace already contributes several rows to the clustering
 input; keep each row's `graph_sample_ts` so dumps from the same process stay
-distinct.
+distinct. For one dump,
+`$SKILL_ROOT/workflows/android_memory/heap_dump.md` uses
+`triage_retention_hotspots.sql` and `triage_leaked_activities.sql` instead.
 
 ## Step 2 — Execute the Clustering Script
 

@@ -102,11 +102,6 @@ and label your sections by those two values.
     doesn't cover. Keep it targeted: a few queries to answer a specific
     question, not a full re-exploration.
 
-> [!NOTE]
-> `scripts/triage_dominator_path.sql` (the single largest dominated path per
-> dump) is still used by `heap_dump_cluster.md` for fleet clustering. For a
-> single dump, the two scripts above supersede it.
-
 ---
 
 ## Phase 2: Open-Ended Exploratory Deep Dive
