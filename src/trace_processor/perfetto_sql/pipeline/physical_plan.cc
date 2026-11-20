@@ -56,9 +56,10 @@ void Describe(const ex::Pipeline::Step& step, ex::StepColumns* out) {
 // source laid out, as late as it can be: a transform reading the column but
 // not sparse, or any operator, as one holds or rebuilds its batches. The
 // columns still sparse after the steps are expanded for `outputs`, or all of
-// them if it is null.
+// them if it is null, unless `mode` is kLend and `outputs` is known.
 void PlaceExpands(std::vector<uint32_t> sparse,
                   const std::vector<uint32_t>* outputs,
+                  LoweringContext::SparseOutputs mode,
                   std::vector<ex::Pipeline::Step>* steps) {
   if (sparse.empty()) {
     return;
@@ -90,6 +91,10 @@ void PlaceExpands(std::vector<uint32_t> sparse,
       placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
     }
     placed.push_back(std::move(step));
+  }
+  if (outputs && mode == LoweringContext::SparseOutputs::kLend) {
+    *steps = std::move(placed);
+    return;
   }
   std::vector<uint32_t> expand;
   for (uint32_t column : sparse) {
@@ -389,11 +394,8 @@ const Bindings::Dataframe& Lowering::QueryDataframe(
 
 std::unique_ptr<ex::Pipeline> Lowering::Build(
     const std::vector<uint32_t>* outputs) {
-  // A caller reading sparse columns as lent needs none expanded for it.
-  std::vector<uint32_t> none;
-  bool lend = outputs &&
-              context().sparse_outputs == LoweringContext::SparseOutputs::kLend;
-  PlaceExpands(std::move(sparse_columns_), lend ? &none : outputs, &operators_);
+  PlaceExpands(std::move(sparse_columns_), outputs, context().sparse_outputs,
+               &operators_);
   SetUnreadColumns(*source_columns_, outputs, &operators_);
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
