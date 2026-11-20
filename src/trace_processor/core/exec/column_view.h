@@ -170,7 +170,8 @@ struct ColumnShape {
 // a stored Uint32 hold the same values: gathering turns one into the other.
 inline bool SameLogicalType(const ColumnShape& a, const ColumnShape& b) {
   auto is_uint32 = [](const ColumnShape& shape) {
-    return shape.kind != ColumnView::Kind::kVariant &&
+    return (shape.kind == ColumnView::Kind::kFlat ||
+            shape.kind == ColumnView::Kind::kSequence) &&
            (shape.type.Is<Id>() || shape.type.Is<Uint32>());
   };
   if (is_uint32(a) && is_uint32(b)) {
