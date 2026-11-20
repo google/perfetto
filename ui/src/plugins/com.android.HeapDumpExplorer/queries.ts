@@ -735,7 +735,7 @@ export async function fetchShortestPaths(
       (
         SELECT id AS source_node_id, parent_id AS dest_node_id,
           0 AS edge_weight
-        FROM _heap_graph_object_min_depth_tree
+        FROM heap_graph_shortest_path_tree
         WHERE parent_id IS NOT NULL
       ),
       (${seeds}),
@@ -752,7 +752,7 @@ export async function fetchShortestPaths(
   // Fetch parent_id links to reconstruct ordered chains.
   const parentRes = await engine.query(`
     SELECT id, parent_id
-    FROM _heap_graph_object_min_depth_tree
+    FROM heap_graph_shortest_path_tree
     WHERE id IN (${Array.from(allNodeIds).join(',')})
   `);
   const parentMap = new Map<number, number | null>();
@@ -1925,7 +1925,7 @@ function primFieldValue(it: {
 }
 
 //
-// The _heap_graph_object_min_depth_tree table computes cumulative reachable
+// The heap_graph_shortest_path_tree table computes cumulative reachable
 // sizes via a BFS tree.  The table materialisation is expensive on first access,
 // so we load it asynchronously and fill in reachable columns after the initial
 // render. Objects outside the tree, which are unreachable, only count themselves.
@@ -1936,7 +1936,7 @@ async function getReachableSizes(
   ids: readonly number[],
 ): Promise<Map<number, {size: number; native: number; count: number}>> {
   await engine.query(
-    `INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`,
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree`,
   );
   if (ids.length === 0) return new Map();
   const res = await engine.query(`
@@ -1945,7 +1945,7 @@ async function getReachableSizes(
       coalesce(t.cumulative_native_size, o.native_size) AS native_size,
       coalesce(t.cumulative_count, 1) AS count
     FROM heap_graph_object o
-    LEFT JOIN _heap_graph_object_min_depth_tree t USING (id)
+    LEFT JOIN heap_graph_shortest_path_tree t USING (id)
     WHERE o.id IN (${ids.join(',')})
   `);
   const map = new Map<number, {size: number; native: number; count: number}>();

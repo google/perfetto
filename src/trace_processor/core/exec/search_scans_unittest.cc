@@ -40,9 +40,9 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/filter.h"
-#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -58,7 +58,7 @@ using Value = std::variant<std::nullptr_t, int64_t, double, std::string>;
 // Bigger than an int32, so a column holding it is stored as an int64.
 constexpr int64_t kBig = int64_t{1} << 40;
 
-// Fetches filter values from a vector.
+// Fetches params from a vector.
 struct Values : ValueFetcher {
   using Type = size_t;
   static constexpr Type kNull = base::variant_index<Value, std::nullptr_t>();
@@ -222,7 +222,7 @@ class SearchScansDiffTest : public ::testing::Test {
   struct ExecPlan {
     std::unique_ptr<Source> scan;
     std::unique_ptr<Pipeline> pipeline;
-    std::vector<std::optional<FilterValueCaster<Values>>> casters;
+    std::vector<std::optional<ParamCaster<Values>>> casters;
   };
   std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan,
                                 ReadDirection direction) {
@@ -233,7 +233,6 @@ class SearchScansDiffTest : public ::testing::Test {
     ExecPlan out;
     out.casters.resize(plan.filter_value_count);
     std::vector<SortedScan::Search> searches;
-    std::vector<Filter::Condition> searches_as_conditions;
     std::vector<Filter::Condition> conditions;
     std::vector<IndexScan::Equality> equalities;
     const dataframe::Index* index = nullptr;
@@ -245,7 +244,7 @@ class SearchScansDiffTest : public ::testing::Test {
         }
         if (f->value_index && !f->op.IsAnyOf<NullOp>()) {
           out.casters[*f->value_index] =
-              GetFilterValueCaster<Values>(f->storage, f->op);
+              GetParamCaster<Values>(f->storage, f->op);
         }
         using K = SortedScan::Search::Kind;
         std::optional<K> kind;
@@ -271,7 +270,6 @@ class SearchScansDiffTest : public ::testing::Test {
         if (kind) {
           searches.push_back(
               {df_->shared_column(f->col), *kind, f->op, *f->value_index});
-          searches_as_conditions.push_back({f->col, f->op, *f->value_index});
         } else {
           conditions.push_back({f->col, f->op, f->value_index.value_or(0)});
         }
@@ -281,8 +279,7 @@ class SearchScansDiffTest : public ::testing::Test {
           if (!p.op.Is<Eq>()) {
             return std::nullopt;
           }
-          out.casters[*p.value_index] =
-              GetFilterValueCaster<Values>(p.storage, p.op);
+          out.casters[*p.value_index] = GetParamCaster<Values>(p.storage, p.op);
           equalities.push_back({df_->shared_column(p.col), *p.value_index});
         }
         index = &df_->indexes()[idx->index];
@@ -302,11 +299,10 @@ class SearchScansDiffTest : public ::testing::Test {
       if (direction == ReadDirection::kBackwards) {
         return std::nullopt;
       }
-      // Through an index, any search of a sorted column is left to the Filter.
-      conditions.insert(conditions.end(), searches_as_conditions.begin(),
-                        searches_as_conditions.end());
+      // Searches of sorted columns cut the index's rows to their range.
       out.scan = std::make_unique<IndexScan>(std::move(columns), *index,
-                                             std::move(equalities), &pool_);
+                                             std::move(equalities),
+                                             std::move(searches), &pool_);
       ++index_scans_;
     } else if (searches.empty()) {
       out.scan =
@@ -405,19 +401,19 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
 
         Values fetcher;
         fetcher.values = &slots;
-        std::vector<FilterValue> cast(slots.size());
+        std::vector<ParamValue> cast(slots.size());
         for (uint32_t i = 0; i < slots.size(); ++i) {
           if (exec->casters[i]) {
             (*exec->casters[i])(fetcher, i, pool_, &cast[i]);
           }
         }
         // Whoever casts values can move them afterwards, as lowering does.
-        std::vector<FilterValue> moved;
-        for (FilterValue& value : cast) {
+        std::vector<ParamValue> moved;
+        for (ParamValue& value : cast) {
           moved.push_back(std::move(value));
         }
         std::vector<uint32_t> actual;
-        for (bool ok = cursor.Open(base::Span<const FilterValue>(
+        for (bool ok = cursor.Open(base::Span<const ParamValue>(
                  moved.data(), moved.data() + moved.size()));
              ok; ok = cursor.Next()) {
           uint32_t row = cursor.Value<uint32_t>(kId);
@@ -437,7 +433,7 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
           continue;
         }
         std::vector<uint32_t> reversed;
-        for (bool ok = backwards_cursor->Open(base::Span<const FilterValue>(
+        for (bool ok = backwards_cursor->Open(base::Span<const ParamValue>(
                  moved.data(), moved.data() + moved.size()));
              ok; ok = backwards_cursor->Next()) {
           reversed.push_back(backwards_cursor->Value<uint32_t>(kId));

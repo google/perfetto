@@ -24,10 +24,12 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/expression.h"
-#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/exec/param_value.h"
+#include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -209,6 +211,31 @@ using InputStep = std::variant<input_step::Sort,
                                input_step::CombineBatches,
                                input_step::Convert>;
 
+// The value a condition tests with, for a column of storage `type` compared by
+// `op`, as planning decides it.
+struct PlannedParam {
+  enum class State : uint8_t {
+    // Not decided yet: the column's type is not known yet, or a rewrite has
+    // not planned the condition.
+    kUnplanned,
+    // The condition takes no value: IS [NOT] NULL.
+    kNone,
+    // `value`, cast from `literals` when the plan is built. With no literals,
+    // it matches no row.
+    kConstant,
+    // Cast by each run from `literals`, a single bound param.
+    kBound,
+    // Moved into the physical plan by lowering.
+    kTaken,
+  };
+
+  State state = State::kUnplanned;
+  core::exec::ParamValue value;
+  std::vector<Literal> literals;
+  core::StorageType type{core::Int64{}};
+  core::Op op{core::Eq{}};
+};
+
 // One input of a node, once planned.
 struct PlannedInput {
   std::vector<InputStep> steps;
@@ -225,8 +252,8 @@ struct PlannedNode {
   OutputProperties output;
   // The programs of the expressions it computes, if any.
   std::vector<core::exec::ExprProgram> programs;
-  // By condition, the value it tests with, if any, until lowering takes it.
-  std::vector<std::optional<core::exec::FilterValue>> filter_values;
+  // By condition, the value it tests with.
+  std::vector<PlannedParam> params;
   // The columns it added to the plan, which planning it again reuses.
   std::vector<ColumnId> new_columns;
   size_t new_columns_used = 0;
@@ -258,7 +285,7 @@ class DeriveContext {
   void SetPrograms(std::vector<core::exec::ExprProgram> programs);
 
   // The values of the conditions this node tests.
-  std::vector<std::optional<core::exec::FilterValue>>& filter_values();
+  std::vector<PlannedParam>& params();
 
   // Makes the open sort `sort` output only its first `rows` rows, so it is
   // lowered as a TopK.

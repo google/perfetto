@@ -75,6 +75,14 @@ class StringFilter {
       return (words_[word_index] & (Word(1) << bit_index)) != 0;
     }
 
+    // Sets all bits present in |other| on this mask in place.
+    PERFETTO_ALWAYS_INLINE SemanticTypeMask& operator|=(
+        const SemanticTypeMask& other) {
+      words_[0] |= other.words_[0];
+      words_[1] |= other.words_[1];
+      return *this;
+    }
+
    private:
     constexpr SemanticTypeMask(Word w0, Word w1) : words_{w0, w1} {}
 
@@ -111,10 +119,11 @@ class StringFilter {
   }
 
   // Tries to filter the given string with a specific semantic type.
-  // Only rules that match the semantic type (or have no type restriction)
-  // are applied.
+  // Only rules whose semantic_type_mask covers |semantic_type| are applied.
   bool MaybeFilter(char* ptr, size_t len, uint32_t semantic_type) const {
-    if (len == 0 || rules_.empty()) {
+    // Fast path: skip MaybeFilterInternal when zero configured rules cover
+    // |semantic_type|.
+    if (len == 0 || !active_semantic_types_.IsSet(semantic_type)) {
       return false;
     }
     return MaybeFilterInternal(ptr, len, semantic_type);
@@ -130,9 +139,15 @@ class StringFilter {
   };
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;
+  void RecomputeActiveSemanticTypes();
 
   // All rules, in the order they were added.
   std::vector<Rule> rules_;
+
+  // Bitwise union of |semantic_type_mask| across all entries in |rules_|.
+  // Allows MaybeFilter() to skip MaybeFilterInternal() in O(1) when zero
+  // configured rules cover a field's semantic type.
+  SemanticTypeMask active_semantic_types_;
 
   // Reusable buffer for regex match groups, avoiding heap allocations on each
   // filter call.

@@ -26,20 +26,38 @@ export const GDRIVE_PLUGIN_ID = 'dev.perfetto.GoogleDrive';
 const TRACE_ARGS_SCHEMA = z.object({
   // The Drive file ID the trace was opened from.
   fileId: z.string().refine(isValidDriveId),
+  // The file's resource key, if it has one and it's known. An invalid key is
+  // dropped rather than rejecting the args: it is only used for links.
+  resourceKey: z.string().refine(isValidDriveId).optional().catch(undefined),
 });
 
-// The pluginArgs to pass to openTraceFromBuffer() for a trace opened from the
-// Drive file `fileId`.
-export function gdriveTraceArgs(fileId: string): {
-  [pluginId: string]: {[key: string]: unknown};
-} {
-  return {[GDRIVE_PLUGIN_ID]: {fileId}};
+// The Drive file a trace was opened from.
+export interface GDriveTraceFile {
+  readonly fileId: string;
+  readonly resourceKey?: string;
 }
 
-// The Drive file ID a trace was opened from, given the args onTraceLoad()
+// The pluginArgs to pass to openTraceFromBuffer() for a trace opened from the
+// Drive file `fileId`, which has the resource key `resourceKey` if known.
+export function gdriveTraceArgs(
+  fileId: string,
+  resourceKey?: string,
+): {
+  [pluginId: string]: {[key: string]: unknown};
+} {
+  const args: {[key: string]: unknown} = {fileId};
+  if (resourceKey !== undefined) args.resourceKey = resourceKey;
+  return {[GDRIVE_PLUGIN_ID]: args};
+}
+
+// The Drive file a trace was opened from, given the args onTraceLoad()
 // received, or undefined if it was not opened from Drive (or the args are not
 // valid).
-export function parseGDriveTraceArgs(args: unknown): string | undefined {
+export function parseGDriveTraceArgs(
+  args: unknown,
+): GDriveTraceFile | undefined {
   const parsed = TRACE_ARGS_SCHEMA.safeParse(args);
-  return parsed.success ? parsed.data.fileId : undefined;
+  if (!parsed.success) return undefined;
+  const {fileId, resourceKey} = parsed.data;
+  return resourceKey === undefined ? {fileId} : {fileId, resourceKey};
 }

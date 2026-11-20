@@ -78,4 +78,13 @@ export interface SearchProvider {
 
 export interface SearchManager {
   registerSearchProvider(provider: SearchProvider): void;
+  search(text: string): void;
+  reset(): void;
+  stepForward(): void;
+  stepBackwards(): void;
+  readonly searchText: string;
+  readonly searchInProgress: boolean;
+  readonly resultIndex: number;
+  readonly hasResults: boolean;
+  readonly searchResults?: {readonly totalResults: number};
 }

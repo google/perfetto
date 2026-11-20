@@ -17,8 +17,10 @@ import type {Storage, Trace} from '../../public/trace';
 import type {Setting} from '../../public/settings';
 import {NUM} from '../../trace_processor/query_result';
 
-import {SQL_PREAMBLE} from './components';
-import {flamegraphQuery} from './views/flamegraph_objects_view';
+import {
+  flamegraphObjectsPreamble,
+  flamegraphQuery,
+} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import type {HeapDump} from './types';
 import {
@@ -321,8 +323,9 @@ export class HeapDumpExplorerSession {
     const key = countKey(pathHashes, isDominator);
     if (this._counts.has(key)) return;
     const q = flamegraphQuery(pathHashes, isDominator);
+    const preamble = flamegraphObjectsPreamble(isDominator);
     this.engine
-      .query(`${SQL_PREAMBLE}; SELECT COUNT(*) AS c FROM (${q})`)
+      .query(`${preamble}; SELECT COUNT(*) AS c FROM (${q})`)
       .then((r) => {
         this._counts.set(key, r.firstRow({c: NUM}).c);
       })

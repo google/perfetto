@@ -98,7 +98,8 @@ FROM _get_frame_table_with_id('DrawFrame*');
 CREATE PERFETTO TABLE _distinct_layer_actual_timeline_slice_per_process AS
 SELECT
   cast_int!(name) AS frame_id,
-  CAST(str_split(layer_name, '#', 1) AS INTEGER) AS layer_id,
+  -- Layer names end with '#<layer_id>' and can contain '#' before it.
+  cast_int!(regexp_extract(layer_name, '#([0-9]+)$')) AS layer_id,
   layer_name,
   id AS slice_id,
   ts,
@@ -172,10 +173,8 @@ WITH
       (draw_frame_slice.ts + draw_frame_slice.dur) - do_frame_slice.ts AS dur
     FROM android_frames_choreographer_do_frame AS do_frame
     JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
-    JOIN slice AS do_frame_slice
-      ON (do_frame.id = do_frame_slice.id)
-    JOIN slice AS draw_frame_slice
-      ON (draw_frame.id = draw_frame_slice.id)
+    JOIN slice AS do_frame_slice ON (do_frame.id = do_frame_slice.id)
+    JOIN slice AS draw_frame_slice ON (draw_frame.id = draw_frame_slice.id)
   ),
   frames_sdk_after_28 AS (
     SELECT
