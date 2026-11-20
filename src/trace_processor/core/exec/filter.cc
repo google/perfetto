@@ -258,13 +258,17 @@ ColumnView GatherSparse(const ColumnView& column, Rows& r, uint8_t* values) {
 }
 
 // Writes the values of a sequence at the rows kept into `values` at each row,
-// and views them as a flat column.
+// and views them as a flat column. Contiguous rows stay contiguous, so the
+// comparison can still filter them as a range.
 PERFETTO_NO_INLINE ColumnView GatherSequence(const ColumnView& column,
                                              Rows& r,
                                              uint32_t* values) {
-  Materialize(r);
-  for (uint32_t i = 0; i < r.count; ++i) {
-    values[r.rows[i]] = column.Index(r.rows[i]);
+  if (r.contiguous) {
+    std::iota(values, values + r.count, column.start());
+  } else {
+    for (uint32_t i = 0; i < r.count; ++i) {
+      values[r.rows[i]] = column.Index(r.rows[i]);
+    }
   }
   return ColumnView::Reference(StorageType{Uint32{}}, values);
 }
