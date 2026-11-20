@@ -320,6 +320,46 @@ a.pf-memscope-classname {
   }
 }
 
+.pf-memscope-stack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+
+  &__label {
+    color: var(--pf-color-text-muted);
+    margin-right: 2px;
+  }
+}
+
+.pf-memscope-stack-chip {
+  align-items: center;
+  padding: 3px 9px 3px 6px;
+  font-size: var(--pf-font-size-xs);
+
+  .pf-chip__icon {
+    font-size: 14px;
+    margin-right: 4px;
+  }
+
+  &--active {
+    color: var(--pf-color-text);
+    background: color-mix(in srgb, var(--pf-color-text) 10%, transparent);
+    border-color: color-mix(in srgb, var(--pf-color-text) 30%, transparent);
+  }
+
+  &--inactive {
+    color: var(--pf-color-text-muted);
+    background: transparent;
+    border-color: var(--pf-color-border-secondary);
+    opacity: 0.65;
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Smaps Detail tab
 // ---------------------------------------------------------------------------

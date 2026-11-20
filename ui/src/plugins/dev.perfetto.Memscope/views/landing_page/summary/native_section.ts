@@ -37,14 +37,49 @@ import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
-import {Checkbox} from '../../../../../widgets/checkbox';
+import {Icons} from '../../../../../base/semantic_icons';
+import {Chip} from '../../../../../widgets/chip';
+import {Tooltip} from '../../../../../widgets/tooltip';
+import {PopupPosition} from '../../../../../widgets/popup';
+import {
+  categorizeFrame,
+  extractProcessToken,
+  type FrameCategory,
+} from './frame_categories';
 
 const TITLE = 'Native Memory';
 const MAX_STACK_ROWS = 5;
+const COLLAPSED_MIDDLE_FRAMES = 3;
+const COLLAPSED_ROOT_FRAMES = 2;
+const COLLAPSED_FRAME_THRESHOLD =
+  1 + COLLAPSED_MIDDLE_FRAMES + COLLAPSED_ROOT_FRAMES;
+
+const COLLAPSE_CATEGORIES: ReadonlyArray<{
+  readonly id: Exclude<FrameCategory, 'app'>;
+  readonly label: string;
+  readonly tooltip: string;
+  readonly defaultCollapsed: boolean;
+}> = [
+  {
+    id: 'system',
+    label: 'System',
+    tooltip: 'Android framework and native OS/vendor libraries',
+    defaultCollapsed: false,
+  },
+  {
+    id: 'runtime',
+    label: 'Runtime',
+    tooltip:
+      'Allocators, libc/ART/JNI glue, event-loop/IPC/coroutine scaffolding, ' +
+      'and unwinder markers',
+    defaultCollapsed: true,
+  },
+];
 
 interface NativeFrame {
   readonly name: string;
   readonly mapping?: string;
+  readonly category: FrameCategory;
 }
 
 // One top-unreleased heapprofd callsite with its frame chain (leaf → root).
@@ -57,7 +92,7 @@ interface NativeStack {
 
 interface NativeData {
   readonly hasProfile: boolean;
-  // Top app-attributed callsites by unreleased bytes in the selected window.
+  // App-attributed callsites by unreleased bytes in the selected window.
   readonly stacks: NativeStack[];
   // Total positive-net unreleased bytes in the window (share-bar denominator).
   readonly profileTotal: number;
@@ -209,7 +244,13 @@ async function loadNativeStacks(
       HAVING SUM(a.size) > 0
     )`;
 
-  const stacks: NativeStack[] = [];
+  const procRes = await trace.engine.query(
+    `SELECT name FROM process WHERE upid = ${upid}`,
+  );
+  const procToken = extractProcessToken(
+    procRes.maybeFirstRow({name: STR_NULL})?.name ?? undefined,
+  );
+
   const stackRes = await trace.engine.query(`
     INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
@@ -238,6 +279,7 @@ async function loadNativeStacks(
     LEFT JOIN stack_profile_mapping mp ON f.mapping_id = mp.id
     ORDER BY c.top_id, c.depth ASC
   `);
+  const stacks: NativeStack[] = [];
   let cur: NativeStack | undefined;
   for (
     const it = stackRes.iter({
@@ -260,11 +302,15 @@ async function loadNativeStacks(
       };
       stacks.push(cur);
     }
+    const name = it.frame_name.trim() || 'unknown';
+    const mapping = it.mapping_name ?? undefined;
     cur.frames.push({
-      name: it.frame_name,
-      mapping: it.mapping_name ?? undefined,
+      name,
+      mapping,
+      category: categorizeFrame(name, mapping, procToken),
     });
   }
+
   stacks.sort((a, b) => b.unreleased - a.unreleased);
 
   const totRes = await trace.engine.query(`
@@ -295,21 +341,21 @@ async function loadNativeStacks(
   };
 }
 
-// True when a frame's mapping belongs to the app under test rather than a
-// system/runtime library. App code is installed under /data/app or /data/data.
-function isAppMapping(mapping?: string): boolean {
-  if (mapping === undefined) return false;
-  return /^\/data\/(app|data)\//.test(mapping);
-}
-
-// Renders a frame chain (leaf → root), collapsing the middle when > 7 frames
-// unless expanded, with an inline toggle link.
+// Renders a frame chain (leaf → root), collapsing the middle when
+// > COLLAPSED_FRAME_THRESHOLD frames unless expanded, with an inline toggle
+// link.
 function renderStackFrames(
-  frames: string[],
+  frames: NativeFrame[],
   expanded: boolean,
   onToggle: () => void,
 ): m.Children {
-  const frameEl = (f: string) => m('.pf-memscope-stack__frame', {title: f}, f);
+  const frameEl = (f: NativeFrame) => {
+    const title =
+      f.mapping !== undefined
+        ? `[${f.category}] ${f.name}\n${f.mapping}`
+        : `[${f.category}] ${f.name}`;
+    return m('.pf-memscope-stack__frame', {title}, f.name);
+  };
   const toggleLink = (label: string) =>
     m(
       '.pf-memscope-stack__frame',
@@ -326,15 +372,17 @@ function renderStackFrames(
       ),
     );
 
-  if (frames.length <= 7) {
+  if (frames.length <= COLLAPSED_FRAME_THRESHOLD) {
     return frames.map(frameEl);
   }
   if (expanded) {
     return [...frames.map(frameEl), toggleLink('Show less')];
   }
   const leaf = frames[0]!;
-  const middle = frames.slice(1, -2).slice(0, 4);
-  const root = frames.slice(-2);
+  const middle = frames
+    .slice(1, -COLLAPSED_ROOT_FRAMES)
+    .slice(0, COLLAPSED_MIDDLE_FRAMES);
+  const root = frames.slice(-COLLAPSED_ROOT_FRAMES);
   const hiddenCount = frames.length - 1 - middle.length - root.length;
   return [
     frameEl(leaf),
@@ -354,7 +402,9 @@ export interface NativeSectionAttrs {
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
   private readonly slot = new AsyncMemo<NativeData>();
-  private appOnly = true;
+  private readonly collapsedCategories = new Set<FrameCategory>(
+    COLLAPSE_CATEGORIES.filter((c) => c.defaultCollapsed).map((c) => c.id),
+  );
   private rowLimit = MAX_STACK_ROWS;
   private readonly expandedStacks = new Set<number>();
 
@@ -395,9 +445,9 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const overhead = nativeRss > seen ? nativeRss - seen : 0;
 
     const stackRows = data.stacks.slice(0, this.rowLimit).map((s) => {
-      const frames = s.frames
-        .filter((f) => !this.appOnly || isAppMapping(f.mapping))
-        .map((f) => f.name);
+      const frames = s.frames.filter(
+        (f) => !this.collapsedCategories.has(f.category),
+      );
       const expanded = this.expandedStacks.has(s.topId);
       return [
         m(
@@ -517,19 +567,43 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
               bLabel: 'Unseen (pre-trace)',
               bBytes: overhead,
             }),
-          stackRows.length > 0
+          data.stacks.length > 0
             ? topTable({
                 title: 'Top allocation call-stacks',
-                controls: m(
-                  '.pf-memscope-toptable__controls',
-                  m(Checkbox, {
-                    label: 'Show frames from this app only',
-                    checked: this.appOnly,
-                    onchange: (e) => {
-                      this.appOnly = (e.target as HTMLInputElement).checked;
-                    },
+                controls: m('.pf-memscope-stack-legend', [
+                  m('span.pf-memscope-stack-legend__label', 'Hide frames:'),
+                  COLLAPSE_CATEGORIES.map((cat) => {
+                    const collapsed = this.collapsedCategories.has(cat.id);
+                    return m(
+                      Tooltip,
+                      {
+                        trigger: m(Chip, {
+                          className:
+                            'pf-memscope-stack-chip' +
+                            (collapsed
+                              ? ' pf-memscope-stack-chip--active'
+                              : ' pf-memscope-stack-chip--inactive'),
+                          icon: collapsed
+                            ? Icons.Checkbox
+                            : Icons.BlankCheckbox,
+                          iconFilled: collapsed,
+                          rounded: true,
+                          interactive: true,
+                          label: cat.label,
+                          onclick: () => {
+                            if (collapsed) {
+                              this.collapsedCategories.delete(cat.id);
+                            } else {
+                              this.collapsedCategories.add(cat.id);
+                            }
+                          },
+                        }),
+                        position: PopupPosition.Top,
+                      },
+                      cat.tooltip,
+                    );
                   }),
-                ),
+                ]),
                 cols: [
                   {label: 'Call-stack snippet'},
                   {label: comparing ? 'Δ unreleased' : 'Unreleased', num: true},
