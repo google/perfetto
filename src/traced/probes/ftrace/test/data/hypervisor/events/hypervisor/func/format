@@ -1,0 +1,9 @@
+name: func
+ID: 1
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+
+	field:unsigned long ip;	offset:2;	size:8;	signed:0;
+	field:unsigned long parent;	offset:10;	size:8;	signed:0;
+
+print fmt: "    %ps <- %ps", (void *)REC->ip, (void *)REC->parent
