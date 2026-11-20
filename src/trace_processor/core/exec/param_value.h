@@ -39,24 +39,13 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// A param of a run: a value its operators compare a column with, already cast
-// to the column's storage type for one comparison (see filter_value_cast.h): a
-// value, or that every or no row matches.
-//
-// Whoever runs a plan keeps one per param from run to run, and casts each
-// run's values into them with casters it picked when the plan was built (see
-// GetParamCaster). Everything after only reads them: nothing is
-// allocated, and nothing dispatches on the column's type or the comparison,
-// which matters when each run looks up one row.
 // A GLOB literal's pattern, compiled, and the strings matched with it so far:
 // a string's result depends only on the pattern, so whatever reads the literal
 // fills this in as it goes.
 struct GlobMatch {
-  explicit GlobMatch(std::string p)
-      : pattern(std::move(p)),
-        matcher(util::GlobMatcher::FromPattern(base::StringView(pattern))) {}
+  explicit GlobMatch(base::StringView pattern)
+      : matcher(util::GlobMatcher::FromPattern(pattern)) {}
 
-  std::string pattern;
   util::GlobMatcher matcher;
   // Rows matched one at a time.
   uint64_t rows = 0;
@@ -66,6 +55,16 @@ struct GlobMatch {
   uint32_t matched_below = 0;
 };
 
+// A param of a run: a value its operators compare a column with, already cast
+// to the column's storage type for one comparison (see filter_value_cast.h): a
+// value, or that every or no row matches.
+//
+// Whoever runs a plan keeps one per param from run to run, and casts each
+// run's values into them with casters it picked when the plan was built (see
+// GetParamCaster). Everything after only reads them, except a GLOB literal's
+// GlobMatch, which is filled in as it is read. Nothing on a run's path
+// allocates, and nothing dispatches on the column's type or the comparison,
+// which matters when each run looks up one row.
 struct ParamValue {
   filter::CastFilterValueResult value =
       filter::CastFilterValueResult::NoneMatch();
@@ -91,7 +90,7 @@ inline void AttachGlob(ParamValue* value) {
   if (value->value.validity != filter::CastFilterValueResult::kValid) {
     return;
   }
-  auto glob = std::make_unique<GlobMatch>(value->text);
+  auto glob = std::make_unique<GlobMatch>(base::StringView(value->text));
   if (!glob->matcher.IsEquality()) {
     value->glob = std::move(glob);
   }
