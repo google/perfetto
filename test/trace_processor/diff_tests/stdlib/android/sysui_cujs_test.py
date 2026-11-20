@@ -267,3 +267,91 @@ class SystemUICujs(TestSuite):
         3,3,"hwuiTask",27700000,800000,"COMPLETED_CUJ",20,"hwuiTask1"
         4,2,"animation",28000000,1000000,"COMPLETED_CUJ",20,"UiThread"
         """))
+
+  def test_android_cuj_frame_blocking_calls_instructions(self):
+    return DiffTestBlueprint(
+        trace=Path('cuj_frame_blocking_calls_instructions_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.instructions;
+        SELECT
+          bc.id,
+          bc.call_id,
+          bc.name,
+          bc.cuj_name,
+          bc.frame_id,
+          thread.name AS thread_name,
+          bc.instruction_count
+        FROM android_cuj_frame_blocking_calls_instructions AS bc
+        JOIN thread USING (utid)
+        ORDER BY bc.id;
+        """,
+        out=Csv("""
+        "id","call_id","name","cuj_name","frame_id","thread_name","instruction_count"
+        1,2,"animation","BACK_PANEL_ARROW",20,"MainThread",2000.000000
+        2,1,"DrawFrames","BACK_PANEL_ARROW",20,"RenderThread",4000.000000
+        3,5,"hwuiTask","BACK_PANEL_ARROW",20,"hwuiTask0",250.000000
+        4,5,"hwuiTask","BACK_PANEL_ARROW",20,"hwuiTask1",250.000000
+        5,3,"binder transaction","BACK_PANEL_ARROW",20,"MainThread",1000.000000
+        6,4,"binder transaction","BACK_PANEL_ARROW",20,"MainThread",0.000000
+        7,7,"animation","BACK_PANEL_ARROW",22,"MainThread",4000.000000
+        8,6,"DrawFrames","BACK_PANEL_ARROW",22,"RenderThread",2000.000000
+        """))
+
+  def test_android_cuj_frame_blocking_calls_instructions_per_cuj(self):
+    return DiffTestBlueprint(
+        trace=Path('cuj_frame_blocking_calls_instructions_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.instructions;
+        SELECT
+          cuj_name,
+          process_name,
+          blocking_call_name,
+          max_instructions,
+          mean_instructions,
+          max_cnt,
+          mean_cnt
+        FROM android_cuj_frame_blocking_calls_instructions_per_cuj;
+        """,
+        out=Csv("""
+        "cuj_name","process_name","blocking_call_name","max_instructions","mean_instructions","max_cnt","mean_cnt"
+        "BACK_PANEL_ARROW","com.android.systemui","DrawFrames",4000.000000,3000.000000,1,1.000000
+        "BACK_PANEL_ARROW","com.android.systemui","animation",4000.000000,3000.000000,1,1.000000
+        "BACK_PANEL_ARROW","com.android.systemui","binder transaction",1000.000000,500.000000,2,1.000000
+        "BACK_PANEL_ARROW","com.android.systemui","hwuiTask",500.000000,250.000000,1,0.500000
+        """))
+
+  def test_android_cuj_frame_blocking_calls_instructions_empty_without_perf(
+      self):
+    return DiffTestBlueprint(
+        trace=Path('cuj_frame_blocking_calls_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.instructions;
+        SELECT count(*) AS interval_rows,
+          (SELECT count(*) FROM android_cuj_frame_blocking_calls_instructions_per_cuj) AS summary_rows
+        FROM android_cuj_frame_blocking_calls_instructions;
+        """,
+        out=Csv("""
+        "interval_rows","summary_rows"
+        0,0
+        """))
+
+  def test_android_cuj_frame_blocking_calls_instructions_all_off_cpu(self):
+    return DiffTestBlueprint(
+        trace=Path('cuj_frame_blocking_calls_instructions_off_cpu_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.instructions;
+        SELECT
+          cuj_name,
+          process_name,
+          blocking_call_name,
+          max_instructions,
+          mean_instructions,
+          max_cnt,
+          mean_cnt
+        FROM android_cuj_frame_blocking_calls_instructions_per_cuj;
+        """,
+        out=Csv("""
+        "cuj_name","process_name","blocking_call_name","max_instructions","mean_instructions","max_cnt","mean_cnt"
+        "OFF_CPU_CUJ","com.android.systemui","DrawFrames",0.000000,0.000000,1,1.000000
+        "OFF_CPU_CUJ","com.android.systemui","binder transaction",0.000000,0.000000,1,1.000000
+        """))
