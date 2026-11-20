@@ -802,8 +802,6 @@ void FormatDebuginfod(bool colorize,
                       std::string* out) {
   if (!stats.warnings.empty())
     *out += Colorize(colorize, kYellow, stats.warnings);
-  if (!stats.quiet_warnings.empty())
-    *out += Colorize(colorize, kYellow, stats.quiet_warnings);
   std::vector<std::string> parts;
   if (stats.downloads)
     parts.push_back(std::to_string(stats.downloads) + " downloaded");
@@ -944,7 +942,7 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
       SymbolizePendingAddresses(groups, env, symbolizer.get(), &mappings,
                                 &result.symbols);
     }
-    result.debuginfod.quiet_warnings += config.debuginfod.ima_policy_warning;
+    result.debuginfod.warnings += config.debuginfod.ima_policy_warning;
   }
   result.debuginfod.warnings += config.debuginfod.llvm_opts_warning;
   if (unresolved)
@@ -1038,14 +1036,11 @@ SymbolizerResult SymbolizeDatabaseAndLog(trace_processor::TraceProcessor* tp,
                                          bool verbose,
                                          bool quiet) {
   SymbolizerResult result = SymbolizeDatabase(tp, config);
-  bool has_failures = !result.failed_mappings.empty() ||
-                      !result.mappings_without_build_id.empty();
-  if (!quiet || has_failures) {
+  if (!quiet || !result.failed_mappings.empty() ||
+      !result.mappings_without_build_id.empty()) {
     std::string summary = FormatSymbolizationSummary(
         result, verbose && !quiet, base::StderrSupportsColor());
     fprintf(stderr, "%s", summary.c_str());
-  } else if (!result.debuginfod.quiet_warnings.empty()) {
-    fprintf(stderr, "%s", result.debuginfod.quiet_warnings.c_str());
   }
   return result;
 }

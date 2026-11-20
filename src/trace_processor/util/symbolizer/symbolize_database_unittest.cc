@@ -111,7 +111,7 @@ TEST(DebuginfodOptionsTest, ExplicitValuesAndWhitespace) {
   ASSERT_TRUE(ResolveDebuginfodOptions(options, &config).ok());
   EXPECT_THAT(config.urls, testing::ElementsAre("https://one.example",
                                                 "http://two.example/debug"));
-  EXPECT_EQ(config.cache_path, "/chosen/cache/perfetto-unverified");
+  EXPECT_EQ(config.cache_path, "/chosen/cache");
   EXPECT_EQ(config.connect_timeout_seconds, 2u);
   EXPECT_EQ(config.stall_timeout_seconds, 3u);
 }
@@ -130,13 +130,14 @@ TEST(DebuginfodOptionsTest, ImaPolicyTags) {
                                                 "https://two.example/debug",
                                                 "http://three.example"));
   EXPECT_THAT(config.ima_policy_warning, testing::HasSubstr("ima:enforcing"));
-  EXPECT_EQ(config.cache_path, "/chosen/cache/perfetto-unverified");
+  EXPECT_EQ(config.cache_path, "/chosen/cache");
 
   config = {};
   options.urls = "ima:enforcing ima:ignore https://one.example/";
   ASSERT_TRUE(ResolveDebuginfodOptions(options, &config).ok());
+  EXPECT_THAT(config.urls, testing::ElementsAre("https://one.example"));
   EXPECT_TRUE(config.ima_policy_warning.empty());
-  EXPECT_EQ(config.cache_path, "/chosen/cache/perfetto-unverified");
+  EXPECT_EQ(config.cache_path, "/chosen/cache");
 }
 
 #endif

@@ -75,17 +75,15 @@ configuration, so pass `--debuginfod` when starting the server.
 | --- | --- | --- |
 | `--debuginfod` | Enable cache lookup and downloads. | Disabled |
 | `--debuginfod-urls URLS` | Whitespace-separated HTTP(S) server roots. | `DEBUGINFOD_URLS` |
-| `--debuginfod-cache-path PATH` | Cache root; downloaded files use its `perfetto-unverified` subdirectory. | `DEBUGINFOD_CACHE_PATH`, else `$XDG_CACHE_HOME/debuginfod_client`, `~/.cache/debuginfod_client`, or `%LOCALAPPDATA%\debuginfod_client` |
+| `--debuginfod-cache-path PATH` | Directory for downloaded files. | `DEBUGINFOD_CACHE_PATH`, else `$XDG_CACHE_HOME/debuginfod_client`, `~/.cache/debuginfod_client`, or `%LOCALAPPDATA%\debuginfod_client` |
 | `--debuginfod-connect-timeout SECONDS` | Connection timeout per request. | `5` |
 | `--debuginfod-stall-timeout SECONDS` | Abort a transfer that stays below one byte per second for this long. | `10` |
 
 Setting URLs alone does not enable downloads; a configured `DEBUGINFOD_URLS`
 without `--debuginfod` produces a warning when symbolization leaves frames
-unresolved. `ima:enforcing` and `ima:ignore` policy tags in the URL list apply
-to the following servers. Perfetto does not verify IMA signatures, so when an
-`ima:enforcing` server is configured it warns. All Perfetto downloads use a
-`perfetto-unverified` subdirectory outside elfutils' cache layout, independent
-of the URL policy.
+unresolved. Perfetto accepts `ima:enforcing` and `ima:ignore` tokens in the
+URL list but does not perform IMA signature verification. A regular warning
+is emitted when debuginfod is used with a server under `ima:enforcing`.
 
 Local symbol paths and Breakpad files are searched first and only build IDs
 that are still unresolved are fetched, from the cache and then from each

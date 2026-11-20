@@ -211,8 +211,6 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
 
     auto sym_result = profiling::SymbolizeDatabase(tp, sym_config);
     result.native_symbols = std::move(sym_result.symbols);
-    std::string quiet_warnings =
-        std::move(sym_result.debuginfod.quiet_warnings);
     std::string summary = profiling::FormatSymbolizationSummary(
         sym_result, config.verbose, config.colorize);
     if (!sym_result.failed_mappings.empty() ||
@@ -220,7 +218,6 @@ EnrichmentResult EnrichTrace(TraceProcessor* tp,
       result.warnings += summary;
     else
       result.details += summary;
-    result.warnings += quiet_warnings;
   }
 
   // === Kernel ftrace events that cannot be symbolized offline ===

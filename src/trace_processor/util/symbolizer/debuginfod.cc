@@ -269,9 +269,8 @@ base::Status ResolveDebuginfodOptions(const DebuginfodOptions& options,
       return base::ErrStatus("debuginfod URLs must be HTTP(S) server roots");
     if (ima_enforcing && config->ima_policy_warning.empty()) {
       config->ima_policy_warning =
-          "debuginfod IMA verification is not supported; files from "
-          "ima:enforcing servers are not verified and use a "
-          "Perfetto-specific cache.\n";
+          "debuginfod IMA verification is not supported; downloads from "
+          "ima:enforcing servers are not signature-verified.\n";
     }
     config->urls.push_back(std::move(url));
   }
@@ -308,9 +307,6 @@ base::Status ResolveDebuginfodOptions(const DebuginfodOptions& options,
     return base::ErrStatus(
         "cannot determine debuginfod cache directory; "
         "pass --debuginfod-cache-path");
-  // Perfetto does not retain or verify IMA signatures. Keep every file it
-  // downloads out of elfutils' cache layout, independent of URL policy.
-  config->cache_path += "/perfetto-unverified";
   return base::OkStatus();
 #else
   base::ignore_result(config);

@@ -69,8 +69,6 @@ struct DebuginfodStats {
   // Servers that could not be connected to or stopped responding.
   std::vector<std::string> unreachable_servers;
   std::string warnings;
-  // Policy warnings that remain visible when routine output is quiet.
-  std::string quiet_warnings;
 };
 
 std::unique_ptr<Symbolizer> CreateDebuginfodSymbolizer(const DebuginfodConfig&,

@@ -233,16 +233,13 @@ class DebuginfodIntegrationTest : public testing::Test {
   // Removes exactly what a test can create; anything else left behind is
   // caught by TempDir, which only removes an empty directory.
   void TearDown() override {
-    std::string shared_entry_dir = cache_ + "/" + kBuildIdHex;
-    std::string perfetto_cache = cache_ + "/perfetto-unverified";
-    std::string entry_dir = perfetto_cache + "/" + kBuildIdHex;
+    std::string entry_dir = cache_ + "/" + kBuildIdHex;
     for (const std::string& file :
-         {shared_entry_dir + "/debuginfo", entry_dir + "/debuginfo",
-          root_ + "/local/binary", root_ + "/.curlrc", bundle_, trace_}) {
+         {entry_dir + "/debuginfo", root_ + "/local/binary", root_ + "/.curlrc",
+          bundle_, trace_}) {
       base::Unlink(file.c_str());
     }
-    for (const std::string& dir : {shared_entry_dir, entry_dir, perfetto_cache,
-                                   cache_, root_ + "/local"})
+    for (const std::string& dir : {entry_dir, cache_, root_ + "/local"})
       base::Rmdir(dir);
   }
 
@@ -325,13 +322,7 @@ class DebuginfodIntegrationTest : public testing::Test {
     return std::string("/ok/buildid/") + kBuildIdHex + "/debuginfo";
   }
 
-  std::string CacheEntry() {
-    return cache_ + "/perfetto-unverified/" + kBuildIdHex + "/debuginfo";
-  }
-
-  std::string SharedCacheEntry() {
-    return cache_ + "/" + kBuildIdHex + "/debuginfo";
-  }
+  std::string CacheEntry() { return cache_ + "/" + kBuildIdHex + "/debuginfo"; }
 
   base::TempDir temp_dir_ = base::TempDir::Create();
   std::unique_ptr<DebugFileServer> server_;
@@ -365,8 +356,6 @@ TEST_F(DebuginfodIntegrationTest, RemoteOnlyAndCacheReuse) {
   EXPECT_THAT(result.err, HasSubstr("1 downloaded"));
   ExpectSymbolized(bundle_);
   EXPECT_THAT(server_->requests(), ElementsAre(OkRequest()));
-  EXPECT_TRUE(base::FileExists(CacheEntry()));
-  EXPECT_FALSE(base::FileExists(SharedCacheEntry()));
 
   server_->ClearRequests();
   result =
@@ -375,31 +364,13 @@ TEST_F(DebuginfodIntegrationTest, RemoteOnlyAndCacheReuse) {
   EXPECT_THAT(server_->requests(), IsEmpty());
 }
 
-TEST_F(DebuginfodIntegrationTest, ImaPolicyChangeKeepsCachePrivateAndWarns) {
-  Bundle({"--quiet", "--debuginfod", "--debuginfod-urls",
-          "ima:ignore " + server_->url() + "/ok"});
-  EXPECT_TRUE(base::FileExists(CacheEntry()));
-  EXPECT_FALSE(base::FileExists(SharedCacheEntry()));
-
-  server_->ClearRequests();
-  auto result = Bundle({"--quiet", "--debuginfod", "--debuginfod-urls",
-                        "ima:enforcing " + server_->url() + "/ok"},
-                       {"LLVM_SYMBOLIZER_OPTS=--debuginfod"});
-  EXPECT_THAT(result.err, HasSubstr("IMA verification is not supported"));
-  EXPECT_THAT(result.err, Not(HasSubstr("LLVM_SYMBOLIZER_OPTS")));
-  EXPECT_THAT(result.err, Not(HasSubstr("Symbolization:")));
-  EXPECT_THAT(server_->requests(), IsEmpty());
-  EXPECT_TRUE(base::FileExists(CacheEntry()));
-  EXPECT_FALSE(base::FileExists(SharedCacheEntry()));
-  ExpectSymbolized(bundle_);
-}
-
-TEST_F(DebuginfodIntegrationTest, QuietBundleSuppressesOrdinaryWarnings) {
+TEST_F(DebuginfodIntegrationTest, ImaTagsFromEnvironment) {
   auto result = Bundle(
-      {"--quiet", "--debuginfod", "--debuginfod-urls", server_->url() + "/ok"},
-      {"LLVM_SYMBOLIZER_OPTS=--debuginfod"});
-  EXPECT_THAT(result.err, IsEmpty());
+      {"--debuginfod"},
+      {"DEBUGINFOD_URLS=ima:enforcing " + server_->url() + "/ok ima:ignore"});
+  EXPECT_THAT(result.err, HasSubstr("IMA verification is not supported"));
   ExpectSymbolized(bundle_);
+  EXPECT_THAT(server_->requests(), ElementsAre(OkRequest()));
 }
 
 TEST_F(DebuginfodIntegrationTest, DisabledWarnsEvenWhenQuiet) {
@@ -454,8 +425,7 @@ TEST_F(DebuginfodIntegrationTest, WrongBuildIdFallsBack) {
 
 TEST_F(DebuginfodIntegrationTest, InvalidCacheIsReplaced) {
   ASSERT_TRUE(base::Mkdir(cache_));
-  ASSERT_TRUE(base::Mkdir(cache_ + "/perfetto-unverified"));
-  ASSERT_TRUE(base::Mkdir(cache_ + "/perfetto-unverified/" + kBuildIdHex));
+  ASSERT_TRUE(base::Mkdir(cache_ + "/" + kBuildIdHex));
   base::WriteAll(*base::OpenFile(CacheEntry(), O_CREAT | O_WRONLY, 0644),
                  "incomplete", 10);
   Bundle({"--debuginfod", "--debuginfod-urls", server_->url() + "/ok"});
@@ -519,29 +489,14 @@ TEST_F(DebuginfodIntegrationTest, SymbolizeUtility) {
   EXPECT_THAT(result.err, IsEmpty());
 }
 
-TEST_F(DebuginfodIntegrationTest, QuietSymbolizeSuppressesOrdinaryWarnings) {
-  auto result = RunShell({"util", "symbolize", "--debuginfod",
-                          "--debuginfod-urls", server_->url() + "/ok",
-                          "--debuginfod-cache-path", cache_, "--quiet", trace_},
-                         {"LLVM_SYMBOLIZER_OPTS=--debuginfod"});
-  EXPECT_EQ(result.exit_code, 0) << result.err;
-  EXPECT_THAT(result.out, HasSubstr(kSymbol));
-  EXPECT_THAT(result.err, IsEmpty());
-}
-
-TEST_F(DebuginfodIntegrationTest, ImaWarningIsVisibleForQuietSymbolize) {
+TEST_F(DebuginfodIntegrationTest, SymbolizeWithImaTags) {
   auto result = RunShell(
       {"util", "symbolize", "--quiet", "--debuginfod", "--debuginfod-urls",
        "ima:enforcing " + server_->url() + "/ok ima:ignore",
-       "--debuginfod-cache-path", cache_, trace_},
-      {"LLVM_SYMBOLIZER_OPTS=--debuginfod"});
+       "--debuginfod-cache-path", cache_, trace_});
   EXPECT_EQ(result.exit_code, 0) << result.err;
   EXPECT_THAT(result.out, HasSubstr(kSymbol));
-  EXPECT_THAT(result.err, HasSubstr("IMA verification is not supported"));
-  EXPECT_THAT(result.err, Not(HasSubstr("LLVM_SYMBOLIZER_OPTS")));
-  EXPECT_THAT(result.err, Not(HasSubstr("Symbolization:")));
-  EXPECT_TRUE(base::FileExists(CacheEntry()));
-  EXPECT_FALSE(base::FileExists(SharedCacheEntry()));
+  EXPECT_THAT(result.err, IsEmpty());
 }
 
 TEST_F(DebuginfodIntegrationTest, QueryWithoutLocalBinaries) {
