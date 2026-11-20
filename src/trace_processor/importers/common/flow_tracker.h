@@ -36,6 +36,10 @@ class FlowTracker {
   ~FlowTracker();
 
   void InsertFlow(SliceId slice_out_id, SliceId slice_in_id);
+  void InsertFlow(SliceId slice_out_id,
+                  SliceId slice_in_id,
+                  StringId cat,
+                  StringId name);
 
   // These methods track flow ids associated with slices and create flows as
   // needed.

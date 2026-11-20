@@ -240,6 +240,198 @@ class GraphicsParser(TestSuite):
           180,15,1000,4,5,"Layer1","Late Present",1,0,"DequeueBuffer Delay","Valid Prediction","Other Jank","Unknown"
         """))
 
+  def test_input_frame_timeline_events_and_flows(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 15
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            actual_surface_frame_start {
+              cookie: 101
+              token: 100
+              pid: 1000
+              present_type: 1
+              input_latency_millis: 22.0
+              input_timeline_info {
+                input_event_id: -541813058
+                event_time_nanos: 15
+                expected_deadline_nanos: 36
+                is_janky: false
+                expected_surface_frame_token: 100
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 20
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 101
+            }
+          }
+        }
+        packet {
+          timestamp: 20
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            expected_surface_frame_start {
+              cookie: 1
+              token: 100
+              display_frame_token: 10
+              pid: 1000
+              layer_name: "Layer1"
+            }
+          }
+        }
+        packet {
+          timestamp: 36
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 20
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            actual_surface_frame_start {
+              cookie: 2
+              token: 100
+              display_frame_token: 10
+              pid: 1000
+              layer_name: "Layer1"
+              present_type: 1
+              on_time_finish: true
+              gpu_composition: false
+              jank_type: 1
+              prediction_type: 1
+              input_latency_millis: 22.0
+              input_timeline_info {
+                input_event_id: -541813058
+                event_time_nanos: 15
+                expected_deadline_nanos: 36
+                is_janky: false
+                expected_surface_frame_token: 100
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 37
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 25
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            actual_surface_frame_start {
+              cookie: 201
+              token: 200
+              pid: 1000
+              present_type: 2
+              input_latency_millis: 49.0
+              input_timeline_info {
+                input_event_id: -721432716
+                event_time_nanos: 25
+                expected_deadline_nanos: 36
+                is_janky: true
+                expected_surface_frame_token: 100
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 41
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 201
+            }
+          }
+        }
+        packet {
+          timestamp: 41
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            expected_surface_frame_start {
+              cookie: 3
+              token: 200
+              display_frame_token: 20
+              pid: 1000
+              layer_name: "Layer1"
+            }
+          }
+        }
+        packet {
+          timestamp: 56
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 41
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            actual_surface_frame_start {
+              cookie: 4
+              token: 200
+              display_frame_token: 20
+              pid: 1000
+              layer_name: "Layer1"
+              present_type: 2
+              on_time_finish: false
+              gpu_composition: false
+              jank_type: 64
+              prediction_type: 1
+              input_latency_millis: 49.0
+              input_timeline_info {
+                input_event_id: -721432716
+                event_time_nanos: 25
+                expected_deadline_nanos: 36
+                is_janky: true
+                expected_surface_frame_token: 100
+              }
+            }
+          }
+        }
+        packet {
+          timestamp: 74
+          [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+            frame_end {
+              cookie: 4
+            }
+          }
+        }
+        """),
+        query='''
+          SELECT
+            s.ts,
+            s.dur,
+            s.name AS input_slice_name,
+            extract_arg(s.arg_set_id, 'Input event ID') AS input_event_id,
+            extract_arg(s.arg_set_id, 'Surface frame token') AS surface_frame_token,
+            extract_arg(s.arg_set_id, 'Expected surface frame token') AS expected_token,
+            extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag,
+            extract_arg(f.arg_set_id, 'cat') AS flow_category,
+            extract_arg(f.arg_set_id, 'name') AS flow_name,
+            dst_track.name AS dst_track_name,
+            dst.name AS dst_slice_name
+          FROM slice s
+          JOIN process_track pt ON s.track_id = pt.id
+          JOIN flow f ON f.slice_out = s.id
+          JOIN slice dst ON f.slice_in = dst.id
+          JOIN process_track dst_track ON dst.track_id = dst_track.id
+          WHERE pt.name = 'Input Timeline'
+          ORDER BY s.ts, dst_track_name;
+        ''',
+        out=Csv("""
+          "ts","dur","input_slice_name","input_event_id","surface_frame_token","expected_token","jank_tag","flow_category","flow_name","dst_track_name","dst_slice_name"
+          15,5,"3753154238",3753154238,100,100,"No Jank","[NULL]","[NULL]","Actual Timeline","100"
+          25,16,"3573534580",3573534580,200,100,"Self Jank","actual_frame","Actual Frame","Actual Timeline","200"
+          25,16,"3573534580",3573534580,200,100,"Self Jank","expected_frame","Expected Frame","Expected Timeline","100"
+        """))
+
   # Video 4 Linux 2 related tests
   def test_v4l2_vidioc_slice(self):
     return DiffTestBlueprint(

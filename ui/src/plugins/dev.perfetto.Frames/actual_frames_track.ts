@@ -194,6 +194,56 @@ export function createActualFramesTrack(
   });
 }
 
+export function createInputFramesTrack(
+  trace: Trace,
+  uri: string,
+  maxDepth: number,
+  trackIds: ReadonlyArray<number>,
+) {
+  return SliceTrack.create({
+    trace,
+    uri,
+    dataset: new SourceDataset({
+      src: `
+        select
+          id,
+          name,
+          ts,
+          dur,
+          extract_arg(arg_set_id, 'Jank tag') as jank_tag,
+          'Full' as jank_severity_type,
+          arg_set_id,
+          track_id
+        from slice
+        where track_id in (${trackIds.join(',')})
+      `,
+      schema: {
+        id: NUM,
+        name: STR,
+        ts: LONG,
+        dur: LONG,
+        jank_tag: STR_NULL,
+        jank_severity_type: STR_NULL,
+        arg_set_id: NUM,
+        track_id: NUM,
+      },
+    }),
+    tooltip: (slice) => {
+      const tag = slice.row.jank_tag;
+      if (tag && tag !== 'No Jank' && tag !== 'None') {
+        return [m('div', {class: 'pf-actual-frames-tooltip__header'}, tag)];
+      }
+      return undefined;
+    },
+    colorizer: (row) => {
+      return getColorSchemeForJank(row.jank_tag, row.jank_severity_type);
+    },
+    initialMaxDepth: maxDepth,
+    rootTableName: 'slice',
+    detailsPanel: () => new ThreadSliceDetailsPanel(trace),
+  });
+}
+
 function getColorSchemeForJank(
   jankTag: string | null,
   jankSeverityType: string | null,
