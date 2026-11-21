@@ -49,6 +49,9 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
   //    physX = screenX * dprScale.x + dprOffset.x
   // Each quad spans the full track height; fragment shader decides what to draw.
   const vsSource = `#version 300 es
+    const int FLAG_HAS_Y = 1;
+    const int FLAG_HAS_RANGE = 2;
+
     in vec2 a_quadCorner;
     in float a_x;
     in float a_nextX;
@@ -65,6 +68,7 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
     flat out float v_minPhysY;
     flat out float v_maxPhysY;
     flat out float v_baselinePhysY;
+    flat out mediump int v_flags;
 
     uniform vec2 u_resolution;
     uniform vec2 u_dprOffset;
@@ -75,25 +79,54 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
     uniform float u_bottom;
 
     void main() {
+      bool hasY = !isnan(a_y);
+      bool hasRange = !isnan(a_minY) && !isnan(a_maxY);
+      int flags = (hasY ? FLAG_HAS_Y : 0) | (hasRange ? FLAG_HAS_RANGE : 0);
+      v_flags = flags;
+
+      // Pure gap segment: collapse quad offscreen and zero float varyings so
+      // NaNs never enter mediump in the fragment shader.
+      if (flags == 0) {
+        gl_Position = vec4(2.0, 2.0, 0.0, 1.0);
+        v_fill = 0.0;
+        v_physX = 0.0;
+        v_physY = 0.0;
+        v_leftPhysX = 0.0;
+        v_yPhysY = 0.0;
+        v_minPhysY = 0.0;
+        v_maxPhysY = 0.0;
+        v_baselinePhysY = 0.0;
+        return;
+      }
+
       // Apply data transform: raw -> CSS pixels
       float cssX0 = a_x * u_dataScale.x + u_dataOffset.x;
       float cssX1 = a_nextX * u_dataScale.x + u_dataOffset.x;
-      float cssY = a_y * u_dataScale.y + u_dataOffset.y;
-      float cssMinY = a_minY * u_dataScale.y + u_dataOffset.y;
-      float cssMaxY = a_maxY * u_dataScale.y + u_dataOffset.y;
       // Baseline is where y=0 maps to (i.e., just the offset)
       float cssBaseline = u_dataOffset.y;
 
-      // Apply DPR transform and round for crisp edges
+      // Apply DPR transform and round for crisp edges.
+      // When only a transition range is present (no horizontal step), only the
+      // 1px vertical stroke at pixelX0 needs rasterizing.
       float pixelX0 = floor(u_dprOffset.x + cssX0 * u_dprScale.x + 0.5);
-      float pixelX1 = floor(u_dprOffset.x + cssX1 * u_dprScale.x + 0.5);
-      // Ensure minimum quad width of 1 pixel
-      pixelX1 = max(pixelX1, pixelX0 + 1.0);
+      float pixelX1 = hasY
+          ? max(floor(u_dprOffset.x + cssX1 * u_dprScale.x + 0.5), pixelX0 + 1.0)
+          : pixelX0 + 1.0;
 
-      // Transform Y positions (round for crisp lines)
-      float pixelY = floor(u_dprOffset.y + cssY * u_dprScale.y + 0.5);
-      float pixelMinY = floor(u_dprOffset.y + cssMinY * u_dprScale.y + 0.5);
-      float pixelMaxY = floor(u_dprOffset.y + cssMaxY * u_dprScale.y + 0.5);
+      // Transform Y positions (round for crisp lines), avoiding NaN arithmetic
+      float pixelY = 0.0;
+      if (hasY) {
+        float cssY = a_y * u_dataScale.y + u_dataOffset.y;
+        pixelY = floor(u_dprOffset.y + cssY * u_dprScale.y + 0.5);
+      }
+      float pixelMinY = pixelY;
+      float pixelMaxY = pixelY;
+      if (hasRange) {
+        float cssMinY = a_minY * u_dataScale.y + u_dataOffset.y;
+        float cssMaxY = a_maxY * u_dataScale.y + u_dataOffset.y;
+        pixelMinY = floor(u_dprOffset.y + cssMinY * u_dprScale.y + 0.5);
+        pixelMaxY = floor(u_dprOffset.y + cssMaxY * u_dprScale.y + 0.5);
+      }
       float pixelBaseline = floor(u_dprOffset.y + cssBaseline * u_dprScale.y + 0.5);
       float pixelTop = floor(u_dprOffset.y + u_top * u_dprScale.y + 0.5);
       float pixelBottom = floor(u_dprOffset.y + u_bottom * u_dprScale.y + 0.5);
@@ -118,6 +151,9 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
 
   const fsSource = `#version 300 es
     precision mediump float;
+    const int FLAG_HAS_Y = 1;
+    const int FLAG_HAS_RANGE = 2;
+
     in float v_fill;
     in float v_physX;
     in float v_physY;
@@ -126,11 +162,18 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
     flat in float v_minPhysY;
     flat in float v_maxPhysY;
     flat in float v_baselinePhysY;
+    flat in mediump int v_flags;
     out vec4 fragColor;
 
     uniform vec4 u_color;
 
     void main() {
+      bool hasY = (v_flags & FLAG_HAS_Y) != 0;
+      bool hasRange = (v_flags & FLAG_HAS_RANGE) != 0;
+      if (!hasY && !hasRange) {
+        discard;
+      }
+
       float distFromLeft = v_physX - v_leftPhysX;
 
       // Range indicator at left edge: vertical line spanning minY to maxY
@@ -142,21 +185,26 @@ function createStepAreaProgram(gl: WebGL2RenderingContext): StepAreaProgram {
       float pixelRow = floor(v_physY);
 
       // Horizontal stroke line at y (1px thick)
-      bool inHorizontalStroke = pixelRow == v_yPhysY;
+      bool inHorizontalStroke = hasY && pixelRow == v_yPhysY;
 
       // Vertical stroke at left edge (range indicator)
-      bool inVerticalStroke = distFromLeft < 1.0 &&
+      bool inVerticalStroke = hasRange &&
+          distFromLeft < 1.0 &&
           pixelRow >= rangeTop &&
           pixelRow <= rangeBottom;
 
       // Fill region: from y to baseline (handles y above or below baseline)
       float fillTop = min(v_yPhysY, v_baselinePhysY);
       float fillBottom = max(v_yPhysY, v_baselinePhysY);
-      bool inFillRegion = pixelRow >= fillTop && pixelRow <= fillBottom;
+      bool inFillRegion = hasY && pixelRow >= fillTop && pixelRow <= fillBottom;
 
       // Discard pixels outside the rendered region (both stroke and fill)
-      float renderTop = min(rangeTop, fillTop);
-      float renderBottom = max(rangeBottom, fillBottom);
+      float renderTop = hasY && hasRange
+          ? min(rangeTop, fillTop)
+          : (hasY ? fillTop : rangeTop);
+      float renderBottom = hasY && hasRange
+          ? max(rangeBottom, fillBottom)
+          : (hasY ? fillBottom : rangeBottom);
       if (pixelRow < renderTop || pixelRow > renderBottom) {
         discard;
       }
