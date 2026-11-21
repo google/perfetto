@@ -17,11 +17,13 @@
 #ifndef SRC_PROTOVM_PARSER_H_
 #define SRC_PROTOVM_PARSER_H_
 
-#include "perfetto/protozero/field.h"
-#include "protos/perfetto/protovm/vm_program.pbzero.h"
+#include <cstdint>
+
+#include "perfetto/ext/base/span.h"
 
 #include "src/protovm/error_handling.h"
 #include "src/protovm/executor.h"
+#include "src/protovm/program.h"
 #include "src/protovm/ro_cursor.h"
 #include "src/protovm/rw_proto.h"
 
@@ -30,26 +32,29 @@ namespace protovm {
 
 class Parser {
  public:
-  Parser(protozero::ConstBytes program, Executor* executor);
+  Parser(const Program* program, Executor* executor);
   StatusOr<void> Run(RoCursor src, RwProto::Cursor dst);
 
  private:
-  StatusOr<void> ParseInstructions(
-      protozero::RepeatedFieldIterator<protozero::ConstBytes> it_instruction);
-  StatusOr<void> ParseInstruction(
-      const protos::pbzero::VmInstruction::Decoder& instruction);
-  StatusOr<void> ParseMerge(
-      const protos::pbzero::VmInstruction::Decoder& instruction);
-  StatusOr<void> ParseRegLoad(
-      const protos::pbzero::VmInstruction::Decoder& instruction);
-  StatusOr<void> ParseSelect(
-      const protos::pbzero::VmInstruction::Decoder& instruction);
+  StatusOr<void> ParseInstructions(base::Span<const Instruction> instructions);
+  StatusOr<void> ParseInstruction(const Instruction& instruction);
+  StatusOr<void> ParseRegLoad(const InstructionRegLoad& reg_load);
+  StatusOr<void> ParseDel();
+  StatusOr<void> ParseSelect(const InstructionSelect& select);
   StatusOr<void> ParseSelectRec(
-      const protos::pbzero::VmInstruction::Decoder& instruction,
-      protozero::RepeatedFieldIterator<protozero::ConstBytes>
-          it_path_component);
+      const InstructionSelect& select,
+      base::Span<const PathComponent> remaining_components);
+  StatusOr<void> IterateRepeatedField(
+      const InstructionSelect& select,
+      uint32_t field_id,
+      base::Span<const PathComponent> next_components);
+  template <class CursorType>
+  StatusOr<void> IterateRepeatedFieldImpl(
+      const InstructionSelect& select,
+      uint32_t field_id,
+      base::Span<const PathComponent> next_components);
 
-  protos::pbzero::VmProgram::Decoder program_;
+  const Program* program_;
   Cursors cursors_;
   Executor* executor_;
 };

@@ -70,9 +70,10 @@ void SurfaceFlingerTrace(benchmark::State& state) {
   std::vector<protozero::ConstBytes> patches = ExtractPatches(trace);
 
   for (auto _ : state) {
-    Vm vm{program, kMemoryLimitBytes};
+    auto vm = Vm::Create(program, kMemoryLimitBytes);
+    PERFETTO_CHECK(vm.ok());
     for (const auto& patch : patches) {
-      auto status = vm.ApplyPatch(patch);
+      auto status = (*vm)->ApplyPatch(patch);
       PERFETTO_CHECK(status.IsOk());
     }
     benchmark::DoNotOptimize(vm);
