@@ -42,6 +42,11 @@ Unreleased:
    * Fixed Fuchsia trace (FXT) strings with NUL bytes inside their declared
      length (e.g. trailing NUL padding) not matching string equality filters.
      Such strings are now truncated at the first NUL byte.
+   * Threads of Chrome sandboxed processes and other pid-namespaced
+     processes now keep the tid they reported instead of a synthetic
+     `(pid << 32) | tid`. When the kernel tid is known from
+     `linux.process_stats`, they are joined with the kernel's thread;
+     otherwise they no longer take over kernel threads with the same tid.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.

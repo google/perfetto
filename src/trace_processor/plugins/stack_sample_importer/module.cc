@@ -465,10 +465,10 @@ void StackSampleModule::ParseStackSample(
       row.upid = upid;
     }
     if (task.has_tid()) {
-      row.utid =
-          task.has_pid()
-              ? context_->process_tracker->UpdateThread(task.tid(), task.pid())
-              : context_->process_tracker->GetOrCreateThread(task.tid());
+      row.utid = task.has_pid()
+                     ? context_->process_tracker->UpdateProducerThread(
+                           task.tid(), task.pid())
+                     : context_->process_tracker->GetOrCreateThread(task.tid());
     }
     if (task.has_async_id()) {
       row.async_context_id =

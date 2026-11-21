@@ -100,7 +100,6 @@ class TrackEventTracker {
     StringId description = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
-    bool use_synthetic_tid = false;
     bool is_state = false;
 
     // For counter tracks.

@@ -15,9 +15,91 @@
 
 import json
 
-from python.generators.diff_tests.testing import Csv, Json
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+
+_INIT_PROCESS = 'processes { pid: 1 ppid: 0 cmdline: "/sbin/init" }'
+
+
+def _sched(tid, comm):
+  return '''
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100
+      pid: 0
+      sched_switch {
+        prev_comm: "swapper/0" prev_pid: 0 prev_prio: 120 prev_state: 0
+        next_comm: "%s" next_pid: %d next_prio: 120
+      }
+    }
+    event {
+      timestamp: 200
+      pid: %d
+      sched_switch {
+        prev_comm: "%s" prev_pid: %d prev_prio: 120 prev_state: 1
+        next_comm: "swapper/0" next_pid: 0 next_prio: 120
+      }
+    }
+  }
+}
+''' % (comm, tid, tid, comm, tid)
+
+
+def _process_tree(*entries):
+  return '''
+packet {
+  timestamp: 1
+  process_tree {
+    %s
+  }
+}
+''' % '\n    '.join(entries)
+
+
+def _renderer_thread(tid, chrome_thread=''):
+  return '''
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 42
+    thread { pid: 1000 tid: %d thread_name: "CrRendererMain" }
+    %s
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 20
+  track_event { track_uuid: 42 type: TYPE_SLICE_BEGIN name: "RendererWork" }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 30
+  track_event { track_uuid: 42 type: TYPE_SLICE_END }
+}
+''' % (tid, chrome_thread)
+
+
+_SANDBOXED = 'chrome_thread { is_sandboxed_tid: true }'
+
+# Which thread and process every sched slice and thread slice is attributed to.
+_ATTRIBUTION_QUERY = '''
+SELECT 'sched' AS src, t.tid, t.name AS thread, p.pid, p.name AS process
+FROM sched s
+JOIN thread t USING (utid)
+LEFT JOIN process p USING (upid)
+WHERE t.tid != 0
+UNION ALL
+SELECT 'slice', t.tid, t.name, p.pid, p.name
+FROM slice s
+JOIN thread_track tt ON s.track_id = tt.id
+JOIN thread t USING (utid)
+LEFT JOIN process p USING (upid);
+'''
 
 
 def _gecko_thread(name, pid, times):
@@ -79,6 +161,98 @@ JOIN thread t USING (utid);
 
 
 class TidScopes(TestSuite):
+
+  # A sandboxed process's tid 1 is not init's: init's sched slices must stay on
+  # init.
+  def test_sandboxed_tid_does_not_steal_kernel_tid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(
+            _process_tree(
+                _INIT_PROCESS,
+                'processes { pid: 1000 ppid: 1 cmdline: "renderer" }') +
+            _renderer_thread(1, _SANDBOXED) + _sched(1, 'init')),
+        query=_ATTRIBUTION_QUERY,
+        out=Csv('''
+        "src","tid","thread","pid","process"
+        "sched",1,"init",1,"/sbin/init"
+        "slice",1,"CrRendererMain",1000,"renderer"
+        '''))
+
+  # A StackSample for the same (pid, tid) as a sandboxed track_event thread
+  # must land on that same thread.
+  def test_sandboxed_tid_shared_with_stack_sample(self):
+    return DiffTestBlueprint(
+        trace=TextProto(
+            _process_tree('processes { pid: 1000 ppid: 1 cmdline: "renderer" }')
+            + '''
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 5
+          incremental_state_cleared: true
+          trace_packet_defaults {
+            stack_sample_defaults {
+              source: "chrome"
+              primary_descriptor { name: "samples" unit: UNIT_COUNT }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 6
+          stack_sample {
+            task_context { pid: 1000 tid: 1 }
+            callstack { frames { function_name: "main" } }
+            primary_weight: 1
+          }
+        }
+        ''' + _renderer_thread(1, _SANDBOXED)),
+        query='''
+        SELECT
+          (SELECT COUNT(*) FROM thread t JOIN process p USING (upid)
+           WHERE p.pid = 1000 AND t.tid = 1) AS threads,
+          (SELECT value FROM stats WHERE name = 'namespaced_tid_unresolved')
+            AS unresolved;
+        ''',
+        out=Csv('''
+        "threads","unresolved"
+        1,1
+        '''))
+
+  # ProcessTree says the process is pid-namespaced but has no entry for this
+  # thread: its tid cannot be a kernel tid, so it must not take over
+  # kthreadd's.
+  def test_unresolved_namespaced_tid_does_not_steal_kernel_tid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(
+            _process_tree(
+                _INIT_PROCESS,
+                'processes { pid: 2 ppid: 0 cmdline: "kthreadd" }',
+                'processes { pid: 1000 ppid: 1 cmdline: "renderer" '
+                'nspid: 1000 nspid: 1 }') + _renderer_thread(2) +
+            _sched(2, 'kthreadd')),
+        query=_ATTRIBUTION_QUERY,
+        out=Csv('''
+        "src","tid","thread","pid","process"
+        "sched",2,"kthreadd",2,"kthreadd"
+        "slice",2,"CrRendererMain",1000,"renderer"
+        '''))
+
+  # With the mapping in ProcessTree, the namespaced tid resolves to its kernel
+  # tid and joins with the kernel's view of the thread.
+  def test_namespaced_tid_resolved_via_process_tree(self):
+    return DiffTestBlueprint(
+        trace=TextProto(
+            _process_tree(
+                _INIT_PROCESS, 'processes { pid: 1000 ppid: 1 '
+                'cmdline: "renderer" nspid: 1000 nspid: 1 }',
+                'threads { tid: 1005 tgid: 1000 nstid: 1005 nstid: 2 }') +
+            _renderer_thread(2) + _sched(1005, 'CrRendererMain')),
+        query=_ATTRIBUTION_QUERY,
+        out=Csv('''
+        "src","tid","thread","pid","process"
+        "sched",1005,"CrRendererMain",1000,"renderer"
+        "slice",1005,"CrRendererMain",1000,"renderer"
+        '''))
 
   # Two JSON processes with string ids that both name a thread "Main" must
   # each keep their own named thread.

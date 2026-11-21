@@ -120,6 +120,21 @@ class ProcessTracker {
   // Virtual for testing.
   virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
 
+  // Like UpdateThread, for a tid reported by a process about one of its own
+  // threads rather than observed by the kernel. If |pid| reports tids from
+  // inside a pid namespace, |tid| is resolved to its kernel tid; if that is
+  // not possible, the thread is scoped to |pid| instead: it is only found by
+  // (pid, tid) lookups, never by tid-only ones.
+  UniqueTid UpdateProducerThread(int64_t tid, int64_t pid);
+
+  // Like UpdateProducerThread, but always starts a new thread: used when a
+  // producer's tid is known to have been reused.
+  UniqueTid StartNewProducerThread(int64_t tid, int64_t pid);
+
+  // Marks |pid| as reporting tids from inside its own pid namespace, so they
+  // cannot be assumed to be kernel tids.
+  void SetReportsNamespacedTids(int64_t pid);
+
   // Mark whether a thread is the main thread or not.
   void SetMainThread(UniqueTid utid, bool is_main_thread);
 
@@ -319,6 +334,19 @@ class ProcessTracker {
 
   UniquePid GetOrCreateProcessInternal(int64_t pid, bool associate_main_thread);
 
+  // Inserts a new thread row without adding it to |tids_|.
+  UniqueTid InsertThreadRow(std::optional<int64_t> timestamp, int64_t tid);
+
+  // Resolves a producer-reported |tid| in |pid|. Returns the kernel tid, or
+  // std::nullopt if the thread has to be scoped to the process.
+  std::optional<int64_t> ResolveProducerTid(int64_t pid, int64_t tid);
+
+  // Returns the thread scoped to |upid| with |tid|, creating it if needed (or
+  // always, if |start_new|).
+  UniqueTid GetOrCreateProcessScopedThread(UniquePid upid,
+                                           int64_t tid,
+                                           bool start_new);
+
   TraceProcessorContext* const context_;
 
   // Factory used to bind the inserters below to process/thread rows.
@@ -334,6 +362,14 @@ class ProcessTracker {
   // active. A tid can have several: tids are only unique per process in formats
   // where pid 0 isn't the swapper.
   base::FlatHashMap<int64_t /* tid */, base::SmallVector<UniqueTid, 1>> tids_;
+
+  // Threads whose tid is only meaningful within their process, keyed by
+  // (upid, tid). Never consulted by tid-only lookups.
+  base::FlatHashMap<std::pair<UniquePid, int64_t>, UniqueTid>
+      process_scoped_tids_;
+
+  // Pids which report tids from inside their own pid namespace.
+  std::unordered_set<int64_t> namespaced_tid_pids_;
 
   // upid -> its utids, used to remove dead threads from tids_ when a process
   // ends or its pid is recycled.

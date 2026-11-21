@@ -74,6 +74,13 @@ ProcessTracker::~ProcessTracker() = default;
 
 UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
                                          int64_t tid) {
+  UniqueTid new_utid = InsertThreadRow(timestamp, tid);
+  tids_[tid].emplace_back(new_utid);
+  return new_utid;
+}
+
+UniqueTid ProcessTracker::InsertThreadRow(std::optional<int64_t> timestamp,
+                                          int64_t tid) {
   tables::ThreadTable::Row row;
   row.tid = tid;
   row.start_ts = timestamp;
@@ -81,7 +88,6 @@ UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
 
   auto* thread_table = context_->storage->mutable_thread_table();
   UniqueTid new_utid = thread_table->Insert(row).row;
-  tids_[tid].emplace_back(new_utid);
 
   if (PERFETTO_UNLIKELY(thread_name_priorities_.size() <= new_utid)) {
     // This condition can happen in a multi-machine tracing session:
@@ -280,7 +286,14 @@ void ProcessTracker::InvalidateProcessThreads(UniquePid upid) {
     return;
   auto& thread_table = *context_->storage->mutable_thread_table();
   for (UniqueTid utid : *threads) {
-    EraseFromTids(thread_table[utid].tid(), utid);
+    int64_t tid = thread_table[utid].tid();
+    EraseFromTids(tid, utid);
+    if (PERFETTO_UNLIKELY(process_scoped_tids_.size() > 0)) {
+      auto* scoped = process_scoped_tids_.Find({upid, tid});
+      if (scoped && *scoped == utid) {
+        process_scoped_tids_.Erase({upid, tid});
+      }
+    }
   }
   process_threads_.Erase(upid);
 }
@@ -289,6 +302,57 @@ UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
   return GetOrCreateThreadWithParentInternal(tid, GetOrCreateProcess(pid),
                                              /*is_main_thread*/ tid == pid,
                                              /*associate_main_threads*/ true);
+}
+
+UniqueTid ProcessTracker::UpdateProducerThread(int64_t tid, int64_t pid) {
+  if (auto kernel_tid = ResolveProducerTid(pid, tid); kernel_tid) {
+    return UpdateThread(*kernel_tid, pid);
+  }
+  return GetOrCreateProcessScopedThread(GetOrCreateProcess(pid), tid,
+                                        /*start_new=*/false);
+}
+
+UniqueTid ProcessTracker::StartNewProducerThread(int64_t tid, int64_t pid) {
+  if (auto kernel_tid = ResolveProducerTid(pid, tid); kernel_tid) {
+    UniqueTid utid = StartNewThread(std::nullopt, *kernel_tid);
+    PERFETTO_CHECK(UpdateThread(*kernel_tid, pid) == utid);
+    return utid;
+  }
+  return GetOrCreateProcessScopedThread(GetOrCreateProcess(pid), tid,
+                                        /*start_new=*/true);
+}
+
+void ProcessTracker::SetReportsNamespacedTids(int64_t pid) {
+  namespaced_tid_pids_.insert(pid);
+}
+
+std::optional<int64_t> ProcessTracker::ResolveProducerTid(int64_t pid,
+                                                          int64_t tid) {
+  if (PERFETTO_LIKELY(namespaced_tid_pids_.empty() &&
+                      namespaced_processes_.empty())) {
+    return tid;
+  }
+  if (auto resolved = ResolveNamespacedTid(pid, tid); resolved) {
+    return resolved;
+  }
+  bool namespaced =
+      namespaced_tid_pids_.count(pid) || namespaced_processes_.count(pid);
+  return namespaced ? std::nullopt : std::make_optional(tid);
+}
+
+UniqueTid ProcessTracker::GetOrCreateProcessScopedThread(UniquePid upid,
+                                                         int64_t tid,
+                                                         bool start_new) {
+  if (!start_new) {
+    if (auto* utid = process_scoped_tids_.Find({upid, tid}); utid) {
+      return *utid;
+    }
+  }
+  context_->stats_tracker->IncrementStats(stats::namespaced_tid_unresolved);
+  UniqueTid utid = InsertThreadRow(std::nullopt, tid);
+  AssociateThreadToProcessInternal(utid, upid, /*is_main_thread=*/false);
+  process_scoped_tids_[{upid, tid}] = utid;
+  return utid;
 }
 
 void ProcessTracker::UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid) {
@@ -751,6 +815,8 @@ void ProcessTracker::OnEventsFullyExtracted() {
   thread_args_.Clear();
 
   tids_.Clear();
+  process_scoped_tids_.Clear();
+  namespaced_tid_pids_.clear();
   process_threads_.Clear();
   pids_.Clear();
   pending_assocs_.clear();

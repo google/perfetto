@@ -3166,7 +3166,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_stats_tracker",
-        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_v8_profile_parser",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
@@ -18588,11 +18587,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/importers/common:synthetic_tid_hdr
-filegroup {
-    name: "perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
-}
-
 // GN: //src/trace_processor/importers/common:unittests
 filegroup {
     name: "perfetto_src_trace_processor_importers_common_unittests",
@@ -22021,7 +22015,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_stats_tracker",
-        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_v8_profile_parser",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
@@ -25126,7 +25119,6 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_stats_tracker",
-        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_unittests",
         ":perfetto_src_trace_processor_importers_common_v8_profile_parser",
         ":perfetto_src_trace_processor_importers_etw_full",
@@ -26324,7 +26316,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_stats_tracker",
-        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_v8_profile_parser",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",

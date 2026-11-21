@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -734,6 +735,78 @@ TEST_F(ProcessTrackerTest, ReaffirmedThreadBecomesBareLookupResult) {
   // Bare lookup should now return utid_a again.
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(500), utid_a);
   ASSERT_EQ(context.process_tracker->GetOrCreateThread(500), utid_a);
+}
+
+// A producer's tid is a kernel tid unless something says otherwise.
+TEST_F(ProcessTrackerTest, ProducerThreadIsKernelThreadByDefault) {
+  UniqueTid utid = context.process_tracker->UpdateProducerThread(/*tid=*/10,
+                                                                 /*pid=*/5);
+  ASSERT_EQ(context.process_tracker->UpdateThread(10, 5), utid);
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(10), utid);
+}
+
+// A namespaced tid that can't be resolved is scoped to its process: it never
+// shadows the kernel thread with the same tid.
+TEST_F(ProcessTrackerTest, UnresolvedNamespacedTidIsProcessScoped) {
+  UniqueTid init = context.process_tracker->UpdateThread(/*tid=*/1, /*pid=*/1);
+  context.process_tracker->SetReportsNamespacedTids(1000);
+
+  UniqueTid utid = context.process_tracker->UpdateProducerThread(1, 1000);
+  ASSERT_NE(utid, init);
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(1), init);
+  ASSERT_EQ(context.process_tracker->UpdateProducerThread(1, 1000), utid);
+
+  auto thread = context.storage->thread_table()[utid];
+  ASSERT_EQ(thread.tid(), 1);
+  auto upid = context.process_tracker->GetProcessOrNull(1000);
+  ASSERT_EQ(thread.upid(), upid);
+  ASSERT_EQ(context.stats_tracker->GetStats(stats::namespaced_tid_unresolved),
+            1);
+}
+
+// ProcessTree data marks a process as namespaced even without a producer
+// saying so.
+TEST_F(ProcessTrackerTest, UnmappedThreadOfNamespacedProcessIsProcessScoped) {
+  context.process_tracker->UpdateNamespacedProcess(/*pid=*/1000,
+                                                   /*nspid=*/{1000, 1});
+  context.process_tracker->UpdateProducerThread(/*tid=*/7, /*pid=*/1000);
+  ASSERT_EQ(context.process_tracker->GetThreadOrNull(7), std::nullopt);
+}
+
+// With the namespace mapping, the producer's tid resolves to the kernel
+// thread.
+TEST_F(ProcessTrackerTest, NamespacedTidResolvesToKernelThread) {
+  context.process_tracker->UpdateNamespacedProcess(/*pid=*/1000,
+                                                   /*nspid=*/{1000, 1});
+  ASSERT_TRUE(context.process_tracker->UpdateNamespacedThread(
+      /*pid=*/1000, /*tid=*/1005, /*nstid=*/{1005, 2}));
+
+  UniqueTid utid = context.process_tracker->UpdateProducerThread(/*tid=*/2,
+                                                                 /*pid=*/1000);
+  ASSERT_EQ(context.process_tracker->UpdateThread(1005, 1000), utid);
+  ASSERT_EQ(context.stats_tracker->GetStats(stats::namespaced_tid_unresolved),
+            0);
+}
+
+TEST_F(ProcessTrackerTest, StartNewProducerThreadReplacesProcessScopedThread) {
+  context.process_tracker->SetReportsNamespacedTids(1000);
+  UniqueTid old_utid = context.process_tracker->UpdateProducerThread(1, 1000);
+  UniqueTid new_utid = context.process_tracker->StartNewProducerThread(1, 1000);
+  ASSERT_NE(new_utid, old_utid);
+  ASSERT_EQ(context.process_tracker->UpdateProducerThread(1, 1000), new_utid);
+}
+
+// Process-scoped threads die with their process: a recycled pid gets new ones.
+TEST_F(ProcessTrackerTest, ProcessScopedThreadsDroppedOnPidReuse) {
+  context.process_tracker->SetReportsNamespacedTids(1000);
+  UniqueTid old_utid = context.process_tracker->UpdateProducerThread(1, 1000);
+  UniquePid new_upid = context.process_tracker->StartNewProcess(
+      std::nullopt, std::nullopt, /*pid=*/1000, kNullStringId,
+      ThreadNamePriority::kFtrace);
+
+  UniqueTid new_utid = context.process_tracker->UpdateProducerThread(1, 1000);
+  ASSERT_NE(new_utid, old_utid);
+  ASSERT_EQ(context.storage->thread_table()[new_utid].upid(), new_upid);
 }
 
 }  // namespace

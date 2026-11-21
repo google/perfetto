@@ -624,7 +624,13 @@ namespace perfetto::trace_processor::stats {
       "during trace collection. The trace will be missing namespace "          \
       "associations for some threads, which may affect analysis. To address "  \
       "this issue, address the underlying data losses."),                      \
-  F(json_tokenizer_failure,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(namespaced_tid_unresolved,            kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,      \
+      "A process reported tids from inside its pid namespace (e.g. a Chrome "  \
+      "sandboxed process or a container) which could not be mapped to kernel " \
+      "tids. These threads are shown with their namespaced tids and are not "  \
+      "joined with scheduling or other kernel data. To fix this, enable the "  \
+      "linux.process_stats data source so the mapping is recorded."),          \
+  F(json_tokenizer_failure,              kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(json_parser_failure,                  kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(json_display_time_unit,               kSingle,  kInfo,     kTrace, Scope::kMachineAndTrace,         \
       "The displayTimeUnit key was set in the JSON trace. In some prior "      \
