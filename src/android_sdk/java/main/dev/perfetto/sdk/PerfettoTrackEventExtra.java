@@ -539,6 +539,10 @@ final class PerfettoTrackEventExtra {
       native_set_value_string(mPtr, id, val);
     }
 
+    public void setValueBytes(long id, byte[] val) {
+      native_set_value_bytes(mPtr, id, val);
+    }
+
     public void setValueWithInterning(long id, String val, long internedTypeId) {
       native_set_value_with_interning(mPtr, id, val, internedTypeId);
     }
@@ -560,6 +564,9 @@ final class PerfettoTrackEventExtra {
 
     @FastNative
     private static native void native_set_value_string(long ptr, long id, String val);
+
+    @FastNative
+    private static native void native_set_value_bytes(long ptr, long id, byte[] val);
 
     @FastNative
     private static native void native_set_value_with_interning(
