@@ -22,6 +22,7 @@ import {CopyToClipboardButton} from '../../../widgets/copy_to_clipboard_button';
 import {Form, FormLabel} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {Inline, Stack, StackAuto} from '../../../widgets/stack';
+import {LinearProgress} from '../../../widgets/linear_progress';
 import {TextInput} from '../../../widgets/text_input';
 import {renderErrorDetails} from '../dialogs';
 import {gdriveOpenLink} from '../google/drive_client';
@@ -76,6 +77,9 @@ export interface ShareFormAttrs {
   readonly onCancelUpload: () => void;
   // Opens the folder picker to change the location.
   readonly onPickFolder: () => void;
+  // Sets the location back to the top of My Drive, which the folder picker
+  // can't select.
+  readonly onResetLocation: () => void;
   // Opens the Google Drive sharing dialog for the uploaded file.
   readonly onOpenSharingDialog: () => void;
 }
@@ -113,11 +117,20 @@ function progressText(upload: UploadState): string {
 
 // The trace is already in Drive: offer ways to get at it.
 function renderUploaded(attrs: ShareFormAttrs, fileId: string): m.Children {
+  const {fileName} = attrs.state;
   return m(Stack, {className: 'pf-gdrive-share', spacing: 'large'}, [
     renderError(attrs.state),
     m('.pf-gdrive-share__saved', [
-      m(Icon, {icon: 'cloud_done', filled: true}),
-      'Saved to Google Drive',
+      m(Icon, {
+        className: 'pf-gdrive-share__saved-icon',
+        icon: 'cloud_done',
+        filled: true,
+      }),
+      m('.pf-gdrive-share__saved-text', [
+        m('.pf-gdrive-share__saved-title', 'Saved to Google Drive'),
+        // The name isn't known when the trace was opened from Drive.
+        fileName !== '' && m('.pf-gdrive-share__saved-name', fileName),
+      ]),
     ]),
     m(Inline, [
       m(CopyToClipboardButton, {
@@ -184,43 +197,69 @@ function renderUploadForm(attrs: ShareFormAttrs): m.Children {
         onInput: (value: string) => attrs.onFileNameChange(value),
       }),
       m(FormLabel, {for: 'pf-gdrive-share-location'}, 'Location'),
-      m(Inline, [
-        m(TextInput, {
+      // The location can only be chosen with the folder picker, so it's shown
+      // as a single button that opens the picker, rather than a read-only
+      // text box that looks editable.
+      m(Inline, {className: 'pf-gdrive-share__location-row'}, [
+        m(Button, {
           id: 'pf-gdrive-share-location',
           className: 'pf-gdrive-share__location',
-          leftIcon: 'folder',
-          value: location === 'root' ? 'My Drive' : (location.name ?? 'Folder'),
-          readonly: true,
-          disabled: uploading,
-        }),
-        m(Button, {
           type: 'button',
-          label: 'Change',
-          variant: ButtonVariant.Filled,
+          icon: 'folder',
+          label: location === 'root' ? 'My Drive' : (location.name ?? 'Folder'),
+          rightIcon: 'edit',
+          title: 'Choose a folder in Google Drive',
+          variant: ButtonVariant.Outlined,
           disabled: uploading,
           onclick: () => attrs.onPickFolder(),
         }),
-      ]),
-      m(Inline, {className: 'pf-gdrive-share__footer'}, [
-        upload !== undefined &&
-          m('span.pf-gdrive-share__progress-text', progressText(upload)),
-        m(StackAuto),
-        uploading &&
+        // The folder picker can't select the top of My Drive, so offer a way
+        // back to it once a folder has been chosen.
+        location !== 'root' &&
           m(Button, {
-            type: 'button',
-            label: 'Cancel',
-            variant: ButtonVariant.Filled,
-            onclick: () => attrs.onCancelUpload(),
+            'className': 'pf-gdrive-share__location-reset',
+            'type': 'button',
+            'icon': 'close',
+            'title': 'Upload to My Drive instead',
+            'aria-label': 'Upload to My Drive instead',
+            'variant': ButtonVariant.Outlined,
+            'disabled': uploading,
+            'onclick': () => attrs.onResetLocation(),
           }),
-        m(Button, {
-          type: 'submit',
-          label: 'Upload',
-          icon: 'upload',
-          loading: uploading,
-          intent: Intent.Primary,
-          variant: ButtonVariant.Filled,
-        }),
       ]),
+      upload === undefined
+        ? m(Inline, {className: 'pf-gdrive-share__footer'}, [
+            m(StackAuto),
+            m(Button, {
+              type: 'submit',
+              label: 'Upload',
+              icon: 'upload',
+              intent: Intent.Primary,
+              variant: ButtonVariant.Filled,
+            }),
+          ])
+        : m('.pf-gdrive-share__progress', [
+            m(LinearProgress, {
+              className: 'pf-gdrive-share__progress-bar',
+              // Animate until the first progress report says how big the
+              // upload is.
+              state: 'indeterminate',
+              value:
+                upload.totalBytes > 0
+                  ? upload.uploadedBytes / upload.totalBytes
+                  : undefined,
+            }),
+            m(Inline, [
+              m('span.pf-gdrive-share__progress-text', progressText(upload)),
+              m(StackAuto),
+              m(Button, {
+                type: 'button',
+                label: 'Cancel',
+                variant: ButtonVariant.Outlined,
+                onclick: () => attrs.onCancelUpload(),
+              }),
+            ]),
+          ]),
     ],
   );
 }
