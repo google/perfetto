@@ -469,6 +469,36 @@ PERFETTO_SDK_EXPORT void PerfettoTeHlEmitImpl(
     const char* name,
     struct PerfettoTeHlExtra* const* extra_data);
 
+// Emits one Java event, routing each active recording to its requested encoder.
+// available_modes is a snapshot of PERFETTO_TE_JAVA_ENCODING_* bits taken
+// before building the event. Missing modes are skipped, including sessions
+// started after that snapshot. Sessions sharing a mode share its
+// representation.
+//
+// name is a byte span (NULL only with size zero). Both extras arrays are
+// NULL-terminated and may be NULL for no extras. encoded_extras accepts only
+// tracks, timestamp, dynamic category, no-intern and flush metadata; encoded
+// event fields are supplied separately. Both representations must describe the
+// same event metadata. The legacy timestamp wins if both representations are
+// supplied. Otherwise the available representation supplies the timestamp.
+//
+// Returns true for accepted input, even if no matching recording is active.
+// Validation happens before any recording is touched. Invalid modes, fields,
+// encoded metadata, pointer/length pairs or an encoded event over the 1 MiB
+// total budget drop the whole event. Legacy-only events retain their old
+// limits. The input buffers/strings are borrowed synchronously and never
+// modified or retained. Interned IDs are resolved and written separately for
+// each sequence.
+PERFETTO_SDK_EXPORT bool PerfettoTeHlEmitJavaImpl(
+    struct PerfettoTeCategoryImpl* cat,
+    int32_t type,
+    const char* name,
+    size_t name_size,
+    uint32_t available_modes,
+    struct PerfettoTeHlExtra* const* legacy_extras,
+    const struct PerfettoTeHlEventFields* encoded_fields,
+    struct PerfettoTeHlExtra* const* encoded_extras);
+
 #ifdef __cplusplus
 }
 #endif

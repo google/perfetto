@@ -19,6 +19,7 @@
 #include "perfetto/public/track_event.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
+#include "src/shared_lib/track_event/encoded_fields.h"
 #include "src/shared_lib/track_event/serialization.h"
 
 namespace perfetto::shlib {
@@ -61,7 +62,8 @@ struct EventParams {
   protos::pbzero::TrackEvent::Type type =
       protos::pbzero::TrackEvent::TYPE_UNSPECIFIED;
   const char* name = nullptr;
-  size_t name_len = 0;
+  // Bindings supply a byte length; ordinary C callers populate it lazily.
+  size_t name_len = SIZE_MAX;
   TraceTimestamp timestamp{};
 
   TrackSelection track;
@@ -80,7 +82,8 @@ struct EventParams {
 EventParams PrepareEvent(PerfettoTeCategoryImpl* cat,
                          int32_t type,
                          const char* name,
-                         const PerfettoTeHlExtra* const* extra_data) {
+                         const PerfettoTeHlExtra* const* extra_data,
+                         const TraceTimestamp* shared_timestamp = nullptr) {
   EventParams params;
   params.cat = cat;
   params.type = EventType(type);
@@ -149,7 +152,9 @@ EventParams PrepareEvent(PerfettoTeCategoryImpl* cat,
   }
 
   // Every recording gets the same event timestamp.
-  if (custom_timestamp) {
+  if (shared_timestamp) {
+    params.timestamp = *shared_timestamp;
+  } else if (custom_timestamp) {
     params.timestamp.clock_id = custom_timestamp->timestamp.clock_id;
     params.timestamp.value = custom_timestamp->timestamp.value;
   } else {
@@ -234,26 +239,31 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
 void WriteTrackEvent(TrackEventIncrementalState* incr,
                      protos::pbzero::TrackEvent* event,
                      const EventParams& params,
-                     std::optional<uint64_t> track_uuid) {
+                     std::optional<uint64_t> track_uuid,
+                     bool inline_names) {
   if (params.type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED)
     event->set_type(params.type);
 
   if (!params.dynamic_cat &&
       params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
       params.type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    uint64_t iid = params.cat->cat_iid;
-    const bool newly_seen = incr->MarkCategorySeen(iid);
-    if (newly_seen) {
-      auto* ser = incr->serialized_interned_data->add_event_categories();
-      ser->set_iid(iid);
-      ser->set_name(params.cat->desc->name);
+    if (inline_names) {
+      event->add_categories(params.cat->desc->name);
+    } else {
+      uint64_t iid = params.cat->cat_iid;
+      const bool newly_seen = incr->MarkCategorySeen(iid);
+      if (newly_seen) {
+        auto* ser = incr->serialized_interned_data->add_event_categories();
+        ser->set_iid(iid);
+        ser->set_name(params.cat->desc->name);
+      }
+      event->add_category_iids(iid);
     }
-    event->add_category_iids(iid);
   }
 
   if (params.name &&
       params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-    if (params.use_interning) {
+    if (params.use_interning && !inline_names) {
       auto res = incr->iids.FindOrAssign(
           protos::pbzero::InternedData::kEventNamesFieldNumber, params.name,
           params.name_len);
@@ -476,44 +486,92 @@ uint64_t EmitProtoTrackWithParentUuid(
   return uuid;
 }
 
-// If the category `dyn_cat` is enabled on the data source instance pointed by
-// `ii`, returns immediately. Otherwise, advances `ii` to a data source instance
-// where `dyn_cat` is enabled. If there's no data source instance where
-// `dyn_cat` is enabled, `ii->instance` will be nullptr.
-void AdvanceToFirstEnabledDynamicCategory(
-    internal::DataSourceType::InstancesIterator* ii,
-    internal::DataSourceThreadLocalState* tls_state,
-    struct PerfettoTeCategoryImpl* cat,
-    const PerfettoTeCategoryDescriptor& dyn_cat) {
-  internal::DataSourceType* ds = shlib::TrackEvent::GetType();
-  for (; ii->instance; ds->NextIteration</*Traits=*/shlib::TracePointTraits>(
-           ii, tls_state, {cat})) {
-    auto* incr_state = static_cast<TrackEventIncrementalState*>(
-        ds->GetIncrementalState(ii->instance, ii->i));
-    if (shlib::TrackEvent::IsDynamicCategoryEnabled(ii->i, incr_state,
-                                                    dyn_cat)) {
-      break;
+struct EncodedEventData {
+  const PerfettoTeHlEventFields* fields;
+  EncodedFieldLengths lengths;
+  struct Iid {
+    uint8_t bytes[PERFETTO_TE_HL_IID_SLOT_SIZE];
+    uint8_t size;
+    uint32_t shrink_before;
+  };
+  // Reused for each recording. The extra entry holds the final prefix sum.
+  base::SmallVector<Iid, 9> iids;
+};
+
+// Copies untouched segments around canonical IID values and their enclosing
+// length prefixes. Source bytes remain reusable across independent sequences.
+void AppendEncodedFields(TrackEventIncrementalState* incr,
+                         protozero::Message* event,
+                         EncodedEventData* encoded) {
+  const auto& fields = *encoded->fields;
+  if (!fields.size)
+    return;
+  const auto* data = static_cast<const uint8_t*>(fields.data);
+  for (size_t i = 0; i < fields.num_iid_slots; ++i) {
+    const auto& slot = fields.iid_slots[i];
+    const void* str = slot.str ? slot.str : "";
+    auto result = incr->iids.FindOrAssign(
+        static_cast<int32_t>(slot.interned_type_id), str, slot.str_size);
+    if (result.newly_assigned) {
+      auto* entry =
+          incr->serialized_interned_data
+              ->BeginNestedMessage<protozero::Message>(slot.interned_type_id);
+      entry->AppendVarInt(kInternedStringIidFieldNumber, result.iid);
+      entry->AppendBytes(kInternedStringNameFieldNumber, str, slot.str_size);
+    }
+    auto& iid = encoded->iids[i];
+    iid.size = static_cast<uint8_t>(WriteEncodedIid(result.iid, iid.bytes));
+    encoded->iids[i + 1].shrink_before =
+        iid.shrink_before + PERFETTO_TE_HL_IID_SLOT_SIZE - iid.size;
+  }
+  size_t offset = 0;
+  size_t slot_index = 0;
+  size_t length_index = 0;
+  while (slot_index < fields.num_iid_slots ||
+         length_index < encoded->lengths.size()) {
+    if (length_index < encoded->lengths.size() &&
+        (slot_index == fields.num_iid_slots ||
+         encoded->lengths[length_index].offset <
+             fields.iid_slots[slot_index].offset)) {
+      const auto& length = encoded->lengths[length_index++];
+      event->AppendRawProtoBytes(data + offset, length.offset - offset);
+      uint32_t shrink = encoded->iids[length.end_slot].shrink_before -
+                        encoded->iids[length.first_slot].shrink_before;
+      uint8_t bytes[protozero::proto_utils::kMessageLengthFieldSize];
+      protozero::proto_utils::WriteRedundantVarInt(length.payload_size - shrink,
+                                                   bytes, length.width);
+      event->AppendRawProtoBytes(bytes, length.width);
+      offset = length.offset + length.width;
+    } else {
+      const auto& slot = fields.iid_slots[slot_index];
+      const auto& iid = encoded->iids[slot_index++];
+      event->AppendRawProtoBytes(data + offset, slot.offset - offset);
+      event->AppendRawProtoBytes(iid.bytes, iid.size);
+      offset = slot.offset + PERFETTO_TE_HL_IID_SLOT_SIZE;
     }
   }
+  event->AppendRawProtoBytes(data + offset, fields.size - offset);
 }
 
 void InstanceOp(internal::DataSourceType* ds,
                 internal::DataSourceType::InstancesIterator* ii,
-                internal::DataSourceThreadLocalState* tls_state,
-                EventParams* params) {
+                EventParams* params,
+                EncodedEventData* encoded_fields) {
   if (!ii->instance)
     return;
 
   if (PERFETTO_UNLIKELY(params->dynamic_cat)) {
-    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, params->cat,
-                                         *params->dynamic_cat);
-    if (!ii->instance)
+    auto* incr = static_cast<TrackEventIncrementalState*>(
+        ds->GetIncrementalState(ii->instance, ii->i));
+    if (!TrackEvent::IsDynamicCategoryEnabled(ii->i, incr,
+                                              *params->dynamic_cat)) {
       return;
+    }
   }
 
   // Rejecting every session must not scan the event or track names.
   if (!params->name_and_track_cached) {
-    if (params->name &&
+    if (params->name && params->name_len == SIZE_MAX &&
         params->type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
       params->name_len = strlen(params->name);
     }
@@ -606,7 +664,12 @@ void InstanceOp(internal::DataSourceType* ds,
         trace_writer, incr_state, track_event_tls, params->timestamp,
         protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
     auto* track_event = packet->set_track_event();
-    WriteTrackEvent(incr_state, track_event, *params, track_uuid);
+    // Encoded Java uses inline built-in names. Explicit proto interning still
+    // resolves against this recording's incremental state below.
+    WriteTrackEvent(incr_state, track_event, *params, track_uuid,
+                    /*inline_names=*/encoded_fields != nullptr);
+    if (encoded_fields)
+      AppendEncodedFields(incr_state, track_event, encoded_fields);
     track_event->Finalize();
 
     if (!incr_state->serialized_interned_data.empty()) {
@@ -623,10 +686,18 @@ void InstanceOp(internal::DataSourceType* ds,
   }
 }
 
+struct JavaEventData {
+  size_t name_size;
+  uint32_t available_modes;
+  EncodedEventData* fields;
+  PerfettoTeHlExtra* const* extras;
+};
+
 void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
               int32_t type,
               const char* name,
-              struct PerfettoTeHlExtra* const* extra_data) {
+              struct PerfettoTeHlExtra* const* extra_data,
+              const JavaEventData* java_event = nullptr) {
   uint32_t cached_instances =
       perfetto::shlib::TracePointTraits::GetActiveInstances({cat})->load(
           std::memory_order_relaxed);
@@ -649,12 +720,38 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
   auto ii = ds->BeginIteration<perfetto::shlib::TracePointTraits>(
       cached_instances, tls_state, {cat});
 
-  EventParams params = PrepareEvent(cat, type, name, extra_data);
+  const bool primary_is_encoded =
+      java_event &&
+      !(java_event->available_modes & PERFETTO_TE_JAVA_ENCODING_LEGACY);
+  EventParams params = PrepareEvent(
+      cat, type, name, primary_is_encoded ? java_event->extras : extra_data);
+  EventParams encoded_params;
+  if (java_event) {
+    params.name_len = java_event->name_size;
+    if (!primary_is_encoded &&
+        (java_event->available_modes & PERFETTO_TE_JAVA_ENCODING_ENCODED)) {
+      encoded_params =
+          PrepareEvent(cat, type, name, java_event->extras, &params.timestamp);
+      encoded_params.name_len = java_event->name_size;
+    }
+  }
 
   for (; ii.instance;
        ds->NextIteration</*Traits=*/perfetto::shlib::TracePointTraits>(
            &ii, tls_state, {cat})) {
-    perfetto::shlib::InstanceOp(ds, &ii, tls_state, &params);
+    EventParams* selected = &params;
+    EncodedEventData* fields = nullptr;
+    if (java_event) {
+      const auto& tls = *static_cast<TrackEventTlsState*>(
+          ii.instance->data_source_custom_tls.get());
+      if (!(java_event->available_modes & tls.java_encoding_mode))
+        continue;
+      if (tls.java_encoding_mode == PERFETTO_TE_JAVA_ENCODING_ENCODED) {
+        selected = primary_is_encoded ? &params : &encoded_params;
+        fields = java_event->fields;
+      }
+    }
+    perfetto::shlib::InstanceOp(ds, &ii, selected, fields);
   }
   ds->TraceEpilogue(tls_state);
 }
@@ -667,4 +764,62 @@ void PerfettoTeHlEmitImpl(struct PerfettoTeCategoryImpl* cat,
                           const char* name,
                           struct PerfettoTeHlExtra* const* extra_data) {
   perfetto::shlib::TeHlEmit(cat, type, name, extra_data);
+}
+
+bool PerfettoTeHlEmitJavaImpl(
+    struct PerfettoTeCategoryImpl* cat,
+    int32_t type,
+    const char* name,
+    size_t name_size,
+    uint32_t available_modes,
+    struct PerfettoTeHlExtra* const* legacy_extras,
+    const struct PerfettoTeHlEventFields* encoded_fields,
+    struct PerfettoTeHlExtra* const* encoded_extras) {
+  constexpr uint32_t kModes =
+      PERFETTO_TE_JAVA_ENCODING_LEGACY | PERFETTO_TE_JAVA_ENCODING_ENCODED;
+  if (!cat || !available_modes || (available_modes & ~kModes) ||
+      (!name && name_size) || type < PERFETTO_TE_TYPE_SLICE_BEGIN ||
+      type > PERFETTO_TE_TYPE_STATE) {
+    return false;
+  }
+  PerfettoTeHlExtra* no_extras[] = {nullptr};
+  const PerfettoTeHlEventFields no_fields{};
+  if (!legacy_extras)
+    legacy_extras = no_extras;
+  if (!encoded_extras)
+    encoded_extras = no_extras;
+  if (!encoded_fields)
+    encoded_fields = &no_fields;
+
+  perfetto::shlib::EncodedEventData encoded;
+  encoded.fields = encoded_fields;
+  if (available_modes & PERFETTO_TE_JAVA_ENCODING_ENCODED) {
+    if (!perfetto::shlib::ValidateEncodedFields(encoded_fields, name_size,
+                                                &encoded.lengths))
+      return false;
+    if (encoded_fields->num_iid_slots) {
+      encoded.iids.reserve(encoded_fields->num_iid_slots + 1);
+      for (size_t i = 0; i <= encoded_fields->num_iid_slots; ++i)
+        encoded.iids.emplace_back();
+    }
+    for (const auto* it = encoded_extras; *it; ++it) {
+      switch ((*it)->type) {
+        case PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK:
+        case PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK:
+        case PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK:
+        case PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS:
+        case PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP:
+        case PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY:
+        case PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN:
+        case PERFETTO_TE_HL_EXTRA_TYPE_FLUSH:
+          break;
+        default:
+          return false;
+      }
+    }
+  }
+  const perfetto::shlib::JavaEventData java_event{name_size, available_modes,
+                                                  &encoded, encoded_extras};
+  perfetto::shlib::TeHlEmit(cat, type, name, legacy_extras, &java_event);
+  return true;
 }
