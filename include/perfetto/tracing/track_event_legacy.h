@@ -135,13 +135,11 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
           ##__VA_ARGS__);                                                  \
       return;                                                              \
     }                                                                      \
-    /* If an event targets the current thread or another process, write    \
-     * it on the current thread's track. The process override case is      \
-     * handled through |pid_override| in WriteLegacyEvent. */              \
+    /* If an event targets the current thread, write it on the default     \
+     * track. */                                                           \
     if (std::is_same<                                                      \
             decltype(thread_id),                                           \
-            ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value ||   \
-        ((flags) & TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                     \
+            ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value) {   \
       PERFETTO_INTERNAL_LEGACY_EVENT_WITH_FLAGS_ON_TRACK(                  \
           phase, category, name, TrackEventInternal::kDefaultTrack, flags, \
           ##__VA_ARGS__);                                                  \
@@ -185,13 +183,11 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
           ##__VA_ARGS__);                                                    \
       return;                                                                \
     }                                                                        \
-    /* If an event targets the current thread or another process, write      \
-     * it on the current thread's track. The process override case is        \
-     * handled through |pid_override| in WriteLegacyEvent. */                \
+    /* If an event targets the current thread, write it on the default       \
+     * track. */                                                             \
     if (std::is_same<                                                        \
             decltype(thread_id),                                             \
-            ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value ||     \
-        ((flags) & TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                       \
+            ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value) {     \
       PERFETTO_INTERNAL_LEGACY_EVENT_WITH_ID_ON_TRACK(                       \
           phase, category, name, TrackEventInternal::kDefaultTrack, flags,   \
           thread_id, id, ##__VA_ARGS__);                                     \
