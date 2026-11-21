@@ -557,6 +557,93 @@ public class PerfettoEncodingModeTest {
   }
 
   @Test
+  public void emptyTransportKeepsEveryEventTypeInEachModeAndWriter() throws Exception {
+    for (boolean v2 : new boolean[] {false, true}) {
+      for (boolean direct : new boolean[] {false, true}) {
+        Method emit = emptyEmitter(direct);
+        for (int modes = direct ? 2 : 1; modes <= 3; ++modes) {
+          List<PerfettoTrace.Session> sessions = new ArrayList<>();
+          if ((modes & 1) != 0) sessions.add(start(LEGACY, v2));
+          if ((modes & 2) != 0) sessions.add(start(ENCODED, v2));
+          for (int type = 1; type <= 5; ++type) {
+            emit.invoke(null, emptyEventArguments(direct, type, modes));
+          }
+          List<TrackEvent> expected = null;
+          for (PerfettoTrace.Session session : sessions) {
+            Decoded trace = decode(session.close());
+            assertEquals(5, trace.events.size());
+            for (int type = 1; type <= 5; ++type) {
+              assertEquals(type, trace.events.get(type - 1).getType().getNumber());
+              assertEquals("", trace.events.get(type - 1).getName());
+            }
+            if (expected == null) expected = trace.events;
+            else assertEquals(expected, trace.events);
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  public void emptyTransportStillRejectsInvalidLayoutAndModes() throws Exception {
+    PerfettoTrace.Session session = start(ENCODED, false);
+    for (boolean direct : new boolean[] {false, true}) {
+      Method emit = emptyEmitter(direct);
+      Object[] badLayout = emptyEventArguments(direct, 2, 2);
+      badLayout[8] = 1; // Nonempty fields cannot fit a zero-byte transport.
+      InvocationTargetException layout = assertThrows(
+          InvocationTargetException.class, () -> emit.invoke(null, badLayout));
+      assertTrue(layout.getCause() instanceof IllegalArgumentException);
+      InvocationTargetException modes = assertThrows(InvocationTargetException.class,
+          () -> emit.invoke(null, emptyEventArguments(direct, 2, 6)));
+      assertTrue(modes.getCause() instanceof IllegalArgumentException);
+      emit.invoke(null, emptyEventArguments(direct, 2, 2));
+    }
+    Decoded trace = decode(session.close());
+    assertEquals(2, trace.events.size());
+    for (TrackEvent event : trace.events) {
+      assertEquals(TrackEvent.Type.TYPE_SLICE_END, event.getType());
+    }
+  }
+
+  @Test
+  public void emptyEndStillUsesItsExplicitTrackInMixedMode() throws Exception {
+    for (boolean v2 : new boolean[] {false, true}) {
+      PerfettoTrace.Session legacy = start(LEGACY, v2);
+      PerfettoTrace.Session encoded = start(ENCODED, v2);
+      PerfettoTrack track = PerfettoTrack.process("empty_end_track");
+      PerfettoTrace.begin(CATEGORY, "slice").usingTrack(track).emit();
+      PerfettoTrace.end(CATEGORY).usingTrack(track).emit();
+      Decoded a = decode(legacy.close());
+      Decoded b = decode(encoded.close());
+      assertEquals(2, a.events.size());
+      assertEquals(TrackEvent.Type.TYPE_SLICE_END, a.events.get(1).getType());
+      assertEquals(a.events.get(0).getTrackUuid(), a.events.get(1).getTrackUuid());
+      assertEquals(a.events, b.events);
+      assertEquals(a.timestamps, b.timestamps);
+    }
+  }
+
+  private static Method emptyEmitter(boolean direct) throws Exception {
+    Class<?> extra = Class.forName("dev.perfetto.sdk.PerfettoTrackEventExtra");
+    Method method = direct
+        ? extra.getDeclaredMethod("native_emit_java_direct", int.class, long.class, int.class,
+              long.class, long.class, byte[].class, long.class, int.class, int.class,
+              int.class, int.class, int.class)
+        : extra.getDeclaredMethod("native_emit_java", int.class, long.class, int.class,
+              long.class, long.class, String.class, byte[].class, int.class, int.class,
+              int.class, int.class, int.class);
+    method.setAccessible(true);
+    return method;
+  }
+
+  private static Object[] emptyEventArguments(boolean direct, int type, int modes) {
+    // Both methods put size/boundaries after the owner/name and address/array.
+    return new Object[] {
+        type, CATEGORY.getPtr(), modes, 0L, 0L, null, direct ? 0L : null, 0, 0, 0, 0, 0};
+  }
+
+  @Test
   public void malformedTransportIsRejectedBeforeAnySessionWrites() throws Exception {
     PerfettoTrace.Session session = start(ENCODED, false);
     Method emit = Class.forName("dev.perfetto.sdk.PerfettoTrackEventExtra")
