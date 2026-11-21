@@ -243,6 +243,29 @@ final class PerfettoEncodedEvent {
     mPosition = copyString(value, size, mPosition);
   }
 
+  // Match the bytes of first + separator + second, including C-string NUL
+  // truncation, without allocating the combined string.
+  void addString(long id, String first, char separator, String second) {
+    first = String.valueOf(first);
+    second = String.valueOf(second);
+    int firstSize = stringSize(first);
+    boolean includeSecond = firstSize == first.length() && separator != '\0';
+    int secondSize = includeSecond ? stringSize(second) : 0;
+    long size = (long) firstSize + (includeSecond ? 1L + secondSize : 0);
+    if (size > MAX_EVENT_SIZE) {
+      mFailed = true;
+      throw new IllegalArgumentException("Encoded event exceeds the 1 MiB transport limit");
+    }
+    reserve((int) size + 10);
+    tag(id, 2);
+    varint(size);
+    mPosition = copyString(first, firstSize, mPosition);
+    if (includeSecond) {
+      mBuffer[mPosition++] = (byte) (separator <= 255 ? separator : '?');
+      mPosition = copyString(second, secondSize, mPosition);
+    }
+  }
+
   int beginNested(long id) {
     if (mOpenCount >= MAX_NESTING_DEPTH) {
       mFailed = true;
