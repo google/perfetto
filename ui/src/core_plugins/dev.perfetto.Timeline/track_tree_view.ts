@@ -58,6 +58,7 @@ import {
   COLOR_TEXT,
   COLOR_TEXT_MUTED,
   COLOR_TIMELINE_OVERLAY,
+  COLOR_WARNING,
   TRACK_SHELL_WIDTH,
 } from '../../frontend/css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
@@ -66,6 +67,7 @@ import {
   wheelNavigationInteraction,
 } from './timeline_interactions';
 import {TrackView} from './track_view';
+import {AreaSelectionEditButton} from './area_selection_edit_button';
 import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
 import {featureFlags} from '../../core/feature_flags';
 import {EmptyState} from '../../widgets/empty_state';
@@ -99,6 +101,8 @@ export const SHOW_HEADLESS_TRACKS = featureFlags.register({
     'Show tracks marked as headless, which are normally hidden and used purely for organization. Debugging only.',
   defaultValue: false,
 });
+
+const AREA_EDGE_ZONE_PX = 5;
 
 // Snap-to-boundaries feature constants
 const SNAP_THRESHOLD_PX = 15;
@@ -176,9 +180,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private canvasRect?: Rect2D;
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
+  private readonly areaSelectionEditButton: AreaSelectionEditButton;
+  private areaMoveOffsetPx?: number;
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
+    this.areaSelectionEditButton = new AreaSelectionEditButton(attrs.trace);
   }
 
   private hoveredTrackNode?: TrackNode;
@@ -362,6 +369,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         },
       },
       m('', {ref: TRACK_CONTAINER_REF}, trackVnodes),
+      this.areaSelectionEditButton.render(),
       this.hoveredTrackNode && this.renderPopup(this.hoveredTrackNode),
     );
   }
@@ -483,7 +491,19 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.drawHoveredCursorVertical(ctx, timescale, size);
     this.drawNoteVerticals(ctx, timescale, size);
     this.drawAreaSelection(ctx, timescale, size);
-    this.updateInteractions(timelineRect, timescale, size, renderedTracks);
+    const areaMoveRects = this.areaMoveRects(
+      timescale,
+      timelineRect,
+      renderedTracks,
+    );
+    this.areaSelectionEditButton.update(areaMoveRects);
+    this.updateInteractions(
+      timelineRect,
+      timescale,
+      size,
+      renderedTracks,
+      areaMoveRects,
+    );
 
     this.trace.tracks.overlays.forEach((overlay) => {
       overlay.render(ctx, timescale, size, renderedTracks, colors, rootNode);
@@ -597,6 +617,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timescale: TimeScale,
     size: Size2D,
     renderedTracks: ReadonlyArray<TrackView>,
+    areaMoveRects: ReadonlyArray<Rect2D>,
   ) {
     const trace = this.trace;
     const areaSelection =
@@ -607,8 +628,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       areaSelection !== false && {
         id: 'start-edit',
         area: new Rect2D({
-          left: timescale.timeToPx(areaSelection.start) - 5,
-          right: timescale.timeToPx(areaSelection.start) + 5,
+          left: timescale.timeToPx(areaSelection.start) - AREA_EDGE_ZONE_PX,
+          right: timescale.timeToPx(areaSelection.start) + AREA_EDGE_ZONE_PX,
           top: 0,
           bottom: size.height,
         }),
@@ -670,8 +691,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       areaSelection !== false && {
         id: 'end-edit',
         area: new Rect2D({
-          left: timescale.timeToPx(areaSelection.end) - 5,
-          right: timescale.timeToPx(areaSelection.end) + 5,
+          left: timescale.timeToPx(areaSelection.end) - AREA_EDGE_ZONE_PX,
+          right: timescale.timeToPx(areaSelection.end) + AREA_EDGE_ZONE_PX,
           top: 0,
           bottom: size.height,
         }),
@@ -728,6 +749,32 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           },
         },
       },
+      ...areaMoveRects.map((area, i) => ({
+        id: `area-move-${i}`,
+        area,
+        cursor: 'move' as const,
+        onClick: () => trace.selection.clearSelection(),
+        drag: {
+          // Tracks treat mouse movements of up to 1px as clicks.
+          minDistance: 2,
+          cursorWhileDragging: 'move' as const,
+          onDrag: (e: DragEvent) => {
+            if (areaSelection === false) return;
+            this.areaMoveOffsetPx ??=
+              e.dragStart.x - timescale.timeToPx(areaSelection.start);
+            const x = Math.min(
+              Math.max(e.dragCurrent.x, timelineRect.left),
+              timelineRect.right,
+            );
+            const start = timescale.pxToHpTime(x - this.areaMoveOffsetPx);
+            trace.areaSelectionEditor.moveTo(start.toTime('round'));
+          },
+          onDragEnd: () => {
+            this.areaMoveOffsetPx = undefined;
+            this.trace.raf.scheduleFullRedraw();
+          },
+        },
+      })),
       {
         id: 'area-selection',
         area: timelineRect,
@@ -813,6 +860,41 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       },
       wheelNavigationInteraction(trace, timelineRect, timescale),
     ]);
+  }
+
+  // Highlighted regions of the area selection, merged across adjacent tracks
+  // and excluding the edge resize zones.
+  private areaMoveRects(
+    timescale: TimeScale,
+    timelineRect: Rect2D,
+    renderedTracks: ReadonlyArray<TrackView>,
+  ): Rect2D[] {
+    const selection = this.trace.selection.selection;
+    if (selection.kind !== 'area') return [];
+    const left = Math.max(
+      timescale.timeToPx(selection.start) + AREA_EDGE_ZONE_PX,
+      timelineRect.left,
+    );
+    const right = Math.min(
+      timescale.timeToPx(selection.end) - AREA_EDGE_ZONE_PX,
+      timelineRect.right,
+    );
+    if (left >= right) return [];
+
+    const rects: Rect2D[] = [];
+    let run: VerticalBounds | undefined;
+    for (const track of renderedTracks) {
+      if (!track.isInAreaSelection(selection)) continue;
+      const {top, bottom} = track.verticalBounds;
+      if (run !== undefined && top <= run.bottom) {
+        run = {top: run.top, bottom: Math.max(run.bottom, bottom)};
+      } else {
+        if (run !== undefined) rects.push(new Rect2D({...run, left, right}));
+        run = {top, bottom};
+      }
+    }
+    if (run !== undefined) rects.push(new Rect2D({...run, left, right}));
+    return rects;
   }
 
   private trySnapToTrack(
@@ -944,7 +1026,9 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       const startPx = timescale.timeToPx(selection.start);
       const endPx = timescale.timeToPx(selection.end);
 
-      ctx.strokeStyle = COLOR_ACCENT;
+      ctx.strokeStyle = this.trace.areaSelectionEditor.isEditing
+        ? COLOR_WARNING
+        : COLOR_ACCENT;
       ctx.lineWidth = 2;
 
       ctx.beginPath();
