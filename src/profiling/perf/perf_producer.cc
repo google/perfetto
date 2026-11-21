@@ -698,14 +698,14 @@ void PerfProducer::StopDataSource(DataSourceInstanceID ds_id) {
   }
   DataSourceState& ds = ds_it->second;
 
+  // Stop the reading frontend. In sampling mode, this propagates the stop
+  // asynchronously as the ring buffer and unwinder drain. In polling mode,
+  // there is no async pipeline to drain, so emit a final reading and finish
+  // immediately.
+  InitiateReaderStop(&ds);
   if (ds.event_config.recording_mode() == RecordingMode::kPolling) {
-    // Polling mode: emit a final reading and ack the stop.
     ReadCounters(ds);
-    endpoint_->NotifyDataSourceStopped(ds_id);
-  } else {
-    // Sampling mode: start shutting down the reading frontend, which will
-    // propagate the stop further as the intermediate buffers are cleared.
-    InitiateReaderStop(&ds);
+    FinishDataSourceStop(ds_id);
   }
 }
 
