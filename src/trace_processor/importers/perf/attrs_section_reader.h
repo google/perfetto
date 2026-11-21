@@ -36,7 +36,8 @@ class AttrsSectionReader {
   // `attrs_section` data contained in the attrs section of the perf file.
   static base::StatusOr<AttrsSectionReader> Create(
       const PerfFile::Header& header,
-      TraceBlobView attrs_section);
+      TraceBlobView attrs_section,
+      ByteOrder order);
 
   // Returns true while there are available entries to read via `ReadNext`.
   bool CanReadNext() const { return num_attr_ != 0; }
@@ -45,8 +46,11 @@ class AttrsSectionReader {
   base::Status ReadNext(PerfFile::AttrsEntry& entry);
 
  private:
-  AttrsSectionReader(TraceBlobView section, size_t num_attr, size_t attr_size)
-      : reader_(std::move(section)),
+  AttrsSectionReader(TraceBlobView section,
+                     ByteOrder order,
+                     size_t num_attr,
+                     size_t attr_size)
+      : reader_(std::move(section), order),
         num_attr_(num_attr),
         attr_size_(attr_size) {}
 

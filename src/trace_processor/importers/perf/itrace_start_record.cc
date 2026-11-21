@@ -22,7 +22,7 @@ namespace perfetto::trace_processor::perf_importer {
 
 base::Status ItraceStartRecord::Parse(const Record& record) {
   attr = record.attr;
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
 
   if (!reader.Read(pid) || !reader.Read(tid)) {
     return base::ErrStatus("Failed to parse PERF_RECORD_ITRACE_START");

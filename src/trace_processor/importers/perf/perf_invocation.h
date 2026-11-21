@@ -32,6 +32,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
+#include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::trace_processor {
@@ -87,6 +88,9 @@ class PerfInvocation : public RefCounted {
   bool needs_pc_adjustment() const { return !is_simpleperf_; }
 
   void SetIsSimpleperf() { is_simpleperf_ = true; }
+
+  ByteOrder byte_order() const { return byte_order_; }
+  void SetByteOrder(ByteOrder order) { byte_order_ = order; }
   void SetSimpleperfCounterScope(
       const base::FlatHashMap<std::string, std::string>& entries);
 
@@ -132,6 +136,7 @@ class PerfInvocation : public RefCounted {
   bool has_single_perf_event_attr_ = false;
 
   bool is_simpleperf_ = false;
+  ByteOrder byte_order_ = ByteOrder::kLittleEndian;
 
   base::FlatHashMap<BuildIdMapKey, BuildId, base::MurmurHash<BuildIdMapKey>>
       build_ids_;

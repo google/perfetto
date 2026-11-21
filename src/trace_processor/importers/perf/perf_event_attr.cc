@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -40,6 +41,30 @@
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 namespace perfetto::trace_processor::perf_importer {
+
+perf_event_attr ByteSwap(perf_event_attr v) {
+  v.type = ByteSwap(v.type);
+  v.size = ByteSwap(v.size);
+  v.config = ByteSwap(v.config);
+  v.sample_period = ByteSwap(v.sample_period);
+  v.sample_type = ByteSwap(v.sample_type);
+  v.read_format = ByteSwap(v.read_format);
+  v.wakeup_events = ByteSwap(v.wakeup_events);
+  v.bp_type = ByteSwap(v.bp_type);
+  v.bp_addr = ByteSwap(v.bp_addr);
+  v.bp_len = ByteSwap(v.bp_len);
+  v.branch_sample_type = ByteSwap(v.branch_sample_type);
+  v.sample_regs_user = ByteSwap(v.sample_regs_user);
+  v.sample_stack_user = ByteSwap(v.sample_stack_user);
+  v.clockid = ByteSwap(v.clockid);
+  v.sample_regs_intr = ByteSwap(v.sample_regs_intr);
+  v.aux_watermark = ByteSwap(v.aux_watermark);
+  v.sample_max_stack = ByteSwap(v.sample_max_stack);
+  v.aux_sample_size = ByteSwap(v.aux_sample_size);
+  v.sig_data = ByteSwap(v.sig_data);
+  v.config3 = ByteSwap(v.config3);
+  return v;
+}
 
 namespace {
 

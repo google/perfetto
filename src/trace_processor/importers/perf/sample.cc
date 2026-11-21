@@ -166,7 +166,7 @@ base::Status Sample::Parse(int64_t in_trace_ts, const Record& record) {
   perf_invocation = record.session;
   attr = record.attr;
 
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
 
   std::optional<uint64_t> identifier;
   if (sample_type & PERF_SAMPLE_IDENTIFIER) {
@@ -220,14 +220,10 @@ base::Status Sample::Parse(int64_t in_trace_ts, const Record& record) {
   }
 
   if (sample_type & PERF_SAMPLE_CPU) {
-    struct {
-      int32_t cpu;
-      int32_t unused;
-    } tmp;
-    if (PERFETTO_UNLIKELY(!reader.Read(tmp))) {
+    if (PERFETTO_UNLIKELY(!reader.ReadOptional(cpu) ||
+                          !reader.Skip<uint32_t>())) {
       return base ::ErrStatus("Not enough data to read PERF_SAMPLE_CPU");
     }
-    cpu = tmp.cpu;
   }
 
   if (sample_type & PERF_SAMPLE_PERIOD) {

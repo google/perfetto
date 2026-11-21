@@ -31,7 +31,8 @@ namespace perfetto::trace_processor::perf_importer {
 // static
 base::StatusOr<AttrsSectionReader> AttrsSectionReader::Create(
     const PerfFile::Header& header,
-    TraceBlobView section) {
+    TraceBlobView section,
+    ByteOrder order) {
   PERFETTO_CHECK(section.size() == header.attrs.size);
 
   if (header.attr_size == 0) {
@@ -59,7 +60,7 @@ base::StatusOr<AttrsSectionReader> AttrsSectionReader::Create(
   }
   const size_t attr_size = header.attr_size - kSectionSize;
 
-  return AttrsSectionReader(std::move(section), num_attr, attr_size);
+  return AttrsSectionReader(std::move(section), order, num_attr, attr_size);
 }
 
 base::Status AttrsSectionReader::ReadNext(PerfFile::AttrsEntry& entry) {
