@@ -97,7 +97,7 @@ export interface PluginLoadedEvent {
   readonly traceLoadId: TraceLoadId;
   readonly plugin: string;
   readonly loadMs: number;
-  // Whether the plugin registered at least one track for the trace.
+  // Whether the plugin had registered at least one track at trace load time.
   readonly hasTracks: boolean;
 }
 
