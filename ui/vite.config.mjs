@@ -440,6 +440,7 @@ const BUNDLE_CONFIGS = {
     srcDir: 'engine_bench',
     entry: 'worker.ts',
   },
+  component_harness: {dir: 'dist_version', entry: 'index.ts'},
   traceconv: {dir: 'dist_version', entry: 'index.ts'},
   bigtrace: {dir: 'dist_version/bigtrace', entry: 'index.ts'},
   open_perfetto_trace: {dir: 'dist/open_perfetto_trace', entry: 'index.ts'},
