@@ -22,21 +22,18 @@
 #include <string_view>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 
 namespace perfetto::trace_processor::util {
 
 // static
 uint16_t FlatBufferReader::ReadU16(const uint8_t* p) {
-  uint16_t v;
-  memcpy(&v, p, 2);
-  return v;
+  return base::LoadLE<uint16_t>(p);
 }
 
 // static
 uint32_t FlatBufferReader::ReadU32(const uint8_t* p) {
-  uint32_t v;
-  memcpy(&v, p, 4);
-  return v;
+  return base::LoadLE<uint32_t>(p);
 }
 
 // All bounds checks below work in the "byte offset from buf_" domain using
@@ -66,8 +63,7 @@ const uint8_t* FlatBufferReader::FieldRaw(uint32_t field_index,
   }
   // Invariant: every non-null table_ was validated (by GetRoot/Table/
   // FlatBufferTableVec) to have at least 4 bytes available for its soffset.
-  int32_t soff;
-  memcpy(&soff, table_, 4);
+  int32_t soff = base::LoadLE<int32_t>(table_);
   uint64_t table_offset = static_cast<uint64_t>(table_ - buf_);
   int64_t voffset = static_cast<int64_t>(table_offset) - soff;
   if (PERFETTO_UNLIKELY(voffset < 0 ||
