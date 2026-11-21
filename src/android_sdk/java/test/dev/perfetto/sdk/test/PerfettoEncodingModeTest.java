@@ -494,6 +494,69 @@ public class PerfettoEncodingModeTest {
   }
 
   @Test
+  public void encodedStorageSurvivesSequentialThreadHandoffAndReuse() throws Exception {
+    PerfettoTrace.Session legacy = start(LEGACY, false);
+    PerfettoTrace.Session encoded = start(ENCODED, false);
+    PerfettoTrackEventBuilder event = PerfettoTrace.instant(CATEGORY, "handoff")
+                                         .usingTrack(PerfettoTrack.process("handoff_track"))
+                                         .addArg("before", "retained");
+    event.beginProto()
+        .beginNested(2006)
+        .addFieldWithInterning(21, "handoff-job", 44)
+        .endNested()
+        .endProto();
+    Throwable[] failure = new Throwable[1];
+    Thread worker = new Thread(() -> {
+      try {
+        event.addArg("after", "worker").emit();
+        PerfettoTrace.instant(CATEGORY, "reused_on_worker").addArg("value", 7L).emit();
+      } catch (Throwable error) {
+        failure[0] = error;
+      }
+    });
+    worker.start();
+    worker.join(30_000);
+    assertFalse("Worker did not finish emitting", worker.isAlive());
+    if (failure[0] != null) throw new AssertionError(failure[0]);
+    PerfettoTrace.instant(CATEGORY, "after_handoff").emit();
+    Decoded a = decode(legacy.close());
+    Decoded b = decode(encoded.close());
+    assertEquals(3, a.events.size());
+    assertEquals(3, b.events.size());
+    Map<String, TrackEvent> first = new HashMap<>();
+    Map<String, TrackEvent> second = new HashMap<>();
+    a.events.forEach(value -> first.put(value.getName(), value));
+    b.events.forEach(value -> second.put(value.getName(), value));
+    assertTrue(first.containsKey("handoff"));
+    assertTrue(first.containsKey("reused_on_worker"));
+    assertTrue(first.containsKey("after_handoff"));
+    assertEquals(first, second);
+  }
+
+  @Test
+  public void directTransportRejectsInvalidStorageBeforeDereferencing() throws Exception {
+    PerfettoTrace.Session session = start(ENCODED, false);
+    Method emit = Class.forName("dev.perfetto.sdk.PerfettoTrackEventExtra")
+                      .getDeclaredMethod("native_emit_java_direct", int.class, long.class,
+                          int.class, long.class, long.class, byte[].class, long.class,
+                          int.class, int.class, int.class, int.class, int.class);
+    emit.setAccessible(true);
+    // A deliberately unusable address must not be read after a bounds failure.
+    InvocationTargetException bounds = assertThrows(InvocationTargetException.class,
+        () -> emit.invoke(null, 3, CATEGORY.getPtr(), 2, 0L, 0L,
+            new byte[1], 1L, 2, 2, 0, 2, 0));
+    assertTrue(bounds.getCause() instanceof IllegalArgumentException);
+    InvocationTargetException address = assertThrows(InvocationTargetException.class,
+        () -> emit.invoke(null, 3, CATEGORY.getPtr(), 2, 0L, 0L,
+            new byte[1], 0L, 1, 1, 0, 1, 0));
+    assertTrue(address.getCause() instanceof IllegalArgumentException);
+    PerfettoTrace.instant(CATEGORY, "after_rejection").emit();
+    Decoded trace = decode(session.close());
+    assertEquals(1, trace.events.size());
+    assertEquals("after_rejection", trace.events.get(0).getName());
+  }
+
+  @Test
   public void malformedTransportIsRejectedBeforeAnySessionWrites() throws Exception {
     PerfettoTrace.Session session = start(ENCODED, false);
     Method emit = Class.forName("dev.perfetto.sdk.PerfettoTrackEventExtra")

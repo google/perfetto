@@ -16,6 +16,7 @@
 
 package dev.perfetto.sdk;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -28,7 +29,8 @@ final class PerfettoEncodedEvent {
   static final int SLOT_RECORD_SIZE = 16;
   static final int MAX_NESTING_DEPTH = 64;
 
-  private byte[] mBuffer = new byte[INITIAL_BUFFER_SIZE];
+  private byte[] mBuffer;
+  private long mBufferAddress;
   private int mPosition;
   private int mFieldsSize;
   private int mNameSize;
@@ -43,6 +45,10 @@ final class PerfettoEncodedEvent {
   private int[] mOpenMessages = new int[8];
   private int mOpenCount;
   private int mCustomStart = -1;
+
+  PerfettoEncodedEvent() {
+    replaceBuffer(INITIAL_BUFFER_SIZE);
+  }
 
   void reset() {
     Arrays.fill(mSlotStrings, 0, mSlotCount, null);
@@ -60,7 +66,7 @@ final class PerfettoEncodedEvent {
   void release() {
     reset();
     if (mBuffer.length > MAX_KEPT_BUFFER_SIZE) {
-      mBuffer = new byte[INITIAL_BUFFER_SIZE];
+      replaceBuffer(INITIAL_BUFFER_SIZE);
     }
     // A single large event must not permanently retain its slot metadata.
     if (mSlotOffsets.length > 256) {
@@ -75,6 +81,9 @@ final class PerfettoEncodedEvent {
 
   byte[] buffer() {
     return mBuffer;
+  }
+  long bufferAddress() {
+    return mBufferAddress;
   }
   int size() {
     return mPosition;
@@ -126,7 +135,64 @@ final class PerfettoEncodedEvent {
   private void ensureCapacity(int required) {
     if (required > mBuffer.length) {
       int capacity = Math.min(MAX_EVENT_SIZE, Math.max(required, mBuffer.length * 2));
-      mBuffer = Arrays.copyOf(mBuffer, capacity);
+      replaceBuffer(capacity);
+    }
+  }
+
+  // Callers serialize use of a builder, including a handoff to another thread.
+  // Publish the replacement only after its stable address and contents agree.
+  private void replaceBuffer(int capacity) {
+    byte[] replacement = null;
+    long address = 0;
+    if (capacity <= MAX_KEPT_BUFFER_SIZE && NonMovingAllocator.sEnabled) {
+      try {
+        replacement = (byte[]) NonMovingAllocator.sNewArray.invoke(
+            NonMovingAllocator.sRuntime, byte.class, capacity);
+        address = (Long) NonMovingAllocator.sAddressOf.invoke(
+            NonMovingAllocator.sRuntime, replacement);
+        if (address == 0) {
+          replacement = null;
+          NonMovingAllocator.sEnabled = false;
+        }
+      } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+        NonMovingAllocator.sEnabled = false;
+        replacement = null;
+        address = 0;
+      }
+    }
+    if (replacement == null) replacement = new byte[capacity];
+    if (mBuffer != null) System.arraycopy(mBuffer, 0, replacement, 0, mPosition);
+    mBuffer = replacement;
+    mBufferAddress = address;
+  }
+
+  // VMRuntime's hidden API is available only to the Android platform copy of
+  // the SDK. Ordinary class loaders and host JVMs keep the portable transport.
+  private static final class NonMovingAllocator {
+    static final Object sRuntime;
+    static final Method sNewArray;
+    static final Method sAddressOf;
+    static volatile boolean sEnabled;
+
+    static {
+      Object runtime = null;
+      Method newArray = null;
+      Method addressOf = null;
+      try {
+        if ("Dalvik".equals(System.getProperty("java.vm.name"))
+            && PerfettoEncodedEvent.class.getClassLoader() == Object.class.getClassLoader()) {
+          Class<?> type = Class.forName("dalvik.system.VMRuntime");
+          runtime = type.getMethod("getRuntime").invoke(null);
+          newArray = type.getMethod("newNonMovableArray", Class.class, int.class);
+          addressOf = type.getMethod("addressOf", Object.class);
+        }
+      } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+        runtime = null;
+      }
+      sRuntime = runtime;
+      sNewArray = newArray;
+      sAddressOf = addressOf;
+      sEnabled = runtime != null;
     }
   }
 

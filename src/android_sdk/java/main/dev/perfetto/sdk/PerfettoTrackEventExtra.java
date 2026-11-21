@@ -69,6 +69,12 @@ final class PerfettoTrackEventExtra {
       int type, long category, int modes, long legacyExtra, long track, String legacyName,
       byte[] buffer, int size, int fieldsSize, int nameSize, int slotsOffset, int slotCount);
 
+  // The owner is a regular JNI reference: ART can collect while emission runs.
+  // Only PerfettoEncodedEvent supplies addresses of non-moving arrays here.
+  static native void native_emit_java_direct(
+      int type, long category, int modes, long legacyExtra, long track, byte[] owner,
+      long address, int size, int fieldsSize, int nameSize, int slotsOffset, int slotCount);
+
   /** Represents a native pointer to a Perfetto C SDK struct. E.g. PerfettoTeHlExtra. */
   interface PerfettoPointer {
     /** Returns the perfetto struct native pointer. */

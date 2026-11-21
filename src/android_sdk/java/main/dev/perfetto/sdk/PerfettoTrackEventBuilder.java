@@ -213,13 +213,22 @@ public final class PerfettoTrackEventBuilder {
     try {
       boolean encoded = hasEncoded();
       if (encoded) mEncoded.finish(mTraceType == 2 || mTraceType == 4 ? "" : mEventName);
-      PerfettoTrackEventExtra.native_emit_java(
-          mTraceType, mCategory.getPtr(), mEncodingModes,
-          hasLegacy() ? mExtra.getPtr() : 0, mTrack == null ? 0 : mTrack.getPtr(),
-          encoded ? null : mEventName, encoded ? mEncoded.buffer() : null,
-          encoded ? mEncoded.size() : 0, encoded ? mEncoded.fieldsSize() : 0,
-          encoded ? mEncoded.nameSize() : 0, encoded ? mEncoded.slotsOffset() : 0,
-          encoded ? mEncoded.slotCount() : 0);
+      long legacyExtra = hasLegacy() ? mExtra.getPtr() : 0;
+      long track = mTrack == null ? 0 : mTrack.getPtr();
+      if (encoded && mEncoded.bufferAddress() != 0) {
+        PerfettoTrackEventExtra.native_emit_java_direct(
+            mTraceType, mCategory.getPtr(), mEncodingModes, legacyExtra, track,
+            mEncoded.buffer(), mEncoded.bufferAddress(), mEncoded.size(),
+            mEncoded.fieldsSize(), mEncoded.nameSize(), mEncoded.slotsOffset(),
+            mEncoded.slotCount());
+      } else {
+        PerfettoTrackEventExtra.native_emit_java(
+            mTraceType, mCategory.getPtr(), mEncodingModes, legacyExtra, track,
+            encoded ? null : mEventName, encoded ? mEncoded.buffer() : null,
+            encoded ? mEncoded.size() : 0, encoded ? mEncoded.fieldsSize() : 0,
+            encoded ? mEncoded.nameSize() : 0, encoded ? mEncoded.slotsOffset() : 0,
+            encoded ? mEncoded.slotCount() : 0);
+      }
     } finally {
       // Native extras and tracks borrow their Java owners' allocations.
       Reference.reachabilityFence(mCategory);
