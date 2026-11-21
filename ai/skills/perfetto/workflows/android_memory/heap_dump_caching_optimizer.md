@@ -1,9 +1,9 @@
+---
+requires: [query]
+---
 # Android Heap Dump Caching Optimizer
 
 This workflow walks an AI agent through analyzing a perfetto java heap dump to identify memory savings by finding duplicated objects, objects that could be consolidated into a single object instance, or objects that are highly repeated and propose a caching strategy along with potential memory savings. If the agent has access to the codebase, then it would also propose a concrete implementation plan to implement caching and improve memory usage.
-
-If the user has not yet loaded a heap dump into `trace_processor`, follow
-`$SKILL_ROOT/infra-references/querying.md` first, then come back here to analyze it.
 
 ## Instructions
 
@@ -15,7 +15,7 @@ If the user has not yet loaded a heap dump into `trace_processor`, follow
 
 4. Ask the user if they want to provide a codebase location either a URL, a custom local path,current workspace or only look at heap dump without codebase. If the codebase is unavailable let the user know that the analysis will be performed purely based on the heap dump data as code base was not found.
 
-5. Now that you have the heap dump location, execute the following PerfettoSQL queries (shipped alongside this workflow under `$SKILL_ROOT/workflows/android_memory/scripts/`) using trace processor on the heap dump file, e.g. `trace_processor query --query-file $SKILL_ROOT/workflows/android_memory/scripts/query_most_repeated_objects.sql HEAP_DUMP_FILE`.
+5. Now that you have the heap dump location, execute the following PerfettoSQL queries (shipped alongside this workflow under `$SKILL_ROOT/workflows/android_memory/scripts/`) on the heap dump.
  * Execute `$SKILL_ROOT/workflows/android_memory/scripts/query_most_repeated_objects.sql` to find the most repeated objects and their classes.
  * Execute `$SKILL_ROOT/workflows/android_memory/scripts/query_size_frequencies.sql` to find the objects whose sizes repeat the most.
 
@@ -53,7 +53,7 @@ Note: Not every heuristic has to be optimized, you may find one opportunity that
 
 8. Now that you have a list of potential candidates. Perform a deep analysis both on heap dump and codebase (if available), make sure to analyze the object reference hierarchy to identify the optimal location in the call stack to cache objects. You can run more queries after looking at the code base if required to improve your analysis. To confirm that one class owns (dominates) duplicated instances of another — e.g. verifying a suspected duplicate is retained by a particular owner — run `$SKILL_ROOT/workflows/android_memory/scripts/query_heap_references.sql`, replacing the `<owner_classname>` and `<owned_classname>` placeholders with the two class names.
 
-9. Present your findings to the user both in a markdown file as well as in the prompt. List every opportunity you identified along with a brief explanation of why it might be a good candidate for caching, how to implement it and an estimate of how much memory you estimate that it would save. Provide the file path to the file containing the results of the analysis.
+9. Present your findings to the user. List every opportunity you identified along with a brief explanation of why it might be a good candidate for caching, how to implement it and an estimate of how much memory you estimate that it would save.
 
 10. If more than one opportunity was identified, ask the user from the provided opportunities which one they would like you to proceed with. Once user selected an option to move forward with. Create the following artifacts:
 * If code was available to the agent: Provide an implementation plan which consists of step-by-step instructions on how to implement the caching solution, including any code changes required.

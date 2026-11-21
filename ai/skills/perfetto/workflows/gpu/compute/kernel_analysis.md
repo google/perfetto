@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # GPU compute kernels — which kernel is the bottleneck, and why?
 
 This workflow decomposes a trace's GPU **compute** work (CUDA / ROCm / compute
@@ -11,9 +14,6 @@ It decomposes each compute kernel into four lenses — Speed of Light, Occupancy
 Compute Workload Analysis, and Launch Statistics — computed directly from the
 trace's GPU counters and kernel launch args.
 
-If the user has not yet loaded a trace into `trace_processor`, follow
-`$SKILL_ROOT/infra-references/querying.md` first, then come back here.
-
 > If `$SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql` returns no rows, the trace has no compute
 > dispatches (no GPU slices with `render_stage_category = 2`) and this workflow
 > does not apply.
@@ -26,9 +26,7 @@ Run this before drilling any single kernel; it names the hotspot. The table is
 **vendor-neutral** — slice timing and launch shape only. The compute-vs-memory
 verdict needs vendor throughput counters and comes from Phase 2 (Speed of Light).
 
-```bash
-trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql
-```
+Run `$SKILL_ROOT/workflows/gpu/compute/scripts/kernels_summary.sql`.
 
 Columns: `id` (launch order), `kernel`, `ugpu`, `dur_ns`, `block_size`,
 `grid_size`, `registers`.

@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Compute kernel — launch statistics
 
 The launch configuration defines the size of the work, how it divides into
@@ -16,9 +19,7 @@ producer — so this workflow is self-contained (no vendor layer).
 
 ## Get the data
 
-```bash
-trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/scripts/launch_statistics.sql
-```
+Run `$SKILL_ROOT/workflows/gpu/compute/scripts/launch_statistics.sql`.
 
 Columns: `id`, `kernel`, `block_size`, `grid_size`, `thread_count`,
 `registers`, `shared_mem_static`, `shared_mem_dynamic`, `shared_mem_config`,

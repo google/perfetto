@@ -1,12 +1,13 @@
+---
+requires: [query]
+---
 # NVIDIA — occupancy extraction
 
 The NVIDIA extraction behind the occupancy analysis. Run it, then apply the
 block-size / waves / binding-resource interpretation from
 [occupancy.md]($SKILL_ROOT/workflows/gpu/compute/occupancy.md).
 
-```bash
-trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/occupancy.sql
-```
+Run `$SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/occupancy.sql`.
 
 One row per compute kernel (longest first). Display label → output column →
 NVIDIA counter / launch arg:

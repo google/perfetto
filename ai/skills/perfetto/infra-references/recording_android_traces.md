@@ -1,3 +1,6 @@
+---
+requires: [record]
+---
 # Recording Perfetto Traces on Android (Helper Scripts)
 
 > [!IMPORTANT] **Scope:** This guide is **strictly for recording traces on
