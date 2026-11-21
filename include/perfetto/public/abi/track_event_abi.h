@@ -29,6 +29,11 @@
 extern "C" {
 #endif
 
+// Registers the track_event data source. Must be called after
+// PerfettoProducerInit() and before tracing starts.
+//
+// It is ok to call this function multiple times and from multiple threads: only
+// the first call has an effect.
 PERFETTO_SDK_EXPORT void PerfettoTeInit(void);
 
 // The attributes of a single category.
