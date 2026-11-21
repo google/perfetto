@@ -267,6 +267,11 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     args: ['1753096827527374787', 'name'],
     traceFile: 'missing_track_names.pb', // Simple trace
   },
+  {
+    id: 'dev.perfetto.AddSpanNote',
+    args: ['1753096827527374787', '1753096828527374787', 'Test span note'],
+    traceFile: 'missing_track_names.pb', // Simple trace
+  },
 
   // Android performance metrics pinning
   {
