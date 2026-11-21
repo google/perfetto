@@ -64,6 +64,11 @@ final class PerfettoTrackEventExtra {
   @FastNative
   public static native void native_emit(int type, long tag, String name, long ptr);
 
+  // Regular JNI: emission can allocate, lock, and ask the tracing service to flush.
+  static native void native_emit_java(
+      int type, long category, int modes, long legacyExtra, long track, String legacyName,
+      byte[] buffer, int size, int fieldsSize, int nameSize, int slotsOffset, int slotCount);
+
   /** Represents a native pointer to a Perfetto C SDK struct. E.g. PerfettoTeHlExtra. */
   interface PerfettoPointer {
     /** Returns the perfetto struct native pointer. */

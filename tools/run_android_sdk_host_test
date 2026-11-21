@@ -34,6 +34,7 @@ Prerequisites
 import argparse
 import logging
 import os
+import re
 import subprocess
 import sys
 
@@ -95,13 +96,27 @@ def Classpath(*entries):
 
 def Gn(jdk_home):
   os.makedirs(OUT_DIR, exist_ok=True)
-  Run([
-      os.path.join(ROOT_DIR, 'tools/gn'), 'gen', OUT_DIR, '--args=' + ' '.join([
-          'is_debug=false',
-          'enable_perfetto_android_java_sdk=true',
-          'jdk_include_path="%s"' % os.path.join(jdk_home, 'include'),
-      ])
-  ])
+  args_path = os.path.join(OUT_DIR, 'args.gn')
+  content = ''
+  if os.path.exists(args_path):
+    with open(args_path) as f:
+      content = f.read()
+  else:
+    content = 'is_debug=false\n'
+  # Preserve the selected output's compiler, optimization and other settings.
+  for name, value in [
+      ('enable_perfetto_android_java_sdk', 'true'),
+      ('jdk_include_path', '"%s"' % os.path.join(jdk_home, 'include')),
+  ]:
+    line = name + '=' + value
+    pattern = r'(?m)^\s*' + name + r'\s*=.*$'
+    if re.search(pattern, content):
+      content = re.sub(pattern, lambda _: line, content)
+    else:
+      content += '\n' + line + '\n'
+  with open(args_path, 'w') as f:
+    f.write(content)
+  Run([os.path.join(ROOT_DIR, 'tools/gn'), 'gen', '--check', OUT_DIR])
 
 
 def Ninja():
@@ -150,14 +165,15 @@ def CompileTest(jdk_home, jars, sdk_jar):
   return jar
 
 
-def RunTests(jdk_home, jars, sdk_jar, test_jar):
+def RunTests(jdk_home, jars, sdk_jar, test_jar, test_classes):
   env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
   Run([
-      os.path.join(jdk_home,
-                   'bin/java'), '-Djava.library.path=' + OUT_DIR, '-cp',
-      Classpath(sdk_jar, test_jar, *jars), 'org.junit.runner.JUnitCore',
-      TEST_CLASS
-  ],
+      os.path.join(jdk_home, 'bin/java'),
+      '-Djava.library.path=' + OUT_DIR,
+      '-cp',
+      Classpath(sdk_jar, test_jar, *jars),
+      'org.junit.runner.JUnitCore',
+  ] + test_classes,
       env=env)
 
 
@@ -171,36 +187,52 @@ def CompileBench(jdk_home, jars, sdk_jar):
   return jar
 
 
-def RunBench(jdk_home, sdk_jar, bench_jar, bench_args):
+def RunBench(jdk_home, jars, sdk_jar, bench_jar, bench_args):
   env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
   Run([os.path.join(jdk_home, 'bin/java')] + BENCH_JVM_FLAGS + [
       '-Djava.library.path=' + OUT_DIR, '-cp',
-      Classpath(sdk_jar, bench_jar), BENCH_CLASS
+      Classpath(sdk_jar, bench_jar, *jars), BENCH_CLASS
   ] + bench_args,
       env=env)
 
 
 def main():
+  global OUT_DIR
   logging.basicConfig(level=logging.INFO, format='%(message)s')
   parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--out',
+      default=OUT_DIR,
+      help='GN output directory; existing args.gn settings are preserved.')
+  parser.add_argument(
+      '--skip-build',
+      action='store_true',
+      help='Reuse the native library and generated Java protos already built.')
+  parser.add_argument(
+      '--test-class',
+      action='append',
+      help='JUnit class to run; may be repeated. Defaults to PerfettoTraceTest.'
+  )
   parser.add_argument(
       '--benchmark',
       nargs=argparse.REMAINDER,
       help='Run the benchmark with the arguments that follow, not the tests.')
   args = parser.parse_args()
+  OUT_DIR = os.path.abspath(args.out)
 
   jdk_home = JdkHome()
   jars = MavenJars()
-  Gn(jdk_home)
-  Ninja()
+  if not args.skip_build:
+    Gn(jdk_home)
+    Ninja()
   java_protos = os.path.join(OUT_DIR, JAVA_PROTOS_DIR)
   sdk_jar = CompileSdk(jdk_home, jars, java_protos)
   if args.benchmark is not None:
     bench_jar = CompileBench(jdk_home, jars, sdk_jar)
-    RunBench(jdk_home, sdk_jar, bench_jar, args.benchmark)
+    RunBench(jdk_home, jars, sdk_jar, bench_jar, args.benchmark)
     return
   test_jar = CompileTest(jdk_home, jars, sdk_jar)
-  RunTests(jdk_home, jars, sdk_jar, test_jar)
+  RunTests(jdk_home, jars, sdk_jar, test_jar, args.test_class or [TEST_CLASS])
 
 
 if __name__ == '__main__':

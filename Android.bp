@@ -1421,6 +1421,9 @@ cc_library_static {
 cc_library_shared {
     name: "libperfetto_framework_jni",
     srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -1431,6 +1434,8 @@ cc_library_shared {
         ":perfetto_src_android_sdk_nativehelper_nativehelper",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+        ":perfetto_src_base_base",
+        ":perfetto_src_base_check_cpu_optimizations",
     ],
     shared_libs: [
         "libperfetto_c",
@@ -1455,6 +1460,9 @@ cc_library_shared {
             shared_libs: [
                 "liblog",
             ],
+            static_libs: [
+                "perfetto_flags_c_lib",
+            ],
         },
         host: {
             static_libs: [
@@ -1468,6 +1476,9 @@ cc_library_shared {
 cc_library_shared {
     name: "libperfetto_jni",
     srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -1478,10 +1489,15 @@ cc_library_shared {
         ":perfetto_src_android_sdk_nativehelper_nativehelper",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+        ":perfetto_src_base_base",
+        ":perfetto_src_base_check_cpu_optimizations",
     ],
     shared_libs: [
         "liblog",
         "libperfetto_c",
+    ],
+    static_libs: [
+        "perfetto_flags_c_lib",
     ],
     defaults: [
         "perfetto_defaults",
@@ -1518,6 +1534,9 @@ cc_library_shared {
 cc_library_static {
     name: "libperfetto_libcore_jni",
     srcs: [
+        ":perfetto_base_default_platform",
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
@@ -1528,6 +1547,8 @@ cc_library_static {
         ":perfetto_src_android_sdk_nativehelper_nativehelper",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
         ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+        ":perfetto_src_base_base",
+        ":perfetto_src_base_check_cpu_optimizations",
     ],
     static_libs: [
         "libperfetto_c",
@@ -1551,6 +1572,13 @@ cc_library_static {
     visibility: [
         "//libcore:__subpackages__",
     ],
+    target: {
+        android: {
+            static_libs: [
+                "perfetto_flags_c_lib",
+            ],
+        },
+    },
 }
 
 // GN: //src/perfetto_cmd:perfetto
@@ -16255,6 +16283,7 @@ filegroup {
 android_library {
     name: "perfetto_src_android_sdk_java_test_perfetto_trace_test_lib",
     srcs: [
+        "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoEncodingModeTest.java",
         "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoTraceTest.java",
     ],
     manifest: "src/android_sdk/java/test/AndroidTestManifest.xml",
@@ -24329,6 +24358,7 @@ java_library {
 java_defaults {
     name: "perfetto_trace_lib_java_defaults",
     srcs: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoEncodedEvent.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
@@ -24355,6 +24385,7 @@ java_defaults {
 filegroup {
     name: "perfetto_trace_lib_libcore_java",
     srcs: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoEncodedEvent.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
