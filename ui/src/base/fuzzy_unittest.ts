@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from './assert';
 import {fuzzySearch} from './fuzzy';
 
 describe('fuzzySearch', () => {
@@ -185,14 +186,16 @@ describe('fuzzySearch', () => {
     it('handles empty search query for multi-key lookup', () => {
       const results = fuzzySearch(items, keyLookups, '');
       expect(results.length).toBe(items.length);
-      for (let i = 0; i < items.length; i++) {
-        expect(results[i]!.item).toEqual(items[i]);
-        expect(results[i]!.score).toBe(1);
-        expect(results[i]!.segments[0]).toEqual([
-          {matching: false, value: items[i]!.name},
+      for (const [i, item] of items.entries()) {
+        // `results` is aligned with `items` (checked above).
+        const result = ensureDefined(results[i]);
+        expect(result.item).toEqual(item);
+        expect(result.score).toBe(1);
+        expect(result.segments[0]).toEqual([
+          {matching: false, value: item.name},
         ]);
-        expect(results[i]!.segments[1]).toEqual([
-          {matching: false, value: items[i]!.source},
+        expect(result.segments[1]).toEqual([
+          {matching: false, value: item.source},
         ]);
       }
     });

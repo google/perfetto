@@ -258,8 +258,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
     let mostSimilarTrack: LocalTrack | undefined = undefined;
     let mostSimilarTrackDifferenceScore: number = 0;
 
-    for (let i = 0; i < localTracks.length; i++) {
-      const localTrack = localTracks[i]!;
+    for (const localTrack of localTracks) {
       const differenceScore = this.calculateSimilarityScore(
         localTrack.savedTrack,
         savedTrack,
