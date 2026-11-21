@@ -1,0 +1,62 @@
+{
+  "id": "/",
+  "name": "Perfetto UI",
+  "short_name": "Perfetto",
+  "description": "System profiling, app tracing and trace analysis",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#2c3e50",
+  "theme_color": "#262f3c",
+  "icons": [
+    {
+      "src": "logo-128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-new"
+  },
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "application/x-perfetto-trace": [
+          ".pftrace",
+          ".perfetto-trace",
+          ".ctrace",
+          ".systrace"
+        ]
+      },
+      "icons": [
+        {
+          "src": "logo-128.png",
+          "sizes": "128x128",
+          "type": "image/png"
+        },
+        {
+          "src": "logo-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "logo-512.png",
+          "sizes": "512x512",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    }
+  ]
+}
