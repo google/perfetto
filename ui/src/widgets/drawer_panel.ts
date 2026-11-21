@@ -18,6 +18,7 @@ import {assertUnreachable} from '../base/assert';
 import {Gate, type MithrilEvent} from '../base/mithril_utils';
 import {Button, ButtonBar} from './button';
 import {TabStrip} from './tab_strip';
+import type {HTMLAttrs} from './common';
 
 export interface DrawerTab {
   // Unique identifier for the tab.
@@ -28,6 +29,8 @@ export interface DrawerTab {
   readonly content: m.Children;
   // Whether to show a close button on the tab.
   readonly closable?: boolean;
+  // Extra HTML attributes for the tab handle element.
+  readonly tabAttrs?: HTMLAttrs;
 }
 
 export enum DrawerPanelVisibility {
@@ -221,6 +224,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       m(
         TabStrip.Tab,
         {
+          ...tab.tabAttrs,
           key: tab.key,
           active: tab.key === activeKey,
           onclick: () => {

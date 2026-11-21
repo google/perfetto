@@ -25,6 +25,7 @@ import {Chip} from './chip';
 import {type HTMLAttrs, Intent} from './common';
 import {Popup} from './popup';
 import {Stack} from './stack';
+import {OWNER_ATTRIBUTE} from '../base/owner_attribute';
 
 /**
  * This component defines the look and style of the DOM parts of a track (mainly
@@ -171,6 +172,9 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       m(
         '.pf-track__header',
         {
+          // Label the header rather than the whole track because the track
+          // also contains its child tracks, which can belong to other plugins.
+          [OWNER_ATTRIBUTE]: attrs.pluginId,
           className: classNames(
             summary && 'pf-track__header--summary',
             expanded && 'pf-track__header--expanded',

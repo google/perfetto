@@ -15,6 +15,8 @@
 import './cookie_consent.scss';
 import m from 'mithril';
 import {AppImpl} from './app_impl';
+import {OWNER_ATTRIBUTE} from '../base/owner_attribute';
+import {CORE_OWNER} from './ownership';
 
 const COOKIE_ACK_KEY = 'cookieAck';
 
@@ -35,6 +37,7 @@ export class CookieConsent implements m.ClassComponent {
     if (!this.showCookieConsent) return;
     return m(
       '.pf-cookie-consent',
+      {[OWNER_ATTRIBUTE]: CORE_OWNER},
       m(
         '.cookie-text',
         `This site uses cookies from Google to deliver its services and to

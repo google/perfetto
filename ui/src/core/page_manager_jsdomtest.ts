@@ -39,10 +39,15 @@ afterEach(() => {
 describe('PageManagerImpl', () => {
   function createPages(): PageManagerImpl {
     const pages = new PageManagerImpl(analytics);
-    pages.registerPage({route: '/', render: () => m('.home')});
+    pages.registerPage({
+      route: '/',
+      render: () => m('.home'),
+      pluginId: 'core',
+    });
     pages.registerPage({
       route: '/foo',
       render: (subpage) => m('.foo', subpage),
+      pluginId: 'com.example.Foo',
     });
     pages.registerPage({route: '/empty', render: () => undefined});
     return pages;
@@ -56,6 +61,12 @@ describe('PageManagerImpl', () => {
 
   function getOpenPage(): Element | null {
     return container.querySelector('[data-gate-open="true"]');
+  }
+
+  function getOpenPageOwner(): string | null | undefined {
+    return getOpenPage()
+      ?.querySelector('[data-plugin]')
+      ?.getAttribute('data-plugin');
   }
 
   test('shows the page for the current route', () => {
@@ -87,5 +98,17 @@ describe('PageManagerImpl', () => {
       'true',
     ]);
     expect(getOpenPage()?.querySelector('.home')).not.toBeNull();
+  });
+
+  test('labels the open page with its owner', () => {
+    const pages = createPages();
+    renderRoute(pages, '#!/foo');
+    expect(getOpenPageOwner()).toBe('com.example.Foo');
+  });
+
+  test('labels a route that fell back on the home page with its owner', () => {
+    const pages = createPages();
+    renderRoute(pages, '#!/missing');
+    expect(getOpenPageOwner()).toBe('core');
   });
 });
