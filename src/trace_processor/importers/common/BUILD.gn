@@ -100,7 +100,6 @@ source_set("common") {
   public_deps = [
     ":parser_types",
     ":stats_tracker",
-    ":synthetic_tid_hdr",
     "../../../../protos/perfetto/common:zero",
     "../../../base",
     "../../containers",
@@ -158,11 +157,6 @@ source_set("stats_tracker") {
     "../../tables",
     "../../types",
   ]
-}
-
-source_set("synthetic_tid_hdr") {
-  sources = [ "synthetic_tid.h" ]
-  deps = [ "../../../../gn:default_deps" ]
 }
 
 source_set("v8_profile_parser") {

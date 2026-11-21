@@ -340,7 +340,6 @@ source_set("packet_sequence_state_generation_hdr") {
     "../../containers",
     "../../types",
     "../../util:interned_message_view",
-    "../common:synthetic_tid_hdr",
   ]
 }
 

@@ -465,10 +465,17 @@ void StackSampleModule::ParseStackSample(
       row.upid = upid;
     }
     if (task.has_tid()) {
-      row.utid =
-          task.has_pid()
-              ? context_->process_tracker->UpdateThread(task.tid(), task.pid())
-              : context_->process_tracker->GetOrCreateThread(task.tid());
+      if (task.has_pid()) {
+        int64_t tid = task.tid();
+        if (auto resolved_tid = context_->process_tracker->ResolveNamespacedTid(
+                task.pid(), tid);
+            resolved_tid) {
+          tid = *resolved_tid;
+        }
+        row.utid = context_->process_tracker->UpdateThread(tid, task.pid());
+      } else {
+        row.utid = context_->process_tracker->GetOrCreateThread(task.tid());
+      }
     }
     if (task.has_async_id()) {
       row.async_context_id =

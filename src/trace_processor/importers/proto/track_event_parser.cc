@@ -37,7 +37,6 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -307,16 +306,9 @@ void TrackEventParser::ParseTrackDescriptor(
         TrackEventTracker::ResolvedDescriptorTrack::Scope::kThread) {
       resolved = track->utid();
     }
+    UniqueTid utid = ParseThreadDescriptor(decoder.thread(), resolved);
     if (decoder.has_chrome_thread()) {
-      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_decoder(
-          decoder.chrome_thread());
-      bool is_sandboxed = chrome_decoder.has_is_sandboxed_tid() &&
-                          chrome_decoder.is_sandboxed_tid();
-      UniqueTid utid =
-          ParseThreadDescriptor(decoder.thread(), is_sandboxed, resolved);
       ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
-    } else {
-      ParseThreadDescriptor(decoder.thread(), /*is_sandboxed=*/false, resolved);
     }
   } else if (decoder.has_process()) {
     UniquePid upid =
@@ -402,7 +394,6 @@ void TrackEventParser::ParseChromeProcessDescriptor(
 
 UniqueTid TrackEventParser::ParseThreadDescriptor(
     protozero::ConstBytes thread_descriptor,
-    bool is_sandboxed,
     std::optional<UniqueTid> resolved) {
   protos::pbzero::ThreadDescriptor::Decoder decoder(thread_descriptor);
   UniqueTid utid;
@@ -412,11 +403,6 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
     // TODO: b/175152326 - Should pid namespace translation also be done here?
     auto pid = static_cast<int64_t>(decoder.pid());
     auto tid = static_cast<int64_t>(decoder.tid());
-    // If tid is sandboxed then use a unique synthetic tid, to avoid
-    // having concurrent threads with the same tid.
-    if (is_sandboxed) {
-      tid = CreateSyntheticTid(tid, pid);
-    }
     utid = context_->process_tracker->UpdateThread(tid, pid);
   }
   StringId name_id = kNullStringId;

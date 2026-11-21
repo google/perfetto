@@ -2766,35 +2766,6 @@ TEST_P(PerfettoApiTest, DISABLED_LegacyEventWithThreadOverride) {
   perfetto::TrackEvent::EraseTrackDescriptor(track);
 }
 
-// Only synchronous phases are supported for other threads. Hence disabled this
-// test.
-TEST_P(PerfettoApiTest, DISABLED_LegacyEventWithProcessOverride) {
-  // Create a new trace session.
-  auto* tracing_session = NewTraceWithCategories({"cat"});
-  tracing_session->get()->StartBlocking();
-
-  // Note: there's no direct entrypoint for adding trace events for another
-  // process, so we're using the internal support macro here.
-  INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(
-      TRACE_EVENT_PHASE_INSTANT, "cat", "Name", 0, MyThreadId{789},
-      MyTimestamp{0}, TRACE_EVENT_FLAG_HAS_PROCESS_ID);
-  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
-
-  // Check that the event has a pid_override matching MyThread above.
-  bool found_event = false;
-  for (const auto& packet : trace.packet()) {
-    if (!packet.has_track_event())
-      continue;
-    auto track_event = packet.track_event();
-    if (track_event.type() == perfetto::protos::gen::TrackEvent::TYPE_INSTANT) {
-      EXPECT_EQ(789, track_event.legacy_event().pid_override());
-      EXPECT_EQ(-1, track_event.legacy_event().tid_override());
-      found_event = true;
-    }
-  }
-  EXPECT_TRUE(found_event);
-}
-
 TEST_P(PerfettoApiTest, TrackDescriptorWrittenBeforeEvent) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"bar"});

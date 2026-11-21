@@ -342,17 +342,14 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
     //
     // 1. If we have an id, we need to write {unscoped,local,global}_id and/or
     //    bind_id.
-    // 2. If we have a thread id, we need to write track_uuid() or
-    //    {pid,tid}_override if the id represents another process.  The
-    //    conversion from |thread_id| happens in embedder code since the type is
+    // 2. If we have a thread id, we need to write track_uuid(). The conversion
+    //    from |thread_id| happens in embedder code since the type is
     //    embedder-specified.
     // 3. If we have a timestamp, we need to write a different timestamp in the
     //    trace packet itself and make sure TrackEvent won't write one
     //    internally. This is already done at the call site.
     //
-    PERFETTO_DCHECK(PhaseToType(phase) ==
-                        protos::pbzero::TrackEvent::TYPE_UNSPECIFIED ||
-                    !(flags & TRACE_EVENT_FLAG_HAS_PROCESS_ID));
+    PERFETTO_DCHECK(!(flags & TRACE_EVENT_FLAG_HAS_PROCESS_ID));
     flags |= id.id_flags();
     AddDebugAnnotations(&ctx, std::forward<Args>(args)...);
     if (NeedLegacyFlags(phase, flags)) {
@@ -360,23 +357,13 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
       SetLegacyFlags(legacy_event, phase, flags);
       if (id.id_flags())
         id.Write(legacy_event, flags);
-      if (flags & TRACE_EVENT_FLAG_HAS_PROCESS_ID) {
-        // The thread identifier actually represents a process id. Let's set an
-        // override for it.
-        int32_t pid_override =
-            static_cast<int32_t>(legacy::ConvertThreadId(thread_id).tid);
-        legacy_event->set_pid_override(pid_override);
-        legacy_event->set_tid_override(-1);
-      } else {
-        // Only synchronous phases are supported for other threads. These phases
-        // are supported in TrackEvent types and receive a track_uuid
-        // association via TrackEventDataSource::TraceForCategoryImpl().
-        PERFETTO_DCHECK(PhaseToType(phase) !=
-                            protos::pbzero::TrackEvent::TYPE_UNSPECIFIED ||
-                        IsEqual(thread_id, TRACE_EVENT_API_CURRENT_THREAD_ID) ||
-                        legacy::ConvertThreadId(thread_id).tid ==
-                            ThreadTrack::Current().tid);
-      }
+      // Only synchronous phases are supported for other threads. These phases
+      // are supported in TrackEvent types and receive a track_uuid
+      // association via TrackEventDataSource::TraceForCategoryImpl().
+      PERFETTO_DCHECK(
+          PhaseToType(phase) != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED ||
+          IsEqual(thread_id, TRACE_EVENT_API_CURRENT_THREAD_ID) ||
+          legacy::ConvertThreadId(thread_id).tid == ThreadTrack::Current().tid);
     }
   }
 
@@ -408,7 +395,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
            (TRACE_EVENT_FLAG_HAS_ID | TRACE_EVENT_FLAG_HAS_LOCAL_ID |
             TRACE_EVENT_FLAG_HAS_GLOBAL_ID | TRACE_EVENT_FLAG_ASYNC_TTS |
             TRACE_EVENT_FLAG_BIND_TO_ENCLOSING | TRACE_EVENT_FLAG_FLOW_IN |
-            TRACE_EVENT_FLAG_FLOW_OUT | TRACE_EVENT_FLAG_HAS_PROCESS_ID);
+            TRACE_EVENT_FLAG_FLOW_OUT);
   }
 
   static void SetLegacyFlags(

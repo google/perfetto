@@ -20,7 +20,6 @@
 #include <cstdint>
 
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
 
 namespace perfetto::trace_processor {
 
@@ -34,23 +33,18 @@ class TrackEventThreadDescriptor {
  public:
   bool valid() const { return valid_; }
   int32_t pid() const { return pid_; }
-  int64_t tid() const {
-    return use_synthetic_tid_ ? CreateSyntheticTid(tid_, pid_) : tid_;
-  }
+  int64_t tid() const { return tid_; }
 
-  void Set(const protos::pbzero::ThreadDescriptor::Decoder& decoder,
-           bool use_synthetic_tid) {
+  void Set(const protos::pbzero::ThreadDescriptor::Decoder& decoder) {
     valid_ = true;
     pid_ = decoder.pid();
     tid_ = decoder.tid();
-    use_synthetic_tid_ = use_synthetic_tid;
   }
 
  private:
   bool valid_ = false;
   int32_t pid_ = 0;
   int64_t tid_ = 0;
-  bool use_synthetic_tid_ = false;
 };
 
 }  // namespace perfetto::trace_processor

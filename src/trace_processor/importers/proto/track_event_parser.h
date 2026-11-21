@@ -56,7 +56,6 @@ class TrackEventParser {
   UniquePid ParseProcessDescriptor(int64_t packet_timestamp,
                                    protozero::ConstBytes);
   UniqueTid ParseThreadDescriptor(protozero::ConstBytes,
-                                  bool,
                                   std::optional<UniqueTid> resolved);
 
   void ParseTrackEvent(int64_t ts,
