@@ -57,7 +57,7 @@ namespace perfetto::trace_processor::gecko_importer {
 struct GeckoThread {
   std::string name;
   uint32_t tid = 0;
-  uint32_t pid = 0;
+  std::optional<uint32_t> pid;
 
   // String table (either stringTable for legacy or stringArray for
   // preprocessed)
@@ -178,14 +178,19 @@ base::Status ParseNullableInt64Array(json::SimpleJsonParser& reader,
 
 // Reads a uint that may have been emitted as either a JSON number or a numeric
 // string (Gecko sometimes serializes pids/tids as strings).
-uint32_t ReadUint32OrStringifiedUint32(json::SimpleJsonParser& reader) {
+std::optional<uint32_t> ReadOptionalUint32OrStringifiedUint32(
+    json::SimpleJsonParser& reader) {
   if (auto v = reader.GetUint32()) {
     return *v;
   }
   if (auto s = reader.GetString()) {
-    return base::CStringToUInt32(std::string(*s).c_str()).value_or(0);
+    return base::CStringToUInt32(std::string(*s).c_str());
   }
-  return 0;
+  return std::nullopt;
+}
+
+uint32_t ReadUint32OrStringifiedUint32(json::SimpleJsonParser& reader) {
+  return ReadOptionalUint32OrStringifiedUint32(reader).value_or(0);
 }
 
 // Parses `frameTable`, which has two on-the-wire shapes:
@@ -380,7 +385,7 @@ base::Status ParseThread(json::SimpleJsonParser& reader, GeckoThread& t) {
       return json::FieldResult::Handled{};
     }
     if (key == "pid") {
-      t.pid = ReadUint32OrStringifiedUint32(reader);
+      t.pid = ReadOptionalUint32OrStringifiedUint32(reader);
       return json::FieldResult::Handled{};
     }
     if (key == "stringTable" && reader.IsArray()) {
@@ -773,7 +778,7 @@ void GeckoTraceTokenizer::ProcessLegacySamples(
       added_metadata = true;
     }
     stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
-                                  t.tid, callsites[*stack_val].id}});
+                                  t.tid, t.pid, callsites[*stack_val].id}});
   }
 }
 
@@ -867,7 +872,7 @@ void GeckoTraceTokenizer::ProcessSamples(
       added_metadata = true;
     }
     stream_->Push(*converted, GeckoEvent{GeckoEvent::StackSample{
-                                  t.tid, callsites[stack_idx].id}});
+                                  t.tid, t.pid, callsites[stack_idx].id}});
   }
 }
 
@@ -931,6 +936,7 @@ void GeckoTraceTokenizer::ProcessMarkers(
 
     GeckoEvent::Marker m;
     m.tid = t.tid;
+    m.pid = t.pid;
     m.phase = phase;
     m.name = name_id;
     m.category = cat_id;

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -38,6 +39,7 @@ class GeckoTraceParser
   void ParseThreadMetadata(const GeckoEvent::ThreadMetadata&);
   void ParseStackSample(int64_t ts, const GeckoEvent::StackSample&);
   void ParseMarker(int64_t ts, const GeckoEvent::Marker&);
+  UniqueTid UpdateThread(uint32_t tid, std::optional<uint32_t> pid);
 
   TraceProcessorContext* const context_;
   const StringPool::Id gecko_source_id_;

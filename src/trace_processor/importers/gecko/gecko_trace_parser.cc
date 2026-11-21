@@ -70,10 +70,16 @@ GeckoTraceParser::GeckoTraceParser(TraceProcessorContext* context)
 
 GeckoTraceParser::~GeckoTraceParser() = default;
 
+UniqueTid GeckoTraceParser::UpdateThread(uint32_t tid,
+                                         std::optional<uint32_t> pid) {
+  // Without a pid the thread's process is unknown, not pid 0.
+  return pid ? context_->process_tracker->UpdateThread(tid, *pid)
+             : context_->process_tracker->GetOrCreateThread(tid);
+}
+
 void GeckoTraceParser::ParseThreadMetadata(
     const GeckoEvent::ThreadMetadata& thread) {
-  UniqueTid utid =
-      context_->process_tracker->UpdateThread(thread.tid, thread.pid);
+  UniqueTid utid = UpdateThread(thread.tid, thread.pid);
   context_->process_tracker->UpdateThreadName(utid, thread.name,
                                               ThreadNamePriority::kOther);
 }
@@ -84,7 +90,7 @@ void GeckoTraceParser::ParseStackSample(int64_t ts,
   row.ts = ts;
   row.source = gecko_source_id_;
   tables::ProfilerTaskContextTable::Row task_context;
-  task_context.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
+  task_context.utid = UpdateThread(sample.tid, sample.pid);
   row.task_context_id =
       context_->profiler_sample_tracker->InternTaskContext(task_context);
   row.callsite_id = sample.callsite_id;
@@ -93,7 +99,7 @@ void GeckoTraceParser::ParseStackSample(int64_t ts,
 
 void GeckoTraceParser::ParseMarker(int64_t ts,
                                    const GeckoEvent::Marker& marker) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(marker.tid);
+  UniqueTid utid = UpdateThread(marker.tid, marker.pid);
 
   // Flattens the marker `data` payload into args under the `data` namespace,
   // e.g. `{"type": "DOMEvent", "eventType": "mousedown"}` becomes

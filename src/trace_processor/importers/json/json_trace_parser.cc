@@ -131,12 +131,15 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         upid, storage->GetString(StringPool::Id::Raw(event.pid)),
         base::StringView());
   }
+  // Without a pid the thread's process is unknown, not pid 0.
+  auto utid = [&] {
+    return event.pid_exists ? procs->UpdateThread(event.tid, event.pid)
+                            : procs->GetOrCreateThread(event.tid);
+  };
   if (event.tid_is_string_id) {
-    UniqueTid event_utid = procs->GetOrCreateThread(event.tid);
-    procs->UpdateThreadName(event_utid, StringPool::Id::Raw(event.tid),
+    procs->UpdateThreadName(utid(), StringPool::Id::Raw(event.tid),
                             ThreadNamePriority::kOther);
   }
-  auto utid = [&] { return procs->UpdateThread(event.tid, event.pid); };
 
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
