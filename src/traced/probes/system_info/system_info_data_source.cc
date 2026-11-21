@@ -153,11 +153,14 @@ void SystemInfoDataSource::Start() {
     auto* cpu = cpu_info->add_cpus();
     cpu->set_processor(parsed_cpu.processor);
 
-    std::optional<uint32_t> cpu_capacity =
-        base::StringToUInt32(base::StripSuffix(
-            ReadFile("/sys/devices/system/cpu/cpu" +
-                     std::to_string(parsed_cpu.cpu_index) + "/cpu_capacity"),
-            "\n"));
+    std::string cpu_sysfs =
+        "/sys/devices/system/cpu/cpu" + std::to_string(parsed_cpu.cpu_index);
+    std::optional<uint32_t> cpu_capacity = base::StringToUInt32(
+        base::StripSuffix(ReadFile(cpu_sysfs + "/cpu_capacity"), "\n"));
+    if (!cpu_capacity.has_value()) {
+      cpu_capacity = base::StringToUInt32(base::StripSuffix(
+          ReadFile(cpu_sysfs + "/acpi_cppc/highest_perf"), "\n"));
+    }
 
     if (cpu_capacity.has_value()) {
       cpu->set_capacity(cpu_capacity.value());

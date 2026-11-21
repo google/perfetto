@@ -33,6 +33,7 @@ namespace {
 // Key for default processor string in /proc/cpuinfo as seen on arm. Note the
 // uppercase P.
 const char kDefaultProcessor[] = "Processor";
+const char kModelName[] = "model name";
 
 // Key for processor entry in /proc/cpuinfo. Used to determine whether a group
 // of lines describes a CPU.
@@ -134,7 +135,7 @@ std::vector<CpuInfo> ParseCpuInfo(std::string proc_cpu_info) {
         base::StripSuffix(base::StripChars(splits[0], "\t", ' '), " ");
     std::string value = base::StripPrefix(splits[1], " ");
 
-    if (key == kDefaultProcessor) {
+    if (key == kDefaultProcessor || key == kModelName) {
       processor = value;
     } else if (key == kProcessor) {
       cpu_index = base::StringToUInt32(value);
