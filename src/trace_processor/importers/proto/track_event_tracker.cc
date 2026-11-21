@@ -242,8 +242,6 @@ bool TrackEventTracker::ReserveDescriptorTrack(
     return false;
   }
 
-  it->reservation.is_sandboxed_tid |= reservation.is_sandboxed_tid;
-
   if (!reservation.name.is_null()) {
     bool is_non_mergable_track =
         reservation.sibling_merge_behavior ==
@@ -350,7 +348,6 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   }
   if (resolved_tid) {
     reservation.tid = resolved_tid;
-    reservation.is_sandboxed_tid = false;
   }
 
   // Try to resolve any parent tracks recursively, too.
@@ -360,11 +357,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   }
 
   if (reservation.tid) {
-    UniqueTid utid = reservation.is_sandboxed_tid
-                         ? context_->process_tracker->UpdateSandboxedThread(
-                               *reservation.tid, *reservation.pid)
-                         : context_->process_tracker->UpdateThread(
-                               *reservation.tid, *reservation.pid);
+    UniqueTid utid = context_->process_tracker->UpdateThread(*reservation.tid,
+                                                             *reservation.pid);
     auto [it, inserted] = descriptor_uuids_by_utid_.Insert(utid, uuid);
     if (!inserted) {
       // We already saw a another track with a different uuid for this thread.
@@ -380,17 +374,12 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
                     *reservation.pid, *reservation.tid, old_uuid, uuid,
                     reservation.min_timestamp);
 
-      if (reservation.is_sandboxed_tid) {
-        utid = context_->process_tracker->StartNewSandboxedThread(
-            std::nullopt, *reservation.tid, *reservation.pid);
-      } else {
-        // Associate the new thread with its process.
-        utid = context_->process_tracker->StartNewThread(std::nullopt,
-                                                         *reservation.tid);
-        UniqueTid updated_utid = context_->process_tracker->UpdateThread(
-            *reservation.tid, *reservation.pid);
-        PERFETTO_CHECK(updated_utid == utid);
-      }
+      // Associate the new thread with its process.
+      utid = context_->process_tracker->StartNewThread(std::nullopt,
+                                                       *reservation.tid);
+      UniqueTid updated_utid = context_->process_tracker->UpdateThread(
+          *reservation.tid, *reservation.pid);
+      PERFETTO_CHECK(updated_utid == utid);
     }
     if (thread_ordering_explicit && reservation.sibling_order_rank) {
       context_->process_tracker->SetThreadSortIndex(
