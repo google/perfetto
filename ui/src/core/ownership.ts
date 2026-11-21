@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Records who owns an object, such as a tab, a sidebar item or a command.
+// Records who owns an object, such as a tab, a sidebar item or a command, and
+// finds who owns a point on the screen.
 //
 // The owner is stored on the object itself under a private Symbol key, so the
 // object is passed on unchanged and class instances keep their methods. The
@@ -20,10 +21,20 @@
 // property: object spread ({...obj}) copies it, so the owner survives copies
 // of the object.
 
+import {OWNER_ATTRIBUTE} from '../base/owner_attribute';
+
 const OWNER = Symbol('perfetto.owner');
 
 /** The owner of UI that core adds itself, rather than through a plugin. */
 export const CORE_OWNER = 'core';
+
+/** The owner of a point on the screen that has no owner label. */
+export const UNATTRIBUTED = 'unattributed';
+
+/** Who a point on the screen is credited to. */
+export interface Attribution {
+  readonly owner: string;
+}
 
 interface Owned {
   [OWNER]?: string;
@@ -56,4 +67,23 @@ export function carryOwner<T extends object>(from: object, to: T): T {
   const owner = getOwner(from);
   if (owner !== undefined) setOwner(to, owner);
   return to;
+}
+
+/**
+ * Returns who owns `el`, from the nearest owner label on it or above it. Use
+ * this if you have the element.
+ */
+export function findAttributionForElement(el: Element | null): Attribution {
+  const owner = el
+    ?.closest(`[${OWNER_ATTRIBUTE}]`)
+    ?.getAttribute(OWNER_ATTRIBUTE);
+  return {owner: owner || UNATTRIBUTED};
+}
+
+/**
+ * Returns who owns what's drawn at (x, y) on the screen. Use this if you don't
+ * have the element and only have a coordinate.
+ */
+export function findAttributionAt(x: number, y: number): Attribution {
+  return findAttributionForElement(document.elementFromPoint(x, y));
 }
