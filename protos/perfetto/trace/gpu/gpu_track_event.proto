@@ -80,6 +80,13 @@ message GpuTrackDescriptor {
     // from a process TrackDescriptor ancestor.
     uint64 logical_queue_id = 3;
   }
+
+  // The domain of the GPU this track and all tracks below it belong to: a
+  // hardware block (e.g. an SM or a PE) or a producer-defined logical
+  // grouping, scoped to `gpu_id`. Other data sources identify the same domain
+  // with the same ID, e.g. InternedGpuCounterDescriptor.gpu_domain_id. Tracks
+  // below it must not declare a different `gpu_domain_id`.
+  optional uint32 gpu_domain_id = 4;
 }
 
 message GpuTrackDescriptorExtension {

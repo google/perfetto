@@ -16591,14 +16591,16 @@ class GpuCounterEvent(_message.Message):
     def __init__(self, counter_descriptor: _Optional[_Union[GpuCounterDescriptor, _Mapping]] = ..., counter_descriptor_iid: _Optional[int] = ..., counters: _Optional[_Iterable[_Union[GpuCounterEvent.GpuCounter, _Mapping]]] = ..., gpu_id: _Optional[int] = ...) -> None: ...
 
 class InternedGpuCounterDescriptor(_message.Message):
-    __slots__ = ("iid", "counter_descriptor", "gpu_id")
+    __slots__ = ("iid", "counter_descriptor", "gpu_id", "gpu_domain_id")
     IID_FIELD_NUMBER: _ClassVar[int]
     COUNTER_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     GPU_ID_FIELD_NUMBER: _ClassVar[int]
+    GPU_DOMAIN_ID_FIELD_NUMBER: _ClassVar[int]
     iid: int
     counter_descriptor: GpuCounterDescriptor
     gpu_id: int
-    def __init__(self, iid: _Optional[int] = ..., counter_descriptor: _Optional[_Union[GpuCounterDescriptor, _Mapping]] = ..., gpu_id: _Optional[int] = ...) -> None: ...
+    gpu_domain_id: int
+    def __init__(self, iid: _Optional[int] = ..., counter_descriptor: _Optional[_Union[GpuCounterDescriptor, _Mapping]] = ..., gpu_id: _Optional[int] = ..., gpu_domain_id: _Optional[int] = ...) -> None: ...
 
 class GpuLog(_message.Message):
     __slots__ = ("severity", "tag", "log_message")

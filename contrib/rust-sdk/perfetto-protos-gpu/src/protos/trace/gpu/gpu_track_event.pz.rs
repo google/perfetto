@@ -35,6 +35,7 @@ pb_msg!(GpuTrackDescriptor {
     gpu_id: i32, primitive, 1,
     hw_queue_iid: u64, primitive, 2,
     logical_queue_id: u64, primitive, 3,
+    gpu_domain_id: u32, primitive, 4,
 });
 
 pb_msg!(GpuCorrelation {
