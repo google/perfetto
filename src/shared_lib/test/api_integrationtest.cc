@@ -2001,6 +2001,16 @@ TEST_F(SharedLibTrackEventTest, JavaEncodingDefaultUsesLegacy) {
             PERFETTO_TE_JAVA_ENCODING_LEGACY);
 }
 
+TEST_F(SharedLibTrackEventTest, JavaEncodingExplicitUnspecifiedUsesLegacy) {
+  auto session = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_java_event_encoding(0)
+                     .Build();
+  EXPECT_EQ(PerfettoTeHlGetJavaEncodingModes(cat1.impl),
+            PERFETTO_TE_JAVA_ENCODING_LEGACY);
+}
+
 TEST_F(SharedLibTrackEventTest, JavaMixedModesRouteOnceAndShareTimestamp) {
   auto legacy = TracingSession::Builder()
                     .set_data_source_name("track_event")
