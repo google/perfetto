@@ -3241,6 +3241,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
+        ":perfetto_src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -20885,6 +20886,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/gpu_track_descriptor:gpu_track_descriptor
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
+    srcs: [
+        "src/trace_processor/plugins/gpu_track_descriptor/gpu_track_descriptor.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/graph_scan:graph_scan
 filegroup {
     name: "perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
@@ -22097,6 +22106,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
+        ":perfetto_src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -25228,6 +25238,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_unittests",
+        ":perfetto_src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",
@@ -26399,6 +26410,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_flamechart_intrinsics",
         ":perfetto_src_trace_processor_plugins_flamegraph_flamegraph",
         ":perfetto_src_trace_processor_plugins_flamegraph_intrinsics",
+        ":perfetto_src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":perfetto_src_trace_processor_plugins_graph_scan_graph_scan",
         ":perfetto_src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":perfetto_src_trace_processor_plugins_import_import",

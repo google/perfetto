@@ -253,6 +253,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/experimental_slice_layout",
       "plugins/flamechart:intrinsics",
       "plugins/flamegraph:intrinsics",
+      "plugins/gpu_track_descriptor",
       "plugins/graph_scan",
       "plugins/graph_traversal",
       "plugins/import",

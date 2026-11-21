@@ -32,9 +32,19 @@ TrackEventExtensionParser::Result TrackEventExtensionParser::OnTrackEventField(
   return Result::kIgnored;
 }
 
+void TrackEventExtensionParser::OnTrackDescriptorField(
+    const TypedProtoField&,
+    TrackDescriptorFieldContext*) {}
+
 void TrackEventExtensionParser::RegisterTrackEventExtension(uint32_t field_id) {
   PERFETTO_CHECK(!context_->parsers_by_field.Find(field_id));
   context_->parsers_by_field.Insert(field_id, this);
+}
+
+void TrackEventExtensionParser::RegisterTrackDescriptorExtension(
+    uint32_t field_id) {
+  PERFETTO_CHECK(!context_->descriptor_parsers_by_field.Find(field_id));
+  context_->descriptor_parsers_by_field.Insert(field_id, this);
 }
 
 }  // namespace perfetto::trace_processor

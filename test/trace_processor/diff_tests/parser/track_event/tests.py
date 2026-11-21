@@ -2889,3 +2889,158 @@ class TrackEvent(TestSuite):
         "counter","thread_counter_track_event",4,"[NULL]"
         "state","thread_state_track_event",5,"[NULL]"
         """))
+
+  # A GpuTrackDescriptor's gpu_id gives the track and its descendants the
+  # well-known gpu dimension: the same `ugpu` and `gpu` args as other GPU
+  # tracks, joinable with the gpu table. Merged tracks get it too.
+  def test_track_event_gpu_track_descriptor(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { trusted_packet_sequence_id: 1 timestamp: 0 incremental_state_cleared: true
+          track_descriptor { uuid: 10 process { pid: 100 process_name: "p" } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 20 parent_uuid: 10 name: "GPU 0"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 0 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 21 parent_uuid: 20 name: "queue"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 22 parent_uuid: 20 name: "counter" counter {} } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 30 name: "GPU 1"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 1 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 31 parent_uuid: 30 name: "merged" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 40 name: "no gpu"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] {} } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 20 type: TYPE_INSTANT name: "a" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 21 type: TYPE_INSTANT name: "b" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 22 type: TYPE_COUNTER counter_value: 1 } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 30 type: TYPE_INSTANT name: "c" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 31 type: TYPE_INSTANT name: "d" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 40 type: TYPE_INSTANT name: "e" } }
+        """),
+        query="""
+        SELECT
+          t.name,
+          t.type,
+          extract_arg(t.dimension_arg_set_id, 'gpu') AS gpu,
+          g.gpu AS gpu_table_gpu
+        FROM track AS t
+        LEFT JOIN gpu AS g ON g.id = extract_arg(t.dimension_arg_set_id, 'ugpu')
+        WHERE t.name IS NOT NULL
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","type","gpu","gpu_table_gpu"
+        "GPU 0","process_track_event",0,0
+        "GPU 1","global_track_event",1,1
+        "counter","process_counter_track_event",0,0
+        "merged","global_merged_track_event",1,1
+        "no gpu","global_track_event","[NULL]","[NULL]"
+        "queue","process_track_event",0,0
+        """))
+
+  # GPU tracks from TrackDescriptors and from GPU data sources share the same
+  # GPU: a TrackDescriptor's gpu_id resolves to the same ugpu as the gpu_id of
+  # GPU counters on the same machine.
+  def test_track_event_gpu_track_descriptor_shares_ugpu(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { trusted_packet_sequence_id: 1 timestamp: 0 incremental_state_cleared: true
+          track_descriptor { uuid: 1 name: "GPU 0"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 0 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "a" } }
+        packet { trusted_packet_sequence_id: 2 timestamp: 100
+          gpu_counter_event {
+            gpu_id: 0
+            counter_descriptor { specs { counter_id: 1 name: "busy" } }
+            counters { counter_id: 1 int_value: 5 } } }
+        """),
+        query="""
+        SELECT
+          count(*) AS tracks,
+          count(DISTINCT extract_arg(dimension_arg_set_id, 'ugpu')) AS ugpus,
+          (SELECT count(*) FROM gpu) AS gpus
+        FROM track
+        WHERE extract_arg(dimension_arg_set_id, 'gpu') = 0;
+        """,
+        out=Csv("""
+        "tracks","ugpus","gpus"
+        2,1,1
+        """))
+
+  # Like a custom dimension, a gpu_id which conflicts with the inherited one is
+  # ignored, a re-emitted descriptor with a different gpu_id is a conflicting
+  # reservation, and a shared thread track cannot have one. A negative gpu_id
+  # is ignored. Each error is recorded once, even if the descriptor is
+  # re-emitted.
+  def test_track_event_gpu_track_descriptor_errors(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { trusted_packet_sequence_id: 1 timestamp: 0 incremental_state_cleared: true
+          track_descriptor { uuid: 1 name: "parent"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 0 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 2 parent_uuid: 1 name: "conflicting child"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 1 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          track_descriptor { uuid: 3 name: "negative"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: -1 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 10
+          track_descriptor { uuid: 3 name: "negative"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: -1 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 20
+          track_descriptor { uuid: 1 name: "parent"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 2 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 30
+          track_descriptor { uuid: 4 thread { pid: 5 tid: 6 }
+            [perfetto.protos.GpuTrackDescriptorExtension.gpu_track] { gpu_id: 0 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "a" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 2 type: TYPE_INSTANT name: "b" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 3 type: TYPE_INSTANT name: "c" } }
+        """),
+        query="""
+        SELECT t.name AS name, extract_arg(t.dimension_arg_set_id, 'gpu') AS value
+        FROM track AS t
+        WHERE t.name IS NOT NULL
+        UNION ALL
+        SELECT name, value
+        FROM stats
+        WHERE name IN (
+          'track_descriptor_conflicting_reservation',
+          'track_descriptor_invalid_gpu_id',
+          'track_descriptor_shared_thread_custom_dimensions',
+          'track_dimension_conflicting_value')
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","value"
+        "conflicting child",0
+        "negative","[NULL]"
+        "parent",0
+        "track_descriptor_conflicting_reservation",1
+        "track_descriptor_invalid_gpu_id",1
+        "track_descriptor_shared_thread_custom_dimensions",1
+        "track_dimension_conflicting_value",1
+        """))
