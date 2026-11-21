@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_LEGACY_V8_CPU_PROFILE_TRACKER_H_
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -40,7 +42,11 @@ class LegacyV8CpuProfileTracker
     : public TraceSorter::Sink<LegacyV8CpuProfileEvent,
                                LegacyV8CpuProfileTracker> {
  public:
-  explicit LegacyV8CpuProfileTracker(TraceProcessorContext*);
+  // |pid_scope| returns the scope sample pids belong to; the machine scope if
+  // not set.
+  explicit LegacyV8CpuProfileTracker(
+      TraceProcessorContext*,
+      std::function<ProcessTracker::PidScope()> pid_scope = {});
   ~LegacyV8CpuProfileTracker() override;
 
   void Parse(int64_t ts, LegacyV8CpuProfileEvent);
@@ -88,6 +94,7 @@ class LegacyV8CpuProfileTracker
       state_by_session_and_pid_;
 
   TraceProcessorContext* const context_;
+  std::function<ProcessTracker::PidScope()> pid_scope_;
   const StringPool::Id legacy_v8_source_id_;
 };
 

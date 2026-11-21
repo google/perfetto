@@ -2967,6 +2967,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/trace_diagnostics_tracker_helper.h",
         "src/trace_processor/importers/common/trace_file_tracker.cc",
         "src/trace_processor/importers/common/trace_file_tracker.h",
+        "src/trace_processor/importers/common/trace_pid_scope.cc",
+        "src/trace_processor/importers/common/trace_pid_scope.h",
         "src/trace_processor/importers/common/track_compressor.cc",
         "src/trace_processor/importers/common/track_compressor.h",
         "src/trace_processor/importers/common/track_tracker.cc",

@@ -87,6 +87,8 @@ source_set("common") {
     "trace_diagnostics_tracker_helper.h",
     "trace_file_tracker.cc",
     "trace_file_tracker.h",
+    "trace_pid_scope.cc",
+    "trace_pid_scope.h",
     "track_compressor.cc",
     "track_compressor.h",
     "track_tracker.cc",

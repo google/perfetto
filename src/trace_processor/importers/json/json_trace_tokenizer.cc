@@ -530,7 +530,9 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       parser_(ctx),
-      v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(ctx)),
+      v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(
+          ctx,
+          [this] { return parser_.pid_scope(); })),
       json_stream_(
           context_->sorter->CreateStream(std::make_unique<JsonSink>(&parser_))),
       systrace_stream_(context_->sorter->CreateStream(
@@ -989,6 +991,7 @@ base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,
   }
 
   if (key == "systemTraceEvents") {
+    parser_.set_has_system_trace_events();
     // Skip the " character opening the string.
     if (*next != '"') {
       return base::ErrStatus(

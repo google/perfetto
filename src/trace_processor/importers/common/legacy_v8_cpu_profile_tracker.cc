@@ -41,8 +41,10 @@
 namespace perfetto::trace_processor {
 
 LegacyV8CpuProfileTracker::LegacyV8CpuProfileTracker(
-    TraceProcessorContext* context)
+    TraceProcessorContext* context,
+    std::function<ProcessTracker::PidScope()> pid_scope)
     : context_(context),
+      pid_scope_(std::move(pid_scope)),
       legacy_v8_source_id_(context->storage->InternString("legacy_v8")) {}
 
 LegacyV8CpuProfileTracker::~LegacyV8CpuProfileTracker() = default;
@@ -185,13 +187,16 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   if (!id) {
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
   }
-  UniqueTid utid = context_->process_tracker->UpdateProducerThread(tid, pid);
+  ProcessTracker::PidScope scope =
+      pid_scope_ ? pid_scope_() : ProcessTracker::kMachinePidScope;
+  UniqueTid utid =
+      context_->process_tracker->UpdateProducerThread(scope, tid, pid);
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
   row.source = legacy_v8_source_id_;
   tables::ProfilerTaskContextTable::Row task_context;
   task_context.utid = utid;
-  task_context.upid = context_->process_tracker->GetOrCreateProcess(pid);
+  task_context.upid = context_->process_tracker->GetOrCreateProcess(scope, pid);
   row.task_context_id =
       context_->profiler_sample_tracker->InternTaskContext(task_context);
   row.callsite_id = *id;

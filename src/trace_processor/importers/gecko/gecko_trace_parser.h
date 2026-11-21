@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "src/trace_processor/importers/common/trace_pid_scope.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -43,6 +44,7 @@ class GeckoTraceParser
 
   TraceProcessorContext* const context_;
   const StringPool::Id gecko_source_id_;
+  TracePidScope pid_scope_;
 };
 
 }  // namespace perfetto::trace_processor::gecko_importer

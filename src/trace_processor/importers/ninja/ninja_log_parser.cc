@@ -149,6 +149,8 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
     TrackId track_id;
   };
   std::vector<Worker> workers;
+  // The synthetic pid and worker tids must not clash with real ones.
+  ProcessTracker::PidScope pid_scope = ctx_->process_tracker->NewPidScope();
   for (const auto& job : jobs_) {
     Worker* worker = nullptr;
     for (Worker& cur : workers) {
@@ -168,10 +170,11 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
       // All workers are busy, allocate a new one.
       uint32_t worker_id = static_cast<uint32_t>(workers.size()) + 1;
       ctx_->process_tracker->UpdateProcessName(
-          ctx_->process_tracker->GetOrCreateProcess(kSyntheticNinjaPid),
+          ctx_->process_tracker->GetOrCreateProcess(pid_scope,
+                                                    kSyntheticNinjaPid),
           ctx_->storage->InternString("Build"), ProcessNamePriority::kOther);
-      auto utid =
-          ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);
+      auto utid = ctx_->process_tracker->UpdateProducerThread(
+          pid_scope, worker_id, kSyntheticNinjaPid);
 
       base::StackString<32> name("Worker");
       StringId name_id = ctx_->storage->InternString(name.string_view());

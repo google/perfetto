@@ -52,11 +52,16 @@ class TraceFileTracker {
     return names_[id.value];
   }
 
+  // Number of files started so far which are traces rather than containers
+  // (e.g. zip or gzip).
+  size_t non_container_file_count() const { return non_container_files_; }
+
  private:
   tables::TraceFileTable::Id AddFileImpl(StringId name);
 
   TraceProcessorContext* const context_;
   size_t processing_order_ = 0;
+  size_t non_container_files_ = 0;
   std::vector<tables::TraceFileTable::Id> parsing_stack_;
   // Indexed by file id, holding what GetName() returns.
   std::vector<StringId> names_;
