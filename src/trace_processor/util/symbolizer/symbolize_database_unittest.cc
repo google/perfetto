@@ -116,6 +116,30 @@ TEST(DebuginfodOptionsTest, ExplicitValuesAndWhitespace) {
   EXPECT_EQ(config.stall_timeout_seconds, 3u);
 }
 
+TEST(DebuginfodOptionsTest, ImaPolicyTags) {
+  DebuginfodOptions options;
+  options.enabled = true;
+  options.urls =
+      "ima:enforcing https://one.example/ https://two.example/debug/ "
+      "ima:ignore http://three.example/";
+  options.cache_path = "/chosen/cache";
+  DebuginfodConfig config;
+
+  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config).ok());
+  EXPECT_THAT(config.urls, testing::ElementsAre("https://one.example",
+                                                "https://two.example/debug",
+                                                "http://three.example"));
+  EXPECT_THAT(config.ima_policy_warning, testing::HasSubstr("ima:enforcing"));
+  EXPECT_EQ(config.cache_path, "/chosen/cache");
+
+  config = {};
+  options.urls = "ima:enforcing ima:ignore https://one.example/";
+  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config).ok());
+  EXPECT_THAT(config.urls, testing::ElementsAre("https://one.example"));
+  EXPECT_TRUE(config.ima_policy_warning.empty());
+  EXPECT_EQ(config.cache_path, "/chosen/cache");
+}
+
 #endif
 
 TEST(DebuginfodOptionsTest, ConfigurationDoesNotEnableDownloads) {
@@ -136,7 +160,8 @@ TEST(DebuginfodOptionsTest, RejectsEmptyOverridesAndInvalidValues) {
   DebuginfodConfig config;
   EXPECT_FALSE(ResolveDebuginfodOptions(options, &config).ok());
   for (const char* url :
-       {"file:///tmp/debug", "https://host?q=x", "https://host#fragment"}) {
+       {"file:///tmp/debug", "https://host?q=x", "https://host#fragment",
+        "ima:unknown https://host"}) {
     config = {};
     options.urls = url;
     EXPECT_FALSE(ResolveDebuginfodOptions(options, &config).ok());

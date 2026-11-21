@@ -364,6 +364,15 @@ TEST_F(DebuginfodIntegrationTest, RemoteOnlyAndCacheReuse) {
   EXPECT_THAT(server_->requests(), IsEmpty());
 }
 
+TEST_F(DebuginfodIntegrationTest, ImaTagsFromEnvironment) {
+  auto result = Bundle(
+      {"--debuginfod"},
+      {"DEBUGINFOD_URLS=ima:enforcing " + server_->url() + "/ok ima:ignore"});
+  EXPECT_THAT(result.err, HasSubstr("IMA verification is not supported"));
+  ExpectSymbolized(bundle_);
+  EXPECT_THAT(server_->requests(), ElementsAre(OkRequest()));
+}
+
 TEST_F(DebuginfodIntegrationTest, DisabledWarnsEvenWhenQuiet) {
   auto result =
       Bundle({"--quiet"}, {"DEBUGINFOD_URLS=" + server_->url() + "/ok"});
@@ -475,6 +484,16 @@ TEST_F(DebuginfodIntegrationTest, SymbolizeUtility) {
       RunShell({"util", "symbolize", "--debuginfod", "--debuginfod-urls",
                 server_->url() + "/ok", "--debuginfod-cache-path", cache_,
                 "--quiet", trace_});
+  EXPECT_EQ(result.exit_code, 0) << result.err;
+  EXPECT_THAT(result.out, HasSubstr(kSymbol));
+  EXPECT_THAT(result.err, IsEmpty());
+}
+
+TEST_F(DebuginfodIntegrationTest, SymbolizeWithImaTags) {
+  auto result = RunShell(
+      {"util", "symbolize", "--quiet", "--debuginfod", "--debuginfod-urls",
+       "ima:enforcing " + server_->url() + "/ok ima:ignore",
+       "--debuginfod-cache-path", cache_, trace_});
   EXPECT_EQ(result.exit_code, 0) << result.err;
   EXPECT_THAT(result.out, HasSubstr(kSymbol));
   EXPECT_THAT(result.err, IsEmpty());
