@@ -72,6 +72,10 @@ export type AdvancedAnalyticsEvent = TraceLoadedEvent | PluginLoadedEvent;
 // A random ID for one trace load, shared by all of its events.
 export type TraceLoadId = Brand<string, 'TraceLoadId'>;
 
+export function createTraceLoadId(): TraceLoadId {
+  return uuidv4() as TraceLoadId;
+}
+
 // The size of a trace file, rounded to a coarse range. 'unknown' when the size
 // isn't known in advance, e.g. for traces opened from a URL.
 export type TraceSizeBucket =
