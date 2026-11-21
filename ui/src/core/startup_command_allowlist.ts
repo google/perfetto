@@ -22,6 +22,7 @@ export const STARTUP_COMMAND_ALLOWLIST: string[] = [
   'dev.perfetto.PinTracksByRegex',
   'dev.perfetto.ExpandTracksByRegex',
   'dev.perfetto.CollapseTracksByRegex',
+  'dev.perfetto.SetTrackSettingByRegex',
 
   // Debug track commands
   'dev.perfetto.AddDebugSliceTrack',
