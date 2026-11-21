@@ -32,6 +32,7 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
+      ":multi_session_benchmark",
       ":utils",
       "..:shared_lib",
       "../../../gn:benchmark",
@@ -39,6 +40,28 @@ if (enable_perfetto_benchmarks) {
       "../../../include/perfetto/public",
     ]
     sources = [ "benchmark.cc" ]
+  }
+
+  # Uses an in-process service with distinct consumer UIDs so eight sessions
+  # can run in one process without hitting the per-UID session limit.
+  source_set("multi_session_benchmark") {
+    testonly = true
+    deps = [
+      ":utils",
+      "..:shared_lib",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+      "../../../include/perfetto/base",
+      "../../../include/perfetto/ext/tracing/core",
+      "../../../include/perfetto/public",
+      "../../../include/perfetto/tracing",
+      "../../../protos/perfetto/config:cpp",
+      "../../../protos/perfetto/config/track_event:cpp",
+      "../../tracing:client_api",
+      "../../tracing/core",
+      "../../tracing/service",
+    ]
+    sources = [ "multi_session_benchmark.cc" ]
   }
 }
 

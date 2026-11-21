@@ -1960,6 +1960,48 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
 }
 
+// All sessions that record an event share the same timestamp because the clock
+// is read once per event.
+TEST_F(SharedLibTrackEventTest, TrackEventHlSessionsShareTimestamp) {
+  auto first = TracingSession::Builder()
+                   .set_data_source_name("track_event")
+                   .add_enabled_category("cat1")
+                   .set_disable_incremental_timestamps(true)
+                   .Build();
+  auto second = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_disable_incremental_timestamps(true)
+                    .Build();
+  // The first event resets the incremental state, and the second does not.
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event2"));
+  first.StopBlocking();
+  second.StopBlocking();
+  auto collect_timestamps = [](const std::vector<uint8_t>& data,
+                               std::vector<uint64_t>* timestamps) {
+    for (struct PerfettoPbDecoderField packet :
+         IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+      if (IdFieldView(packet,
+                      perfetto_protos_TracePacket_track_event_field_number)
+              .size() == 0) {
+        continue;
+      }
+      IdFieldView timestamp(packet,
+                            perfetto_protos_TracePacket_timestamp_field_number);
+      ASSERT_EQ(timestamp.size(), 1u);
+      timestamps->push_back(timestamp.front().value.integer64);
+    }
+  };
+  std::vector<uint64_t> first_ts;
+  std::vector<uint64_t> second_ts;
+  collect_timestamps(first.ReadBlocking(), &first_ts);
+  collect_timestamps(second.ReadBlocking(), &second_ts);
+  ASSERT_EQ(first_ts.size(), 2u);
+  ASSERT_EQ(second_ts.size(), 2u);
+  EXPECT_EQ(first_ts, second_ts);
+}
+
 TEST_F(SharedLibTrackEventTest, TrackEventCategoryCallback) {
   StrictMock<MockFunction<void(struct PerfettoTeCategoryImpl*,
                                PerfettoDsInstanceIndex, bool, bool)>>

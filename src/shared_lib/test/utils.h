@@ -87,6 +87,10 @@ class TracingSession {
       enabled_tags_.push_back(std::move(tag));
       return *this;
     }
+    Builder& set_disable_incremental_timestamps(bool disabled) {
+      disable_incremental_timestamps_ = disabled;
+      return *this;
+    }
     Builder& set_clear_period_ms(uint32_t clear_period_ms) {
       clear_period_ms_ = clear_period_ms;
       return *this;
@@ -110,6 +114,7 @@ class TracingSession {
     std::vector<std::string> enabled_tags_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
+    bool disable_incremental_timestamps_ = false;
     std::optional<uint32_t> v2_probability_;
   };
 
