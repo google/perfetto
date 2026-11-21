@@ -89,3 +89,7 @@ void PerfettoTeCategoryImplDestroy(struct PerfettoTeCategoryImpl* cat) {
   perfetto::shlib::GlobalState::Instance().UnregisterCategory(cat);
   delete cat;
 }
+
+uint32_t PerfettoTeHlGetJavaEncodingModes(struct PerfettoTeCategoryImpl* cat) {
+  return perfetto::shlib::GlobalState::Instance().GetJavaEncodingModes(cat);
+}

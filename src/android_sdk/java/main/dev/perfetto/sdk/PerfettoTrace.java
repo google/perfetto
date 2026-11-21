@@ -101,6 +101,9 @@ public final class PerfettoTrace {
     @CriticalNative
     private static native boolean native_is_enabled(long ptr);
 
+    @CriticalNative
+    private static native int native_get_encoding_modes(long ptr);
+
     /** Create the native category object and register it. */
     public synchronized Category register() {
       if (!PerfettoNativeLibrary.isAvailable()) {
@@ -139,6 +142,12 @@ public final class PerfettoTrace {
     public boolean isEnabled() {
       // mPtr is volatile and is set only from `#register()` method.
       return mPtr != 0 && native_is_enabled(mPtr);
+    }
+
+    // Freeze this snapshot in the builder; native emission checks each session.
+    int getEncodingModes() {
+      long ptr = mPtr;
+      return ptr == 0 ? 0 : native_get_encoding_modes(ptr);
     }
 
     /** Whether the category is registered or not. */

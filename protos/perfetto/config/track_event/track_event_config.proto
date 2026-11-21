@@ -103,4 +103,20 @@ message TrackEventConfig {
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.
   optional bool filter_dynamic_event_names = 9;
+
+  // Selects the Java SDK encoder for this recording. This is independent of
+  // the trace writer's v1/v2 selection and does not affect C or C++ events.
+  // Experimental: remove this switch after the Java encoder migration.
+  enum JavaEventEncoding {
+    JAVA_EVENT_ENCODING_UNSPECIFIED = 0;
+    JAVA_EVENT_ENCODING_LEGACY = 1;
+    JAVA_EVENT_ENCODING_ENCODED = 2;
+  }
+  // Absent or UNSPECIFIED selects LEGACY. Unknown values also select LEGACY.
+  // ENCODED writes event, category and debug-argument names inline. Explicit
+  // addFieldWithInterning() calls still use sequence-local interned IDs.
+  // Concurrent recordings may request different modes; Java then builds both
+  // representations. A builder keeps the modes selected when it was created.
+  // Recordings started later receive it only if their mode was selected.
+  optional JavaEventEncoding experimental_java_event_encoding = 11;
 }

@@ -94,6 +94,7 @@ struct TrackEventTlsState {
     timestamp_unit_multiplier = 1;
     if (locked_ds.valid()) {
       const auto& config = locked_ds->GetConfig();
+      java_encoding_mode = GlobalState::JavaEncodingMode(config);
       disable_incremental_timestamps = config.disable_incremental_timestamps();
       if (config.has_timestamp_unit_multiplier() &&
           config.timestamp_unit_multiplier() != 0) {
@@ -110,6 +111,7 @@ struct TrackEventTlsState {
       default_clock_id = PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL;
     }
   }
+  uint32_t java_encoding_mode = PERFETTO_TE_JAVA_ENCODING_LEGACY;
   uint32_t default_clock_id;
   uint64_t timestamp_unit_multiplier;
 };

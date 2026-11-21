@@ -74,6 +74,18 @@ PERFETTO_SDK_EXPORT void PerfettoTePublishCategories(void);
 PERFETTO_SDK_EXPORT PERFETTO_ATOMIC(bool) *
     PerfettoTeCategoryImplGetEnabled(struct PerfettoTeCategoryImpl*);
 
+// Experimental Java binding encoder modes. These are a bitmask, not the
+// TrackEventConfig enum values. Ordinary C/C++ emitters ignore this selection.
+#define PERFETTO_TE_JAVA_ENCODING_LEGACY 1u
+#define PERFETTO_TE_JAVA_ENCODING_ENCODED 2u
+
+// Returns the Java representations currently requested for this category, or
+// zero if disabled. This is an advisory snapshot: sessions may start or stop
+// before emission. The builder retains these bits; a later session is eligible
+// only if its requested representation was built. NULL returns zero.
+PERFETTO_SDK_EXPORT uint32_t
+PerfettoTeHlGetJavaEncodingModes(struct PerfettoTeCategoryImpl* cat);
+
 // Called when a data source instance is created (if `created` is true) or
 // destroyed (if `created` is false) with a registered category enabled.
 // `global_state_changed` is true if this was the first instance created with

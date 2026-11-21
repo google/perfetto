@@ -87,6 +87,10 @@ class TracingSession {
       enabled_tags_.push_back(std::move(tag));
       return *this;
     }
+    Builder& set_java_event_encoding(uint32_t encoding) {
+      java_event_encoding_ = encoding;
+      return *this;
+    }
     Builder& set_clear_period_ms(uint32_t clear_period_ms) {
       clear_period_ms_ = clear_period_ms;
       return *this;
@@ -111,6 +115,7 @@ class TracingSession {
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
     std::optional<uint32_t> v2_probability_;
+    std::optional<uint32_t> java_event_encoding_;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);

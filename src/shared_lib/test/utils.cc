@@ -92,7 +92,7 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
                                                             &protovm_cfg);
       }
       if (!enabled_categories_.empty() || !disabled_categories_.empty() ||
-          !enabled_tags_.empty()) {
+          !enabled_tags_.empty() || java_event_encoding_.has_value()) {
         perfetto_protos_TrackEventConfig te_cfg;
         perfetto_protos_DataSourceConfig_begin_track_event_config(&ds_cfg,
                                                                   &te_cfg);
@@ -107,6 +107,13 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
         for (const std::string& tag : enabled_tags_) {
           perfetto_protos_TrackEventConfig_set_enabled_tags(&te_cfg, tag.data(),
                                                             tag.size());
+        }
+        if (java_event_encoding_.has_value()) {
+          // Keep unknown values representable for compatibility coverage.
+          PerfettoPbMsgAppendType0Field(
+              &te_cfg.msg,
+              perfetto_protos_TrackEventConfig_experimental_java_event_encoding_field_number,
+              *java_event_encoding_);
         }
         perfetto_protos_DataSourceConfig_end_track_event_config(&ds_cfg,
                                                                 &te_cfg);

@@ -17,6 +17,7 @@
 #ifndef SRC_SHARED_LIB_TRACK_EVENT_GLOBAL_STATE_H_
 #define SRC_SHARED_LIB_TRACK_EVENT_GLOBAL_STATE_H_
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
@@ -35,6 +36,11 @@ class GlobalState {
     return *instance;
   }
 
+  // The single default-policy boundary, shared by queries and session TLS.
+  static uint32_t JavaEncodingMode(
+      const perfetto::protos::gen::TrackEventConfig& config);
+  uint32_t GetJavaEncodingModes(const PerfettoTeCategoryImpl* cat) const;
+
   void OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
   void OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
@@ -51,6 +57,9 @@ class GlobalState {
  private:
   GlobalState();
 
+  // Updated before publishing category activation and after disabling it.
+  // Queries are hints; emission checks the selected instance's immutable TLS.
+  std::atomic<uint8_t> java_encoded_instances_{0};
   mutable std::mutex mu_;
   std::vector<PerfettoTeCategoryImpl*> categories_ PERFETTO_GUARDED_BY(mu_);
   std::unordered_map<uint32_t, perfetto::protos::gen::TrackEventConfig>
