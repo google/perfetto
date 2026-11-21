@@ -41,6 +41,7 @@ import {IdleDetector} from './idle_detector';
 import type {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
 import {CORE_OWNER} from '../core/ownership';
+import {ownershipOverlay} from './ownership_debug';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
@@ -113,6 +114,16 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
     'Allows simultaneous usage of several trace_processor_shell ' +
     '-D --http-port 1234 by opening ' +
     'https://ui.perfetto.dev/#!/?rpc_port=1234',
+  defaultValue: false,
+});
+
+const OWNERSHIP_OVERLAY_FLAG = featureFlags.register({
+  id: 'ownershipAttributionOverlay',
+  name: 'Development: ownership attribution overlay',
+  description:
+    'Adds the command "Debug: Toggle ownership attribution overlay", which ' +
+    'shows which plugin owns each part of the screen. Useful for checking ' +
+    "a plugin's UI is attributed to it.",
   defaultValue: false,
 });
 
@@ -408,6 +419,14 @@ function onCssLoaded(app: AppImpl) {
       themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');
     },
   });
+
+  if (OWNERSHIP_OVERLAY_FLAG.get()) {
+    app.commands.registerCommand({
+      id: 'dev.perfetto.ToggleOwnershipOverlay',
+      name: 'Debug: Toggle ownership attribution overlay',
+      callback: () => ownershipOverlay.toggle(),
+    });
+  }
 
   // Mount the main mithril component. This also forces a sync render pass.
   raf.mount(document.body, {
