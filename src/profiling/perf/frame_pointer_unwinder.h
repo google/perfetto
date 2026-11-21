@@ -17,14 +17,13 @@
 #define SRC_PROFILING_PERF_FRAME_POINTER_UNWINDER_H_
 
 #include <stdint.h>
-#include <unwindstack/Error.h>
-#include <unwindstack/Unwinder.h>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_engine.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -32,14 +31,14 @@ namespace profiling {
 class FramePointerUnwinder {
  public:
   FramePointerUnwinder(size_t max_frames,
-                       unwindstack::Maps* maps,
+                       ProcessUnwindState* state,
                        const CpuRegisters* regs,
-                       std::shared_ptr<unwindstack::Memory> process_memory,
+                       const uint8_t* stack_data,
                        size_t stack_size)
       : max_frames_(max_frames),
-        maps_(maps),
+        state_(state),
         regs_(regs),
-        process_memory_(process_memory),
+        stack_data_(stack_data),
         stack_size_(stack_size),
         arch_(regs->arch) {
     stack_end_ = regs->sp() + stack_size;
@@ -54,11 +53,10 @@ class FramePointerUnwinder {
   // set to an empty string and the function offset being set to zero.
   void SetResolveNames(bool resolve) { resolve_names_ = resolve; }
 
-  unwindstack::ErrorCode LastErrorCode() const { return last_error_.code; }
-  uint64_t warnings() const { return warnings_; }
+  UnwindErrorCode LastErrorCode() const { return last_error_; }
 
-  std::vector<unwindstack::FrameData> ConsumeFrames() {
-    std::vector<unwindstack::FrameData> frames = std::move(frames_);
+  std::vector<FrameData> ConsumeFrames() {
+    std::vector<FrameData> frames = std::move(frames_);
     frames_.clear();
     return frames;
   }
@@ -67,25 +65,20 @@ class FramePointerUnwinder {
     return arch_ == CpuArch::ARM64 || arch_ == CpuArch::X86_64;
   }
 
-  void ClearErrors() {
-    warnings_ = unwindstack::WARNING_NONE;
-    last_error_.code = unwindstack::ERROR_NONE;
-    last_error_.address = 0;
-  }
+  void ClearErrors() { last_error_ = UnwindErrorCode::kNone; }
 
  protected:
   const size_t max_frames_;
-  unwindstack::Maps* maps_;
+  ProcessUnwindState* state_;
   const CpuRegisters* regs_;
-  std::vector<unwindstack::FrameData> frames_;
-  std::shared_ptr<unwindstack::Memory> process_memory_;
+  std::vector<FrameData> frames_;
+  const uint8_t* stack_data_;
   const size_t stack_size_;
   CpuArch arch_ = CpuArch::UNKNOWN;
   bool resolve_names_ = false;
-  size_t stack_end_;
+  uint64_t stack_end_;
 
-  unwindstack::ErrorData last_error_;
-  uint64_t warnings_ = 0;
+  UnwindErrorCode last_error_ = UnwindErrorCode::kNone;
 
  private:
   void TryUnwind();

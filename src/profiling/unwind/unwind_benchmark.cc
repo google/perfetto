@@ -28,15 +28,17 @@
 #include <string>
 #include <vector>
 
-#include <unwindstack/Elf.h>
-#include <unwindstack/Unwinder.h>
-
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/frame_pointer_unwinder.h"
-#include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/get_asm_regs.h"
+#include "src/profiling/unwind/unwind_engine.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
+#include <unwindstack/Elf.h>
+#include <unwindstack/Unwinder.h>
+#endif
 
 namespace perfetto {
 namespace profiling {
@@ -142,41 +144,35 @@ class UnwindBenchmarkFixture {
     PERFETTO_CHECK(maps_fd.get() >= 0);
     PERFETTO_CHECK(mem_fd.get() >= 0);
 
-    metadata_ = std::make_unique<UnwindingMetadata>(std::move(maps_fd),
-                                                    std::move(mem_fd));
-    overlay_memory_ = std::make_shared<StackOverlayMemory>(
-        metadata_->fd_mem, sample_.regs.sp(), sample_.stack_bytes.data(),
-        sample_.stack_bytes.size());
+    unwind_state_ =
+        ProcessUnwindState::Create(std::move(maps_fd), std::move(mem_fd));
 
     // Non-timed warmup so lazy MapInfo/ELF/symbol/build-ID caches are
     // populated before timed iterations begin.
-    for (const auto& frame : Unwind(/*resolve_names=*/true)) {
-      metadata_->GetBuildId(frame);
+    UnwindInputSample sample;
+    sample.regs = &sample_.regs;
+    sample.stack_data = sample_.stack_bytes.data();
+    sample.stack_size = sample_.stack_bytes.size();
+
+    UnwindOptions options;
+    options.max_frames = kMaxFrames;
+    options.resolve_names = true;
+
+    UnwindResult result =
+        UnwindEngine::Get()->Unwind(unwind_state_.get(), sample, options);
+    for (const auto& frame : result.frames) {
+      if (frame.map_info != nullptr) {
+        frame.map_info->build_id();
+      }
     }
   }
 
-  std::vector<unwindstack::FrameData> Unwind(bool resolve_names) {
-    std::unique_ptr<unwindstack::Regs> regs =
-        ToLibUnwindstackRegs(sample_.regs);
-    PERFETTO_DCHECK(regs != nullptr);
-    unwindstack::Unwinder unwinder(kMaxFrames, &metadata_->fd_maps, regs.get(),
-                                   overlay_memory_);
-    unwinder.SetResolveNames(resolve_names);
-    unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
-                    /*map_suffixes_to_ignore=*/nullptr);
-    return unwinder.ConsumeFrames();
-  }
-
   const SampleSnapshot& sample() const { return sample_; }
-  UnwindingMetadata* metadata() { return metadata_.get(); }
-  std::shared_ptr<unwindstack::Memory> overlay_memory() {
-    return overlay_memory_;
-  }
+  ProcessUnwindState* unwind_state() { return unwind_state_.get(); }
 
  private:
   SampleSnapshot sample_;
-  std::unique_ptr<UnwindingMetadata> metadata_;
-  std::shared_ptr<unwindstack::Memory> overlay_memory_;
+  std::unique_ptr<ProcessUnwindState> unwind_state_;
 };
 
 void RecordMetrics(benchmark::State& state,
@@ -207,21 +203,31 @@ void BM_Unwind_Dwarf(benchmark::State& state, const UnwindArgs& args) {
   }
   UnwindBenchmarkFixture fixture(args.depth);
 
+  UnwindInputSample sample;
+  sample.regs = &fixture.sample().regs;
+  sample.stack_data = fixture.sample().stack_bytes.data();
+  sample.stack_size = fixture.sample().stack_bytes.size();
+
+  UnwindOptions options;
+  options.max_frames = kMaxFrames;
+  options.resolve_names = args.resolve_names;
+
   size_t total_frames = 0;
   size_t error_count = 0;
   for (auto _ : state) {
-    std::vector<unwindstack::FrameData> frames =
-        fixture.Unwind(args.resolve_names);
-    if (frames.empty()) {
+    UnwindResult result =
+        UnwindEngine::Get()->Unwind(fixture.unwind_state(), sample, options);
+    if (result.frames.empty()) {
       error_count++;
     }
     std::vector<std::string> build_ids;
-    build_ids.reserve(frames.size());
-    for (const auto& frame : frames) {
-      build_ids.emplace_back(fixture.metadata()->GetBuildId(frame));
+    build_ids.reserve(result.frames.size());
+    for (const auto& frame : result.frames) {
+      build_ids.emplace_back(
+          frame.map_info != nullptr ? frame.map_info->build_id() : "");
     }
 
-    total_frames += frames.size();
+    total_frames += result.frames.size();
     benchmark::DoNotOptimize(total_frames);
     benchmark::DoNotOptimize(build_ids);
   }
@@ -243,20 +249,21 @@ void BM_Unwind_FramePointer(benchmark::State& state, int depth) {
   size_t total_frames = 0;
   size_t error_count = 0;
   for (auto _ : state) {
-    CpuRegisters regs_copy = fixture.sample().regs;
-    FramePointerUnwinder unwinder(kMaxFrames, &fixture.metadata()->fd_maps,
-                                  &regs_copy, fixture.overlay_memory(),
+    FramePointerUnwinder unwinder(kMaxFrames, fixture.unwind_state(),
+                                  &fixture.sample().regs,
+                                  fixture.sample().stack_bytes.data(),
                                   fixture.sample().stack_bytes.size());
     unwinder.Unwind();
 
-    std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
+    std::vector<FrameData> frames = unwinder.ConsumeFrames();
     if (frames.empty()) {
       error_count++;
     }
     std::vector<std::string> build_ids;
     build_ids.reserve(frames.size());
     for (const auto& frame : frames) {
-      build_ids.emplace_back(fixture.metadata()->GetBuildId(frame));
+      build_ids.emplace_back(
+          frame.map_info != nullptr ? frame.map_info->build_id() : "");
     }
 
     total_frames += frames.size();
@@ -275,26 +282,41 @@ void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
   }
   UnwindBenchmarkFixture fixture(depth);
 
+  UnwindInputSample sample;
+  sample.regs = &fixture.sample().regs;
+  sample.stack_data = fixture.sample().stack_bytes.data();
+  sample.stack_size = fixture.sample().stack_bytes.size();
+
+  UnwindOptions options;
+  options.max_frames = kMaxFrames;
+  options.resolve_names = true;
+
   size_t total_frames = 0;
   size_t error_count = 0;
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
   const bool elf_cache_enabled = unwindstack::Elf::CachingEnabled();
+#endif
   for (auto _ : state) {
     state.PauseTiming();
-    fixture.metadata()->ReparseMaps();
+    fixture.unwind_state()->ReparseMaps();
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
     unwindstack::Elf::SetCachingEnabled(false);
     unwindstack::Elf::SetCachingEnabled(true);
+#endif
     state.ResumeTiming();
 
-    std::vector<unwindstack::FrameData> frames =
-        fixture.Unwind(/*resolve_names=*/true);
-    if (frames.empty()) {
+    UnwindResult result =
+        UnwindEngine::Get()->Unwind(fixture.unwind_state(), sample, options);
+    if (result.frames.empty()) {
       error_count++;
     }
-    total_frames += frames.size();
+    total_frames += result.frames.size();
     benchmark::DoNotOptimize(total_frames);
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
   unwindstack::Elf::SetCachingEnabled(elf_cache_enabled);
+#endif
   RecordMetrics(state, depth, total_frames, error_count);
 }
 
