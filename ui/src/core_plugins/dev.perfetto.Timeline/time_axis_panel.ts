@@ -22,9 +22,11 @@ import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
 import type {Trace} from '../../public/trace';
 import {
-  FONT_COMPACT,
-  COLOR_TEXT_MUTED,
+  COLOR_ACCENT,
   COLOR_BORDER,
+  COLOR_TEXT_MUTED,
+  COLOR_TEXT_ON_ACCENT,
+  FONT_COMPACT,
   TRACK_SHELL_WIDTH,
 } from '../../frontend/css_constants';
 import {
@@ -44,7 +46,7 @@ export class TimeAxisPanel {
     return m('', {style: {height: `${this.height}px`}});
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D, hoverX?: number) {
     ctx.textAlign = 'left';
     ctx.font = `11px ${FONT_COMPACT}`;
 
@@ -54,7 +56,9 @@ export class TimeAxisPanel {
     ctx.save();
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     canvasClip(ctx, 0, 0, trackSize.width, trackSize.height);
-    this.renderPanel(ctx, trackSize);
+    const panelHoverX =
+      hoverX !== undefined ? hoverX - TRACK_SHELL_WIDTH : undefined;
+    this.renderPanel(ctx, trackSize, panelHoverX);
     ctx.restore();
   }
 
@@ -113,7 +117,11 @@ export class TimeAxisPanel {
     ctx.fillText(value, x + labelWidth, y);
   }
 
-  private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
+  private renderPanel(
+    ctx: CanvasRenderingContext2D,
+    size: Size2D,
+    hoverX?: number,
+  ): void {
     const visibleWindow = this.trace.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
@@ -142,6 +150,71 @@ export class TimeAxisPanel {
           );
         }
       }
+
+      if (hoverX !== undefined && hoverX >= 0 && hoverX < size.width) {
+        this.renderHoverTimestamp(ctx, timescale, size, hoverX);
+      }
+    }
+  }
+
+  private renderHoverTimestamp(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size2D,
+    hoverX: number,
+  ): void {
+    const xPos = Math.floor(hoverX);
+    const hoverTime = timescale.pxToHpTime(hoverX).toTime();
+    const domainTime = this.trace.timeline.toDomainTime(hoverTime);
+    const fmt = this.trace.timeline.timestampFormat;
+
+    let firstLine: string;
+    let secondLine: string | undefined;
+    switch (fmt) {
+      case TimestampFormat.UTC:
+      case TimestampFormat.CustomTimezone:
+      case TimestampFormat.TraceTz:
+      case TimestampFormat.Timecode: {
+        const timecode = Time.toTimecode(domainTime);
+        firstLine = timecode.dhhmmss;
+        secondLine = timecode.subsec('\u2009');
+        break;
+      }
+      case TimestampFormat.TraceNs:
+      case TimestampFormat.TraceNsLocale:
+      case TimestampFormat.Seconds:
+      case TimestampFormat.Milliseconds:
+      case TimestampFormat.Microseconds:
+        firstLine = formatRawTimestamp(fmt, domainTime);
+        break;
+      default:
+        assertUnreachable(fmt);
+    }
+
+    ctx.font = `11px ${FONT_COMPACT}`;
+    const firstRowWidth = ctx.measureText(firstLine).width;
+    let secondRowWidth = 0;
+    if (secondLine !== undefined) {
+      ctx.font = `10.5px ${FONT_COMPACT}`;
+      secondRowWidth = ctx.measureText(secondLine).width;
+    }
+    const textWidth = Math.ceil(Math.max(firstRowWidth, secondRowWidth));
+
+    const padding = 4;
+    const bgWidth = padding + textWidth + padding;
+    const placeOnLeft = xPos + bgWidth > size.width;
+    const bgLeft = placeOnLeft ? xPos + 1 - bgWidth : xPos;
+    const labelX = bgLeft + padding;
+
+    ctx.fillStyle = COLOR_ACCENT;
+    ctx.fillRect(bgLeft, 0, bgWidth, size.height);
+
+    ctx.fillStyle = COLOR_TEXT_ON_ACCENT;
+    ctx.font = `11px ${FONT_COMPACT}`;
+    ctx.fillText(firstLine, labelX, 10);
+    if (secondLine !== undefined) {
+      ctx.font = `10.5px ${FONT_COMPACT}`;
+      ctx.fillText(secondLine, labelX, 20);
     }
   }
 
@@ -191,6 +264,31 @@ export class TimeAxisPanel {
         const z: never = fmt;
         throw new Error(`Invalid timestamp ${z}`);
     }
+  }
+}
+
+function formatRawTimestamp(
+  fmt:
+    | TimestampFormat.TraceNs
+    | TimestampFormat.TraceNsLocale
+    | TimestampFormat.Seconds
+    | TimestampFormat.Milliseconds
+    | TimestampFormat.Microseconds,
+  time: time,
+): string {
+  switch (fmt) {
+    case TimestampFormat.TraceNs:
+      return time.toString();
+    case TimestampFormat.TraceNsLocale:
+      return time.toLocaleString();
+    case TimestampFormat.Seconds:
+      return Time.formatSeconds(time);
+    case TimestampFormat.Milliseconds:
+      return Time.formatMilliseconds(time);
+    case TimestampFormat.Microseconds:
+      return Time.formatMicroseconds(time);
+    default:
+      assertUnreachable(fmt);
   }
 }
 

@@ -156,6 +156,10 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // Returns the current mouse hover X position relative to the timeline,
+  // or undefined when the mouse is not hovering the timeline.
+  getHoverX?(): number | undefined;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -342,6 +346,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             canvasRect,
             rootNode,
             renderer,
+            attrs.getHoverX?.(),
           );
 
           if (VIRTUAL_TRACK_SCROLLING.get()) {
@@ -430,6 +435,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     floatingCanvasRect: Rect2D,
     rootNode: TrackNode,
     renderer: Renderer,
+    hoverX?: number,
   ) {
     const timelineRect = new Rect2D({
       left: TRACK_SHELL_WIDTH,
@@ -481,6 +487,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     this.drawHoveredNoteVertical(ctx, timescale, size);
     this.drawHoveredCursorVertical(ctx, timescale, size);
+    this.drawMouseHoverVertical(ctx, timelineRect, hoverX);
     this.drawNoteVerticals(ctx, timescale, size);
     this.drawAreaSelection(ctx, timescale, size);
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
@@ -974,6 +981,21 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         size.height,
         `#344596`,
       );
+    }
+  }
+
+  private drawMouseHoverVertical(
+    ctx: CanvasRenderingContext2D,
+    timelineRect: Rect2D,
+    hoverX?: number,
+  ) {
+    if (
+      hoverX !== undefined &&
+      hoverX >= timelineRect.left &&
+      hoverX < timelineRect.right
+    ) {
+      ctx.fillStyle = COLOR_ACCENT;
+      ctx.fillRect(Math.floor(hoverX), 0, 1, timelineRect.height);
     }
   }
 
