@@ -21,7 +21,7 @@ on:
 
   # 2. presubmit. 'closed' only exists to cancel in-progress runs.
   pull_request:
-    types: [opened, synchronize, closed]
+    types: [opened, synchronize, closed, reopened, labeled, unlabeled]
     branches:
       - main
       - dev/**/*
@@ -31,9 +31,10 @@ permissions:
   actions: read # Required to look up previous postsubmit runs
 
 # If a new commit is pushed, cancel previous jobs for the same PR. Scheduled
-# runs queue behind each other instead, so a slow run still completes.
+# runs queue behind each other instead, so a slow run still completes. A label
+# change other than ci:paused gets a group of its own, so it cancels nothing.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci:paused' && github.run_id || 'ci' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -44,7 +45,12 @@ jobs:
     # (2) when our CI autoscaler ramps down, it can take a long time until we
     # have some capacity to run this. In turn, delaying analyze.yml further
     # delays in scaling-up because we didn't queue the child jobs.
-    if: github.event.action != 'closed'
+    if: >-
+      github.event.action != 'closed' &&
+      (github.event_name != 'pull_request' ||
+       !contains(github.event.pull_request.labels.*.name, 'ci:paused')) &&
+      ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+       github.event.label.name == 'ci:paused')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -171,6 +177,8 @@ jobs:
   # all the non-skipped workflows have suceeded. This job is used by the
   # "require CI to pass" GitHub ruleset.
   ensure-ci-is-green:
+    # Unrelated label events must not replace the required check with a skip.
+    name: ${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci:paused' && 'Ignored label change' || 'ensure-ci-is-green' }}
     needs:
       - analyze
       - linux
@@ -181,9 +189,19 @@ jobs:
       - bigtrace
       - repo-checks
       - rust-sdk
-    if: always() && github.event.action != 'closed'
+    if: >-
+      always() &&
+      github.event.action != 'closed' &&
+      ((github.event.action != 'labeled' && github.event.action != 'unlabeled') ||
+       github.event.label.name == 'ci:paused')
     runs-on: ubuntu-latest
     steps:
+      - name: Require CI to be enabled
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:paused')
+        run: |
+          echo "::error::CI is paused. Remove the ci:paused label to run CI before merging."
+          exit 1
+
       - name: Ensure all non-skipped jobs have suceeded
         shell: bash
         env:
@@ -218,6 +236,10 @@ jobs:
               echo "::warning::$job failed with result: $result"
             fi
           }
+          if [ "${{ needs.analyze.result }}" != "success" ]; then
+            echo "::error::analyze did not succeed: ${{ needs.analyze.result }}"
+            failed=1
+          fi
           check linux ${{ needs.linux.result }}
           check android ${{ needs.android.result }}
           check ui ${{ needs.ui.result }}
