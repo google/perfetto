@@ -65,6 +65,9 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
 
     internal::TrackEventInternal::SetBufferExhaustedPolicy(
         args.track_event_buffer_exhausted_policy);
+
+    internal::TrackEventInternal::SetConfigTransform(
+        args.track_event_config_transform);
   }
 
   internal::TracingMuxerImpl::InitializeInstance(args);

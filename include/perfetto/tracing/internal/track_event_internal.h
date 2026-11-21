@@ -373,6 +373,18 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
     buffer_exhausted_policy_ = policy;
   }
 
+  // Set from TracingInitArgs::track_event_config_transform (same type as
+  // perfetto::TrackEventConfigTransform, which tracing.h defines).
+  using ConfigTransform = void (*)(BackendType,
+                                   const DataSourceConfig&,
+                                   protos::gen::TrackEventConfig*);
+  static inline ConfigTransform GetConfigTransform() {
+    return config_transform_;
+  }
+  static inline void SetConfigTransform(ConfigTransform transform) {
+    config_transform_ = transform;
+  }
+
   static int GetSessionCount();
 
   // Represents the default track for the calling thread.
@@ -407,6 +419,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static protos::pbzero::BuiltinClock clock_;
   static bool disallow_merging_with_system_tracks_;
   static BufferExhaustedPolicy buffer_exhausted_policy_;
+  static ConfigTransform config_transform_;
 
   std::mutex mu_;
   std::vector<const TrackEventCategoryRegistry*> registries_;
