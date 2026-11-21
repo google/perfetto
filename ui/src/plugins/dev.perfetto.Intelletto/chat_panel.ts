@@ -26,7 +26,6 @@ import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {showModal} from '../../widgets/modal';
 import {Select} from '../../widgets/select';
-import {TextInput} from '../../widgets/text_input';
 import type {
   LlmGateway,
   ModelDetails,
@@ -84,6 +83,12 @@ function getValidModel(
   }
 
   return undefined;
+}
+
+// Resize a textarea's height to fit its content.
+function autoResize(el: HTMLTextAreaElement) {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
 }
 
 /**
@@ -173,10 +178,19 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       currentModel &&
         m(
           'footer.pf-intelletto__input',
-          m(TextInput, {
+          m('textarea.pf-intelletto__textarea', {
+            rows: 3,
             value: session.input,
+            // Grow the textarea to fit its content (capped by max-height in
+            // CSS). Done on create/update too so it shrinks back after send.
+            oncreate: (vnode: m.VnodeDOM) =>
+              autoResize(vnode.dom as HTMLTextAreaElement),
+            onupdate: (vnode: m.VnodeDOM) =>
+              autoResize(vnode.dom as HTMLTextAreaElement),
             oninput: (e: Event) => {
-              session.input = (e.target as HTMLInputElement).value;
+              const el = e.target as HTMLTextAreaElement;
+              session.input = el.value;
+              autoResize(el);
             },
             onkeydown: (e: KeyboardEvent) => {
               if (e.key === 'Enter' && !e.shiftKey) {
