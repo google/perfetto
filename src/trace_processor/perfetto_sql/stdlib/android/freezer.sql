@@ -221,7 +221,10 @@ FROM app_freeze_changes;
 
 -- FROZEN/UNFROZEN spans of each process over its lifetime. Freezer events and
 -- the trace-stop snapshot rows carry an unfreeze_reason only when the process
--- is unfrozen, which is what tells the two states apart.
+-- is unfrozen, which is what tells the two states apart. UNFROZEN spans keep
+-- that reason, and have none when the unfreeze that started them is unknown.
+-- Spans started by a freeze or an unfreeze also have how long the previous
+-- state lasted.
 CREATE PERFETTO TABLE _android_freezer_intervals AS
 WITH
   -- A frozen process that gets killed emits no unfreeze, so spans stop at its
@@ -240,6 +243,7 @@ WITH
       upid,
       ts,
       iif(unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+      unfreeze_reason,
       -- How long the process was in the opposite state before this event: a
       -- freeze carries the time spent unfrozen, an unfreeze the time spent
       -- frozen.
@@ -262,7 +266,14 @@ WITH
         min(coalesce(e.next_ts, trace_end()), coalesce(l.death, trace_end()))
         - e.ts
       ) AS dur,
-      e.state
+      e.state,
+      e.unfreeze_reason,
+      -- Since the previous event, or the start of the span before the first.
+      e.ts
+      - coalesce(
+        e.prev_ts,
+        max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth))
+      ) AS prev_state_duration
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
     UNION ALL
@@ -275,7 +286,9 @@ WITH
       max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS ts,
       e.ts
       - max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS dur,
-      iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
+      iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state,
+      NULL AS unfreeze_reason,
+      NULL AS prev_state_duration
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
     WHERE
@@ -286,7 +299,9 @@ WITH
       s.upid,
       l.birth AS ts,
       iif(l.death IS NULL, -1, l.death - l.birth) AS dur,
-      iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
+      iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+      s.unfreeze_reason,
+      NULL AS prev_state_duration
     FROM __intrinsic_android_freezer_state AS s
     JOIN lifetimes AS l USING (upid)
     WHERE
@@ -300,7 +315,9 @@ SELECT
   s.upid,
   p.pid,
   m.process_name,
-  s.state
+  s.state,
+  s.unfreeze_reason,
+  s.prev_state_duration
 FROM spans AS s
 JOIN process AS p USING (upid)
 LEFT JOIN android_process_metadata AS m USING (upid)
