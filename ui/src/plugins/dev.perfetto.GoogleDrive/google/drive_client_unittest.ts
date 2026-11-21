@@ -15,6 +15,7 @@
 import {
   DriveClient,
   gdriveOpenLink,
+  gdriveViewLink,
   isValidDriveId,
   parseGDriveStateParam,
 } from './drive_client';
@@ -347,6 +348,20 @@ describe('gdriveOpenLink', () => {
     expect(gdriveOpenLink('https://ui.perfetto.dev', 'file_123')).toBe(
       'https://ui.perfetto.dev/?state=' +
         encodeURIComponent(JSON.stringify({ids: ['file_123']})),
+    );
+  });
+});
+
+describe('gdriveViewLink', () => {
+  test('builds a Drive link from the file ID', () => {
+    expect(gdriveViewLink('file_123')).toBe(
+      'https://drive.google.com/file/d/file_123/view',
+    );
+  });
+
+  test('includes the resource key if given', () => {
+    expect(gdriveViewLink('file_123', '0-key_9')).toBe(
+      'https://drive.google.com/file/d/file_123/view?resourcekey=0-key_9',
     );
   });
 });
@@ -949,5 +964,180 @@ describe('DriveClient.uploadFile', () => {
         await client.uploadFile('token', TRACE, 'folder1', 'n'),
       ).toMatchObject({ok: false, error: {type: 'error', cause: failure}});
     });
+  });
+});
+
+describe('DriveClient.getUserEmail', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(
+      Response.json({user: {emailAddress: 'alice@example.com'}}),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('fetches and returns the signed-in user email address', async () => {
+    const client = await createClient();
+    const result = await client.getUserEmail('secret-token');
+
+    expect(result).toEqual({ok: true, value: 'alice@example.com'});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(url.origin).toBe('https://www.googleapis.com');
+    expect(url.pathname).toBe('/drive/v3/about');
+    expect(url.searchParams.get('fields')).toBe('user(emailAddress)');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(request.url).not.toContain('secret-token');
+  });
+
+  test.each([
+    ['has no user object', Response.json({})],
+    ['has no emailAddress', Response.json({user: {}})],
+    ['has a non-string emailAddress', Response.json({user: {emailAddress: 5}})],
+    ['is not JSON', new Response('<html>')],
+  ])('reports an error if the response %s', async (_name, response) => {
+    fetchMock.mockResolvedValue(response);
+    const client = await createClient();
+    const result = await client.getUserEmail('token');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
+  });
+
+  test('reports HTTP 403 as access denied', async () => {
+    fetchMock.mockResolvedValue(new Response(null, {status: 403}));
+    const client = await createClient();
+    const result = await client.getUserEmail('token');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
+
+  test('reports a network failure as an error, without rejecting', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const client = await createClient();
+    const result = await client.getUserEmail('token');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
+  });
+});
+
+describe('DriveClient.createPermission', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({id: 'perm1'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('posts the permission with supportsAllDrives=true', async () => {
+    const client = await createClient();
+    const permission = {
+      type: 'domain',
+      domain: 'example.com',
+      role: 'reader',
+      allowFileDiscovery: true,
+    } as const;
+    const result = await client.createPermission(
+      'secret-token',
+      'file123',
+      permission,
+    );
+
+    expect(result).toEqual({ok: true});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(request.method).toBe('POST');
+    expect(url.origin).toBe('https://www.googleapis.com');
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions');
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(request.headers.get('Content-Type')).toBe('application/json');
+    expect(await request.json()).toEqual(permission);
+  });
+
+  test.each(['', '../other', 'abc/def', 'abc?fields=*'])(
+    'rejects the invalid file ID %j without touching the network',
+    async (fileId) => {
+      const client = await createClient();
+      const result = await client.createPermission('token', fileId, {
+        type: 'anyone',
+        role: 'reader',
+        allowFileDiscovery: true,
+      });
+
+      expect(result).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  test('reports HTTP 400 as bad_request with Drive explanation', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({error: {message: 'Invalid domain'}}, {status: 400}),
+    );
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'domain',
+      domain: 'yahoo.com',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        type: 'bad_request',
+        cause: expect.stringContaining('Invalid domain'),
+      },
+    });
+  });
+
+  test.each([403, 404])('reports HTTP %i as access_denied', async (status) => {
+    fetchMock.mockResolvedValue(new Response(null, {status}));
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
+
+  test('reports HTTP 500 as a generic error', async () => {
+    fetchMock.mockResolvedValue(new Response(null, {status: 500}));
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
+  });
+
+  test('reports a network failure as an error, without rejecting', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
   });
 });

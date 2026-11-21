@@ -25,6 +25,9 @@ const GAPI_LOADER_URL = 'https://apis.google.com/js/api.js';
 // The Drive REST API endpoint for files.
 const DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 
+// The Drive REST API endpoint for information about the current user and Drive.
+const DRIVE_ABOUT_URL = 'https://www.googleapis.com/drive/v3/about';
+
 // The Drive REST API endpoint for uploading a file with its metadata.
 // supportsAllDrives lets the destination folder be in a shared drive; without
 // it Drive reports such a folder as not found. fields asks for the new file's
@@ -80,6 +83,12 @@ const OPTIONAL_RESOURCE_KEY = z
 const FILE_META_SCHEMA = z.object({
   name: z.string(),
   resourceKey: OPTIONAL_RESOURCE_KEY,
+});
+
+const ABOUT_USER_SCHEMA = z.object({
+  user: z.object({
+    emailAddress: z.string(),
+  }),
 });
 
 // The resource key (from the "Open with" state payload) is required to access
@@ -143,6 +152,26 @@ export interface SharingDialogError {
   readonly cause?: unknown;
 }
 
+export type DrivePermission =
+  | {
+      readonly type: 'domain';
+      readonly domain: string;
+      readonly role: 'reader' | 'commenter' | 'writer';
+      readonly allowFileDiscovery?: boolean;
+    }
+  | {
+      readonly type: 'anyone';
+      readonly role: 'reader' | 'commenter' | 'writer';
+      readonly allowFileDiscovery?: boolean;
+    };
+
+export interface PermissionError {
+  // 'bad_request' indicates Drive rejected the permission payload (HTTP 400),
+  // e.g. when requesting a domain permission for a non-Workspace domain.
+  readonly type: 'invalid_id' | 'bad_request' | 'access_denied' | 'error';
+  readonly cause?: unknown;
+}
+
 // The body of an error response from the Drive API.
 const DRIVE_ERROR_SCHEMA = z.object({error: z.object({message: z.string()})});
 
@@ -159,18 +188,31 @@ function driveErrorMessage(responseText: string): string | undefined {
   return result.success ? result.data.error.message : undefined;
 }
 
-// Describes an upload that Drive answered with an error status.
-function uploadHttpError(status: number, responseText: string): UploadError {
-  // Drive explains the failure (e.g. storage quota exceeded) in the response
+function formatDriveHttpError(status: number, responseText: string): string {
+  // Drive explains failures (e.g. storage quota exceeded) in the response
   // body; pass that on if it is there.
   const reason = driveErrorMessage(responseText);
+  return reason === undefined
+    ? `Google Drive returned HTTP ${status}`
+    : `${reason} (HTTP ${status})`;
+}
+
+// Describes an upload that Drive answered with an error status.
+function uploadHttpError(status: number, responseText: string): UploadError {
   return {
     type: 'error',
-    cause:
-      reason === undefined
-        ? `Google Drive returned HTTP ${status}`
-        : `${reason} (HTTP ${status})`,
+    cause: formatDriveHttpError(status, responseText),
   };
+}
+
+function permissionHttpError(
+  status: number,
+  responseText: string,
+): PermissionError {
+  const cause = formatDriveHttpError(status, responseText);
+  if (status === 400) return {type: 'bad_request', cause};
+  if (status === 403 || status === 404) return {type: 'access_denied', cause};
+  return {type: 'error', cause};
 }
 
 // Reads the new file's ID out of Drive's response to a successful upload.
@@ -388,6 +430,63 @@ export class DriveClient {
       return errResult(uploadHttpError(status, responseText));
     }
     return parseUploadedFile(responseText);
+  }
+
+  // Fetches the signed-in user's email address from Drive's about resource.
+  // Never rejects.
+  async getUserEmail(oauthToken: string): Promise<Result<string, DriveError>> {
+    try {
+      const url = new URL(DRIVE_ABOUT_URL);
+      url.searchParams.set('fields', 'user(emailAddress)');
+      const response = await fetch(url, {
+        headers: {Authorization: `Bearer ${oauthToken}`},
+      });
+      if (!response.ok) {
+        return errResult(httpDriveError(response.status));
+      }
+      const parsed = ABOUT_USER_SCHEMA.safeParse(await response.json());
+      if (!parsed.success) {
+        return errResult({type: 'error', cause: parsed.error});
+      }
+      return okResult(parsed.data.user.emailAddress);
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
+  }
+
+  // Adds a permission to a Drive file. Never rejects.
+  async createPermission(
+    oauthToken: string,
+    fileId: string,
+    permission: DrivePermission,
+  ): Promise<Result<void, PermissionError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    try {
+      const url = new URL(
+        `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      );
+      url.searchParams.set('supportsAllDrives', 'true');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${oauthToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(permission),
+      });
+      if (!response.ok) {
+        const responseText = await response.text().catch(() => '');
+        return errResult(permissionHttpError(response.status, responseText));
+      }
+      return okResult();
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
   }
 
   // Downloads a file's contents. Never rejects.
@@ -614,4 +713,16 @@ export function gdriveOpenLink(
     state.resourceKeys = {[fileId]: resourceKey};
   }
   return `${origin}/?state=${encodeURIComponent(JSON.stringify(state))}`;
+}
+
+// Builds a direct link to open a file in Google Drive, including its resource
+// key when known.
+export function gdriveViewLink(fileId: string, resourceKey?: string): string {
+  const url = new URL(
+    `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
+  );
+  if (resourceKey !== undefined) {
+    url.searchParams.set('resourcekey', resourceKey);
+  }
+  return url.toString();
 }
