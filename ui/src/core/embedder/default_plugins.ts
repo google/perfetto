@@ -102,6 +102,7 @@ export const defaultPlugins = [
   'dev.perfetto.TraceInfoPage',
   'dev.perfetto.TraceMetadata',
   'dev.perfetto.TraceProcessorTrack',
+  'dev.perfetto.TrackDimensions',
   'dev.perfetto.TrackEvent',
   'dev.perfetto.TrackUtils',
   'dev.perfetto.VideoFrames',

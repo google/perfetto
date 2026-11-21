@@ -51,6 +51,13 @@ import {
 } from '../../widgets/tree_explorer';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
+import TrackDimensionsPlugin from '../dev.perfetto.TrackDimensions';
+import {
+  type CustomDimensions,
+  getCustomDimensionChips,
+  getCustomDimensions,
+  getProcessCustomDimensions,
+} from '../dev.perfetto.TrackDimensions/custom_dimensions';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {ThreadSliceAggregator} from './thread_slice_aggregator';
@@ -94,11 +101,30 @@ function createDetailsPanel(trace: Trace, utid: number | null) {
     });
 }
 
+function getDimensionChips(
+  dimensions: CustomDimensions,
+  trackIds: ReadonlyArray<number>,
+  topLevelGroup: TopLevelTrackGroup,
+  upid: number | null,
+): string[] {
+  // Process and thread tracks live in the process group, which already shows
+  // the dimensions of the process root tracks.
+  const inherited =
+    (topLevelGroup === 'PROCESS' || topLevelGroup === 'THREAD') && upid !== null
+      ? getProcessCustomDimensions(dimensions, upid)
+      : [];
+  return getCustomDimensionChips(
+    getCustomDimensions(dimensions, trackIds),
+    inherited,
+  );
+}
+
 export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
     StandardGroupsPlugin,
+    TrackDimensionsPlugin,
   ];
 
   private groups = new Map<string, TrackNode>();
@@ -120,6 +146,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private async addCounters(ctx: Trace) {
     const numMachines = await getMachineCount(ctx.engine);
+    const dimensions = ctx.plugins
+      .getPlugin(TrackDimensionsPlugin)
+      .getCustomDimensions();
     const result = await ctx.engine.query(`
       include perfetto module viz.threads;
 
@@ -252,9 +281,12 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           uri,
           name: trackName,
           sortOrder: utid !== undefined || upid !== undefined ? 30 : 0,
-          chips: removeFalsyValues([
-            isKernelThread === 0 && isMainThread === 1 && 'main thread',
-          ]),
+          chips: [
+            ...removeFalsyValues([
+              isKernelThread === 0 && isMainThread === 1 && 'main thread',
+            ]),
+            ...getDimensionChips(dimensions, [trackId], topLevelGroup, upid),
+          ],
         }),
       );
     }
@@ -262,6 +294,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private async addSlices(ctx: Trace) {
     const numMachines = await getMachineCount(ctx.engine);
+    const dimensions = ctx.plugins
+      .getPlugin(TrackDimensionsPlugin)
+      .getCustomDimensions();
     await ctx.engine.query(`
       include perfetto module viz.threads;
       include perfetto module viz.track_event_callstacks;
@@ -485,9 +520,12 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           uri,
           name: displayName,
           sortOrder: utid !== undefined || upid !== undefined ? 20 : 0,
-          chips: removeFalsyValues([
-            isKernelThread === 0 && isMainThread === 1 && 'main thread',
-          ]),
+          chips: [
+            ...removeFalsyValues([
+              isKernelThread === 0 && isMainThread === 1 && 'main thread',
+            ]),
+            ...getDimensionChips(dimensions, trackIds, topLevelGroup, upid),
+          ],
         }),
       );
     }
@@ -495,6 +533,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private async addStates(ctx: Trace) {
     const numMachines = await getMachineCount(ctx.engine);
+    const dimensions = ctx.plugins
+      .getPlugin(TrackDimensionsPlugin)
+      .getCustomDimensions();
     const schemas = new Map(STATE_TRACK_SCHEMAS.map((x) => [x.type, x]));
     const types = STATE_TRACK_SCHEMAS.map((x) => `'${x.type}'`).join(',');
     const result = await ctx.engine.query(`
@@ -551,7 +592,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         null,
         null,
-        new TrackNode({uri, name: trackName}),
+        new TrackNode({
+          uri,
+          name: trackName,
+          chips: getDimensionChips(dimensions, [trackId], topLevelGroup, null),
+        }),
       );
     }
   }

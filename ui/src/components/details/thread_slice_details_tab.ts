@@ -37,6 +37,11 @@ import {
   breakDownIntervalByThreadState,
 } from './thread_state';
 import {asSliceSqlId} from '../sql_utils/core_types';
+import {
+  getTrackDimensions,
+  renderTrackDimensions,
+  type TrackDimension,
+} from './track_dimensions';
 import {DurationWidget} from '../widgets/duration';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 import type {Trace} from '../../public/trace';
@@ -230,6 +235,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     preceding: [],
     following: [],
   };
+  private trackDimensions: TrackDimension[] = [];
   private distributionLoaded = false;
   private distributionScope: DistributionScope = 'track';
   private cachedWholeTraceDataset?: {dataset: Dataset | undefined};
@@ -248,6 +254,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
 
     if (details !== undefined) {
       this.connectedFlows = await getConnectedFlows(trace.engine, details.id);
+      this.trackDimensions = await getTrackDimensions(trace.engine, details.id);
       if (details.thread !== undefined && details.dur > 0) {
         this.breakdownByThreadState = await breakDownIntervalByThreadState(
           trace.engine,
@@ -324,11 +331,13 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         {title: 'Arguments'},
         m(Tree, renderSliceArguments(trace, slice.args)),
       );
+    const dimensions = renderTrackDimensions(this.trackDimensions);
     if (
       distribution !== undefined ||
       precFlows !== undefined ||
       followingFlows !== undefined ||
       args !== undefined ||
+      dimensions !== undefined ||
       additionalSections !== undefined
     ) {
       return m(
@@ -336,6 +345,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         precFlows,
         followingFlows,
         args,
+        dimensions,
         additionalSections,
         distribution,
       );
