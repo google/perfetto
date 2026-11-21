@@ -13,22 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
+import type {App} from '../../../public/app';
+import {noData, xAxisFor} from '../../dev.perfetto.Memscope/live';
+import {openInMemscopeButton} from '../open_in_memscope';
 import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts_svg/line_chart_svg';
-import type {LiveSession, SnapshotData} from '../../sessions/live_session';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
+import type {SnapshotData} from '../../dev.perfetto.Memscope/live';
 import {
-  chartXWindow,
   counterPoints,
-  formatRelativeXValue,
   maxSeriesKb,
   niceKbInterval,
-} from '../../utils';
-import {formatBytesIec} from '../../../../base/bytes_format';
-import {Panel} from '../../components/panel';
-import {Grid, GridCell, GridHeaderCell} from '../../../../widgets/grid';
+} from '../../dev.perfetto.Memscope/live';
+import {formatBytesIec} from '../../../base/bytes_format';
+import {Panel} from '../../dev.perfetto.Memscope/live';
+import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 
 // Note: the cumulative→per-second-rate conversion for psi/vmstat counters
 // happens in SQL (see extractSnapshotData in live_session.ts), so samples
@@ -159,6 +160,7 @@ function buildVmstatTimeSeries(
 }
 
 function renderLmkPanel(
+  app: App,
   events: {ts: number; pid: number; processName: string; oomScoreAdj: number}[],
   t0: number,
 ): m.Children {
@@ -195,7 +197,15 @@ function renderLmkPanel(
               `${((ev.ts - t0) / 1e9).toFixed(1)}s`,
             ),
             m(GridCell, {align: 'right'}, String(ev.pid)),
-            m(GridCell, ev.processName || '(unknown)'),
+            m(
+              GridCell,
+              {
+                actionButtons:
+                  ev.processName !== '' &&
+                  openInMemscopeButton(app, ev.processName),
+              },
+              ev.processName || '(unknown)',
+            ),
             m(GridCell, {align: 'right'}, String(ev.oomScoreAdj)),
           ]),
           fillHeight: false,
@@ -204,8 +214,11 @@ function renderLmkPanel(
   );
 }
 
-export function renderPressureSwapTab(session: LiveSession): m.Children {
-  const data = session.data;
+export function renderPressureSwapTab(
+  app: App,
+  data: SnapshotData | undefined,
+  live: boolean,
+): m.Children {
   if (!data) return null;
 
   const t0 = data.ts0;
@@ -213,11 +226,8 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
   const pageFaultChartData = buildPageFaultTimeSeries(data, t0);
   const swapChartData = buildSwapTimeSeries(data, t0);
   const vmstatChartData = buildVmstatTimeSeries(data, t0);
-  // Fixed-width window ending at the latest sample; the chart clips points
-  // outside it and labels are relative to the latest sample (0s on the
-  // right, -60s on the left).
-  const xWindow = chartXWindow(data.xMax);
-  const formatX = formatRelativeXValue(data.xMax);
+  const xWindow = xAxisFor(data, live);
+  const formatX = xWindow.format;
 
   return [
     m(
@@ -252,7 +262,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
               //   x: (ev.ts - t0) / 1e9,
               // })),
             })
-          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+          : noData(live),
       ),
     ),
 
@@ -286,7 +296,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
               formatXValue: formatX,
               formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
             })
-          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+          : noData(live),
       ),
     ),
 
@@ -356,6 +366,6 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         ),
       ),
 
-    renderLmkPanel(data.lmkEvents, t0),
+    renderLmkPanel(app, data.lmkEvents, t0),
   ];
 }

@@ -13,6 +13,8 @@
 // limitations under the License.
 
 export type NavState =
+  | {view: 'summary'; params: Record<string, never>}
+  | {view: 'smaps'; params: Record<string, never>}
   | {view: 'overview'; params: Record<string, never>}
   | {view: 'classes'; params: {rootClass?: string}}
   | {view: 'dominators'; params: Record<string, never>}
@@ -29,11 +31,19 @@ export type NavState =
   | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
-export type DefaultNavView = 'overview' | 'flamegraph';
+export type DefaultNavView = 'overview' | 'flamegraph' | 'summary';
+
+// Views rendered by the Memory Explorer rather than the heap dump views.
+export function isProcessView(view: NavView): boolean {
+  return view === 'summary' || view === 'smaps';
+}
 
 function defaultNavState(view: DefaultNavView): NavState {
   if (view === 'flamegraph') {
     return {view: 'flamegraph', params: {}};
+  }
+  if (view === 'summary') {
+    return {view: 'summary', params: {}};
   }
   return {view: 'overview', params: {}};
 }
@@ -54,6 +64,10 @@ function pathSegment(base: string, value?: string): string {
 // path.
 function stateToParts(state: NavState): {path: string; query: string} {
   switch (state.view) {
+    case 'summary':
+      return {path: 'summary', query: ''};
+    case 'smaps':
+      return {path: 'smaps', query: ''};
     case 'overview':
       return {path: 'overview', query: ''};
     case 'classes':
@@ -140,6 +154,10 @@ export function subpageToState(
   switch (view) {
     case '':
       return defaultNavState(defaultView);
+    case 'summary':
+      return {view: 'summary', params: {}};
+    case 'smaps':
+      return {view: 'smaps', params: {}};
     case 'overview':
       return {view: 'overview', params: {}};
     case 'classes': {
@@ -198,4 +216,27 @@ export function subpageToState(
     default:
       return {view: 'overview', params: {}};
   }
+}
+
+// A Memory Explorer location: the process plus the nav within it.
+export interface MemoryLocation {
+  readonly upid?: number;
+  readonly nav: NavState;
+}
+
+// Memory Explorer subpage: `<upid>/<nav subpage>`, e.g. `12/objects_Foo`.
+export function memoryLocationToSubpage(loc: MemoryLocation): string {
+  if (loc.upid === undefined) return '';
+  return `${loc.upid}/${stateToSubpage(loc.nav)}`;
+}
+
+export function subpageToMemoryLocation(
+  subpage: string | undefined,
+): MemoryLocation {
+  const sub = (subpage ?? '').replace(/^\/+/, '');
+  const slash = sub.indexOf('/');
+  const head = slash === -1 ? sub : sub.slice(0, slash);
+  const rest = slash === -1 ? '' : sub.slice(slash + 1);
+  const upid = /^\d+$/.test(head) ? parseInt(head, 10) : undefined;
+  return {upid, nav: subpageToState(rest, 'summary')};
 }

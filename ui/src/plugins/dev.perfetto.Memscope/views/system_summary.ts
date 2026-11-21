@@ -13,22 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {noData, xAxisFor} from './chart_axis';
 import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts_svg/line_chart_svg';
-import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {
-  billboardBytes,
-  chartXWindow,
-  formatRelativeXValue,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../../utils';
-import {formatBytesIec} from '../../../../base/bytes_format';
-import {Billboard, BillboardStrip} from '../../components/billboard';
-import {Panel} from '../../components/panel';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
+import type {SnapshotData} from '../sessions/live_session';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../utils';
+import {formatBytesIec} from '../../../base/bytes_format';
+import {Billboard, BillboardStrip} from '../components/billboard';
+import {Panel} from '../components/panel';
 
 /** System memory breakdown from /proc/meminfo, partitioning MemTotal. */
 function buildSystemTimeSeries(
@@ -193,83 +188,97 @@ function buildSystemBillboards(
   };
 }
 
-export function renderSystemTab(session: LiveSession): m.Children {
-  const data = session.data;
-  if (!data) return null;
+// Device-wide memory: Sysmem's System tab, and context on Memscope's live
+// page.
+export function renderSystemSummary(
+  data: SnapshotData | undefined,
+  live: boolean,
+  chartHeight = 400,
+): m.Children {
+  return [
+    renderSystemBillboards(data),
+    renderSystemChart(data, live, chartHeight),
+  ];
+}
 
-  const t0 = data.ts0;
-  const bb = buildSystemBillboards(data);
-  const chartData = buildSystemTimeSeries(data, t0);
-  // Fixed-width window ending at the latest sample; the chart clips points
-  // outside it and labels are relative to the latest sample (0s on the
-  // right, -60s on the left).
-  const xWindow = chartXWindow(data.xMax);
-  const formatX = formatRelativeXValue(data.xMax);
-
-  return m.fragment({}, [
+export function renderSystemBillboards(
+  data: SnapshotData | undefined,
+): m.Children {
+  const bb = data && buildSystemBillboards(data);
+  return (
     bb !== undefined &&
-      m(BillboardStrip, [
-        m(Billboard, {
-          ...billboardBytes(bb.totalKb * 1024),
-          label: 'MemTotal',
-          desc: 'Total physical RAM',
-        }),
-        m(Billboard, {
-          ...billboardBytes(bb.availableKb * 1024),
-          label: 'MemAvailable',
-          desc: 'Available without swapping',
-        }),
-        m(Billboard, {
-          ...billboardBytes(bb.anonKb * 1024),
-          label: 'Anon',
-          desc: 'Active(anon) + Inactive(anon)',
-        }),
-        m(Billboard, {
-          ...billboardBytes(bb.fileCacheKb * 1024),
-          label: 'Page Cache',
-          desc: 'File LRU \u2212 Shmem',
-        }),
-        m(Billboard, {
-          ...billboardBytes(bb.freeKb * 1024),
-          label: 'MemFree',
-          desc: 'Completely unused RAM',
-        }),
-      ]),
-
-    m(
-      Panel,
-      m(Panel.Header, {
-        title: 'System Memory',
-        help: m.fragment({}, [
-          m('div', [
-            'Stacked areas partition MemTotal. Anon = Active(anon) + Inactive(anon). ' +
-              'Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
-              'Unaccounted = MemTotal \u2212 sum of all other categories.',
-          ]),
-          m('div', [
-            'Source: linux.sys_stats data source (traced_probes) polling /proc/meminfo; ' +
-              'DMA-BUF from the dma_heap_stat ftrace event.',
-          ]),
-        ]),
+    m(BillboardStrip, [
+      m(Billboard, {
+        ...billboardBytes(bb.totalKb * 1024),
+        label: 'MemTotal',
+        desc: 'Total physical RAM',
       }),
-      m(
-        Panel.Body,
-        chartData
-          ? m(LineChartSvg, {
-              data: chartData,
-              height: 400,
-              showLegend: true,
-              showPoints: false,
-              stacked: true,
-              gridLines: 'both',
-              xAxisMin: xWindow.min,
-              xAxisMax: xWindow.max,
-              formatXValue: formatX,
-              formatYValue: (v: number) => formatBytesIec(v * 1024),
-              yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
-            })
-          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
-      ),
+      m(Billboard, {
+        ...billboardBytes(bb.availableKb * 1024),
+        label: 'MemAvailable',
+        desc: 'Available without swapping',
+      }),
+      m(Billboard, {
+        ...billboardBytes(bb.anonKb * 1024),
+        label: 'Anon',
+        desc: 'Active(anon) + Inactive(anon)',
+      }),
+      m(Billboard, {
+        ...billboardBytes(bb.fileCacheKb * 1024),
+        label: 'Page Cache',
+        desc: 'File LRU \u2212 Shmem',
+      }),
+      m(Billboard, {
+        ...billboardBytes(bb.freeKb * 1024),
+        label: 'MemFree',
+        desc: 'Completely unused RAM',
+      }),
+    ])
+  );
+}
+
+export function renderSystemChart(
+  data: SnapshotData | undefined,
+  live: boolean,
+  chartHeight = 400,
+): m.Children {
+  if (!data) return null;
+  const chartData = buildSystemTimeSeries(data, data.ts0);
+  const xWindow = xAxisFor(data, live);
+  const formatX = xWindow.format;
+  return m(
+    Panel,
+    m(Panel.Header, {
+      title: 'System Memory',
+      help: m.fragment({}, [
+        m('div', [
+          'Stacked areas partition MemTotal. Anon = Active(anon) + Inactive(anon). ' +
+            'Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
+            'Unaccounted = MemTotal \u2212 sum of all other categories.',
+        ]),
+        m('div', [
+          'Source: linux.sys_stats data source (traced_probes) polling /proc/meminfo; ' +
+            'DMA-BUF from the dma_heap_stat ftrace event.',
+        ]),
+      ]),
+    }),
+    m(
+      Panel.Body,
+      chartData
+        ? m(LineChartSvg, {
+            data: chartData,
+            height: chartHeight,
+            showLegend: true,
+            showPoints: false,
+            stacked: true,
+            gridLines: 'both',
+            xAxisMin: xWindow.min,
+            xAxisMax: xWindow.max,
+            formatXValue: formatX,
+            formatYValue: (v: number) => formatBytesIec(v * 1024),
+            yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
+          })
+        : noData(live),
     ),
-  ]);
+  );
 }

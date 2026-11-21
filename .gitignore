@@ -51,3 +51,4 @@ mise.toml
 perf.data*
 rfcs
 TAGS
+/products/node_modules

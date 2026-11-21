@@ -61,6 +61,8 @@ var ${IMPORT_META_URL} =
 // them on the old rollup path until needed. (build.mjs still runs rollup for
 // those if we wire it that way, but for now we ship the three main bundles.)
 const SRC = path.join(ROOT_DIR, 'ui/src');
+const PRODUCT = process.env.PERFETTO_PRODUCT || '';
+const PRODUCTS_DIR = path.join(ROOT_DIR, 'products');
 const GEN_SYMLINK = path.join(SRC, 'gen');
 // Canonical (real) path of the gen dir. Vite/Rollup resolves symlinks by
 // default, so a file imported through ui/src/gen ends up reported with this
@@ -501,6 +503,15 @@ export default defineConfig(({command}) => {
       // runtime. The symlinked ui/src/gen dir is handled below by aliasing
       // the importer side, not by preserving symlinks globally.
       alias: [
+        // `ui/build --product <id>` swaps in the product's entry point.
+        ...(PRODUCT
+          ? [
+              {
+                find: /(^|.*\/)product_stub$/,
+                replacement: path.join(PRODUCTS_DIR, PRODUCT, 'ui/index.ts'),
+              },
+            ]
+          : []),
         // The trace_processor_32_stub indirection (see old rollup.config.js).
         ...(IS_MEMORY64_ONLY
           ? []

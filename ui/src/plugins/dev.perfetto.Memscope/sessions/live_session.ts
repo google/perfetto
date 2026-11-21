@@ -16,6 +16,7 @@ import {deferChunkedTask} from '../../../base/chunked_task';
 import {uuidv4} from '../../../base/uuid';
 import protos from '../../../protos';
 import type {App} from '../../../public/app';
+import type {Engine} from '../../../trace_processor/engine';
 import {NUM, NUM_NULL, STR} from '../../../trace_processor/query_result';
 import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
@@ -26,6 +27,7 @@ import {isDebuggableAndroidBuild} from '../utils';
 import type {ConnectionResult} from '../views/connection';
 import {download} from '../../../base/download_utils';
 import {ProfileSession, type ProfileState} from './profile_session';
+import {MEMSCOPE_SQL_PACKAGE} from '../product_assets';
 
 export interface ProfileView {
   readonly pid: number;
@@ -296,6 +298,7 @@ export class LiveSession {
         ftraceDropUntilAllCpusValid: false,
         forceFullSort: false,
       });
+      await engine.registerSqlPackages(MEMSCOPE_SQL_PACKAGE);
       await engine.parse(cloneResult.value);
       await engine.notifyEof();
       const tParse = performance.now();
@@ -458,8 +461,9 @@ interface ExtractResult {
   extractMs: number;
 }
 
-async function extractSnapshotData(
-  engine: WasmEngineProxy,
+// Also used on loaded traces, to show the live views over a recording.
+export async function extractSnapshotData(
+  engine: Engine,
 ): Promise<ExtractResult> {
   const tQueryStart = performance.now();
   const [
@@ -472,14 +476,21 @@ async function extractSnapshotData(
     lmkResult,
     buildResult,
   ] = await Promise.all([
+    // Prefer the meminfo sampling range; traces without sys_stats fall back
+    // to the range of all counters.
     engine.query(`
+        WITH mem_total AS (
+          SELECT c.ts
+          FROM counter c
+          JOIN counter_track t ON c.track_id = t.id
+          WHERE t.name = 'MemTotal'
+        )
         SELECT
-          (SELECT start_ts FROM trace_bounds) as ts0,
-          MIN(c.ts) as min_ts,
-          MAX(c.ts) as max_ts
-        FROM counter c
-        JOIN counter_track t ON c.track_id = t.id
-        WHERE t.name = 'MemTotal'
+          (SELECT start_ts FROM trace_bounds) AS ts0,
+          COALESCE((SELECT MIN(ts) FROM mem_total), (SELECT MIN(ts) FROM counter))
+            AS min_ts,
+          COALESCE((SELECT MAX(ts) FROM mem_total), (SELECT MAX(ts) FROM counter))
+            AS max_ts
       `),
     engine.query(`
         SELECT id, name
@@ -574,10 +585,14 @@ async function extractSnapshotData(
   const task = await deferChunkedTask({priority: 'background'});
   const YIELD_CHECK_INTERVAL = 64; // Num loops before yield check
 
-  const boundsRow = ts0Result.firstRow({ts0: NUM, min_ts: NUM, max_ts: NUM});
-  const ts0 = boundsRow?.ts0 ?? 0;
-  const xMin = boundsRow !== undefined ? (boundsRow.min_ts - ts0) / 1e9 : 0;
-  const xMax = boundsRow !== undefined ? (boundsRow.max_ts - ts0) / 1e9 : 0;
+  const boundsRow = ts0Result.firstRow({
+    ts0: NUM,
+    min_ts: NUM_NULL,
+    max_ts: NUM_NULL,
+  });
+  const ts0 = boundsRow.ts0;
+  const xMin = ((boundsRow.min_ts ?? ts0) - ts0) / 1e9;
+  const xMax = ((boundsRow.max_ts ?? ts0) - ts0) / 1e9;
 
   // Build track id → counter name map for system counters.
   const sysTrackMap = new Map<number, string>();

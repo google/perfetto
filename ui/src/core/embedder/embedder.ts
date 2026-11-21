@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type m from 'mithril';
+import type {App} from '../../public/app';
+
 /**
  * Configuration for an embedder-provided default extension server.
  */
@@ -62,4 +65,47 @@ export interface Embedder {
 
   // Returns the list of plugin IDs that should be enabled by default.
   readonly defaultPlugins: ReadonlyArray<string>;
+
+  // The product this embedder represents (e.g. 'memscope'), or undefined for
+  // the general purpose Perfetto UI. See products/README.md.
+  readonly productId?: string;
+
+  // Overrides the page title. Undefined keeps the title from index.html.
+  readonly appTitle?: string;
+
+  // Renders the home page (route '/'). Undefined uses Perfetto's home page.
+  readonly renderHomePage?: () => m.Children;
+
+  // If set, only these plugins (plus core plugins) are registered at all, so
+  // the user cannot enable anything outside the product's scope.
+  readonly pluginAllowlist?: ReadonlyArray<string>;
+
+  // How the user moves between pages. Defaults to the sidebar.
+  readonly navigation?: Navigation;
 }
+
+/** A top level page in the 'tabs' navigation style. */
+export interface NavTab {
+  readonly label: string;
+  // The route page this tab shows, e.g. '/memory'. The tab is highlighted
+  // while it is the current page.
+  readonly page: string;
+  // Where the tab goes. Defaults to `#!${page}`.
+  readonly href?: () => string;
+  // Whether to show the tab, e.g. only once a trace is loaded.
+  readonly isVisible?: (app: App) => boolean;
+}
+
+/**
+ * The navigation style of the UI:
+ * - 'sidebar': Perfetto's sidebar, filled by plugins.
+ * - 'tabs': no sidebar; a brand that links home and a fixed set of tabs in
+ *   the topbar. Suits products with a handful of pages.
+ */
+export type Navigation =
+  | {readonly kind: 'sidebar'}
+  | {
+      readonly kind: 'tabs';
+      readonly brand: {readonly text: string; readonly icon?: string};
+      readonly tabs: ReadonlyArray<NavTab>;
+    };

@@ -21,7 +21,6 @@ import {AsyncMemo} from '../../../../../base/async_memo';
 import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
-import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {
   LONG,
   NUM,
@@ -44,7 +43,7 @@ import {nearestByTs} from '../selection';
 import {
   deltaCell,
   emptyPanel,
-  heapDumpBitmapsHref,
+  type HeapDumpLink,
   loadingPanel,
   shortClassName,
   topTable,
@@ -262,6 +261,7 @@ function groupByDims(
 export interface BitmapsSectionAttrs {
   readonly trace: Trace;
   readonly upid: number;
+  readonly heapDumpLink: HeapDumpLink;
   // The page-wide selection (by ts). Undefined → latest dump.
   readonly selTs?: time;
   readonly baseTs?: time;
@@ -275,7 +275,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
   }
 
   view({attrs}: m.Vnode<BitmapsSectionAttrs>): m.Children {
-    const {trace, upid, selTs, baseTs} = attrs;
+    const {trace, upid, selTs, baseTs, heapDumpLink} = attrs;
     const data = this.slot.use({
       key: {traceId: trace.traceInfo.uuid, upid},
       compute: () => loadBitmapsData(trace, upid),
@@ -418,14 +418,10 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
         controls: m(
           Anchor,
           {
-            href: heapDumpBitmapsHref(),
-            onclick: () =>
-              trace.plugins
-                .getPlugin(HeapDumpExplorerPlugin)
-                .updateHeadDump(upid, cur.ts),
+            ...heapDumpLink(cur.ts, {view: 'bitmaps', params: {}}),
             icon: Icons.UpdateSelection,
           },
-          'Open in Heap Dump Explorer',
+          'Open in Bitmaps',
         ),
       }),
       m(

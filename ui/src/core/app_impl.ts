@@ -173,11 +173,11 @@ export class AppImpl implements App {
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
+    this.embedder = createEmbedder();
     this.sidebar = new SidebarManagerImpl({
-      disabled: this.embeddedMode,
+      disabled: this.embeddedMode || this.embedder.navigation?.kind === 'tabs',
       hidden: this.initialRouteArgs.hideSidebar,
     });
-    this.embedder = createEmbedder();
     this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
     this.analytics = initAnalytics(
       this.testingMode,
@@ -310,6 +310,10 @@ export class AppImpl implements App {
       }
     });
     return result;
+  }
+
+  get productId(): string | undefined {
+    return this.embedder.productId;
   }
 
   navigate(newHash: string): void {

@@ -30,8 +30,9 @@ import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
 import {deltaColor, formatDelta} from './mem_format';
 import {type MemSelection, nearestByTs} from './selection';
+import type {HeapDumpLink} from './section_widgets';
 import {SmapsDetail} from './smaps_detail';
-import {SMAPS_CATEGORIES, SMAPS_CATEGORY_CASE_SQL} from './smaps_categories';
+import {SMAPS_CATEGORIES} from './smaps_categories';
 import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
 import {JavaSection} from './summary/java_section';
@@ -79,14 +80,11 @@ async function loadGrowthData(
     {ts: time; total: number; byCategory: Map<string, number>}
   >();
   const res = await trace.engine.query(`
-    SELECT
-      s.ts AS ts,
-      ${SMAPS_CATEGORY_CASE_SQL} AS category,
-      CAST(ifnull(SUM(s.rss_kb + s.swap_kb), 0) * 1024 AS INT) AS bytes
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid}
-    GROUP BY s.ts, category
-    ORDER BY s.ts ASC
+    INCLUDE PERFETTO MODULE memscope.smaps;
+    SELECT ts, category, rss_swap_bytes AS bytes
+    FROM memscope_smaps_category_breakdown
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = res.iter({ts: LONG, category: STR, bytes: NUM});
@@ -113,7 +111,9 @@ export interface ProcessMemDetailsAttrs {
   readonly trace: Trace;
   readonly upid: number;
   readonly tab: MemoryOverviewTab;
-  readonly onTabChange: (tab: MemoryOverviewTab) => void;
+  readonly heapDumpLink: HeapDumpLink;
+  // Omit to hide the summary/smaps tab strip (the host renders its own).
+  readonly onTabChange?: (tab: MemoryOverviewTab) => void;
 }
 
 export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
@@ -133,7 +133,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   }
 
   view({attrs}: m.Vnode<ProcessMemDetailsAttrs>) {
-    const {trace, upid, tab, onTabChange} = attrs;
+    const {trace, upid, tab, onTabChange, heapDumpLink} = attrs;
     let capture: CaptureInfo | undefined;
     let error: string | undefined;
     try {
@@ -155,6 +155,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       error !== undefined && m('p.pf-error', `Error: ${error}`),
       error === undefined && this.renderCaptureStrip(trace, capture),
       error === undefined &&
+        onTabChange !== undefined &&
         this.renderTabs(activeTab, smapsMissing, onTabChange),
       error === undefined &&
         m(
@@ -162,7 +163,10 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           {open: activeTab === 'summary'},
           // SubPage gives its direct children the cascading fade-up entrance
           // animation (.pf-memscope-subpage > *), matching the rest of the page.
-          m(SubPage, ...this.renderSummarySections(trace, upid, capture)),
+          m(
+            SubPage,
+            ...this.renderSummarySections(trace, upid, heapDumpLink, capture),
+          ),
         ),
       error === undefined &&
         m(
@@ -176,6 +180,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   private renderSummarySections(
     trace: Trace,
     upid: number,
+    heapDumpLink: HeapDumpLink,
     capture?: CaptureInfo,
   ): m.Child[] {
     // Keep the headline billboards pinned to the top. Once the lightweight
@@ -221,6 +226,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'java',
           trace,
           upid,
+          heapDumpLink,
           selTs: this.selection?.sel,
           baseTs: this.selection?.base,
         }),
@@ -231,6 +237,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'bitmaps',
           trace,
           upid,
+          heapDumpLink,
           selTs: this.selection?.sel,
           baseTs: this.selection?.base,
         }),

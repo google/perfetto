@@ -115,19 +115,6 @@
   }
 }
 
-// Process picker at the top of the overview page.
-.pf-memscope-process-select {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-
-  .pf-memscope-process-select__label {
-    font-weight: 600;
-    font-size: var(--pf-font-size-m);
-    color: var(--pf-color-text-muted);
-  }
-}
-
 // Empty section panels are deliberately quieter than panels with data, while
 // retaining enough contrast to explain what was not captured.
 .pf-memscope-panel--empty {

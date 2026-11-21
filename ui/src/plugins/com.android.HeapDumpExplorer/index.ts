@@ -32,9 +32,12 @@ const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
 export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
+  // Set by a plugin that hosts these views on its own page (the Memory
+  // Explorer) before any trace loads.
+  static hostedElsewhere = false;
   static readonly dependencies = [HeapProfilePlugin];
   private static defaultFlamegraphSetting: Setting<boolean>;
-  private readonly session: HeapDumpExplorerSession;
+  readonly session: HeapDumpExplorerSession;
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -97,6 +100,16 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       render: (subpage) => m(HeapDumpPage, {session, subpage}),
     });
 
+    ctx.plugins
+      .getPlugin(HeapProfilePlugin)
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
+      );
+
+    // The Memory Explorer (dev.perfetto.Memscope) hosts these views and owns
+    // the sidebar entry and default page when enabled.
+    if (HeapDumpExplorerPlugin.hostedElsewhere) return;
+
     if (restored) {
       // Restored from a shared link: land on the saved tab (beats the
       // default-open hint below).
@@ -109,12 +122,6 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       session.autoNavigated = true;
       ctx.initialPage.suggest('/heapdump', 100);
     }
-
-    ctx.plugins
-      .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
-        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
-      );
 
     ctx.sidebar.addMenuItem({
       section: 'current_trace',
