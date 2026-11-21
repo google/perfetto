@@ -66,6 +66,23 @@ export interface VirtualCanvasOpts {
   readonly overdrawAxes?: 'none' | 'x' | 'y' | 'both';
 }
 
+// Calls `callback` whenever window.devicePixelRatio changes.
+function onPixelRatioChange(callback: () => void): Disposable {
+  let query: MediaQueryList | undefined;
+  const listener = () => {
+    watch();
+    callback();
+  };
+  const watch = () => {
+    query = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    query.addEventListener('change', listener, {once: true});
+  };
+  watch();
+  return {
+    [Symbol.dispose]: () => query?.removeEventListener('change', listener),
+  };
+}
+
 export class VirtualCanvas implements Disposable {
   private readonly _trash = new DisposableStack();
   private readonly _canvasElement: HTMLCanvasElement;
@@ -190,6 +207,8 @@ export class VirtualCanvas implements Disposable {
     this._trash.defer(() => {
       resizeObserver.disconnect();
     });
+
+    this._trash.use(onPixelRatioChange(updateCanvas));
 
     // Ensures the canvas doesn't change the size of the target element
     targetElement.style.overflow = 'hidden';
