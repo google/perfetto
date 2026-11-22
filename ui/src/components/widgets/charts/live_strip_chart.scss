@@ -1,0 +1,126 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-live-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+
+  &__canvas-wrap {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+  }
+
+  &__canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  &__tip {
+    position: absolute;
+    top: 6px;
+    pointer-events: none;
+    z-index: 4;
+    padding: 6px 9px;
+    border-radius: 7px;
+    border: 1px solid var(--pf-color-border);
+    background: color-mix(in srgb, var(--pf-color-background) 96%, transparent);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+    font-size: 11px;
+    line-height: 1.4;
+    min-width: 110px;
+  }
+
+  &__tip-time {
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+    margin-bottom: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__tip-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+
+    strong {
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
+      color: var(--pf-color-text);
+    }
+  }
+
+  &__tip-total {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 3px;
+    padding-top: 3px;
+    border-top: 1px solid var(--pf-color-border);
+    font-weight: 600;
+    white-space: nowrap;
+
+    strong {
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
+      color: var(--pf-color-text);
+    }
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px 12px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    min-height: 16px;
+  }
+
+  &__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+
+    &--clickable {
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 1px 4px;
+      margin: -1px -4px;
+      transition:
+        background 120ms ease,
+        color 120ms ease;
+
+      &:hover {
+        color: var(--pf-color-text);
+        background: color-mix(in srgb, var(--pf-color-text) 7%, transparent);
+      }
+    }
+  }
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+}
