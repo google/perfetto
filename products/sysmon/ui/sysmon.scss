@@ -1,0 +1,238 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-sysmon-connect-wrap {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.pf-sysmon-live-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.22);
+
+  &--paused {
+    background: #d97706;
+    box-shadow: none;
+  }
+}
+
+.pf-sysmon-chart-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 16px;
+}
+
+.pf-sysmon-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 8px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 10px;
+  background: var(--pf-color-background);
+  min-width: 0;
+
+  &__title {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+    letter-spacing: 0.01em;
+  }
+}
+
+.pf-sysmon-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 4px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-sysmon-muted {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-sysmon-compare-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    font-weight: 500;
+  }
+}
+
+.pf-sysmon-compare-vs {
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-sysmon-compare-body {
+  padding: 24px 28px 32px;
+  background: var(--pf-prod-surface);
+}
+
+.pf-sysmon-health-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background);
+  font-size: var(--pf-font-size-s);
+
+  &--warn {
+    border-color: color-mix(in srgb, #d97706 45%, var(--pf-color-border));
+    background: color-mix(in srgb, #d97706 6%, var(--pf-color-background));
+  }
+
+  &--bad {
+    border-color: color-mix(in srgb, #dc2626 55%, var(--pf-color-border));
+    background: color-mix(in srgb, #dc2626 7%, var(--pf-color-background));
+  }
+
+  &__text {
+    flex: 1;
+    color: var(--pf-color-text);
+  }
+}
+
+.pf-sysmon-tm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  &__count {
+    margin-left: auto;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-sysmon-proc-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pf-sysmon-oom-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.pf-sysmon-inline-bar {
+  width: 140px;
+
+  .pf-chart-svg__legend {
+    display: none;
+  }
+}
+
+// Task Manager–style live metric line chart grid on the Live Overview tab.
+.pf-sysmon-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.pf-sysmon-metric-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px 8px;
+  border: 1px solid var(--pf-color-border);
+  border-top: 3px solid var(--pf-sysmon-tile-color, var(--pf-color-primary));
+  border-radius: 10px;
+  background: var(--pf-color-background);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  min-width: 0;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+
+  &--clickable {
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--pf-sysmon-tile-color, var(--pf-color-primary));
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.1);
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    color: var(--pf-color-text);
+    white-space: nowrap;
+
+    .pf-icon {
+      font-size: 16px;
+      color: var(--pf-sysmon-tile-color, var(--pf-color-primary));
+    }
+  }
+
+  &__right {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__val {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+    white-space: nowrap;
+  }
+
+  &__sub {
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

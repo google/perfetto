@@ -1,0 +1,155 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Modeled directly on lat_home_page.scss.
+.pf-sysmon-home {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 56px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow-y: auto;
+  color: var(--pf-color-text);
+
+  &__hero {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 4px 0 0;
+    }
+  }
+
+  &__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--pf-color-primary);
+  }
+
+  &__lede {
+    font-size: var(--pf-font-size-l);
+    color: var(--pf-color-text-muted);
+    max-width: 60ch;
+    margin: 0;
+  }
+
+  &__steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  &__step {
+    border: 1px solid var(--pf-color-border);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+
+    h2 {
+      font-size: var(--pf-font-size-xl);
+      font-weight: 600;
+      margin: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--pf-color-text-muted);
+      line-height: 1.45;
+    }
+  }
+
+  &__number {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--pf-color-primary);
+    color: var(--pf-color-text-on-primary);
+    font-weight: 700;
+  }
+
+  &__loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__demos {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    h2 {
+      font-size: var(--pf-font-size-l);
+      font-weight: 600;
+      margin: 0;
+    }
+  }
+
+  &__demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 12px;
+  }
+
+  &__demo-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 16px 18px;
+    border: none;
+    border-radius: 8px;
+    background: var(--pf-color-background-secondary);
+    color: var(--pf-color-text);
+    cursor: pointer;
+    text-align: left;
+    transition:
+      transform 0.1s ease-in-out,
+      box-shadow 0.1s ease-in-out;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px var(--pf-color-box-shadow);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
+
+  &__demo-name {
+    font-size: var(--pf-font-size-l);
+    font-weight: 600;
+  }
+
+  &__demo-sub {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+}
