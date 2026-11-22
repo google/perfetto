@@ -33,6 +33,7 @@ import {AdbWebusbDevice} from '../../dev.perfetto.RecordTraceV2/adb/webusb/adb_w
 import {
   ADB_DEVICE_FILTER,
   getAdbWebUsbInterface,
+  usbDeviceToStr,
 } from '../../dev.perfetto.RecordTraceV2/adb/webusb/adb_webusb_utils';
 import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 import {AsyncWebsocket} from '../../dev.perfetto.RecordTraceV2/websocket/async_websocket';
@@ -59,12 +60,17 @@ interface WsDevice {
 }
 
 export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
-  private adbKeyMgr = new AdbKeyManager();
+  private adbKeyMgr = AdbKeyManager.getShared();
   private error?: string;
   private connectionMethod: ConnectionMethod = 'usb';
+  private removed = false;
 
   // USB state.
+  private usbDevices: USBDevice[] = [];
   private usbConnecting = false;
+  private readonly onUsbChange = () => {
+    void this.refreshUsbDevices();
+  };
 
   // WebSocket bridge state.
   private wsDevices: WsDevice[] = [];
@@ -83,7 +89,20 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
   private linuxConnecting = false;
   private linuxUrl = '127.0.0.1:8037';
 
+  oninit() {
+    if (exists(navigator.usb)) {
+      void this.refreshUsbDevices();
+      navigator.usb.addEventListener('connect', this.onUsbChange);
+      navigator.usb.addEventListener('disconnect', this.onUsbChange);
+    }
+  }
+
   onremove() {
+    this.removed = true;
+    if (exists(navigator.usb)) {
+      navigator.usb.removeEventListener('connect', this.onUsbChange);
+      navigator.usb.removeEventListener('disconnect', this.onUsbChange);
+    }
     this.disconnectWdp();
   }
 
@@ -141,17 +160,55 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
   }
 
   private renderUsbConnect(attrs: ConnectionPageAttrs): m.Children {
-    return [
-      m(Button, {
+    if (!exists(navigator.usb)) {
+      return [
+        m(Button, {
+          label: 'Connect USB device',
+          icon: 'usb',
+          variant: ButtonVariant.Filled,
+          intent: Intent.Primary,
+          disabled: true,
+        }),
+        m('.pf-memscope-error', 'WebUSB is not available in this browser.'),
+      ];
+    }
+
+    if (this.usbDevices.length === 0) {
+      return m(Button, {
         label: this.usbConnecting ? 'Connecting...' : 'Connect USB device',
         icon: 'usb',
         variant: ButtonVariant.Filled,
         intent: Intent.Primary,
-        disabled: this.usbConnecting || !exists(navigator.usb),
-        onclick: () => this.connectDevice(attrs),
+        disabled: this.usbConnecting,
+        onclick: () => this.pairUsbDevice(attrs),
+      });
+    }
+
+    return [
+      m(
+        '.pf-memscope-device-list',
+        this.usbDevices.map((dev) => {
+          const name = dev.productName || 'Android device';
+          return m(Button, {
+            key: usbDeviceToStr(dev),
+            label: this.usbConnecting
+              ? 'Connecting...'
+              : `${name} [${dev.serialNumber}]`,
+            icon: 'smartphone',
+            variant: ButtonVariant.Filled,
+            intent: Intent.Primary,
+            disabled: this.usbConnecting,
+            onclick: () => this.connectUsbDevice(attrs, dev),
+          });
+        }),
+      ),
+      m(Button, {
+        label: 'Pair new USB device',
+        icon: 'usb',
+        variant: ButtonVariant.Outlined,
+        disabled: this.usbConnecting,
+        onclick: () => this.pairUsbDevice(attrs),
       }),
-      !exists(navigator.usb) &&
-        m('.pf-memscope-error', 'WebUSB is not available in this browser.'),
     ];
   }
 
@@ -257,7 +314,17 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
     ];
   }
 
-  private async connectDevice(attrs: ConnectionPageAttrs) {
+  private async refreshUsbDevices() {
+    if (!exists(navigator.usb)) return;
+    const devices = await navigator.usb.getDevices();
+    if (this.removed) return;
+    this.usbDevices = devices.filter(
+      (dev) => getAdbWebUsbInterface(dev) !== undefined,
+    );
+    m.redraw();
+  }
+
+  private async pairUsbDevice(attrs: ConnectionPageAttrs) {
     this.usbConnecting = true;
     this.error = undefined;
     m.redraw();
@@ -266,7 +333,29 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       const usbdev = await navigator.usb.requestDevice({
         filters: [ADB_DEVICE_FILTER],
       });
+      await this.refreshUsbDevices();
+      await this.connectUsbDevice(attrs, usbdev);
+    } catch (e) {
+      if (`${(e as {name?: string}).name}` === 'NotFoundError') {
+        this.usbConnecting = false;
+        m.redraw();
+        return;
+      }
+      this.error = `Connection failed: ${e}`;
+      this.usbConnecting = false;
+      m.redraw();
+    }
+  }
 
+  private async connectUsbDevice(
+    attrs: ConnectionPageAttrs,
+    usbdev: USBDevice,
+  ) {
+    this.usbConnecting = true;
+    this.error = undefined;
+    m.redraw();
+
+    try {
       const usbiface = getAdbWebUsbInterface(usbdev);
       if (!usbiface) {
         this.error = 'Could not find ADB interface on selected device.';
@@ -286,15 +375,10 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       this.usbConnecting = false;
       attrs.onConnected({
         device: result.value,
-        deviceName: `${usbdev.productName} [${usbdev.serialNumber}]`,
+        deviceName: `${usbdev.productName || 'Android device'} [${usbdev.serialNumber}]`,
       });
       m.redraw();
     } catch (e) {
-      if (`${(e as {name?: string}).name}` === 'NotFoundError') {
-        this.usbConnecting = false;
-        m.redraw();
-        return;
-      }
       this.error = `Connection failed: ${e}`;
       this.usbConnecting = false;
       m.redraw();

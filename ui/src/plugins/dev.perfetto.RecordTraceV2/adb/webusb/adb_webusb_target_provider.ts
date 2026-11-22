@@ -36,7 +36,7 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
     'device. If you are an android developer and use ADB, you should use the ' +
     'websocket option instead.';
 
-  private adbKeyMgr = new AdbKeyManager();
+  private adbKeyMgr = AdbKeyManager.getShared();
   private targets = new Map<string, AdbWebusbTarget>();
   readonly onTargetsChanged = new EvtSource<void>();
 
