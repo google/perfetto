@@ -14,7 +14,7 @@
 
 import {exists} from '../../../../base/utils';
 import type {PreflightCheck} from '../../interfaces/connection_check';
-import {AdbKeyManager} from './adb_key_manager';
+import {adbKeyManager} from './adb_key_manager';
 import {
   ADB_DEVICE_FILTER,
   type AdbUsbInterface,
@@ -36,7 +36,6 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
     'device. If you are an android developer and use ADB, you should use the ' +
     'websocket option instead.';
 
-  private adbKeyMgr = new AdbKeyManager();
   private targets = new Map<string, AdbWebusbTarget>();
   readonly onTargetsChanged = new EvtSource<void>();
 
@@ -73,7 +72,7 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
 
     // If the user re-pairs the same device, remove it from the list and keep
     // the new one.
-    const newTarget = new AdbWebusbTarget(usbiface, this.adbKeyMgr);
+    const newTarget = new AdbWebusbTarget(usbiface, adbKeyManager);
     this.targets.set(key, newTarget);
     this.onTargetsChanged.notify();
     return newTarget;
@@ -101,7 +100,7 @@ export class AdbWebusbTargetProvider implements RecordingTargetProvider {
     }
     for (const [key, usbiface] of usbDevices.entries()) {
       if (this.targets.has(key)) continue; // We already have this target.
-      const newTarget = new AdbWebusbTarget(usbiface, this.adbKeyMgr);
+      const newTarget = new AdbWebusbTarget(usbiface, adbKeyManager);
       this.targets.set(key, newTarget);
       triggerOnTrgetsChanged = true;
     }
