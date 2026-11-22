@@ -32,6 +32,46 @@
     }
   }
 
+  &--has-tabs {
+    justify-content: space-between;
+    padding: 0 10px 0 12px;
+    gap: 12px;
+
+    .pf-tabs-nav {
+      position: static;
+      flex: 1 1 auto;
+      min-width: 0;
+      height: var(--topbar-height);
+      overflow-x: auto;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+
+    .pf-omnibox {
+      width: auto;
+      min-width: 200px;
+      max-width: 380px;
+      flex: 0 1 340px;
+
+      &--query-mode {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        max-width: 100%;
+        padding-left: 12px;
+        z-index: 4;
+      }
+    }
+
+    .pf-topbar__right {
+      position: static;
+      flex-shrink: 0;
+    }
+  }
+
   &__right {
     position: absolute;
     right: 10px;

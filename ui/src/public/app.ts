@@ -24,6 +24,7 @@ import type {RouteArgs} from './route_schema';
 import type {SettingsManager} from './settings';
 import type {SidePanelManager} from './side_panel';
 import type {SidebarManager} from './sidebar';
+import type {SqlPackage} from './extra_sql_packages';
 import type {TraceStream} from './stream';
 import type {TaskTracker} from './task_tracker';
 import type {Trace} from './trace';
@@ -117,6 +118,10 @@ export interface App {
    */
   readonly policy: Policy;
 
+  // The standalone product this UI is running as (e.g. 'memscope'), or
+  // undefined for the general purpose Perfetto UI. See products/README.md.
+  readonly productId: string | undefined;
+
   /**
    * Navigate to a new page.
    */
@@ -126,6 +131,14 @@ export interface App {
    * Returns the route/page we're on.
    */
   getCurrentRoute(): Route;
+
+  /**
+   * Registers PerfettoSQL packages into the engine of every trace loaded
+   * after this call, so queries can `INCLUDE PERFETTO MODULE <pkg>.<module>`.
+   */
+  addSqlPackages(
+    args: ReadonlyArray<SqlPackage> | Promise<ReadonlyArray<SqlPackage>>,
+  ): void;
 
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;

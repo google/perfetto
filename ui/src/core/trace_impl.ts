@@ -17,6 +17,7 @@ import {TimelineImpl} from './timeline';
 import type {Command} from '../public/commands';
 import type {Storage, StorageDescriptor, Trace} from '../public/trace';
 import type {ScrollToArgs} from '../public/scroll_helper';
+import type {SqlPackage} from '../public/extra_sql_packages';
 import type {Engine, EngineBase} from '../trace_processor/engine';
 import type {CommandManagerImpl} from './command_manager';
 import {NoteManagerImpl} from './note_manager';
@@ -327,6 +328,12 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.getCurrentRoute();
   }
 
+  addSqlPackages(
+    args: ReadonlyArray<SqlPackage> | Promise<ReadonlyArray<SqlPackage>>,
+  ) {
+    this.app.addSqlPackages(args);
+  }
+
   openTraceFromFile(file: File) {
     return this.app.openTraceFromFile(file);
   }
@@ -356,6 +363,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get policy(): Policy {
     return this.app.policy;
+  }
+
+  get productId(): string | undefined {
+    return this.app.productId;
   }
 
   get isLoadingTrace(): boolean {

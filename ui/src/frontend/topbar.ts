@@ -25,6 +25,7 @@ import {Button} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {Omnibox} from './omnibox';
+import {renderTabsNav} from './tabs_nav';
 
 class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
   private tracePopupErrorDismissed = false;
@@ -104,13 +105,17 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.Vnode<TopbarAttrs>) {
     const {trace} = attrs;
     const app = AppImpl.instance;
+    const tabsNav = renderTabsNav(app);
     return m(
       '.pf-topbar',
       {
         className: classNames(
-          !app.sidebar.visible && 'pf-topbar--hide-sidebar',
+          (!app.sidebar.visible || !app.sidebar.enabled) &&
+            'pf-topbar--hide-sidebar',
+          tabsNav !== undefined && 'pf-topbar--has-tabs',
         ),
       },
+      tabsNav,
       m(Omnibox, {trace}),
       m(
         '.pf-topbar__right',

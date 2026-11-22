@@ -106,6 +106,7 @@ DEPS_ALLOWLIST = [
     ('/trace_processor/wasm_modules', '/gen/trace_processor*'),
     ('/trace_processor/sql_utils/*', '/trace_processor/*'),
     ('/protos/index', '/gen/protos'),
+    ('/plugins/dev.perfetto.Memscope/product_assets', '/gen/products_sql'),
 
     # ------ Technical debt that needs cleaning up below this point ------
     # TODO(stevegolton): Remove these once we extract core types out of

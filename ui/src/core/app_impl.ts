@@ -180,11 +180,11 @@ export class AppImpl implements App {
     this.testingMode =
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
+    this.embedder = createEmbedder();
     this.sidebar = new SidebarManagerImpl({
-      disabled: this.embeddedMode,
+      disabled: this.embeddedMode || this.embedder.navigation?.kind === 'tabs',
       hidden: this.initialRouteArgs.hideSidebar,
     });
-    this.embedder = createEmbedder();
     this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
     this.analytics = initAnalytics(
       this.testingMode,
@@ -272,6 +272,7 @@ export class AppImpl implements App {
         pct: undefined,
       },
     };
+    this.navigateToTraceLoadingRoute();
     raf.scheduleFullRedraw();
     return token;
   }
@@ -290,6 +291,19 @@ export class AppImpl implements App {
     if (this._externalLoadProgress?.token !== token) return;
     this._externalLoadProgress = undefined;
     raf.scheduleFullRedraw();
+  }
+
+  private navigateToTraceLoadingRoute(): void {
+    const target = this.embedder.traceLoadingRoute;
+    if (target === undefined) return;
+    const cur = Router.getCurrentRoute();
+    if (cur.page === target) return;
+    const processArg =
+      typeof cur.args['process'] === 'string' &&
+      cur.args['process'].trim() !== ''
+        ? `&process=${encodeURIComponent(cur.args['process'].trim())}`
+        : '';
+    Router.navigate(`#!${target}?local_cache_key=${processArg}`);
   }
 
   get raf(): Raf {
@@ -355,6 +369,7 @@ export class AppImpl implements App {
         pct: 4,
         bytesTotal: traceSourceByteLength(src),
       });
+      this.navigateToTraceLoadingRoute();
       try {
         // loadTrace() in trace_loader.ts will do the following:
         // - Create a new engine.
@@ -379,6 +394,10 @@ export class AppImpl implements App {
       }
     });
     return result;
+  }
+
+  get productId(): string | undefined {
+    return this.embedder.productId;
   }
 
   navigate(newHash: string): void {
