@@ -50,6 +50,8 @@ export interface ConnectionResult {
 interface ConnectionPageAttrs {
   readonly app: App;
   readonly onConnected: (result: ConnectionResult) => void;
+  readonly title?: string;
+  readonly description?: string;
 }
 
 type ConnectionMethod = 'usb' | 'websocket' | 'web_proxy' | 'linux';
@@ -109,15 +111,16 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
   view({attrs}: m.CVnode<ConnectionPageAttrs>) {
     return m(
       Page,
-      m(Page.Title, 'Memscope'),
+      m(Page.Title, attrs.title ?? 'Memscope'),
       m(PreviewBanner, {app: attrs.app}),
       m(
         Hero,
         m(Hero.Icon, {icon: 'memory'}),
         m(
           Hero.Text,
-          'Connect to an Android device or Linux host to monitor ' +
-            'per-process memory usage in real time via traced.',
+          attrs.description ??
+            'Connect to an Android device or Linux host to monitor ' +
+              'per-process memory usage in real time via traced.',
         ),
         m(
           RadioGroup,

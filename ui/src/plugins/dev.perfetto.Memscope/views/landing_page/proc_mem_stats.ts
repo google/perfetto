@@ -28,6 +28,8 @@ export interface ProcMemStat {
   readonly heapDumps: number;
   readonly smapsSnapshots: number;
   readonly nativeDumps: number;
+  // Relevance for the landing page, see memscope_process_mem_stats.
+  readonly score: number;
 }
 
 export type ProcWithMem = readonly ProcMemStat[];
@@ -37,28 +39,17 @@ export async function loadProcessMemoryStats(
   engine: Engine,
 ): Promise<ProcWithMem> {
   const result = await engine.query(`
+    INCLUDE PERFETTO MODULE memscope.processes;
     SELECT
-      p.upid,
-      p.pid,
-      COALESCE(p.cmdline, p.name, '<unknown>') AS procName,
-      (
-        SELECT count(*)
-        FROM heap_graph g
-        WHERE g.upid = p.upid
-      ) AS heapDumps,
-      (
-        SELECT count(DISTINCT ts)
-        FROM profiler_smaps s
-        WHERE s.upid = p.upid
-      ) AS smapsSnapshots,
-      (
-        SELECT count(DISTINCT ts)
-        FROM heap_profile_allocation a
-        WHERE a.upid = p.upid
-      ) AS nativeDumps
-    FROM process p
-    WHERE heapDumps > 0 OR smapsSnapshots > 0 OR nativeDumps > 0
-    ORDER BY p.upid;
+      upid,
+      pid,
+      process_name AS procName,
+      heap_dumps AS heapDumps,
+      smaps_snapshots AS smapsSnapshots,
+      native_dumps AS nativeDumps,
+      score
+    FROM memscope_process_mem_stats
+    ORDER BY upid;
   `);
   return materializeRows(result, {
     upid: NUM,
@@ -67,20 +58,13 @@ export async function loadProcessMemoryStats(
     heapDumps: NUM,
     smapsSnapshots: NUM,
     nativeDumps: NUM,
+    score: NUM,
   });
-}
-
-// Scores a process to determine how relevant it is for the landing page.
-// Higher score = more relevant. We weight by data type and count to pick
-// the process with the richest memory analysis data.
-export function scoreProc(p: ProcMemStat): number {
-  // Heap dumps are the richest data source, followed by smaps, then profiles.
-  return p.heapDumps * 3 + p.smapsSnapshots * 2 + p.nativeDumps * 1;
 }
 
 export function pickBestProc(procs: ProcWithMem): ProcMemStat | undefined {
   if (procs.length === 0) return undefined;
-  return procs.reduce((best, p) => (scoreProc(p) > scoreProc(best) ? p : best));
+  return procs.reduce((best, p) => (p.score > best.score ? p : best));
 }
 
 export async function getBestProcess(

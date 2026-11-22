@@ -16,13 +16,11 @@ import protos from '../../../protos';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
 import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
+import {traceConfigToPb} from '../../../base/proto_utils_wasm';
+import {buildRecordConfigTxt} from '../product_assets';
 import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 
 const DUMP_INTERVAL_MS = 10_000;
-const HEAPPROFD_DUMP_INTERVAL_MS = 5_000;
-const PROC_STATS_BUFFER_SIZE_KB = 4 * 1024;
-const HEAPPROFD_BUFFER_SIZE_KB = 512 * 1024;
-const JAVA_HPROF_BUFFER_SIZE_KB = 512 * 1024;
 const STATS_POLL_INTERVAL_MS = 3_000;
 
 export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
@@ -48,7 +46,7 @@ export class ProfileSession {
     processName: string,
   ): Promise<ProfileSession> {
     const self = new ProfileSession(pid, processName);
-    const config = buildProcessProfileConfig(pid, processName);
+    const config = await buildProcessProfileConfig(pid, processName);
     const result =
       targetOrDevice instanceof TracedWebsocketTarget
         ? await targetOrDevice.startTracing(config)
@@ -123,86 +121,32 @@ export class ProfileSession {
   }
 }
 
-function buildProcessProfileConfig(
+// The shared single-app config (products/memscope/configs/record.pbtx),
+// targeted at |pid| and running until stopped.
+async function buildProcessProfileConfig(
   pid: number,
   processName: string,
-): protos.ITraceConfig {
-  return {
-    compressionType:
-      protos.TraceConfig.CompressionType.COMPRESSION_TYPE_DEFLATE,
-    buffers: [
-      {
-        name: 'process_stats',
-        sizeKb: PROC_STATS_BUFFER_SIZE_KB,
-        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.DISCARD,
-      },
-      {
-        name: 'heapprofd',
-        sizeKb: HEAPPROFD_BUFFER_SIZE_KB,
-        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
-      },
-      {
-        name: 'java_hprof',
-        sizeKb: JAVA_HPROF_BUFFER_SIZE_KB,
-        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
-      },
-      {
-        name: 'ftrace',
-        sizeKb: 4 * 1024,
-        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
-      },
-    ],
-    dataSources: [
-      {
-        config: {
-          name: 'linux.process_stats',
-          targetBufferName: 'process_stats',
-          processStatsConfig: {
-            scanAllProcessesOnStart: true, // Necessary for track names.
-            procStatsPollMs: 1000,
-            recordProcessAge: true, // Necessary for process uptime.
-          },
-        },
-      },
-      {
-        config: {
-          name: 'android.heapprofd',
-          targetBufferName: 'heapprofd',
-          heapprofdConfig: {
-            pid: [pid],
-            samplingIntervalBytes: 32 * 1024, // Slightly larger than default to reduce overhead.
-            shmemSizeBytes: 16 * 1024 * 1024,
-            blockClient: true, // Important for trace integrity.
-            continuousDumpConfig: {
-              dumpIntervalMs: HEAPPROFD_DUMP_INTERVAL_MS, // Important for getting regular heap snapshots to see how memory usage evolves over time.
-            },
-          },
-        },
-      },
-      {
-        config: {
-          name: 'android.java_hprof',
-          targetBufferName: 'java_hprof',
-          javaHprofConfig: {
-            pid: [pid],
-            continuousDumpConfig: {
-              dumpIntervalMs: DUMP_INTERVAL_MS, // Required for Java profiles.
-            },
-            smapsConfig: {},
-          },
-        },
-      },
-      {
-        config: {
-          name: 'linux.ftrace',
-          targetBufferName: 'ftrace',
-          ftraceConfig: {
-            ftraceEvents: ['ftrace/print'],
-            atraceCategories: ['dalvik'],
-            atraceApps: [processName],
-          },
-        },
-      },
-    ],
-  };
+): Promise<protos.ITraceConfig> {
+  const txt = buildRecordConfigTxt({
+    app: processName,
+    durationMs: 0,
+    javaDumps: {phaseMs: 0, intervalMs: DUMP_INTERVAL_MS},
+  });
+  const pb = await traceConfigToPb(txt);
+  if (!pb.ok) throw new Error(`Bad memscope record config: ${pb.error}`);
+  const config = protos.TraceConfig.decode(pb.value);
+  config.compressionType =
+    protos.TraceConfig.CompressionType.COMPRESSION_TYPE_DEFLATE;
+  // Target the exact process picked in the UI rather than every process
+  // sharing its name.
+  for (const ds of config.dataSources) {
+    const c = ds.config;
+    for (const target of [c?.heapprofdConfig, c?.javaHprofConfig]) {
+      if (target) {
+        target.processCmdline = [];
+        target.pid = [pid];
+      }
+    }
+  }
+  return config;
 }

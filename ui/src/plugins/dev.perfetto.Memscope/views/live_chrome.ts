@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {GateDetector} from '../../../base/mithril_utils';
 import type {
   LineChartData,
   LineChartSeries,
@@ -24,25 +23,30 @@ import {Chip} from '../../../widgets/chip';
 import {Intent} from '../../../widgets/common';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
-import {RadioGroup} from '../../../widgets/radio_group';
-import {Page} from '../components/page';
-import {PreviewBanner} from '../components/preview_banner';
+import {Stack} from '../../../widgets/stack';
 import type {
   LiveSession,
   ProfileView,
   SnapshotData,
 } from '../sessions/live_session';
-import './dashboard.scss';
+import {
+  beginPendingMemoryCapture,
+  failPendingMemoryCapture,
+  memoryLoadingHref,
+} from '../memory_explorer/loading_state';
+import './live_chrome.scss';
 import {ProfilePage} from './profile_page';
-import {renderPageCacheTab} from './tabs/page_cache';
-import {renderPressureSwapTab} from './tabs/pressure_swap';
-import {ProcessesTab} from './tabs/processes';
-import {renderSystemTab} from './tabs/system';
-import {Stack} from '../../../widgets/stack';
 
-type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
+// Shared chrome for live pages: the session pill (device, disconnect, stats)
+// and the in-progress heap profile view.
 
-function buildProcessMemoryBreakdown(
+export interface LiveSessionAttrs {
+  readonly app: App;
+  readonly session: LiveSession;
+  readonly onStopped: () => void;
+}
+
+export function buildProcessMemoryBreakdown(
   data: SnapshotData,
   pid: number,
   t0: number,
@@ -104,80 +108,12 @@ function buildProcessMemoryBreakdown(
   return {series};
 }
 
-interface DashboardAttrs {
-  readonly app: App;
-  readonly session: LiveSession;
-  readonly onStopped: () => void;
-}
-
-export class Dashboard implements m.ClassComponent<DashboardAttrs> {
-  private activeTab: Tab = 'processes';
-  private profileBaseline?: {anonSwap: number; file: number; dmabuf: number};
-
-  view({attrs}: m.CVnode<DashboardAttrs>) {
-    const {session} = attrs;
-    return m(
-      GateDetector,
-      {
-        onVisibilityChanged: (visible) =>
-          visible ? session.resume() : session.pause(),
-      },
-      m(
-        Page,
-
-        // Title bar with status and actions (always shown).
-        this.renderTitleBar(attrs),
-        m(PreviewBanner, {app: attrs.app}),
-
-        // Profile page or dashboard content.
-        session.profile !== undefined
-          ? this.renderProfilePage(attrs, session.profile)
-          : this.renderDashboard(attrs),
-      ),
-    );
+export class SessionPill implements m.ClassComponent<LiveSessionAttrs> {
+  view({attrs}: m.CVnode<LiveSessionAttrs>) {
+    return this.renderSessionPill(attrs);
   }
 
-  private renderTitleBar(attrs: DashboardAttrs): m.Children {
-    return m(
-      '.pf-memscope-title-bar',
-      // Left: title + session pill (device + snapshot counter + pause/play).
-      m(
-        '.pf-memscope-title-bar__left',
-        m('h1', 'Memscope'),
-        attrs.session.profile === undefined && this.renderTabStrip(),
-      ),
-      this.renderSessionPill(attrs),
-    );
-  }
-
-  private renderTabStrip(): m.Children {
-    return m(
-      RadioGroup,
-      {
-        intent: Intent.Primary,
-        selectedValue: this.activeTab,
-        onValueChange: (value) => {
-          this.activeTab = value as Tab;
-        },
-      },
-      m(RadioGroup.Button, {value: 'processes', icon: 'apps'}, 'Processes'),
-      m(RadioGroup.Button, {value: 'system', icon: 'monitoring'}, 'System'),
-      m(
-        RadioGroup.Button,
-        {value: 'file_cache', icon: 'file_copy'},
-        'Page Cache',
-      ),
-
-      // Right: action buttons.
-      m(
-        RadioGroup.Button,
-        {value: 'pressure_swap', icon: 'speed'},
-        'Pressure, Faults & Swap',
-      ),
-    );
-  }
-
-  private renderSessionPill(attrs: DashboardAttrs): m.Children {
+  private renderSessionPill(attrs: LiveSessionAttrs): m.Children {
     const {session} = attrs;
     return m(
       '.pf-memscope-session-pill',
@@ -228,17 +164,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         ),
       ),
     );
-  }
-
-  private renderDashboard(attrs: DashboardAttrs): m.Children {
-    const {session} = attrs;
-    return [
-      this.activeTab === 'processes' && m(ProcessesTab, {session}),
-      this.activeTab === 'system' && renderSystemTab(session),
-      this.activeTab === 'file_cache' && renderPageCacheTab(session),
-      this.activeTab === 'pressure_swap' && renderPressureSwapTab(session),
-      !session.data && m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
-    ];
   }
 
   private renderSnapshotStats(session: LiveSession): m.Children {
@@ -315,8 +240,40 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     );
   }
 
+  private stopAndOpenTrace(attrs: LiveSessionAttrs) {
+    const buffer = attrs.session.lastTraceBuffer;
+    if (buffer === undefined) return;
+    const fileName = `live-memory-${Date.now()}.perfetto-trace`;
+    beginPendingMemoryCapture({
+      title: fileName,
+      fromLive: true,
+      deviceName: attrs.session.deviceName,
+      stage: 'opening',
+      capturedBytes: buffer.byteLength,
+      detail: 'Starting Trace Processor…',
+    });
+    attrs.app.navigate(memoryLoadingHref());
+    attrs.onStopped();
+    void attrs.app
+      .openTraceFromBuffer({buffer, title: fileName, fileName})
+      .catch((e) => {
+        failPendingMemoryCapture(e instanceof Error ? e.message : String(e));
+        attrs.app.raf.scheduleFullRedraw();
+      });
+  }
+}
+
+export class LiveProfileView implements m.ClassComponent<LiveSessionAttrs> {
+  private profileBaseline?: {anonSwap: number; file: number; dmabuf: number};
+
+  view({attrs}: m.CVnode<LiveSessionAttrs>) {
+    const profile = attrs.session.profile;
+    if (profile === undefined) return undefined;
+    return this.renderProfilePage(attrs, profile);
+  }
+
   private renderProfilePage(
-    attrs: DashboardAttrs,
+    attrs: LiveSessionAttrs,
     profile: ProfileView,
   ): m.Children {
     const {session} = attrs;
@@ -348,6 +305,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       pid: profile.pid,
       startMs: profile.startMs,
       chartData,
+      baseSec: t0 / 1e9,
       baseline: this.profileBaseline,
       onStop: () => {
         session.stopAndOpenProfile().then(() => {
@@ -368,13 +326,5 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         });
       },
     });
-  }
-
-  private stopAndOpenTrace(attrs: DashboardAttrs) {
-    const buffer = attrs.session.lastTraceBuffer;
-    if (buffer === undefined) return;
-    const fileName = `live-memory-${Date.now()}.perfetto-trace`;
-    attrs.onStopped();
-    attrs.app.openTraceFromBuffer({buffer, title: fileName, fileName});
   }
 }

@@ -13,15 +13,21 @@
 // limitations under the License.
 
 import m from 'mithril';
+import type {App} from '../../../public/app';
+import {noData, xAxisFor} from './chart_axis';
+import {
+  LiveStripChart,
+  type StripSeries,
+} from '../../../components/widgets/charts/live_strip_chart';
 import {
   LineChartSvg,
   type LineChartData,
   type LineChartSeries,
-} from '../../../../components/widgets/charts_svg/line_chart_svg';
-import {Button, ButtonVariant} from '../../../../widgets/button';
-import {Intent} from '../../../../widgets/common';
-import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
-import {PopupPosition} from '../../../../widgets/popup';
+} from '../../../components/widgets/charts_svg/line_chart_svg';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
 import {
   Grid,
   GridCell,
@@ -29,40 +35,31 @@ import {
   GridHeaderCell,
   renderSortMenuItems,
   type SortDirection,
-} from '../../../../widgets/grid';
-import {TextInput} from '../../../../widgets/text_input';
-import {RadioGroup} from '../../../../widgets/radio_group';
+} from '../../../widgets/grid';
+import {TextInput} from '../../../widgets/text_input';
+import {RadioGroup} from '../../../widgets/radio_group';
 import type {
   LiveSession,
   ProcessInfo,
   SnapshotData,
-} from '../../sessions/live_session';
+} from '../sessions/live_session';
 import {
   categorizeProcess,
   CATEGORIES,
   type CategoryId,
-} from '../../process_categories';
-import {Billboard, BillboardStrip} from '../../components/billboard';
-import {HelpTooltip} from '../../components/help_tooltip';
-import {ColorChip, chipColor} from '../../components/color_chip';
-import {
-  billboardBytes,
-  chartXWindow,
-  formatRelativeXValue,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../../utils';
-import {formatBytesIec} from '../../../../base/bytes_format';
+} from '../process_categories';
+import {Billboard, BillboardStrip} from '../components/billboard';
+import {HelpTooltip} from '../components/help_tooltip';
+import {ColorChip, chipColor} from '../components/color_chip';
+import {billboardBytes, maxSeriesKb, niceKbInterval} from '../utils';
+import {formatBytesIec} from '../../../base/bytes_format';
 import {
   type ProcessGrouping,
   type ProcessMetric,
   type ProcessMemoryRow,
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
-} from '../../process_data';
-
-export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
-export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
+} from '../process_data';
 
 // Tiny SVG sparkline for the trend column. Min/max are derived from the
 // values themselves (so a flat series renders as a flat line at mid-height).
@@ -410,15 +407,45 @@ function buildLatestProcessMemory(data: SnapshotData): ProcessMemoryRow[] {
   return rows;
 }
 
-// Build a lookup from category name -> color for the cell renderer.
+// Build lookups from category / OOM bucket name -> raw color for cell renderers
+// and LiveStripChart (which applies its own area alpha over vivid base colors).
 const CATEGORY_COLOR_MAP = new Map<string, string>(
   (Object.values(CATEGORIES) as readonly {name: string; color: string}[]).map(
     (c) => [c.name, c.color],
   ),
 );
 
+const OOM_COLOR_MAP = new Map<string, string>(
+  OOM_SCORE_BUCKETS.map((b) => [b.name, b.color]),
+);
+
+const DRILLDOWN_PALETTE: readonly string[] = [
+  '#2563eb',
+  '#7c3aed',
+  '#0891b2',
+  '#16a34a',
+  '#d97706',
+  '#dc2626',
+  '#ec4899',
+  '#4f46e5',
+  '#0d9488',
+  '#ea580c',
+  '#9333ea',
+  '#0284c7',
+  '#65a30d',
+  '#e11d48',
+  '#6366f1',
+];
+
 export interface ProcessesTabAttrs {
-  readonly session: LiveSession;
+  readonly app: App;
+  readonly data: SnapshotData | undefined;
+  // Undefined when showing a loaded trace.
+  readonly session?: LiveSession;
+  // Buttons shown on each process row, e.g. to open or profile it.
+  readonly rowActions?: (p: ProcessMemoryRow) => m.Children;
+  // A panel shown beside the chart.
+  readonly companion?: m.Children;
 }
 
 export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
@@ -429,8 +456,9 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
   private processSearch: string = '';
 
   view({attrs}: m.CVnode<ProcessesTabAttrs>): m.Children {
-    const data = attrs.session.data;
+    const data = attrs.data;
     if (!data) return null;
+    const live = attrs.session !== undefined;
 
     const t0 = data.ts0;
     const counters = PROCESS_METRIC_OPTIONS.find(
@@ -463,8 +491,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     // Pin the x-axis to a fixed-width window ending at the latest sample.
     // All samples are passed to the chart; the x-axis is manually limited to
     // the window and the chart clips anything outside the plot area.
-    const xWindow = chartXWindow(data.xMax);
-    const formatX = formatRelativeXValue(data.xMax);
+    const xWindow = xAxisFor(data, live);
+    const formatX = xWindow.format;
 
     const latestProcesses = buildLatestProcessMemory(data);
 
@@ -502,6 +530,143 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     const totalFileKb = latestProcesses.reduce((s, p) => s + p.fileKb, 0);
     const totalDmabufKb = latestProcesses.reduce((s, p) => s + p.dmabufKb, 0);
 
+    const chartPanel = m(
+      '.pf-memscope-panel',
+      m(
+        '.pf-memscope-panel__header',
+        m(
+          '.pf-memscope-panel__title-row',
+          isDrilledDown &&
+            m(Button, {
+              variant: ButtonVariant.Filled,
+              icon: 'arrow_back',
+              label:
+                this.grouping === 'category'
+                  ? 'All categories'
+                  : 'All OOM buckets',
+              minimal: true,
+              onclick: () => {
+                this.selectedCategory = undefined;
+                this.selectedOomBucket = undefined;
+              },
+            }),
+          m('h2', title),
+          m(HelpTooltip, {
+            content: m.fragment({}, [
+              m('div', [
+                'Stacked memory per process (or per category / OOM bucket). ' +
+                  'Totals may exceed actual usage because RSS counts shared ' +
+                  'pages (COW, mmap) in every process that maps them.',
+              ]),
+              m('div', [
+                'Source: linux.process_stats data source (traced_probes) polling ' +
+                  '/proc/<pid>/status, /proc/<pid>/dmabuf_rss, /proc/<pid>/oom_score_adj ' +
+                  'and /proc/<pid>/stat.',
+              ]),
+            ]),
+          }),
+          m(
+            '.pf-memscope-panel__controls',
+            m(
+              RadioGroup,
+              {
+                intent: Intent.Primary,
+                selectedValue: this.grouping,
+                onValueChange: (value) => {
+                  const g = value as ProcessGrouping;
+                  if (g === this.grouping) return;
+                  this.grouping = g;
+                  this.selectedCategory = undefined;
+                  this.selectedOomBucket = undefined;
+                },
+              },
+              m(RadioGroup.Button, {value: 'category'}, 'By Category'),
+              m(RadioGroup.Button, {value: 'oom_score'}, 'By OOM Score'),
+            ),
+            m(
+              RadioGroup,
+              {
+                intent: Intent.Primary,
+                selectedValue: this.metric,
+                onValueChange: (value) => {
+                  const newMetric = value as ProcessMetric;
+                  if (newMetric === this.metric) return;
+                  this.metric = newMetric;
+                  this.selectedCategory = undefined;
+                  this.selectedOomBucket = undefined;
+                },
+              },
+              PROCESS_METRIC_OPTIONS.map((o) =>
+                m(RadioGroup.Button, {value: o.key}, o.label),
+              ),
+            ),
+          ),
+        ),
+      ),
+      m(
+        '.pf-memscope-panel__body',
+        chartData
+          ? live
+            ? (() => {
+                const baseSec = data.ts0 / 1e9;
+                let maxPointT = -Infinity;
+                const stripSeries: StripSeries[] = chartData.series
+                  .filter((s) => s.points.some((p) => p.y > 0))
+                  .map((s, idx) => {
+                    const color =
+                      CATEGORY_COLOR_MAP.get(s.name) ??
+                      OOM_COLOR_MAP.get(s.name) ??
+                      (s.name.startsWith('Other (')
+                        ? 'var(--pf-chart-color-neutral)'
+                        : DRILLDOWN_PALETTE[idx % DRILLDOWN_PALETTE.length]!);
+                    const points = s.points.map((p) => {
+                      const t = baseSec + p.x;
+                      if (t > maxPointT) maxPointT = t;
+                      return {t, v: p.y};
+                    });
+                    return {name: s.name, color, points};
+                  });
+                const latestSec = Number.isFinite(maxPointT)
+                  ? maxPointT
+                  : baseSec + data.xMax;
+                return m(LiveStripChart, {
+                  resetKey: `${this.grouping}:${this.metric}:${this.selectedCategory ?? ''}:${this.selectedOomBucket ?? ''}`,
+                  series: stripSeries,
+                  latestSec,
+                  windowSec: 60,
+                  lagSec: 2.0,
+                  isLive: !attrs.session!.isPaused,
+                  stacked: true,
+                  height: 350,
+                  formatY: (v: number) => formatBytesIec(v * 1024),
+                  showLegend: true,
+                  onSeriesClick: isDrilledDown
+                    ? undefined
+                    : (seriesName: string) => this.onSeriesClick(seriesName),
+                });
+              })()
+            : m(LineChartSvg, {
+                data: chartData,
+                height: 350,
+                showLegend: true,
+                showPoints: false,
+                stacked: true,
+                gridLines: 'both',
+                xAxisMin: xWindow.min,
+                xAxisMax: xWindow.max,
+                // Show time relative to the latest sample: 0s on the right,
+                // -60s on the left.
+                formatXValue: formatX,
+                formatYValue: (v: number) => formatBytesIec(v * 1024),
+                yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
+                onSeriesClick: isDrilledDown
+                  ? undefined
+                  : (seriesName: string) => this.onSeriesClick(seriesName),
+              })
+          : noData(live),
+      ),
+    );
+
     return m.fragment({}, [
       latestProcesses.length > 0 &&
         m(
@@ -522,109 +687,16 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             desc: 'Sum of DMA-BUF heap RSS across all processes',
           }),
         ),
-      m(
-        '.pf-memscope-panel',
-        m(
-          '.pf-memscope-panel__header',
-          m(
-            '.pf-memscope-panel__title-row',
-            isDrilledDown &&
-              m(Button, {
-                variant: ButtonVariant.Filled,
-                icon: 'arrow_back',
-                label:
-                  this.grouping === 'category'
-                    ? 'All categories'
-                    : 'All OOM buckets',
-                minimal: true,
-                onclick: () => {
-                  this.selectedCategory = undefined;
-                  this.selectedOomBucket = undefined;
-                },
-              }),
-            m('h2', title),
-            m(HelpTooltip, {
-              content: m.fragment({}, [
-                m('div', [
-                  'Stacked memory per process (or per category / OOM bucket). ' +
-                    'Totals may exceed actual usage because RSS counts shared ' +
-                    'pages (COW, mmap) in every process that maps them.',
-                ]),
-                m('div', [
-                  'Source: linux.process_stats data source (traced_probes) polling ' +
-                    '/proc/<pid>/status, /proc/<pid>/dmabuf_rss, /proc/<pid>/oom_score_adj ' +
-                    'and /proc/<pid>/stat.',
-                ]),
-              ]),
-            }),
-            m(
-              '.pf-memscope-panel__controls',
-              m(
-                RadioGroup,
-                {
-                  intent: Intent.Primary,
-                  selectedValue: this.grouping,
-                  onValueChange: (value) => {
-                    const g = value as ProcessGrouping;
-                    if (g === this.grouping) return;
-                    this.grouping = g;
-                    this.selectedCategory = undefined;
-                    this.selectedOomBucket = undefined;
-                  },
-                },
-                m(RadioGroup.Button, {value: 'category'}, 'By Category'),
-                m(RadioGroup.Button, {value: 'oom_score'}, 'By OOM Score'),
-              ),
-              m(
-                RadioGroup,
-                {
-                  intent: Intent.Primary,
-                  selectedValue: this.metric,
-                  onValueChange: (value) => {
-                    const newMetric = value as ProcessMetric;
-                    if (newMetric === this.metric) return;
-                    this.metric = newMetric;
-                    this.selectedCategory = undefined;
-                    this.selectedOomBucket = undefined;
-                  },
-                },
-                PROCESS_METRIC_OPTIONS.map((o) =>
-                  m(RadioGroup.Button, {value: o.key}, o.label),
-                ),
-              ),
-            ),
-          ),
-        ),
-        m(
-          '.pf-memscope-panel__body',
-          chartData
-            ? m(LineChartSvg, {
-                data: chartData,
-                height: 350,
-                showLegend: true,
-                showPoints: false,
-                stacked: true,
-                gridLines: 'both',
-                xAxisMin: xWindow.min,
-                xAxisMax: xWindow.max,
-                // Show time relative to the latest sample: 0s on the right,
-                // -60s on the left.
-                formatXValue: formatX,
-                formatYValue: (v: number) => formatBytesIec(v * 1024),
-                yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
-                onSeriesClick: isDrilledDown
-                  ? undefined
-                  : (seriesName: string) => this.onSeriesClick(seriesName),
-              })
-            : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
-        ),
-      ),
+      attrs.companion === undefined
+        ? chartPanel
+        : m('.pf-memscope-panel-row', attrs.companion, chartPanel),
       m(
         '.pf-memscope-panel',
         m(ProcessTable, {
           processes: filteredProcesses,
           isUserDebug: data.isUserDebug,
           session: attrs.session,
+          rowActions: attrs.rowActions,
           searchQuery: this.processSearch,
           onSearchChange: (q) => {
             this.processSearch = q;
@@ -649,7 +721,8 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
 interface ProcessTableAttrs {
   readonly processes: ProcessMemoryRow[];
   readonly isUserDebug: boolean;
-  readonly session: LiveSession;
+  readonly session?: LiveSession;
+  readonly rowActions?: (p: ProcessMemoryRow) => m.Children;
   readonly searchQuery: string;
   readonly onSearchChange: (q: string) => void;
 }
@@ -784,20 +857,8 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
         if (mn > 0) return `${mn}m ${s}s`;
         return `${s}s`;
       })();
-      const canProfile = p.debuggable || isUserDebug;
-      const profileButton = m(Button, {
-        label: 'Profile',
-        icon: canProfile ? undefined : 'warning',
-        rightIcon: 'arrow_forward',
-        rounded: true,
-        variant: ButtonVariant.Filled,
-        intent: Intent.Primary,
-        tooltip: canProfile
-          ? undefined
-          : 'Process is not marked debuggable. Profiling may fail if the device is not a userdebug or eng build.',
-        onclick: () =>
-          session.startProfile(p.pid, p.processName).then(() => m.redraw()),
-      });
+      // Offline there is nothing to profile, so nothing to mute.
+      const canProfile = session === undefined || p.debuggable || isUserDebug;
       const mutedStyle = canProfile
         ? undefined
         : {color: 'var(--pf-color-text-muted)', opacity: '0.7'};
@@ -808,7 +869,10 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       return [
         m(
           GridCell,
-          {actionButtons: profileButton, style: mutedStyle},
+          {
+            actionButtons: attrs.rowActions?.(p),
+            style: mutedStyle,
+          },
           p.processName,
         ),
         m(GridCell, {style: mutedTextOnly}, m(ColorChip, {color}, cat.name)),
@@ -847,7 +911,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
       ];
     });
 
-    const profile = session.profile;
+    const profile = session?.profile;
     const isStopping = profile?.state === 'stopping';
 
     return [
@@ -865,7 +929,7 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
               minimal: true,
               intent: Intent.Danger,
               onclick: () =>
-                session.stopAndDownloadProfile().then(() => m.redraw()),
+                session?.stopAndDownloadProfile().then(() => m.redraw()),
             }),
             m(Button, {
               label: 'Stop & Open',
@@ -873,13 +937,13 @@ class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
               minimal: true,
               intent: Intent.Danger,
               onclick: () =>
-                session.stopAndOpenProfile().then(() => m.redraw()),
+                session?.stopAndOpenProfile().then(() => m.redraw()),
             }),
             m(Button, {
               label: 'Cancel',
               icon: 'close',
               minimal: true,
-              onclick: () => session.cancelProfile().then(() => m.redraw()),
+              onclick: () => session?.cancelProfile().then(() => m.redraw()),
             }),
           ],
         ),

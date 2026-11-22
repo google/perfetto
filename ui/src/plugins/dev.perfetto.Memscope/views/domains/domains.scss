@@ -1,0 +1,464 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memscope-dom {
+  &__snap-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__snap-label {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background-secondary);
+    font-size: var(--pf-font-size-s);
+    line-height: 1.45;
+    color: var(--pf-color-text);
+
+    .pf-memscope-dom__dot {
+      margin-top: 5px;
+    }
+
+    code {
+      font-family: var(--pf-font-monospace);
+      font-size: 12px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: var(--pf-color-background);
+      border: 1px solid var(--pf-color-border);
+    }
+  }
+
+  &__bucket-strip {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__bar {
+    display: flex;
+    height: 10px;
+    width: 100%;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--pf-color-background-secondary);
+    gap: 1px;
+  }
+
+  &__bar-seg {
+    height: 100%;
+    min-width: 2px;
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background);
+    font: inherit;
+    font-size: 12px;
+    color: var(--pf-color-text);
+    cursor: pointer;
+    transition:
+      background 0.1s ease,
+      border-color 0.1s ease;
+
+    &:hover {
+      background: var(--pf-color-background-secondary);
+    }
+
+    &--active {
+      border-color: var(--pf-color-primary);
+      background: color-mix(
+        in srgb,
+        var(--pf-color-primary) 10%,
+        var(--pf-color-background)
+      );
+    }
+
+    strong {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+  }
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &__filter-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  &__fpill {
+    border: 1px solid var(--pf-color-border);
+    border-radius: 999px;
+    padding: 3px 9px;
+    background: var(--pf-color-background);
+    color: var(--pf-color-text-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--pf-color-text);
+      background: var(--pf-color-background-secondary);
+    }
+
+    &--active {
+      color: var(--pf-color-text);
+      border-color: var(--pf-color-primary);
+      background: color-mix(
+        in srgb,
+        var(--pf-color-primary) 12%,
+        var(--pf-color-background)
+      );
+      font-weight: 600;
+    }
+  }
+
+  &__path-cell {
+    max-width: 440px;
+  }
+
+  &__path-name {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--pf-color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__path-dir {
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__bucket-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__tag {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: color-mix(
+      in srgb,
+      var(--pf-color-primary) 14%,
+      var(--pf-color-background)
+    );
+    color: var(--pf-color-primary);
+  }
+
+  &__share-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__share-track {
+    width: 48px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--pf-color-background-secondary);
+    overflow: hidden;
+  }
+
+  &__share-fill {
+    height: 100%;
+    border-radius: 999px;
+  }
+}
+
+.pf-memscope-where-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+
+  &--no-chart {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (max-width: 960px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &__chart {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+  }
+}
+
+.pf-memscope-sunburst {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+
+  &__chart {
+    position: relative;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  &__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    text-align: center;
+    padding: 0 34%;
+    gap: 1px;
+  }
+
+  &__center-parent {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pf-color-text-muted);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__center-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__center-val {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+  }
+
+  &__center-sub {
+    font-size: 10px;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__caption {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-memscope-areas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pf-memscope-area {
+  border: 1px solid var(--pf-color-border);
+  border-left: 3px solid var(--pf-memscope-area-color, var(--pf-color-primary));
+  border-radius: 8px;
+  padding: 9px 13px;
+  background: var(--pf-color-background);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+
+  &--highlighted {
+    border-color: var(--pf-memscope-area-color, var(--pf-color-primary));
+    background: color-mix(
+      in srgb,
+      var(--pf-memscope-area-color, var(--pf-color-primary)) 7%,
+      var(--pf-color-background)
+    );
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  }
+
+  &--small {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 12px;
+    background: color-mix(
+      in srgb,
+      var(--pf-color-background-secondary) 55%,
+      var(--pf-color-background)
+    );
+    border-left-width: 3px;
+    opacity: 0.85;
+    cursor: pointer;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__title-group,
+  &__metric-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__name {
+    font-size: var(--pf-font-size-m);
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__share {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__bytes {
+    font-size: var(--pf-font-size-m);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+  }
+
+  &--small &__bytes {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__delta {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bar {
+    height: 5px;
+    border-radius: 999px;
+    background: var(--pf-color-background-secondary);
+    overflow: hidden;
+  }
+
+  &__bar-fill {
+    height: 100%;
+    border-radius: 999px;
+  }
+
+  &__summary {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+
+  &__quiet-summary {
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__small-open {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  &__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 2px;
+  }
+
+  &__quick {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+}

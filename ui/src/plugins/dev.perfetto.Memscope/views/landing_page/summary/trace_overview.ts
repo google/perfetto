@@ -20,14 +20,8 @@
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
-import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
-import {
-  LONG,
-  NUM,
-  NUM_NULL,
-  STR,
-} from '../../../../../trace_processor/query_result';
+import {NUM_NULL} from '../../../../../trace_processor/query_result';
 import {deltaText, formatBytes, formatDelta, statCard} from '../mem_format';
 import {BillboardStrip} from '../../../components/billboard';
 import {ColorChip} from '../../../components/color_chip';
@@ -39,27 +33,25 @@ interface StatsData {
   readonly oomScoreAdj?: number; // at the last heap dump
 }
 
-// RSS counter maxima over the whole trace.
+// RSS spike: watermark overshoot above the best-sampled RSS.
 interface CounterData {
-  readonly rssWatermark?: number; // max of mem.rss.watermark
-  readonly rssMax?: number; // max of mem.rss
+  readonly spike?: number;
 }
 
-// Per-snapshot total anon+swap (smaps), ts-sorted across the whole trace.
-type AnonSwapSeries = readonly {ts: time; total: number}[];
+// Anon + swap (smaps) over the whole trace: peak, and the change from the
+// first to the last snapshot.
+interface TrendData {
+  readonly peak?: number;
+  readonly delta?: number;
+  readonly perHour?: number;
+}
 
 async function loadStats(trace: Trace, upid: number): Promise<StatsData> {
-  await trace.engine.query(
-    'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;',
-  );
   const res = await trace.engine.query(`
-    SELECT
-      s.process_uptime AS uptime,
-      s.oom_score_adj AS oom_score_adj
-    FROM android_heap_graph_stats s
-    WHERE s.upid = ${upid}
-    ORDER BY s.graph_sample_ts DESC
-    LIMIT 1
+    INCLUDE PERFETTO MODULE memscope.summary;
+    SELECT uptime, oom_score_adj
+    FROM memscope_process_last_heap_dump
+    WHERE upid = ${upid}
   `);
   const it = res.iter({uptime: NUM_NULL, oom_score_adj: NUM_NULL});
   if (!it.valid()) return {};
@@ -70,45 +62,33 @@ async function loadStats(trace: Trace, upid: number): Promise<StatsData> {
 }
 
 async function loadCounters(trace: Trace, upid: number): Promise<CounterData> {
-  let rssWatermark: number | undefined;
-  let rssMax: number | undefined;
   const res = await trace.engine.query(`
-    SELECT t.name AS counter_name, MAX(c.value) AS max_value
-    FROM counter c
-    JOIN process_counter_track t ON c.track_id = t.id
-    WHERE t.upid = ${upid}
-      AND t.name IN ('mem.rss.watermark', 'mem.rss')
-    GROUP BY t.name
+    INCLUDE PERFETTO MODULE memscope.summary;
+    SELECT rss_spike_bytes AS spike
+    FROM memscope_process_rss_counters
+    WHERE upid = ${upid}
   `);
-  for (
-    const it = res.iter({counter_name: STR, max_value: NUM});
-    it.valid();
-    it.next()
-  ) {
-    if (it.counter_name === 'mem.rss.watermark') rssWatermark = it.max_value;
-    else if (it.counter_name === 'mem.rss') rssMax = it.max_value;
-  }
-  return {rssWatermark, rssMax};
+  const it = res.iter({spike: NUM_NULL});
+  return {spike: it.valid() ? (it.spike ?? undefined) : undefined};
 }
 
-async function loadAnonSwap(
-  trace: Trace,
-  upid: number,
-): Promise<AnonSwapSeries> {
-  const anonSwap: {ts: time; total: number}[] = [];
+async function loadTrend(trace: Trace, upid: number): Promise<TrendData> {
   const res = await trace.engine.query(`
+    INCLUDE PERFETTO MODULE memscope.summary;
     SELECT
-      s.ts AS ts,
-      CAST(ifnull(SUM(s.anonymous_kb + s.swap_kb), 0) * 1024 AS INT) AS total
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid}
-    GROUP BY s.ts
-    ORDER BY s.ts ASC
+      peak_bytes AS peak,
+      delta_bytes AS delta,
+      trend_bytes_per_hour AS per_hour
+    FROM memscope_process_memory_trend
+    WHERE upid = ${upid}
   `);
-  for (const it = res.iter({ts: LONG, total: NUM}); it.valid(); it.next()) {
-    anonSwap.push({ts: Time.fromRaw(it.ts), total: it.total});
-  }
-  return anonSwap;
+  const it = res.iter({peak: NUM_NULL, delta: NUM_NULL, per_hour: NUM_NULL});
+  if (!it.valid()) return {};
+  return {
+    peak: it.peak ?? undefined,
+    delta: it.delta ?? undefined,
+    perHour: it.per_hour ?? undefined,
+  };
 }
 
 // "4h 12m" / "5m 3s" / "37s" from a duration in nanoseconds.
@@ -159,7 +139,7 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
   // One slot per query, so the three load and redraw independently.
   private readonly statsSlot = new AsyncMemo<StatsData>();
   private readonly counterSlot = new AsyncMemo<CounterData>();
-  private readonly smapsSlot = new AsyncMemo<AnonSwapSeries>();
+  private readonly smapsSlot = new AsyncMemo<TrendData>();
 
   onremove() {
     this.statsSlot.dispose();
@@ -180,7 +160,7 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
     }).data;
     const snaps = this.smapsSlot.use({
       key,
-      compute: () => loadAnonSwap(trace, upid),
+      compute: () => loadTrend(trace, upid),
     }).data;
 
     const statsLoading = stats === undefined;
@@ -215,19 +195,8 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
     ]);
 
     // Card 2: peak RSS (smaps) + RSS spike (counters).
-    const peak =
-      snaps !== undefined && snaps.length > 0
-        ? Math.max(...snaps.map((r) => r.total))
-        : undefined;
-    const wm = counters?.rssWatermark;
-    const rssMax = counters?.rssMax;
-    // Spike is the watermark's overshoot above the best-sampled RSS. When the
-    // poll caught the peak (wm == rssMax) that's a real "no spike" → 0, not
-    // missing data; only an absent counter leaves it undefined.
-    const spike =
-      wm !== undefined && rssMax !== undefined
-        ? Math.max(0, wm - rssMax)
-        : undefined;
+    const peak = snaps?.peak;
+    const spike = counters?.spike;
     const rssCard = cellCard([
       {
         label: 'Peak RSS',
@@ -244,17 +213,8 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
     ]);
 
     // Card 3: memory Δ + trend (smaps, first → last snapshot).
-    const haveDelta = snaps !== undefined && snaps.length > 1;
-    const first = haveDelta ? snaps[0] : undefined;
-    const last = haveDelta ? snaps[snaps.length - 1] : undefined;
-    const total =
-      first !== undefined && last !== undefined
-        ? last.total - first.total
-        : undefined;
-    const spanSeconds =
-      first !== undefined && last !== undefined
-        ? Number(last.ts - first.ts) / 1e9
-        : 0;
+    const total = snaps?.delta;
+    const perHour = snaps?.perHour;
     const deltaCard = cellCard([
       {
         label: 'Memory Δ',
@@ -266,8 +226,8 @@ export class TraceOverview implements m.ClassComponent<TraceOverviewAttrs> {
         label: 'Trend',
         loading: snapsLoading,
         value:
-          total !== undefined && spanSeconds > 0
-            ? deltaText(total, `${formatDelta((total / spanSeconds) * 3600)}/h`)
+          total !== undefined && perHour !== undefined
+            ? deltaText(total, `${formatDelta(perHour)}/h`)
             : undefined,
       },
     ]);
