@@ -38,6 +38,25 @@ export interface Route {
   args: RouteArgs;
 }
 
+export type TraceLoadPhase =
+  | 'downloading'
+  | 'initializing'
+  | 'parsing'
+  | 'indexing'
+  | 'plugins'
+  | 'finalizing';
+
+export interface TraceLoadProgress {
+  readonly title: string;
+  readonly phase: TraceLoadPhase;
+  readonly status: string;
+  // Overall progress percentage in [0, 100], or undefined when indeterminate.
+  readonly pct?: number;
+  readonly bytesRead?: number;
+  readonly bytesTotal?: number;
+  readonly mbPerSec?: number;
+}
+
 /**
  * The API endpoint to interact programmatically with the UI before a trace has
  * been loaded. This is passed to plugins' OnActivate().
@@ -63,6 +82,16 @@ export interface App {
    * bound to the same plugin of App.pluginId.
    */
   readonly trace?: Trace;
+
+  /**
+   * True while a trace is being downloaded, parsed, or initialized.
+   */
+  readonly isLoadingTrace: boolean;
+
+  /**
+   * Structured progress of the in-flight trace load, if any.
+   */
+  readonly traceLoadProgress?: TraceLoadProgress;
 
   /**
    * Used to schedule things.

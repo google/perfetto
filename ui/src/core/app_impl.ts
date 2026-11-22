@@ -16,7 +16,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
 import {ensureExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
-import type {App, Route} from '../public/app';
+import type {App, Route, TraceLoadProgress} from '../public/app';
 import type {Policy} from '../public/policy';
 import type {SqlPackage} from '../public/extra_sql_packages';
 import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
@@ -110,13 +110,20 @@ export class AppImpl implements App {
     httpRpcAvailable: false,
   };
   initialRouteArgs: RouteArgs;
-  isLoadingTrace = false; // Set when calling openTrace().
   readonly initArgs: AppInitArgs;
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
   readonly settings: SettingsManagerImpl;
   readonly embedder: Embedder;
+
+  // True while openTrace() is executing.
+  private _isLoadingTrace = false;
+  // Structured progress for openTrace() and any pre-open download.
+  private _internalLoadProgress?: TraceLoadProgress;
+  private _loadPeakPct = 0;
+  private _externalLoadToken = 0;
+  private _externalLoadProgress?: {token: number; progress: TraceLoadProgress};
 
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
@@ -230,6 +237,61 @@ export class AppImpl implements App {
     return this._activeTrace;
   }
 
+  get isLoadingTrace(): boolean {
+    return this._isLoadingTrace || this._externalLoadProgress !== undefined;
+  }
+
+  get traceLoadProgress(): TraceLoadProgress | undefined {
+    return this._internalLoadProgress ?? this._externalLoadProgress?.progress;
+  }
+
+  setTraceLoadProgress(progress: TraceLoadProgress | undefined): void {
+    if (progress === undefined) {
+      this._internalLoadProgress = undefined;
+      this._loadPeakPct = 0;
+    } else if (progress.pct !== undefined) {
+      const monoPct = Math.max(this._loadPeakPct, progress.pct);
+      this._loadPeakPct = monoPct;
+      this._internalLoadProgress =
+        monoPct === progress.pct ? progress : {...progress, pct: monoPct};
+    } else {
+      this._internalLoadProgress = progress;
+    }
+    raf.scheduleFullRedraw();
+  }
+
+  beginExternalTraceLoad(title: string): number {
+    const token = ++this._externalLoadToken;
+    this._loadPeakPct = 0;
+    this._externalLoadProgress = {
+      token,
+      progress: {
+        title,
+        phase: 'downloading',
+        status: 'Downloading trace…',
+        pct: undefined,
+      },
+    };
+    raf.scheduleFullRedraw();
+    return token;
+  }
+
+  updateExternalTraceLoad(token: number, progress: TraceLoadProgress): void {
+    if (this._externalLoadProgress?.token !== token) return;
+    if (progress.pct !== undefined) {
+      this._loadPeakPct = Math.max(this._loadPeakPct, progress.pct);
+      progress = {...progress, pct: this._loadPeakPct};
+    }
+    this._externalLoadProgress = {token, progress};
+    raf.scheduleFullRedraw();
+  }
+
+  endExternalTraceLoad(token: number): void {
+    if (this._externalLoadProgress?.token !== token) return;
+    this._externalLoadProgress = undefined;
+    raf.scheduleFullRedraw();
+  }
+
   get raf(): Raf {
     return raf;
   }
@@ -285,7 +347,14 @@ export class AppImpl implements App {
       // via is_internal_user.js. This prevents a race condition where
       // trace loading would otherwise begin before this data is available.
       this.closeCurrentTrace();
-      this.isLoadingTrace = true;
+      this._isLoadingTrace = true;
+      this.setTraceLoadProgress({
+        title: traceSourceTitle(src),
+        phase: 'initializing',
+        status: 'Opening trace…',
+        pct: 4,
+        bytesTotal: traceSourceByteLength(src),
+      });
       try {
         // loadTrace() in trace_loader.ts will do the following:
         // - Create a new engine.
@@ -305,8 +374,8 @@ export class AppImpl implements App {
         result.reject(error);
       } finally {
         this.omnibox.reset(/* focus= */ false);
-        this.isLoadingTrace = false;
-        raf.scheduleFullRedraw();
+        this._isLoadingTrace = false;
+        this.setTraceLoadProgress(undefined);
       }
     });
     return result;
@@ -355,5 +424,39 @@ export class AppImpl implements App {
   async macros(): Promise<ReadonlyArray<Macro & {source?: string}>> {
     const macrosArray = await Promise.all(this._macrosPromises);
     return macrosArray.flat();
+  }
+}
+
+function traceSourceTitle(src: TraceSource): string {
+  switch (src.type) {
+    case 'FILE':
+      return src.file.name;
+    case 'MULTIPLE_FILES':
+      return src.files.length === 1
+        ? src.files[0]!.name
+        : `${src.files.length} trace files`;
+    case 'ARRAY_BUFFER':
+      return src.title || src.fileName || 'Trace';
+    case 'URL': {
+      const seg = src.url.split('/').pop()?.split('?')[0];
+      return seg ? decodeURIComponent(seg) : src.url;
+    }
+    case 'STREAM':
+      return src.title || 'Trace stream';
+    case 'HTTP_RPC':
+      return 'Trace Processor RPC';
+  }
+}
+
+function traceSourceByteLength(src: TraceSource): number | undefined {
+  switch (src.type) {
+    case 'FILE':
+      return src.file.size;
+    case 'ARRAY_BUFFER':
+      return src.buffer.byteLength;
+    case 'MULTIPLE_FILES':
+      return src.files.reduce((sum, f) => sum + f.size, 0);
+    default:
+      return undefined;
   }
 }

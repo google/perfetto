@@ -118,30 +118,30 @@ export class PluginManagerImpl {
 
   async onTraceLoad(
     trace: TraceImpl,
-    beforeEach?: (id: string) => void,
+    beforeEach?: (id: string, index: number, total: number) => void,
   ): Promise<void> {
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const p of this.orderedPlugins) {
-      if (p.active) {
-        beforeEach?.(p.desc.id);
-        const traceProxy = createTraceProxy(trace, p.desc.id);
-        const instance = makePlugin(p.desc, traceProxy);
-        const args = getOpenerArgs(trace, p.desc.id);
-        const before = performance.now();
-        await instance.onTraceLoad?.(traceProxy, args);
-        const loadTimeMs = performance.now() - before;
-        p.traceContext = {
-          instance,
-          loadTimeMs,
-        };
-        trace.trash.defer(() => {
-          p.traceContext = undefined;
-        });
-      }
+    const activePlugins = this.orderedPlugins.filter((p) => p.active);
+    for (let i = 0; i < activePlugins.length; i++) {
+      const p = activePlugins[i]!;
+      beforeEach?.(p.desc.id, i, activePlugins.length);
+      const traceProxy = createTraceProxy(trace, p.desc.id);
+      const instance = makePlugin(p.desc, traceProxy);
+      const args = getOpenerArgs(trace, p.desc.id);
+      const before = performance.now();
+      await instance.onTraceLoad?.(traceProxy, args);
+      const loadTimeMs = performance.now() - before;
+      p.traceContext = {
+        instance,
+        loadTimeMs,
+      };
+      trace.trash.defer(() => {
+        p.traceContext = undefined;
+      });
     }
   }
 

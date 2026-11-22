@@ -358,6 +358,14 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.policy;
   }
 
+  get isLoadingTrace(): boolean {
+    return this.app.isLoadingTrace;
+  }
+
+  get traceLoadProgress() {
+    return this.app.traceLoadProgress;
+  }
+
   get perfDebugging() {
     return this.app.perfDebugging;
   }

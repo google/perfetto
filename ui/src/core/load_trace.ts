@@ -215,26 +215,58 @@ async function loadTraceIntoEngine(
   // a trace (because it was passed as a cmdline argument to
   // trace_processor_shell). In this case we don't want the UI to load any
   // file/stream and we just want to jump to the loading phase.
+  const loadTitle = app.traceLoadProgress?.title ?? 'Trace';
+  let lastBytesRead = 0;
+  let lastBytesTotal = app.traceLoadProgress?.bytesTotal;
   if (traceStream !== undefined) {
     const tStart = performance.now();
     for (;;) {
       const res = await traceStream.readChunk();
       await engine.parse(res.data);
-      const elapsed = (performance.now() - tStart) / 1000;
+      const elapsed = Math.max((performance.now() - tStart) / 1000, 0.001);
+      const mbPerSec = Math.ceil(res.bytesRead / elapsed / 1e6);
+      lastBytesRead = res.bytesRead;
+      if (res.bytesTotal > 0) lastBytesTotal = res.bytesTotal;
       let status = 'Loading trace ';
+      let pct: number | undefined;
       if (res.bytesTotal > 0) {
         const progress = Math.round((res.bytesRead / res.bytesTotal) * 100);
         status += `${progress}%`;
+        pct = 5 + Math.round((res.bytesRead / res.bytesTotal) * 60);
       } else {
         status += `${Math.round(res.bytesRead / 1e6)} MB`;
       }
-      status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
+      status += ` - ${mbPerSec} MB/s`;
       updateStatus(app, status);
+      app.setTraceLoadProgress({
+        title: loadTitle,
+        phase: 'parsing',
+        status,
+        pct,
+        bytesRead: res.bytesRead,
+        bytesTotal: res.bytesTotal > 0 ? res.bytesTotal : undefined,
+        mbPerSec,
+      });
       if (res.eof) break;
     }
+    app.setTraceLoadProgress({
+      title: loadTitle,
+      phase: 'indexing',
+      status: 'Indexing trace & memory graphs…',
+      pct: 70,
+      bytesRead: lastBytesRead > 0 ? lastBytesRead : undefined,
+      bytesTotal: lastBytesTotal,
+    });
+    updateStatus(app, 'Indexing trace & memory graphs');
     await engine.notifyEof();
   } else {
     assertTrue(engine instanceof HttpRpcEngine);
+    app.setTraceLoadProgress({
+      title: loadTitle,
+      phase: 'indexing',
+      status: 'Connecting to Trace Processor…',
+      pct: 70,
+    });
     await engine.restoreInitialTables();
   }
 
@@ -287,8 +319,19 @@ async function loadTraceIntoEngine(
     deserializeAppStatePhase1(serializedAppState, trace);
   }
 
-  await app.plugins.onTraceLoad(trace, (id) => {
-    updateStatus(app, `Running plugin: ${id}`);
+  await app.plugins.onTraceLoad(trace, (id, index, total) => {
+    const status = `Running plugin: ${id}`;
+    updateStatus(app, status);
+    const pluginPct =
+      total > 0 ? 74 + Math.round(((index + 1) / total) * 20) : 84;
+    app.setTraceLoadProgress({
+      title: loadTitle,
+      phase: 'plugins',
+      status,
+      pct: pluginPct,
+      bytesRead: lastBytesRead > 0 ? lastBytesRead : undefined,
+      bytesTotal: lastBytesTotal,
+    });
   });
 
   // Plugins may call trace.initialPage.suggest(...) during onTraceLoad to
@@ -299,6 +342,14 @@ async function loadTraceIntoEngine(
   decideTabs(trace);
 
   updateStatus(app, `Loading minimap`);
+  app.setTraceLoadProgress({
+    title: loadTitle,
+    phase: 'finalizing',
+    status: 'Preparing views…',
+    pct: 96,
+    bytesRead: lastBytesRead > 0 ? lastBytesRead : undefined,
+    bytesTotal: lastBytesTotal,
+  });
   await trace.minimap.load(traceDetails.start, traceDetails.end);
 
   // Trace Processor doesn't support the reliable range feature for JSON
