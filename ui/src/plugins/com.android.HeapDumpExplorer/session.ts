@@ -84,6 +84,16 @@ export class HeapDumpExplorerSession {
   // "default view changed" hint on the overview.
   autoNavigated = false;
 
+  // Builds the href for a nav subpage. Defaults to the /heapdump page; the
+  // Memory Explorer replaces it to own navigation.
+  private routeBuilder: RouteBuilder = (_upid, sub) =>
+    `#!/heapdump${sub ? '/' + sub : ''}`;
+  private externalRoute = false;
+
+  // The process the page is scoped to. Follows the active dump unless a page
+  // scopes to a process without dumps.
+  private scopeUpid?: number;
+
   constructor(
     readonly trace: Trace,
     readonly engine: Engine,
@@ -100,6 +110,42 @@ export class HeapDumpExplorerSession {
     };
     fn(next);
     this.storage.set(next);
+  }
+
+  setRouteBuilder(builder: RouteBuilder): void {
+    this.routeBuilder = builder;
+    this.externalRoute = true;
+  }
+
+  // The href the /heapdump page should redirect to, if another page owns
+  // navigation.
+  redirectHref(subpage: string | undefined): string | undefined {
+    if (!this.externalRoute) return undefined;
+    const sub = subpage?.startsWith('/') ? subpage.slice(1) : subpage;
+    return this.routeBuilder(this.upid, sub || this.navSubpage);
+  }
+
+  get upid(): number | undefined {
+    return this.scopeUpid ?? this.activeDump?.upid;
+  }
+
+  dumpsForUpid(upid: number): ReadonlyArray<HeapDump> {
+    return this._dumps.filter((d) => d.upid === upid);
+  }
+
+  // Scopes the session to a process, switching to its first dump when the
+  // active dump belongs to another process.
+  selectProcess(upid: number): void {
+    this.scopeUpid = upid;
+    if (this.activeDump?.upid === upid) return;
+    const first = this.dumpsForUpid(upid)[0];
+    if (first !== undefined) {
+      this.switchToDump(first);
+    } else {
+      this.edit((s) => {
+        s.activeDump = undefined;
+      });
+    }
   }
 
   get defaultView(): DefaultNavView {
@@ -160,6 +206,7 @@ export class HeapDumpExplorerSession {
 
   private switchToDump(d: HeapDump): void {
     this._counts.clear();
+    this.scopeUpid = d.upid;
     this.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
       s.flamegraphTabs = undefined;
@@ -171,6 +218,10 @@ export class HeapDumpExplorerSession {
 
   get nav(): NavState {
     return subpageToState(this.storage.get().nav, this.defaultView);
+  }
+
+  get navSubpage(): string | undefined {
+    return this.storage.get().nav;
   }
 
   // The current nav as a route path (no query params).
@@ -186,7 +237,7 @@ export class HeapDumpExplorerSession {
     this.edit((s) => {
       s.nav = sub;
     });
-    this.trace.navigate(makeHref(sub));
+    this.trace.navigate(this.routeBuilder(this.upid, sub));
   }
 
   navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
@@ -213,7 +264,7 @@ export class HeapDumpExplorerSession {
     });
     // Replace the current URL instead of navigating to avoid creating a new
     // history entry and creating a navigation trap.
-    location.replace(makeHref(sub));
+    location.replace(this.routeBuilder(this.upid, sub));
   }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
@@ -414,6 +465,8 @@ export class HeapDumpExplorerSession {
   }
 }
 
-function makeHref(sub: string | undefined): string {
-  return `#!/heapdump${sub ? '/' + sub : ''}`;
-}
+// Maps (scoped upid, nav subpage) to an href.
+export type RouteBuilder = (
+  upid: number | undefined,
+  sub: string | undefined,
+) => string;

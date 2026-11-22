@@ -13,6 +13,17 @@
 // limitations under the License.
 
 export type NavState =
+  | {view: 'summary'; params: Record<string, never>}
+  | {view: 'smaps'; params: Record<string, never>}
+  | {view: 'timeline'; params: Record<string, never>}
+  | {view: 'native-overview'; params: Record<string, never>}
+  | {view: 'native-flamegraph'; params: {q?: string}}
+  | {view: 'native-callsites'; params: Record<string, never>}
+  | {view: 'native-growth'; params: Record<string, never>}
+  | {view: 'file-backed'; params: Record<string, never>}
+  | {view: 'graphics'; params: Record<string, never>}
+  | {view: 'stacks'; params: Record<string, never>}
+  | {view: 'other-mem'; params: Record<string, never>}
   | {view: 'overview'; params: Record<string, never>}
   | {view: 'classes'; params: {rootClass?: string}}
   | {view: 'dominators'; params: Record<string, never>}
@@ -29,11 +40,43 @@ export type NavState =
   | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
-export type DefaultNavView = 'overview' | 'flamegraph';
+export type DefaultNavView = 'overview' | 'flamegraph' | 'summary';
+
+export function isOverviewView(view: NavView): boolean {
+  return view === 'summary' || view === 'smaps' || view === 'timeline';
+}
+
+export function isNativeView(view: NavView): boolean {
+  return (
+    view === 'native-overview' ||
+    view === 'native-flamegraph' ||
+    view === 'native-callsites' ||
+    view === 'native-growth'
+  );
+}
+
+export function isCompositionDomainView(view: NavView): boolean {
+  return (
+    view === 'file-backed' ||
+    view === 'graphics' ||
+    view === 'stacks' ||
+    view === 'other-mem'
+  );
+}
+
+// Views rendered by the Memory Explorer rather than the Java heap dump views.
+export function isProcessView(view: NavView): boolean {
+  return (
+    isOverviewView(view) || isNativeView(view) || isCompositionDomainView(view)
+  );
+}
 
 function defaultNavState(view: DefaultNavView): NavState {
   if (view === 'flamegraph') {
     return {view: 'flamegraph', params: {}};
+  }
+  if (view === 'summary') {
+    return {view: 'summary', params: {}};
   }
   return {view: 'overview', params: {}};
 }
@@ -54,6 +97,31 @@ function pathSegment(base: string, value?: string): string {
 // path.
 function stateToParts(state: NavState): {path: string; query: string} {
   switch (state.view) {
+    case 'summary':
+      return {path: 'summary', query: ''};
+    case 'smaps':
+      return {path: 'smaps', query: ''};
+    case 'timeline':
+      return {path: 'timeline', query: ''};
+    case 'native-overview':
+      return {path: 'native-overview', query: ''};
+    case 'native-flamegraph':
+      return {
+        path: 'native-flamegraph',
+        query: queryParam('q', state.params.q),
+      };
+    case 'native-callsites':
+      return {path: 'native-callsites', query: ''};
+    case 'native-growth':
+      return {path: 'native-growth', query: ''};
+    case 'file-backed':
+      return {path: 'file-backed', query: ''};
+    case 'graphics':
+      return {path: 'graphics', query: ''};
+    case 'stacks':
+      return {path: 'stacks', query: ''};
+    case 'other-mem':
+      return {path: 'other-mem', query: ''};
     case 'overview':
       return {path: 'overview', query: ''};
     case 'classes':
@@ -140,6 +208,30 @@ export function subpageToState(
   switch (view) {
     case '':
       return defaultNavState(defaultView);
+    case 'summary':
+      return {view: 'summary', params: {}};
+    case 'smaps':
+      return {view: 'smaps', params: {}};
+    case 'timeline':
+      return {view: 'timeline', params: {}};
+    case 'native-overview':
+      return {view: 'native-overview', params: {}};
+    case 'native-flamegraph': {
+      const q = sp.get('q') ?? '';
+      return {view: 'native-flamegraph', params: q ? {q} : {}};
+    }
+    case 'native-callsites':
+      return {view: 'native-callsites', params: {}};
+    case 'native-growth':
+      return {view: 'native-growth', params: {}};
+    case 'file-backed':
+      return {view: 'file-backed', params: {}};
+    case 'graphics':
+      return {view: 'graphics', params: {}};
+    case 'stacks':
+      return {view: 'stacks', params: {}};
+    case 'other-mem':
+      return {view: 'other-mem', params: {}};
     case 'overview':
       return {view: 'overview', params: {}};
     case 'classes': {
@@ -198,4 +290,27 @@ export function subpageToState(
     default:
       return {view: 'overview', params: {}};
   }
+}
+
+// A Memory Explorer location: the process plus the nav within it.
+export interface MemoryLocation {
+  readonly upid?: number;
+  readonly nav: NavState;
+}
+
+// Memory Explorer subpage: `<upid>/<nav subpage>`, e.g. `12/objects_Foo`.
+export function memoryLocationToSubpage(loc: MemoryLocation): string {
+  if (loc.upid === undefined) return '';
+  return `${loc.upid}/${stateToSubpage(loc.nav)}`;
+}
+
+export function subpageToMemoryLocation(
+  subpage: string | undefined,
+): MemoryLocation {
+  const sub = (subpage ?? '').replace(/^\/+/, '');
+  const slash = sub.indexOf('/');
+  const head = slash === -1 ? sub : sub.slice(0, slash);
+  const rest = slash === -1 ? '' : sub.slice(slash + 1);
+  const upid = /^\d+$/.test(head) ? parseInt(head, 10) : undefined;
+  return {upid, nav: subpageToState(rest, 'summary')};
 }
