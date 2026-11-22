@@ -22,8 +22,15 @@ import {AdbKey} from './adb_key';
 const KEY_IN_MEMORY_TIMEOUT = 1000 * 60 * 30; // 30 minutes
 
 export class AdbKeyManager {
+  private static shared?: AdbKeyManager;
   private expiryTimerId = -1;
   private key = new AsyncLazy<AdbKey>();
+
+  // Returns a process-wide AdbKeyManager so the cached in-memory key survives
+  // page unmounts/remounts and is shared across plugins.
+  static getShared(): AdbKeyManager {
+    return (AdbKeyManager.shared ??= new AdbKeyManager());
+  }
 
   // Finds a key, by priority:
   // - Look in memory (i.e. this.key)
