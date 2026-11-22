@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BigInteger, RSAKey} from 'jsbn-rsa';
+import {z} from 'zod';
 import {ensureExists, assertTrue} from '../../../../base/assert';
 import {
   base64Decode,
@@ -42,16 +43,18 @@ const SIGNING_ASN1_PREFIX = [
 
 const R32 = BigInteger.ONE.shiftLeft(32); // 1 << 32
 
-interface ValidJsonWebKey {
-  n: string;
-  e: string;
-  d: string;
-  p: string;
-  q: string;
-  dp: string;
-  dq: string;
-  qi: string;
-}
+const NON_EMPTY_STR = z.string().min(1);
+const VALID_JWK_SCHEMA = z.object({
+  n: NON_EMPTY_STR,
+  e: NON_EMPTY_STR,
+  d: NON_EMPTY_STR,
+  p: NON_EMPTY_STR,
+  q: NON_EMPTY_STR,
+  dp: NON_EMPTY_STR,
+  dq: NON_EMPTY_STR,
+  qi: NON_EMPTY_STR,
+});
+type ValidJsonWebKey = z.infer<typeof VALID_JWK_SCHEMA>;
 
 export class AdbKey {
   // We use this JsonWebKey to:
@@ -62,7 +65,16 @@ export class AdbKey {
   jwkPrivate: ValidJsonWebKey;
 
   static deserialize(serializedKey: string): AdbKey {
-    return new AdbKey(JSON.parse(serializedKey));
+    return new AdbKey(VALID_JWK_SCHEMA.parse(JSON.parse(serializedKey)));
+  }
+
+  static tryDeserialize(serializedKey: string): AdbKey | undefined {
+    try {
+      const parsed = VALID_JWK_SCHEMA.safeParse(JSON.parse(serializedKey));
+      return parsed.success ? new AdbKey(parsed.data) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private constructor(jwkPrivate: ValidJsonWebKey) {
@@ -76,11 +88,13 @@ export class AdbKey {
       ADB_WEB_CRYPTO_EXPORTABLE,
       ADB_WEB_CRYPTO_OPERATIONS,
     );
-    const jwkPrivate = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
-    if (!isValidJsonWebKey(jwkPrivate)) {
+    const parsed = VALID_JWK_SCHEMA.safeParse(
+      await crypto.subtle.exportKey('jwk', keyPair.privateKey),
+    );
+    if (!parsed.success) {
       throw new Error('Could not generate a valid ADB private key');
     }
-    return new AdbKey(jwkPrivate);
+    return new AdbKey(parsed.data);
   }
 
   // Perform an RSA signing operation for the ADB auth challenge.
@@ -165,19 +179,6 @@ export class AdbKey {
   serialize(): string {
     return JSON.stringify(this.jwkPrivate);
   }
-}
-
-function isValidJsonWebKey(key: JsonWebKey): key is ValidJsonWebKey {
-  return (
-    key.n !== undefined &&
-    key.e !== undefined &&
-    key.d !== undefined &&
-    key.p !== undefined &&
-    key.q !== undefined &&
-    key.dp !== undefined &&
-    key.dq !== undefined &&
-    key.qi !== undefined
-  );
 }
 
 // Convert a BigInteger to an array of a specified size in bytes.
