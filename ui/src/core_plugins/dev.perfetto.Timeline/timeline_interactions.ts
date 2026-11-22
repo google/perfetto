@@ -21,12 +21,12 @@
 import type {Rect2D} from '../../base/geom';
 import type {TimeScale} from '../../base/time_scale';
 import type {Zone} from '../../base/zoned_interaction_handler';
-import type {TraceImpl} from '../../core/trace_impl';
+import type {TimelineImpl} from '../../core/timeline';
 
 const WHEEL_ZOOM_SPEED = -0.02;
 
 export function shiftDragPanInteraction(
-  trace: TraceImpl,
+  timeline: TimelineImpl,
   rect: Rect2D,
   timescale: TimeScale,
 ): Zone {
@@ -38,20 +38,20 @@ export function shiftDragPanInteraction(
     drag: {
       cursorWhileDragging: 'grabbing',
       onDrag: (e) => {
-        trace.timeline.pan(timescale.pxToDuration(-e.deltaSinceLastEvent.x));
+        timeline.pan(timescale.pxToDuration(-e.deltaSinceLastEvent.x));
       },
     },
     onWheel: (e) => {
       // We know shift is held so we translate Y scrolling into X scrolling instead
       const tDelta = timescale.pxToDuration(e.deltaY);
-      trace.timeline.pan(tDelta);
+      timeline.pan(tDelta);
       return true; // Return true to prevent vertical scroll
     },
   };
 }
 
 export function wheelNavigationInteraction(
-  trace: TraceImpl,
+  timeline: TimelineImpl,
   rect: Rect2D,
   timescale: TimeScale,
 ): Zone {
@@ -61,14 +61,14 @@ export function wheelNavigationInteraction(
     onWheel: (e) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         const tDelta = timescale.pxToDuration(e.deltaX);
-        trace.timeline.pan(tDelta);
+        timeline.pan(tDelta);
       } else {
         if (e.ctrlKey) {
           const sign = e.deltaY < 0 ? -1 : 1;
           const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
           const zoomPx = e.position.x - rect.left;
           const centerPoint = zoomPx / rect.width;
-          trace.timeline.zoom(1 - deltaY * WHEEL_ZOOM_SPEED, centerPoint);
+          timeline.zoom(1 - deltaY * WHEEL_ZOOM_SPEED, centerPoint);
         }
       }
     },

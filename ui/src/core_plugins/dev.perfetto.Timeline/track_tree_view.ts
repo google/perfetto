@@ -44,6 +44,7 @@ import {
   ZonedInteractionHandler,
 } from '../../base/zoned_interaction_handler';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
+import type {TimelineImpl} from '../../core/timeline';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {TrackNode} from '../../public/workspace';
 import type {SnapPoint} from '../../public/track';
@@ -131,6 +132,13 @@ export interface TrackTreeViewAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
   readonly trace: TraceImpl;
 
+  // The time window and interaction state to draw with: a view of its own,
+  // or by default the trace's main timeline.
+  readonly timeline?: TimelineImpl;
+
+  // Whether tracks offer to be pinned to the top. Defaults to true.
+  readonly canPinTracks?: boolean;
+
   // The root track node for tracks to display in this stack. This node is not
   // actually displayed, only its children are, but it's used for reordering
   // purposes if `reorderable` is set to true.
@@ -162,6 +170,7 @@ const TRACK_CONTAINER_REF = 'track-container';
 
 export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private readonly trace: TraceImpl;
+  private readonly timeline: TimelineImpl;
   private readonly trash = new DisposableStack();
   private interactions?: ZonedInteractionHandler;
   private perfStatsEnabled = false;
@@ -179,6 +188,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
   constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
     this.trace = attrs.trace;
+    this.timeline = attrs.timeline ?? attrs.trace.timeline;
   }
 
   private hoveredTrackNode?: TrackNode;
@@ -232,7 +242,14 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
-      const trackView = new TrackView(trace, node, top, showHeadlessTracks);
+      const trackView = new TrackView(
+        trace,
+        node,
+        top,
+        showHeadlessTracks,
+        this.timeline,
+        attrs.canPinTracks ?? true,
+      );
       renderedTracks.push(trackView);
 
       // Advance the global top position.
@@ -249,7 +266,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         for (const child of node.children) {
           const {vnodes, isVisible} = renderTrack(
             child,
-            depth + 1,
+            node.heading ? depth : depth + 1,
             childStickyTop,
           );
           childNodes.push(vnodes);
@@ -440,7 +457,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     // Always grab the latest visible window and create a timescale out of
     // it.
-    const visibleWindow = this.trace.timeline.visibleWindow;
+    const visibleWindow = this.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, timelineRect);
 
     const start = performance.now();
@@ -453,7 +470,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       timelineRect.height,
     );
 
-    this.drawGridLines(renderer, timescale, timelineRect);
+    this.drawGridLines(renderer, timescale, timelineRect, renderedTracks);
 
     const colors: CanvasColors = {
       COLOR_BORDER,
@@ -497,13 +514,14 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     renderer: Renderer,
     timescale: TimeScale,
     timelineRect: Rect2D,
+    renderedTracks: ReadonlyArray<TrackView>,
   ): void {
     if (timelineRect.width <= 0 || timescale.timeSpan.duration <= 0n) {
       return;
     }
 
     const maxMajorTicks = getMaxMajorTicks(timelineRect.width);
-    const offset = this.trace.timeline.getTimeAxisOrigin();
+    const offset = this.timeline.getTimeAxisOrigin();
 
     // Collect all major tick positions
     const tickPositions: number[] = [];
@@ -540,20 +558,33 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     // height of the timeline. This is sort of abusing the slice renderer, but
     // it allows us to draw gridlines without needing a separate shader program,
     // and seeing as slices are just rectangles, it's a decent fit.
-    renderer.drawSlices(
-      {
-        starts,
-        ends,
-        depths,
-        colors,
-        patterns,
-        count,
-      },
-      {
-        rowHeight: timelineRect.height,
-      },
-      Transform1D.Identity,
-    );
+    // Section headings break the gridlines: draw them only between headings.
+    let top = timelineRect.top;
+    const spans: Array<[number, number]> = [];
+    for (const t of renderedTracks) {
+      if (!t.node.heading) continue;
+      spans.push([top, t.verticalBounds.top]);
+      top = t.verticalBounds.bottom;
+    }
+    spans.push([top, timelineRect.bottom]);
+    for (const [spanTop, spanBottom] of spans) {
+      if (spanBottom <= spanTop) continue;
+      using _ = renderer.pushTransform({offsetY: spanTop});
+      renderer.drawSlices(
+        {
+          starts,
+          ends,
+          depths,
+          colors,
+          patterns,
+          count,
+        },
+        {
+          rowHeight: spanBottom - spanTop,
+        },
+        Transform1D.Identity,
+      );
+    }
   }
 
   // Render all tracks - WebGL rectangles and Canvas 2D content in one pass
@@ -603,7 +634,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       trace.selection.selection.kind === 'area' && trace.selection.selection;
 
     ensureExists(this.interactions).update([
-      shiftDragPanInteraction(trace, timelineRect, timescale),
+      shiftDragPanInteraction(this.timeline, timelineRect, timescale),
       areaSelection !== false && {
         id: 'start-edit',
         area: new Rect2D({
@@ -636,7 +667,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               trace.traceInfo.end,
             );
 
-            trace.timeline.selectedSpan = this.handleDrag
+            this.timeline.selectedSpan = this.handleDrag
               .timeSpan()
               .toTimeSpan();
             this.trace.raf.scheduleCanvasRedraw();
@@ -661,7 +692,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               start: newAreaSelection.start,
               end: newAreaSelection.end,
             });
-            trace.timeline.selectedSpan = undefined;
+            this.timeline.selectedSpan = undefined;
             this.handleDrag = undefined;
             this.currentSnapPoint = undefined;
           },
@@ -698,7 +729,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               trace.traceInfo.start,
               trace.traceInfo.end,
             );
-            trace.timeline.selectedSpan = this.handleDrag
+            this.timeline.selectedSpan = this.handleDrag
               .timeSpan()
               .toTimeSpan();
             this.trace.raf.scheduleCanvasRedraw();
@@ -722,7 +753,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               end: newAreaSelection.end,
               start: newAreaSelection.start,
             });
-            trace.timeline.selectedSpan = undefined;
+            this.timeline.selectedSpan = undefined;
             this.handleDrag = undefined;
             this.currentSnapPoint = undefined;
           },
@@ -760,7 +791,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             this.areaDrag.currentY = e.dragCurrent.y;
 
             this.trace.raf.scheduleCanvasRedraw();
-            trace.timeline.selectedSpan = this.areaDrag
+            this.timeline.selectedSpan = this.areaDrag
               .timeSpan()
               .toTimeSpan()
               .clamp(trace.traceInfo.start, trace.traceInfo.end);
@@ -805,13 +836,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               trackUris,
             });
 
-            trace.timeline.selectedSpan = undefined;
+            this.timeline.selectedSpan = undefined;
             this.areaDrag = undefined;
             this.currentSnapPoint = undefined;
           },
         },
       },
-      wheelNavigationInteraction(trace, timelineRect, timescale),
+      wheelNavigationInteraction(this.timeline, timelineRect, timescale),
     ]);
   }
 
@@ -966,11 +997,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timescale: TimeScale,
     size: Size2D,
   ) {
-    if (this.trace.timeline.hoverCursorTimestamp !== undefined) {
+    if (this.timeline.hoverCursorTimestamp !== undefined) {
       drawVerticalLineAtTime(
         ctx,
         timescale,
-        this.trace.timeline.hoverCursorTimestamp,
+        this.timeline.hoverCursorTimestamp,
         size.height,
         `#344596`,
       );
@@ -982,11 +1013,11 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     timescale: TimeScale,
     size: Size2D,
   ) {
-    if (this.trace.timeline.hoveredNoteTimestamp !== undefined) {
+    if (this.timeline.hoveredNoteTimestamp !== undefined) {
       drawVerticalLineAtTime(
         ctx,
         timescale,
-        this.trace.timeline.hoveredNoteTimestamp,
+        this.timeline.hoveredNoteTimestamp,
         size.height,
         `#aaa`,
       );

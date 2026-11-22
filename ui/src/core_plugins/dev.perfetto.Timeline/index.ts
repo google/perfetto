@@ -19,16 +19,23 @@ import type {TraceImpl} from '../../core/trace_impl';
 import type {Flag} from '../../public/feature_flag';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {TimelinePage} from './timeline_page';
+import {EmbeddedTimeline, type EmbeddedTimelineOpts} from './embedded_timeline';
 import {
   DEFAULT_TRACK_MIN_HEIGHT_PX,
   MINIMUM_TRACK_MIN_HEIGHT_PX,
   TRACK_MIN_HEIGHT_SETTING,
 } from './track_view';
 
+export type {
+  EmbeddedTimelineOpts,
+  EmbeddedTimelineWindow,
+} from './embedded_timeline';
+
 export default class TimelinePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Timeline';
   static readonly description = 'The main timeline view';
   private static minimapFlag: Flag;
+  private traceImpl?: TraceImpl;
 
   static onActivate(app: AppImpl): void {
     // This setting is referenced in the track view by name
@@ -50,6 +57,7 @@ export default class TimelinePlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: TraceImpl): Promise<void> {
+    this.traceImpl = trace;
     trace.pages.registerPage({
       route: '/viewer',
       render: () => {
@@ -66,6 +74,16 @@ export default class TimelinePlugin implements PerfettoPlugin {
       text: 'Timeline',
       href: '#!/viewer',
       icon: 'line_style',
+    });
+  }
+
+  // Renders a focused, self-contained timeline with curated tracks and its
+  // own pan/zoom state inside another plugin's page.
+  renderEmbeddedTimeline(opts: EmbeddedTimelineOpts): m.Child {
+    if (this.traceImpl === undefined) return undefined;
+    return m(EmbeddedTimeline, {
+      trace: this.traceImpl,
+      ...opts,
     });
   }
 }

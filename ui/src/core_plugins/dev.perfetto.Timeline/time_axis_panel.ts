@@ -20,6 +20,7 @@ import {Time, type time, formatDate} from '../../base/time';
 import {formatDuration} from '../../components/time_utils';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
+import type {Timeline} from '../../public/timeline';
 import type {Trace} from '../../public/trace';
 import {
   FONT_COMPACT,
@@ -38,7 +39,10 @@ export class TimeAxisPanel {
   readonly id = 'time-axis-panel';
   readonly height = 22;
 
-  constructor(private readonly trace: Trace) {}
+  constructor(
+    private readonly trace: Trace,
+    private readonly timeline: Timeline = trace.timeline,
+  ) {}
 
   render(): m.Children {
     return m('', {style: {height: `${this.height}px`}});
@@ -68,7 +72,7 @@ export class TimeAxisPanel {
 
   private formatStart(): string {
     const {start, tzOffMin} = this.trace.traceInfo;
-    const {timestampFormat: fmt, customTimezoneOffset} = this.trace.timeline;
+    const {timestampFormat: fmt, customTimezoneOffset} = this.timeline;
     switch (fmt) {
       case TimestampFormat.Timecode:
         return Time.toTimecode(start).toString(' ');
@@ -114,13 +118,13 @@ export class TimeAxisPanel {
   }
 
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
-    const visibleWindow = this.trace.timeline.visibleWindow;
+    const visibleWindow = this.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: size.width,
     });
     const timespan = visibleWindow.toTimeSpan();
-    const offset = this.trace.timeline.getTimeAxisOrigin();
+    const offset = this.timeline.getTimeAxisOrigin();
 
     // Draw time axis.
     if (size.width > 0 && timespan.duration > 0n) {
@@ -131,7 +135,7 @@ export class TimeAxisPanel {
           const position = Math.floor(timescale.timeToPx(time));
           ctx.fillStyle = COLOR_BORDER;
           ctx.fillRect(position, 0, 1, size.height);
-          const domainTime = this.trace.timeline.toDomainTime(time);
+          const domainTime = this.timeline.toDomainTime(time);
           ctx.fillStyle = COLOR_TEXT_MUTED;
           this.renderTimestamp(
             ctx,
@@ -152,7 +156,7 @@ export class TimeAxisPanel {
     y: number,
     minWidth: number,
   ) {
-    const fmt = this.trace.timeline.timestampFormat;
+    const fmt = this.timeline.timestampFormat;
     switch (fmt) {
       case TimestampFormat.UTC:
       case TimestampFormat.CustomTimezone:

@@ -20,6 +20,7 @@ import {assertUnreachable} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
+import type {TimelineImpl} from '../../core/timeline';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {Note, SpanNote} from '../../public/note';
 import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
@@ -49,12 +50,14 @@ function getStartTimestamp(note: Note | SpanNote) {
 
 export class NotesPanel {
   private readonly trace: TraceImpl;
+  private readonly timeline: TimelineImpl;
   private timescale?: TimeScale; // The timescale from the last render()
   private hoveredX: null | number = null;
   private mouseDragging = false;
   readonly height = 20;
 
-  constructor(trace: TraceImpl) {
+  constructor(trace: TraceImpl, timeline: TimelineImpl = trace.timeline) {
+    this.timeline = timeline;
     this.trace = trace;
   }
 
@@ -88,7 +91,7 @@ export class NotesPanel {
         },
         onmouseout: () => {
           this.hoveredX = null;
-          this.trace.timeline.hoveredNoteTimestamp = undefined;
+          this.timeline.hoveredNoteTimestamp = undefined;
         },
       },
       m(TimelineToolbar, {trace: this.trace}),
@@ -108,7 +111,7 @@ export class NotesPanel {
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
     let aNoteIsHovered = false;
 
-    const visibleWindow = this.trace.timeline.visibleWindow;
+    const visibleWindow = this.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: size.width,
@@ -120,7 +123,7 @@ export class NotesPanel {
     ctx.fillStyle = COLOR_BORDER;
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.getTimeAxisOrigin();
+      const offset = this.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
@@ -186,14 +189,14 @@ export class NotesPanel {
     // A real note is hovered so we don't need to see the preview line.
     // TODO(hjd): Change cursor to pointer here.
     if (aNoteIsHovered) {
-      this.trace.timeline.hoveredNoteTimestamp = undefined;
+      this.timeline.hoveredNoteTimestamp = undefined;
     }
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = timescale.pxToHpTime(this.hoveredX).toTime();
       if (visibleWindow.contains(timestamp)) {
-        this.trace.timeline.hoveredNoteTimestamp = timestamp;
+        this.timeline.hoveredNoteTimestamp = timestamp;
         const x = timescale.timeToPx(timestamp);
         const left = Math.floor(x);
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);

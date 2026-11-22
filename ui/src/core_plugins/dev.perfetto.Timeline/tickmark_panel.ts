@@ -17,6 +17,7 @@ import {canvasClip} from '../../base/canvas_utils';
 import type {Size2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {getOrCreate} from '../../base/utils';
+import type {TimelineImpl} from '../../core/timeline';
 import type {TraceImpl} from '../../core/trace_impl';
 import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
@@ -33,7 +34,10 @@ export class TickmarkPanel {
   private searchOverviewTrack: SearchOverviewTrack;
   readonly height = 5;
 
-  constructor(private readonly trace: TraceImpl) {
+  constructor(
+    trace: TraceImpl,
+    private readonly timeline: TimelineImpl = trace.timeline,
+  ) {
     this.searchOverviewTrack = getOrCreate(
       trackTraceMap,
       trace,
@@ -55,7 +59,7 @@ export class TickmarkPanel {
   }
 
   private renderTrack(ctx: CanvasRenderingContext2D, size: Size2D): void {
-    const visibleWindow = this.trace.timeline.visibleWindow;
+    const visibleWindow = this.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: size.width,
@@ -65,7 +69,7 @@ export class TickmarkPanel {
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
 
-      const offset = this.trace.timeline.getTimeAxisOrigin();
+      const offset = this.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
