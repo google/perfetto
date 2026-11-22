@@ -383,9 +383,12 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
     const devices: WsDevice[] = [];
     for (const line of status.value.trimEnd().split('\n')) {
       if (line === '') continue;
-      const match = line.match(/^([^\s]+)\s+.*model:([^ ]+)/);
-      if (!match) continue;
-      devices.push({serial: match[1]!, model: match[2]!});
+      const parts = line.trim().split(/\s+/);
+      const serial = parts[0];
+      const devState = parts[1];
+      if (!serial || devState !== 'device') continue;
+      const modelMatch = line.match(/model:([^ ]+)/);
+      devices.push({serial, model: modelMatch?.[1] ?? 'Android device'});
     }
 
     this.wsDevices = devices;
