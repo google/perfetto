@@ -489,6 +489,46 @@ TEST(ArrowDeserializerTest, RoundTripMultiColumn) {
   EXPECT_FALSE((dst.GetCellUnchecked<3>(kMultiColumn, 1)).has_value());
 }
 
+TEST(ArrowDeserializerTest, RoundTripAllNullDenseColumnAmongOthers) {
+  StringPool pool;
+  auto a = pool.InternString(base::StringView("a"));
+  auto src = Dataframe::CreateFromTypedSpec(kMultiColumn, &pool);
+  src.InsertUnchecked(kMultiColumn, std::monostate{}, int64_t{100}, a,
+                      std::optional<double>{});
+  src.InsertUnchecked(kMultiColumn, std::monostate{}, int64_t{200}, a,
+                      std::optional<double>{});
+  auto dst = RoundTrip(kMultiColumn, src, &pool);
+
+  ASSERT_EQ(dst.row_count(), 2u);
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kMultiColumn, 1)), 200);
+  EXPECT_EQ(pool.Get(dst.GetCellUnchecked<2>(kMultiColumn, 1)).ToStdString(),
+            "a");
+  EXPECT_FALSE((dst.GetCellUnchecked<3>(kMultiColumn, 0)).has_value());
+  EXPECT_FALSE((dst.GetCellUnchecked<3>(kMultiColumn, 1)).has_value());
+}
+
+TEST(ArrowDeserializerTest, RoundTripAllNullStringColumn) {
+  StringPool pool;
+  auto src =
+      MakeDataframe(kStringDenseNull, &pool, std::optional<StringPool::Id>{},
+                    std::optional<StringPool::Id>{});
+  auto dst = RoundTrip(kStringDenseNull, src, &pool);
+
+  ASSERT_EQ(dst.row_count(), 2u);
+  EXPECT_FALSE((dst.GetCellUnchecked<1>(kStringDenseNull, 0)).has_value());
+  EXPECT_FALSE((dst.GetCellUnchecked<1>(kStringDenseNull, 1)).has_value());
+}
+
+TEST(ArrowDeserializerTest, RejectsNullTypeForNonNullColumn) {
+  StringPool pool;
+  auto src = MakeDataframe(kInt64SparsePopcountAlways, &pool,
+                           std::optional<int64_t>{});
+  std::vector<uint8_t> bytes = Serialize(src, pool);
+
+  auto dst = Dataframe::CreateFromTypedSpec(kUint32NonNull, &pool);
+  EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
+}
+
 TEST(ArrowDeserializerTest, RoundTripEmptyDataframe) {
   StringPool pool;
   auto src = Dataframe::CreateFromTypedSpec(kMultiColumn, &pool);

@@ -1698,9 +1698,9 @@ TEST_F(TraceProcessorPerfettoExportTest,
        PerfettoExportVersionMismatchRejected) {
   std::string tar = *tar_;
 
-  size_t pos = tar.find("\"format\":1");
+  size_t pos = tar.find("\"format\":");
   ASSERT_NE(pos, std::string::npos);
-  tar.replace(pos, 10, "\"format\":9");
+  tar[pos + 9] = '9';
 
   auto reimport = TraceProcessor::CreateInstance(Config());
   auto status = ParsePerfettoExport(reimport.get(), tar);
