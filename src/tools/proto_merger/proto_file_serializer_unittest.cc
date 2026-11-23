@@ -1068,6 +1068,181 @@ TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
   EXPECT_NE(merged_desc, nullptr);
 }
 
+size_t CountOccurrences(const std::string& haystack,
+                        const std::string& needle) {
+  size_t count = 0;
+  for (size_t pos = haystack.find(needle); pos != std::string::npos;
+       pos = haystack.find(needle, pos + needle.size())) {
+    ++count;
+  }
+  return count;
+}
+
+// Builds a "Container" message with a oneof "data" holding `other = 1`, plus
+// `snapshot = 93` either in the oneof or as a plain field.
+ProtoFile MakeContainerFile(bool snapshot_in_oneof) {
+  ProtoFile file;
+  ProtoFile::Message message{};
+  message.name = "Container";
+  ProtoFile::Oneof oneof{};
+  oneof.name = "data";
+  oneof.fields.push_back(MakeField("int32", "other", 1));
+  if (snapshot_in_oneof) {
+    oneof.fields.push_back(MakeField("string", "snapshot", 93));
+  } else {
+    message.fields.push_back(MakeField("string", "snapshot", 93));
+  }
+  message.oneofs.push_back(oneof);
+  file.messages.push_back(message);
+  return file;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedFieldInInputOneofIsNotDuplicated) {
+  ProtoFile input = MakeContainerFile(/*snapshot_in_oneof=*/true);
+  ProtoFile upstream = MakeContainerFile(/*snapshot_in_oneof=*/false);
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields.insert(93);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedFieldInUpstreamOneofIsNotDuplicated) {
+  ProtoFile input = MakeContainerFile(/*snapshot_in_oneof=*/false);
+  ProtoFile upstream = MakeContainerFile(/*snapshot_in_oneof=*/true);
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].oneofs["data"].insert(93);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedNewFieldIsStillAdded) {
+  ProtoFile input = MakeContainerFile(/*snapshot_in_oneof=*/true);
+  ProtoFile upstream = MakeContainerFile(/*snapshot_in_oneof=*/false);
+  upstream.messages[0].fields.push_back(MakeField("string", "fresh", 94));
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields.insert(93);
+  allowlist.messages["Container"].fields.insert(94);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("string fresh = 94;"));
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+}
+
+TEST(ProtoFileSerializerTest,
+     PathFieldInInputOneofButPlainUpstreamIsNotDuplicated) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input_file(temp_dir.path(), "input.proto", R"(
+    syntax = "proto3";
+    package perfetto.protos;
+    message Layer { int32 id = 1; }
+    message Snapshot { repeated Layer layers = 1; }
+    message Packet { oneof data { int32 other = 1; Snapshot snapshot = 93; } }
+  )");
+  TempProtoFile upstream_file(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto3";
+    package perfetto.protos;
+    message Layer { int32 id = 1; bool is_visible = 2; }
+    message Snapshot { repeated Layer layers = 1; }
+    message Packet { oneof data { int32 other = 1; } Snapshot snapshot = 93; }
+  )");
+
+  protozero::MultiFileErrorCollectorImpl mfe_input;
+  protozero::MultiFileErrorCollectorImpl mfe_upstream;
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe_input);
+  const auto* input_desc = importer_input.Import("input.proto");
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe_upstream);
+  const auto* upstream_desc = importer_upstream.Import("upstream.proto");
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_desc, nullptr);
+
+  const auto* packet_desc = upstream_desc->FindMessageTypeByName("Packet");
+  ASSERT_NE(packet_desc, nullptr);
+  Allowlist allowed;
+  ASSERT_TRUE(AllowlistFromFieldList(*packet_desc,
+                                     {"snapshot.layers.is_visible"}, allowed)
+                  .ok());
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(ProtoFileFromDescriptor("", *input_desc),
+                              ProtoFileFromDescriptor("", *upstream_desc),
+                              allowed, merged, TypeChanges::kAll)
+                  .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("bool is_visible = 2;"));
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+
+  // The merged proto must be valid: before the fix, protoc rejected it with
+  // "snapshot" is already defined.
+  TempProtoFile merged_file(
+      temp_dir.path(), "merged.proto",
+      "syntax = \"proto3\";\npackage perfetto.protos;\n" + out);
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+}
+
+TEST(ProtoFileSerializerTest, NewUpstreamOneofWithOnlyExistingFieldsIsDropped) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("string", "snapshot", 93));
+    input.messages.push_back(message);
+  }
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    ProtoFile::Oneof oneof{};
+    oneof.name = "wrapper";
+    oneof.fields.push_back(MakeField("string", "snapshot", 93));
+    message.oneofs.push_back(oneof);
+    upstream.messages.push_back(message);
+  }
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].oneofs["wrapper"] = {93};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, Not(HasSubstr("oneof wrapper"))) << out;
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+
+  // The merged proto must be valid: an empty oneof is rejected by protoc.
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile merged_file(
+      temp_dir.path(), "merged.proto",
+      "syntax = \"proto3\";\npackage perfetto.protos;\n" + out);
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+}
+
 TEST(ProtoFileSerializerTest,
      ReservedUpstreamFieldWithDeletedTypeIsPlacedInDeletedFields) {
   ProtoFile input;
