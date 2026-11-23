@@ -37,7 +37,7 @@ import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
-import {Checkbox} from '../../../../../widgets/checkbox';
+import {Chip} from '../../../../../widgets/chip';
 import {Tooltip} from '../../../../../widgets/tooltip';
 import {PopupPosition} from '../../../../../widgets/popup';
 
@@ -49,6 +49,35 @@ const COLLAPSED_FRAME_THRESHOLD =
   1 + COLLAPSED_MIDDLE_FRAMES + COLLAPSED_ROOT_FRAMES;
 
 type FrameCategory = 'app' | 'system' | 'runtime';
+
+const FRAME_CATEGORIES: ReadonlyArray<{
+  readonly id: FrameCategory;
+  readonly label: string;
+  readonly tooltip: string;
+  readonly defaultVisible: boolean;
+}> = [
+  {
+    id: 'app',
+    label: 'App',
+    tooltip:
+      'Frames from the target app APK, native libraries, or app JIT code',
+    defaultVisible: true,
+  },
+  {
+    id: 'system',
+    label: 'System',
+    tooltip: 'Android framework and native OS/vendor libraries',
+    defaultVisible: true,
+  },
+  {
+    id: 'runtime',
+    label: 'Runtime',
+    tooltip:
+      'Allocators, libc/ART/JNI glue, event-loop/IPC/coroutine scaffolding, ' +
+      'and unwinder markers',
+    defaultVisible: false,
+  },
+];
 
 interface NativeFrame {
   readonly name: string;
@@ -382,7 +411,11 @@ function renderStackFrames(
       f.mapping !== undefined
         ? `[${f.category}] ${f.name}\n${f.mapping}`
         : `[${f.category}] ${f.name}`;
-    return m('.pf-memscope-stack__frame', {title}, f.name);
+    return m(
+      `.pf-memscope-stack__frame.pf-memscope-stack__frame--${f.category}`,
+      {title},
+      f.name,
+    );
   };
   const toggleLink = (label: string) =>
     m(
@@ -430,8 +463,9 @@ export interface NativeSectionAttrs {
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
   private readonly slot = new AsyncMemo<NativeData>();
-  private hideSystemFrames = false;
-  private hideRuntimeFrames = true;
+  private readonly visibleCategories = new Set<FrameCategory>(
+    FRAME_CATEGORIES.filter((c) => c.defaultVisible).map((c) => c.id),
+  );
   private rowLimit = MAX_STACK_ROWS;
   private readonly expandedStacks = new Set<number>();
 
@@ -472,11 +506,9 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const overhead = nativeRss > seen ? nativeRss - seen : 0;
 
     const stackRows = data.stacks.slice(0, this.rowLimit).map((s) => {
-      const frames = s.frames.filter((f) => {
-        if (f.category === 'system' && this.hideSystemFrames) return false;
-        if (f.category === 'runtime' && this.hideRuntimeFrames) return false;
-        return true;
-      });
+      const frames = s.frames.filter((f) =>
+        this.visibleCategories.has(f.category),
+      );
       const expanded = this.expandedStacks.has(s.topId);
       return [
         m(
@@ -599,40 +631,36 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
           data.stacks.length > 0
             ? topTable({
                 title: 'Top allocation call-stacks',
-                controls: m('.pf-memscope-toptable__controls', [
-                  m(
-                    Tooltip,
-                    {
-                      trigger: m(Checkbox, {
-                        label: 'Hide system frames',
-                        checked: this.hideSystemFrames,
-                        onchange: (e) => {
-                          this.hideSystemFrames = (
-                            e.target as HTMLInputElement
-                          ).checked;
-                        },
-                      }),
-                      position: PopupPosition.Top,
-                    },
-                    'Android framework and native OS/vendor libraries',
-                  ),
-                  m(
-                    Tooltip,
-                    {
-                      trigger: m(Checkbox, {
-                        label: 'Hide runtime frames',
-                        checked: this.hideRuntimeFrames,
-                        onchange: (e) => {
-                          this.hideRuntimeFrames = (
-                            e.target as HTMLInputElement
-                          ).checked;
-                        },
-                      }),
-                      position: PopupPosition.Top,
-                    },
-                    'Allocators, libc/ART/JNI glue, event-loop/IPC/coroutine ' +
-                      'scaffolding, and unwinder markers',
-                  ),
+                controls: m('.pf-memscope-stack-legend', [
+                  m('span.pf-memscope-stack-legend__label', 'Filter frames:'),
+                  FRAME_CATEGORIES.map((cat) => {
+                    const active = this.visibleCategories.has(cat.id);
+                    return m(
+                      Tooltip,
+                      {
+                        trigger: m(Chip, {
+                          className:
+                            `pf-memscope-stack-chip ` +
+                            `pf-memscope-stack-chip--${cat.id}` +
+                            (active
+                              ? ' pf-memscope-stack-chip--active'
+                              : ' pf-memscope-stack-chip--inactive'),
+                          rounded: true,
+                          interactive: true,
+                          label: cat.label,
+                          onclick: () => {
+                            if (active) {
+                              this.visibleCategories.delete(cat.id);
+                            } else {
+                              this.visibleCategories.add(cat.id);
+                            }
+                          },
+                        }),
+                        position: PopupPosition.Top,
+                      },
+                      cat.tooltip,
+                    );
+                  }),
                 ]),
                 cols: [
                   {label: 'Call-stack snippet'},
