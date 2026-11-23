@@ -310,6 +310,10 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
     // unrecognized members. It cannot be loaded back into Trace Processor; use
     // kPerfetto for that.
     kArrowTar,
+
+    // kArrowTar with every Arrow buffer compressed with zstd, using Arrow IPC's
+    // standard buffer compression. Requires a build with zstd support.
+    kArrowZstdTar,
   };
 
   class PERFETTO_EXPORT_COMPONENT ExportOutput {
