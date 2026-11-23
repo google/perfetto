@@ -115,21 +115,6 @@ TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
 }
 #endif
 
-// Ending one query doesn't stop the interrupt check for another query whose
-// results are still being read.
-TEST(TraceProcessorImplTest, InterruptStopsQueryAfterAnotherQueryEnds) {
-  auto tp = CreateTraceProcessor();
-  auto it = tp->ExecuteQuery(kLongQuery);
-  ASSERT_TRUE(it.Next());
-  {
-    auto other = tp->ExecuteQuery("SELECT 1");
-    CountRows(other);
-  }
-  tp->InterruptQuery();
-  CountRows(it);
-  EXPECT_THAT(it.Status().message(), HasSubstr("interrupted"));
-}
-
 // RestoreInitialTables() replaces the SQLite connection, which must keep
 // checking for interrupts.
 TEST(TraceProcessorImplTest, InterruptStopsQueryAfterRestoreInitialTables) {

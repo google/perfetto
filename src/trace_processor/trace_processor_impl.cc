@@ -17,7 +17,6 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -641,6 +640,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   }
 
   // Stage 4: prepare the connection for queries.
+  // An interrupt which arrived while the trace was loading must not stop the
+  // prelude, whose failure is fatal.
+  engine_->ClearInterrupt();
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -664,7 +666,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
-  BeginQuery(/*new_query=*/true);
+  engine_->ClearInterrupt();
 
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
@@ -683,7 +685,11 @@ std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
   PERFETTO_CHECK(offset);
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
-  BeginQuery(/*new_query=*/*offset == 0);
+  // Only the first statement starts a new query: an interrupt which arrived
+  // between two statements of this query must still stop the next one.
+  if (*offset == 0) {
+    engine_->ClearInterrupt();
+  }
 
   // Offsets are relative to the normalized SQL: since the normalization is
   // deterministic, an offset returned by one call stays valid when the same
@@ -717,13 +723,11 @@ std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
                                                          sql_stats_row));
   }
   if (!result->has_value()) {
-    // No iterator will be created to close the sql_stats entry or end the
-    // query; do it here.
+    // No iterator will be created to close the sql_stats entry; do it here.
     int64_t now = base::GetWallTimeNs().count();
     auto* sql_stats = context()->storage->mutable_sql_stats();
     sql_stats->RecordQueryFirstNext(sql_stats_row, now);
     sql_stats->RecordQueryEnd(sql_stats_row, now);
-    EndQuery();
     *offset = size;
     return std::nullopt;
   }
@@ -893,29 +897,7 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  query_interrupted_.store(true, std::memory_order_relaxed);
-  // Without progress callbacks (e.g. Chromium's SQLite), nothing checks the
-  // flag while a statement runs: stop the running statements directly instead.
-  if (use_sqlite_interrupt_.load(std::memory_order_relaxed)) {
-    engine_->InterruptRunningStatements();
-  }
-}
-
-void TraceProcessorImpl::BeginQuery(bool new_query) {
-  if (new_query) {
-    query_interrupted_.store(false, std::memory_order_relaxed);
-  }
-  if (running_queries_++ == 0) {
-    bool checks = engine_->SetInterruptFlag(&query_interrupted_);
-    use_sqlite_interrupt_.store(!checks, std::memory_order_relaxed);
-  }
-}
-
-void TraceProcessorImpl::EndQuery() {
-  PERFETTO_DCHECK(running_queries_ > 0);
-  if (running_queries_ > 0 && --running_queries_ == 0) {
-    engine_->SetInterruptFlag(nullptr);
-  }
+  engine_->Interrupt();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {

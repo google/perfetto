@@ -395,6 +395,10 @@ PerfettoSqlConnection::PerfettoSqlConnection(
       [](void* ctx) { static_cast<PerfettoSqlConnection*>(ctx)->OnRollback(); },
       this);
 
+  // Lets Interrupt() stop statements which start after it was called.
+  connection_->SetProgressCallback(kInterruptCheckSteps, &CheckInterruptFlag,
+                                   &interrupted_);
+
   {
     auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>(
         database_->committed_runtime_table_functions());
@@ -938,18 +942,18 @@ const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
   return state ? state->dataframe : nullptr;
 }
 
-bool PerfettoSqlConnection::SetInterruptFlag(std::atomic<bool>* flag) {
-  if (!flag) {
-    return connection_->SetProgressCallback(0, nullptr, nullptr);
-  }
-  return connection_->SetProgressCallback(kInterruptCheckSteps,
-                                          &CheckInterruptFlag, flag);
-}
-
-void PerfettoSqlConnection::InterruptRunningStatements() {
+void PerfettoSqlConnection::Interrupt() {
+  // The flag stops statements which start later; sqlite3_interrupt() stops
+  // the ones running now at once, and is all there is in builds without
+  // progress callbacks.
+  interrupted_.store(true, std::memory_order_relaxed);
   if (connection_->db()) {
     sqlite3_interrupt(connection_->db());
   }
+}
+
+void PerfettoSqlConnection::ClearInterrupt() {
+  interrupted_.store(false, std::memory_order_relaxed);
 }
 
 base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(

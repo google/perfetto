@@ -339,16 +339,14 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
   return sqlite3_rollback_hook(db_.get(), callback, ctx);
 }
 
-bool SqliteConnection::SetProgressCallback(int steps,
+void SqliteConnection::SetProgressCallback(int steps,
                                            ProgressCallback callback,
                                            void* ctx) {
 #if defined(SQLITE_OMIT_PROGRESS_CALLBACK)
   // SQLite has no sqlite3_progress_handler() in this build.
   base::ignore_result(steps, callback, ctx);
-  return false;
 #else
   sqlite3_progress_handler(db_.get(), steps, callback, ctx);
-  return true;
 #endif
 }
 
