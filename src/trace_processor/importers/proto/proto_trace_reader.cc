@@ -278,12 +278,16 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 
   // Execute ProtoVM logic right after the "machine ID fork" as detailed in
   // go/perfetto-proto-vm.
+  std::optional<TraceBlobView> raw_protovm_patch;
   if (decoder.has_trace_provenance()) {
     protovm_.ProcessTraceProvenancePacket(decoder.trace_provenance());
   } else if (decoder.has_protovms()) {
     protovm_.ProcessProtoVmsPacket(decoder.protovms(), packet);
   } else if (auto new_packet = protovm_.TryProcessPatch(decoder, packet);
              new_packet) {
+    if (context_->content_analyzer) {
+      raw_protovm_patch = std::move(packet);
+    }
     packet = std::move(*new_packet);
     decoder = SelectiveTracePacketDecoder(packet.data(), packet.length());
   }
@@ -369,7 +373,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         PacketAnalyzer::SampleAnnotation annotation;
         annotation.emplace_back(skipped_packet_key_id_,
                                 invalid_incremental_state_key_id_);
-        PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
+        PacketAnalyzer::Get(context_)->ProcessPacket(
+            raw_protovm_patch ? *raw_protovm_patch : packet, annotation);
       }
       scoped_state->needs_incremental_state_skipped++;
       context_->import_logs_tracker->RecordTokenizationLog(
@@ -383,7 +388,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (context_->content_analyzer && !decoder.has_track_event()) {
-    PacketAnalyzer::Get(context_)->ProcessPacket(packet, {});
+    PacketAnalyzer::Get(context_)->ProcessPacket(
+        raw_protovm_patch ? *raw_protovm_patch : packet, {});
   }
 
   if (decoder.has_trace_config()) {
