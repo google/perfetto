@@ -70,9 +70,11 @@ class ProtoLogMessageDecoder {
       const std::vector<bool>& boolean_params,
       const std::vector<std::string>& string_params);
 
-  void TrackGroup(uint32_t id, std::string_view tag);
+  // Returns false if the group was already tracked with the same tag.
+  bool TrackGroup(uint32_t id, std::string_view tag);
 
-  void TrackMessage(uint64_t message_id,
+  // Returns false if an identical message entry was already tracked.
+  bool TrackMessage(uint64_t message_id,
                     ProtoLogLevel level,
                     uint32_t group_id,
                     const std::string& message,
