@@ -48,6 +48,12 @@ using com::android::internal::pbzero::AndroidMotionEvent;
 using com::android::internal::pbzero::AndroidWindowInputDispatchEvent;
 using perfetto::protos::pbzero::TracePacket;
 
+namespace {
+// android.view.MotionEvent.AXIS_X / AXIS_Y.
+constexpr int32_t kAxisX = 0;
+constexpr int32_t kAxisY = 1;
+}  // namespace
+
 AndroidInputEventParser::AndroidInputEventParser(TraceProcessorContext* context)
     : context_(*context),
       args_parser_{*context->descriptor_pool_,
@@ -73,8 +79,10 @@ void AndroidInputEventParser::ParseAndroidInputEvent(
 
     switch (sub_field_id) {
       case AndroidInputEvent::kDispatcherMotionEventFieldNumber:
+        ParseMotionEvent(packet_ts, sub_field.as_bytes(), /*redacted=*/false);
+        return;
       case AndroidInputEvent::kDispatcherMotionEventRedactedFieldNumber:
-        ParseMotionEvent(packet_ts, sub_field.as_bytes());
+        ParseMotionEvent(packet_ts, sub_field.as_bytes(), /*redacted=*/true);
         return;
       case AndroidInputEvent::kDispatcherKeyEventFieldNumber:
       case AndroidInputEvent::kDispatcherKeyEventRedactedFieldNumber:
@@ -90,7 +98,8 @@ void AndroidInputEventParser::ParseAndroidInputEvent(
 
 void AndroidInputEventParser::ParseMotionEvent(
     int64_t packet_ts,
-    const protozero::ConstBytes& bytes) {
+    const protozero::ConstBytes& bytes,
+    bool redacted) {
   AndroidMotionEvent::Decoder event_proto(bytes);
   tables::AndroidMotionEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
@@ -104,10 +113,50 @@ void AndroidInputEventParser::ParseMotionEvent(
   event_row.action = event_proto.action();
   event_row.device_id = event_proto.device_id();
   event_row.display_id = event_proto.display_id();
+  if (event_proto.has_event_time_nanos()) {
+    event_row.event_ts = MonotonicToTraceTime(event_proto.event_time_nanos());
+  }
+  event_row.is_redacted = redacted ? 1 : 0;
 
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
                           .id;
+
+  // Decode the pointer coordinates here so consumers don't need to pick them
+  // out of the args. A redacted event has the axes but no values, so its
+  // coordinates stay NULL.
+  auto* pointer_table =
+      context_.storage->mutable_android_motion_event_pointer_table();
+  uint32_t pointer_index = 0;
+  for (auto it = event_proto.pointer(); it; ++it, ++pointer_index) {
+    AndroidMotionEvent::Pointer::Decoder pointer(*it);
+    tables::AndroidMotionEventPointerTable::Row pointer_row;
+    pointer_row.motion_event_id = event_row_id;
+    pointer_row.pointer_index = pointer_index;
+    if (pointer.has_pointer_id()) {
+      pointer_row.pointer_id = pointer.pointer_id();
+    }
+    if (pointer.has_tool_type()) {
+      pointer_row.tool_type = pointer.tool_type();
+    }
+    for (auto axis_it = pointer.axis_value(); axis_it; ++axis_it) {
+      AndroidMotionEvent::Pointer::AxisValue::Decoder axis_value(*axis_it);
+      if (!axis_value.has_value()) {
+        continue;
+      }
+      switch (axis_value.axis()) {
+        case kAxisX:
+          pointer_row.x = static_cast<double>(axis_value.value());
+          break;
+        case kAxisY:
+          pointer_row.y = static_cast<double>(axis_value.value());
+          break;
+        default:
+          break;
+      }
+    }
+    pointer_table->Insert(pointer_row);
+  }
   auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
   util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
   ArgsInserterSink writer(inserter);
@@ -184,6 +233,28 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           ->Insert(event_row)
           .id;
 
+  // The producer writes x/y_in_display only when the display's raw transform
+  // changes them, so absent values mean "same as the motion event's".
+  auto* pointer_table =
+      context_.storage->mutable_android_input_event_dispatch_pointer_table();
+  uint32_t pointer_index = 0;
+  for (auto it = event_proto.dispatched_pointer(); it; ++it, ++pointer_index) {
+    AndroidWindowInputDispatchEvent::DispatchedPointer::Decoder pointer(*it);
+    tables::AndroidInputEventDispatchPointerTable::Row pointer_row;
+    pointer_row.dispatch_id = event_row_id;
+    pointer_row.pointer_index = pointer_index;
+    if (pointer.has_pointer_id()) {
+      pointer_row.pointer_id = pointer.pointer_id();
+    }
+    if (pointer.has_x_in_display()) {
+      pointer_row.x_in_display = static_cast<double>(pointer.x_in_display());
+    }
+    if (pointer.has_y_in_display()) {
+      pointer_row.y_in_display = static_cast<double>(pointer.y_in_display());
+    }
+    pointer_table->Insert(pointer_row);
+  }
+
   auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
   util::ProtoArgsEnv env(packet_ts, context_.process_tracker.get());
   ArgsInserterSink writer(inserter);
@@ -212,13 +283,18 @@ void AndroidInputEventParser::TryConvertMonotonicTimestampFields(
   }
 }
 
+std::optional<int64_t> AndroidInputEventParser::MonotonicToTraceTime(
+    int64_t monotonic_time) {
+  return context_.clock_tracker->ToTraceTime(
+      ClockId::Machine(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      monotonic_time);
+}
+
 void AndroidInputEventParser::ConvertMonotonicTimestampField(
     int64_t monotonic_time,
     const std::string& key_string,
     ArgSink& writer) {
-  auto boottime = context_.clock_tracker->ToTraceTime(
-      ClockId::Machine(perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-      monotonic_time);
+  auto boottime = MonotonicToTraceTime(monotonic_time);
   if (boottime.has_value()) {
     auto key = context_.storage->InternString(base::StringView(key_string));
     writer.Add({key, key}, Variadic::Integer(boottime.value()));

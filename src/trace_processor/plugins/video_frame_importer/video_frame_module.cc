@@ -123,7 +123,8 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   const uint32_t display_id = frame.has_display_id() ? frame.display_id() : 0u;
 
   // display_name + codec_string arrive on the codec_config packet; cache
-  // them so later frames of the stream inherit them.
+  // them so later frames of the stream inherit them, and backfill any access
+  // units that TokenizePacket re-stamped to pts_us ahead of codec_config.
   StreamInfo& info = stream_info_by_id_[display_id];
   if (frame.has_display_name()) {
     info.display_name =
@@ -132,6 +133,25 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   if (frame.has_codec_string()) {
     info.codec_string =
         context_->storage->InternString(frame.codec_string().ToStdStringView());
+  }
+  if (!info.pending_metadata_rows.empty() &&
+      (info.display_name != kNullStringId ||
+       info.codec_string != kNullStringId)) {
+    for (uint32_t pending_row : info.pending_metadata_rows) {
+      auto ref = (*table_)[pending_row];
+      if (!ref.display_name().has_value() &&
+          info.display_name != kNullStringId) {
+        ref.set_display_name(info.display_name);
+      }
+      if (!ref.codec_string().has_value() &&
+          info.codec_string != kNullStringId) {
+        ref.set_codec_string(info.codec_string);
+      }
+    }
+    if (info.display_name != kNullStringId &&
+        info.codec_string != kNullStringId) {
+      info.pending_metadata_rows.clear();
+    }
   }
 
   tables::AndroidVideoFramesTable::Row row;
@@ -145,6 +165,14 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
   }
   row.frame_number =
       frame.has_frame_number() ? static_cast<int64_t>(frame.frame_number()) : 0;
+  // The source display size is written on every packet. Don't carry it
+  // forward from earlier packets: a missing value stays NULL.
+  if (frame.has_source_width()) {
+    row.source_width = static_cast<int32_t>(frame.source_width());
+  }
+  if (frame.has_source_height()) {
+    row.source_height = static_cast<int32_t>(frame.source_height());
+  }
 
   // A VideoFrame is either a codec_config (is_config = 1) or one access
   // unit. Skip a frame with no payload: every row must have bytes so the
@@ -186,6 +214,10 @@ void VideoFrameModule::ParseVideoFrame(protozero::ConstBytes bytes,
 
   auto id_and_row = table_->Insert(row);
   auto id = id_and_row.id.value;
+  if (info.display_name == kNullStringId ||
+      info.codec_string == kNullStringId) {
+    info.pending_metadata_rows.push_back(id_and_row.row);
+  }
   // Signal frame output to trace doctor (see TraceStorage).
   context_->storage->set_has_android_video_frames();
   // au_data is parallel to the table, indexed by row id.

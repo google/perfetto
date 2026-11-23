@@ -10,6 +10,16 @@ Unreleased:
      and `authoritative_trigger` packets, reporting the effective trigger
      mode of the session.
   Trace Processor:
+   * Added touches on display video: `android_video_frames` (in
+     `android.video_frames`) with the source display size of each frame,
+     `android_motion_event_pointers` (in `android.input`) with the decoded
+     pointer coordinates of input events, and
+     `android_input_event_video_frames` (in `android.input_video`) linking
+     each touch to the video frame on screen and the video frame showing the
+     app's response. `android_motion_events` now exposes `event_ts` and
+     `is_redacted`, and `android_input_events` exposes `dispatch_slice_id`
+     and `receive_slice_id` and resolves `event_action` and `frame_id` for
+     injected (`UiAutomator`) and split-touch events without `InputReader`.
    * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
      one call failed (e.g. an interrupted query), until they were redefined.
    * Fixed `heap_graph_object.root_distance` always being `-1` for

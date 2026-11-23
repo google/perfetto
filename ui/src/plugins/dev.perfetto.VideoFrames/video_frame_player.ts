@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Time, type time} from '../../base/time';
 import type {Trace} from '../../public/trace';
 import {
   BLOB,
@@ -29,6 +30,11 @@ const DECODER_BACKPRESSURE_LIMIT = 32;
 // How many AUs the feed loop fetches in one SQL round trip. Keeps peak JS
 // memory bounded to O(batch) encoded bytes rather than O(stream).
 const FETCH_BATCH = 32;
+
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+}
 
 // One displayable access unit. Encoded bytes are not held here; they're
 // fetched on demand via __INTRINSIC_VIDEO_FRAME_AU_DATA(id).
@@ -90,11 +96,18 @@ export class VideoFramePlayer {
 
   // Render target, mounted/unmounted by the details panel.
   private canvas?: HTMLCanvasElement;
+  // Size of the last painted picture.
+  private paintedSize?: Size;
+  // Called after every paint and on every playback tick (even without a new
+  // frame), so overlays on the preview can follow the playback clock.
+  onRepaint?: () => void;
 
   // Bumped on every stop/seek so in-flight async ops can detect cancellation.
   private token = 0;
   // Present iff currently playing.
   private playSession?: PlaySession;
+  // The playback clock in trace-ns, once the first played frame is painted.
+  private clockTs?: bigint;
 
   constructor(trace: Trace, trackUri: string, displayId: number) {
     this.trace = trace;
@@ -115,6 +128,17 @@ export class VideoFramePlayer {
 
   get currentFrame(): FrameInfo | undefined {
     return this.frames[this.currentIdx];
+  }
+
+  // The playback clock: the trace time being shown while playing, advancing
+  // smoothly between frames. Undefined when paused.
+  get playbackTs(): time | undefined {
+    return this.clockTs === undefined ? undefined : Time.fromRaw(this.clockTs);
+  }
+
+  // The decoded picture size, once a frame has been painted.
+  get frameSize(): Size | undefined {
+    return this.paintedSize;
   }
 
   // The details panel calls this on canvas mount. Re-paints the current
@@ -229,8 +253,10 @@ export class VideoFramePlayer {
     const s = this.playSession;
     if (s === undefined) return;
     this.playSession = undefined;
+    this.clockTs = undefined;
     if (s.decoder.state !== 'closed') s.decoder.close();
     for (const f of s.queue) f.frame.close();
+    this.onRepaint?.();
   }
 
   // Decode nearestKey(idx)..idx with a one-shot decoder, returning the
@@ -281,6 +307,7 @@ export class VideoFramePlayer {
     const target = outs[idx - k] ?? outs[outs.length - 1];
     if (target !== undefined) this.drawFrame(target);
     for (const f of outs) f.close();
+    this.onRepaint?.();
     m.redraw();
   }
 
@@ -363,8 +390,6 @@ export class VideoFramePlayer {
     // frame (so startup decode latency doesn't skip frames) and advanced
     // each frame by the wall-clock delta scaled by playbackRate.
     let lastWallMs = 0;
-    let playbackTs = 0n;
-    let started = false;
     const step = () => {
       if (token !== this.token) return;
       // Drop seed frames decoded before fromIdx without painting (they
@@ -373,24 +398,24 @@ export class VideoFramePlayer {
         session.queue.shift()!.frame.close();
       }
       let due: QueuedFrame | undefined;
-      if (!started) {
+      if (this.clockTs === undefined) {
         // Paint the first frame immediately and anchor the clock to it.
         if (session.queue.length > 0) {
           due = session.queue.shift();
-          started = true;
           lastWallMs = performance.now();
-          playbackTs = this.frames[due!.idx]!.ts;
+          this.clockTs = this.frames[due!.idx]!.ts;
         }
       } else {
         const nowMs = performance.now();
-        playbackTs += BigInt(
-          Math.floor((nowMs - lastWallMs) * 1e6 * this.playbackRate),
-        );
+        const clockTs =
+          this.clockTs +
+          BigInt(Math.floor((nowMs - lastWallMs) * 1e6 * this.playbackRate));
+        this.clockTs = clockTs;
         lastWallMs = nowMs;
         // Drain all frames whose ts is now due; paint only the latest.
         while (
           session.queue.length > 0 &&
-          this.frames[session.queue[0]!.idx]!.ts <= playbackTs
+          this.frames[session.queue[0]!.idx]!.ts <= clockTs
         ) {
           if (due !== undefined) due.frame.close();
           due = session.queue.shift();
@@ -415,6 +440,7 @@ export class VideoFramePlayer {
           return;
         }
       }
+      this.onRepaint?.();
       requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
@@ -501,6 +527,7 @@ export class VideoFramePlayer {
     if (c.width !== w) c.width = w;
     if (c.height !== h) c.height = h;
     c.getContext('2d')?.drawImage(frame, 0, 0);
+    this.paintedSize = {width: w, height: h};
   }
 }
 

@@ -48,7 +48,8 @@ message AppWakelockBundle {
 // codec_config-only VideoFrame first, then one VideoFrame per on-screen
 // change carrying a single access unit (au_data).
 message VideoFrame {
-  // Per-session display index (0, 1, ...). Groups frames into per-display
+  // Logical display id (DisplayManager id) of the captured display, the same
+  // id space as input events' display_id. Groups frames into per-display
   // tracks.
   optional uint32 display_id = 1;
 
@@ -80,6 +81,13 @@ message VideoFrame {
   // RFC 6381 codec string (e.g. "avc1.42c00b"), passed straight to
   // WebCodecs VideoDecoder.configure. Set on the codec_config packet only.
   optional string codec_string = 9;
+
+  // Logical size, in pixels, of the source display when this frame was
+  // captured. The encoded picture shows this area scaled to fit, preserving
+  // aspect ratio and centred (letterboxed after a rotation). Lets consumers
+  // map logical display coordinates (e.g. input events) onto the picture.
+  optional uint32 source_width = 10;
+  optional uint32 source_height = 11;
 }
 
 // Per-stream failure indicator. One is emitted per failure on a stream;

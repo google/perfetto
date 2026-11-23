@@ -16,6 +16,9 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {NUM, STR_NULL} from '../../trace_processor/query_result';
+import {createTouchesTrack} from './touches_track';
+import {queryTouchDisplays, TouchOverlay} from './touch_overlay';
+import {VideoFrameInputSection} from './video_frame_input_section';
 import {VideoFramePlayer} from './video_frame_player';
 import {createVideoFramesTrack} from './video_frames_track';
 
@@ -49,6 +52,8 @@ export default class implements PerfettoPlugin {
     }
     if (streams.length === 0) return;
 
+    const touchDisplays = await queryTouchDisplays(ctx.engine);
+
     const group = new TrackNode({
       name: 'Video Frames',
       isSummary: true,
@@ -58,12 +63,37 @@ export default class implements PerfettoPlugin {
     for (const stream of streams) {
       const uri = `/video_frames/${stream.displayId}`;
       const player = new VideoFramePlayer(ctx, uri, stream.displayId);
+      const hasTouches = touchDisplays.has(stream.displayId);
+      const touches = hasTouches
+        ? new TouchOverlay(ctx, player, stream.displayId)
+        : undefined;
+      const inputSection = hasTouches
+        ? new VideoFrameInputSection(ctx, uri, stream.displayId)
+        : undefined;
 
       ctx.tracks.registerTrack({
         uri,
-        renderer: createVideoFramesTrack(ctx, uri, stream.displayId, player),
+        renderer: createVideoFramesTrack(
+          ctx,
+          uri,
+          stream.displayId,
+          player,
+          touches,
+          inputSection,
+        ),
       });
       group.addChildInOrder(new TrackNode({uri, name: stream.displayName}));
+
+      if (hasTouches) {
+        const touchesUri = `${uri}/touches`;
+        ctx.tracks.registerTrack({
+          uri: touchesUri,
+          renderer: createTouchesTrack(ctx, touchesUri, stream.displayId),
+        });
+        const name =
+          streams.length === 1 ? 'Touches' : `${stream.displayName} touches`;
+        group.addChildInOrder(new TrackNode({uri: touchesUri, name}));
+      }
     }
 
     ctx.defaultWorkspace.addChildInOrder(group);
