@@ -18,6 +18,8 @@ import json
 from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import Tar
+from python.generators.diff_tests.testing import Zip as ZipTrace
 
 _INIT_PROCESS = 'processes { pid: 1 ppid: 0 cmdline: "/sbin/init" }'
 
@@ -157,6 +159,41 @@ SELECT t.tid, t.upid, (SELECT COUNT(*) FROM process) AS processes
 FROM slice s
 JOIN thread_track tt ON s.track_id = tt.id
 JOIN thread t USING (utid);
+'''
+
+
+def _json_renderer(extra=None):
+  trace = {
+      'traceEvents': [
+          {
+              'pid': 1000,
+              'tid': 1001,
+              'ph': 'M',
+              'name': 'thread_name',
+              'args': {
+                  'name': 'CrRendererMain'
+              }
+          },
+          {
+              'pid': 1000,
+              'tid': 1001,
+              'ph': 'X',
+              'ts': 10,
+              'dur': 10,
+              'name': 'RendererWork'
+          },
+      ]
+  }
+  trace.update(extra or {})
+  return json.dumps(trace)
+
+
+# Whether the JSON slice and the kernel's sched slice are on the same thread.
+_JSON_JOIN_QUERY = '''
+SELECT
+  (SELECT utid FROM slice s JOIN thread_track tt ON s.track_id = tt.id)
+  = (SELECT utid FROM sched JOIN thread USING (utid) WHERE tid = 1001)
+  AS joined;
 '''
 
 
@@ -346,4 +383,88 @@ class TidScopes(TestSuite):
         out=Csv('''
         "tid","upid","processes"
         5,"[NULL]",1
+        '''))
+
+  # JSON with embedded systrace is merged with kernel data, so its tids are
+  # kernel tids and join with the kernel's threads.
+  def test_json_with_systrace_joins_kernel_threads(self):
+    return DiffTestBlueprint(
+        trace=Json(
+            _json_renderer({
+                'systemTraceEvents':
+                    '# tracer: nop\n'
+                    '  <idle>-0 [000] d..3 0.000100: sched_switch: '
+                    'prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R'
+                    ' ==> next_comm=CrRendererMain next_pid=1001 '
+                    'next_prio=120\n'
+                    '  CrRendererMain-1001 [000] d..3 0.000200: sched_switch: '
+                    'prev_comm=CrRendererMain prev_pid=1001 prev_prio=120 '
+                    'prev_state=S ==> next_comm=swapper/0 next_pid=0 '
+                    'next_prio=120\n',
+            })),
+        query=_JSON_JOIN_QUERY,
+        out=Csv('''
+        "joined"
+        1
+        '''))
+
+  # The same holds for JSON loaded together with a system trace.
+  def test_json_in_zip_with_system_trace_joins_kernel_threads(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'system.pftrace':
+                TextProto(
+                    _process_tree(
+                        'processes { pid: 1000 ppid: 1 cmdline: "renderer" }',
+                        'threads { tid: 1001 tgid: 1000 }') +
+                    _sched(1001, 'CrRendererMain')),
+            'chrome.json':
+                _json_renderer(),
+        }),
+        query=_JSON_JOIN_QUERY,
+        out=Csv('''
+        "joined"
+        1
+        '''))
+
+  # Tar members are read as a stream: a JSON member read before the system
+  # trace must still see that it is merged.
+  def test_json_before_system_trace_in_tar_joins_kernel_threads(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'chrome.json':
+                _json_renderer(),
+            'system.pftrace':
+                TextProto(
+                    _process_tree(
+                        'processes { pid: 1000 ppid: 1 cmdline: "renderer" }',
+                        'threads { tid: 1001 tgid: 1000 }') +
+                    _sched(1001, 'CrRendererMain')),
+        }),
+        query=_JSON_JOIN_QUERY,
+        out=Csv('''
+        "joined"
+        1
+        '''))
+
+  # Gecko follows the same rule as JSON: merged with a system trace, its tids
+  # are kernel tids.
+  def test_gecko_in_zip_with_system_trace_joins_kernel_threads(self):
+    thread = _gecko_thread('CrRendererMain', 1000, [0.01])
+    thread['tid'] = 1001
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'system.pftrace':
+                TextProto(
+                    _process_tree(
+                        'processes { pid: 1000 ppid: 1 cmdline: "renderer" }',
+                        'threads { tid: 1001 tgid: 1000 }') +
+                    _sched(1001, 'CrRendererMain')),
+            'profile.json':
+                json.dumps(_gecko_profile([thread])),
+        }),
+        query=_JSON_JOIN_QUERY,
+        out=Csv('''
+        "joined"
+        1
         '''))

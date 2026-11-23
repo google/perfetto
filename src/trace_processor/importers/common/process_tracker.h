@@ -72,6 +72,17 @@ enum class SortIndexPriority : uint8_t {
 
 class ProcessTracker {
  public:
+  // Pids are only meaningful within a scope. Kernel pids live in the machine
+  // scope; an importer whose pids can't be assumed to be kernel pids (e.g. a
+  // standalone JSON trace) takes a private scope with NewPidScope(). Processes
+  // in a private scope are never found by machine-scope lookups, and their
+  // threads are always scoped to their process.
+  struct PidScope {
+    uint32_t id;
+    bool is_machine() const { return id == 0; }
+  };
+  static constexpr PidScope kMachinePidScope{0};
+
   explicit ProcessTracker(TraceProcessorContext*);
   ProcessTracker(const ProcessTracker&) = delete;
   ProcessTracker& operator=(const ProcessTracker&) = delete;
@@ -134,6 +145,20 @@ class ProcessTracker {
   // Marks |pid| as reporting tids from inside its own pid namespace, so they
   // cannot be assumed to be kernel tids.
   void SetReportsNamespacedTids(int64_t pid);
+
+  // Returns a new private pid scope.
+  PidScope NewPidScope();
+
+  // GetOrCreateProcess, UpdateProducerThread and GetOrCreateThread for ids in
+  // |scope|. In a private scope, a thread first seen without a pid joins the
+  // process it is later seen in, as tid-only threads do in the machine scope.
+  UniquePid GetOrCreateProcess(PidScope scope, int64_t pid);
+  UniqueTid UpdateProducerThread(PidScope scope, int64_t tid, int64_t pid);
+  UniqueTid GetOrCreateThread(PidScope scope, int64_t tid);
+
+  // Returns the thread of |upid| with |tid|, where |tid| is only meaningful
+  // within |upid|: it is never found by tid-only lookups.
+  UniqueTid UpdateProcessScopedThread(UniquePid upid, int64_t tid);
 
   // Mark whether a thread is the main thread or not.
   void SetMainThread(UniqueTid utid, bool is_main_thread);
@@ -345,7 +370,20 @@ class ProcessTracker {
   // always, if |start_new|).
   UniqueTid GetOrCreateProcessScopedThread(UniquePid upid,
                                            int64_t tid,
+                                           bool is_main_thread,
                                            bool start_new);
+
+  // The thread of process |upid|, with |pid|, in private |scope|.
+  UniqueTid GetOrCreateScopedThread(PidScope scope,
+                                    UniquePid upid,
+                                    int64_t pid,
+                                    int64_t tid);
+
+  // The process-scoped thread of a namespaced |pid| whose |tid| could not be
+  // resolved.
+  UniqueTid GetOrCreateUnresolvedThread(int64_t tid,
+                                        int64_t pid,
+                                        bool start_new);
 
   TraceProcessorContext* const context_;
 
@@ -370,6 +408,13 @@ class ProcessTracker {
 
   // Pids which report tids from inside their own pid namespace.
   std::unordered_set<int64_t> namespaced_tid_pids_;
+
+  // Processes in private pid scopes, keyed by (scope id, pid).
+  base::FlatHashMap<std::pair<uint32_t, int64_t>, UniquePid> scoped_pids_;
+  std::unordered_set<UniquePid> scoped_upids_;
+  // Threads in private pid scopes seen without a pid, keyed by (scope id, tid).
+  base::FlatHashMap<std::pair<uint32_t, int64_t>, UniqueTid> scoped_tids_;
+  uint32_t next_pid_scope_id_ = 1;
 
   // upid -> its utids, used to remove dead threads from tids_ when a process
   // ends or its pid is recycled.

@@ -86,6 +86,7 @@ void TraceFileTracker::StartParsing(tables::TraceFileTable::Id id,
   if (is_container) {
     return;
   }
+  non_container_files_++;
 
   context_->global_metadata_tracker->SetMetadata(
       /*machine_id*/ std::nullopt, id, metadata::trace_type,

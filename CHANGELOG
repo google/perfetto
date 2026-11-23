@@ -47,6 +47,11 @@ Unreleased:
      `(pid << 32) | tid`. When the kernel tid is known from
      `linux.process_stats`, they are joined with the kernel's thread;
      otherwise they no longer take over kernel threads with the same tid.
+   * JSON and Gecko traces loaded on their own keep their pids and tids
+     private to the trace, and JSON string pids no longer collide with
+     numeric pids. Loaded together with other traces, or for JSON with
+     `systemTraceEvents`, they still join with the kernel's processes and
+     threads. Events without a pid no longer belong to a pid 0 process.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.

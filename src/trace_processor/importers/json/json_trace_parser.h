@@ -19,10 +19,13 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/trace_pid_scope.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -42,7 +45,17 @@ class JsonTraceParser {
   void ParseJsonPacket(int64_t, JsonEvent);
   void ParseSystraceLine(int64_t, SystraceLine);
 
+  // Called when the trace embeds kernel data (systemTraceEvents).
+  void set_has_system_trace_events() { pid_scope_.set_has_kernel_data(); }
+
+  // The scope numeric pids in this trace belong to.
+  ProcessTracker::PidScope pid_scope() { return pid_scope_.Get(); }
+
  private:
+  ProcessTracker::PidScope ScopeFor(const JsonEvent&);
+  UniquePid GetOrCreateProcess(const JsonEvent&);
+  UniqueTid UpdateThread(const JsonEvent&);
+
   TraceProcessorContext* const context_;
   SystraceLineParser systrace_line_parser_;
   json::Iterator it_;
@@ -50,6 +63,10 @@ class JsonTraceParser {
   StringId process_sort_index_hint_id_;
   StringId thread_sort_index_hint_id_;
   StringId running_string_id_;
+
+  TracePidScope pid_scope_;
+  // String pids are never kernel pids, so they always get their own scope.
+  std::optional<ProcessTracker::PidScope> string_pid_scope_;
 
   void MaybeAddFlow(int64_t timestamp,
                     StringPool* pool,

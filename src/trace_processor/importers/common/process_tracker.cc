@@ -261,6 +261,11 @@ bool ProcessTracker::IsProcessAlive(UniquePid upid) {
   if (prr.end_ts().has_value())
     return false;
 
+  // Processes in private scopes are not in |pids_|.
+  if (PERFETTO_UNLIKELY(!scoped_upids_.empty()) && scoped_upids_.count(upid)) {
+    return true;
+  }
+
   // If the process has been replaced in |pids_|, it's dead.
   auto* pid_it = pids_.Find(prr.pid());
   return !pid_it || *pid_it == upid;
@@ -308,8 +313,7 @@ UniqueTid ProcessTracker::UpdateProducerThread(int64_t tid, int64_t pid) {
   if (auto kernel_tid = ResolveProducerTid(pid, tid); kernel_tid) {
     return UpdateThread(*kernel_tid, pid);
   }
-  return GetOrCreateProcessScopedThread(GetOrCreateProcess(pid), tid,
-                                        /*start_new=*/false);
+  return GetOrCreateUnresolvedThread(tid, pid, /*start_new=*/false);
 }
 
 UniqueTid ProcessTracker::StartNewProducerThread(int64_t tid, int64_t pid) {
@@ -318,8 +322,7 @@ UniqueTid ProcessTracker::StartNewProducerThread(int64_t tid, int64_t pid) {
     PERFETTO_CHECK(UpdateThread(*kernel_tid, pid) == utid);
     return utid;
   }
-  return GetOrCreateProcessScopedThread(GetOrCreateProcess(pid), tid,
-                                        /*start_new=*/true);
+  return GetOrCreateUnresolvedThread(tid, pid, /*start_new=*/true);
 }
 
 void ProcessTracker::SetReportsNamespacedTids(int64_t pid) {
@@ -340,19 +343,100 @@ std::optional<int64_t> ProcessTracker::ResolveProducerTid(int64_t pid,
   return namespaced ? std::nullopt : std::make_optional(tid);
 }
 
+UniqueTid ProcessTracker::GetOrCreateUnresolvedThread(int64_t tid,
+                                                      int64_t pid,
+                                                      bool start_new) {
+  UniquePid upid = GetOrCreateProcess(pid);
+  if (start_new || !process_scoped_tids_.Find({upid, tid})) {
+    context_->stats_tracker->IncrementStats(stats::namespaced_tid_unresolved);
+  }
+  return GetOrCreateProcessScopedThread(upid, tid, /*is_main_thread=*/false,
+                                        start_new);
+}
+
 UniqueTid ProcessTracker::GetOrCreateProcessScopedThread(UniquePid upid,
                                                          int64_t tid,
+                                                         bool is_main_thread,
                                                          bool start_new) {
   if (!start_new) {
     if (auto* utid = process_scoped_tids_.Find({upid, tid}); utid) {
       return *utid;
     }
   }
-  context_->stats_tracker->IncrementStats(stats::namespaced_tid_unresolved);
   UniqueTid utid = InsertThreadRow(std::nullopt, tid);
-  AssociateThreadToProcessInternal(utid, upid, /*is_main_thread=*/false);
+  AssociateThreadToProcessInternal(utid, upid, is_main_thread);
   process_scoped_tids_[{upid, tid}] = utid;
   return utid;
+}
+
+ProcessTracker::PidScope ProcessTracker::NewPidScope() {
+  return PidScope{next_pid_scope_id_++};
+}
+
+UniquePid ProcessTracker::GetOrCreateProcess(PidScope scope, int64_t pid) {
+  if (scope.is_machine()) {
+    return GetOrCreateProcess(pid);
+  }
+  auto [it, inserted] = scoped_pids_.Insert({scope.id, pid}, UniquePid{0});
+  if (!inserted) {
+    return *it;
+  }
+  tables::ProcessTable::Row row;
+  row.pid = pid;
+  row.machine_id = context_->machine_id();
+  UniquePid upid = context_->storage->mutable_process_table()->Insert(row).row;
+  *it = upid;
+  scoped_upids_.insert(upid);
+  GetOrCreateScopedThread(scope, upid, pid, /*tid=*/pid);
+  return upid;
+}
+
+UniqueTid ProcessTracker::GetOrCreateThread(PidScope scope, int64_t tid) {
+  if (scope.is_machine()) {
+    return GetOrCreateThread(tid);
+  }
+  auto [it, inserted] = scoped_tids_.Insert({scope.id, tid}, UniqueTid{0});
+  if (inserted) {
+    *it = InsertThreadRow(std::nullopt, tid);
+  }
+  return *it;
+}
+
+UniqueTid ProcessTracker::GetOrCreateScopedThread(PidScope scope,
+                                                  UniquePid upid,
+                                                  int64_t pid,
+                                                  int64_t tid) {
+  if (auto* utid = process_scoped_tids_.Find({upid, tid}); utid) {
+    return *utid;
+  }
+  bool is_main_thread = tid == pid;
+  if (auto* utid = scoped_tids_.Find({scope.id, tid}); utid) {
+    auto thread = context_->storage->thread_table()[*utid];
+    if (!thread.upid()) {
+      AssociateThreadToProcessInternal(*utid, upid, is_main_thread);
+      process_scoped_tids_[{upid, tid}] = *utid;
+      return *utid;
+    }
+  }
+  return GetOrCreateProcessScopedThread(upid, tid, is_main_thread,
+                                        /*start_new=*/false);
+}
+
+UniqueTid ProcessTracker::UpdateProducerThread(PidScope scope,
+                                               int64_t tid,
+                                               int64_t pid) {
+  if (scope.is_machine()) {
+    return UpdateProducerThread(tid, pid);
+  }
+  return GetOrCreateScopedThread(scope, GetOrCreateProcess(scope, pid), pid,
+                                 tid);
+}
+
+UniqueTid ProcessTracker::UpdateProcessScopedThread(UniquePid upid,
+                                                    int64_t tid) {
+  bool is_main_thread = context_->storage->process_table()[upid].pid() == tid;
+  return GetOrCreateProcessScopedThread(upid, tid, is_main_thread,
+                                        /*start_new=*/false);
 }
 
 void ProcessTracker::UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid) {
@@ -817,6 +901,9 @@ void ProcessTracker::OnEventsFullyExtracted() {
   tids_.Clear();
   process_scoped_tids_.Clear();
   namespaced_tid_pids_.clear();
+  scoped_pids_.Clear();
+  scoped_upids_.clear();
+  scoped_tids_.Clear();
   process_threads_.Clear();
   pids_.Clear();
   pending_assocs_.clear();

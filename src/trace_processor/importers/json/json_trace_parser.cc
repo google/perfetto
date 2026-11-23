@@ -111,12 +111,45 @@ JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
           context->storage->InternString("process_sort_index_hint")),
       thread_sort_index_hint_id_(
           context->storage->InternString("thread_sort_index_hint")),
-      running_string_id_(context->storage->InternString("Running")) {}
+      running_string_id_(context->storage->InternString("Running")),
+      pid_scope_(context) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
 void JsonTraceParser::ParseSystraceLine(int64_t, SystraceLine line) {
   systrace_line_parser_.ParseLine(line);
+}
+
+ProcessTracker::PidScope JsonTraceParser::ScopeFor(const JsonEvent& event) {
+  // String ids are never kernel ids. Without a pid, the tid decides.
+  bool is_string =
+      event.pid_exists ? event.pid_is_string_id : event.tid_is_string_id;
+  if (!is_string) {
+    return pid_scope();
+  }
+  if (!string_pid_scope_) {
+    string_pid_scope_ = context_->process_tracker->NewPidScope();
+  }
+  return *string_pid_scope_;
+}
+
+UniquePid JsonTraceParser::GetOrCreateProcess(const JsonEvent& event) {
+  return context_->process_tracker->GetOrCreateProcess(ScopeFor(event),
+                                                       event.pid);
+}
+
+UniqueTid JsonTraceParser::UpdateThread(const JsonEvent& event) {
+  ProcessTracker* procs = context_->process_tracker.get();
+  // Without a pid the thread's process is unknown, not pid 0.
+  if (!event.pid_exists) {
+    return procs->GetOrCreateThread(ScopeFor(event), event.tid);
+  }
+  // String tids are never kernel tids.
+  if (event.tid_is_string_id) {
+    return procs->UpdateProcessScopedThread(GetOrCreateProcess(event),
+                                            event.tid);
+  }
+  return procs->UpdateProducerThread(ScopeFor(event), event.tid, event.pid);
 }
 
 void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
@@ -126,20 +159,15 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   FlowTracker* flow_tracker = context_->flow_tracker.get();
 
   if (event.pid_is_string_id) {
-    UniquePid upid = procs->GetOrCreateProcess(event.pid);
     procs->SetProcessMetadata(
-        upid, storage->GetString(StringPool::Id::Raw(event.pid)),
-        base::StringView());
+        GetOrCreateProcess(event),
+        storage->GetString(StringPool::Id::Raw(event.pid)), base::StringView());
   }
-  // Without a pid the thread's process is unknown, not pid 0.
-  auto utid = [&] {
-    return event.pid_exists ? procs->UpdateThread(event.tid, event.pid)
-                            : procs->GetOrCreateThread(event.tid);
-  };
   if (event.tid_is_string_id) {
-    procs->UpdateThreadName(utid(), StringPool::Id::Raw(event.tid),
+    procs->UpdateThreadName(UpdateThread(event), StringPool::Id::Raw(event.tid),
                             ThreadNamePriority::kOther);
   }
+  auto utid = [&] { return UpdateThread(event); };
 
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
@@ -194,7 +222,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         RecordEventError(timestamp, event, stats::json_parser_failure);
         return;
       }
-      UniquePid upid = context_->process_tracker->GetOrCreateProcess(event.pid);
+      UniquePid upid = GetOrCreateProcess(event);
       TrackId track_id;
       if (event.async_cookie_type == JsonEvent::AsyncCookieType::kId ||
           event.async_cookie_type == JsonEvent::AsyncCookieType::kId2Global) {
@@ -336,7 +364,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         // Skip the thread: a placeholder tid would otherwise create one.
         TrackId track_id = context_->track_tracker->InternTrack(
             tracks::kJsonCounterBlueprint,
-            tracks::Dimensions(procs->GetOrCreateProcess(event.pid),
+            tracks::Dimensions(GetOrCreateProcess(event),
                                context_->storage->GetString(nid)),
             tracks::DynamicName(nid));
         context_->event_tracker->PushCounter(timestamp, counter, track_id);
@@ -360,8 +388,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           RecordEventError(timestamp, event, stats::json_parser_failure);
           break;
         }
-        UniquePid upid =
-            context_->process_tracker->GetOrCreateProcess(event.pid);
+        UniquePid upid = GetOrCreateProcess(event);
         track_id = context_->track_tracker->InternTrack(
             tracks::kChromeProcessInstantBlueprint, tracks::Dimensions(upid),
             tracks::BlueprintName(), [this](ArgsInserter& inserter) {
@@ -538,7 +565,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
               continue;
           }
           if (name == "process_sort_index") {
-            UniquePid upid = procs->GetOrCreateProcess(event.pid);
+            UniquePid upid = GetOrCreateProcess(event);
             procs->SetProcessSortIndex(upid, static_cast<int32_t>(sort_index),
                                        SortIndexPriority::kOther);
           } else {
@@ -559,7 +586,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             procs->UpdateThreadName(utid(), thread_name_id,
                                     ThreadNamePriority::kOther);
           } else if (name == "process_name") {
-            UniquePid upid = procs->GetOrCreateProcess(event.pid);
+            UniquePid upid = GetOrCreateProcess(event);
             procs->SetProcessMetadata(
                 upid, base::StringView(args_name.data(), args_name.size()),
                 base::StringView());

@@ -66,15 +66,17 @@ constexpr auto kFirefoxMarkerBlueprint = tracks::SliceBlueprint(
 
 GeckoTraceParser::GeckoTraceParser(TraceProcessorContext* context)
     : context_(context),
-      gecko_source_id_(context->storage->InternString("gecko")) {}
+      gecko_source_id_(context->storage->InternString("gecko")),
+      pid_scope_(context) {}
 
 GeckoTraceParser::~GeckoTraceParser() = default;
 
 UniqueTid GeckoTraceParser::UpdateThread(uint32_t tid,
                                          std::optional<uint32_t> pid) {
   // Without a pid the thread's process is unknown, not pid 0.
-  return pid ? context_->process_tracker->UpdateThread(tid, *pid)
-             : context_->process_tracker->GetOrCreateThread(tid);
+  ProcessTracker* procs = context_->process_tracker.get();
+  return pid ? procs->UpdateProducerThread(pid_scope_.Get(), tid, *pid)
+             : procs->GetOrCreateThread(pid_scope_.Get(), tid);
 }
 
 void GeckoTraceParser::ParseThreadMetadata(

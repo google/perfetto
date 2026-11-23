@@ -809,5 +809,64 @@ TEST_F(ProcessTrackerTest, ProcessScopedThreadsDroppedOnPidReuse) {
   ASSERT_EQ(context.storage->thread_table()[new_utid].upid(), new_upid);
 }
 
+// A private pid scope never shares processes with the machine scope or with
+// other private scopes.
+TEST_F(ProcessTrackerTest, PrivatePidScopesAreIsolated) {
+  auto* procs = context.process_tracker.get();
+  UniquePid machine = procs->GetOrCreateProcess(10);
+  auto a = procs->NewPidScope();
+  auto b = procs->NewPidScope();
+
+  UniquePid in_a = procs->GetOrCreateProcess(a, 10);
+  UniquePid in_b = procs->GetOrCreateProcess(b, 10);
+  ASSERT_NE(in_a, machine);
+  ASSERT_NE(in_b, machine);
+  ASSERT_NE(in_a, in_b);
+  ASSERT_EQ(procs->GetOrCreateProcess(a, 10), in_a);
+  ASSERT_EQ(procs->GetProcessOrNull(10), machine);
+  ASSERT_EQ(procs->GetOrCreateProcess(ProcessTracker::kMachinePidScope, 10),
+            machine);
+}
+
+// Threads of a process in a private scope are scoped to that process.
+TEST_F(ProcessTrackerTest, PrivatePidScopeThreadsAreProcessScoped) {
+  auto* procs = context.process_tracker.get();
+  auto scope = procs->NewPidScope();
+  UniqueTid utid = procs->UpdateProducerThread(scope, /*tid=*/11, /*pid=*/10);
+  UniqueTid main = procs->UpdateProducerThread(scope, /*tid=*/10, /*pid=*/10);
+
+  ASSERT_EQ(procs->GetThreadOrNull(11), std::nullopt);
+  ASSERT_EQ(procs->GetThreadOrNull(10), std::nullopt);
+  ASSERT_EQ(procs->UpdateProducerThread(scope, 11, 10), utid);
+  ASSERT_EQ(context.storage->thread_table()[main].is_main_thread(), true);
+  ASSERT_EQ(context.storage->thread_table()[utid].is_main_thread(), false);
+
+  // A machine process with the same pid doesn't make them look dead.
+  procs->GetOrCreateProcess(10);
+  ASSERT_TRUE(procs->IsThreadAlive(utid));
+}
+
+// In a private scope, a thread first seen without a pid joins the process it
+// is later seen in, and stays out of tid-only lookups.
+TEST_F(ProcessTrackerTest, PidlessThreadJoinsProcessInPrivateScope) {
+  auto* procs = context.process_tracker.get();
+  auto scope = procs->NewPidScope();
+
+  UniqueTid utid = procs->GetOrCreateThread(scope, /*tid=*/11);
+  ASSERT_EQ(procs->GetOrCreateThread(scope, 11), utid);
+  ASSERT_EQ(context.storage->thread_table()[utid].upid(), std::nullopt);
+  ASSERT_EQ(procs->GetThreadOrNull(11), std::nullopt);
+
+  ASSERT_EQ(procs->UpdateProducerThread(scope, /*tid=*/11, /*pid=*/10), utid);
+  ASSERT_EQ(context.storage->thread_table()[utid].upid(),
+            procs->GetOrCreateProcess(scope, 10));
+
+  // A pid-less thread whose tid turns out to be a pid becomes that process's
+  // main thread.
+  UniqueTid main = procs->GetOrCreateThread(scope, /*tid=*/20);
+  procs->UpdateProducerThread(scope, /*tid=*/21, /*pid=*/20);
+  ASSERT_EQ(context.storage->thread_table()[main].is_main_thread(), true);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor
