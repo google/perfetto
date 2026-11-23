@@ -19,13 +19,14 @@ import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
-import {alertModal, showModal} from '../../widgets/modal';
+import {alertModal, closeModal, showModal} from '../../widgets/modal';
 import {DriveClient, type DriveFilePermission} from './google/drive_client';
 import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
-import {openFileFromDeeplink} from './flows/open_from_deeplink';
+import {openFileById, openFileFromDeeplink} from './flows/open_from_deeplink';
 import {openFileFromSidebar} from './flows/open_from_sidebar';
+import {OpenForm} from './views/open_form';
 import {
   type SavedDomainShare,
   ShareForm,
@@ -161,7 +162,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
       // Disabled until everything it needs has loaded. This is a callback as
       // that only happens some time after startup.
       disabled: () => GoogleDrivePlugin.unavailableReason(),
-      action: async () => {
+      action: () => {
         const clients = GoogleDrivePlugin.clients;
         assertDefined(clients); // The button is disabled until this is set
 
@@ -169,12 +170,42 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           return;
         }
 
-        openFlowInProgress = true;
-        try {
-          await openFileFromSidebar(app, clients.oauth, clients.drive);
-        } finally {
-          openFlowInProgress = false;
-        }
+        const OPEN_MODAL_KEY = 'GDriveOpen';
+        const runOpenFlow = (flow: () => Promise<void>) => {
+          closeModal(OPEN_MODAL_KEY);
+          openFlowInProgress = true;
+          flow().finally(() => {
+            openFlowInProgress = false;
+          });
+        };
+
+        let link = '';
+        showModal({
+          key: OPEN_MODAL_KEY,
+          title: 'Open from Google Drive',
+          icon: 'drive_export',
+          content: () =>
+            m(OpenForm, {
+              link,
+              onLinkChange: (value: string) => {
+                link = value;
+              },
+              onBrowse: () =>
+                runOpenFlow(() =>
+                  openFileFromSidebar(app, clients.oauth, clients.drive),
+                ),
+              onOpenLink: (file) =>
+                runOpenFlow(() =>
+                  openFileById(
+                    app,
+                    clients.oauth,
+                    clients.drive,
+                    file,
+                    hideAuthDialogSetting,
+                  ),
+                ),
+            }),
+        });
       },
     });
 

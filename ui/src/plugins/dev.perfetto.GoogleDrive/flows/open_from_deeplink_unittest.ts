@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {errResult, okResult, type Result} from '../../../base/result';
 import type {App} from '../../../public/app';
 import type {Setting} from '../../../public/settings';
@@ -390,6 +391,46 @@ describe('openFileFromDeeplink', () => {
             },
           },
         }),
+      );
+    });
+
+    test('includes a note and Google Drive link with fileId and resourceKey in the authorize prompt', async () => {
+      const t = setup({
+        downloads: [ACCESS_DENIED],
+      });
+      await t.run();
+
+      const authPrompt = vi
+        .mocked(promptModal)
+        .mock.calls.find(([args]) => args.key === AUTHORIZE_PROMPT)?.[0];
+      expect(authPrompt).toBeDefined();
+      const container = document.createElement('div');
+      const content = authPrompt!.content;
+      m.render(container, typeof content === 'function' ? content() : content);
+
+      expect(container.textContent).toContain('picker');
+      const link = container.querySelector('a');
+      expect(link?.getAttribute('href')).toBe(
+        `https://drive.google.com/file/d/${FILE_ID}/view?resourcekey=${RESOURCE_KEY}`,
+      );
+    });
+
+    test('omits resourcekey from the Google Drive link when none is present', async () => {
+      const t = setup({
+        downloads: [ACCESS_DENIED],
+      });
+      await t.run(JSON.stringify({ids: [FILE_ID]}));
+
+      const authPrompt = vi
+        .mocked(promptModal)
+        .mock.calls.find(([args]) => args.key === AUTHORIZE_PROMPT)?.[0];
+      const container = document.createElement('div');
+      const content = authPrompt!.content;
+      m.render(container, typeof content === 'function' ? content() : content);
+
+      const link = container.querySelector('a');
+      expect(link?.getAttribute('href')).toBe(
+        `https://drive.google.com/file/d/${FILE_ID}/view`,
       );
     });
 

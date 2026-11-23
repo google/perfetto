@@ -985,3 +985,77 @@ export function gdriveOpenLink(
   }
   return `${origin}/?state=${encodeURIComponent(JSON.stringify(state))}`;
 }
+
+const DRIVE_FILE_PATH_RE = /^(?:\/u\/\d+)?\/file\/d\/([^/]+)/;
+const DRIVE_ID_QUERY_PATH_RE = /^(?:\/u\/\d+)?\/(?:open|uc)\/?$/;
+
+// Extracts a file ID (and optional resource key) from a Google Drive file URL
+// or a Perfetto Google Drive deep link.
+export function parseGDriveLink(input: string): Result<GDriveOpenFileRequest> {
+  const trimmed = input.trim();
+  if (trimmed === '') {
+    return errResult('Enter a Google Drive link');
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return errResult('Enter a valid URL');
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return errResult('Enter a valid Google Drive link');
+  }
+
+  const stateParam = url.searchParams.get('state');
+  if (stateParam !== null) {
+    const fromState = parseGDriveStateParam(stateParam);
+    if (fromState.ok) {
+      return fromState;
+    }
+  }
+
+  const host = url.hostname.toLowerCase();
+  if (host !== 'drive.google.com' && host !== 'docs.google.com') {
+    return errResult('Enter a Google Drive file link');
+  }
+
+  let fileId: string | undefined;
+  const pathMatch = DRIVE_FILE_PATH_RE.exec(url.pathname);
+  if (pathMatch?.[1] !== undefined) {
+    try {
+      fileId = decodeURIComponent(pathMatch[1]);
+    } catch {
+      return errResult('Invalid file ID');
+    }
+  } else if (DRIVE_ID_QUERY_PATH_RE.test(url.pathname)) {
+    fileId = url.searchParams.get('id') ?? undefined;
+  }
+
+  if (fileId === undefined || !isValidDriveId(fileId)) {
+    return errResult('Could not find a valid file ID in this link');
+  }
+
+  const resourceKey =
+    url.searchParams.get('resourcekey') ??
+    url.searchParams.get('resourceKey') ??
+    undefined;
+  if (resourceKey !== undefined && !isValidDriveId(resourceKey)) {
+    return errResult('Invalid resource key');
+  }
+
+  return okResult({fileId, resourceKey});
+}
+
+// Builds a direct link to open a file in Google Drive, including its resource
+// key when known.
+export function gdriveViewLink(fileId: string, resourceKey?: string): string {
+  const url = new URL(
+    `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
+  );
+  if (resourceKey !== undefined) {
+    url.searchParams.set('resourcekey', resourceKey);
+  }
+  return url.toString();
+}

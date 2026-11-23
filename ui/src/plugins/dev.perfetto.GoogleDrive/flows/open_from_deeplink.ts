@@ -13,15 +13,17 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
 import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
 } from '../dialogs';
-import type {DriveClient} from '../google/drive_client';
-import {parseGDriveStateParam} from '../google/drive_client';
+import type {DriveClient, GDriveOpenFileRequest} from '../google/drive_client';
+import {gdriveViewLink, parseGDriveStateParam} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
+import {Anchor} from '../../../widgets/anchor';
 import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -46,7 +48,24 @@ export async function openFileFromDeeplink(
     // Failed to parse state parameter; ignore.
     return;
   }
-  const {fileId, resourceKey} = parsed.value;
+
+  await openFileById(app, oauth, drive, parsed.value, hideAuthDialogSetting, {
+    onAuthenticated: removeStateParamFromUrl,
+  });
+}
+
+// Opens a specific Google Drive file given its file ID and optional resource
+// key. Authorizes access via the Drive picker if the app does not yet have
+// permission to read the file.
+export async function openFileById(
+  app: App,
+  oauth: GoogleOAuthClient,
+  drive: DriveClient,
+  file: GDriveOpenFileRequest,
+  hideAuthDialogSetting: Setting<boolean>,
+  opts?: {onAuthenticated?: () => void},
+) {
+  const {fileId, resourceKey} = file;
 
   // Authenticate with the oauth client and obtain an access token. Nothing was
   // clicked to get here, so the browser may block Google's popup. If it does,
@@ -67,11 +86,7 @@ export async function openFileFromDeeplink(
   }
   const oauthToken = auth.value;
 
-  // We are committed to opening this file now, so consume the 'state' query
-  // param. The router will append ?local_cache_key=xxx to the hash once the
-  // trace finishes loading, so that a reload reopens the trace from the
-  // browser's cache rather than from Drive.
-  removeStateParamFromUrl();
+  opts?.onAuthenticated?.();
 
   // Attempt to open the file and look up its name in parallel.
   const [fileMetaResult, initialDownloadResult] = await Promise.all([
@@ -96,7 +111,11 @@ export async function openFileFromDeeplink(
   ) {
     // Explain to the user that the file needs authorization to be accessed and
     // that they are about to see a file picker.
-    const choice = await authAccessToFilePrompt(hideAuthDialogSetting);
+    const choice = await authAccessToFilePrompt(
+      hideAuthDialogSetting,
+      fileId,
+      knownResourceKey,
+    );
     if (choice !== 'authorize') return;
 
     // Show the file picker containing just the file that we are trying to
@@ -166,7 +185,11 @@ async function connectGoogleDrivePrompt() {
   });
 }
 
-async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
+async function authAccessToFilePrompt(
+  hideAuthDialogSetting: Setting<boolean>,
+  fileId: string,
+  resourceKey?: string,
+) {
   if (hideAuthDialogSetting.get()) {
     return 'authorize';
   }
@@ -178,6 +201,20 @@ async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
         'p',
         'The first time you open a Google Drive file in Perfetto, you need to authorize access to it via the Google Drive picker. Click Authorize File Access to open the picker.',
       ),
+      m('p', [
+        'Note: You may need to ',
+        m(
+          Anchor,
+          {
+            href: gdriveViewLink(fileId, resourceKey),
+            target: '_blank',
+            rel: 'noopener',
+            icon: Icons.ExternalLink,
+          },
+          'open this file once in Google Drive',
+        ),
+        ' directly before it appears in the picker.',
+      ]),
       m(Checkbox, {
         label:
           "Don't show this again (go straight to the file picker in future)",
