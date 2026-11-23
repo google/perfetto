@@ -13,15 +13,21 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
 import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
 } from '../dialogs';
-import type {DriveClient, GDriveOpenFileRequest} from '../google/drive_client';
-import {parseGDriveStateParam} from '../google/drive_client';
+import type {
+  DriveClient,
+  GDriveOpenFileRequest,
+  PickerResult,
+} from '../google/drive_client';
+import {gdriveViewLink, parseGDriveStateParam} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
+import {Anchor} from '../../../widgets/anchor';
 import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -114,11 +120,22 @@ export async function openFileById(
 
     // Show the file picker containing just the file that we are trying to
     // access. All the user needs to do is click on this file to authorize it.
-    const picked = await drive.requestFileAccess(oauthToken, fileId);
-    if (!picked.ok) {
-      if (picked.error.type === 'cancelled') return;
-      await alertPickerFailed(picked.error);
-      return;
+    // If the user cancels (e.g. because the picker was empty for a link-only
+    // file they haven't opened in Drive yet), explain what happened with a
+    // direct link to open the file in Google Drive and an option to retry.
+    let picked: PickerResult;
+    while (true) {
+      picked = await drive.requestFileAccess(oauthToken, fileId);
+      if (picked.ok) break;
+      if (picked.error.type !== 'cancelled') {
+        await alertPickerFailed(picked.error);
+        return;
+      }
+      const retryChoice = await fileNotShownInPickerPrompt(
+        fileId,
+        knownResourceKey,
+      );
+      if (retryChoice !== 'retry') return;
     }
 
     // The picker reports the name of the file just authorized, which saves
@@ -200,6 +217,40 @@ async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
     ],
     buttons: [
       {text: 'Authorize File Access', value: 'authorize', primary: true},
+      {text: 'Cancel', value: 'cancel'},
+    ],
+  });
+}
+
+async function fileNotShownInPickerPrompt(
+  fileId: string,
+  resourceKey?: string,
+) {
+  return await promptModal({
+    key: 'GoogleDrivePickerCancelled',
+    title: "Didn't see the file in the picker?",
+    content: [
+      m(
+        'p',
+        'Google Drive hides link-shared files from the picker until you have opened them at least once (or if you do not yet have access to the file).',
+      ),
+      m('p', [
+        'Try ',
+        m(
+          Anchor,
+          {
+            href: gdriveViewLink(fileId, resourceKey),
+            target: '_blank',
+            rel: 'noopener',
+            icon: Icons.ExternalLink,
+          },
+          'opening this file in Google Drive',
+        ),
+        ' first, then click Try Again.',
+      ]),
+    ],
+    buttons: [
+      {text: 'Try Again', value: 'retry', primary: true},
       {text: 'Cancel', value: 'cancel'},
     ],
   });

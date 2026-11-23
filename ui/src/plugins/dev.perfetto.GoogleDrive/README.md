@@ -59,7 +59,10 @@ graph TD
     T -->|Yes| V[Show picker for this file]
     S -->|Yes| V
     V --> W{Picker result}
-    W -->|Cancelled| X[Do nothing]
+    W -->|Cancelled| X[Prompt File not shown in picker with Drive link]
+    X --> X1{User pressed Try Again}
+    X1 -->|No| X2[Do nothing]
+    X1 -->|Yes| V
     W -->|Error| Y[Alert picker failed]
     W -->|Picked| Z[Download file again with omnibox progress]
     R -->|No| AA{Download ok}
@@ -533,8 +536,11 @@ The app can only read files the user has opened or picked with it.
 4. Click "Authorize File Access". The dialog closes and the picker opens,
    showing only that file. Pick it, and the trace should open, titled with the
    file's real name.
-5. Repeat and click "Cancel" in the dialog, or cancel the picker: the flow
-   should end silently.
+5. Repeat and click "Cancel" in the dialog: the flow should end silently.
+6. Repeat and cancel the picker instead of picking the file: a recovery dialog
+   should appear explaining why the file may not have been shown, with a direct
+   link to open it in Google Drive and a "Try Again" button that reopens the
+   picker.
 
 Drive reports a file the app has not been granted as "not found", the same as
 a file that does not exist. So a deep link with a made-up file ID also shows
@@ -583,7 +589,8 @@ On the sidebar flow a 403 or 404 is just a failed download.
 ### Picker failures
 
 Cancelling or closing the picker is not a failure: from the sidebar nothing
-happens, and on a deep link the flow ends silently.
+happens, and on a deep link a recovery dialog is shown with a link to open the
+file in Google Drive and a "Try Again" button to reopen the picker.
 
 If the picker cannot be built or reports an error, a "Couldn't open the Google
 Drive file picker" dialog should appear, with the error under "Error details".

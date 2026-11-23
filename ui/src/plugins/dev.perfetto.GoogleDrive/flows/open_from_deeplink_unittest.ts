@@ -423,7 +423,7 @@ describe('openFileFromDeeplink', () => {
       expect(t.openTraceFromStream).toHaveBeenCalled();
     });
 
-    test('stops silently if the picker is cancelled', async () => {
+    test('shows a recovery prompt with Google Drive link if the picker is cancelled', async () => {
       const t = setup({
         downloads: [ACCESS_DENIED],
         picked: errResult({type: 'cancelled'}),
@@ -431,8 +431,38 @@ describe('openFileFromDeeplink', () => {
       });
       await t.run();
 
+      expect(promptsShown()).toEqual(['GoogleDrivePickerCancelled']);
+      const cancelPrompt = vi
+        .mocked(promptModal)
+        .mock.calls.find(
+          ([args]) => args.key === 'GoogleDrivePickerCancelled',
+        )?.[0];
+      const container = document.createElement('div');
+      const content = cancelPrompt!.content;
+      m.render(container, typeof content === 'function' ? content() : content);
+      const link = container.querySelector('a');
+      expect(link?.getAttribute('href')).toBe(
+        `https://drive.google.com/file/d/${FILE_ID}/view?resourcekey=${RESOURCE_KEY}`,
+      );
       expect(t.openFile).toHaveBeenCalledTimes(1);
       expect(t.openTraceFromStream).not.toHaveBeenCalled();
+      expectNoAlerts();
+    });
+
+    test('retries the picker when the user clicks Try Again after cancelling', async () => {
+      const t = setup({
+        downloads: [ACCESS_DENIED, okResult(CONTENTS)],
+        prompts: {GoogleDrivePickerCancelled: 'retry'},
+        hideAuthDialog: true,
+      });
+      t.requestFileAccess
+        .mockResolvedValueOnce(errResult({type: 'cancelled'}))
+        .mockResolvedValueOnce(okResult(PICKED_FILE));
+
+      await t.run();
+
+      expect(t.requestFileAccess).toHaveBeenCalledTimes(2);
+      expect(t.openTraceFromBuffer).toHaveBeenCalledTimes(1);
       expectNoAlerts();
     });
 
