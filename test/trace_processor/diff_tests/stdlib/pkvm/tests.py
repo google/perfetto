@@ -114,3 +114,44 @@ class Pkvm(TestSuite):
         "cpu","ts","dur","esr","addr"
         1,84798810660565,11190,1970324836974592,-4810970301938499072
         """))
+
+  # hyp_enter while a hyp slice is already open: the stale slice is closed with
+  # an unknown duration (-1) and the new slice starts flat (no nesting). A
+  # hyp_exit without an open slice is ignored.
+  def test_pkvm_hypervisor_bad_events(self):
+    return DiffTestBlueprint(
+        trace=Path('pkvm_hypervisor_bad_events.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE pkvm.hypervisor;
+        SELECT
+          pkvm_hyp.cpu AS cpu,
+          pkvm_hyp.ts AS ts,
+          pkvm_hyp.dur AS dur,
+          slices.depth AS depth
+        FROM
+          pkvm_hypervisor_events AS pkvm_hyp
+        JOIN slices
+        ON pkvm_hyp.slice_id = slices.id
+        ORDER BY cpu, ts;
+        """,
+        out=Csv("""
+        "cpu","ts","dur","depth"
+        0,1000,-1,0
+        0,2000,1000,0
+        0,5000,1000,0
+        """))
+
+  def test_pkvm_hypervisor_bad_events_stats(self):
+    return DiffTestBlueprint(
+        trace=Path('pkvm_hypervisor_bad_events.textproto'),
+        query="""
+        SELECT name, severity, source, value
+        FROM stats
+        WHERE name GLOB 'pkvm_hyp_*'
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","severity","source","value"
+        "pkvm_hyp_enter_while_open","data_loss","analysis",1
+        "pkvm_hyp_exit_without_enter","data_loss","analysis",1
+        """))

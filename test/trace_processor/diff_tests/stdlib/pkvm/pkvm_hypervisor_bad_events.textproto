@@ -1,0 +1,38 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    # hyp_enter without a matching hyp_exit: the next hyp_enter finds it open.
+    event {
+      timestamp: 1000
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 2000
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 3000
+      hyp_exit {
+      }
+    }
+    # hyp_exit without a matching hyp_enter.
+    event {
+      timestamp: 4000
+      hyp_exit {
+      }
+    }
+    # A well formed pair, after the bad events.
+    event {
+      timestamp: 5000
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 6000
+      hyp_exit {
+      }
+    }
+  }
+}

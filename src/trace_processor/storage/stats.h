@@ -689,6 +689,17 @@ namespace perfetto::trace_processor::stats {
        "the file name is not found or no permission to access the file"),      \
   F(compact_sched_has_parse_errors,       kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(misplaced_end_event,                  kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace, ""), \
+  F(pkvm_hyp_enter_while_open,            kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+      "A pKVM hyp_enter event was received while the previous hyp_enter on "   \
+      "the same CPU had no matching hyp_exit. This typically happens if the "  \
+      "hyp_exit event was lost (e.g. the kernel ring buffer overwrote "        \
+      "events, see ftrace_cpu_has_data_loss). The earlier slice is closed "    \
+      "with an unknown duration (-1) and a new slice is started."),            \
+  F(pkvm_hyp_exit_without_enter,          kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+      "A pKVM hyp_exit event was received on a CPU with no open hyp slice "    \
+      "and was ignored. This typically happens if the matching hyp_enter "     \
+      "event was lost, or if the trace started while the CPU was already in "  \
+      "the hypervisor."),                                                      \
   F(truncated_sys_write_duration,         kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
       "Count of sys_write slices that have a truncated duration to resolve "   \
       "nesting incompatibilities with atrace slices. Real durations "          \

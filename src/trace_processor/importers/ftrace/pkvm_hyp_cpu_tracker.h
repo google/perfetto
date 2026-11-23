@@ -77,6 +77,7 @@ class PkvmHypervisorCpuTracker {
   const StringId forwarded_;
   const StringId host_mem_abort_;
   const StringId addr_;
+  const StringId cpu_;
 };
 
 }  // namespace trace_processor

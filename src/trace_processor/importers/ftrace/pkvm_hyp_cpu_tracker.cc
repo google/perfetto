@@ -17,14 +17,17 @@
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -41,6 +44,10 @@ constexpr auto kPkvmBlueprint = tracks::SliceBlueprint(
     tracks::FnNameBlueprint([](uint32_t cpu) {
       return base::StackString<255>("pkVM Hypervisor CPU %u", cpu);
     }));
+
+// Duration of a slice whose end is not known. Same value SliceTracker uses
+// for slices which are still open.
+constexpr int64_t kUnknownDuration = -1;
 
 }  // namespace
 
@@ -72,7 +79,8 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
       host_smc_(context_->storage->InternString("host_smc")),
       forwarded_(context_->storage->InternString("forwarded")),
       host_mem_abort_(context_->storage->InternString("host_mem_abort")),
-      addr_(context_->storage->InternString("addr")) {}
+      addr_(context_->storage->InternString("addr")),
+      cpu_(context_->storage->InternString("cpu")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
@@ -151,16 +159,42 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
 }
 
 void PkvmHypervisorCpuTracker::ParseHypEnter(uint32_t cpu, int64_t timestamp) {
-  // TODO(b/249050813): handle bad events (e.g. 2 hyp_enter in a row)
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
+
+  // A CPU cannot enter the hypervisor twice without leaving it in between, so
+  // if a hyp slice is still open, the matching hyp_exit was lost. Close the
+  // stale slice (so that the new one is not nested inside it), but mark its
+  // duration as unknown rather than pretending it ended at |timestamp|.
+  if (auto stale_id =
+          context_->slice_tracker->GetTopmostSliceOnTrack(track_id)) {
+    context_->import_logs_tracker->RecordParserLog(
+        stats::pkvm_hyp_enter_while_open, timestamp,
+        [&](ArgsInserter& inserter) {
+          inserter.AddArg(cpu_, Variadic::UnsignedInteger(cpu));
+        });
+    context_->slice_tracker->End(timestamp, track_id);
+    auto* slices = context_->storage->mutable_slice_table();
+    (*slices)[*stale_id].set_dur(kUnknownDuration);
+  }
+
   context_->slice_tracker->Begin(timestamp, track_id, category_, slice_name_);
 }
 
 void PkvmHypervisorCpuTracker::ParseHypExit(uint32_t cpu, int64_t timestamp) {
-  // TODO(b/249050813): handle bad events (e.g. 2 hyp_exit in a row)
   TrackId track_id = context_->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
+
+  // No open hyp slice: the matching hyp_enter was lost (or the trace started
+  // while the CPU was already in the hypervisor). There is nothing to close.
+  if (!context_->slice_tracker->GetTopmostSliceOnTrack(track_id)) {
+    context_->import_logs_tracker->RecordParserLog(
+        stats::pkvm_hyp_exit_without_enter, timestamp,
+        [&](ArgsInserter& inserter) {
+          inserter.AddArg(cpu_, Variadic::UnsignedInteger(cpu));
+        });
+    return;
+  }
   context_->slice_tracker->End(timestamp, track_id);
 }
 
