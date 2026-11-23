@@ -258,10 +258,10 @@ export function colHeader(label: string, info: m.Children): m.Children {
   );
 }
 
-/** SQL preamble that includes dominator tree and object tree modules. */
+/** SQL preamble that includes dominator tree and shortest-path tree modules. */
 export const SQL_PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;\n' +
-  'INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree';
+  'INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree';
 
 export interface RowCountArgs {
   readonly engine: Engine;

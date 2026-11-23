@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {ErrorDetails} from '../base/logging';
-import {getCurrentChannel} from './channels';
-import {VERSION} from '../virtual/version';
-import {Router} from './router';
-import type {Analytics, TraceCategories} from '../public/analytics';
+import type {ErrorDetails} from '../../base/logging';
+import {getCurrentChannel} from '../channels';
+import {VERSION} from '../../virtual/version';
+import {Router} from '../router';
+import {assertUnreachable} from '../../base/assert';
+import type {Analytics, BasicAnalyticsEvent} from '../../public/analytics';
 
 const PAGE_TITLE = 'no-page-title';
 
@@ -64,6 +65,9 @@ export interface AnalyticsInternal extends Analytics {
   addDimension(
     arg: {key: string; value: string} | Promise<{key: string; value: string}>,
   ): void;
+  // Records whether the user is internal on every event. Must be called before
+  // initialize(), which waits for the answer before it starts sending.
+  setIsInternalUser(isInternalUser: Promise<boolean>): void;
   initialize(): Promise<void>;
 }
 
@@ -94,8 +98,9 @@ class NullAnalytics implements AnalyticsInternal {
   addDimension(
     _arg: {key: string; value: string} | Promise<{key: string; value: string}>,
   ) {}
+  setIsInternalUser(_isInternalUser: Promise<boolean>) {}
   async initialize() {}
-  logEvent(_category: TraceCategories | null, _event: string) {}
+  logEvent(_event: BasicAnalyticsEvent) {}
   logError(_err: ErrorDetails) {}
   isEnabled(): boolean {
     return false;
@@ -136,6 +141,15 @@ class AnalyticsImpl implements AnalyticsInternal {
       throw new Error('Cannot add analytics dimensions after initialization');
     }
     this.dimensions.push(Promise.resolve(arg));
+  }
+
+  setIsInternalUser(isInternalUser: Promise<boolean>) {
+    this.addDimension(
+      isInternalUser.then((v) => ({
+        key: 'perfetto_is_internal_user',
+        value: v ? '1' : '0',
+      })),
+    );
   }
 
   // It is fine to call updatePath() and log*() functions before initialize().
@@ -183,8 +197,21 @@ class AnalyticsImpl implements AnalyticsInternal {
     });
   }
 
-  logEvent(category: TraceCategories | null, event: string) {
-    gtagGlobals.gtag('event', event, {event_category: category});
+  logEvent(event: BasicAnalyticsEvent) {
+    switch (event.kind) {
+      case 'page_view':
+        // Page views are sent as an event named after the page, rather than
+        // as GA's own page_view event, so that existing reports keep working.
+        gtagGlobals.gtag('event', event.page, {event_category: 'User Actions'});
+        break;
+      case 'action':
+        gtagGlobals.gtag('event', event.action, {
+          event_category: event.category ?? null,
+        });
+        break;
+      default:
+        assertUnreachable(event);
+    }
   }
 
   logError(err: ErrorDetails) {

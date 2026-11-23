@@ -154,7 +154,12 @@ describe('openFileFromDeeplink', () => {
           buffer: CONTENTS,
           shareable: false,
           // Records which Drive file the trace is, for "Share to GDrive".
-          pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE_ID}},
+          pluginArgs: {
+            'dev.perfetto.GoogleDrive': {
+              fileId: FILE_ID,
+              resourceKey: RESOURCE_KEY,
+            },
+          },
         }),
       );
       expect(promptsShown()).toEqual([]);
@@ -167,6 +172,36 @@ describe('openFileFromDeeplink', () => {
       await t.run();
 
       expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE_ID, RESOURCE_KEY);
+    });
+
+    // So that links copied from the share dialog include it.
+    test("records the file's resource key from Drive if the state lacks it", async () => {
+      const t = setup({
+        meta: okResult({name: 'meta.pftrace', resourceKey: 'rk-meta'}),
+      });
+      await t.run(JSON.stringify({ids: [FILE_ID]}));
+
+      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pluginArgs: {
+            'dev.perfetto.GoogleDrive': {
+              fileId: FILE_ID,
+              resourceKey: 'rk-meta',
+            },
+          },
+        }),
+      );
+    });
+
+    test('records no resource key if the file has none', async () => {
+      const t = setup();
+      await t.run(JSON.stringify({ids: [FILE_ID]}));
+
+      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE_ID}},
+        }),
+      );
     });
 
     test("names the trace after the file's name in Drive", async () => {
@@ -327,6 +362,27 @@ describe('openFileFromDeeplink', () => {
 
       expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
         expect.objectContaining({title: 'picked.pftrace'}),
+      );
+    });
+
+    test('records the resource key the picker reports', async () => {
+      const t = setup({
+        meta: ACCESS_DENIED,
+        downloads: [ACCESS_DENIED, okResult(CONTENTS)],
+        picked: okResult({...PICKED_FILE, resourceKey: 'rk-picked'}),
+        prompts: {[AUTHORIZE_PROMPT]: 'authorize'},
+      });
+      await t.run(JSON.stringify({ids: [FILE_ID]}));
+
+      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pluginArgs: {
+            'dev.perfetto.GoogleDrive': {
+              fileId: FILE_ID,
+              resourceKey: 'rk-picked',
+            },
+          },
+        }),
       );
     });
 

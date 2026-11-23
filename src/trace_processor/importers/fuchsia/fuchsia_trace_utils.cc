@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 
+#include <cstring>
+
 #include "perfetto/base/endian.h"
 
 namespace perfetto {
@@ -123,8 +125,13 @@ bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
     return false;
   }
   if (string_out != nullptr) {
-    *string_out =
-        base::StringView(reinterpret_cast<const char*>(string_data), len);
+    // FXT strings are length-delimited and not NUL-terminated (e.g. strings
+    // whose length is a multiple of 8 have no trailing zero padding), so bound
+    // the scan to |len| with strnlen. Truncating at the first NUL guards
+    // against producers that include NUL bytes inside the declared length
+    // (such as a fixed-size name buffer with trailing NUL padding).
+    const char* str = reinterpret_cast<const char*>(string_data);
+    *string_out = base::StringView(str, len > 0 ? strnlen(str, len) : 0);
   }
   return true;
 }

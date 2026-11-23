@@ -43,6 +43,9 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('process_group', CppOptional(CppString())),
         C('reason', CppOptional(CppString())),
         C('seq_id', CppOptional(CppInt64())),
+        C('cpu_time_reasons', CppOptional(CppInt32())),
+        C('implicit_cpu_time_reasons', CppOptional(CppInt32())),
+        C('freeze_policy_flags', CppOptional(CppInt32())),
         C('arg_set_id',
           CppOptional(CppUint32()),
           cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
@@ -71,14 +74,28 @@ ANDROID_PROCESS_STATE_TABLE = Table(
             'capability_flags':
                 'Capability flags.',
             'process_group':
-                'Process group enum name or value.',
+                'Process group enum name or value, as seen by OomAdjuster '
+                '(the scheduling group it computed for the process). See '
+                '__intrinsic_android_process_group for the groups '
+                'requested through Process.setProcessGroup.',
             'reason':
                 'Reason for state change (if from track event).',
             'seq_id':
                 'OOM adjuster sequence ID (if from track event).',
+            'cpu_time_reasons':
+                'Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME '
+                '(if from track event).',
+            'implicit_cpu_time_reasons':
+                'Bitmask of reasons for granting '
+                'PROCESS_CAPABILITY_IMPLICIT_CPU_TIME (if from track event).',
+            'freeze_policy_flags':
+                'Bitmask of boolean freeze policy states '
+                '(if from track event).',
             'arg_set_id':
                 ColumnDoc(
-                    'Argument set holding decoded capability_flags[i] entries.',
+                    'Argument set holding decoded capability_flags[i], '
+                    'cpu_time_reasons[i], implicit_cpu_time_reasons[i], and '
+                    'freeze_policy_flags[i] entries.',
                     joinable='args.arg_set_id'),
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
@@ -124,7 +141,46 @@ ANDROID_FREEZER_STATE_TABLE = Table(
     ),
 )
 
+ANDROID_PROCESS_GROUP_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidProcessGroupTable',
+    sql_name='__intrinsic_android_process_group',
+    columns=[
+        C('ts', CppInt64()),
+        C('upid', CppTableId(PROCESS_TABLE)),
+        C('uid', CppOptional(CppInt32())),
+        C('process_group', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Process groups requested through Process.setProcessGroup, one row
+          per call, from AndroidProcessGroupChangedEvent track events.
+          The calling process emits the event (on its own track) before the
+          native call, which can fail (e.g. when the target process is gone),
+          and also when the group does not change, so rows are requests
+          rather than deduplicated changes of the process's actual group.
+          Unlike __intrinsic_android_process_state.process_group (OomAdjuster's
+          view), this reflects every caller of Process.setProcessGroup. There
+          are no initial rows: the event carries no previous group, so the
+          group before a process's first event is unknown.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the Process.setProcessGroup call.',
+            'upid': 'Unique process ID.',
+            'uid':
+                'Uid of the target process, if the caller passed it '
+                '(Process.setProcessGroup(uid, pid, group)); NULL otherwise.',
+            'process_group':
+                'Requested process group enum name (e.g. '
+                'PROCESS_GROUP_TOP_APP), or its value if unknown; NULL if the '
+                'event has no group.',
+        },
+    ),
+)
+
 ALL_TABLES = [
     ANDROID_PROCESS_STATE_TABLE,
     ANDROID_FREEZER_STATE_TABLE,
+    ANDROID_PROCESS_GROUP_TABLE,
 ]

@@ -13,12 +13,19 @@
 // limitations under the License.
 
 import type m from 'mithril';
+import type {DrawerPanelVisibility} from '../widgets/drawer_panel';
 
 export interface TabManager {
   registerTab(tab: TabDescriptor): void;
   showTab(uri: string): void;
   hideTab(uri: string): void;
   addDefaultTab(uri: string): void;
+  readonly currentTabUri: string;
+  readonly openTabsUri: ReadonlyArray<string>;
+  readonly tabs: ReadonlyArray<TabDescriptor>;
+  readonly tabPanelVisibility: DrawerPanelVisibility;
+  setTabPanelVisibility(visibility: DrawerPanelVisibility): void;
+  toggleTabPanelVisibility(): void;
 }
 
 export interface Tab {

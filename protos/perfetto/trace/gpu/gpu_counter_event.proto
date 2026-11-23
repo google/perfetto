@@ -69,4 +69,9 @@ message InternedGpuCounterDescriptor {
 
   // optional. Identifier for GPU in a multi-gpu device.
   optional int32 gpu_id = 3;
+
+  // optional. The domain of the GPU (e.g. a hardware block such as an SM or a
+  // PE) the counters belong to, scoped to `gpu_id`. See
+  // GpuTrackDescriptor.gpu_domain_id.
+  optional uint32 gpu_domain_id = 4;
 }

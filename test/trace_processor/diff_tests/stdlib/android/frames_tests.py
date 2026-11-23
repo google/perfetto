@@ -297,6 +297,8 @@ class Frames(TestSuite):
   # frames that finished before the CUJ slice started must not be attributed to
   # the CUJ, even though their vsync is within [FT#beginVsync, FT#endVsync].
   # Same for a frame within that vsync range that started after the CUJ ended.
+  # The CUJ has no DrawFrame slices, so its layer (FT#layerId) is resolved from
+  # FrameTimeline and frames of other layers are not attributed to it either.
   def test_android_jank_cuj_frame_timeline_stale_begin_vsync(self):
     return DiffTestBlueprint(
         trace=Path('jank_cuj_stale_begin_vsync.py'),
@@ -320,11 +322,12 @@ class Frames(TestSuite):
         INCLUDE PERFETTO MODULE android.cujs.frames;
 
         SELECT
-          name, state, total_frames, missed_app_frames, missed_sf_frames
+          name, state, total_frames, missed_app_frames, missed_sf_frames,
+          layer_name
         FROM android_jank_cuj_slice_summary
         ORDER BY name;
         """,
         out=Csv("""
-        "name","state","total_frames","missed_app_frames","missed_sf_frames"
-        "J<STALE_BEGIN_VSYNC>","completed",2,0,0
+        "name","state","total_frames","missed_app_frames","missed_sf_frames","layer_name"
+        "J<STALE_BEGIN_VSYNC>","completed",2,0,0,"TX - Task=1#0(MirrorRoot)#2281"
         """))

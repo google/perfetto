@@ -120,7 +120,11 @@ export async function createPermalink(
   trace: TraceImpl,
   traceUrl: string | undefined,
 ): Promise<string> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Create permalink',
+  });
 
   const permalinkData: PermalinkState = {
     traceUrl,

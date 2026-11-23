@@ -18,6 +18,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("engine") {
   sources = [
+    "column_results.h",
     "connection_catalog.cc",
     "connection_catalog.h",
     "created_function.cc",

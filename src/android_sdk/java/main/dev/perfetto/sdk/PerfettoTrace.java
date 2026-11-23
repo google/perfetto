@@ -35,10 +35,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class PerfettoTrace {
   private static final String TAG = "PerfettoTrace";
 
-  static {
-    PerfettoNativeLibrary.load();
-  }
-
   // Keep in sync with C++
   private static final int PERFETTO_TE_TYPE_SLICE_BEGIN = 1;
   private static final int PERFETTO_TE_TYPE_SLICE_END = 2;
@@ -63,10 +59,6 @@ public final class PerfettoTrace {
    * events within the category, it must also be enabled in the trace config.
    */
   public static class Category implements PerfettoTrackEventExtra.PerfettoPointer {
-    static {
-      PerfettoNativeLibrary.load();
-    }
-
     private final String mName;
     private final List<String> mTags;
     private volatile long mPtr;
@@ -111,6 +103,11 @@ public final class PerfettoTrace {
 
     /** Create the native category object and register it. */
     public synchronized Category register() {
+      if (!PerfettoNativeLibrary.isAvailable()) {
+        // JNI registration failed, so tracing is disabled: leave the category unregistered
+        // (mPtr == 0), which makes isEnabled() false and every trace event on it a no-op.
+        return this;
+      }
       if (mPtr == 0) {
         long ptr = native_init(mName, mTags.toArray(new String[0]));
         sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
@@ -179,8 +176,15 @@ public final class PerfettoTrace {
     // Ravenwood uses mPtr == 0 for open sessions, so track closure separately.
     private boolean mIsClosed;
 
-    /** Session ctor. */
+    /**
+     * Session ctor. If the Perfetto JNI natives are unavailable this creates a no-op session whose
+     * {@link #close()} returns an empty trace.
+     */
     public Session(boolean isBackendInProcess, byte[] config) {
+      if (!PerfettoNativeLibrary.isAvailable()) {
+        mPtr = 0;
+        return;
+      }
       mPtr = native_start_session(isBackendInProcess, config);
     }
 
@@ -194,6 +198,9 @@ public final class PerfettoTrace {
         throw new IllegalStateException("The session is already closed.");
       }
       mIsClosed = true;
+      if (!PerfettoNativeLibrary.isAvailable()) {
+        return new byte[0];
+      }
       return native_stop_session(mPtr);
     }
   }
@@ -337,7 +344,13 @@ public final class PerfettoTrace {
   /** Returns the process track uuid that can be used as a parent track uuid. */
   public static long getProcessTrackUuid() {
     long uuid = sProcessTrackUuid;
-    return uuid != 0 ? uuid : native_get_process_track_uuid();
+    if (uuid != 0) {
+      return uuid;
+    }
+    if (!PerfettoNativeLibrary.isAvailable()) {
+      return 0;
+    }
+    return native_get_process_track_uuid();
   }
 
   /** Given a thread tid, returns the thread track uuid that can be used as a parent track uuid. */
@@ -348,6 +361,9 @@ public final class PerfettoTrace {
 
   /** Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. */
   public static void activateTrigger(String triggerName, int ttlMs) {
+    if (!PerfettoNativeLibrary.isAvailable()) {
+      return;
+    }
     native_activate_trigger(triggerName, ttlMs);
   }
 
@@ -356,16 +372,20 @@ public final class PerfettoTrace {
    *
    * <p>The in-process backend is always registered. The system backend is registered only if
    * {@link TracingPolicy} allows this process; otherwise this is a no-op and Perfetto is left
-   * uninitialized. Callers must not register categories or emit events when this returns {@code
-   * false}.
+   * uninitialized. Also returns {@code false} without registering if the Perfetto JNI natives are
+   * unavailable (JNI_OnLoad failed). Callers must not register categories or emit events when this
+   * returns {@code false}.
    *
    * @return whether the process is registered with the requested backend
    */
   public static boolean register(boolean isBackendInProcess) {
+    if (!isBackendInProcess && !TracingPolicy.allowSystemBackend()) {
+      return false;
+    }
+    if (!PerfettoNativeLibrary.isAvailable()) {
+      return false;
+    }
     if (!isBackendInProcess) {
-      if (!TracingPolicy.allowSystemBackend()) {
-        return false;
-      }
       sAttemptedSystemRegistration.set(true);
     }
     native_register(isBackendInProcess);

@@ -30,6 +30,8 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree;
+
 WITH RECURSIVE
   path_groups AS MATERIALIZED (
     SELECT *
@@ -66,7 +68,7 @@ WITH RECURSIVE
     UNION ALL
     SELECT walk.target_id, t.parent_id, walk.depth + 1
     FROM walk
-    INNER JOIN _heap_graph_object_min_depth_tree AS t ON t.id = walk.id
+    INNER JOIN heap_graph_shortest_path_tree AS t ON t.id = walk.id
     WHERE
       t.parent_id IS NOT NULL
       AND walk.depth < 200

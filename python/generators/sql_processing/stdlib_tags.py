@@ -117,6 +117,9 @@ MODULE_TAGS = {
     'android.frame_blocking_calls.blocking_calls_aggregation': [
         'android', 'ui'
     ],
+    'android.frame_blocking_calls.instructions': [
+        'android', 'ui', 'performance'
+    ],
     'android.cujs.base': ['android', 'ui'],
     'android.cujs.sysui_cujs': ['android', 'ui'],
     'android.cujs.threads': ['android', 'ui'],

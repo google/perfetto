@@ -289,17 +289,22 @@ const core::exec::Source* Lowering::FinishSide() {
   return out.side_pipelines_.back().get();
 }
 
-std::optional<uint32_t> Lowering::TakeFilterValue(const PlanNode& node,
-                                                  uint32_t condition) {
-  std::optional<core::exec::FilterValue>& value =
-      plan_->bound_.planned[plan().IdOf(node)].filter_values[condition];
-  if (!value) {
+std::optional<uint32_t> Lowering::TakeParam(const PlanNode& node,
+                                            uint32_t condition) {
+  PlannedParam& value =
+      plan_->bound_.planned[plan().IdOf(node)].params[condition];
+  PERFETTO_CHECK(value.state != PlannedParam::State::kUnplanned &&
+                 value.state != PlannedParam::State::kTaken);
+  if (value.state == PlannedParam::State::kNone) {
     return std::nullopt;
   }
-  std::vector<core::exec::FilterValue>& values = plan_->out_->filter_values_;
-  values.push_back(std::move(*value));
-  value.reset();
-  return static_cast<uint32_t>(values.size() - 1);
+  PhysicalPlan& out = *plan_->out_;
+  auto index = static_cast<uint32_t>(out.params_.size());
+  out.params_.push_back(std::move(value.value));
+  out.param_sources_.push_back(
+      {value.state, std::move(value.literals), value.type, value.op});
+  value.state = PlannedParam::State::kTaken;
+  return index;
 }
 
 const LoweringContext& Lowering::context() const {
@@ -334,6 +339,7 @@ PlanLowering::PlanLowering(BoundPlan* bound, const LoweringContext& context)
     : bound_(*bound),
       context_(context),
       out_(std::make_unique<PhysicalPlan>()) {
+  out_->pool_ = context.pool;
   pipelines_.push_back(std::make_unique<Lowering>(this));
 }
 
