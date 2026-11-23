@@ -303,10 +303,10 @@ class ChromeParser(TestSuite):
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
         """,
-        # A synthetic TID should be used for the sandboxed tid
+        # The sandboxed tid is kept as reported, scoped to its process.
         out=Csv("""
         "utid","tid","name","upid","pid","is_main_thread"
         0,0,"swapper",0,0,1
         1,1234,"[NULL]",1,1234,1
-        2,5299989643265,"thread1",1,1234,0
+        2,1,"thread1",1,1234,0
         """))

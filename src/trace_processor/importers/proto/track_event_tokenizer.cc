@@ -432,20 +432,19 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.use_separate_track =
         track.disallow_merging_with_system_tracks();
 
-    // If tid is sandboxed then use a unique synthetic tid, to avoid
-    // having concurrent threads with the same tid.
+    // Done at tokenization so that every importer reporting this process's
+    // tids sees it, whatever order their packets are parsed in.
     if (track.has_chrome_thread()) {
       protos::pbzero::ChromeThreadDescriptor::Decoder chrome_thread(
           track.chrome_thread());
-      if (chrome_thread.has_is_sandboxed_tid()) {
-        reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
+      if (chrome_thread.is_sandboxed_tid()) {
+        context_->process_tracker->SetReportsNamespacedTids(*reservation.pid);
       }
     }
     reserve();
 
     if (args.state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(*args.state, thread,
-                               reservation.use_synthetic_tid);
+      TokenizeThreadDescriptor(*args.state, thread);
     }
 
     return ModuleResult::Ignored();
@@ -577,7 +576,7 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
   protos::pbzero::ThreadDescriptor::Decoder thread(
       args.field.Cast<protos::pbzero::TracePacket::kThreadDescriptor>());
-  TokenizeThreadDescriptor(*args.state, thread, /*use_synthetic_tid=*/false);
+  TokenizeThreadDescriptor(*args.state, thread);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
@@ -585,11 +584,10 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
     PacketSequenceStateGeneration& state,
-    const protos::pbzero::ThreadDescriptor::Decoder& thread,
-    bool use_synthetic_tid) {
+    const protos::pbzero::ThreadDescriptor::Decoder& thread) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.thread_descriptor().Set(thread, use_synthetic_tid);
+  state.thread_descriptor().Set(thread);
   state.GetCustomState<TrackEventSequenceState>()->SetReferenceTimestamps(
       base::SaturatingMultiply(thread.reference_timestamp_us(), 1000),
       base::SaturatingMultiply(thread.reference_thread_time_us(), 1000),

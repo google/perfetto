@@ -185,7 +185,7 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   if (!id) {
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
   }
-  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
+  UniqueTid utid = context_->process_tracker->UpdateProducerThread(tid, pid);
   tables::ProfilerSampleTable::Row row;
   row.ts = ts;
   row.source = legacy_v8_source_id_;

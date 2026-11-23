@@ -91,7 +91,7 @@ void TrackEventModule::ParseField(const ParseFieldArgs& args) {
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
       parser_.ParseThreadDescriptor(
           args.field.Cast<TracePacket::kThreadDescriptor>(),
-          /*is_sandboxed=*/false, /*resolved=*/std::nullopt);
+          /*resolved=*/std::nullopt);
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DFATAL("Wrong TracePacket number");

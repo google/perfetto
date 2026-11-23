@@ -232,7 +232,7 @@ void ProfileModule::ParseStreamingProfileSample(
   const auto& thread = sequence_state->thread_descriptor();
   uint32_t pid = static_cast<uint32_t>(thread.pid());
   uint32_t tid = static_cast<uint32_t>(thread.tid());
-  const UniqueTid utid = procs->UpdateThread(tid, pid);
+  const UniqueTid utid = procs->UpdateProducerThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 
   auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(

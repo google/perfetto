@@ -34,7 +34,6 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -305,8 +304,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
     return std::nullopt;
   }
 
-  // Resolve process and thread id for tracks produced from within a pid
-  // namespace.
+  // Resolve the process id for tracks produced from within a pid namespace;
+  // the thread id is resolved by ProcessTracker::UpdateProducerThread.
   //
   // Get the root-level trusted_pid for the process that produces the track
   // event.
@@ -326,7 +325,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
          DescriptorTrackReservation::ThreadOrdering::kExplicit);
   }
 
-  // Try to resolve to root-level pid and tid if the process is pid-namespaced.
+  // Try to resolve to root-level pid if the process is pid-namespaced.
   if (trusted_pid && reservation.pid) {
     std::optional<uint32_t> resolved_pid =
         context_->process_tracker->ResolveNamespacedTid(*trusted_pid,
@@ -334,17 +333,6 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
     if (resolved_pid) {
       reservation.pid = resolved_pid;
     }
-  }
-  std::optional<uint32_t> resolved_tid;
-  if (trusted_pid && reservation.tid) {
-    resolved_tid = context_->process_tracker->ResolveNamespacedTid(
-        *trusted_pid, *reservation.tid);
-  }
-  if (resolved_tid) {
-    reservation.tid = resolved_tid;
-  } else if (reservation.use_synthetic_tid && reservation.tid &&
-             reservation.pid) {
-    reservation.tid = CreateSyntheticTid(*reservation.tid, *reservation.pid);
   }
 
   // Try to resolve any parent tracks recursively, too.
@@ -354,8 +342,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   }
 
   if (reservation.tid) {
-    UniqueTid utid = context_->process_tracker->UpdateThread(*reservation.tid,
-                                                             *reservation.pid);
+    UniqueTid utid = context_->process_tracker->UpdateProducerThread(
+        *reservation.tid, *reservation.pid);
     auto [it, inserted] = descriptor_uuids_by_utid_.Insert(utid, uuid);
     if (!inserted) {
       // We already saw a another track with a different uuid for this thread.
@@ -372,11 +360,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
                     reservation.min_timestamp);
 
       // Associate the new thread with its process.
-      utid = context_->process_tracker->StartNewThread(std::nullopt,
-                                                       *reservation.tid);
-      UniqueTid updated_utid = context_->process_tracker->UpdateThread(
+      utid = context_->process_tracker->StartNewProducerThread(
           *reservation.tid, *reservation.pid);
-      PERFETTO_CHECK(updated_utid == utid);
     }
     if (thread_ordering_explicit && reservation.sibling_order_rank) {
       context_->process_tracker->SetThreadSortIndex(

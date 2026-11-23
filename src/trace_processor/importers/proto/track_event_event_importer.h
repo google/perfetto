@@ -53,7 +53,6 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/state_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -353,7 +352,7 @@ class TrackEventEventImporter {
           if (thread.valid()) {
             auto pid = static_cast<uint32_t>(thread.pid());
             auto tid = static_cast<uint32_t>(thread.tid());
-            UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
+            UniqueTid utid_candidate = procs->UpdateProducerThread(tid, pid);
             if (storage_->thread_table()[utid_candidate].upid() == upid_) {
               legacy_passthrough_utid_ = utid_candidate;
             }
@@ -365,7 +364,7 @@ class TrackEventEventImporter {
           if (thread.valid()) {
             auto pid = static_cast<uint32_t>(thread.pid());
             auto tid = static_cast<uint32_t>(thread.tid());
-            legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
+            legacy_passthrough_utid_ = procs->UpdateProducerThread(tid, pid);
           }
           break;
       }
@@ -395,15 +394,10 @@ class TrackEventEventImporter {
         auto tid = thread.tid();
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
-          // Create a synthetic tid while avoiding using the exact same tid in
-          // different processes.
-          tid = CreateSyntheticTid(-1, pid);
+          tid = -1;
         }
         if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
-          if (IsSyntheticTid(thread.tid())) {
-            tid = CreateSyntheticTid(tid, pid);
-          }
         }
 
         if (!pid || !tid) {
@@ -411,7 +405,7 @@ class TrackEventEventImporter {
               "track_event_parser: pid/tid 0 is reserved for swapper thread");
         }
 
-        utid_ = procs->UpdateThread(tid, pid);
+        utid_ = procs->UpdateProducerThread(tid, pid);
         upid_ = storage_->thread_table()[*utid_].upid();
       }
     }

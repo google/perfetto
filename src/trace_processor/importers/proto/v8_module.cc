@@ -112,11 +112,11 @@ std::optional<UniqueTid> V8Module::GetUtid(
   }
 
   if (code.has_tid()) {
-    return context_->process_tracker->UpdateThread(code.tid(), *pid);
+    return context_->process_tracker->UpdateProducerThread(code.tid(), *pid);
   }
 
   if (auto tid = GetDefaultTid(generation); tid.has_value()) {
-    return context_->process_tracker->UpdateThread(*tid, *pid);
+    return context_->process_tracker->UpdateProducerThread(*tid, *pid);
   }
 
   return std::nullopt;
