@@ -18,6 +18,7 @@
 
 #include <jni.h>
 #include "src/android_sdk/jni/macros.h"
+#include "src/android_sdk/jni/register_natives.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
@@ -802,97 +803,50 @@ static const JNINativeMethod gCounterMethods[] = {
     {"native_set_value_double", "(JD)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double}};
 
-int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Arg"),
-      gArgMethods, NELEM(gArgMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg native methods.");
+static const NativeClass kExtraClasses[] = {
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Arg"),
+     gArgMethods, NELEM(gArgMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Field"),
+     gFieldMethods, NELEM(gFieldMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested"),
+     gFieldNestedMethods, NELEM(gFieldNestedMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrackEventExtra"),
+     gExtraMethods, NELEM(gExtraMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto"),
+     gProtoMethods, NELEM(gProtoMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow"),
+     gFlowMethods, NELEM(gFlowMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack"),
+     gNamedTrackMethods, NELEM(gNamedTrackMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
+     gNestedTracksMethods, NELEM(gNestedTracksMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
+     gCounterTrackMethods, NELEM(gCounterTrackMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$StateTrack"),
+     gStateTrackMethods, NELEM(gStateTrackMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
+     gCounterMethods, NELEM(gCounterMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
+     gCorrelationIdMethods, NELEM(gCorrelationIdMethods)},
+};
 
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Field"),
-      gFieldMethods, NELEM(gFieldMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register field native methods.");
+bool register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
+  return RegisterNativeClassesMayFail(env, kExtraClasses, NELEM(kExtraClasses));
+}
 
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested"),
-      gFieldNestedMethods, NELEM(gFieldNestedMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register field nested native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrackEventExtra"),
-      gExtraMethods, NELEM(gExtraMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register extra native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto"),
-      gProtoMethods, NELEM(gProtoMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register proto native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow"),
-      gFlowMethods, NELEM(gFlowMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register flow native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack"),
-      gNamedTrackMethods, NELEM(gNamedTrackMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register named track native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
-      gNestedTracksMethods, NELEM(gNestedTracksMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register nested tracks native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
-      gCounterTrackMethods, NELEM(gCounterTrackMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register counter track native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$StateTrack"),
-      gStateTrackMethods, NELEM(gStateTrackMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register state track native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
-      gCounterMethods, NELEM(gCounterMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register counter native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
-      gCorrelationIdMethods, NELEM(gCorrelationIdMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register correlation id native methods.");
-
-  return 0;
+void unregister_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
+  UnregisterNativeClasses(env, kExtraClasses, NELEM(kExtraClasses));
 }
 
 }  // namespace jni
