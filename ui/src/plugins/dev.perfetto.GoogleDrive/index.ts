@@ -314,31 +314,28 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
               },
               onOpenSharingDialog: () =>
                 redrawAfter(
-                  openGDriveSharingDialog(oauth, drive, share, () =>
-                    redrawAfter(
-                      (async () => {
-                        await refreshGDrivePermissions(
-                          oauth,
-                          drive,
-                          share,
-                          savePermissionsDomains,
-                        );
-                        // Immediately enable search discovery on any link-only
-                        // domain share the user just added, so Google Picker
-                        // can find the file for recipients. Best effort: fail
-                        // silently if it doesn't succeed.
-                        await makeGDrivePermissionsSearchable(
-                          oauth,
-                          drive,
-                          share,
-                          {
-                            onPermissionsLoaded: savePermissionsDomains,
-                            silent: true,
-                          },
-                        );
-                      })(),
-                    ),
-                  ),
+                  (async () => {
+                    const opened = await openGDriveSharingDialog(
+                      oauth,
+                      drive,
+                      share,
+                    );
+                    if (!opened) return;
+                    await refreshGDrivePermissions(
+                      oauth,
+                      drive,
+                      share,
+                      savePermissionsDomains,
+                    );
+                    // Immediately enable search discovery on any link-only
+                    // domain share the user just added, so Google Picker
+                    // can find the file for recipients. Best effort: fail
+                    // silently if it doesn't succeed.
+                    await makeGDrivePermissionsSearchable(oauth, drive, share, {
+                      onPermissionsLoaded: savePermissionsDomains,
+                      silent: true,
+                    });
+                  })(),
                 ),
               onRefreshPermissions: () =>
                 redrawAfter(

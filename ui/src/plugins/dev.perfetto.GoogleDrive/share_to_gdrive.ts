@@ -220,15 +220,15 @@ export async function pickUploadFolder(
   onLocationChange?.(location);
 }
 
-// Opens Drive's sharing settings for the uploaded file.
+// Opens Drive's sharing settings for the uploaded file and resolves to true
+// once the dialog is closed, or false if opening it failed.
 export async function openGDriveSharingDialog(
   oauth: GoogleOAuthClient,
   drive: DriveClient,
   share: ShareState,
-  onClose?: () => void,
-): Promise<void> {
+): Promise<boolean> {
   const fileId = share.fileId;
-  if (fileId === undefined || fileId === '') return;
+  if (fileId === undefined || fileId === '') return false;
   share.error = undefined;
 
   // Authenticate with the oauth client and obtain an access token. Nothing is
@@ -237,17 +237,19 @@ export async function openGDriveSharingDialog(
   const auth = await oauth.authenticate([DRIVE_FILE_SCOPE]);
   if (!auth.ok) {
     share.error = {message: describeAuthFailure(auth.error), ...auth.error};
-    return;
+    return false;
   }
 
-  // Show Drive's own sharing dialog.
-  const result = drive.openSharingDialog(auth.value, fileId, {onClose});
+  // Show Drive's own sharing dialog and wait for it to close.
+  const result = await drive.openSharingDialog(auth.value, fileId);
   if (!result.ok) {
     share.error = {
       message: "Couldn't open the Google Drive sharing dialog.",
       ...result.error,
     };
+    return false;
   }
+  return true;
 }
 
 // Fetches the current sharing permissions for the file in Drive.
