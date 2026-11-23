@@ -39,9 +39,6 @@ struct FieldParams {
   const std::set<int>& allowlist;
   const std::unordered_set<int>& reserved_numbers;
   const std::unordered_set<std::string>& deleted_type_names;
-  // Every field number the input message uses, in its plain fields and in all
-  // of its oneofs. A field the input keeps elsewhere in the message (e.g. in a
-  // oneof, while upstream declares it outside of one) must not be added again.
   const std::unordered_set<int>& input_message_numbers;
 };
 
@@ -405,9 +402,6 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
   for (const auto& upstream_field : upstream) {
     auto* input_field = FindByNumber(input, upstream_field.number);
     if (!input_field) {
-      // The input keeps this field in another part of the message (another
-      // oneof, or outside of the oneof): keep the input's placement rather
-      // than declaring the field a second time.
       if (params.input_message_numbers.count(upstream_field.number))
         continue;
 
@@ -502,9 +496,6 @@ base::Status MergeOneofs(
                         deleted_type_names, input_message_numbers, out_item);
     if (!status.ok())
       return status;
-
-    // Don't create a oneof that the input doesn't have if nothing ends up in
-    // it (e.g. its fields already exist elsewhere in the input message).
     if (!input_item && out_item.fields.empty())
       continue;
     out.emplace_back(std::move(out_item));
