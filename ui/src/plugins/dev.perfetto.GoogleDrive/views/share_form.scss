@@ -17,32 +17,356 @@
 // layout specific to this dialog lives here.
 .pf-gdrive-share {
   // Fill the modal, which is at least a quarter of the viewport wide, but do
-  // not let the form get cramped when that is narrow.
-  min-width: min(400px, 100%);
+  // not let the form get cramped when that is narrow or stretch too wide.
+  min-width: min(450px, 80vw);
+  max-width: min(500px, 80vw);
 
-  // The read-only location field takes the room left over by its "Change"
-  // button.
-  &__location {
+  &__error {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid
+      color-mix(in srgb, var(--pf-color-danger) 35%, transparent);
+    border-radius: 6px;
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-danger) 10%,
+      transparent
+    );
+    overflow: hidden;
+  }
+
+  &__error-icon {
+    font-size: 18px;
+    color: var(--pf-color-danger);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  &__error-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     flex: 1;
     min-width: 0;
+
+    details {
+      min-width: 0;
+    }
+
+    summary {
+      font-size: var(--pf-font-size-xs);
+      color: var(--pf-color-text-muted);
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        color: var(--pf-color-text);
+      }
+    }
+
+    pre {
+      margin: 6px 0 0;
+      padding: 8px 10px;
+      border: 1px solid var(--pf-color-border-secondary);
+      border-radius: 4px;
+      background-color: var(--pf-color-background);
+      color: var(--pf-color-text);
+      font-family: var(--pf-font-monospace);
+      font-size: 11px;
+      line-height: 1.45;
+      max-height: 180px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+
+  &__error-message {
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--pf-color-text);
+  }
+
+  // One line of context above the fields.
+  &__intro {
+    margin: 0 0 4px;
+    color: var(--pf-color-text-muted);
+  }
+
+  // The location button, plus a button to go back to My Drive once a folder
+  // has been chosen.
+  &__location-row {
+    width: 100%;
+    // Inline defaults to align-items: baseline, which misaligns an icon-only
+    // reset button against the labelled location button.
+    align-items: stretch;
+  }
+
+  // The location "field" is a button that opens the folder picker. Lay it out
+  // like a text input: full width, label on the left, edit icon on the right.
+  &__location {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    // Match the height and inset of the text input above it.
+    padding: 2px 4px;
+    text-align: left;
+
+    .pf-button__label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pf-right-icon {
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  // Same height as the location button next to it.
+  &__location-reset {
+    padding: 2px 4px;
   }
 
   // Separate the action row from the fields above it.
-  &__footer {
+  &__footer,
+  &__progress {
     margin-top: 8px;
   }
 
-  // Shown once the trace is in Drive: a plain icon and line of text.
-  &__saved {
+  &__progress {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 8px;
-    color: var(--pf-color-success);
-    font-weight: 500;
+  }
+
+  // LinearProgress is a hairline that overlaps the element above it; give it
+  // a visible track of its own here.
+  &__progress-bar {
+    height: 4px;
+    margin-bottom: 0;
+    border-radius: 2px;
+    background-color: var(--pf-color-background-secondary);
   }
 
   &__progress-text {
     color: var(--pf-color-text-muted);
     font-size: var(--pf-font-size-s);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Shown once the trace is in Drive: status badge + filename on the left,
+  // "Open in Drive" link on the right.
+  &__saved-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__saved {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__saved-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-success) 14%,
+      transparent
+    );
+    flex-shrink: 0;
+  }
+
+  &__saved-icon {
+    font-size: 20px;
+    color: var(--pf-color-success);
+  }
+
+  &__saved-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &__saved-title {
+    color: var(--pf-color-text);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__saved-subtitle {
+    color: var(--pf-color-success);
+    font-size: var(--pf-font-size-s);
+  }
+
+  &__open-drive {
+    flex-shrink: 0;
+    font-size: var(--pf-font-size-s);
+  }
+
+  &__permissions {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 6px;
+    background-color: var(--pf-color-background-secondary);
+    overflow: hidden;
+  }
+
+  &__permissions-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px 6px 12px;
+    border-bottom: 1px solid var(--pf-color-border-secondary);
+  }
+
+  &__permissions-section-header {
+    padding: 8px 12px;
+    border-top: 1px solid var(--pf-color-border-secondary);
+  }
+
+  &__permissions-title {
+    font-size: var(--pf-font-size-s);
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__permissions-empty {
+    padding: 10px 12px;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__permissions-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    display: flex;
+    flex-direction: column;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  &__permission-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    min-width: 0;
+  }
+
+  &__permission-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background-color: var(--pf-color-background-tertiary);
+    flex-shrink: 0;
+  }
+
+  &__permission-icon {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__permission-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    line-height: 1.3;
+  }
+
+  &__permission-label {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__permission-sublabel {
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__permission-role {
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    padding: 2px 7px;
+    border-radius: 999px;
+    background-color: var(--pf-color-background-tertiary);
+    flex-shrink: 0;
+  }
+
+  &__permissions-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid
+      color-mix(in srgb, var(--pf-color-warning) 35%, transparent);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-warning) 12%,
+      transparent
+    );
+  }
+
+  &__warning-icon {
+    font-size: 16px;
+    color: var(--pf-color-warning);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  &__warning-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__warning-text {
+    margin: 0;
+    font-size: var(--pf-font-size-s);
+    line-height: 1.4;
+    color: var(--pf-color-text);
+  }
+
+  &__warning-action {
+    background-color: var(--pf-color-background);
+  }
+
+  &__actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--pf-color-border-secondary);
   }
 }

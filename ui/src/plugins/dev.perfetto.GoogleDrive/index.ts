@@ -17,18 +17,27 @@ import {z} from 'zod';
 import {assertDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
+import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import {alertModal, showModal} from '../../widgets/modal';
-import {DriveClient} from './google/drive_client';
+import {DriveClient, type DriveFilePermission} from './google/drive_client';
 import {GoogleOAuthClient} from './google/oauth_client';
 import {loadGDriveConfig} from './gdrive_config';
 import {installPerfettoAsDriveApp} from './flows/install';
 import {openFileFromDeeplink} from './flows/open_from_deeplink';
 import {openFileFromSidebar} from './flows/open_from_sidebar';
-import {ShareForm, type ShareState} from './views/share_form';
 import {
+  type SavedDomainShare,
+  ShareForm,
+  type ShareState,
+  type UploadFolder,
+} from './views/share_form';
+import {
+  extractDomainShares,
+  makeGDrivePermissionsSearchable,
   openGDriveSharingDialog,
   pickUploadFolder,
+  refreshGDrivePermissions,
   uploadTraceToGDrive,
 } from './share_to_gdrive';
 import {GDRIVE_PLUGIN_ID, parseGDriveTraceArgs} from './trace_args';
@@ -46,6 +55,10 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
   // as it is loaded once in onActivate() and used by every trace.
   private static clients: GDriveClients | undefined;
   private static initFinished = false;
+  private static lastUploadLocationSetting:
+    Setting<UploadFolder | 'root'> | undefined;
+  private static lastSharedDomainsSetting:
+    Setting<SavedDomainShare[]> | undefined;
 
   // Why the sidebar buttons cannot be used yet, or false if they can. The
   // sidebar shows the reason when a disabled button is clicked.
@@ -63,9 +76,13 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
   private readonly share: ShareState = {
     fileName: '',
     location: 'root',
+    defaultShareDomains: [],
+    applyDefaultShareDomains: false,
     fileId: undefined,
     resourceKey: undefined,
     upload: undefined,
+    permissions: undefined,
+    loadingPermissions: false,
     error: undefined,
   };
 
@@ -102,6 +119,34 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
         'file picker when authorizing access to a trace from a deep link.',
       schema: z.boolean(),
       defaultValue: false,
+    });
+
+    GoogleDrivePlugin.lastUploadLocationSetting = app.settings.register({
+      id: `${GoogleDrivePlugin.id}#LastUploadLocation`,
+      name: 'Google Drive: Last upload folder',
+      description: 'Remembers the last Google Drive folder uploaded to.',
+      schema: z.union([
+        z.literal('root'),
+        z.object({id: z.string(), name: z.string().optional()}),
+      ]),
+      defaultValue: 'root',
+      headless: true,
+    });
+
+    GoogleDrivePlugin.lastSharedDomainsSetting = app.settings.register({
+      id: `${GoogleDrivePlugin.id}#LastSharedDomains`,
+      name: 'Google Drive: Last shared domains',
+      description:
+        'Remembers the last Google Drive domain permissions shared to.',
+      schema: z.array(
+        z.object({
+          domain: z.string(),
+          displayName: z.string().optional(),
+          role: z.string(),
+        }),
+      ),
+      defaultValue: [],
+      headless: true,
     });
 
     let openFlowInProgress = false;
@@ -160,6 +205,11 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
   ): Promise<void> {
     const share = this.share;
     share.fileName = trace.traceInfo.traceTitle;
+    share.location =
+      GoogleDrivePlugin.lastUploadLocationSetting?.get() ?? 'root';
+    share.defaultShareDomains =
+      GoogleDrivePlugin.lastSharedDomainsSetting?.get() ?? [];
+    share.applyDefaultShareDomains = share.defaultShareDomains.length > 0;
     // If the trace was opened from Drive, it is already there.
     const driveFile = parseGDriveTraceArgs(args);
     share.fileId = driveFile?.fileId;
@@ -216,6 +266,23 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           action.finally(() => trace.raf.scheduleFullRedraw());
         };
 
+        const savePermissionsDomains = (
+          perms: ReadonlyArray<DriveFilePermission>,
+        ) => {
+          const domains = extractDomainShares(perms);
+          GoogleDrivePlugin.lastSharedDomainsSetting?.set(domains);
+          share.defaultShareDomains = domains;
+          share.applyDefaultShareDomains = domains.length > 0;
+        };
+
+        if (
+          isSavedToDrive(share) &&
+          share.permissions === undefined &&
+          !share.loadingPermissions
+        ) {
+          redrawAfter(refreshGDrivePermissions(oauth, drive, share));
+        }
+
         // This button opens a modal dialog which displays the state of the file
         // in google drive allowing the user to upload it and optionally share
         // it. The dialog renders this.share, and keeps no state of its own.
@@ -233,9 +300,61 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
                 redrawAfter(uploadTraceToGDrive(trace, oauth, drive, share)),
               onCancelUpload: () => share.upload?.controller.abort(),
               onPickFolder: () =>
-                redrawAfter(pickUploadFolder(oauth, drive, share)),
+                redrawAfter(
+                  pickUploadFolder(oauth, drive, share, (loc) => {
+                    GoogleDrivePlugin.lastUploadLocationSetting?.set(loc);
+                  }),
+                ),
+              onResetLocation: () => {
+                share.location = 'root';
+                GoogleDrivePlugin.lastUploadLocationSetting?.set('root');
+              },
+              onApplyDefaultShareDomainsChange: (apply: boolean) => {
+                share.applyDefaultShareDomains = apply;
+              },
               onOpenSharingDialog: () =>
-                redrawAfter(openGDriveSharingDialog(oauth, drive, share)),
+                redrawAfter(
+                  openGDriveSharingDialog(oauth, drive, share, () =>
+                    redrawAfter(
+                      (async () => {
+                        await refreshGDrivePermissions(
+                          oauth,
+                          drive,
+                          share,
+                          savePermissionsDomains,
+                        );
+                        // Immediately enable search discovery on any link-only
+                        // domain share the user just added, so Google Picker
+                        // can find the file for recipients. Best effort: fail
+                        // silently if it doesn't succeed.
+                        await makeGDrivePermissionsSearchable(
+                          oauth,
+                          drive,
+                          share,
+                          {
+                            onPermissionsLoaded: savePermissionsDomains,
+                            silent: true,
+                          },
+                        );
+                      })(),
+                    ),
+                  ),
+                ),
+              onRefreshPermissions: () =>
+                redrawAfter(
+                  refreshGDrivePermissions(
+                    oauth,
+                    drive,
+                    share,
+                    savePermissionsDomains,
+                  ),
+                ),
+              onMakeSearchable: () =>
+                redrawAfter(
+                  makeGDrivePermissionsSearchable(oauth, drive, share, {
+                    onPermissionsLoaded: savePermissionsDomains,
+                  }),
+                ),
             }),
         });
       },
