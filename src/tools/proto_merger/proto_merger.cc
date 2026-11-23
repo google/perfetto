@@ -502,6 +502,11 @@ base::Status MergeOneofs(
                         deleted_type_names, input_message_numbers, out_item);
     if (!status.ok())
       return status;
+
+    // Don't create a oneof that the input doesn't have if nothing ends up in
+    // it (e.g. its fields already exist elsewhere in the input message).
+    if (!input_item && out_item.fields.empty())
+      continue;
     out.emplace_back(std::move(out_item));
   }
   return base::OkStatus();

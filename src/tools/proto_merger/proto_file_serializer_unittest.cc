@@ -1201,6 +1201,48 @@ TEST(ProtoFileSerializerTest,
   EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
 }
 
+TEST(ProtoFileSerializerTest, NewUpstreamOneofWithOnlyExistingFieldsIsDropped) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("string", "snapshot", 93));
+    input.messages.push_back(message);
+  }
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    ProtoFile::Oneof oneof{};
+    oneof.name = "wrapper";
+    oneof.fields.push_back(MakeField("string", "snapshot", 93));
+    message.oneofs.push_back(oneof);
+    upstream.messages.push_back(message);
+  }
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].oneofs["wrapper"] = {93};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, Not(HasSubstr("oneof wrapper"))) << out;
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+
+  // The merged proto must be valid: an empty oneof is rejected by protoc.
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile merged_file(
+      temp_dir.path(), "merged.proto",
+      "syntax = \"proto3\";\npackage perfetto.protos;\n" + out);
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+}
+
 TEST(ProtoFileSerializerTest,
      ReservedUpstreamFieldWithDeletedTypeIsPlacedInDeletedFields) {
   ProtoFile input;
