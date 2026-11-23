@@ -23,6 +23,7 @@ import './harness.scss';
 import m from 'mithril';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
+import {Switch} from '../widgets/switch';
 import {
   type FixtureArgs,
   type HarnessWindow,
@@ -44,19 +45,48 @@ function main() {
 
   const params = new URLSearchParams(location.search);
   const fixtureName = params.get('fixture');
-  const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+  let theme: 'light' | 'dark' =
+    params.get('theme') === 'dark' ? 'dark' : 'light';
+  let showGuides = params.get('guides') === '1';
   const args: Record<string, string> = {};
   for (const [key, value] of params) {
-    if (key === 'fixture' || key === 'theme') continue;
+    if (key === 'fixture' || key === 'theme' || key === 'guides') continue;
     args[key] = value;
   }
 
   const fixture = fixtureName === null ? undefined : fixtures.get(fixtureName);
-  const component = fixture?.(args as FixtureArgs);
+  const component =
+    typeof fixture === 'function' ? fixture(args as FixtureArgs) : undefined;
   const tree = buildTree(Array.from(fixtures.keys()));
-  // Links keep the current theme.
-  const hrefFor = (name: string) =>
-    `?fixture=${name}` + (theme === 'dark' ? '&theme=dark' : '');
+  // Links keep the current theme and guides toggle.
+  const hrefFor = (name: string) => {
+    const next = new URLSearchParams({fixture: name});
+    if (theme === 'dark') next.set('theme', 'dark');
+    if (showGuides) next.set('guides', '1');
+    return `?${next}`;
+  };
+  const updateSearchParam = (key: string, value: string | undefined) => {
+    const next = new URLSearchParams(location.search);
+    if (value !== undefined) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    const qs = next.toString();
+    history.replaceState(
+      null,
+      '',
+      qs === '' ? location.pathname : `${location.pathname}?${qs}`,
+    );
+  };
+  const setTheme = (nextTheme: 'light' | 'dark') => {
+    theme = nextTheme;
+    updateSearchParam('theme', nextTheme === 'dark' ? 'dark' : undefined);
+  };
+  const setShowGuides = (enabled: boolean) => {
+    showGuides = enabled;
+    updateSearchParam('guides', enabled ? '1' : undefined);
+  };
 
   // Called on every redraw: mithril vnodes must not be reused across renders.
   const content = (): m.Children =>
@@ -66,10 +96,12 @@ function main() {
         // layout. The fixture must come first: the marks anchor to it.
         m('.harness-frame', [
           m(component),
-          m('.harness-corner.harness-corner--tl'),
-          m('.harness-corner.harness-corner--tr'),
-          m('.harness-corner.harness-corner--bl'),
-          m('.harness-corner.harness-corner--br'),
+          showGuides && [
+            m('.harness-corner.harness-corner--tl'),
+            m('.harness-corner.harness-corner--tr'),
+            m('.harness-corner.harness-corner--bl'),
+            m('.harness-corner.harness-corner--br'),
+          ],
         ])
       : m(
           'p.harness-placeholder',
@@ -88,13 +120,31 @@ function main() {
           {fillHeight: true},
           m('.harness-layout', [
             // Tree of all fixtures, grouped by path, to help humans navigate.
-            m(
-              'nav.harness-nav',
-              renderTree(tree, (name) => ({
-                href: hrefFor(name),
-                active: name === fixtureName,
-              })),
-            ),
+            m('nav.harness-nav', [
+              m(
+                '.harness-nav__tree',
+                renderTree(tree, (name) => ({
+                  href: hrefFor(name),
+                  active: name === fixtureName,
+                })),
+              ),
+              m('.harness-nav__controls', [
+                m(Switch, {
+                  label: 'Dark mode',
+                  checked: theme === 'dark',
+                  onchange: (e: Event) =>
+                    setTheme(
+                      (e.target as HTMLInputElement).checked ? 'dark' : 'light',
+                    ),
+                }),
+                m(Switch, {
+                  label: 'Show guides',
+                  checked: showGuides,
+                  onchange: (e: Event) =>
+                    setShowGuides((e.target as HTMLInputElement).checked),
+                }),
+              ]),
+            ]),
             m('main#harness-root', content()),
           ]),
         ),

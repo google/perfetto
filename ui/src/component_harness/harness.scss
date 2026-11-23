@@ -29,11 +29,26 @@ body {
 }
 .harness-nav {
   flex: 0 0 260px;
-  overflow: auto;
-  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-right: 1px solid var(--pf-color-border);
   background: var(--pf-color-background-secondary);
   font-size: var(--pf-font-size-s);
+}
+.harness-nav__tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 8px;
+}
+.harness-nav__controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--pf-color-border);
 }
 #harness-root {
   flex: 1;
