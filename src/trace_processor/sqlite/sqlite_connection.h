@@ -182,6 +182,12 @@ class SqliteConnection {
   using ProgressCallback = int(void*);
   void SetProgressCallback(int steps, ProgressCallback callback, void* ctx);
 
+  // Stops the statements running on this connection, with SQLITE_INTERRUPT.
+  // Can be called from another thread.
+  //
+  // See https://www.sqlite.org/c3ref/interrupt.html for more details.
+  void Interrupt();
+
   sqlite3* db() const { return db_.get(); }
 
  private:

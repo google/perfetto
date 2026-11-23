@@ -943,13 +943,11 @@ const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
 }
 
 void PerfettoSqlConnection::Interrupt() {
-  // The flag stops statements which start later; sqlite3_interrupt() stops
-  // the ones running now at once, and is all there is in builds without
-  // progress callbacks.
+  // The flag stops statements which start later. Interrupting the SQLite
+  // connection stops the ones running now, at once, and is all that works in
+  // builds without progress callbacks.
   interrupted_.store(true, std::memory_order_relaxed);
-  if (connection_->db()) {
-    sqlite3_interrupt(connection_->db());
-  }
+  connection_->Interrupt();
 }
 
 void PerfettoSqlConnection::ClearInterrupt() {

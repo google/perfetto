@@ -350,6 +350,10 @@ void SqliteConnection::SetProgressCallback(int steps,
 #endif
 }
 
+void SqliteConnection::Interrupt() {
+  sqlite3_interrupt(db_.get());
+}
+
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
     : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
