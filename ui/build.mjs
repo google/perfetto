@@ -230,13 +230,15 @@ Env-var overrides:
   parser.add_argument('--bigtrace', {action: 'store_true'});
   parser.add_argument('--enable-engine-bench', {
     action: 'store_true',
-    help: 'Build the engine startup benchmark page (engine_bench.html) and ' +
-          'its dedicated worker bundle. Off by default.',
+    help:
+      'Build the engine startup benchmark page (engine_bench.html) and ' +
+      'its dedicated worker bundle. Off by default.',
   });
   parser.add_argument('--enable-component-harness', {
     action: 'store_true',
-    help: 'Build the component test harness page (component_harness.html) ' +
-          'used by Playwright component tests. Off by default.',
+    help:
+      'Build the component test harness page (component_harness.html) ' +
+      'used by Playwright component tests. Off by default.',
   });
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
@@ -245,9 +247,10 @@ Env-var overrides:
   parser.add_argument('--cross-origin-isolation', {action: 'store_true'});
   parser.add_argument('--allow-all-hosts', {
     action: 'store_true',
-    help: 'Accept requests for any Host header on the Vite dev server, so it ' +
-          'can sit behind an arbitrary reverse proxy. Disables Vite\'s ' +
-          'DNS-rebind host-check protection.',
+    help:
+      'Accept requests for any Host header on the Vite dev server, so it ' +
+      "can sit behind an arbitrary reverse proxy. Disables Vite's " +
+      'DNS-rebind host-check protection.',
   });
   parser.add_argument('--test-filter', '-f', {
     help: "filter Jest tests by regex, e.g. 'chrome_render'",
@@ -259,16 +262,18 @@ Env-var overrides:
   });
   parser.add_argument('--bundle', {
     action: 'store_true',
-    help: 'Serve the bundled frontend instead of the Vite HMR server ' +
-          '(fewer requests, better over a remote/SSH dev server)',
+    help:
+      'Serve the bundled frontend instead of the Vite HMR server ' +
+      '(fewer requests, better over a remote/SSH dev server)',
   });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
   parser.add_argument('--experimental-mithril-hmr', {
     action: 'store_true',
-    help: 'Hot-swap edited Mithril component modules (remounting the tree) ' +
-          'instead of reloading the page. Only applies to the Vite dev server.',
+    help:
+      'Hot-swap edited Mithril component modules (remounting the tree) ' +
+      'instead of reloading the page. Only applies to the Vite dev server.',
   });
 
   // Load ~/.config/perfetto/ui-dev-server.env defaults, then map any
@@ -1023,7 +1028,10 @@ async function startViteDevServer() {
         // In dev the styles come from the SCSS modules Vite injects, and the
         // entry is the TS source rather than the bundle.
         const patched = raw
-          .replace(/<link rel="stylesheet" href="\.\/component_harness\.css">/, '')
+          .replace(
+            /<link rel="stylesheet" href="\.\/component_harness\.css">/,
+            '',
+          )
           .replace(
             /<script src="\.\/component_harness_bundle\.js"><\/script>/,
             '<script type="module" src="/component_harness/index.ts"></script>',
