@@ -45,12 +45,12 @@ const RUNTIME_MAPPING_RE =
 // scaffolding, and synthetic unwinder placeholders that obscure the real
 // allocation site regardless of mapping.
 const RUNTIME_FRAME_RE =
-  /^(?:malloc|calloc|realloc|art_.*trampoline|libutil_thread_trampoline|INVALID_ELF|INVALID_MAP|UNWIND_INFO)\b|^operator new(?:\[\])?(?:\b|\(|$)|^(?:_?JNIEnv|_JNI|art::JNI|art::interpreter|android::AndroidRuntime)::|^(?:nterp_helper|unknown_frame|java\.lang\.Thread\.run)$|^android::(?:Thread::_threadLoop|A?Looper|IPCThreadState|BpBinder::transact|hardware::IPCThreadState)\b|^JavaBBinderExt::onTransact\b|^com\.android\.internal\.os\.(?:ZygoteInit|RuntimeInit)\b|^android\.os\.(?:Looper\.loop(?:Once)?|Handler\.dispatchMessage|HandlerThread\.run|Binder\.execTransact(?:Internal)?)\b|^java\.util\.concurrent\.(?:ThreadPoolExecutor|Executors\$)|^kotlinx?\.coroutines\.|\[(?:DEDUPED|ambiguous)\]/;
+  /^(?:malloc|calloc|realloc|art_.*trampoline|libutil_thread_trampoline|INVALID_ELF|INVALID_MAP|UNWIND_INFO)\b|^operator new(?:\[\])?(?:\b|\(|$)|^(?:_?JNIEnv|_JNI|art::JNI|art::interpreter|android::AndroidRuntime)::|^(?:nterp_helper|unknown_frame|java\.lang\.Thread\.run)$|^android::(?:Thread::_threadLoop|PoolThread::threadLoop|A?Looper|IPCThreadState|BpBinder::transact|hardware::IPCThreadState)\b|\bstd::(?:__1::)?__thread_proxy\b|^JavaBBinderExt::onTransact\b|^com\.android\.internal\.os\.(?:ZygoteInit|RuntimeInit)\b|^android\.os\.(?:Looper\.loop(?:Once)?|Handler\.dispatchMessage|HandlerThread\.run|Binder\.execTransact(?:Internal)?)\b|^java\.util\.concurrent\.(?:ThreadPoolExecutor|Executors\$)|^kotlinx?\.coroutines\.|\[(?:DEDUPED|ambiguous)\]/;
 
 // Framework/JDK package prefixes used to split JIT-cache frames between
 // system and app code.
 const SYSTEM_JIT_FRAME_RE =
-  /^(?:android|com\.android\.internal|java|javax|dalvik|libcore|sun|jdk)\./;
+  /^(?:android|com\.android\.(?:internal|server|wifi)|java|javax|dalvik|libcore|sun|jdk)\./;
 
 export function categorizeFrame(
   name: string,

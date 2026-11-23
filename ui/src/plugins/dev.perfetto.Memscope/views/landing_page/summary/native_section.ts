@@ -37,8 +37,7 @@ import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
-import {Icons} from '../../../../../base/semantic_icons';
-import {Chip} from '../../../../../widgets/chip';
+import {Checkbox} from '../../../../../widgets/checkbox';
 import {Tooltip} from '../../../../../widgets/tooltip';
 import {PopupPosition} from '../../../../../widgets/popup';
 import {
@@ -577,24 +576,14 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
                     return m(
                       Tooltip,
                       {
-                        trigger: m(Chip, {
-                          className:
-                            'pf-memscope-stack-chip' +
-                            (collapsed
-                              ? ' pf-memscope-stack-chip--active'
-                              : ' pf-memscope-stack-chip--inactive'),
-                          icon: collapsed
-                            ? Icons.Checkbox
-                            : Icons.BlankCheckbox,
-                          iconFilled: collapsed,
-                          rounded: true,
-                          interactive: true,
+                        trigger: m(Checkbox, {
                           label: cat.label,
-                          onclick: () => {
-                            if (collapsed) {
-                              this.collapsedCategories.delete(cat.id);
-                            } else {
+                          checked: collapsed,
+                          onchange: (e) => {
+                            if ((e.target as HTMLInputElement).checked) {
                               this.collapsedCategories.add(cat.id);
+                            } else {
+                              this.collapsedCategories.delete(cat.id);
                             }
                           },
                         }),

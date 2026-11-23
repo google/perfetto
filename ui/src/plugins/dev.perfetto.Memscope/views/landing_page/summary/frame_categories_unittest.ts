@@ -114,6 +114,8 @@ describe('categorizeFrame', () => {
       'java.util.concurrent.ThreadPoolExecutor.runWorker',
       'kotlinx.coroutines.DispatchedTask.run',
       'android::IPCThreadState::executeCommand',
+      'android::PoolThread::threadLoop()',
+      'void* std::__1::__thread_proxy[abi:nqn230000]<std::__1::tuple<void*>>(void*)',
       'INVALID_ELF',
       'unknown_frame',
       '[DEDUPED]',
@@ -147,6 +149,18 @@ describe('categorizeFrame', () => {
       'system',
     );
     expect(categorizeFrame('java.util.HashMap.put', jitMapping)).toBe('system');
+    expect(
+      categorizeFrame(
+        'com.android.server.am.ActivityManagerService.start',
+        jitMapping,
+      ),
+    ).toBe('system');
+    expect(
+      categorizeFrame(
+        'com.android.wifi.x.com.android.internal.util.StateMachine.processMsg',
+        jitMapping,
+      ),
+    ).toBe('system');
     expect(categorizeFrame('com.example.app.Renderer.render', jitMapping)).toBe(
       'app',
     );
