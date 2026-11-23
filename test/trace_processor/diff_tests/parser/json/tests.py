@@ -518,7 +518,7 @@ class JsonParser(TestSuite):
           790000,25000,"ActivityOnThread31","MyRevisedThread31Name",31,"MyProcess30",30,"[NULL]","[NULL]","[NULL]","[NULL]"
           900000,50000,"EventMissingCatAndArgs","[NULL]",32,"MyProcess30",30,"[NULL]","[NULL]","[NULL]","[NULL]"
           960000,10000,"PidOnlyEvent","[NULL]",33,"[NULL]",33,"[NULL]","[NULL]","[NULL]","[NULL]"
-          970000,10000,"NoPidNoTidEvent","[NULL]",0,"[NULL]",0,"[NULL]","[NULL]","[NULL]","[NULL]"
+          970000,10000,"NoPidNoTidEvent","[NULL]",0,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
         """))
 
   # Regression test for https://github.com/google/perfetto/issues/595: the
