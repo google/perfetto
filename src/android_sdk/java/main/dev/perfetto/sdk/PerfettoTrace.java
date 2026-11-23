@@ -157,6 +157,11 @@ public final class PerfettoTrace {
       return native_get_event_formats(ptr);
     }
 
+    // Native pointer (0 until registered). Final so builder calls are direct.
+    final long nativePtr() {
+      return mPtr;
+    }
+
     /** Whether the category is registered or not. */
     public boolean isRegistered() {
       return mIsRegistered;

@@ -508,6 +508,52 @@ public class PerfettoRawProtoEventTest {
     }
   }
 
+  private static byte[] finishedName(PerfettoRawProtoEvent event) {
+    assertFalse("The event failed", event.failed());
+    return Arrays.copyOfRange(event.buffer(), event.fieldsSize(), event.size());
+  }
+
+  @Test
+  public void repeatedNamesMatchReference() {
+    // Each name runs twice so the second event hits the 1-entry name cache when
+    // it fits MAX_CACHED_NAME_SIZE.
+    String[] names = {
+        "event", "ev\u00e9nt\u4e2d\0tail", "\0", "x".repeat(128), "y".repeat(129), "event",
+    };
+    PerfettoRawProtoEvent event = new PerfettoRawProtoEvent();
+    for (String name : names) {
+      for (int i = 0; i < 2; i++) {
+        event.addVarint(1, i);
+        event.finish(name);
+        assertArrayEquals(new Ref().varintField(1, i).bytes(), fields(event));
+        assertArrayEquals("name length " + name.length(), latin1(name), finishedName(event));
+        event.release();
+      }
+    }
+
+    // An unnamed event keeps the cached name for the next event.
+    event.finish(null);
+    event.release();
+    event.finish(names[0]);
+    assertArrayEquals(latin1(names[0]), finishedName(event));
+  }
+
+  @Test
+  public void cachedNameGrowsTheArray() {
+    String name = "n".repeat(100);
+    PerfettoRawProtoEvent event = new PerfettoRawProtoEvent();
+    event.finish(name);
+    event.release();
+
+    // Fill the initial buffer so appending the cached name has to grow it.
+    String value = stringOfFieldSize(PerfettoRawProtoEvent.INITIAL_BUFFER_SIZE);
+    event.addString(1, value);
+    assertEquals(PerfettoRawProtoEvent.INITIAL_BUFFER_SIZE, event.size());
+    event.finish(name);
+    assertArrayEquals(new Ref().stringField(1, value).bytes(), fields(event));
+    assertArrayEquals(latin1(name), finishedName(event));
+  }
+
   @Test
   public void finishClosesOpenMessagesBeforeWritingCounter() {
     PerfettoRawProtoEvent event = new PerfettoRawProtoEvent();

@@ -51,6 +51,8 @@ final class PerfettoRawProtoEvent {
   private static final int MAX_VARINT_SIZE = 10;
   private static final int FIXED64_SIZE = 8;
   private static final int MAX_ONE_BYTE_LENGTH = 127;
+  // Largest event name kept by finish() for reuse on consecutive events.
+  private static final int MAX_CACHED_NAME_SIZE = 128;
 
   // Protobuf wire types.
   // TODO(sashwinbalaji): Support more types.
@@ -104,6 +106,11 @@ final class PerfettoRawProtoEvent {
   // mCounterBits holds the raw 64-bit value.
   private int mCounterField;
   private long mCounterBits;
+  // Cached bytes of the previous finish() name (see writeName()). Not cleared
+  // by release() because Java Strings are immutable.
+  private final byte[] mCachedNameBytes = new byte[MAX_CACHED_NAME_SIZE];
+  private String mCachedName;
+  private int mCachedNameSize;
 
   PerfettoRawProtoEvent() {
     replaceBuffer(INITIAL_BUFFER_SIZE);
@@ -645,13 +652,36 @@ final class PerfettoRawProtoEvent {
       return;
     }
     mFieldsSize = mPosition;
-    int length = name == null ? 0 : name.length();
-    if (length != 0) {
-      if (!fits(length) && !reserve(stringSize(name))) {
-        return;
-      }
-      mPosition = copyString(name, length, mPosition);
+    if (name != null && !name.isEmpty()) {
+      writeName(name);
     }
     mNameSize = mPosition - mFieldsSize;
+  }
+
+  // Appends `name` (non-null, non-empty). Keeps the last name up to
+  // MAX_CACHED_NAME_SIZE bytes so the same String reference copies in bulk
+  // instead of converting char by char.
+  private void writeName(String name) {
+    if (name == mCachedName) {
+      int size = mCachedNameSize;
+      if (!fits(size) && !reserve(size)) {
+        return;
+      }
+      System.arraycopy(mCachedNameBytes, 0, mBuffer, mPosition, size);
+      mPosition += size;
+      return;
+    }
+    int length = name.length();
+    if (!fits(length) && !reserve(stringSize(name))) {
+      return;
+    }
+    int start = mPosition;
+    mPosition = copyString(name, length, start);
+    int size = mPosition - start;
+    if (size <= MAX_CACHED_NAME_SIZE) {
+      System.arraycopy(mBuffer, start, mCachedNameBytes, 0, size);
+      mCachedName = name;
+      mCachedNameSize = size;
+    }
   }
 }
