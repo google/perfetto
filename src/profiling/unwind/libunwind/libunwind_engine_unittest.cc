@@ -97,14 +97,13 @@ TEST(LibunwindEngineTest, BuildFrameFromPc) {
   UnwindEngine* engine = UnwindEngine::Get();
   uint64_t pc = GetCurrentPcForTest();
 
-  // TODO(safayat): verify SymbolStatus::kResolved and non-empty function_name
-  // in the follow-up symbolization PR.
+  // With resolve_names = true.
   FrameData frame = engine->BuildFrameFromPc(state.get(), pc, true);
   EXPECT_EQ(frame.pc, pc - 1);
   ASSERT_NE(frame.map_info, nullptr);
   EXPECT_FALSE(frame.map_info->map_name().empty());
-  EXPECT_EQ(frame.symbol_status, SymbolStatus::kNotAttempted);
-  EXPECT_TRUE(frame.function_name.empty());
+  EXPECT_EQ(frame.symbol_status, SymbolStatus::kResolved);
+  EXPECT_FALSE(frame.function_name.empty());
 
   // With resolve_names = false.
   FrameData frame_no_sym = engine->BuildFrameFromPc(state.get(), pc, false);
@@ -135,20 +134,15 @@ TEST(LibunwindEngineTest, UnwindMultiFrameAndOptions) {
 
   UnwindOptions options;
   options.max_frames = 64;
-  // TODO(safayat): enable resolve_names and assert function names in the
-  // follow-up symbolization PR.
-  options.resolve_names = false;
+  options.resolve_names = true;
 
   UnwindResult res = engine->Unwind(state.get(), sample, options);
   EXPECT_EQ(res.error_code, UnwindErrorCode::kNone);
   ASSERT_GE(res.frames.size(), 2u);
-  ASSERT_NE(res.frames[0].map_info, nullptr);
-  ASSERT_NE(res.frames[1].map_info, nullptr);
-  EXPECT_GE(res.frames[0].pc, res.frames[0].map_info->map_start());
-  EXPECT_LT(res.frames[0].pc, res.frames[0].map_info->map_end());
-  EXPECT_GE(res.frames[1].pc, res.frames[1].map_info->map_start());
-  EXPECT_LT(res.frames[1].pc, res.frames[1].map_info->map_end());
-  EXPECT_NE(res.frames[0].pc, res.frames[1].pc);
+  EXPECT_THAT(res.frames[0].function_name,
+              ::testing::HasSubstr("CaptureUnwindSampleLeaf"));
+  EXPECT_THAT(res.frames[1].function_name,
+              ::testing::HasSubstr("CaptureUnwindSampleCaller"));
 
   // Verify max_frames limit sets kMaxFramesExceeded.
   options.max_frames = 2;
@@ -157,6 +151,7 @@ TEST(LibunwindEngineTest, UnwindMultiFrameAndOptions) {
   EXPECT_EQ(capped_res.error_code, UnwindErrorCode::kMaxFramesExceeded);
 
   // Verify skip_initial_maps skips initial frames matching the map basename.
+  ASSERT_NE(res.frames[0].map_info, nullptr);
   options.max_frames = 64;
   std::vector<std::string> skip_maps = {
       base::Basename(res.frames[0].map_info->map_name())};
@@ -177,8 +172,8 @@ TEST(LibunwindEngineTest, UnwindMultiFrameAndOptions) {
   UnwindResult reparsed_res = engine->Unwind(state.get(), sample, options);
   EXPECT_EQ(reparsed_res.error_code, UnwindErrorCode::kNone);
   ASSERT_GE(reparsed_res.frames.size(), 2u);
-  EXPECT_EQ(reparsed_res.frames[0].pc, res.frames[0].pc);
-  EXPECT_EQ(reparsed_res.frames[1].pc, res.frames[1].pc);
+  EXPECT_THAT(reparsed_res.frames[0].function_name,
+              ::testing::HasSubstr("CaptureUnwindSampleLeaf"));
 }
 
 TEST(LibunwindEngineTest, UnwindInvalidPcReturnsInvalidMap) {
