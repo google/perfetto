@@ -277,12 +277,10 @@ W::Offset BuildRecordBatch(W& w,
                            uint32_t rows,
                            const std::vector<FieldNode>& nodes,
                            const std::vector<ArrowBuffer>& buffers) {
-  auto buffer_vector =
-      w.WriteVecStruct(buffers.data(), sizeof(ArrowBuffer),
-                       static_cast<uint32_t>(buffers.size()), alignof(int64_t));
-  auto node_vector =
-      w.WriteVecStruct(nodes.data(), sizeof(FieldNode),
-                       static_cast<uint32_t>(nodes.size()), alignof(int64_t));
+  auto buffer_vector = w.WriteVecStruct(
+      buffers.data(), static_cast<uint32_t>(buffers.size()), alignof(int64_t));
+  auto node_vector = w.WriteVecStruct(
+      nodes.data(), static_cast<uint32_t>(nodes.size()), alignof(int64_t));
   w.StartTable();
   w.FieldI64(record_batch_field::kLength, rows);
   w.FieldOffset(record_batch_field::kNodes, node_vector);
@@ -306,11 +304,10 @@ W::Offset BuildFooter(W& w,
                       W::Offset schema,
                       const std::vector<Block>& dictionary_blocks,
                       const Block& block) {
-  auto blocks = w.WriteVecStruct(&block, sizeof(block), kRecordBatchCount,
-                                 alignof(int64_t));
+  auto blocks = w.WriteVecStruct(&block, kRecordBatchCount, alignof(int64_t));
   auto dictionaries = w.WriteVecStruct(
-      dictionary_blocks.data(), sizeof(Block),
-      static_cast<uint32_t>(dictionary_blocks.size()), alignof(int64_t));
+      dictionary_blocks.data(), static_cast<uint32_t>(dictionary_blocks.size()),
+      alignof(int64_t));
   w.StartTable();
   w.FieldI16(footer_field::kVersion, kMetadataV5);
   w.FieldOffset(footer_field::kSchema, schema);
