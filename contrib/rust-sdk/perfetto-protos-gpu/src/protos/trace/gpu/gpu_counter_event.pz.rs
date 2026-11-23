@@ -23,6 +23,7 @@ pb_msg!(InternedGpuCounterDescriptor {
     iid: u64, primitive, 1,
     counter_descriptor: GpuCounterDescriptor, msg, 2,
     gpu_id: i32, primitive, 3,
+    gpu_domain_id: u32, primitive, 4,
 });
 
 pb_msg!(GpuCounterEvent {

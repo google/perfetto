@@ -16,6 +16,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import public "protos/perfetto/trace/track_event/track_descriptor.proto";
 import public "protos/perfetto/trace/track_event/track_event.proto";
 
 // GPU API type for tagging track events.
@@ -47,5 +48,49 @@ message GpuTrackEvent {
 
     // GPU API that this track event represents a call to.
     optional GpuApi gpu_api = 3001;
+  }
+}
+
+// Marks a TrackDescriptor as a GPU track.
+//
+// The descriptor's name, parent, ordering, sibling merge and dimensions apply
+// as for any other TrackDescriptor, so producers can place GPU tracks in their
+// own track hierarchy (e.g. under a process track) and give them custom
+// dimensions (e.g. `rank`).
+//
+// Like dimensions, these fields are part of the track's identity: every
+// TrackDescriptor emitted for a given `uuid` must declare the same values.
+message GpuTrackDescriptor {
+  // The GPU this track and its `parent_uuid` descendants belong to. Uses the
+  // same namespace as GpuRenderStageEvent.gpu_id and provides the well-known
+  // `gpu` dimension of these tracks. A descendant must not declare a
+  // different `gpu_id`.
+  optional int32 gpu_id = 1;
+
+  // The render stage queue whose GpuRenderStageEvents are placed on this
+  // track.
+  oneof render_stage_queue {
+    // Matches GpuRenderStageEvent.hw_queue_iid on the same trusted packet
+    // sequence. Producers must not reuse the iid for a different queue after
+    // an incremental state reset.
+    uint64 hw_queue_iid = 2;
+
+    // Matches GpuRenderStageEvent.logical_queue_id of the events whose
+    // graphics context belongs to the process of this track, which it inherits
+    // from a process TrackDescriptor ancestor.
+    uint64 logical_queue_id = 3;
+  }
+
+  // The domain of the GPU this track and all tracks below it belong to: a
+  // hardware block (e.g. an SM or a PE) or a producer-defined logical
+  // grouping, scoped to `gpu_id`. Other data sources identify the same domain
+  // with the same ID, e.g. InternedGpuCounterDescriptor.gpu_domain_id. Tracks
+  // below it must not declare a different `gpu_domain_id`.
+  optional uint32 gpu_domain_id = 4;
+}
+
+message GpuTrackDescriptorExtension {
+  extend TrackDescriptor {
+    optional GpuTrackDescriptor gpu_track = 3000;
   }
 }
