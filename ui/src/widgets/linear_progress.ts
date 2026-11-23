@@ -19,23 +19,46 @@ import {classNames} from '../base/classnames';
 
 export interface LinearProgressAttrs extends HTMLAttrs {
   readonly state?: 'none' | 'indeterminate';
+  // Progress from 0 to 1. When set, the bar fills to this fraction instead of
+  // following `state`. Values outside [0, 1] are clamped.
+  readonly value?: number;
 }
 
 /**
  * A linear progress bar component that can be used to indicate loading state.
  *
- * It supports two states:
+ * It supports three modes:
  * - none: not loading, no progress bar shown.
- * - indeterminate: loading but progress in indeterminate.
+ * - indeterminate: loading but progress is unknown (animated).
+ * - determinate: `value` is set, and the bar fills to that fraction.
  */
 export class LinearProgress implements m.ClassComponent<LinearProgressAttrs> {
   view({attrs}: m.CVnode<LinearProgressAttrs>): m.Children {
-    return m('.pf-linear-progress', {
-      ...attrs,
-      className: classNames(
-        attrs.state === 'indeterminate' && 'pf-linear-progress--anim',
-        attrs.className,
-      ),
-    });
+    const {state, value, className, ...htmlAttrs} = attrs;
+    const determinate = value !== undefined;
+    const fraction = determinate ? Math.min(Math.max(value, 0), 1) : 0;
+    const busy = determinate || state === 'indeterminate';
+    return m(
+      '.pf-linear-progress',
+      {
+        ...htmlAttrs,
+        className: classNames(
+          !determinate &&
+            state === 'indeterminate' &&
+            'pf-linear-progress--anim',
+          className,
+        ),
+        role: busy ? 'progressbar' : undefined,
+        ...(determinate && {
+          'aria-valuemin': 0,
+          'aria-valuemax': 100,
+          'aria-valuenow': Math.round(fraction * 100),
+        }),
+      },
+      determinate &&
+        m('.pf-linear-progress__fill', {
+          style: {transform: `scaleX(${fraction})`},
+        }),
+    );
   }
 }
