@@ -608,10 +608,13 @@ void FormatSuccessfulMappings(bool colorize,
         mapping_frames += mappings[j].frame_count;
       *out += "    " + DisplayName(mapping.mapping_name) + " (" +
               Frames(mapping_frames) + ")\n";
-      *out += "      " +
-              Colorize(colorize, kGray,
-                       "build ID: " + base::ToHex(mapping.build_id)) +
-              "\n";
+      *out +=
+          "      " +
+          Colorize(
+              colorize, kGray,
+              "build ID: " +
+                  trace_processor::BuildId::FromRaw(mapping.build_id).ToHex()) +
+          "\n";
     }
     if (!mapping.symbol_path.empty()) {
       std::string source = Frames(mapping.frame_count);
@@ -667,7 +670,9 @@ void FormatUnresolvedMappings(bool colorize,
       if (!mapping.build_id.empty()) {
         *out += "      " +
                 Colorize(colorize, kGray,
-                         "build ID: " + base::ToHex(mapping.build_id)) +
+                         "build ID: " +
+                             trace_processor::BuildId::FromRaw(mapping.build_id)
+                                 .ToHex()) +
                 "\n";
       }
       if (!mapping.attempts || mapping.attempts->empty()) {
