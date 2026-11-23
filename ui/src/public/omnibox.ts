@@ -118,6 +118,25 @@ export interface OmniboxManager {
   // The message disappears after |durationMs| (default 2000ms) or when the
   // next status message is shown.
   showStatusMessage(msg: string, durationMs?: number): void;
+
+  // Shows a persistent status message in the top toolbar until the returned
+  // handle is disposed or superseded by another status message. Call update()
+  // on the handle to change the message in place (e.g. for progress updates).
+  setStatusMessage(
+    msg: string,
+    opts?: StatusMessageOptions,
+  ): StatusMessageHandle;
+}
+
+export interface StatusMessageOptions {
+  // When true, shows the loading progress indicator in the top toolbar while
+  // this status message is active.
+  readonly showProgress?: boolean;
+}
+
+export interface StatusMessageHandle extends Disposable {
+  // Updates the displayed status message text while this handle is still active.
+  update(msg: string): void;
 }
 
 export interface PromptChoices<T> {

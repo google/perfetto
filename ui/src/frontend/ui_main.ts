@@ -58,6 +58,7 @@ export class UiMain implements m.ClassComponent {
 
     const isSomethingLoading =
       app.isLoadingTrace ||
+      app.omnibox.showStatusProgress ||
       (trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 

@@ -17,6 +17,8 @@ import type {
   OmniboxManager,
   OmniboxModeDescriptor,
   PromptChoices,
+  StatusMessageHandle,
+  StatusMessageOptions,
 } from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
@@ -43,7 +45,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   private _omniboxSelectionIndex = 0;
   private _forceShortTextSearch = false;
   private _text = '';
-  private _statusMessageContainer: {msg?: string} = {};
+  private _statusMessageContainer: {msg?: string; showProgress?: boolean} = {};
   private _promptsDisabled = false;
   private _registeredModes = new Map<string, OmniboxModeDescriptor>();
   private _activeRegisteredMode?: OmniboxModeDescriptor;
@@ -104,7 +106,9 @@ export class OmniboxManagerImpl implements OmniboxManager {
   }
 
   showStatusMessage(msg: string, durationMs = 2000) {
-    const statusMessageContainer: {msg?: string} = {msg};
+    const statusMessageContainer: {msg?: string; showProgress?: boolean} = {
+      msg,
+    };
     if (durationMs > 0) {
       setTimeout(() => {
         statusMessageContainer.msg = undefined;
@@ -112,10 +116,45 @@ export class OmniboxManagerImpl implements OmniboxManager {
       }, durationMs);
     }
     this._statusMessageContainer = statusMessageContainer;
+    raf.scheduleFullRedraw();
+  }
+
+  setStatusMessage(
+    msg: string,
+    opts?: StatusMessageOptions,
+  ): StatusMessageHandle {
+    const container: {msg?: string; showProgress?: boolean} = {
+      msg,
+      showProgress: opts?.showProgress,
+    };
+    this._statusMessageContainer = container;
+    raf.scheduleFullRedraw();
+    return {
+      update: (newMsg: string) => {
+        if (this._statusMessageContainer === container) {
+          container.msg = newMsg;
+          raf.scheduleFullRedraw();
+        }
+      },
+      [Symbol.dispose]: () => {
+        if (this._statusMessageContainer === container) {
+          container.msg = undefined;
+          container.showProgress = undefined;
+          raf.scheduleFullRedraw();
+        }
+      },
+    };
   }
 
   get statusMessage(): string | undefined {
     return this._statusMessageContainer.msg;
+  }
+
+  get showStatusProgress(): boolean {
+    return (
+      this._statusMessageContainer.msg !== undefined &&
+      Boolean(this._statusMessageContainer.showProgress)
+    );
   }
 
   // Start a prompt. If options are supplied, the user must pick one from the
