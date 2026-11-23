@@ -54,15 +54,26 @@ function setup(outcomes: Outcomes = {}) {
   const pickFile = vi.fn(async () => outcomes.picked ?? okResult(FILE));
   const openFile = vi.fn(async () => outcomes.download ?? okResult(CONTENTS));
   const openTraceFromBuffer = vi.fn();
+  const showStatusMessage = vi.fn();
 
   const run = () =>
     openFileFromSidebar(
-      {openTraceFromBuffer} as unknown as App,
+      {
+        openTraceFromBuffer,
+        omnibox: {showStatusMessage},
+      } as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {pickFile, openFile} as unknown as DriveClient,
     );
 
-  return {run, authenticate, pickFile, openFile, openTraceFromBuffer};
+  return {
+    run,
+    authenticate,
+    pickFile,
+    openFile,
+    openTraceFromBuffer,
+    showStatusMessage,
+  };
 }
 
 function expectNoAlerts() {
@@ -81,7 +92,11 @@ describe('openFileFromSidebar', () => {
     await t.run();
 
     expect(t.pickFile).toHaveBeenCalledWith(TOKEN);
-    expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE.id);
+    expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE.id, undefined, {
+      onProgress: expect.any(Function),
+    });
+    expect(t.showStatusMessage).toHaveBeenCalledWith('Downloading trace…', 0);
+    expect(t.showStatusMessage).toHaveBeenLastCalledWith('', 1);
     expect(t.openTraceFromBuffer).toHaveBeenCalledWith({
       buffer: CONTENTS,
       title: 'my.pftrace',

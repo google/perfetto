@@ -439,6 +439,35 @@ describe('DriveClient.openFile', () => {
     expect(result).toMatchObject({ok: false, error: {type: 'error'}});
   });
 
+  test('reports download progress as chunks arrive', async () => {
+    const chunk1 = new Uint8Array([1, 2, 3]);
+    const chunk2 = new Uint8Array([4, 5]);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(chunk1);
+        controller.enqueue(chunk2);
+        controller.close();
+      },
+    });
+    fetchMock.mockResolvedValue(
+      new Response(body, {headers: {'Content-Length': '5'}}),
+    );
+    const onProgress = vi.fn();
+    const client = await createClient();
+    const result = await client.openFile('token', 'file123', undefined, {
+      onProgress,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(Array.from(new Uint8Array(result.value))).toEqual([1, 2, 3, 4, 5]);
+    }
+    expect(onProgress.mock.calls).toEqual([
+      [3, 5],
+      [5, 5],
+    ]);
+  });
+
   test('sends the token to Google only, and only in a header', async () => {
     const client = await createClient();
     await client.openFile('secret-token', 'file123');

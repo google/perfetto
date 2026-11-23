@@ -21,6 +21,7 @@ import {
 import type {DriveClient} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
 import {gdriveTraceArgs} from '../trace_args';
+import {formatDownloadStatus} from './download_status';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -56,8 +57,17 @@ export async function openFileFromSidebar(
   // trace.
   const filename = file.name ?? 'Google Drive file';
 
-  // Download the file.
-  const download = await drive.openFile(oauthToken, file.id);
+  // Download the file, reporting progress in the top toolbar.
+  app.omnibox.showStatusMessage(formatDownloadStatus(), 0);
+  const download = await drive.openFile(oauthToken, file.id, undefined, {
+    onProgress: (loadedBytes, totalBytes) => {
+      app.omnibox.showStatusMessage(
+        formatDownloadStatus(loadedBytes, totalBytes),
+        0,
+      );
+    },
+  });
+  app.omnibox.showStatusMessage('', 1);
   if (!download.ok) {
     await alertDownloadFailed(download.error, filename);
     return;

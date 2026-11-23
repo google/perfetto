@@ -26,6 +26,7 @@ import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
 import {gdriveTraceArgs} from '../trace_args';
+import {formatDownloadStatus} from './download_status';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -73,10 +74,20 @@ export async function openFileFromDeeplink(
   removeStateParamFromUrl();
 
   // Attempt to download the file and look up its name in parallel.
+  app.omnibox.showStatusMessage(formatDownloadStatus(), 0);
   const [fileMetaResult, initialDownloadResult] = await Promise.all([
     drive.getMeta(oauthToken, fileId, resourceKey),
-    drive.openFile(oauthToken, fileId, resourceKey),
+    drive.openFile(oauthToken, fileId, resourceKey, {
+      onProgress: (loadedBytes, totalBytes) => {
+        app.omnibox.showStatusMessage(
+          formatDownloadStatus(loadedBytes, totalBytes),
+          0,
+        );
+      },
+    }),
   ]);
+  app.omnibox.showStatusMessage('', 1);
+
   let fileName = fileMetaResult.ok ? fileMetaResult.value.name : undefined;
   // Remember the file's resource key, for links to it. The deep link carries
   // it when Drive's "Open with" made it; otherwise Drive reports it.
@@ -112,7 +123,16 @@ export async function openFileFromDeeplink(
     knownResourceKey ??= picked.value.resourceKey;
 
     // Try the download again.
-    fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey);
+    app.omnibox.showStatusMessage(formatDownloadStatus(), 0);
+    fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey, {
+      onProgress: (loadedBytes, totalBytes) => {
+        app.omnibox.showStatusMessage(
+          formatDownloadStatus(loadedBytes, totalBytes),
+          0,
+        );
+      },
+    });
+    app.omnibox.showStatusMessage('', 1);
   }
 
   if (!fileDownloadResult.ok) {

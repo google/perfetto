@@ -311,6 +311,39 @@ function postWithProgress(
   return deferred;
 }
 
+async function readResponseWithProgress(
+  response: Response,
+  onProgress?: (loadedBytes: number, totalBytes: number) => void,
+): Promise<ArrayBuffer> {
+  if (onProgress === undefined || response.body === null) {
+    return await response.arrayBuffer();
+  }
+
+  const contentLength = Number(response.headers.get('Content-Length') ?? 0);
+  const totalBytes =
+    Number.isFinite(contentLength) && contentLength > 0 ? contentLength : 0;
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loadedBytes = 0;
+
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loadedBytes += value.byteLength;
+    onProgress(loadedBytes, totalBytes);
+  }
+
+  const combined = new Uint8Array(loadedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return combined.buffer;
+}
+
 // URL prefixes allowed for gapi.drive.share.ShareClient iframes (matching the
 // CSP frame-src allowlist in ui/src/frontend/index.ts). ShareClient does not
 // accept a container element and always mounts directly under document.body, so
@@ -562,16 +595,18 @@ export class DriveClient {
     oauthToken: string,
     fileId: string,
     resourceKey?: string,
+    opts?: {
+      readonly onProgress?: (loadedBytes: number, totalBytes: number) => void;
+    },
   ): Promise<Result<ArrayBuffer, DriveError>> {
-    // 'alt=media' asks for the file's contents rather than its metadata. The
-    // response is read straight into an ArrayBuffer, avoiding extra copies of
-    // large traces.
+    // 'alt=media' asks for the file's contents rather than its metadata.
     return this.fetchFileResult(
       oauthToken,
       fileId,
       {alt: 'media'},
       resourceKey,
-      async (response) => okResult(await response.arrayBuffer()),
+      async (response) =>
+        okResult(await readResponseWithProgress(response, opts?.onProgress)),
     );
   }
 

@@ -99,6 +99,7 @@ function setup(outcomes: Outcomes = {}) {
     async () => outcomes.picked ?? okResult(PICKED_FILE),
   );
   const openTraceFromBuffer = vi.fn();
+  const showStatusMessage = vi.fn();
 
   vi.mocked(promptModal).mockImplementation(
     async (args) => outcomes.prompts?.[args.key ?? ''] as never,
@@ -106,7 +107,10 @@ function setup(outcomes: Outcomes = {}) {
 
   const run = (state = STATE) =>
     openFileFromDeeplink(
-      {openTraceFromBuffer} as unknown as App,
+      {
+        openTraceFromBuffer,
+        omnibox: {showStatusMessage},
+      } as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {getMeta, openFile, requestFileAccess} as unknown as DriveClient,
       state,
@@ -120,6 +124,7 @@ function setup(outcomes: Outcomes = {}) {
     openFile,
     requestFileAccess,
     openTraceFromBuffer,
+    showStatusMessage,
   };
 }
 
@@ -171,7 +176,11 @@ describe('openFileFromDeeplink', () => {
       const t = setup();
       await t.run();
 
-      expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE_ID, RESOURCE_KEY);
+      expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE_ID, RESOURCE_KEY, {
+        onProgress: expect.any(Function),
+      });
+      expect(t.showStatusMessage).toHaveBeenCalledWith('Downloading trace…', 0);
+      expect(t.showStatusMessage).toHaveBeenLastCalledWith('', 1);
     });
 
     // So that links copied from the share dialog include it.
