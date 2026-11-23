@@ -856,6 +856,93 @@ namespace perfetto::trace_processor::stats {
       "WindowManager state packet has unknown fields, which results "          \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
+  F(winscope_input_motion_packets,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of AndroidMotionEvent packets before ProtoVM expansion."),       \
+  F(winscope_input_motion_bytes,          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of AndroidMotionEvent packets before ProtoVM "   \
+      "expansion."),                                                           \
+  F(winscope_input_key_packets,           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of AndroidKeyEvent packets before ProtoVM expansion."),          \
+  F(winscope_input_key_bytes,             kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of AndroidKeyEvent packets before ProtoVM "      \
+      "expansion."),                                                           \
+  F(winscope_input_window_dispatch_packets,                                    \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of AndroidWindowInputDispatchEvent packets before ProtoVM "      \
+      "expansion."),                                                           \
+  F(winscope_input_window_dispatch_bytes, kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of AndroidWindowInputDispatchEvent packets "     \
+      "before ProtoVM expansion."),                                            \
+  F(winscope_inputmethod_clients_packets, kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of InputMethod clients packets before ProtoVM expansion."),      \
+  F(winscope_inputmethod_clients_bytes,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of InputMethod clients packets before ProtoVM "  \
+      "expansion."),                                                           \
+  F(winscope_inputmethod_manager_service_packets,                              \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of InputMethod manager service packets before ProtoVM "          \
+      "expansion."),                                                           \
+  F(winscope_inputmethod_manager_service_bytes,                                \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of InputMethod manager service packets before "  \
+      "ProtoVM expansion."),                                                   \
+  F(winscope_inputmethod_service_packets, kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of InputMethod service packets before ProtoVM expansion."),      \
+  F(winscope_inputmethod_service_bytes,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of InputMethod service packets before ProtoVM "  \
+      "expansion."),                                                           \
+  F(winscope_protolog_packets,            kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of ProtoLog message and standalone interned_data packets "       \
+      "before ProtoVM expansion."),                                            \
+  F(winscope_protolog_bytes,              kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of ProtoLog message and standalone "             \
+      "interned_data packets before ProtoVM expansion."),                      \
+  F(winscope_protolog_view_config_packets,                                     \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of ProtoLogViewerConfig packets before ProtoVM expansion."),     \
+  F(winscope_protolog_view_config_bytes,  kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of ProtoLogViewerConfig packets before ProtoVM " \
+      "expansion."),                                                           \
+  F(winscope_sf_layers_packets,           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of SurfaceFlinger layers snapshot and patch packets before "     \
+      "ProtoVM expansion."),                                                   \
+  F(winscope_sf_layers_bytes,             kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of SurfaceFlinger layers snapshot and patch "    \
+      "packets before ProtoVM expansion."),                                    \
+  F(winscope_sf_layers_protovm_state_bytes,                                    \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total serialized state bytes in ProtoVM instances for SurfaceFlinger "  \
+      "layers."),                                                              \
+  F(winscope_sf_transactions_packets,     kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of SurfaceFlinger transactions packets before ProtoVM "          \
+      "expansion."),                                                           \
+  F(winscope_sf_transactions_bytes,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of SurfaceFlinger transactions packets before "  \
+      "ProtoVM expansion."),                                                   \
+  F(winscope_shell_transitions_packets,   kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of Shell transition and handler mapping packets before ProtoVM " \
+      "expansion."),                                                           \
+  F(winscope_shell_transitions_bytes,     kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of Shell transition and handler mapping "        \
+      "packets before ProtoVM expansion."),                                    \
+  F(winscope_viewcapture_packets,         kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of ViewCapture and standalone interned_data packets before "     \
+      "ProtoVM expansion."),                                                   \
+  F(winscope_viewcapture_bytes,           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of ViewCapture and standalone interned_data "    \
+      "packets before ProtoVM expansion."),                                    \
+  F(winscope_viewcapture_protovm_state_bytes,                                  \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total serialized state bytes in ProtoVM instances for ViewCapture."),   \
+  F(winscope_windowmanager_packets,       kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Number of WindowManager dump and patch packets before ProtoVM "         \
+      "expansion."),                                                           \
+  F(winscope_windowmanager_bytes,         kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total raw packet bytes of WindowManager dump and patch packets before " \
+      "ProtoVM expansion."),                                                   \
+  F(winscope_windowmanager_protovm_state_bytes,                                \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Total serialized state bytes in ProtoVM instances for WindowManager."), \
   F(jit_unknown_frame,                    kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "Indicates that we were unable to determine the function for a frame in "\
       "a jitted memory region"),                                               \

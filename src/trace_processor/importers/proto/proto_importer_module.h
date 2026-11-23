@@ -134,6 +134,12 @@ class ProtoImporterModule {
 
   virtual ~ProtoImporterModule();
 
+  // Called by ProtoTraceReader for every raw TracePacket before ProtoVM
+  // expansion or incremental-state skipping, for modules that opt in via
+  // RegisterForRawPackets().
+  virtual void OnRawPacket(const SelectiveTracePacketDecoder& /*decoder*/,
+                           const TraceBlobView& /*packet*/) {}
+
   // Called by ProtoTraceReader during the tokenization stage, i.e. before
   // sorting. It's called for each TracePacket that contains fields for which
   // the module was registered, with |field| holding the (first occurrence of
@@ -173,6 +179,7 @@ class ProtoImporterModule {
 
  protected:
   void RegisterForField(uint32_t field_id);
+  void RegisterForRawPackets();
 
   ProtoImporterModuleContext* module_context_;
 };
@@ -189,6 +196,9 @@ struct ProtoImporterModuleContext {
   // The module at the index N is registered to handle field id N in
   // TracePacket.
   std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
+  // Modules that opted in via RegisterForRawPackets() to observe raw packets
+  // before ProtoVM expansion or incremental-state skipping.
+  std::vector<ProtoImporterModule*> raw_packet_observers;
   std::vector<std::unique_ptr<ProtoImporterModule>> modules;
   FtraceModule* ftrace_module = nullptr;
   EtwModule* etw_module = nullptr;

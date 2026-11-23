@@ -130,6 +130,9 @@ class SelectiveTracePacketDecoder {
   protozero::ConstBytes interned_data() const {
     return decoder_.at<TracePacket::kInternedDataFieldNumber>().as_bytes();
   }
+  const protozero::Field& interned_data_field() const {
+    return decoder_.at<TracePacket::kInternedDataFieldNumber>();
+  }
 
   bool has_sequence_flags() const {
     return decoder_.at<TracePacket::kSequenceFlagsFieldNumber>().valid();
@@ -191,6 +194,9 @@ class SelectiveTracePacketDecoder {
   }
   protozero::ConstBytes protovms() const {
     return decoder_.at<TracePacket::kProtovmsFieldNumber>().as_bytes();
+  }
+  const protozero::Field& protovms_field() const {
+    return decoder_.at<TracePacket::kProtovmsFieldNumber>();
   }
   bool has_trace_attributes() const {
     return decoder_.at<TracePacket::kTraceAttributesFieldNumber>().valid();

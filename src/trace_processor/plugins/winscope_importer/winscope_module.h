@@ -41,6 +41,9 @@ class WinscopeModule : public ProtoImporterModule {
   explicit WinscopeModule(ProtoImporterModuleContext* module_context,
                           TraceProcessorContext* context);
 
+  void OnRawPacket(const SelectiveTracePacketDecoder& decoder,
+                   const TraceBlobView& packet) override;
+
   ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
   void ParseField(const ParseFieldArgs& args) override;
