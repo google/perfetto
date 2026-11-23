@@ -608,8 +608,8 @@ base::Status Merge(const ProtoFile::Message& input,
   std::map<std::string, Allowlist::Oneof> allowed_oneofs = allowlist.oneofs;
   auto disallow = [&](const ProtoFile::Field& field) {
     allowed_fields.erase(field.number);
-    for (auto& [name, numbers] : allowed_oneofs)
-      numbers.erase(field.number);
+    for (auto& [oneof_name, field_numbers] : allowed_oneofs)
+      field_numbers.erase(field.number);
   };
   std::for_each(input.fields.begin(), input.fields.end(), disallow);
   for (const auto& oneof : input.oneofs)
