@@ -287,6 +287,12 @@ a.pf-memscope-classname {
   }
 }
 
+$stack-frame-colors: (
+  "app": color-mix(in srgb, var(--pf-color-text) 45%, #16a34a),
+  "system": color-mix(in srgb, var(--pf-color-text) 70%, #d97706),
+  "runtime": var(--pf-color-text-muted),
+);
+
 // Native allocation call stack: frames run leaf → root, top to bottom.
 .pf-memscope-stack {
   display: flex;
@@ -310,13 +316,56 @@ a.pf-memscope-classname {
 
     &:not(:first-child) {
       padding-left: 12px;
-      color: var(--pf-color-text-muted);
 
       &::before {
         content: "↳ ";
         color: var(--pf-color-text-hint);
       }
     }
+
+    @each $cat, $color in $stack-frame-colors {
+      &--#{$cat} {
+        color: $color;
+      }
+    }
+  }
+}
+
+.pf-memscope-stack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+
+  &__label {
+    color: var(--pf-color-text-muted);
+    margin-right: 2px;
+  }
+}
+
+.pf-memscope-stack-chip {
+  padding: 3px 9px;
+  font-size: var(--pf-font-size-xs);
+
+  @each $cat, $color in $stack-frame-colors {
+    &--#{$cat} {
+      &.pf-memscope-stack-chip--active {
+        color: $color;
+        background: color-mix(in srgb, $color 12%, transparent);
+        border-color: color-mix(in srgb, $color 40%, transparent);
+      }
+
+      &.pf-memscope-stack-chip--inactive {
+        color: var(--pf-color-text-muted);
+        background: transparent;
+        border-color: var(--pf-color-border-secondary);
+        opacity: 0.65;
+      }
+    }
+  }
+
+  &:hover {
+    opacity: 1;
   }
 }
 
