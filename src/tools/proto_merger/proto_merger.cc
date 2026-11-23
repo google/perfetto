@@ -39,6 +39,10 @@ struct FieldParams {
   const std::set<int>& allowlist;
   const std::unordered_set<int>& reserved_numbers;
   const std::unordered_set<std::string>& deleted_type_names;
+  // Every field number the input message uses, in its plain fields and in all
+  // of its oneofs. A field the input keeps elsewhere in the message (e.g. in a
+  // oneof, while upstream declares it outside of one) must not be added again.
+  const std::unordered_set<int>& input_message_numbers;
 };
 
 void StripDeletedElementComment(std::vector<std::string>& leading_comments) {
@@ -401,6 +405,12 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
   for (const auto& upstream_field : upstream) {
     auto* input_field = FindByNumber(input, upstream_field.number);
     if (!input_field) {
+      // The input keeps this field in another part of the message (another
+      // oneof, or outside of the oneof): keep the input's placement rather
+      // than declaring the field a second time.
+      if (params.input_message_numbers.count(upstream_field.number))
+        continue;
+
       // If the field is missing from the input but is present
       // in the allowlist, take the whole field from the
       // source of truth.
@@ -437,6 +447,7 @@ base::Status Merge(const ProtoFile::Oneof& input,
                    const Allowlist::Oneof& allowlist,
                    const MergeContext& ctx,
                    const std::unordered_set<std::string>& deleted_type_names,
+                   const std::unordered_set<int>& input_message_numbers,
                    ProtoFile::Oneof& out) {
   PERFETTO_CHECK(input.name == upstream.name);
   out.name = input.name;
@@ -458,7 +469,7 @@ base::Status Merge(const ProtoFile::Oneof& input,
   // Finish by merging the list of fields.
   const std::unordered_set<int> empty_reserved_numbers;
   FieldParams field_params{allowlist, empty_reserved_numbers,
-                           deleted_type_names};
+                           deleted_type_names, input_message_numbers};
   return MergeFields(input.fields, upstream.fields, field_params, ctx,
                      out.fields);
 }
@@ -469,6 +480,7 @@ base::Status MergeOneofs(
     const std::map<std::string, Allowlist::Oneof>& allowlist_map,
     const MergeContext& ctx,
     const std::unordered_set<std::string>& deleted_type_names,
+    const std::unordered_set<int>& input_message_numbers,
     std::vector<ProtoFile::Oneof>& out) {
   for (const auto& upstream_item : upstream) {
     auto opt_allowlist = FindInMap(allowlist_map, upstream_item.name);
@@ -487,7 +499,7 @@ base::Status MergeOneofs(
     auto allowlist = opt_allowlist.value_or(Allowlist::Oneof{});
     ProtoFile::Oneof out_item;
     auto status = Merge(input_or_fake, upstream_item, allowlist, ctx,
-                        deleted_type_names, out_item);
+                        deleted_type_names, input_message_numbers, out_item);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_item));
@@ -600,15 +612,23 @@ base::Status Merge(const ProtoFile::Message& input,
   if (!status.ok())
     return status;
 
+  std::unordered_set<int> input_message_numbers;
+  for (const auto& field : input.fields)
+    input_message_numbers.insert(field.number);
+  for (const auto& oneof : input.oneofs) {
+    for (const auto& field : oneof.fields)
+      input_message_numbers.insert(field.number);
+  }
+
   // Merge any oneofs.
   status = MergeOneofs(input.oneofs, upstream.oneofs, allowlist.oneofs, ctx,
-                       deleted_type_names, out.oneofs);
+                       deleted_type_names, input_message_numbers, out.oneofs);
   if (!status.ok())
     return status;
 
   // Finish by merging the list of fields.
   FieldParams field_params{allowlist.fields, upstream.reserved_numbers,
-                           deleted_type_names};
+                           deleted_type_names, input_message_numbers};
   status =
       MergeFields(input.fields, upstream.fields, field_params, ctx, out.fields);
   if (!status.ok())
