@@ -35,6 +35,7 @@
 #include "src/trace_processor/plugins/trace_export/perfetto_export_manifest.h"
 #include "src/trace_processor/plugins/trace_export/perfetto_export_reader.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/util/decompressor.h"
 #include "src/trace_processor/util/tar_writer.h"
 
 namespace perfetto::trace_processor::trace_export {
@@ -135,6 +136,12 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
   if (format == TraceProcessor::ExportFormat::kSqlite) {
     return base::ErrStatus("SQLite export must use random-access output");
   }
+  if (format == TraceProcessor::ExportFormat::kPerfetto &&
+      !util::IsZstdSupported()) {
+    return base::ErrStatus(
+        "perfetto export requires a build of trace processor with zstd "
+        "support");
+  }
 
   util::TarWriter tar(std::make_unique<ExportTarWriterSink>(output));
   if (format == TraceProcessor::ExportFormat::kArrowTar ||
@@ -159,7 +166,9 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
         perfetto ? core::dataframe::ArrowSerializer::IdColumnMode::kOmit
                  : core::dataframe::ArrowSerializer::IdColumnMode::kInclude,
         perfetto ? core::dataframe::ArrowSparseColumns::kSplit
-                 : core::dataframe::ArrowSparseColumns::kExpand);
+                 : core::dataframe::ArrowSparseColumns::kExpand,
+        perfetto ? core::dataframe::ArrowCompression::kZstd
+                 : core::dataframe::ArrowCompression::kNone);
     for (const PluginDataframe* table : tables) {
       RETURN_IF_ERROR(WriteArrowTable(&tar, *table, pool, &serializer));
     }

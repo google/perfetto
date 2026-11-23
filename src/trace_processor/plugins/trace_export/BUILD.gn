@@ -38,6 +38,7 @@ source_set("trace_export") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:decompressor",
     "../../util:simple_json_serializer",
     "../../util:tar_writer",
     "../../util:trace_blob_view_reader",

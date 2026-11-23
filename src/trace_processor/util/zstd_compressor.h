@@ -20,8 +20,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "perfetto/ext/base/utils.h"
+
+struct ZSTD_CCtx_s;
 
 namespace perfetto::trace_processor::util {
 
@@ -34,6 +37,31 @@ class ZstdCompressor {
   // nullptr on error or when zstd is not compiled in.
   static std::unique_ptr<uint8_t, base::FreeDeleter>
   CompressFully(const uint8_t* data, size_t len, size_t* out_size, int level);
+};
+
+// Streams input into zstd frames one at a time, reusing one context across
+// frames. Check IsZstdSupported() (decompressor.h) before relying on this.
+class ZstdStreamCompressor {
+ public:
+  explicit ZstdStreamCompressor(int level);
+  ~ZstdStreamCompressor();
+
+  // Starts a frame which will hold exactly |size| bytes of input.
+  bool BeginFrame(uint64_t size);
+  bool Append(const uint8_t* data, size_t size, std::vector<uint8_t>* out);
+  bool EndFrame(std::vector<uint8_t>* out);
+
+ private:
+  struct Deleter {
+    void operator()(ZSTD_CCtx_s*) const;
+  };
+
+  bool Compress(const uint8_t* data,
+                size_t size,
+                bool end,
+                std::vector<uint8_t>* out);
+
+  std::unique_ptr<ZSTD_CCtx_s, Deleter> cctx_;
 };
 
 }  // namespace perfetto::trace_processor::util
