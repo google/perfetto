@@ -398,7 +398,7 @@ class Evaluator {
 
   const Register& result() const { return regs_.back(); }
 
-  // Ends a run (see RunHeld): the registers let go of their buffers.
+  // Ends a run (see Held): the registers let go of their buffers.
   void EndRun() {
     for (Register& reg : regs_) {
       reg = Register();

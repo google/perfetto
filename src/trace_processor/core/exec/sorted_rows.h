@@ -102,7 +102,7 @@ class SortedRows {
   uint32_t GatherInPlace(RowBatch* out, uint32_t at, Context& context);
   void Clear();
 
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   // Which columns are not held (see RowStore::SetUnread).

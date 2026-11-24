@@ -55,7 +55,7 @@ class GroupTable {
 
   uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   // Reserves `words` zeroed words after each group's keys for the caller to

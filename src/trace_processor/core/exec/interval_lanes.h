@@ -171,7 +171,7 @@ class LaneReader {
 
   // Forgets the last lane read, for a new run.
   void Reset() { last_group_ = kNoGroup; }
-  // Ends a run (see RunHeld).
+  // Ends a run (see Held).
   void EndRun() { Reset(); }
 
  private:
@@ -241,7 +241,7 @@ class CollectedLanes {
   const LaneReader& reader() const { return reader_; }
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:
@@ -295,7 +295,7 @@ class LaneKeys {
   void Gather(RowBatch* out, base::Span<const uint32_t> handles, Context&);
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:
@@ -318,7 +318,7 @@ class BoundsColumns {
   void AddTsTo(RowBatch* out) const;
   void AddDurTo(RowBatch* out) const;
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   int64_t* ts = nullptr;
