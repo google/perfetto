@@ -184,6 +184,27 @@ class NinjaParser(TestSuite):
           20,96000000,1774000000,0
         """))
 
+  # A recompaction also scatters the outputs of a rule that has several of
+  # them, which a build writes back-to-back. They are still one job: the three
+  # outputs of the rule in this log are one slice, not three jobs running at
+  # the same time on three workers.
+  def test_ninja_log_recompacted_multi_output(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_recompacted_multi_output.ninja_log'),
+        query="""
+          select
+            (select count(*) from slice
+             join track on slice.track_id = track.id
+             where track.type = 'ninja_worker') as slices,
+            slice.ts, slice.dur, slice.name
+          from slice
+          where slice.name like 'gen/%'
+        """,
+        out=Csv("""
+          "slices","ts","dur","name"
+          21,200000000,500000000,"gen/foo.pb.h, gen/foo.pb.cc, gen/foo.pbzero.h"
+        """))
+
   # The worker tracks are not threads of a made up process: the UI appends the
   # tid to the name of a thread track, which showed them as "Worker 1 1".
   def test_ninja_log_no_process_or_thread(self):

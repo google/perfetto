@@ -21,8 +21,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
 #include <string_view>
+#include <tuple>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -262,12 +264,16 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
   };
   std::vector<Build> builds;
   int64_t last_end_seen = 0;
+  // The job of the current build with a given (hash, start, end), as an index
+  // into |jobs|.
+  std::map<std::tuple<uint64_t, int64_t, int64_t>, size_t> jobs_of_build;
   for (size_t i = skipped; i < jobs_.size(); ++i) {
     Job& job = jobs_[i];
     if (builds.empty() ||
         (!whole_log_recompacted && job.end_ms < last_end_seen)) {
       const int64_t start_ms = builds.empty() ? 0 : builds.back().end_ms;
       builds.push_back(Build{start_ms, start_ms});
+      jobs_of_build.clear();
     }
     Build& build = builds.back();
     last_end_seen = job.end_ms;
@@ -275,17 +281,15 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
     job.end_ms += build.start_ms;
     build.end_ms = std::max(build.end_ms, job.end_ms);
 
-    // If more hashes show up back-to-back with the same timestamps, merge them
-    // together as they identify multiple outputs for the same build rule.
-    // TODO(lalitm): this merging should really happen across the whole build
-    // rather than between consecutive lines only. However, this needs some
-    // non-significant rework of this class so it's not been found to be worth
-    // implementing yet.
-    if (!jobs.empty() && job.hash == jobs.back().hash &&
-        job.start_ms == jobs.back().start_ms &&
-        job.end_ms == jobs.back().end_ms) {
-      jobs.back().names.append(", ");
-      jobs.back().names.append(job.names);
+    // Lines of a build with the same hash and the same timestamps are the
+    // outputs of one build rule: merge them into one job. A build writes them
+    // back-to-back, but a recompaction scatters them across the log, where
+    // each would otherwise look like a job running on a worker of its own.
+    auto [it, inserted] = jobs_of_build.try_emplace(
+        std::make_tuple(job.hash, job.start_ms, job.end_ms), jobs.size());
+    if (!inserted) {
+      jobs[it->second].names.append(", ");
+      jobs[it->second].names.append(job.names);
       continue;
     }
     jobs.emplace_back(std::move(job));
