@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("util") {
   sources = [
+    "arena.cc",
+    "arena.h",
     "bit_vector.h",
     "flex_vector.cc",
     "flex_vector.h",
@@ -39,6 +41,7 @@ source_set("util") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "arena_unittest.cc",
     "bit_vector_unittest.cc",
     "flex_vector_unittest.cc",
     "heap_unittest.cc",

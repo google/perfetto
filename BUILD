@@ -2789,6 +2789,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_util_util",
     srcs = [
+        "src/trace_processor/core/util/arena.cc",
+        "src/trace_processor/core/util/arena.h",
         "src/trace_processor/core/util/bit_vector.h",
         "src/trace_processor/core/util/flex_vector.cc",
         "src/trace_processor/core/util/flex_vector.h",
