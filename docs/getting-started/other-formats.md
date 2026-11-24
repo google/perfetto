@@ -1030,8 +1030,14 @@ occasionally adding fields.
     directory, and each build restarts its timestamps from zero. Builds are
     laid one after the other on the timeline rather than on top of each other,
     so the number of synthesized worker tracks stays close to the build's `-j`
-    level instead of growing with the number of builds in the log. Build
-    boundaries are lost once `ninja -t recompact` has rewritten the log.
+    level instead of growing with the number of builds in the log.
+  - ninja recompacts the log from time to time (and on `ninja -t recompact`):
+    it keeps only the last entry of each output and rewrites them in no
+    particular order, which loses the boundaries of the builds they came from.
+    If builds were appended after a recompaction, only those builds are
+    imported and the number of dropped entries is reported in the
+    `ninja_recompacted_entries_skipped` stat. If the whole log is recompacted,
+    its entries are imported as a single build.
   - This allows the build process to be visualized in the Perfetto UI, showing
     the duration and concurrency of various compilation, linking, and other
     build tasks, which can be very helpful for understanding the build's

@@ -44,10 +44,11 @@ std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter();
 //   create one thread for each concurrent stream of jobs. Threads are reused
 //   across invocations, so the number of tracks stays close to the -j level
 //   rather than growing with the number of builds in the log.
-// Caveat: this works only if ninja didn't recompact the logs. Once recompaction
-// happens (can be forced via ninja -t recompact) there is no way to identify
-// the boundaries of each build (recompaction deletes, for each hash, all but
-// the most recent timestamp and rewrites the log).
+// Once ninja recompacts the log (on its own, or via ninja -t recompact) the
+// boundaries of the builds that were in it are gone: recompaction deletes, for
+// each output, all but the most recent entry and rewrites the log. Those
+// entries are dropped if builds were appended after them, and shown as a
+// single build otherwise.
 class NinjaLogParser : public ChunkedTraceReader {
  public:
   explicit NinjaLogParser(TraceProcessorContext*);
@@ -75,21 +76,13 @@ class NinjaLogParser : public ChunkedTraceReader {
   };
 
   base::Status ParseLines(size_t size);
+  size_t CountRecompactedLines() const;
 
   TraceProcessorContext* const ctx_;
   bool header_parsed_ = false;
 
-  // The end timestamp of the last job seen, used to detect the boundary
-  // between two ninja invocations (see the note on |build_offset_ms_|).
-  int64_t last_end_seen_ = 0;
-
-  // Timestamps in a ninja log restart from zero on every invocation, so the
-  // jobs of two builds would otherwise be drawn on top of each other. Each
-  // build after the first is shifted by the sum of the durations of the
-  // builds before it, which keeps every job in the trace without inventing
-  // parallelism that never happened.
-  int64_t build_offset_ms_ = 0;
-
+  // One entry per line of the log, in the order and with the timestamps of
+  // the log.
   std::vector<Job> jobs_;
   std::vector<char> log_;
 };

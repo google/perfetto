@@ -154,3 +154,48 @@ class NinjaParser(TestSuite):
           0,120000000,"obj/b.o"
           100000000,100000000,"obj/c.o"
         """))
+
+  # When ninja recompacts a log it rewrites the last entry of every output in
+  # the order of its hash map, so the first 20 lines here have end timestamps
+  # that go backwards on every other line. They are not 10 builds: they are
+  # dropped and counted, and only the two builds appended after them are
+  # shown.
+  def test_ninja_log_recompacted_prefix(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_recompacted_prefix.ninja_log'),
+        query="""
+          select
+            ts, dur, name,
+            (select value from stats
+             where name = 'ninja_recompacted_entries_skipped') as skipped
+          from slice
+          order by ts, name
+        """,
+        out=Csv("""
+          "ts","dur","name","skipped"
+          0,40000000,"obj/r03.o",20
+          0,90000000,"obj/r11.o",20
+          90000000,60000000,"obj/r19.o",20
+          155000000,55000000,"obj/r03.o",20
+          210000000,40000000,"obj/r19.o",20
+        """))
+
+  # The same 20 lines with nothing appended after them. There is no build to
+  # show instead, so they are all kept, at the timestamps they have in the
+  # log rather than shifted one after the other.
+  def test_ninja_log_recompacted(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_recompacted.ninja_log'),
+        query="""
+          select
+            count(*) as slices,
+            min(ts) as first_start,
+            max(ts + dur) as last_end,
+            (select value from stats
+             where name = 'ninja_recompacted_entries_skipped') as skipped
+          from slice
+        """,
+        out=Csv("""
+          "slices","first_start","last_end","skipped"
+          20,96000000,1774000000,0
+        """))

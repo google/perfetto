@@ -22,6 +22,9 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string_view>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -52,6 +55,15 @@ namespace {
 // here. Anything newer is rejected rather than guessed at.
 constexpr uint32_t kOldestSupportedVersion = 5;
 constexpr uint32_t kNewestSupportedVersion = 7;
+
+// A recompaction writes the log in the order of a hash map, so the end
+// timestamp goes backwards on about half of its lines, against once per build
+// in a log that was only appended to: a quarter is far from both.
+constexpr size_t kRecompactedBackwardsRatio = 4;
+
+// With fewer lines than this the rate above is noise: a handful of small
+// builds of different targets gives the same numbers.
+constexpr size_t kMinRecompactedLines = 16;
 }  // namespace
 
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
@@ -101,9 +113,9 @@ base::Status NinjaLogParser::ParseLines(size_t size) {
       continue;
     }
 
-    // No job line starts with #: the first field is a number. ninja itself
-    // only writes the header this way, but it shows up again when two logs
-    // are concatenated, and it is how people annotate a log by hand.
+    // Any other line starting with # is a comment, not a job that failed to
+    // parse. ninja only writes the header this way, but the header shows up
+    // again when two logs are concatenated.
     if (str[0] == '#')
       continue;
 
@@ -141,46 +153,53 @@ base::Status NinjaLogParser::ParseLines(size_t size) {
       continue;
     }
 
-    // The same log file usually contains several ninja invocations, appended
-    // one after the other. Each invocation restarts its timestamps from zero,
-    // and within an invocation ninja appends lines as jobs complete, so the
-    // end timestamps only ever grow. An end timestamp that goes backwards is
-    // therefore the start of a new build.
-    // Those builds must not be laid on top of each other: the packing below
-    // infers parallelism from overlapping timestamps, so superimposed builds
-    // look like one build with several times the real number of workers. We
-    // shift each build past the end of the previous one instead, which is what
-    // ninjatracing does with --showall.
-    // Caveat: this works only if ninja didn't recompact the log. Once
-    // recompaction happens (can be forced via `ninja -t recompact`) there is
-    // no way to identify the boundaries of each build, because recompaction
-    // keeps, for each hash, only the most recent entry.
-    if (*t_end < last_end_seen_)
-      build_offset_ms_ += last_end_seen_;
-    last_end_seen_ = *t_end;
-    const int64_t start_ms = *t_start + build_offset_ms_;
-    const int64_t end_ms = *t_end + build_offset_ms_;
-
-    // If more hashes show up back-to-back with the same timestamps, merge them
-    // together as they identify multiple outputs for the same build rule.
-    // TODO(lalitm): this merging should really happen in NotifyEndOfFile
-    // because we want to merge across builds. However, this needs some
-    // non-significant rework of this class so it's not been found to be worth
-    // implementing yet.
-    if (!jobs_.empty() && *cmdhash == jobs_.back().hash &&
-        start_ms == jobs_.back().start_ms && end_ms == jobs_.back().end_ms) {
-      jobs_.back().names.append(", ");
-      jobs_.back().names.append(name);
-      continue;
-    }
-
-    jobs_.emplace_back(start_ms, end_ms, *cmdhash, name);
+    jobs_.emplace_back(*t_start, *t_end, *cmdhash, name);
   }
   return base::OkStatus();
 }
 
-// This is called after the last Parse() call. At this point all |jobs_| have
-// been populated.
+// Returns how many lines at the start of |jobs_| were written by a
+// recompaction of the log rather than by a build: all of them if the log was
+// not appended to since.
+// ninja rewrites the log (on its own once the log is three times larger than
+// the set of outputs, or on `ninja -t recompact`) keeping only the last entry
+// of each output, and writes those in the order of its hash map. The lines it
+// writes are told apart from the lines of a build by two things: no output
+// shows up twice, and the end timestamp goes backwards on about half of the
+// lines, while within a build it never does.
+size_t NinjaLogParser::CountRecompactedLines() const {
+  const size_t size = jobs_.size();
+
+  // The lines written by a recompaction stop, at the latest, where an output
+  // shows up for the second time.
+  size_t unique_end = size;
+  std::unordered_set<std::string_view> outputs;
+  for (size_t i = 0; i < size; ++i) {
+    if (!outputs.insert(jobs_[i].names).second) {
+      unique_end = i;
+      break;
+    }
+  }
+
+  // They stop where a build starts, that is where the end timestamp goes
+  // backwards, or at |unique_end|. Take the last such place for which the
+  // lines before it look recompacted.
+  size_t recompacted = 0;
+  size_t backwards = 0;
+  for (size_t i = 1; i <= unique_end; ++i) {
+    const bool goes_backwards =
+        i < size && jobs_[i].end_ms < jobs_[i - 1].end_ms;
+    if ((goes_backwards || i == unique_end) && i >= kMinRecompactedLines &&
+        backwards * kRecompactedBackwardsRatio >= i - 1) {
+      recompacted = i;
+    }
+    backwards += goes_backwards;
+  }
+  return recompacted;
+}
+
+// This is called after the last Parse() call. At this point |jobs_| holds
+// every line of the log but possibly the last one.
 base::Status NinjaLogParser::OnPushDataToSorter() {
   // What is left in |log_| is the last line of a log that does not end with
   // \n. It is a job like any other.
@@ -190,8 +209,58 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
     log_.clear();
   }
 
-  // Phase 1: Sort jobs and write slices directly to storage
-  SortByKey(jobs_.begin(), jobs_.end(),
+  // The lines of a recompacted log carry the timestamps of the builds that
+  // wrote them, but nothing says which build that was. If builds were appended
+  // after the recompaction we show those and drop the recompacted lines, which
+  // would otherwise be read as thousands of one-line builds. If the whole log
+  // is recompacted there is nothing else to show, so we keep the lines where
+  // they are, as if they were one build.
+  const size_t recompacted = CountRecompactedLines();
+  const bool whole_log_recompacted = recompacted == jobs_.size();
+  const size_t skipped = whole_log_recompacted ? 0 : recompacted;
+  ctx_->stats_tracker->SetStats(stats::ninja_recompacted_entries_skipped,
+                                static_cast<int64_t>(skipped));
+
+  // The same log file usually contains several ninja invocations, appended
+  // one after the other. Each invocation restarts its timestamps from zero,
+  // and within an invocation ninja appends lines as jobs complete, so the
+  // end timestamps only ever grow. An end timestamp that goes backwards is
+  // therefore the start of a new build.
+  // Those builds must not be laid on top of each other: the packing below
+  // infers parallelism from overlapping timestamps, so superimposed builds
+  // look like one build with several times the real number of workers. We
+  // shift each build past the end of the previous one instead, which is what
+  // ninjatracing does with --showall.
+  std::vector<Job> jobs;
+  jobs.reserve(jobs_.size() - skipped);
+  int64_t build_offset_ms = 0;
+  int64_t last_end_seen = 0;
+  for (size_t i = skipped; i < jobs_.size(); ++i) {
+    Job& job = jobs_[i];
+    if (!whole_log_recompacted && job.end_ms < last_end_seen)
+      build_offset_ms += last_end_seen;
+    last_end_seen = job.end_ms;
+    job.start_ms += build_offset_ms;
+    job.end_ms += build_offset_ms;
+
+    // If more hashes show up back-to-back with the same timestamps, merge them
+    // together as they identify multiple outputs for the same build rule.
+    // TODO(lalitm): this merging should really happen across the whole build
+    // rather than between consecutive lines only. However, this needs some
+    // non-significant rework of this class so it's not been found to be worth
+    // implementing yet.
+    if (!jobs.empty() && job.hash == jobs.back().hash &&
+        job.start_ms == jobs.back().start_ms &&
+        job.end_ms == jobs.back().end_ms) {
+      jobs.back().names.append(", ");
+      jobs.back().names.append(job.names);
+      continue;
+    }
+    jobs.emplace_back(std::move(job));
+  }
+  jobs_.clear();
+
+  SortByKey(jobs.begin(), jobs.end(),
             [](const Job& job) { return job.start_ms; });
 
   // Now we need to work out the job parallelism. There's no direct indication
@@ -213,7 +282,7 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
     TrackId track_id;
   };
   std::vector<Worker> workers;
-  for (const auto& job : jobs_) {
+  for (const auto& job : jobs) {
     Worker* worker = nullptr;
     for (Worker& cur : workers) {
       // Pick the worker which has the greatest end time (busy_until) <= the
