@@ -427,6 +427,54 @@ PERFETTO_SDK_EXPORT void PerfettoTeHlEmitImpl(
     const char* name,
     struct PerfettoTeHlExtra* const* extra_data);
 
+// EXPERIMENTAL (not ABI-stable), for Perfetto language bindings.
+// Raw-proto events carry caller-serialized TrackEvent protobuf fields (without
+// an outer tag or length) with inline strings.
+// The C SDK writes the TracePacket, timestamp, type, category, name and track,
+// then appends those bytes unchanged.
+// Events needing interned fields must keep using PerfettoTeHlEmitImpl().
+// Both emit functions below are synchronous and do not retain caller pointers.
+
+// Maximum `raw_proto_fields_size + name_size`, in bytes.
+#define PERFETTO_TE_HL_MAX_RAW_PROTO_EVENT_SIZE (1024u * 1024u)
+
+// Checked multi-format emit path.
+// Validates inputs and writes each active session in its selected format with
+// a shared timestamp. Returns false without emitting on invalid input.
+// * `cat`: registered category (non-NULL).
+// * `type`: `enum PerfettoTeType`.
+// * `name`, `name_size`: event name bytes without NUL (NULL only if size is 0).
+//   Ignored for slice ends, and for counters in RAW_PROTO.
+// * `formats`: PERFETTO_TE_EVENT_FORMAT_* bits built by the caller.
+//   Sessions whose format is absent skip the event.
+// * `extras`: NULL-terminated EXTRAS array (NULL means empty).
+//   Read only if `formats` includes EXTRAS.
+// * `raw_proto_fields`, `raw_proto_fields_size`: serialized TrackEvent fields
+//   (NULL only if size is 0). Read only if `formats` includes RAW_PROTO.
+// * `track`: NULL (default track) or one track extra for RAW_PROTO sessions.
+//   EXTRAS reads its track from `extras`.
+PERFETTO_SDK_EXPORT bool PerfettoTeHlEmitWithFormatsImpl(
+    struct PerfettoTeCategoryImpl* cat,
+    int32_t type,
+    const char* name,
+    size_t name_size,
+    uint32_t formats,
+    struct PerfettoTeHlExtra* const* extras,
+    const void* raw_proto_fields,
+    size_t raw_proto_fields_size,
+    const struct PerfettoTeHlExtra* track);
+
+// Fast path for RAW_PROTO-only events from trusted callers.
+// Emits only to RAW_PROTO sessions. Validated in debug builds only.
+PERFETTO_SDK_EXPORT void PerfettoTeHlEmitRawProtoImpl(
+    struct PerfettoTeCategoryImpl* cat,
+    int32_t type,
+    const char* name,
+    size_t name_size,
+    const void* raw_proto_fields,
+    size_t raw_proto_fields_size,
+    const struct PerfettoTeHlExtra* track);
+
 #ifdef __cplusplus
 }
 #endif

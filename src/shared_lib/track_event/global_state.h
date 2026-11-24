@@ -17,6 +17,7 @@
 #ifndef SRC_SHARED_LIB_TRACK_EVENT_GLOBAL_STATE_H_
 #define SRC_SHARED_LIB_TRACK_EVENT_GLOBAL_STATE_H_
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <unordered_map>
@@ -35,6 +36,31 @@ class GlobalState {
     return *instance;
   }
 
+  // Snapshot of PERFETTO_TE_EVENT_FORMAT_* bits active for `cat`.
+  static uint32_t GetEventFormats(const PerfettoTeCategoryImpl* cat) {
+    if (!cat) {
+      return 0;
+    }
+    // Acquire pairs with the release store in EnableInstance().
+    const uint32_t enabled = cat->instances.load(std::memory_order_acquire);
+    if (!enabled) {
+      return 0;
+    }
+    const uint32_t raw_proto =
+        raw_proto_instances_.load(std::memory_order_relaxed);
+    if (!raw_proto) {
+      return PERFETTO_TE_EVENT_FORMAT_EXTRAS;
+    }
+    uint32_t formats = 0;
+    if (enabled & raw_proto) {
+      formats |= PERFETTO_TE_EVENT_FORMAT_RAW_PROTO;
+    }
+    if (enabled & ~raw_proto) {
+      formats |= PERFETTO_TE_EVENT_FORMAT_EXTRAS;
+    }
+    return formats;
+  }
+
   void OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
   void OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
@@ -51,6 +77,9 @@ class GlobalState {
  private:
   GlobalState();
 
+  // Bit `i` is set when data source instance `i` selected RAW_PROTO.
+  // Updated in OnStart() and OnStop() under `mu_`.
+  static std::atomic<uint8_t> raw_proto_instances_;
   mutable std::mutex mu_;
   std::vector<PerfettoTeCategoryImpl*> categories_ PERFETTO_GUARDED_BY(mu_);
   std::unordered_map<uint32_t, perfetto::protos::gen::TrackEventConfig>

@@ -37,6 +37,8 @@ bool IsRegisteredCategoryEnabled(
 
 }  // namespace
 
+std::atomic<uint8_t> GlobalState::raw_proto_instances_{0};
+
 GlobalState::GlobalState() : interned_categories_(0) {
   perfetto_te_any_categories = new PerfettoTeCategoryImpl;
   perfetto_te_any_categories_enabled = &perfetto_te_any_categories->flag;
@@ -45,6 +47,16 @@ GlobalState::GlobalState() : interned_categories_(0) {
 void GlobalState::OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                           uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
   std::lock_guard<std::mutex> lock(mu_);
+  // Update before EnableInstance() so GetEventFormats() sees the new bit.
+  const auto bit = static_cast<uint8_t>(1u << instance_id);
+  if (config.experimental_raw_proto_events()) {
+    raw_proto_instances_.fetch_or(bit, std::memory_order_relaxed);
+  } else {
+    // Clear any stale bit from an earlier session with the same instance id.
+    raw_proto_instances_.fetch_and(static_cast<uint8_t>(~bit),
+                                   std::memory_order_relaxed);
+  }
+
   perfetto_te_any_categories->EnableInstance(instance_id);
   for (PerfettoTeCategoryImpl* cat : categories_) {
     if (IsRegisteredCategoryEnabled(*cat, config)) {
@@ -60,6 +72,10 @@ void GlobalState::OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
     cat->DisableInstance(instance_id);
   }
   perfetto_te_any_categories->DisableInstance(instance_id);
+  // Clear after DisableInstance() so GetEventFormats() does not report EXTRAS
+  // while the stopping instance is still visible on a category.
+  raw_proto_instances_.fetch_and(static_cast<uint8_t>(~(1u << instance_id)),
+                                 std::memory_order_relaxed);
   active_configs_.erase(instance_id);
 }
 

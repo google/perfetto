@@ -76,5 +76,10 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
                   bool,
                   filter_dynamic_event_names,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
+                  VARINT,
+                  bool,
+                  experimental_raw_proto_events,
+                  11);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACK_EVENT_TRACK_EVENT_CONFIG_PZC_H_

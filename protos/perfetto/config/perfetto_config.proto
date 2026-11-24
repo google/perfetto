@@ -5196,6 +5196,15 @@ message TrackEventConfig {
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.
   optional bool filter_dynamic_event_names = 9;
+
+  // When true, SDK language bindings (today, the Android Java SDK) send this
+  // session events as raw serialized TrackEvent protobuf fields with inline
+  // names. When false or absent, they use the extras path, which interns names.
+  // Does not affect C or C++ events, and is independent of the trace writer
+  // version.
+  // Experimental: will be removed once the Java SDK migration is complete.
+  // Introduced in: perfetto v60.
+  optional bool experimental_raw_proto_events = 11;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
