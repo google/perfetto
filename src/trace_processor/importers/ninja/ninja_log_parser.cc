@@ -327,7 +327,11 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
            builds[builds_written].start_ms <= job.start_ms;
          ++builds_written) {
       const Build& build = builds[builds_written];
+      // What a wholly recompacted log holds is what is left of several builds
+      // on one timeline, not a build.
       base::StackString<32> name("Build %zu", builds_written + 1);
+      if (whole_log_recompacted)
+        name = base::StackString<32>("Recompacted log");
       ctx_->slice_tracker->Scoped(
           build.start_ms * kMsToNs,
           ctx_->track_tracker->InternTrack(kBuildsBlueprint), StringId::Null(),

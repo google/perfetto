@@ -175,13 +175,16 @@ class NinjaParser(TestSuite):
             min(ts) as first_start,
             max(ts + dur) as last_end,
             (select value from stats
-             where name = 'ninja_recompacted_entries_skipped') as skipped
+             where name = 'ninja_recompacted_entries_skipped') as skipped,
+            (select group_concat(name) from slice
+             where track_id in
+               (select id from track where type = 'ninja_builds')) as builds
           from slice
           where track_id in (select id from track where type = 'ninja_worker')
         """,
         out=Csv("""
-          "slices","first_start","last_end","skipped"
-          20,96000000,1774000000,0
+          "slices","first_start","last_end","skipped","builds"
+          20,96000000,1774000000,0,"Recompacted log"
         """))
 
   # A recompaction also scatters the outputs of a rule that has several of
