@@ -306,6 +306,72 @@ function postWithProgress(
   return deferred;
 }
 
+// Google's ShareClient hides its closed dialog with `aria-hidden="true"` on a
+// wrapper (without always setting `display: none` or removing the iframe).
+function isShareDialogIframeVisible(iframe: HTMLIFrameElement): boolean {
+  return iframe.isConnected && iframe.closest('[aria-hidden="true"]') === null;
+}
+// Hack: Google's gapi.drive.share.ShareClient API does not expose any callback
+// or event when the user closes the sharing dialog. To detect dismissal so we
+// can refresh permissions, we watch document.body with a MutationObserver for
+// the share iframe injected (or made visible) by ShareClient and invoke
+// `onClose` once that iframe is removed or hidden. Returns a cleanup function
+// that disconnects the observer.
+function observeSharingDialogClose(
+  initiallyVisibleIframes: ReadonlySet<HTMLIFrameElement>,
+  onClose: () => void,
+): () => void {
+  if (
+    typeof document === 'undefined' ||
+    document.body === null ||
+    typeof MutationObserver === 'undefined'
+  ) {
+    return () => {};
+  }
+
+  let dialogIframe: HTMLIFrameElement | undefined;
+  let finished = false;
+
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    observer.disconnect();
+  };
+
+  const check = () => {
+    if (finished) return;
+    if (dialogIframe === undefined) {
+      for (const iframe of Array.from(document.querySelectorAll('iframe'))) {
+        if (
+          !initiallyVisibleIframes.has(iframe) &&
+          isShareDialogIframeVisible(iframe)
+        ) {
+          dialogIframe = iframe;
+          break;
+        }
+      }
+      return;
+    }
+    if (!isShareDialogIframeVisible(dialogIframe)) {
+      cleanup();
+      onClose();
+    }
+  };
+
+  const observer = new MutationObserver(() => {
+    check();
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'class', 'hidden', 'aria-hidden'],
+  });
+
+  return cleanup;
+}
+
 // Talks to Google Drive: shows its file and folder pickers and sharing dialog,
 // and downloads and uploads files.
 export class DriveClient {
@@ -362,19 +428,45 @@ export class DriveClient {
     return this.picker(oauthToken, {view, title: 'Select folder'});
   }
 
-  // Opens Drive's sharing settings dialog for a file. The drive-share module
-  // it needs is loaded by create(). Never throws.
-  openSharingDialog(
+  // Opens Drive's sharing settings dialog for a file, resolving once the
+  // dialog is closed. The drive-share module it needs is loaded by create().
+  // Never rejects.
+  async openSharingDialog(
     oauthToken: string,
     fileId: string,
-  ): Result<void, SharingDialogError> {
+  ): Promise<Result<void, SharingDialogError>> {
+    let cleanupObserver: (() => void) | undefined;
     try {
+      // HACK: Google's ShareClient API has no onClose callback or event when
+      // the user dismisses the sharing dialog. Snapshot currently visible
+      // iframes before opening it so observeSharingDialogClose() can spot the
+      // new share iframe and resolve the promise when it is removed or hidden.
+      const closed = defer<void>();
+      const initiallyVisibleIframes =
+        typeof document !== 'undefined' && document.body !== null
+          ? new Set<HTMLIFrameElement>(
+              Array.from(document.querySelectorAll('iframe')).filter((f) =>
+                isShareDialogIframeVisible(f),
+              ),
+            )
+          : undefined;
+      if (initiallyVisibleIframes !== undefined) {
+        cleanupObserver = observeSharingDialogClose(
+          initiallyVisibleIframes,
+          () => closed.resolve(),
+        );
+      } else {
+        closed.resolve();
+      }
+
       const shareClient = new gapi.drive.share.ShareClient();
       shareClient.setOAuthToken(oauthToken);
       shareClient.setItemIds([fileId]);
       shareClient.showSettingsDialog();
+      await closed;
       return okResult();
     } catch (e) {
+      cleanupObserver?.();
       return errResult({type: 'error', cause: e});
     }
   }
