@@ -672,15 +672,16 @@ Vite, so saving a fixture or a component it shows reloads the page.
   `ui/build --serve --no-build`.
 
 **Accessing a fixture:**
-`/component_harness.html?fixture=<name>[&theme=dark][&<arg>=<value>...]`
+`/component_harness.html?fixture=<name>[&theme=dark][&guides=1][&<arg>=<value>...]`
 
 - `<name>` is the fixture file's path relative to `ui/src`, without
   `.fixture.ts`, plus the fixture's key, e.g.
   `widgets/popup/scroll_container` for the `scroll_container` export of
   `ui/src/widgets/popup.fixture.ts`.
 - Any other query params are passed to the fixture as string args.
-- Crop marks around the mounted component show its edges. The fixture's root
-  element is inside `#harness-root`; `window.__harnessReady` becomes `true`
+- The sidebar includes **Dark mode** (`&theme=dark`) and **Show guides**
+  (`&guides=1`, crop marks around the component's edges) toggles. The fixture's
+  root element is inside `#harness-root`; `window.__harnessReady` becomes `true`
   once it has rendered.
 - To look at a fixture as an agent, take a Playwright screenshot of the page
   (or of `#harness-root`) after waiting for `window.__harnessReady`.
@@ -724,9 +725,7 @@ export default {
 - If the component renders external links, intercept clicks in a wrapper in
   the fixture and `record` them instead of navigating away.
 - Fixture files must only be imported by the harness, never by shipped code.
-- See `ui/src/widgets/popup.fixture.ts` and
-  `ui/src/plugins/dev.perfetto.GoogleDrive/views/share_form.fixture.ts` for
-  examples.
+- See `ui/src/widgets/popup.fixture.ts` for an example.
 
 **Writing component tests:**
 Component tests are Playwright tests named `*.ctest.ts`, placed next to the
