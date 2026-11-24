@@ -689,7 +689,9 @@ static jboolean dev_perfetto_sdk_PerfettoTrackEventExtra_emit_with_formats(
   }
 
   const uint8_t* bytes = &kEmptyJavaEventByte;
-  std::array<uint8_t, kStackEventBytes> stack_bytes;
+  // Avoid zero-filling 1 KiB under -ftrivial-auto-var-init=zero because
+  // GetByteArrayRegion writes [0, size) and nothing reads past size.
+  PERFETTO_JNI_NO_AUTO_INIT std::array<uint8_t, kStackEventBytes> stack_bytes;
   std::vector<uint8_t>* large_bytes = nullptr;
 
   if (address) {

@@ -179,7 +179,9 @@ public final class PerfettoTrackEventBuilder {
       return NO_OP_BUILDER;
     }
     PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
-    for (int i = MAX_POOLED_BUILDERS - 1; i >= 0; i--) {
+    // releaseAfterEmit() returns builders to the first free slot, so slot 0
+    // holds the most recently used builder.
+    for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
       PerfettoTrackEventBuilder builder = pool[i];
       if (builder != null) {
         pool[i] = null;
@@ -240,6 +242,8 @@ public final class PerfettoTrackEventBuilder {
     }
   }
 
+  // Resets per-event state and returns this root builder to the thread pool.
+  // Only root builders reach here because emit() checks isEventBuilder().
   private void releaseAfterEmit() {
     if (buildsRawProtoEvent()) {
       mRawProto.release();
@@ -251,13 +255,11 @@ public final class PerfettoTrackEventBuilder {
     mTrack = null;
     mTrackPtr = 0;
     mEventName = null;
-    if (mParent == null) {
-      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
-      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
-        if (pool[i] == null) {
-          pool[i] = this;
-          break;
-        }
+    PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+    for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+      if (pool[i] == null) {
+        pool[i] = this;
+        break;
       }
     }
   }
@@ -328,13 +330,17 @@ public final class PerfettoTrackEventBuilder {
     }
   }
 
+  // False for the no-op builder of a disabled category.
+  boolean isEnabled() {
+    return mIsCategoryEnabled;
+  }
+
   /** Initialize the builder for a new trace event. */
   private PerfettoTrackEventBuilder initNewEvent(
       int traceType, Category category, boolean isDebug, int formats) {
     mIsBuilt = false;
     mParent = null;
-    mIsDebug = isDebug;
-    updateNativeMemoryCleanerForDebug(mIsDebug);
+    setDebug(isDebug);
     mTraceType = traceType;
     mCategory = category;
     mEventName = "";
@@ -380,17 +386,24 @@ public final class PerfettoTrackEventBuilder {
       FieldContainer fieldContainer, int scope, int nestedDepth) {
     mIsBuilt = false;
     mParent = parent;
-    mIsDebug = parent.mIsDebug;
-    updateNativeMemoryCleanerForDebug(mIsDebug);
-
-    readAllCacheFieldsFromParent(parent);
-
+    setDebug(parent.mIsDebug);
+    // Cache fields were copied from the root builder in the constructor and never change.
     mCurrentContainer = fieldContainer;
     mEventFormats = parent.mEventFormats;
     mRawProto = parent.mRawProto;
     mScope = scope;
     mNestedDepth = nestedDepth;
     return this;
+  }
+
+  // Updates the native memory cleaner only when the debug flag changes.
+  // Both new root builders (mIsDebug == false, non-debug cleaner) and new child
+  // builders (mIsDebug == false, parent's cleaner) converge on their first call.
+  private void setDebug(boolean isDebug) {
+    if (mIsDebug != isDebug) {
+      mIsDebug = isDebug;
+      updateNativeMemoryCleanerForDebug(isDebug);
+    }
   }
 
   private void updateNativeMemoryCleanerForDebug(boolean enableDebug) {
@@ -423,7 +436,9 @@ public final class PerfettoTrackEventBuilder {
 
   /** Sets the event name for the track event. */
   public PerfettoTrackEventBuilder setEventName(String eventName) {
-    if (mTraceType == PERFETTO_TE_TYPE_COUNTER || mTraceType == PERFETTO_TE_TYPE_SLICE_END) {
+    if (!mIsCategoryEnabled
+        || mTraceType == PERFETTO_TE_TYPE_COUNTER
+        || mTraceType == PERFETTO_TE_TYPE_SLICE_END) {
       return this;
     }
     mEventName = eventName;
@@ -989,7 +1004,7 @@ public final class PerfettoTrackEventBuilder {
     if (buildsRawProtoEvent()) {
       mRawProto.checkNestedDepth(0);
     }
-    return mParent;
+    return returnToParent();
   }
 
   /**
@@ -1028,7 +1043,15 @@ public final class PerfettoTrackEventBuilder {
     if (buildsRawProtoEvent()) {
       mRawProto.endNested(mNestedDepth);
     }
-    return mParent;
+    return returnToParent();
+  }
+
+  // Returns this child builder to its parent's cache so sibling messages
+  // (such as call stack frames) reuse one builder without allocating.
+  private PerfettoTrackEventBuilder returnToParent() {
+    PerfettoTrackEventBuilder parent = mParent;
+    mChildBuildersCache.release(this);
+    return parent;
   }
 
   // True if this event is being built in the EXTRAS format (native extras).
@@ -1146,6 +1169,13 @@ public final class PerfettoTrackEventBuilder {
         mValueArray[mIdx] = supplier.get();
       }
       return mValueArray[mIdx++];
+    }
+
+    // Returns `value` if it was the last object handed out by get().
+    public void release(T value) {
+      if (mIdx > 0 && mIdx <= mCapacity && mValueArray[mIdx - 1] == value) {
+        mIdx--;
+      }
     }
   }
 

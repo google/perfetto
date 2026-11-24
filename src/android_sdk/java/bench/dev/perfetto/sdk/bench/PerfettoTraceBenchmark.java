@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Host JVM microbenchmarks for the Java SDK event path.
@@ -371,7 +372,7 @@ public final class PerfettoTraceBenchmark {
     Arrays.sort(cpu);
     Arrays.sort(wall);
     return String.format(
-        "%.2f\t%.2f\t%.2f", cpu[reps / 2], wall[reps / 2], alloc / (events * reps));
+        Locale.ROOT, "%.2f\t%.2f\t%.2f", cpu[reps / 2], wall[reps / 2], alloc / (events * reps));
   }
 
   // Measure trace size separately, subtracting empty-session overhead.
@@ -433,7 +434,8 @@ public final class PerfettoTraceBenchmark {
     for (int i = 0; i < selected.size(); i++) {
       Scenario s = selected.get(i);
       System.out.println(
-          s.mName + "\t" + measure(s, reps, repMs) + "\t" + String.format("%.2f", traceBytes[i]));
+          s.mName + "\t" + measure(s, reps, repMs) + "\t"
+              + String.format(Locale.ROOT, "%.2f", traceBytes[i]));
     }
     session.close();
     System.exit(0);

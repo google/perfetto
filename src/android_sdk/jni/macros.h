@@ -16,8 +16,11 @@
 
 #ifndef SRC_ANDROID_SDK_JNI_MACROS_H_
 #define SRC_ANDROID_SDK_JNI_MACROS_H_
+
 #include <jni.h>
 #include <string_view>
+
+#include "perfetto/public/compiler.h"
 
 // JNI parameter shim for natives declared @CriticalNative on the Java
 // side. On Android device, ART recognises the annotation and calls the
@@ -70,6 +73,14 @@ static_assert(IsValidJavaPackage(TO_STRING(PERFETTO_JNI_JARJAR_PREFIX)));
   TO_STRING(PERFETTO_JNI_JARJAR_PREFIX) className
 #else
 #define TO_MAYBE_JAR_JAR_CLASS_NAME(className) className
+#endif
+
+// Opts a stack buffer out of -ftrivial-auto-var-init=zero when the caller
+// overwrites every byte it reads.
+#if PERFETTO_HAS_ATTRIBUTE(uninitialized)
+#define PERFETTO_JNI_NO_AUTO_INIT __attribute__((uninitialized))
+#else
+#define PERFETTO_JNI_NO_AUTO_INIT
 #endif
 
 #endif  // SRC_ANDROID_SDK_JNI_MACROS_H_
