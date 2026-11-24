@@ -23,13 +23,14 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/sink.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// An operator which buffers input before producing output. Pipeline drives it
-// exactly like any other operator: Execute() consumes batches, then Finish()
-// prepares the buffered data once and serves it over successive calls.
-class Breaker : public Operator {
+// Holds back every row of its input, then outputs rows made from them, such
+// as a sort or an aggregation: the sink of the pipeline it consumes, and
+// served by the source of the next (see Served).
+class Breaker : public Sink {
  public:
   struct State : OperatorState {
     State() = default;
@@ -37,32 +38,38 @@ class Breaker : public Operator {
 
     // What the columns served are filled in.
     Context* context = nullptr;
-
     Held<base::Status> status{this};
-    // Whether Finalize() has run.
-    RunValue<bool> filled{this, false};
   };
 
   ~Breaker() override;
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const final;
-  OpResult Execute(const RowBatch& in,
-                   RowBatch& out,
-                   OperatorState& state) const final;
-  OpResult Finish(RowBatch& out, OperatorState& state) const final;
-  base::Status status(const OperatorState& state) const final;
+  // As Source::InPlace(), for the batches Serve() outputs.
+  virtual const RowsInPlace* InPlace(const OperatorState&) const {
+    return nullptr;
+  }
+
+  // Sink.
+  std::unique_ptr<OperatorState> MakeSinkState(Context&) const final;
+  base::Status ConsumeBatch(const RowBatch& in,
+                            OperatorState& state) const final;
+  base::Status FinalizeSink(OperatorState& state) const final;
 
  protected:
   Breaker() = default;
 
+ private:
+  friend class Served;
+
   // Creates the state for the buffered data.
   virtual std::unique_ptr<State> CreateState() const = 0;
-  // The sink half. Each batch of the input goes into Consume(), then Finalize()
-  // runs once. Both return false on failure, having set the status.
+
+  // Each batch of the input goes into Consume(), then Finalize() runs once.
+  // Both return false on failure, having set the status.
   virtual bool Consume(const RowBatch& in, State& state) const = 0;
   virtual bool Finalize(State& state) const = 0;
-  // The source half: fills `out` from what was consumed, or returns false
-  // when nothing is left or on failure.
+
+  // Fills `out` from what was consumed, or returns false when nothing is
+  // left or on failure.
   virtual bool Serve(RowBatch& out, State& state) const = 0;
 };
 

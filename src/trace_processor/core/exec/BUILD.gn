@@ -83,6 +83,8 @@ source_set("exec") {
     "run_held.h",
     "selection.cc",
     "selection.h",
+    "sink.cc",
+    "sink.h",
     "sort.cc",
     "sort.h",
     "sorted_rows.cc",
@@ -197,6 +199,7 @@ if (enable_perfetto_benchmarks) {
     ]
     deps = [
       ":exec",
+      ":test_utils",
       "../../../../gn:benchmark",
       "../../../../gn:default_deps",
       "../../../base",

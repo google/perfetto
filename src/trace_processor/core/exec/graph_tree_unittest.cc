@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -133,18 +134,34 @@ class GraphTreeTest : public ::testing::Test {
         std::make_unique<ColumnsSource>(std::vector<Column>{std::move(seeds)});
   }
 
-  std::unique_ptr<GraphTree> Make(Kind kind) const {
+  // A tree streaming its inputs in, as lowering plans them, and the Context
+  // it runs in.
+  struct Planned {
+    std::unique_ptr<Pipelines> pipelines;
+    std::unique_ptr<Context> context;
+    std::unique_ptr<GraphTree> tree;
+
+    const GraphTree* operator->() const { return tree.get(); }
+    const GraphTree& operator*() const { return *tree; }
+  };
+
+  Planned Make(Kind kind) const {
+    Planned planned;
+    planned.pipelines = std::make_unique<Pipelines>();
     GraphTreeSpec spec;
     spec.kind = kind;
-    spec.nodes = nodes_.get();
+    spec.nodes = test::AddStream(*planned.pipelines, *nodes_);
     spec.node_column = 0;
     spec.retained_columns = {0, 1};
-    spec.edges = edges_.get();
+    spec.edges = test::AddStream(*planned.pipelines, *edges_);
     spec.source_column = 0;
     spec.target_column = 1;
-    spec.seeds = seeds_.get();
+    spec.seeds = test::AddStream(*planned.pipelines, *seeds_);
     spec.seed_column = 0;
-    return std::make_unique<GraphTree>(std::move(spec));
+    planned.context = std::make_unique<Context>();
+    planned.context->SetPipelines(planned.pipelines.get());
+    planned.tree = std::make_unique<GraphTree>(std::move(spec));
+    return planned;
   }
 
   static std::vector<Row> Drain(const GraphTree& tree,
@@ -176,7 +193,7 @@ class GraphTreeTest : public ::testing::Test {
 
   std::vector<Row> Run(Kind kind, base::Status* status = nullptr) const {
     auto tree = Make(kind);
-    auto state = tree->MakeState(test::TestContext());
+    auto state = tree->MakeState(*tree.context);
     return Drain(*tree, *state, status);
   }
 
@@ -242,7 +259,7 @@ TEST_F(GraphTreeTest, ManyBatchesAndRewind) {
   SetGraph(std::move(ids), std::move(payloads), std::move(sources),
            std::move(targets), {0});
   auto tree = Make(Kind::kDfs);
-  auto state = tree->MakeState(test::TestContext());
+  auto state = tree->MakeState(*tree.context);
   for (int run = 0; run < 2; ++run) {
     std::vector<Row> rows = Drain(*tree, *state);
     ASSERT_EQ(rows.size(), static_cast<size_t>(kNodes));

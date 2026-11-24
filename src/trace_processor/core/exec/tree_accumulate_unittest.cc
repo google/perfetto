@@ -167,38 +167,50 @@ Result Accumulate(const std::vector<int64_t>& parent,
                   bool already_ordered = false) {
   RowSource source(parent, value, chunk_rows, std::move(order));
   // Ids become node numbers before anything else sees them.
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  if (!already_ordered) {
-    if (up) {
-      ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-    } else {
-      ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
-    }
-  }
+  std::vector<Pipeline::Step> number;
+  number.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   TreeAccumulateSpec spec{3, 4, {Sum(2)}};
+  std::vector<Pipeline::Step> accumulate;
   if (up) {
-    ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
+    accumulate.push_back(std::make_unique<TreeAccumulateUp>(spec));
   } else {
-    ops.push_back(std::make_unique<TreeAccumulateDown>(spec));
+    accumulate.push_back(std::make_unique<TreeAccumulateDown>(spec));
   }
-  Pipeline pipeline(source, std::move(ops));
-
-  std::unique_ptr<OperatorState> state =
-      pipeline.MakeState(test::TestContext());
-  RowBatch batch;
   Result result;
   result.totals.assign(parent.size(), 0);
-  while (pipeline.GetData(batch, *state)) {
+  auto read = [&result](const RowBatch& batch) {
     ++result.batches;
     std::vector<int64_t> ids = test::ReadColumn<int64_t>(batch, 0);
     std::vector<int64_t> totals = test::ReadColumn<int64_t>(batch, 5);
     for (uint32_t row = 0; row < batch.size(); ++row) {
       result.totals[static_cast<size_t>(ids[row])] = totals[row];
     }
+  };
+  base::Status status;
+  if (up && !already_ordered) {
+    // Child first holds every row, so ends the pipeline numbering them.
+    test::AfterBreaker run(source, std::move(number),
+                           std::make_unique<TreeChildFirst>(3u, 4u),
+                           std::move(accumulate));
+    status = run.Drain(read);
+  } else {
+    std::vector<Pipeline::Step> ops = std::move(number);
+    if (!already_ordered) {
+      ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+    }
+    for (auto& step : accumulate) {
+      ops.push_back(std::move(step));
+    }
+    Pipeline pipeline(source, std::move(ops));
+    std::unique_ptr<OperatorState> state =
+        pipeline.MakeState(test::TestContext());
+    RowBatch batch;
+    while (pipeline.GetData(batch, *state)) {
+      read(batch);
+    }
+    status = pipeline.status(*state);
   }
-  EXPECT_TRUE(pipeline.status(*state).ok())
-      << pipeline.status(*state).message();
+  EXPECT_TRUE(status.ok()) << status.message();
   return result;
 }
 

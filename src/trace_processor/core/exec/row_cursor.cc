@@ -23,6 +23,12 @@ namespace perfetto::trace_processor::core::exec {
 RowCursor::RowCursor(const Source& source)
     : source_(source), state_(source.MakeState(context_)) {}
 
+RowCursor::RowCursor(const Source& source, const Pipelines& pipelines)
+    : source_(source) {
+  context_.SetPipelines(&pipelines);
+  state_ = source.MakeState(context_);
+}
+
 RowCursor::~RowCursor() = default;
 
 bool RowCursor::Pull() {

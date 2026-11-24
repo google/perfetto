@@ -116,6 +116,9 @@ void Pipeline::MakeStepStates(State& s) const {
       add(*s.operators[t], &s.held[seg]);
     }
   }
+  if (s.holds_any) {
+    s.AddHeld(&s, &Pipeline::EndStateRun);
+  }
 }
 
 void Pipeline::Rewind(OperatorState& state) const {
@@ -135,8 +138,11 @@ void Pipeline::Rewind(OperatorState& state) const {
 // segment, and that segment's transforms. Limits, combining, cancellation and
 // failure are NextSlow()'s.
 // Out of line, so GetData calls it rather than holding a copy.
-PERFETTO_NO_INLINE RowBatch* Pipeline::Next(RowBatch&,
-                                            OperatorState& state) const {
+RowBatch* Pipeline::Next(RowBatch&, OperatorState& state) const {
+  return Next(state);
+}
+
+PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
   auto& s = state.Cast<State>();
   uint8_t flags = s.flags;
   if (PERFETTO_UNLIKELY(flags & State::kNextSlow)) {
@@ -335,12 +341,19 @@ PERFETTO_NO_INLINE void Pipeline::SourceDone(State& s) const {
   EndUpTo(0, s);
 }
 
-PERFETTO_NO_INLINE void Pipeline::EndRunsUpTo(uint32_t segment,
-                                              State& s) const {
+PERFETTO_NO_INLINE void Pipeline::EndRunsUpTo(uint32_t segment, State& s) {
   for (uint32_t seg = s.ended_segments; seg <= segment; ++seg) {
     OperatorState::EndRuns(s.held[seg]);
   }
   s.ended_segments = segment + 1;
+}
+
+void Pipeline::EndStateRun(void* state) {
+  auto& s = *static_cast<State*>(state);
+  auto last = static_cast<uint32_t>(s.held.size() - 1);
+  if (s.ended_segments <= last) {
+    EndRunsUpTo(last, s);
+  }
 }
 
 void Pipeline::Fail(State& state, base::Status status) {
@@ -362,10 +375,13 @@ PERFETTO_NO_INLINE void Pipeline::TransformFailed(const State::Link& link,
 
 const RowsInPlace* Pipeline::InPlace(const OperatorState& state) const {
   const Segment& last = segments_[last_segment_];
-  if (!last.start_op || last.first != last.end) {
+  if (last.first != last.end) {
     return nullptr;
   }
   const auto& s = state.Cast<State>();
+  if (!last.start_op) {
+    return source_.InPlace(*s.source_state);
+  }
   return last.start_op->InPlace(
       *s.operators[static_cast<uint32_t>(last.start)]);
 }

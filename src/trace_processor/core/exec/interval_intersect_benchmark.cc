@@ -30,6 +30,8 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 
 // Intersecting two inputs of intervals keyed 64 ways, over 100K rows each, and
 // over four rows, as when a small input is run over and over.
@@ -82,9 +84,10 @@ class Intervals final : public Source {
   std::vector<int64_t> key_;
 };
 
-CollectedInputSpec Operand(const Intervals& source) {
+// Streams `source` in, as lowering plans an operand.
+CollectedInputSpec Operand(Pipelines& pipelines, const Intervals& source) {
   CollectedInputSpec operand;
-  operand.source = &source;
+  operand.pipeline = test::AddStream(pipelines, source);
   operand.lanes.ts_column = 0;
   operand.lanes.dur_column = 1;
   operand.lanes.key_columns = {2};
@@ -93,15 +96,17 @@ CollectedInputSpec Operand(const Intervals& source) {
 }
 
 void Run(benchmark::State& state, uint32_t rows) {
-  // Before every batch and state, which hold its buffers.
-  Context context;
   Intervals a(rows);
   Intervals b(rows);
-  IntervalIntersect intersect({Operand(a), Operand(b)});
+  Pipelines pipelines;
+  IntervalIntersect intersect({Operand(pipelines, a), Operand(pipelines, b)});
+  // Before every batch and state, which hold its buffers.
+  Context context;
+  context.SetPipelines(&pipelines);
   auto op_state = intersect.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
-    intersect.Rewind(*op_state);
+    Restart(intersect, *op_state);
     uint64_t regions = 0;
     while (intersect.GetData(out, *op_state)) {
       regions += out.size();

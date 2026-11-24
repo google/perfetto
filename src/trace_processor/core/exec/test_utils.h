@@ -27,12 +27,16 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec::test {
@@ -187,6 +191,122 @@ class FailingSource final : public Source {
     bool emitted = false;
   };
   int64_t values_[2] = {1, 2};
+};
+
+// Adds a pipeline streaming `input`, which must outlive `pipelines`, as a
+// plan adds a side pipeline, and returns its id.
+inline uint32_t AddStream(Pipelines& pipelines, const Source& input) {
+  return pipelines.Add(
+      nullptr, std::make_unique<Pipeline>(input, std::vector<Pipeline::Step>()),
+      nullptr);
+}
+
+// Serves copies of `batches`, which must outlive it, in order.
+class BatchesSource final : public Source {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  explicit BatchesSource(std::vector<const RowBatch*> batches)
+      : batches_(std::move(batches)) {}
+
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
+    return std::make_unique<State>();
+  }
+  void Rewind(OperatorState& state) const override {
+    state.Cast<State>().next = 0;
+  }
+  bool GetData(RowBatch& out, OperatorState& state) const override {
+    State& s = state.Cast<State>();
+    if (s.next == batches_.size()) {
+      return false;
+    }
+    out.CopyFrom(*batches_[s.next++]);
+    return true;
+  }
+
+ private:
+  struct State : OperatorState {
+    size_t next = 0;
+  };
+  std::vector<const RowBatch*> batches_;
+};
+
+// `breaker` run after `before` over `input`, and before `after`, as a plan
+// runs it: the pipeline of `before` ends in it, and the pipeline of `after`
+// starts with the source serving what it built. As pipitdb's after_breaker.
+class AfterBreaker {
+ public:
+  AfterBreaker(const Source& input,
+               std::vector<Pipeline::Step> before,
+               std::unique_ptr<Breaker> breaker,
+               std::vector<Pipeline::Step> after = {}) {
+    const Breaker& served = *breaker;
+    uint32_t id = pipelines_.Add(
+        nullptr, std::make_unique<Pipeline>(input, std::move(before)),
+        std::move(breaker));
+    served_ = std::make_unique<Served>(id, served);
+    pipeline_ = std::make_unique<Pipeline>(*served_, std::move(after));
+    context_.SetPipelines(&pipelines_);
+  }
+
+  const Pipeline& pipeline() const { return *pipeline_; }
+  const Pipelines& pipelines() const { return pipelines_; }
+  Context& context() { return context_; }
+
+  // Every batch it outputs, read by `read`, and how the run ended.
+  template <typename Read>
+  base::Status Drain(Read read) {
+    std::unique_ptr<OperatorState> state = pipeline_->MakeState(context_);
+    RowBatch batch;
+    while (pipeline_->GetData(batch, *state)) {
+      read(batch);
+    }
+    return pipeline_->status(*state);
+  }
+
+ private:
+  Pipelines pipelines_;
+  std::unique_ptr<Served> served_;
+  std::unique_ptr<Pipeline> pipeline_;
+  Context context_;
+};
+
+// Runs `breaker` over copies of `batches`, which must outlive it, each time
+// Run() is called, as a plan runs it. For benchmarks.
+class BreakerRun {
+ public:
+  BreakerRun(const std::vector<RowBatch>& batches,
+             std::unique_ptr<Breaker> breaker)
+      : source_(Pointers(batches)),
+        run_(source_, {}, std::move(breaker)),
+        state_(run_.pipeline().MakeState(run_.context())) {}
+
+  // How many rows it output.
+  uint64_t Run() {
+    const Pipeline& pipeline = run_.pipeline();
+    Restart(pipeline, *state_);
+    uint64_t rows = 0;
+    while (pipeline.GetData(out_, *state_)) {
+      rows += out_.size();
+    }
+    return rows;
+  }
+
+ private:
+  static std::vector<const RowBatch*> Pointers(
+      const std::vector<RowBatch>& batches) {
+    std::vector<const RowBatch*> out;
+    for (const RowBatch& batch : batches) {
+      out.push_back(&batch);
+    }
+    return out;
+  }
+
+  BatchesSource source_;
+  AfterBreaker run_;
+  std::unique_ptr<OperatorState> state_;
+  RowBatch out_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec::test

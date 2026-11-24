@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sort.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/top_k.h"
 
 // Runs Sort and GroupedSort on 16 full batches and on a single row. These
@@ -50,13 +51,11 @@ struct Column {
   const void* data;
 };
 
-// Runs `op` over `rows` rows of `columns`.
+// Runs `breaker` over `rows` rows of `columns`.
 void RunColumns(benchmark::State& state,
-                const Operator& op,
+                std::unique_ptr<Breaker> breaker,
                 uint32_t rows,
                 const std::vector<Column>& columns) {
-  // Before every batch and state, which hold its buffers.
-  Context context;
   std::vector<RowBatch> batches;
   for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
     uint32_t count = std::min(kMaxBatchRows, rows - at);
@@ -67,24 +66,17 @@ void RunColumns(benchmark::State& state,
     }
     batch.SetRowCount(count);
   }
-  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
-  RowBatch out;
+  test::BreakerRun run(batches, std::move(breaker));
   for (auto _ : state) {
-    for (const RowBatch& batch : batches) {
-      op.Execute(batch, out, *op_state);
-    }
-    while (op.Finish(out, *op_state) == OpResult::kHaveMoreOutput) {
-      benchmark::DoNotOptimize(out.size());
-    }
-    op_state->EndRun();
+    benchmark::DoNotOptimize(run.Run());
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }
 
-// Runs `op` over `rows` rows of `key_columns` Int64 keys with `distinct`
+// Runs `breaker` over `rows` rows of `key_columns` Int64 keys with `distinct`
 // values spread through them.
 void Run(benchmark::State& state,
-         const Operator& op,
+         std::unique_ptr<Breaker> breaker,
          uint32_t rows,
          uint32_t distinct,
          uint32_t key_columns = 1) {
@@ -93,7 +85,7 @@ void Run(benchmark::State& state,
     keys.push_back(int64_t{(i * 2654435761u) % distinct});
   }
   RunColumns(
-      state, op, rows,
+      state, std::move(breaker), rows,
       std::vector<Column>(key_columns, {StorageType{Int64{}}, keys.data()}));
 }
 
@@ -124,7 +116,7 @@ std::vector<int64_t> KeepKeys(int64_t input) {
 }
 
 // A TopK of `count` rows, or with 0, a Sort.
-std::unique_ptr<Operator> SortFirst(int64_t count, const StringPool* pool) {
+std::unique_ptr<Breaker> SortFirst(int64_t count, const StringPool* pool) {
   if (count == 0) {
     return std::make_unique<Sort>(SortSpec{{{0, false}}, pool});
   }
@@ -133,25 +125,23 @@ std::unique_ptr<Operator> SortFirst(int64_t count, const StringPool* pool) {
 }
 
 void BM_SortInt64(benchmark::State& state) {
-  Sort sort(SortSpec{{{0, false}}});
-  Run(state, sort, kRows, 1u << 30);
+  Run(state, std::make_unique<Sort>(SortSpec{{{0, false}}}), kRows, 1u << 30);
 }
 BENCHMARK(BM_SortInt64);
 
 void BM_SortInt64OneRow(benchmark::State& state) {
-  Sort sort(SortSpec{{{0, false}}});
-  Run(state, sort, 1, 1);
+  Run(state, std::make_unique<Sort>(SortSpec{{{0, false}}}), 1, 1);
 }
 BENCHMARK(BM_SortInt64OneRow);
 
 // Args: rows kept, with 0 for a full sort; the KeepInput; Int64 columns
 // carried beside the key.
 void BM_TopKInt64(benchmark::State& state) {
-  std::unique_ptr<Operator> op = SortFirst(state.range(0), nullptr);
+  std::unique_ptr<Breaker> op = SortFirst(state.range(0), nullptr);
   std::vector<int64_t> keys = KeepKeys(state.range(1));
   std::vector<Column> columns(1 + static_cast<size_t>(state.range(2)),
                               {StorageType{Int64{}}, keys.data()});
-  RunColumns(state, *op, kKeepRows, columns);
+  RunColumns(state, std::move(op), kKeepRows, columns);
 }
 BENCHMARK(BM_TopKInt64)
     ->ArgNames({"keep", "input", "payload"})
@@ -167,29 +157,29 @@ void BM_TopKString(benchmark::State& state) {
     keys.push_back(
         pool.InternString(base::StringView("key" + std::to_string(key))));
   }
-  std::unique_ptr<Operator> op = SortFirst(state.range(0), &pool);
-  RunColumns(state, *op, kKeepRows, {{StorageType{String{}}, keys.data()}});
+  std::unique_ptr<Breaker> op = SortFirst(state.range(0), &pool);
+  RunColumns(state, std::move(op), kKeepRows,
+             {{StorageType{String{}}, keys.data()}});
 }
 BENCHMARK(BM_TopKString)
     ->ArgNames({"keep", "input"})
     ->ArgsProduct({{0, 1, 100, 10000}, {kRandom, kDescending, kFewDistinct}});
 
 void BM_GroupByInt64(benchmark::State& state) {
-  GroupedSort group_by(GroupedSortSpec{{0}, {}});
-  Run(state, group_by, kRows, static_cast<uint32_t>(state.range(0)));
+  Run(state, std::make_unique<GroupedSort>(GroupedSortSpec{{0}, {}}), kRows,
+      static_cast<uint32_t>(state.range(0)));
 }
 BENCHMARK(BM_GroupByInt64)->Arg(16)->Arg(kRows);
 
 // Keys too long for std::string to hold inline.
 void BM_GroupByThreeKeys(benchmark::State& state) {
-  GroupedSort group_by(GroupedSortSpec{{0, 1, 2}, {}});
-  Run(state, group_by, kRows, kRows, 3);
+  Run(state, std::make_unique<GroupedSort>(GroupedSortSpec{{0, 1, 2}, {}}),
+      kRows, kRows, 3);
 }
 BENCHMARK(BM_GroupByThreeKeys);
 
 void BM_GroupByInt64OneRow(benchmark::State& state) {
-  GroupedSort group_by(GroupedSortSpec{{0}, {}});
-  Run(state, group_by, 1, 1);
+  Run(state, std::make_unique<GroupedSort>(GroupedSortSpec{{0}, {}}), 1, 1);
 }
 BENCHMARK(BM_GroupByInt64OneRow);
 

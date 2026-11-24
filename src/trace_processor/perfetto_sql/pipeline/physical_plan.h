@@ -21,17 +21,20 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
@@ -66,12 +69,10 @@ class PhysicalPlan {
   // The main pipeline. Its output is the plan's output.
   const core::exec::Pipeline& pipeline() const { return *pipeline_; }
 
-  // The side pipelines, in the order they were built. A side pipeline is
-  // built before any pipeline that reads it.
-  const std::vector<std::unique_ptr<core::exec::Pipeline>>& side_pipelines()
-      const {
-    return side_pipelines_;
-  }
+  // The plan's pipelines besides the main one: each pipeline a breaker ends,
+  // and each side pipeline (see core::exec::Pipelines). Run the plan with
+  // them (see core::exec::RowCursor).
+  const core::exec::Pipelines& pipelines() const { return pipelines_; }
 
   // The plan's constant params: the values its operators compare with,
   // cast when the plan was built from its literals. Passed to
@@ -93,9 +94,8 @@ class PhysicalPlan {
   };
 
   // Declared first so they are destroyed last: each input must outlive the
-  // pipelines that read it.
-  std::vector<std::unique_ptr<core::exec::Source>> side_inputs_;
-  std::vector<std::unique_ptr<core::exec::Pipeline>> side_pipelines_;
+  // pipelines that read it, and a sink the source which serves it.
+  core::exec::Pipelines pipelines_;
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
@@ -213,6 +213,13 @@ std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b);
 
 class PlanLowering;
 
+// A step of a pipeline being lowered. A breaker ends the pipeline it is in,
+// as the sink of the steps before it, and the steps after it read what it
+// built (see core::exec::Served).
+using LoweredStep = std::variant<std::unique_ptr<core::exec::Transform>,
+                                 std::unique_ptr<core::exec::Operator>,
+                                 std::unique_ptr<core::exec::Breaker>>;
+
 // Builds one pipeline. It is either the main pipeline or a side pipeline. A
 // side pipeline is an extra input that an operator reads, such as an
 // intersection operand. Side pipelines can have side pipelines of their own.
@@ -254,14 +261,17 @@ class Lowering {
   void SetSparseColumns(std::vector<uint32_t> columns);
 
   // Adds an operator.
-  void AddOperator(core::exec::Pipeline::Step);
+  void AddOperator(std::unique_ptr<core::exec::Transform>);
+  void AddOperator(std::unique_ptr<core::exec::Operator>);
+  void AddOperator(std::unique_ptr<core::exec::Breaker>);
 
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
 
-  // Finishes this side pipeline and returns the source an operator reads it
-  // from. Nothing can be added to the pipeline afterwards.
-  const core::exec::Source* FinishSide();
+  // Finishes this side pipeline and returns its id, which the step reading
+  // it streams it in by through the run's Context (see
+  // core::exec::PipelineUse). Nothing can be added to it afterwards.
+  uint32_t FinishSide();
 
   // Moves the value condition `condition` of `node` tests with into the plan,
   // if it has one, and returns its index into the run's params (see
@@ -319,10 +329,17 @@ class Lowering {
   void Apply(const input_step::CombineBatches&);
   void Apply(const input_step::Convert&);
 
-  // Builds the pipeline from the input and operators added so far. `outputs`
-  // are the columns read after the pipeline, or null if any may be.
-  std::unique_ptr<core::exec::Pipeline> Build(
-      const std::vector<uint32_t>* outputs);
+  // The last of the pipelines Build() cuts at each breaker, and the source it
+  // reads.
+  struct Built {
+    std::unique_ptr<core::exec::Source> input;
+    std::unique_ptr<core::exec::Pipeline> pipeline;
+  };
+
+  // Builds the pipeline from the input and operators added so far, ending
+  // the pipeline so far in each breaker as a sink of the plan. `outputs` are
+  // the columns read after the pipeline, or null if any may be.
+  Built Build(const std::vector<uint32_t>* outputs);
 
   // Borrowed for the duration of lowering.
   PlanLowering* plan_;
@@ -343,7 +360,7 @@ class Lowering {
   std::optional<uint32_t> source_columns_;
 
   // The pipeline's operators, in the order they run.
-  std::vector<core::exec::Pipeline::Step> operators_;
+  std::vector<LoweredStep> operators_;
   std::vector<uint32_t> sparse_columns_;
 };
 
@@ -356,7 +373,7 @@ class PlanLowering {
   ~PlanLowering();
 
   // The pipeline whose output is the plan's output.
-  Lowering& main() { return *pipelines_.front(); }
+  Lowering& main() { return *lowerings_.front(); }
 
   // Returns the finished plan, or the error that stopped lowering. Call once,
   // after lowering the root into main().
@@ -376,7 +393,7 @@ class PlanLowering {
   std::unique_ptr<PhysicalPlan> out_;
 
   // The main pipeline first, then every side pipeline.
-  std::vector<std::unique_ptr<Lowering>> pipelines_;
+  std::vector<std::unique_ptr<Lowering>> lowerings_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

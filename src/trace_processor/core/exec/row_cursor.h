@@ -32,6 +32,8 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+class Pipelines;
+
 // Reads one execution of a plan a row at a time.
 //
 // This is the executor: it creates the state and owns the batch and the
@@ -42,6 +44,10 @@ class RowCursor {
  public:
   explicit RowCursor(const Source& source);
   RowCursor(Source&&) = delete;
+
+  // As above, for a plan whose other pipelines, `pipelines`, `source` and
+  // its steps read (see Pipelines). Both must outlive the cursor.
+  RowCursor(const Source& source, const Pipelines& pipelines);
   ~RowCursor();
 
   // Rewinds and moves to the first row, the run's filters comparing with
