@@ -108,3 +108,49 @@ class NinjaParser(TestSuite):
           "Worker 1",0,100000000,"gen/foo.pb.h, gen/foo.pb.cc"
           "Worker 1",120000000,60000000,"obj/foo.o"
         """))
+
+  # A log that went through a Windows checkout or editor has CRLF line
+  # endings. The \r is not part of the header version nor of the command hash.
+  def test_ninja_log_crlf(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_crlf.ninja_log'),
+        query="""
+          select ts, dur, name from slice order by ts, name
+        """,
+        out=Csv("""
+          "ts","dur","name"
+          0,100000000,"obj/a.o"
+          0,120000000,"obj/b.o"
+          100000000,100000000,"obj/c.o"
+        """))
+
+  # Lines starting with # after the header are comments (e.g. the header of a
+  # second log concatenated to the first): they are skipped, not counted as
+  # lines that failed to parse.
+  def test_ninja_log_comment(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_comment.ninja_log'),
+        query="""
+          select
+            (select count(*) from slice) as slices,
+            (select value from stats where name = 'ninja_parse_errors')
+              as parse_errors
+        """,
+        out=Csv("""
+          "slices","parse_errors"
+          3,0
+        """))
+
+  # The last line of a log that does not end with \n is still a job.
+  def test_ninja_log_no_trailing_newline(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_no_trailing_newline.ninja_log'),
+        query="""
+          select ts, dur, name from slice order by ts, name
+        """,
+        out=Csv("""
+          "ts","dur","name"
+          0,100000000,"obj/a.o"
+          0,120000000,"obj/b.o"
+          100000000,100000000,"obj/c.o"
+        """))

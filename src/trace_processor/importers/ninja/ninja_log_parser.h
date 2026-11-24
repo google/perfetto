@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_NINJA_NINJA_LOG_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_NINJA_NINJA_LOG_PARSER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -72,6 +73,8 @@ class NinjaLogParser : public ChunkedTraceReader {
     // generating multiple outputs this contains the join of all output names.
     std::string names;
   };
+
+  base::Status ParseLines(size_t size);
 
   TraceProcessorContext* const ctx_;
   bool header_parsed_ = false;

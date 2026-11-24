@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -69,20 +70,42 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
   for (; valid_size > 0 && log_[valid_size - 1] != '\n'; --valid_size) {
   }
 
-  for (StringSplitter line(log_.data(), valid_size, '\n'); line.Next();) {
+  RETURN_IF_ERROR(ParseLines(valid_size));
+  log_.erase(log_.begin(), log_.begin() + static_cast<ssize_t>(valid_size));
+  return base::OkStatus();
+}
+
+// Parses the first |size| bytes of |log_|, which must end with a \n.
+base::Status NinjaLogParser::ParseLines(size_t size) {
+  for (StringSplitter line(log_.data(), size, '\n'); line.Next();) {
+    // A log that went through a Windows checkout or editor ends its lines
+    // with \r\n. The \r belongs to neither the header nor the command hash.
+    char* str = line.cur_token();
+    size_t len = line.cur_token_size();
+    if (len > 0 && str[len - 1] == '\r')
+      str[--len] = '\0';
+    if (len == 0)
+      continue;
+
     static const char kHeader[] = "# ninja log v";
     if (!header_parsed_) {
-      if (!base::StartsWith(line.cur_token(), kHeader))
+      if (!base::StartsWith(str, kHeader))
         return base::ErrStatus("Failed to parse ninja log header");
       header_parsed_ = true;
-      auto version = base::CStringToUInt32(line.cur_token() + strlen(kHeader));
+      auto version = base::CStringToUInt32(str + strlen(kHeader));
       if (!version || *version < kOldestSupportedVersion ||
           *version > kNewestSupportedVersion) {
         return base::ErrStatus("Unsupported ninja log version: %s",
-                               line.cur_token() + strlen(kHeader));
+                               str + strlen(kHeader));
       }
       continue;
     }
+
+    // No job line starts with #: the first field is a number. ninja itself
+    // only writes the header this way, but it shows up again when two logs
+    // are concatenated, and it is how people annotate a log by hand.
+    if (str[0] == '#')
+      continue;
 
     // Each line in the ninja log looks like this:
     // 4 12  1579224178  ui/assets/modal.scss  832a958a9e234dfa
@@ -153,13 +176,20 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
 
     jobs_.emplace_back(start_ms, end_ms, *cmdhash, name);
   }
-  log_.erase(log_.begin(), log_.begin() + static_cast<ssize_t>(valid_size));
   return base::OkStatus();
 }
 
 // This is called after the last Parse() call. At this point all |jobs_| have
 // been populated.
 base::Status NinjaLogParser::OnPushDataToSorter() {
+  // What is left in |log_| is the last line of a log that does not end with
+  // \n. It is a job like any other.
+  if (!log_.empty()) {
+    log_.push_back('\n');
+    RETURN_IF_ERROR(ParseLines(log_.size()));
+    log_.clear();
+  }
+
   // Phase 1: Sort jobs and write slices directly to storage
   SortByKey(jobs_.begin(), jobs_.end(),
             [](const Job& job) { return job.start_ms; });
