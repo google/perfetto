@@ -16255,6 +16255,8 @@ filegroup {
 android_library {
     name: "perfetto_src_android_sdk_java_test_perfetto_trace_test_lib",
     srcs: [
+        "src/android_sdk/java/test/dev/perfetto/sdk/PerfettoRawProtoEventTest.java",
+        "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoEventFormatTest.java",
         "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoTraceTest.java",
     ],
     manifest: "src/android_sdk/java/test/AndroidTestManifest.xml",
@@ -24332,8 +24334,10 @@ java_library {
 java_defaults {
     name: "perfetto_trace_lib_java_defaults",
     srcs: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/NonMovableByteArrays.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoRawProtoEvent.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
@@ -24358,8 +24362,10 @@ java_defaults {
 filegroup {
     name: "perfetto_trace_lib_libcore_java",
     srcs: [
+        "src/android_sdk/java/main/dev/perfetto/sdk/NonMovableByteArrays.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoRawProtoEvent.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
@@ -28050,11 +28056,11 @@ filegroup {
 
 // Host-only stubs for the small set of Android classes the perfetto Java
 // SDK references that are missing from Soong's host module_current
-// classpath (dalvik.annotation.optimization.{Critical,Fast}Native and
-// android.system.SystemCleaner; plus android.util.{ArraySet,Log} and
-// android.os.Process). Linked into the host variant of
-// perfetto_trace_lib_java_defaults as a libs: dep so the stubs are visible
-// to javac but not bundled into the jar; the Android variant continues
+// classpath (dalvik.annotation.optimization.{Critical,Fast}Native,
+// dalvik.system.VMRuntime and android.system.SystemCleaner; plus
+// android.util.{ArraySet,Log} and android.os.Process). Linked into the host
+// variant of perfetto_trace_lib_java_defaults as a libs: dep so the stubs are
+// visible to javac but not bundled into the jar; the Android variant continues
 // to use the real platform classes from module_current.
 java_library_host {
     name: "perfetto_trace_lib_host_stubs",
