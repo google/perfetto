@@ -33,10 +33,10 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/sort.h"
@@ -64,6 +64,15 @@ constexpr size_t kRecompactedBackwardsRatio = 4;
 // With fewer lines than this the rate above is noise: a handful of small
 // builds of different targets gives the same numbers.
 constexpr size_t kMinRecompactedLines = 16;
+
+// The tracks are not tied to a process or a thread: a worker is a lane we
+// make up to draw jobs that ran at the same time, not something ninja has.
+constexpr auto kWorkerBlueprint = tracks::SliceBlueprint(
+    "ninja_worker",
+    tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("worker")),
+    tracks::FnNameBlueprint([](uint32_t worker) {
+      return base::StackString<32>("Worker %u", worker);
+    }));
 }  // namespace
 
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
@@ -296,21 +305,10 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
       // Update the worker's end time with the newly assigned job.
       worker->busy_until = job.end_ms;
     } else {
-      static constexpr uint32_t kSyntheticNinjaPid = 1;
-
       // All workers are busy, allocate a new one.
-      uint32_t worker_id = static_cast<uint32_t>(workers.size()) + 1;
-      ctx_->process_tracker->UpdateProcessName(
-          ctx_->process_tracker->GetOrCreateProcess(kSyntheticNinjaPid),
-          ctx_->storage->InternString("Build"), ProcessNamePriority::kOther);
-      auto utid =
-          ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);
-
-      base::StackString<32> name("Worker %zu", workers.size() + 1);
-      StringId name_id = ctx_->storage->InternString(name.string_view());
-      ctx_->process_tracker->UpdateThreadName(utid, name_id,
-                                              ThreadNamePriority::kOther);
-      TrackId track_id = ctx_->track_tracker->InternThreadTrack(utid);
+      const auto worker_id = static_cast<uint32_t>(workers.size()) + 1;
+      TrackId track_id = ctx_->track_tracker->InternTrack(
+          kWorkerBlueprint, tracks::Dimensions(worker_id));
       workers.emplace_back(Worker{/*busy_until=*/job.end_ms, track_id});
       worker = &workers.back();
     }

@@ -23,13 +23,23 @@ from python.generators.diff_tests.testing import TestSuite
 # 1.12 and v7 since 1.13, neither of which changed the layout of a line, so
 # both must import to exactly the same slices as a v5 log would.
 _JOBS = '''
-  "build","worker","ts","dur","name"
-  "Build",1,582000000,13000000,"obj/gn/standalone/libc++/deps.stamp"
-  "Build",2,582000000,13000000,"obj/gn/standalone/sanitizers/deps.stamp"
-  "Build",3,582000000,20000000,"obj/include/perfetto/public/abi/base.stamp"
-  "Build",4,583000000,13000000,"obj/include/perfetto/public/protozero.stamp"
-  "Build",5,583000000,20000000,"obj/protos/perfetto/protovm/source_set.stamp"
-  "Build",6,588000000,16000000,"obj/protos/perfetto/config/ftrace/source_set.stamp"
+  "worker","ts","dur","name"
+  "Worker 1",582000000,13000000,"obj/gn/standalone/libc++/deps.stamp"
+  "Worker 2",582000000,13000000,"obj/gn/standalone/sanitizers/deps.stamp"
+  "Worker 3",582000000,20000000,"obj/include/perfetto/public/abi/base.stamp"
+  "Worker 4",583000000,13000000,"obj/include/perfetto/public/protozero.stamp"
+  "Worker 5",583000000,20000000,"obj/protos/perfetto/protovm/source_set.stamp"
+  "Worker 6",588000000,16000000,"obj/protos/perfetto/config/ftrace/source_set.stamp"
+'''
+
+# The jobs of the log, each with the name of the track it is drawn on. Those
+# tracks belong to no process or thread: the name is all the UI shows.
+_JOBS_QUERY = '''
+  select track.name as worker, slice.ts, slice.dur, slice.name
+  from slice
+  join track on slice.track_id = track.id
+  where track.type = 'ninja_worker'
+  order by slice.ts, slice.name
 '''
 
 
@@ -38,29 +48,13 @@ class NinjaParser(TestSuite):
   def test_ninja_log_v6(self):
     return DiffTestBlueprint(
         trace=Path('build_log_v6.ninja_log'),
-        query="""
-          select process.name as build, thread.tid as worker,
-                 slice.ts, slice.dur, slice.name
-          from slice
-          join thread_track on slice.track_id = thread_track.id
-          join thread using(utid)
-          join process using(upid)
-          order by slice.ts, slice.name
-        """,
+        query=_JOBS_QUERY,
         out=Csv(_JOBS))
 
   def test_ninja_log_v7(self):
     return DiffTestBlueprint(
         trace=Path('build_log_v7.ninja_log'),
-        query="""
-          select process.name as build, thread.tid as worker,
-                 slice.ts, slice.dur, slice.name
-          from slice
-          join thread_track on slice.track_id = thread_track.id
-          join thread using(utid)
-          join process using(upid)
-          order by slice.ts, slice.name
-        """,
+        query=_JOBS_QUERY,
         out=Csv(_JOBS))
 
   # A ninja log accumulates the logs of every invocation in that output
@@ -74,13 +68,7 @@ class NinjaParser(TestSuite):
   def test_ninja_log_two_builds(self):
     return DiffTestBlueprint(
         trace=Path('build_log_two_builds.ninja_log'),
-        query="""
-          select thread.name as worker, slice.ts, slice.dur, slice.name
-          from slice
-          join thread_track on slice.track_id = thread_track.id
-          join thread using(utid)
-          order by slice.ts, slice.name
-        """,
+        query=_JOBS_QUERY,
         out=Csv("""
           "worker","ts","dur","name"
           "Worker 1",0,100000000,"obj/a.o"
@@ -96,13 +84,7 @@ class NinjaParser(TestSuite):
   def test_ninja_log_multi_output(self):
     return DiffTestBlueprint(
         trace=Path('build_log_multi_output.ninja_log'),
-        query="""
-          select thread.name as worker, slice.ts, slice.dur, slice.name
-          from slice
-          join thread_track on slice.track_id = thread_track.id
-          join thread using(utid)
-          order by slice.ts, slice.name
-        """,
+        query=_JOBS_QUERY,
         out=Csv("""
           "worker","ts","dur","name"
           "Worker 1",0,100000000,"gen/foo.pb.h, gen/foo.pb.cc"
@@ -114,14 +96,12 @@ class NinjaParser(TestSuite):
   def test_ninja_log_crlf(self):
     return DiffTestBlueprint(
         trace=Path('build_log_crlf.ninja_log'),
-        query="""
-          select ts, dur, name from slice order by ts, name
-        """,
+        query=_JOBS_QUERY,
         out=Csv("""
-          "ts","dur","name"
-          0,100000000,"obj/a.o"
-          0,120000000,"obj/b.o"
-          100000000,100000000,"obj/c.o"
+          "worker","ts","dur","name"
+          "Worker 1",0,100000000,"obj/a.o"
+          "Worker 2",0,120000000,"obj/b.o"
+          "Worker 1",100000000,100000000,"obj/c.o"
         """))
 
   # Lines starting with # after the header are comments (e.g. the header of a
@@ -132,27 +112,27 @@ class NinjaParser(TestSuite):
         trace=Path('build_log_comment.ninja_log'),
         query="""
           select
+            (select count(*) from track where type = 'ninja_worker')
+              as workers,
             (select count(*) from slice) as slices,
             (select value from stats where name = 'ninja_parse_errors')
               as parse_errors
         """,
         out=Csv("""
-          "slices","parse_errors"
-          3,0
+          "workers","slices","parse_errors"
+          2,3,0
         """))
 
   # The last line of a log that does not end with \n is still a job.
   def test_ninja_log_no_trailing_newline(self):
     return DiffTestBlueprint(
         trace=Path('build_log_no_trailing_newline.ninja_log'),
-        query="""
-          select ts, dur, name from slice order by ts, name
-        """,
+        query=_JOBS_QUERY,
         out=Csv("""
-          "ts","dur","name"
-          0,100000000,"obj/a.o"
-          0,120000000,"obj/b.o"
-          100000000,100000000,"obj/c.o"
+          "worker","ts","dur","name"
+          "Worker 1",0,100000000,"obj/a.o"
+          "Worker 2",0,120000000,"obj/b.o"
+          "Worker 1",100000000,100000000,"obj/c.o"
         """))
 
   # When ninja recompacts a log it rewrites the last entry of every output in
@@ -169,6 +149,7 @@ class NinjaParser(TestSuite):
             (select value from stats
              where name = 'ninja_recompacted_entries_skipped') as skipped
           from slice
+          where track_id in (select id from track where type = 'ninja_worker')
           order by ts, name
         """,
         out=Csv("""
@@ -194,8 +175,26 @@ class NinjaParser(TestSuite):
             (select value from stats
              where name = 'ninja_recompacted_entries_skipped') as skipped
           from slice
+          where track_id in (select id from track where type = 'ninja_worker')
         """,
         out=Csv("""
           "slices","first_start","last_end","skipped"
           20,96000000,1774000000,0
+        """))
+
+  # The worker tracks are not threads of a made up process: the UI appends the
+  # tid to the name of a thread track, which showed them as "Worker 1 1".
+  def test_ninja_log_no_process_or_thread(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_v7.ninja_log'),
+        query="""
+          select
+            (select count(*) from track where type = 'ninja_worker')
+              as workers,
+            (select count(*) from thread_track) as thread_tracks,
+            (select count(*) from process where name = 'Build') as processes
+        """,
+        out=Csv("""
+          "workers","thread_tracks","processes"
+          6,0,0
         """))

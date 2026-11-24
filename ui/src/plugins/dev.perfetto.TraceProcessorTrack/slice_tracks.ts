@@ -376,4 +376,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     topLevelGroup: 'HARDWARE',
     group: 'Pixel Firmware',
   },
+  {
+    type: 'ninja_worker',
+    topLevelGroup: undefined,
+    group: undefined,
+  },
 ];

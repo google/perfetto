@@ -1017,10 +1017,12 @@ occasionally adding fields.
   `.ninja_log` files.
   - Each build step recorded in the `.ninja_log` is typically imported as a
     distinct slice into the `slice` table.
-  - To visualize these build steps on a timeline, Perfetto synthesizes
-    process and thread information: all build steps are grouped under a
-    single "Build" process, with "Worker" tracks inferred from overlapping
-    timestamps to represent concurrency.
+  - To visualize these build steps on a timeline, Perfetto infers the
+    concurrency of the build from overlapping timestamps and draws each
+    concurrent stream of build steps on a track of its own, named "Worker 1",
+    "Worker 2" and so on. These are tracks of type `ninja_worker` and belong to
+    no process or thread: a `.ninja_log` does not say which ninja job slot ran
+    a build step.
   - The timestamps (start and end times) are converted from milliseconds to
     nanoseconds for consistency within Perfetto.
   - Log format versions 5 to 7 are read. ninja bumped the version to v6 in
@@ -1029,7 +1031,7 @@ occasionally adding fields.
   - A `.ninja_log` accumulates the logs of every build run in that output
     directory, and each build restarts its timestamps from zero. Builds are
     laid one after the other on the timeline rather than on top of each other,
-    so the number of synthesized worker tracks stays close to the build's `-j`
+    so the number of worker tracks stays close to the build's `-j`
     level instead of growing with the number of builds in the log.
   - ninja recompacts the log from time to time (and on `ninja -t recompact`):
     it keeps only the last entry of each output and rewrites them in no

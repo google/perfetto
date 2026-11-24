@@ -1078,23 +1078,17 @@ TEST_F(TraceProcessorIntegrationTest, RestoreDependentTableFunction) {
 // log: same number of workers, same span, same total duration.
 TEST_F(TraceProcessorIntegrationTest, NinjaLog) {
   ASSERT_TRUE(LoadTrace("ninja_log", 1024).ok());
-  auto it = Query("select count(*) from process where name glob 'Build';");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 1);
 
   // The two builds in this log are laid one after the other rather than on
   // top of each other, so the workers of the first build are reused by the
   // second one instead of being doubled.
-  it = Query(
-      "select count(*) from thread left join process using(upid) where "
-      "thread.name like 'Worker%' and process.pid=1");
+  auto it = Query("select count(*) from track where type = 'ninja_worker'");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).long_value, 14);
 
   it = Query(
-      "create view build_slices as select slices.* from slices left "
-      "join thread_track on(slices.track_id == thread_track.id) left join "
-      "thread using(utid) left join process using(upid) where pid=1");
+      "create view build_slices as select slice.* from slice join track "
+      "on(slice.track_id == track.id) where track.type = 'ninja_worker'");
   it.Next();
   ASSERT_TRUE(it.Status().ok());
 

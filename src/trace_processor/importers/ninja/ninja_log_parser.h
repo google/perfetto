@@ -37,12 +37,12 @@ std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter();
 // This class parses Ninja's (the build system, ninja-build.org) build logs and
 // turns them into traces. A ninja log typically contains the logs of >1 ninja
 // invocation. We map those as follows:
-// - All invocations share one synthesized process, but their timestamps do not
-//   overlap: each invocation is shifted past the end of the previous one, so
-//   the trace reads as the build history of that output directory.
+// - The timestamps of the invocations do not overlap: each invocation is
+//   shifted past the end of the previous one, so the trace reads as the build
+//   history of that output directory.
 // - Within each invocation we work out the parallelism from the time stamp and
-//   create one thread for each concurrent stream of jobs. Threads are reused
-//   across invocations, so the number of tracks stays close to the -j level
+//   create one "Worker N" track for each concurrent stream of jobs. Tracks are
+//   reused across invocations, so their number stays close to the -j level
 //   rather than growing with the number of builds in the log.
 // Once ninja recompacts the log (on its own, or via ninja -t recompact) the
 // boundaries of the builds that were in it are gone: recompaction deletes, for
