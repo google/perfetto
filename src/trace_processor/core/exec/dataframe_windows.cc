@@ -91,12 +91,12 @@ void DataframeWindows::Init(
     bool sparse = IsSparse(nulls);
     const uint32_t* popcount = sparse ? PopcountOf(column) : nullptr;
     if (type.Is<Id>()) {
-      // A sparse Id column stores no values: each is its slot.
+      // An id column stores no values: each is its row, or for a sparse one
+      // its slot.
       lent_[i] = sparse
                      ? ColumnView::Sparse(StorageType{Uint32{}}, nullptr,
                                           &nulls.GetNullBitVector(), popcount)
-                     : ColumnView::Reference(type, nullptr,
-                                             nulls.MaybeGetNullBitVector());
+                     : ColumnView::Sequence(nulls.MaybeGetNullBitVector(), 0);
     } else if (type.Is<Uint32>()) {
       lent_[i] = Lend<uint32_t>(column, type, popcount);
     } else if (type.Is<Int32>()) {

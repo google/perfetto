@@ -62,7 +62,6 @@ void CopyIndexed(const ColumnView& view,
   uint8_t* dest = chunk.Values<uint8_t>() + uint64_t{offset} * kWidth;
   if constexpr (kWidth == sizeof(uint32_t)) {
     // A sequence column has no storage: each value is where it is stored.
-    // Only Id columns are sequences.
     if (view.kind() == ColumnView::Kind::kSequence) {
       for (uint32_t i = 0; i < count; ++i) {
         uint32_t value = index(i);
@@ -190,8 +189,7 @@ ColumnView ColumnChunk::View(const ColumnView& source, bool nullable) const {
   if (source.kind() == ColumnView::Kind::kVariant) {
     return ColumnView::Variants(Values<Variant>());
   }
-  auto type = source.type().Is<Id>() ? StorageType{Uint32{}} : source.type();
-  return ColumnView::Reference(type, storage.data(),
+  return ColumnView::Reference(source.type(), storage.data(),
                                nullable ? &validity : nullptr);
 }
 }  // namespace perfetto::trace_processor::core::exec

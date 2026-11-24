@@ -158,8 +158,6 @@ ParamCaster<Fetcher> GetParamCaster(StorageType type, const Op& op) {
                  (op.IsAnyOf<OnlyStringOp>() && type.Is<String>()));
   NonNullOp non_null = *op.TryDowncast<NonNullOp>();
   switch (type.index()) {
-    case StorageType::GetTypeIndex<Id>():
-      return {&internal::CastParamFor<Id, Fetcher>, non_null};
     case StorageType::GetTypeIndex<Uint32>():
       return {&internal::CastParamFor<Uint32, Fetcher>, non_null};
     case StorageType::GetTypeIndex<Int32>():
@@ -181,8 +179,6 @@ template <typename Fetcher>
 ParamCaster<Fetcher> GetParamListCaster(StorageType type) {
   NonNullOp eq = Eq{};
   switch (type.index()) {
-    case StorageType::GetTypeIndex<Id>():
-      return {&internal::CastParamListFor<Id, Fetcher>, eq};
     case StorageType::GetTypeIndex<Uint32>():
       return {&internal::CastParamListFor<Uint32, Fetcher>, eq};
     case StorageType::GetTypeIndex<Int32>():
