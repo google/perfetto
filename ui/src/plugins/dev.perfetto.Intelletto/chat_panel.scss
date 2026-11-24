@@ -23,12 +23,73 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 0.5rem 0.5rem 0;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--pf-color-border);
   }
 
-  &__conversation-select {
+  &__conversation-trigger {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+
+    .pf-button__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  &__conversation-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    overflow-y: auto;
+    min-width: 200px;
+  }
+
+  &__conversation-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 4px 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--pf-color-background-secondary);
+    }
+
+    &--active {
+      background-color: color-mix(
+        in srgb,
+        var(--pf-color-primary) 12%,
+        transparent
+      );
+    }
+  }
+
+  &__conversation-item-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__conversation-item-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__conversation-item-time {
+    font-size: 0.8em;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__conversation-delete {
+    flex-shrink: 0;
   }
 
   &__header {
@@ -38,10 +99,6 @@
     gap: 4px;
     padding: 0.5rem;
     border-bottom: 1px solid var(--pf-color-border);
-  }
-
-  &__header-spacer {
-    flex: 1;
   }
 
   &__model {
@@ -366,17 +423,6 @@
       opacity: 0.45;
       text-decoration: line-through;
     }
-  }
-
-  &__system-prompt {
-    margin: 0;
-    max-width: 70vw;
-    max-height: 60vh;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--pf-font-monospace);
-    font-size: 0.9em;
   }
 
   &__tokens {

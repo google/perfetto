@@ -21,12 +21,12 @@
 
 import markdownit from 'markdown-it';
 import m from 'mithril';
+import {classNames} from '../../base/classnames';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
-import {showModal} from '../../widgets/modal';
-import {PopupPosition} from '../../widgets/popup';
+import {Popup, PopupPosition} from '../../widgets/popup';
 import type {
   LlmGateway,
   ModelDetails,
@@ -113,6 +113,8 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   // the view pinned to the bottom but a user who has scrolled up to read is
   // left alone. Sampled before Mithril patches the DOM (onbeforeupdate).
   private stickToBottom = true;
+  // Whether the conversation picker popup is open.
+  private conversationsOpen = false;
 
   view({attrs}: m.CVnode<ChatPanelAttrs>): m.Children {
     const {session, selectedModelSetting, gateway} = attrs;
@@ -153,7 +155,11 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
         },
       },
       this.renderConversationPicker(attrs),
-      this.renderHeader(attrs, agenticModels),
+      agenticModels.length === 0 &&
+        m(
+          '.pf-intelletto__header',
+          m('span.pf-intelletto__no-model', 'No agentic model configured'),
+        ),
       m(
         '.pf-intelletto__conversation',
         {
@@ -287,57 +293,105 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
     );
   }
 
-  private renderHeader(
-    attrs: ChatPanelAttrs,
-    agenticModels: readonly ModelDetails[],
-  ): m.Children {
-    const {session, onNewSession} = attrs;
-
-    return m(
-      '.pf-intelletto__header',
-      agenticModels.length === 0
-        ? m('span.pf-intelletto__no-model', 'No agentic model configured')
-        : m('span.pf-intelletto__header-spacer'),
-      m(Button, {
-        icon: 'manage_search',
-        title: 'Show system prompt',
-        onclick: () => this.showSystemPrompt(session),
-      }),
-      m(Button, {
-        icon: 'add_comment',
-        title: 'New conversation',
-        onclick: () => onNewSession(),
-      }),
-    );
-  }
-
-  // The dropdown of past conversations, plus rename/delete buttons acting on
-  // the current one. The current conversation is always listed, even before it
-  // has been persisted (i.e. while still empty). Disabled while a turn is in
-  // flight so the stream isn't orphaned.
+  // The dropdown popup of past conversations (with inline delete buttons),
+  // plus rename and new-conversation buttons. The current conversation is
+  // always listed, even before it has been persisted (i.e. while still empty).
+  // Disabled while a turn is in flight so the stream isn't orphaned.
   private renderConversationPicker(attrs: ChatPanelAttrs): m.Children {
-    const {session, conversations, onSelectConversation, onDeleteConversation} =
-      attrs;
+    const {
+      session,
+      conversations,
+      onNewSession,
+      onSelectConversation,
+      onDeleteConversation,
+    } = attrs;
     const isStored = conversations.some((c) => c.id === session.id);
-    const options = isStored
-      ? conversations
-      : [{id: session.id, title: session.title}, ...conversations];
+    const options: ReadonlyArray<{
+      readonly id: string;
+      readonly title: string;
+      readonly updatedAt?: number;
+      readonly stored: boolean;
+    }> = [
+      ...(isStored
+        ? []
+        : [{id: session.id, title: session.title, stored: false}]),
+      ...conversations.map((c) => ({
+        id: c.id,
+        title: c.title,
+        updatedAt: c.updatedAt,
+        stored: true,
+      })),
+    ];
 
     return m(
       '.pf-intelletto__conversations',
       m(
-        Select,
+        Popup,
         {
-          class: 'pf-intelletto__conversation-select',
-          value: session.id,
-          disabled: session.loading,
-          onchange: (e: Event) => {
-            const id = (e.target as HTMLSelectElement).value;
-            if (id !== session.id) onSelectConversation(id);
+          position: PopupPosition.BottomStart,
+          showArrow: false,
+          matchWidth: true,
+          isOpen: this.conversationsOpen && !session.loading,
+          onChange: (open) => {
+            this.conversationsOpen = open;
           },
+          trigger: m(Button, {
+            className: 'pf-intelletto__conversation-trigger',
+            label: session.title,
+            rightIcon: 'arrow_drop_down',
+            shrink: true,
+            active: this.conversationsOpen && !session.loading,
+            disabled: session.loading,
+            onclick: () => {
+              this.conversationsOpen = !this.conversationsOpen;
+            },
+          }),
         },
-        options.map((c) =>
-          m('option', {key: c.id, value: c.id}, conversationLabel(c)),
+        m(
+          '.pf-intelletto__conversation-list',
+          options.map((c) =>
+            m(
+              '.pf-intelletto__conversation-item',
+              {
+                key: c.id,
+                className: classNames(
+                  c.id === session.id &&
+                    'pf-intelletto__conversation-item--active',
+                ),
+                onclick: () => {
+                  if (c.id !== session.id) onSelectConversation(c.id);
+                  this.conversationsOpen = false;
+                },
+              },
+              m(
+                '.pf-intelletto__conversation-item-body',
+                m('.pf-intelletto__conversation-item-title', c.title),
+                c.updatedAt !== undefined &&
+                  m(
+                    '.pf-intelletto__conversation-item-time',
+                    formatTimestamp(c.updatedAt),
+                  ),
+              ),
+              c.stored &&
+                m(Button, {
+                  className: 'pf-intelletto__conversation-delete',
+                  icon: 'delete',
+                  title: 'Delete conversation',
+                  onclick: (e: MouseEvent) => {
+                    e.stopPropagation();
+                    const ok = window.confirm(
+                      `Delete the conversation "${c.title}"? This can't be undone.`,
+                    );
+                    if (ok) {
+                      onDeleteConversation(c.id);
+                      if (c.id === session.id) {
+                        this.conversationsOpen = false;
+                      }
+                    }
+                  },
+                }),
+            ),
+          ),
         ),
       ),
       m(Button, {
@@ -350,14 +404,11 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
         },
       }),
       m(Button, {
-        icon: 'delete',
-        title: 'Delete conversation',
-        disabled: session.loading || !isStored,
+        icon: 'add_comment',
+        title: 'New conversation',
         onclick: () => {
-          const ok = window.confirm(
-            `Delete the conversation "${session.title}"? This can't be undone.`,
-          );
-          if (ok) onDeleteConversation(session.id);
+          this.conversationsOpen = false;
+          onNewSession();
         },
       }),
     );
@@ -450,16 +501,6 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
     );
   }
 
-  // Transparency hatch: show the exact system prompt the agent sends, in a
-  // modal. Like the context strip's expand-to-raw-payload, no hidden context.
-  private showSystemPrompt(session: ChatSession) {
-    showModal({
-      title: 'System prompt',
-      content: m('pre.pf-intelletto__system-prompt', session.systemPrompt),
-      buttons: [{text: 'Close', primary: true}],
-    });
-  }
-
   private renderQueuedFollowUps(session: ChatSession): m.Children {
     const queued = session.queuedFollowUps;
     if (queued.length === 0) return null;
@@ -543,18 +584,11 @@ function modelName(model: ModelDetails): string {
   return `${protocolName}/${shortModelName(model)}`;
 }
 
-// Dropdown label for a conversation: its title, plus when it was last updated
-// if it has been persisted.
-function conversationLabel(c: {
-  readonly title: string;
-  readonly updatedAt?: number;
-}): string {
-  if (c.updatedAt === undefined) return c.title;
-  const when = new Date(c.updatedAt).toLocaleString(undefined, {
+function formatTimestamp(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, {
     dateStyle: 'short',
     timeStyle: 'short',
   });
-  return `${c.title} (${when})`;
 }
 
 function prettyJson(value: unknown): string {
