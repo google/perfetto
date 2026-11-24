@@ -320,10 +320,11 @@ class SearchScansDiffTest : public ::testing::Test {
       ++sorted_scans_;
     }
     std::vector<Pipeline::Step> steps;
-    // The scan lends nullable columns sparse; lay them out before anything
-    // reads them, as lowering would.
+    // A scan lends nullable columns sparse, unless it copies the rows as an
+    // index scan does; lay them out before anything reads them, as lowering
+    // would.
     std::vector<uint32_t> sparse;
-    for (uint32_t i = 0; i < df_->column_names().size(); ++i) {
+    for (uint32_t i = 0; i < df_->column_names().size() && !index; ++i) {
       if (!df_->column(i).null_storage.nullability().Is<NonNull>()) {
         sparse.push_back(i);
       }

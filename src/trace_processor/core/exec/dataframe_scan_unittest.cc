@@ -23,13 +23,19 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/expand.h"
+#include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -193,6 +199,47 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(2u)));
+}
+
+// The rows an index finds are copied into one batch, however far apart they
+// are, with every column flat and its nulls kept.
+TEST_F(DataframeScanTest, IndexScanCopiesScatteredRowsIntoOneBatch) {
+  dataframe::AdhocDataframeBuilder builder({"k", "v"}, &pool_);
+  for (uint32_t i = 0; i <= 5000; ++i) {
+    EXPECT_TRUE(builder.PushNonNull(0, kBig + (i % 2500 == 0 ? 7 : 1)));
+    if (i == 2500) {
+      builder.PushNull(1);
+    } else {
+      EXPECT_TRUE(builder.PushNonNull(1, kBig + i));
+    }
+  }
+  auto built = std::move(builder).Build();
+  ASSERT_TRUE(built.ok()) << built.status().c_message();
+  uint32_t k = 0;
+  auto index = built->BuildIndex(&k, &k + 1);
+  ASSERT_TRUE(index.ok());
+  dataframe::Dataframe df = built->AddIndex(std::move(*index));
+  ASSERT_TRUE(df.column(1).null_storage.nullability().Is<SparseNull>() ||
+              df.column(1).null_storage.nullability().Is<DenseNull>());
+
+  IndexScan scan({df.shared_column(0), df.shared_column(1)}, df.indexes()[0],
+                 {{df.shared_column(0), 0}}, {}, &pool_);
+  Context context;
+  std::unique_ptr<OperatorState> state = scan.MakeState(context);
+  ParamValue param;
+  param.value = filter::CastFilterValueResult::Valid(kBig + 7);
+  context.SetParams(base::Span<const ParamValue>(&param, &param + 1));
+
+  RowBatch batch;
+  Restart(scan, *state);
+  ASSERT_TRUE(scan.GetData(batch, *state));
+  EXPECT_EQ(batch.column(1).kind(), ColumnView::Kind::kFlat);
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0),
+              ElementsAre(kBig + 7, kBig + 7, kBig + 7));
+  EXPECT_THAT(
+      test::ReadNullableColumn<int64_t>(batch, 1),
+      ElementsAre(Optional(kBig), Eq(std::nullopt), Optional(kBig + 5000)));
+  EXPECT_FALSE(scan.GetData(batch, *state));
 }
 
 // Expanding a batch at a time means finding where in the packed values the
