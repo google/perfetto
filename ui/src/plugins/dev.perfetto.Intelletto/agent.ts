@@ -71,10 +71,20 @@ export class Agent {
    */
   constructor(
     private readonly gateway: LlmGateway,
-    private readonly tools: ToolRegistry,
-    private readonly systemPrompt: string,
+    private readonly tools: ToolRegistry | (() => ToolRegistry),
+    private readonly systemPrompt: string | (() => string),
     private readonly eagerTools: boolean = true,
   ) {}
+
+  private getTools(): ToolRegistry {
+    return typeof this.tools === 'function' ? this.tools() : this.tools;
+  }
+
+  private getSystemPrompt(): string {
+    return typeof this.systemPrompt === 'function'
+      ? this.systemPrompt()
+      : this.systemPrompt;
+  }
 
   reset(): void {
     this.history = [];
@@ -112,7 +122,7 @@ export class Agent {
     // every tool up front; in lazy mode it starts empty and grows as the model
     // pulls tools in via more_tools.
     const loaded = new Set<string>(
-      this.eagerTools ? this.tools.list().map((t) => t.name) : [],
+      this.eagerTools ? this.getTools().list().map((t) => t.name) : [],
     );
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
@@ -132,7 +142,7 @@ export class Agent {
       for await (const evt of this.gateway.createStream(
         model,
         {
-          systemPrompt: this.systemPrompt,
+          systemPrompt: this.getSystemPrompt(),
           messages: this.history,
           tools: toolDefs,
         },
@@ -210,9 +220,10 @@ export class Agent {
     call: ToolCall,
     loaded: Set<string>,
   ): Promise<{result: string; isError: boolean}> {
+    const tools = this.getTools();
     try {
       if (call.name === 'list_tools') {
-        const list = this.tools.list().map((t) => ({
+        const list = tools.list().map((t) => ({
           name: t.name,
           description: firstLine(t.description),
         }));
@@ -222,15 +233,15 @@ export class Agent {
         const names = z
           .object({names: z.array(z.string())})
           .parse(call.args).names;
-        const unknown = names.filter((n) => this.tools.get(n) === undefined);
-        names.forEach((n) => this.tools.get(n) && loaded.add(n));
+        const unknown = names.filter((n) => tools.get(n) === undefined);
+        names.forEach((n) => tools.get(n) && loaded.add(n));
         const msg =
           unknown.length > 0
             ? `Loaded. Unknown (ignored): ${unknown.join(', ')}.`
             : 'Loaded. The requested tools are now available.';
         return {result: msg, isError: unknown.length > 0};
       }
-      const result = await this.tools.call(call.name, call.args);
+      const result = await tools.call(call.name, call.args);
       return {result, isError: false};
     } catch (e) {
       return {result: `Error: ${String(e)}`, isError: true};
@@ -267,7 +278,7 @@ export class Agent {
         },
       );
     }
-    for (const tool of this.tools.list()) {
+    for (const tool of this.getTools().list()) {
       if (loaded.has(tool.name)) {
         defs.push({
           name: tool.name,

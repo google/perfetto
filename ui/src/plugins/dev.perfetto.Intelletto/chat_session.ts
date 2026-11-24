@@ -41,10 +41,13 @@ export interface ChatLine {
  */
 export class ChatSession {
   /**
-   * The assembled system prompt in use for this conversation - kept so the
-   * "show system prompt" inspector displays exactly what the agent sends.
+   * The assembled system prompt currently in use for this conversation - kept
+   * live so the "show system prompt" inspector displays exactly what the agent
+   * sends, even if a trace is loaded or switched mid-conversation.
    */
-  readonly systemPrompt: string;
+  get systemPrompt(): string {
+    return assembleSystemPrompt(this.getContext());
+  }
 
   /** The conversation transcript, in display order. */
   lines: ChatLine[] = [];
@@ -72,21 +75,18 @@ export class ChatSession {
 
   /**
    * @param gateway - The LLM gateway used to drive the agent.
-   * @param tools - The registry of tools available to the agent.
-   * @param context - The registry supplying per-turn context items and, at
-   *     construction, the payload-format descriptions folded into the system
-   *     prompt.
+   * @param tools - The registry (or getter for the active registry) of tools
+   *     available to the agent.
+   * @param context - The registry (or getter for the active registry) supplying
+   *     per-turn context items and payload-format descriptions folded into the
+   *     system prompt.
    */
   constructor(
     gateway: LlmGateway,
-    tools: ToolRegistry,
-    private readonly context: ContextRegistry,
+    tools: ToolRegistry | (() => ToolRegistry),
+    private readonly context: ContextRegistry | (() => ContextRegistry),
   ) {
-    // The context providers' invariant payload-format descriptions are folded
-    // into the system prompt here, once per conversation - per-turn payloads
-    // stay data-only.
-    this.systemPrompt = assembleSystemPrompt(context);
-    this.agent = new Agent(gateway, tools, this.systemPrompt);
+    this.agent = new Agent(gateway, tools, () => this.systemPrompt);
     this.lines = [];
   }
 
@@ -127,6 +127,10 @@ export class ChatSession {
     this.lines.push({role: 'error', text: '(turn cancelled)'});
   }
 
+  private getContext(): ContextRegistry {
+    return typeof this.context === 'function' ? this.context() : this.context;
+  }
+
   private appendAi(text: string) {
     const last = this.lines[this.lines.length - 1];
     if (last?.role === 'ai') {
@@ -140,7 +144,7 @@ export class ChatSession {
     this.lines.push({role: 'user', text});
 
     // Fold in any non-excluded context as a preamble the model can see.
-    const context = this.context
+    const context = this.getContext()
       .buildContextItems()
       .filter((c) => !this.excludedContext.has(c.id));
     const prompt =

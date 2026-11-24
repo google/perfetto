@@ -31,7 +31,11 @@ import type {
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
 import {registerDataExplorerTools} from './data_explorer_tools';
-import {ContextRegistry, registerCoreContextProviders} from './context';
+import {
+  ContextRegistry,
+  registerAppContextProviders,
+  registerCoreContextProviders,
+} from './context';
 import {registerCoreTools} from './core_tools';
 import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
@@ -65,6 +69,30 @@ export default class IntellettoPlugin
   // dropdown. Survives page reloads and is shared across all traces.
   private static selectedModelSetting: Setting<ModelPath | undefined>;
 
+  // App-scoped active chat session, shared across traces so opening or
+  // switching traces keeps the panel and conversation alive.
+  private static session?: ChatSession;
+
+  // The IntellettoPlugin instance for the currently loaded trace, if any.
+  // Supplies trace-scoped tools and context providers.
+  private static activeInstance?: IntellettoPlugin;
+
+  // Fallback registries used when no trace is loaded.
+  private static readonly emptyTools = new ToolRegistry();
+  private static appContext = new ContextRegistry();
+
+  private static getActiveTools(): ToolRegistry {
+    return (
+      IntellettoPlugin.activeInstance?.tools ?? IntellettoPlugin.emptyTools
+    );
+  }
+
+  private static getActiveContext(): ContextRegistry {
+    return (
+      IntellettoPlugin.activeInstance?.context ?? IntellettoPlugin.appContext
+    );
+  }
+
   static onActivate(app: App): void {
     IntellettoPlugin.selectedModelSetting = app.settings.register({
       id: `${IntellettoPlugin.id}#SelectedModel`,
@@ -81,28 +109,77 @@ export default class IntellettoPlugin
       defaultValue: undefined,
       headless: true,
     });
+    IntellettoPlugin.appContext = new ContextRegistry();
+    registerAppContextProviders(IntellettoPlugin.appContext, app);
+
+    // App-scoped chat side panel so Intelletto stays available before a trace
+    // is loaded and persists across trace switches. Tools and context are
+    // resolved dynamically from the active trace's plugin instance.
+    app.sidePanel.registerTab({
+      uri: SIDE_PANEL_URI,
+      title: 'Intelletto',
+      icon: 'psychology',
+      render: () => {
+        const gateway = LlmPlugin.gateway;
+        const selectedModelSetting = IntellettoPlugin.selectedModelSetting;
+        const getTools = () => IntellettoPlugin.getActiveTools();
+        const getContext = () => IntellettoPlugin.getActiveContext();
+        IntellettoPlugin.session ??= new ChatSession(
+          gateway,
+          getTools,
+          getContext,
+        );
+        return m(ChatPanel, {
+          gateway,
+          session: IntellettoPlugin.session,
+          context: getContext(),
+          selectedModelSetting,
+          onNewSession: () => {
+            if (IntellettoPlugin.session?.loading) {
+              IntellettoPlugin.session.cancel();
+            }
+            IntellettoPlugin.session = undefined;
+          },
+        });
+      },
+    });
+
+    app.commands.registerCommand({
+      id: 'dev.perfetto.Intelletto#Open',
+      name: 'Intelletto: Open assistant',
+      callback: () => app.sidePanel.showTab(SIDE_PANEL_URI),
+      defaultHotkey: 'Mod+Shift+A',
+    });
   }
 
   // The shared tool registry for this trace. Core tools plus any contributed by
   // other plugins land here; the chat panel hands it to the agent.
   private readonly tools = new ToolRegistry();
 
-  // The shared context-provider registry for this trace. Core providers (page,
-  // selection) plus any contributed by other plugins; the chat panel samples it
-  // for the context strip and the prompt.
+  // The shared context-provider registry for this trace. Core providers (trace,
+  // page, viewport, selection) plus any contributed by other plugins; the chat
+  // panel samples it for the context strip and the prompt.
   private readonly context = new ContextRegistry();
-
-  // The conversation state for this trace. Owned here - not by the chat panel
-  // component - so the conversation survives the side panel being closed and
-  // reopened. Created lazily on first panel open, so context providers
-  // registered by dependent plugins are in by the time the system prompt is
-  // assembled.
-  private session?: ChatSession;
 
   constructor(private readonly trace: Trace) {
     registerCoreTools(this.tools, this.trace);
     registerTimelineTools(this.tools, this.trace);
     registerCoreContextProviders(this.context, this.trace);
+    if (
+      IntellettoPlugin.activeInstance !== undefined &&
+      IntellettoPlugin.session?.loading
+    ) {
+      IntellettoPlugin.session.cancel();
+    }
+    IntellettoPlugin.activeInstance = this;
+    trace.trash.defer(() => {
+      if (IntellettoPlugin.activeInstance === this) {
+        if (IntellettoPlugin.session?.loading) {
+          IntellettoPlugin.session.cancel();
+        }
+        IntellettoPlugin.activeInstance = undefined;
+      }
+    });
   }
 
   /**
@@ -121,41 +198,8 @@ export default class IntellettoPlugin
     this.context.registerContextProvider(provider);
   }
 
-  /** Register the chat side panel and the open-assistant command for a trace. */
+  /** Register trace-scoped tools (Data Explorer, WebMCP) for a loaded trace. */
   async onTraceLoad(trace: Trace): Promise<void> {
-    const gateway = LlmPlugin.gateway;
-
-    // One chat session per trace - the conversation is scoped to the open
-    // trace and kept in memory only (re-created on the next trace load). It
-    // reads the shared registries, so tools registered by other plugins
-    // (before or after the panel is first opened) are all visible to the
-    // agent.
-    trace.sidePanel.registerTab({
-      uri: SIDE_PANEL_URI,
-      title: 'Intelletto',
-      icon: 'psychology',
-      render: () => {
-        this.session ??= new ChatSession(gateway, this.tools, this.context);
-        return m(ChatPanel, {
-          gateway,
-          session: this.session,
-          context: this.context,
-          selectedModelSetting: IntellettoPlugin.selectedModelSetting,
-          onNewSession: () => {
-            this.session?.cancel();
-            this.session = undefined;
-          },
-        });
-      },
-    });
-
-    trace.commands.registerCommand({
-      id: 'dev.perfetto.Intelletto#Open',
-      name: 'Intelletto: Open assistant',
-      callback: () => trace.sidePanel.showTab(SIDE_PANEL_URI),
-      defaultHotkey: 'Mod+Shift+A',
-    });
-
     // Pull in the Data Explorer graph tools and selected-node context.
     registerDataExplorerTools(this.tools, this.context, trace);
 
