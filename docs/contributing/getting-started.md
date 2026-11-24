@@ -2,7 +2,7 @@
 
 ## Quickstart
 
-Follow those steps if you are new to contributing to Perfetto.
+Follow these steps if you are new to contributing to Perfetto.
 
 ### Setup
 
