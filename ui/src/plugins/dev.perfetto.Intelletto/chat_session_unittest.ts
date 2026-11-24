@@ -91,7 +91,6 @@ function setupSession(
     ],
   });
 
-  localStorage.clear();
   const store = new ConversationStore();
   const session = new ChatSession(
     gateway,

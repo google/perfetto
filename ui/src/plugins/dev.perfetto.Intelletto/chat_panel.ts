@@ -25,8 +25,7 @@ import {Icons} from '../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {PopupPosition} from '../../widgets/popup';
+import {Popup, PopupPosition} from '../../widgets/popup';
 import {Spinner} from '../../widgets/spinner';
 import type {ModelDetails, ModelPath} from '../dev.perfetto.Llm/gateway';
 import './chat_panel.scss';
@@ -39,6 +38,8 @@ import {PromptBox} from './prompt_box';
 export interface ConversationSummary {
   readonly id: string;
   readonly title: string;
+  readonly updatedAt?: number;
+  readonly stored?: boolean;
 }
 
 // Attrs for the ChatPanel component.
@@ -59,7 +60,7 @@ export interface ChatPanelAttrs {
   readonly onOpenConversation: (id: string) => void;
   readonly onNewConversation: () => void;
   readonly onRenameConversation?: (name: string) => void;
-  readonly onDeleteConversation?: () => void;
+  readonly onDeleteConversation?: (id: string) => void;
 
   // Pending message control
   readonly pendingMessages: readonly string[];
@@ -92,6 +93,8 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   // the view pinned to the bottom but a user who has scrolled up to read is
   // left alone. Sampled before Mithril patches the DOM (onbeforeupdate).
   private stickToBottom = true;
+  // Whether the conversation picker popup is open.
+  private conversationsOpen = false;
 
   view({attrs}: m.CVnode<ChatPanelAttrs>): m.Children {
     const lastNonSpacerIdx = findLastNonSpacerIndex(attrs.conversation);
@@ -221,37 +224,85 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
     const activeConversation = attrs.conversations.find(
       (c) => c.id === attrs.activeConversationId,
     );
+    if (attrs.isAgentRunning) {
+      this.conversationsOpen = false;
+    }
+    const popupOpen = this.conversationsOpen;
 
     return m(
       '.pf-intelletto__header',
-      attrs.conversations.length > 0 &&
-        m(
-          PopupMenu,
-          {
-            position: PopupPosition.BottomStart,
-            showArrow: false,
-            offset: 4,
-            trigger: m(Button, {
-              className: 'pf-intelletto__conversations',
-              icon: 'history',
-              label: activeConversation?.title ?? 'Conversations',
-              rightIcon: 'keyboard_arrow_down',
-              variant: ButtonVariant.Minimal,
-              disabled: attrs.isAgentRunning,
-              shrink: true,
-            }),
-          },
-          attrs.conversations.map((conv) => {
-            const isActive = conv.id === attrs.activeConversationId;
-            return m(MenuItem, {
-              label: conv.title,
-              rightIcon: isActive ? 'check' : undefined,
-              active: isActive,
-              onclick: () => attrs.onOpenConversation(conv.id),
-            });
-          }),
-        ),
-      m('span.pf-intelletto__header-spacer'),
+      attrs.conversations.length > 0
+        ? m(
+            Popup,
+            {
+              position: PopupPosition.BottomStart,
+              showArrow: false,
+              matchWidth: true,
+              isOpen: popupOpen,
+              onChange: (open) => {
+                this.conversationsOpen = open;
+              },
+              trigger: m(Button, {
+                className: 'pf-intelletto__conversation-trigger',
+                label: activeConversation?.title ?? 'Conversations',
+                rightIcon: 'arrow_drop_down',
+                shrink: true,
+                active: popupOpen,
+                disabled: attrs.isAgentRunning,
+                onclick: () => {
+                  this.conversationsOpen = !this.conversationsOpen;
+                },
+              }),
+            },
+            m(
+              '.pf-intelletto__conversation-list',
+              attrs.conversations.map((conv) => {
+                const isActive = conv.id === attrs.activeConversationId;
+                return m(
+                  '.pf-intelletto__conversation-item',
+                  {
+                    key: conv.id,
+                    className: classNames(
+                      isActive && 'pf-intelletto__conversation-item--active',
+                    ),
+                    onclick: () => {
+                      if (!isActive) attrs.onOpenConversation(conv.id);
+                      this.conversationsOpen = false;
+                    },
+                  },
+                  m(
+                    '.pf-intelletto__conversation-item-body',
+                    m('.pf-intelletto__conversation-item-title', conv.title),
+                    conv.updatedAt !== undefined &&
+                      m(
+                        '.pf-intelletto__conversation-item-time',
+                        formatTimestamp(conv.updatedAt),
+                      ),
+                  ),
+                  conv.stored === true &&
+                    attrs.onDeleteConversation !== undefined &&
+                    m(Button, {
+                      className: 'pf-intelletto__conversation-delete',
+                      icon: 'delete',
+                      title: 'Delete conversation',
+                      onclick: (e: MouseEvent) => {
+                        e.stopPropagation();
+                        const ok = window.confirm(
+                          `Delete the conversation "${conv.title}"? This can't be undone.`,
+                        );
+                        if (ok) {
+                          attrs.onDeleteConversation?.(conv.id);
+                          if (isActive) {
+                            this.conversationsOpen = false;
+                          }
+                        }
+                      },
+                    }),
+                );
+              }),
+            ),
+          )
+        : m('span.pf-intelletto__header-spacer'),
       m(Button, {
         icon: 'edit',
         title: 'Rename conversation',
@@ -266,22 +317,12 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
         },
       }),
       m(Button, {
-        icon: 'delete',
-        title: 'Delete conversation',
-        disabled:
-          attrs.isAgentRunning || attrs.onDeleteConversation === undefined,
-        onclick: () => {
-          const title = activeConversation?.title ?? 'this conversation';
-          const ok = window.confirm(
-            `Delete the conversation "${title}"? This can't be undone.`,
-          );
-          if (ok) attrs.onDeleteConversation?.();
-        },
-      }),
-      m(Button, {
         icon: 'add_comment',
         title: 'New conversation',
-        onclick: () => attrs.onNewConversation(),
+        onclick: () => {
+          this.conversationsOpen = false;
+          attrs.onNewConversation();
+        },
       }),
     );
   }
@@ -375,6 +416,13 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
       ),
     );
   }
+}
+
+function formatTimestamp(ms: number): string {
+  return new Date(ms).toLocaleString(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
 }
 
 function prettyJson(value: unknown): string {

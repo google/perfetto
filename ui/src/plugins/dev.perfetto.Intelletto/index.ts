@@ -184,10 +184,19 @@ export default class IntellettoPlugin
         const isStored =
           session !== undefined &&
           storedConversations.some((c) => c.id === session.id);
+        const storedSummaries = storedConversations.map((c) => ({
+          id: c.id,
+          title: c.title,
+          updatedAt: c.updatedAt,
+          stored: true,
+        }));
         const conversations =
           session !== undefined && !isStored
-            ? [{id: session.id, title: session.title}, ...storedConversations]
-            : storedConversations;
+            ? [
+                {id: session.id, title: session.title, stored: false},
+                ...storedSummaries,
+              ]
+            : storedSummaries;
         return m(ChatPanel, {
           isAgentRunning: session?.loading ?? false,
           isLoadingSkills: skills === undefined,
@@ -244,16 +253,16 @@ export default class IntellettoPlugin
             session !== undefined && isStored
               ? (name) => session.rename(name)
               : undefined,
-          onDeleteConversation:
-            session !== undefined && isStored
-              ? () => {
-                  store.delete(session.id);
-                  // Deleting the open conversation drops back to a fresh one.
-                  if (IntellettoPlugin.session?.id === session.id) {
-                    IntellettoPlugin.session = undefined;
-                  }
-                }
-              : undefined,
+          onDeleteConversation: (id) => {
+            store.delete(id);
+            // Deleting the open conversation drops back to a fresh one.
+            if (IntellettoPlugin.session?.id === id) {
+              if (IntellettoPlugin.session.loading) {
+                IntellettoPlugin.session.cancel();
+              }
+              IntellettoPlugin.session = undefined;
+            }
+          },
           pendingMessages: session?.queuedFollowUps ?? [],
           onDeletePendingMsg: (index) => session?.removeQueuedFollowUp(index),
           onSendPendingMsgNow: (index) => {
