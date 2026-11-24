@@ -28,6 +28,25 @@
 
 namespace perfetto::trace_processor::core {
 
+template <typename T>
+class FlexVector;
+
+namespace internal {
+
+// Alignment of every slab allocation. 64 bytes is the widest SIMD register
+// we target and the alignment Arrow recommends for its buffers, so a slab
+// and a buffer mapped out of an Arrow file are interchangeable.
+inline constexpr size_t kSlabAlignment = 64;
+
+// Allocations too small to hold a whole vector register cannot benefit from
+// the wider alignment, and paying for it on the many tiny slabs the parser
+// creates measurably costs memory.
+inline constexpr size_t SlabAlignment(uint64_t bytes, size_t align) {
+  return bytes >= kSlabAlignment ? kSlabAlignment : align;
+}
+
+}  // namespace internal
+
 // A memory-aligned contiguous block of trivially constructible and destructible
 // elements. Basically just a thin wrapper around a std::unique_ptr and a size
 // but with enforced alignment and additional compile-time checks.
@@ -62,22 +81,16 @@ class Slab {
   Slab(const Slab&) = delete;
   Slab& operator=(const Slab&) = delete;
 
-  // Alignment of every slab allocation. 64 bytes is the widest SIMD register
-  // we target and the alignment Arrow recommends for its buffers, so a slab
-  // and a buffer mapped out of an Arrow file are interchangeable.
-  static constexpr size_t kAlignment = 64;
+  static constexpr size_t kAlignment = internal::kSlabAlignment;
+  static_assert(alignof(T) <= kAlignment, "T is over-aligned for a Slab");
 
   // Allocates a new slab with the specified number of elements.
   //
   // size: Number of elements to allocate space for.
   // Returns a new Slab object with the requested capacity.
   static Slab<T> Alloc(uint64_t size) {
-    static_assert(alignof(T) <= kAlignment, "T is over-aligned for a Slab");
-    // Allocations too small to hold a whole vector register cannot benefit
-    // from the wider alignment, and paying for it on the many tiny slabs the
-    // parser creates measurably costs memory.
     uint64_t bytes = size * sizeof(T);
-    size_t alignment = bytes >= kAlignment ? kAlignment : alignof(T);
+    size_t alignment = internal::SlabAlignment(bytes, alignof(T));
     return Slab(static_cast<T*>(base::AlignedAlloc(alignment, bytes)), size);
   }
 
@@ -121,9 +134,22 @@ class Slab {
  private:
   template <typename U>
   friend class Slab;
+  friend class FlexVector<T>;
 
   // Constructor used by Alloc.
   Slab(T* data, uint64_t size) : data_(data), size_(size) {}
+
+  // Transfers ownership out to FlexVector::GrowTo before reallocation.
+  T* Release() {
+    size_ = 0;
+    return data_.release();
+  }
+
+  // Adopts `size` elements allocated with base::AlignedAlloc().
+  void Adopt(T* data, uint64_t size) {
+    data_.reset(data);
+    size_ = size;
+  }
 
   // Aligned unique pointer that holds the allocated memory.
   base::AlignedUniquePtr<T> data_;

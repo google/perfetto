@@ -2790,6 +2790,7 @@ perfetto_filegroup(
     name = "src_trace_processor_core_util_util",
     srcs = [
         "src/trace_processor/core/util/bit_vector.h",
+        "src/trace_processor/core/util/flex_vector.cc",
         "src/trace_processor/core/util/flex_vector.h",
         "src/trace_processor/core/util/heap.h",
         "src/trace_processor/core/util/interval_gaps.h",
