@@ -97,6 +97,16 @@ static jboolean dev_perfetto_sdk_PerfettoTraceCategory_is_enabled(
   return category->is_category_enabled();
 }
 
+static jint dev_perfetto_sdk_PerfettoTraceCategory_get_event_formats(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  auto* category = toPointer<sdk_for_jni::Category>(ptr);
+  if (!category->is_category_enabled()) {
+    return 0;
+  }
+  return static_cast<jint>(
+      PerfettoTeCategoryImplGetEventFormats(category->get()->impl));
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrace_start_session(
     JNIEnv* env,
     jclass /* obj */,
@@ -160,6 +170,8 @@ static const JNINativeMethod gCategoryMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTraceCategory_unregister},
     {"native_is_enabled", "(J)Z",
      (void*)dev_perfetto_sdk_PerfettoTraceCategory_is_enabled},
+    {"native_get_event_formats", "(J)I",
+     (void*)dev_perfetto_sdk_PerfettoTraceCategory_get_event_formats},
 };
 
 static const JNINativeMethod gTraceMethods[] = {
