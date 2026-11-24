@@ -1035,6 +1035,78 @@ describe('DriveClient.getPermissions', () => {
   });
 });
 
+describe('DriveClient.openSharingDialog', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  test('resolves when the injected share iframe is removed', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = document.createElement('div');
+              dialogEl.appendChild(document.createElement('iframe'));
+              document.body.appendChild(dialogEl);
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let settled = false;
+    const promise = client.openSharingDialog('token', 'file123').then((res) => {
+      settled = true;
+      return res;
+    });
+
+    // Wait a microtask for MutationObserver to observe the added iframe.
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    dialogEl!.remove();
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('resolves when the share dialog wrapper is hidden', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = document.createElement('div');
+              dialogEl.appendChild(document.createElement('iframe'));
+              document.body.appendChild(dialogEl);
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let settled = false;
+    const promise = client.openSharingDialog('token', 'file123').then((res) => {
+      settled = true;
+      return res;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    dialogEl!.setAttribute('aria-hidden', 'true');
+    expect(await promise).toEqual({ok: true});
+  });
+});
+
 describe('DriveClient.createPermission', () => {
   const fetchMock = vi.fn();
 
