@@ -147,6 +147,7 @@ export namespace TabStrip {
                 icon: Icons.ContextMenuAlt,
                 className: 'pf-tab-strip__tab-menu-btn',
                 disabled,
+                onpointerdown: (e: Event) => e.stopPropagation(),
               }),
               position: PopupPosition.Bottom,
             },
@@ -157,6 +158,7 @@ export namespace TabStrip {
             compact: true,
             icon: Icons.Close,
             disabled,
+            onpointerdown: (e: Event) => e.stopPropagation(),
             onclick: (e: Event) => {
               e.stopPropagation();
               onClose();
