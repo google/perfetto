@@ -1078,6 +1078,9 @@ PerfettoSqlConnection::LoadPipeline(
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(&plan, args, pool_));
   pipeline::LoweringContext context;
   context.pool = pool_;
+  // The pipeline module reads cells through ColumnResultFor, which reads
+  // sparse columns.
+  context.sparse_outputs = pipeline::LoweringContext::SparseOutputs::kLend;
   RETURN_IF_ERROR(pipeline::RunBoundPasses(&plan, context));
   return pipeline::Lower(&plan, context);
 }
