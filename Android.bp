@@ -18396,6 +18396,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_util_unittests",
     srcs: [
+        "src/trace_processor/core/util/arena_unittest.cc",
         "src/trace_processor/core/util/bit_vector_unittest.cc",
         "src/trace_processor/core/util/flex_vector_unittest.cc",
         "src/trace_processor/core/util/heap_unittest.cc",
@@ -18409,6 +18410,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_util_util",
     srcs: [
+        "src/trace_processor/core/util/arena.cc",
         "src/trace_processor/core/util/flex_vector.cc",
         "src/trace_processor/core/util/ops.cc",
         "src/trace_processor/core/util/row_layout_sort.cc",
