@@ -14,10 +14,8 @@
 
 import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
-import {AsyncLimiter} from '../../base/async_limiter';
 import {ensureExists} from '../../base/assert';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
-import {SharedAsyncDisposable} from '../../base/shared_disposable';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,
@@ -27,14 +25,13 @@ import {sliceDistributionCellRenderers} from '../../components/details/slice_det
 import {openDistributionTab} from '../../components/distribution_panel';
 import {
   metricsFromTableOrSubquery,
-  type TreeExplorerFetcherDependency,
-  type TreeExplorerQueryMetric,
+  TreeExplorerFetcher,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import type {MinimapRow} from '../../public/minimap';
 import type {PerfettoPlugin} from '../../public/plugin';
-import {type AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import type {Trace} from '../../public/trace';
+import {areaSelectionKey, type AreaSelection} from '../../public/selection';
+import type {Storage, Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getMachineCount, getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -63,7 +60,6 @@ import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {createTraceProcessorStateTrack} from './trace_processor_state_track';
 import type {TopLevelTrackGroup, TrackGroupSchema} from './types';
-import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {
   createPerfettoIndex,
@@ -71,8 +67,9 @@ import {
 } from '../../trace_processor/sql_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {CallstackDetailsSection} from './callstack_details_section';
+import {AsyncMemo, AtomicTaskQueue} from '../../base/async_memo';
 
-const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
+export const TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA = z.object({
   areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
 
@@ -81,8 +78,7 @@ type TraceProcessorTrackPluginState = z.infer<
 >;
 
 interface SliceFlamegraphData extends AsyncDisposable {
-  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
-  readonly dependencies: ReadonlyArray<TreeExplorerFetcherDependency>;
+  readonly fetcher: TreeExplorerFetcher;
 }
 
 function createDetailsPanel(trace: Trace, utid: number | null) {
@@ -106,24 +102,18 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
   ];
 
   private groups = new Map<string, TrackNode>();
-  private store?: Store<TraceProcessorTrackPluginState>;
-
-  private migrateTraceProcessorTrackPluginState(
-    init: unknown,
-  ): TraceProcessorTrackPluginState {
-    const result = TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    this.store = ctx.mountStore(TraceProcessorTrackPlugin.id, (init) =>
-      this.migrateTraceProcessorTrackPluginState(init),
-    );
+    const storage = ctx.registerStorage({
+      id: TraceProcessorTrackPlugin.id,
+      schema: TRACE_PROCESSOR_TRACK_PLUGIN_STATE_SCHEMA,
+      defaultValue: {},
+    });
 
     await this.addCounters(ctx);
     await this.addSlices(ctx);
     await this.addStates(ctx);
-    this.addAggregations(ctx);
+    this.addAggregations(ctx, storage);
     this.addMinimapContentProvider(ctx);
     this.addSearchProviders(ctx);
   }
@@ -645,7 +635,10 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     return newGroup;
   }
 
-  private addAggregations(ctx: Trace) {
+  private addAggregations(
+    ctx: Trace,
+    storage: Storage<TraceProcessorTrackPluginState>,
+  ) {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new CounterSelectionAggregator()),
     );
@@ -653,50 +646,46 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       createAggregationTab(ctx, new ThreadSliceAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
-      this.createSliceFlameGraphPanel(ctx),
+      this.createSliceFlameGraphPanel(ctx, storage),
     );
   }
 
-  private createSliceFlameGraphPanel(trace: Trace) {
-    let previousSelection: AreaSelection | undefined;
-    let computed: SliceFlamegraphData | undefined;
-    let isLoading = false;
-    const limiter = new AsyncLimiter();
+  private createSliceFlameGraphPanel(
+    trace: Trace,
+    storage: Storage<TraceProcessorTrackPluginState>,
+  ) {
+    const queue = new AtomicTaskQueue();
+    const memo = new AsyncMemo<SliceFlamegraphData | undefined>(queue);
 
     return {
       id: 'slice_flamegraph_selection',
       name: 'Slice Flamegraph',
       render: (selection: AreaSelection) => {
-        const selectionChanged =
-          previousSelection === undefined ||
-          !areaSelectionsEqual(previousSelection, selection);
-        previousSelection = selection;
-        if (selectionChanged) {
-          limiter.schedule(async () => {
-            const previousComputed = computed;
-            computed = undefined;
-            isLoading = true;
-            await previousComputed?.[Symbol.asyncDispose]();
-            computed = await this.computeSliceFlamegraph(trace, selection);
-            isLoading = false;
-          });
-        }
-        if (computed === undefined && !isLoading) {
+        const selectionKey = areaSelectionKey(selection);
+        const {isPending, data: computed} = memo.use({
+          key: {
+            selection: selectionKey,
+          },
+          compute: () =>
+            this.computeSliceFlamegraph(trace, queue, selection, storage),
+        });
+
+        // No data returned, return undefined to hide the tab.
+        if (computed === undefined && !isPending) {
           return undefined;
         }
-        const store = ensureExists(this.store);
         return {
-          isLoading,
+          isLoading: isPending,
           content:
             computed &&
             m(TreeExplorerPanel, {
-              trace,
-              metrics: computed.metrics,
-              dependencies: computed.dependencies,
-              state: store.state.areaSelectionFlamegraphState,
+              fetcher: computed.fetcher,
+              state: storage.get().areaSelectionFlamegraphState,
               onStateChange: (state) => {
-                store.edit((draft) => {
-                  draft.areaSelectionFlamegraphState = state;
+                const current = storage.get();
+                storage.set({
+                  ...current,
+                  areaSelectionFlamegraphState: state,
                 });
               },
             }),
@@ -707,7 +696,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private async computeSliceFlamegraph(
     trace: Trace,
+    queue: AtomicTaskQueue,
     currentSelection: AreaSelection,
+    storage: Storage<TraceProcessorTrackPluginState>,
   ): Promise<SliceFlamegraphData | undefined> {
     const trackIds = [];
     for (const trackInfo of currentSelection.tracks) {
@@ -727,7 +718,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       src: `
         select
           id,
-          dur,
+          iif(dur = -1, trace_end() - ts, dur) as dur,
           ts,
           parent_id,
           name
@@ -752,10 +743,27 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         currentSelection.end,
       ),
     );
-    // Will be automatically cleaned up when `iiTable` is dropped.
+    // Only keep slices reachable from a root so that every remaining slice's
+    // parent is also present.
+    const nodesTable = disposables.use(
+      await createPerfettoTable({
+        engine: trace.engine,
+        as: `
+          GRAPH DFS TREE
+            NODES ${iiTable.name}
+            EDGES (
+              SELECT parent_id AS src, id AS dst
+              FROM ${iiTable.name}
+            )
+            FROM (SELECT id FROM ${iiTable.name} WHERE parent_id IS NULL)
+          |> ORDER BY id
+        `,
+      }),
+    );
+    // Will be automatically cleaned up when `nodesTable` is dropped.
     await createPerfettoIndex({
       engine: trace.engine,
-      on: `${iiTable.name}(parent_id)`,
+      on: `${nodesTable.name}(parent_id)`,
     });
 
     // Reuse the flamegraph's source dataset and add a time-window filter so
@@ -775,11 +783,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         from _viz_slice_ancestor_agg!(
           (
             select s.id, s.dur
-            from ${iiTable.name} s
-            left join ${iiTable.name} t on t.parent_id = s.id
+            from ${nodesTable.name} s
+            left join ${nodesTable.name} t on t.parent_id = s.id
             where t.id is null
           ),
-          ${iiTable.name}
+          ${nodesTable.name}
         )
       )`,
       tableMetrics: [
@@ -828,19 +836,31 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       ],
       nameColumnLabel: 'Slice Name',
     });
-    const store = ensureExists(this.store);
-    store.edit((draft) => {
-      draft.areaSelectionFlamegraphState = updateTreeExplorerState(
-        draft.areaSelectionFlamegraphState,
+    const current = storage.get();
+    storage.set({
+      ...current,
+      areaSelectionFlamegraphState: updateTreeExplorerState(
+        current.areaSelectionFlamegraphState,
         metrics,
-      );
+      ),
     });
-    const dependency: TreeExplorerFetcherDependency =
-      SharedAsyncDisposable.wrap(disposables.move());
+    // The fetcher is created here, next to the metrics it serves, and moved
+    // into the returned object: it dies with this generation, so its virtual
+    // tables (which read from `nodesTable`) never outlive the tables themselves.
+    const fetcher = new TreeExplorerFetcher(trace, metrics, queue);
+    // Move the resources into the returned object: the implicit scope-exit
+    // dispose becomes a no-op on the happy path, and cleans up if anything
+    // above throws.
+    const owned = disposables.move();
     return {
-      metrics,
-      dependencies: [dependency],
-      [Symbol.asyncDispose]: () => dependency[Symbol.asyncDispose](),
+      fetcher,
+      [Symbol.asyncDispose]: async () => {
+        // Dispose the fetcher first: its virtual tables are built from the
+        // tables `owned` drops. Its disposal is queued, so it lands after any
+        // in-flight query against those tables.
+        fetcher[Symbol.dispose]();
+        await owned[Symbol.asyncDispose]();
+      },
     };
   }
 
@@ -853,12 +873,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
               SELECT
                 bucket,
                 upid,
-                IFNULL(SUM(utid_sum) / CAST(${resolution} AS FLOAT), 0) AS load
+                SUM(utid_load) AS load
               FROM thread
               INNER JOIN (
                 SELECT
                   IFNULL(CAST((ts - ${traceSpan.start}) / ${resolution} AS INT), 0) AS bucket,
-                  SUM(dur) AS utid_sum,
+                  -- Divide before summing to avoid overflowing duration totals.
+                  SUM(dur / CAST(${resolution} AS FLOAT)) AS utid_load,
                   utid
                 FROM slice
                 INNER JOIN thread_track ON slice.track_id = thread_track.id

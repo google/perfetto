@@ -101,6 +101,7 @@ void Allocator::DeleteReferencedData(Node::Message* message) {
 
 void Allocator::DeleteReferencedData(Node::Bytes* bytes) {
   DeallocateBytes(std::move(bytes->data), bytes->size);
+  bytes->size = 0;
 }
 
 void Allocator::DeallocateBytes(OwnedPtr<void> p, size_t size) {

@@ -459,7 +459,7 @@ Add a note for a given timestamp in trace clock with specific text.
   "id": "dev.perfetto.AddNoteAtTimestamp",
   "args": [
     "1771711048774386000",
-    "A specific event happened",
+    "A specific event happened"
   ]
 }
 ```
@@ -500,8 +500,7 @@ None (macro commands and arguments are pre-configured)
 - When used as startup commands, all commands within the macro must also be
   allowlisted
 - Macros can include any stable automation command from this reference
-- Failed commands within a macro are logged but don't stop execution of
-  remaining commands
+- A failed command within a macro stops execution of the remaining commands
 
 > **Note (Migration):** The macros format was changed from a dictionary to an
 > array structure. Existing macros were automatically migrated and use IDs in

@@ -38,16 +38,16 @@ class BlockingCallMetricHandler implements MetricHandler {
    */
   public match(metricKey: string): BlockingCallMetricData | undefined {
     const matcher =
-      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>([^\-]*))-(?<aggregation>.*)/;
+      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>.*)-(?<aggregation>(?:(?:total|max|min|avg|mean)_(?:dur|cnt)(?:_per_frame)?(?:_ms|_ns)?|cnt)(?:-[^-]+)?)$/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
     }
     const metricData: BlockingCallMetricData = {
-      process: expandProcessName(match.groups.process),
-      cujName: match.groups.cujName,
-      blockingCallName: match.groups.blockingCallName,
-      aggregation: match.groups.aggregation,
+      process: expandProcessName(match.groups.process!),
+      cujName: match.groups.cujName!,
+      blockingCallName: match.groups.blockingCallName!,
+      aggregation: match.groups.aggregation!,
     };
     return metricData;
   }
@@ -64,8 +64,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
     // Only trigger adding track for frame when the aggregation is for max duration per frame.
-    const MAX_DUR_PER_FRAME_NS_MEAN = 'max_dur_per_frame_ns-mean';
-    if (metricData.aggregation === MAX_DUR_PER_FRAME_NS_MEAN) {
+    if (metricData.aggregation.startsWith('max_dur_per_frame_')) {
       const frameConfigArgs = await this.frameWithMaxDurBlockingCallTrackConfig(
         ctx,
         metricData,
@@ -131,16 +130,18 @@ class BlockingCallMetricHandler implements MetricHandler {
     ctx: Trace,
     metricData: BlockingCallMetricData,
   ): Promise<QueryResult> {
-    // Fetch the frame_id of the frame with the max duration blocking call.
+    // Fetch the cuj_id and frame_id of the frame with the max duration blocking call.
     return ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 
       SELECT
+        cuj_id,
         frame_id
-      FROM _blocking_calls_frame_cuj
+      FROM android_cuj_frame_blocking_calls
       WHERE ${this.blockingCallWhereClause(metricData)}
-      -- select frame_id for the metric with the maximum duration.
-      ORDER BY dur DESC
+      -- Select frame_id for the frame with the maximum total duration.
+      GROUP BY cuj_id, frame_id
+      ORDER BY SUM(dur) DESC
       LIMIT 1`);
   }
   private async frameWithMaxDurBlockingCallTrackConfig(
@@ -162,16 +163,16 @@ class BlockingCallMetricHandler implements MetricHandler {
       );
       return undefined;
     }
-    const row = result.firstRow({frame_id: LONG});
+    const row = result.firstRow({cuj_id: LONG, frame_id: LONG});
 
     // Fetch the ts and dur for the extended frame boundary corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
       SELECT
         frame_id,
         ts,
-        (ts_end - ts) AS dur
-      FROM _extended_frame_boundary
-      WHERE frame_id = ${row.frame_id}
+        dur
+      FROM android_cuj_frame_boundaries
+      WHERE cuj_id = ${row.cuj_id} AND frame_id = ${row.frame_id}
       `;
 
     return {

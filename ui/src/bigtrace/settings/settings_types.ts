@@ -44,6 +44,11 @@ export interface SettingDescriptor<T> {
   // Groups the setting in the UI.
   readonly category?: string;
 
+  // Bounds the backend declared for a numeric setting, kept alongside the zod
+  // schema so callers can clamp a value they seed themselves.
+  readonly min?: number;
+  readonly max?: number;
+
   // If true, prompt the user to reload on change.
   readonly requiresReload?: boolean;
 

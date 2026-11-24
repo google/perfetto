@@ -22,14 +22,16 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- for an operation. For eg. a SFMissedCallback indicates that events related to surfaceflinger
 -- operations, such as vsync synchronization, transaction/presentation callbacks were not captured.
 -- This view captures all such missed callback slices.
-CREATE PERFETTO VIEW _marker_missed_callback AS
+CREATE PERFETTO TABLE _marker_missed_callback AS
 SELECT
   marker_track.name AS cuj_slice_name,
   marker.ts,
   marker.name AS marker_name
-FROM slice AS marker
+FROM (SELECT DISTINCT cuj_slice_name FROM _jank_cujs_slices) AS cuj
 JOIN track AS marker_track
-  ON marker_track.id = marker.track_id
+  ON marker_track.name = cuj.cuj_slice_name
+JOIN slice AS marker
+  ON marker.track_id = marker_track.id
 WHERE
   marker.name GLOB '*FT#Missed*';
 
@@ -57,25 +59,26 @@ ORDER BY
 LIMIT 1;
 
 -- Extract all counters for Jank CUJ tracks.
-CREATE PERFETTO VIEW _android_jank_cuj_counter AS
-WITH
-  cuj_counter_track AS (
-    SELECT DISTINCT
-      upid,
-      track.id AS track_id,
-      -- extract the CUJ name inside <>
-      str_split(str_split(track.name, '>#', 0), '<', 1) AS cuj_name,
-      -- take the name of the counter after #
-      str_split(track.name, '#', 1) AS counter_name
-    FROM process_counter_track AS track
-    JOIN android_jank_cuj USING (upid)
-    WHERE
-      track.name GLOB 'J<*>#*'
-  )
-SELECT ts, upid, cuj_name, counter_name, CAST(value AS INTEGER) AS value
+CREATE PERFETTO TABLE _android_jank_cuj_counter AS
+SELECT
+  ts,
+  upid,
+  -- extract the CUJ name inside <>
+  str_split(str_split(track.name, '>#', 0), '<', 1) AS cuj_name,
+  -- take the name of the counter after #
+  str_split(track.name, '#', 1) AS counter_name,
+  CAST(value AS INTEGER) AS value
 FROM counter
-JOIN cuj_counter_track
-  ON counter.track_id = cuj_counter_track.track_id;
+JOIN process_counter_track AS track
+  ON counter.track_id = track.id
+WHERE
+  counter.track_id IN (
+    SELECT id
+    FROM process_counter_track
+    WHERE
+      name GLOB 'J<*>#*'
+      AND upid IN (SELECT upid FROM android_jank_cuj)
+  );
 
 -- Returns the counter value for the given CUJ name and counter name.
 CREATE PERFETTO FUNCTION _android_jank_cuj_counter_value(

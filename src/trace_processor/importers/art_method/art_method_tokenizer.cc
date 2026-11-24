@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -80,20 +81,20 @@ std::string ConstructPathname(const std::string& class_name,
 
 uint64_t ToLong(const TraceBlobView& tbv) {
   uint64_t x = 0;
-  memcpy(base::AssumeLittleEndian(&x), tbv.data(), tbv.size());
-  return x;
+  memcpy(&x, tbv.data(), tbv.size());
+  return base::LEToHost(x);
 }
 
 uint32_t ToInt(const TraceBlobView& tbv) {
   uint32_t x = 0;
-  memcpy(base::AssumeLittleEndian(&x), tbv.data(), tbv.size());
-  return x;
+  memcpy(&x, tbv.data(), tbv.size());
+  return base::LEToHost(x);
 }
 
 uint16_t ToShort(const TraceBlobView& tbv) {
   uint16_t x = 0;
-  memcpy(base::AssumeLittleEndian(&x), tbv.data(), tbv.size());
-  return x;
+  memcpy(&x, tbv.data(), tbv.size());
+  return base::LEToHost(x);
 }
 
 }  // namespace
@@ -213,6 +214,11 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
   }
 
   uint32_t methodid_action = ToInt(record.slice_off(0, 4));
+  if (clock_ == kDual && record.size() < 12) {
+    return base::ErrStatus(
+        "ART method trace: dual-clock record too small (%zu bytes, need 12)",
+        record.size());
+  }
   uint32_t ts_delta = clock_ == kDual ? ToInt(record.slice_off(8, 4))
                                       : ToInt(record.slice_off(4, 4));
 
@@ -671,21 +677,21 @@ class ArtMethodImporter : public TraceImporter<ArtMethodImporter> {
   ArtMethodImporter() : TraceImporter(MakeDescriptor()) {}
   ~ArtMethodImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'S', 'L', 'O', 'W'};
     if (size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0) {
       if (size >= 6) {
         uint16_t version = data[4] | static_cast<uint16_t>(data[5] << 8);
         if (version == 0x0004 || version == 0x0005 || version == 0x00f4 ||
             version == 0x00f5) {
-          return false;  // Streaming v2, handled by ArtMethodV2Importer.
+          return {false};  // Streaming v2, handled by ArtMethodV2Importer.
         }
       }
-      return true;
+      return {true};
     }
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
-    return base::StartsWith(start, "*version\n");
+    return {base::StartsWith(start, "*version\n")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

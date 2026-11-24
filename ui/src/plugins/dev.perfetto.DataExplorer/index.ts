@@ -15,8 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
-import type {Trace} from '../../public/trace';
-import type {Store} from '../../base/store';
+import type {Storage, Trace} from '../../public/trace';
 import {shortUuid} from '../../base/uuid';
 import {getErrorMessage} from '../../base/errors';
 import {debounce} from '../../base/rate_limiters';
@@ -48,40 +47,17 @@ import {
   createEmptyState,
   serializeAllDashboards,
   deserializeDashboardsForTab,
+  DATA_EXPLORER_PERSISTED_STATE_SCHEMA,
+  STORE_VERSION,
 } from './data_explorer_tabs_storage';
 import {dashboardRegistry} from './dashboard/dashboard_registry';
 import type {DashboardTabState} from './data_explorer';
 import type {
+  DataExplorerPersistedState,
   PersistedDataExplorerTabData,
   PersistedDashboardData,
 } from './data_explorer_tabs_storage';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-
-// --- Permalink persistence ---
-
-const STORE_VERSION = 2;
-
-interface DataExplorerPersistedState {
-  version: number;
-  // Multi-tab format (version 2+)
-  tabs?: PersistedDataExplorerTabData[];
-  activeTabId?: string;
-  // Flat list of dashboards, each referencing its parent graph tab.
-  dashboards?: PersistedDashboardData[];
-  // Old single-graph format (version 1) - kept for backward compat
-  graphJson?: string;
-}
-
-function isValidPersistedState(
-  init: unknown,
-): init is DataExplorerPersistedState {
-  if (typeof init !== 'object' || init === null || !('version' in init)) {
-    return false;
-  }
-  const version = (init as {version: unknown}).version;
-  // Accept both v1 (old single-graph) and v2 (multi-tab)
-  return version === 1 || version === STORE_VERSION;
-}
 
 // --- Plugin ---
 
@@ -96,8 +72,8 @@ export default class implements PerfettoPlugin {
   // Track whether we've successfully loaded state from local storage
   private hasAttemptedStateLoad = false;
 
-  // Store for persisting state in permalinks
-  private permalinkStore?: Store<DataExplorerPersistedState>;
+  // Storage for persisting state in permalinks
+  private permalinkStorage?: Storage<DataExplorerPersistedState>;
 
   // Debounced saves to avoid expensive serialization on every state change
   private debouncedSave = debounce(() => {
@@ -169,7 +145,7 @@ export default class implements PerfettoPlugin {
     // If we closed the active tab, switch to an adjacent one
     if (this.activeTabId === tabId) {
       const newIndex = Math.min(index, this.tabs.length - 1);
-      this.activeTabId = this.tabs[newIndex].id;
+      this.activeTabId = this.tabs[newIndex]!.id;
     }
 
     this.debouncedSave();
@@ -206,13 +182,13 @@ export default class implements PerfettoPlugin {
     const [draggedTab] = this.tabs.splice(draggedIndex, 1);
 
     if (beforeTabId === undefined) {
-      this.tabs.push(draggedTab);
+      this.tabs.push(draggedTab!);
     } else {
       const beforeIndex = this.tabs.findIndex((t) => t.id === beforeTabId);
       if (beforeIndex === -1) {
-        this.tabs.push(draggedTab);
+        this.tabs.push(draggedTab!);
       } else {
-        this.tabs.splice(beforeIndex, 0, draggedTab);
+        this.tabs.splice(beforeIndex, 0, draggedTab!);
       }
     }
 
@@ -284,21 +260,17 @@ export default class implements PerfettoPlugin {
   // --- Permalink store ---
 
   private mountPermalinkStore(trace: Trace): void {
-    if (this.permalinkStore) return;
+    if (this.permalinkStorage) return;
 
-    this.permalinkStore = trace.mountStore<DataExplorerPersistedState>(
-      'dev.perfetto.DataExplorer',
-      (init: unknown) => {
-        if (isValidPersistedState(init)) {
-          return init;
-        }
-        return {version: STORE_VERSION};
-      },
-    );
+    this.permalinkStorage = trace.registerStorage({
+      id: 'dev.perfetto.DataExplorer',
+      schema: DATA_EXPLORER_PERSISTED_STATE_SCHEMA,
+      defaultValue: {version: STORE_VERSION},
+    });
   }
 
   private saveToPermalinkStore(): void {
-    if (!this.permalinkStore) return;
+    if (!this.permalinkStorage) return;
 
     const hasDashboardContent = (tab: DataExplorerTab): boolean =>
       tab.dashboards.some((db) => db.items.length > 0);
@@ -316,13 +288,11 @@ export default class implements PerfettoPlugin {
             : undefined,
       }));
 
-    this.permalinkStore.edit((draft) => {
-      draft.version = STORE_VERSION;
-      draft.tabs = tabsData.length > 0 ? tabsData : undefined;
-      draft.activeTabId = this.activeTabId;
-      draft.dashboards = serializeAllDashboards(this.tabs);
-      // Clear deprecated single-graph field
-      draft.graphJson = undefined;
+    this.permalinkStorage.set({
+      version: STORE_VERSION,
+      tabs: tabsData.length > 0 ? tabsData : undefined,
+      activeTabId: this.activeTabId,
+      dashboards: serializeAllDashboards(this.tabs),
     });
   }
 
@@ -391,7 +361,7 @@ export default class implements PerfettoPlugin {
 
   private loadStateFromSources(trace: Trace, sqlModules: SqlModules): void {
     // Priority 1: Check permalink store
-    const permalinkState = this.permalinkStore?.state;
+    const permalinkState = this.permalinkStorage?.get();
     if (permalinkState) {
       // Try multi-tab format first (version 2+)
       if (permalinkState.tabs !== undefined && permalinkState.tabs.length > 0) {
@@ -406,7 +376,7 @@ export default class implements PerfettoPlugin {
             permalinkState.activeTabId !== undefined &&
             this.tabs.some((t) => t.id === permalinkState.activeTabId)
               ? permalinkState.activeTabId
-              : this.tabs[0].id;
+              : this.tabs[0]!.id;
           return;
         } catch (e) {
           const msg = getErrorMessage(e);
@@ -457,7 +427,7 @@ export default class implements PerfettoPlugin {
           (t) => t.id === persistedTabs.activeTabId,
         )
           ? persistedTabs.activeTabId
-          : this.tabs[0].id;
+          : this.tabs[0]!.id;
         return;
       } catch (e) {
         console.debug(

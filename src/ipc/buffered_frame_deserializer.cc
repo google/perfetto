@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -55,8 +56,7 @@ BufferedFrameDeserializer::BeginReceive() {
 
     // Surely we are going to use at least the first page, but we may not need
     // the rest for a bit.
-    const auto page_size = base::GetSysPageSize();
-    buf_.AdviseDontNeed(buf() + page_size, capacity_ - page_size);
+    buf_.AdviseDontNeedAfter(base::GetSysPageSize());
   }
 
   PERFETTO_CHECK(capacity_ > size_);
@@ -94,9 +94,8 @@ bool BufferedFrameDeserializer::EndReceive(size_t recv_size) {
       break;  // Case A, not enough data to read even the header.
 
     // Read the header into |payload_size|.
-    uint32_t payload_size = 0;
     const char* rd_ptr = buf() + consumed_size;
-    memcpy(base::AssumeLittleEndian(&payload_size), rd_ptr, kHeaderSize);
+    uint32_t payload_size = base::LoadLE<uint32_t>(rd_ptr);
 
     // Saturate the |payload_size| to prevent overflows. The > capacity_ check
     // below will abort the parsing.
@@ -143,11 +142,8 @@ bool BufferedFrameDeserializer::EndReceive(size_t recv_size) {
     if (consumed_size > page_size) {
       size_t size_rounded_up = (size_ / page_size + 1) * page_size;
       if (size_rounded_up < capacity_) {
-        char* madvise_begin = buf() + size_rounded_up;
-        const size_t madvise_size = capacity_ - size_rounded_up;
-        PERFETTO_CHECK(madvise_begin > buf() + size_);
-        PERFETTO_CHECK(madvise_begin + madvise_size <= buf() + capacity_);
-        buf_.AdviseDontNeed(madvise_begin, madvise_size);
+        PERFETTO_CHECK(size_rounded_up > size_);
+        buf_.AdviseDontNeedAfter(size_rounded_up);
       }
     }
   }
@@ -177,7 +173,7 @@ std::string BufferedFrameDeserializer::Serialize(const Frame& frame) {
   const uint32_t payload_size = static_cast<uint32_t>(payload.size());
   std::string buf;
   buf.resize(kHeaderSize + payload_size);
-  memcpy(&buf[0], base::AssumeLittleEndian(&payload_size), kHeaderSize);
+  base::StoreLE(&buf[0], payload_size);
   memcpy(&buf[kHeaderSize], payload.data(), payload.size());
   return buf;
 }

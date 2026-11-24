@@ -46,12 +46,15 @@ RETURNS TABLE(
 )
 AS
 SELECT *
-FROM _cpu_avg_utilization_per_period!($interval, (
+FROM _cpu_avg_utilization_per_period!(
+  $interval,
+  (
     SELECT *
     FROM sched
     WHERE
       NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
-  ));
+  )
+);
 
 -- Table with system utilization per second.
 -- Utilization is calculated by sum of average utilization of each CPU every
@@ -132,8 +135,10 @@ SELECT
   sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000))
-    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
+  cast_int!(
+    SUM((ii.dur * freq / 1000))
+    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)
+  ) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread USING (id);
 
@@ -245,8 +250,10 @@ SELECT
   sum(ii.dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000))
-    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
+  cast_int!(
+    SUM((ii.dur * freq / 1000))
+    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)
+  ) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread USING (id)
 GROUP BY

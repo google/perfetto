@@ -36,7 +36,7 @@ class FullTraceJankMetricHandler implements MetricHandler {
       return undefined;
     }
     return {
-      process: expandProcessName(match.groups.process),
+      process: expandProcessName(match.groups.process!),
       jankType: match.groups.jankType as JankType,
       isWeighted: !!match.groups.jps,
     };

@@ -15,7 +15,15 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
+-- Builds a flamegraph callstack tree from heap profile allocations, summing
+-- the input per callsite and attaching the results as self_* metrics.
+--
+-- size/count should be raw signed values (frees are negative). The net is
+-- clamped to 0 after summing, as flamegraphs reject negative values. Don't
+-- clamp them per row, as that discards frees. alloc_size/alloc_count are gross
+-- allocations, so pass max(size, 0) / max(count, 0) for them.
 CREATE PERFETTO MACRO _android_heap_profile_callstacks_for_allocations(
+  -- Rows of (callsite_id, size, count, alloc_size, alloc_count).
   allocations TableOrSubquery
 )
 RETURNS TableOrSubquery
@@ -24,8 +32,8 @@ AS (
     metrics AS MATERIALIZED (
       SELECT
         callsite_id,
-        sum(size) AS self_size,
-        sum(count) AS self_count,
+        max(sum(size), 0) AS self_size,
+        max(sum(count), 0) AS self_count,
         sum(alloc_size) AS self_alloc_size,
         sum(alloc_count) AS self_alloc_count
       FROM $allocations

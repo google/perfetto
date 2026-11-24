@@ -48,10 +48,6 @@ import {
   utf8Encode,
 } from '../../base/string_utils';
 import type {Result} from '../../base/result';
-import {
-  loadLegacyUserscript,
-  registerLegacyMacroStubs,
-} from './legacy_userscript';
 
 export default class ExtensionServersPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExtensionServers';
@@ -71,29 +67,11 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
     // Kick off embedder extension server manifest fetch eagerly.
     const embedder = loadEmbedderExtServer(ctx);
 
-    // These must run synchronously during onActivate (before
-    // analytics.initialize()) so the dimensions are registered in time.
+    // This must run synchronously during onActivate (before
+    // analytics.initialize()), so that analytics gets the answer in time.
     if (embedder) {
-      const isInternal = embedder.manifest.then((r) => r.ok);
-
-      // TODO(lalitm): break up isInternalUser into a bunch of smaller things
-      // based on where this is used.
-      ctx.setIsInternalUser(isInternal);
-
-      // TODO(lalitm): ideally this dimension *comes* from the extension server
-      // or embedder code rather than being baked in here.
-      ctx.analytics.addDimension(
-        isInternal.then((v) => ({
-          key: 'perfetto_is_internal_user',
-          value: v ? '1' : '0',
-        })),
-      );
+      ctx.setIsInternalUser(embedder.manifest.then((r) => r.ok));
     }
-
-    // Kick off the legacy userscript fetch in parallel with the extension
-    // server fetches; the result is consumed below once the extension server
-    // macros have settled.
-    const legacyGlobals = loadLegacyUserscript();
 
     maybeAddExtServerFromUrl(setting, args).then(async () => {
       const nonEmbedderServers = setting
@@ -103,11 +81,6 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
         maybeAddEmbedderExtServer(ctx, setting, embedder),
         initializeServers(ctx, nonEmbedderServers),
       ]);
-      // All extension server macros have been resolved into AppImpl at this
-      // point. Apply the legacy-macro backcompat shim now: it suppresses any
-      // legacy macro that's superseded by an extension server macro and
-      // turns the rest into deprecation stubs.
-      await registerLegacyMacroStubs(ctx, await legacyGlobals);
       showErrorsOnCompletion([...embedderResults, ...serverResults]);
     });
   }
@@ -164,7 +137,7 @@ export function renderExtensionServersSettings(
 ): m.Children {
   const servers = setting.get();
   const shareServer = (index: number) => {
-    const server = servers[index];
+    const server = servers[index]!;
     const stripped = stripSecrets(server);
     const json = JSON.stringify(stripped);
     const b64 = base64Encode(utf8Encode(json));
@@ -179,8 +152,8 @@ export function renderExtensionServersSettings(
   const toggleEnabled = (index: number) => {
     const newServers = [...servers];
     newServers[index] = {
-      ...newServers[index],
-      enabled: !newServers[index].enabled,
+      ...newServers[index]!,
+      enabled: !newServers[index]!.enabled,
     };
     setting.set(newServers);
   };
@@ -217,13 +190,13 @@ export function renderExtensionServersSettings(
             [...servers.keys()]
               .sort((a, b) => {
                 const aManaged =
-                  servers[a].origin === 'embedder_managed' ? 0 : 1;
+                  servers[a]!.origin === 'embedder_managed' ? 0 : 1;
                 const bManaged =
-                  servers[b].origin === 'embedder_managed' ? 0 : 1;
+                  servers[b]!.origin === 'embedder_managed' ? 0 : 1;
                 return aManaged - bManaged || a - b;
               })
               .map((idx) => {
-                const server = servers[idx];
+                const server = servers[idx]!;
                 return m(
                   '.pf-extension-servers-settings__item',
                   {key: idx},
@@ -369,7 +342,7 @@ async function maybeAddExtServerFromUrl(
     // Server already configured — replace its enabled modules with those from
     // the shared link and open the edit modal so the user can review.
     await editServer(setting, dupIdx, {
-      ...servers[dupIdx],
+      ...servers[dupIdx]!,
       enabledModules: prefill.enabledModules,
     });
   } else {

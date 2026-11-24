@@ -21,7 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/trace_processor/trace_processor.proto";
 
 // gRPC Interface for a Bigtrace Orchestrator
-
+//
 // Each Bigtrace instance has an orchestrator which is responsible for receiving
 // requests from the client and loading and querying traces by sharding them
 // across a set of "Workers"

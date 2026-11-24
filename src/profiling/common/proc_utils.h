@@ -61,7 +61,17 @@ std::optional<uint32_t> GetRssAnonAndSwap(const std::string&);
 // entries satisfying the minimum size criteria for anonymous memory.
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
 
+// Returns the path within the cgroup v2 hierarchy, given /proc/pid/cgroup
+// contents.
+std::optional<std::string> GetCgroupV2Path(const std::string& proc_pid_cgroup);
+
+// Whether the process' own cgroup v2 has cgroup.freeze set.
+bool IsProcessFrozen(pid_t pid);
+
 std::optional<Uids> GetUids(const std::string&);
+
+// Returns the effective process UID from stat(/proc/pid).
+std::optional<uid_t> GetUidFromProcfs(pid_t pid);
 
 void FindAllProfilablePids(std::set<pid_t>* pids);
 
@@ -83,6 +93,11 @@ bool GetCmdlineForPID(pid_t pid, std::string* name);
 namespace glob_aware {
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids);
+
+// Returns true if the /proc/pid/cmdline of |pid| matches any of the
+// |patterns|. Kernel threads and zombies (empty cmdline) never match.
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns);
 
 bool MatchCmdlineGlobPatterns(const std::string& cmdline,
                               const std::vector<std::string>& patterns);

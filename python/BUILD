@@ -101,9 +101,14 @@ perfetto_py_binary(
 perfetto_py_library(
     name = "sql_processing",
     srcs = [
-        "generators/sql_processing/docs_extractor.py",
+        "generators/sql_processing/docs_extractor_legacy.py",
         "generators/sql_processing/docs_parse.py",
+        "generators/sql_processing/docs_parse_legacy.py",
+        "generators/sql_processing/pfsql.py",
+        "generators/sql_processing/stdlib_parser.py",
+        "generators/sql_processing/stdlib_parser_legacy.py",
         "generators/sql_processing/utils.py",
+        "generators/sql_processing/utils_legacy.py",
     ],
 )
 
@@ -145,11 +150,15 @@ perfetto_py_library(
     srcs = [
         "perfetto/trace_processor/__init__.py",
         "perfetto/trace_processor/api.py",
+        "perfetto/trace_processor/backend.py",
+        "perfetto/trace_processor/backend_factory.py",
         "perfetto/trace_processor/http.py",
         "perfetto/trace_processor/platform.py",
         "perfetto/trace_processor/process_tree.py",
         "perfetto/trace_processor/protos.py",
+        "perfetto/trace_processor/rpc.py",
         "perfetto/trace_processor/shell.py",
+        "perfetto/trace_processor/unix.py",
     ],
     visibility = [
         "//visibility:public",

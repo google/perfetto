@@ -24,8 +24,8 @@
 #include <string>
 #include <vector>
 
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -59,8 +59,7 @@ class PerfSampleTrackerTest : public ::testing::Test {
             TraceProcessorContext::TraceState{TraceId(0)});
     context.stats_tracker = std::make_unique<StatsTracker>(&context);
     context.cpu_tracker = std::make_unique<CpuTracker>(&context);
-    context.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context.storage.get());
+    context.args_tracker = std::make_unique<ArgsTracker>(context.storage.get());
     context.track_tracker = std::make_unique<TrackTracker>(&context);
     perf_sample_tracker = std::make_unique<PerfSampleTracker>(&context);
     arg_extractor_ =

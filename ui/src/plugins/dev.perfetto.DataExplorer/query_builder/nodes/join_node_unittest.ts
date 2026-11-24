@@ -260,7 +260,7 @@ describe('JoinNode', () => {
 
       const finalCols = joinNode.finalCols;
       expect(finalCols.length).toBe(1);
-      expect(finalCols[0].name).toBe('id');
+      expect(finalCols[0]!.name).toBe('id');
     });
 
     it('should return only checked columns from right source', () => {
@@ -435,12 +435,12 @@ describe('JoinNode', () => {
       const leftCols = createCheckedColumns([
         {name: 'id', type: 'INT', checked: true},
       ]);
-      leftCols[0].alias = 'left_id';
+      leftCols[0]!.alias = 'left_id';
 
       const rightCols = createCheckedColumns([
         {name: 'id', type: 'INT', checked: true},
       ]);
-      rightCols[0].alias = 'right_id';
+      rightCols[0]!.alias = 'right_id';
 
       const joinNode = createJoinNodeWithInputs(
         node1,
@@ -462,8 +462,8 @@ describe('JoinNode', () => {
       const finalCols = joinNode.finalCols;
 
       expect(finalCols.length).toBe(2);
-      expect(finalCols[0].alias).toBe('left_id');
-      expect(finalCols[1].alias).toBe('right_id');
+      expect(finalCols[0]!.alias).toBe('left_id');
+      expect(finalCols[1]!.alias).toBe('right_id');
     });
   });
 
@@ -1112,9 +1112,9 @@ describe('JoinNode', () => {
       );
 
       // Verify initial state
-      expect(joinNode.attrs.leftColumns?.[0].checked).toBe(true);
-      expect(joinNode.attrs.leftColumns?.[1].checked).toBe(false);
-      expect(joinNode.attrs.rightColumns?.[0].checked).toBe(true);
+      expect(joinNode.attrs.leftColumns?.[0]!.checked).toBe(true);
+      expect(joinNode.attrs.leftColumns?.[1]!.checked).toBe(false);
+      expect(joinNode.attrs.rightColumns?.[0]!.checked).toBe(true);
 
       // Serialize the state via attrs
       const serialized = joinNode.attrs;
@@ -1131,9 +1131,9 @@ describe('JoinNode', () => {
       expect(restoredNode.attrs.leftColumns?.length).toBe(2);
       expect(restoredNode.attrs.rightColumns?.length).toBe(1);
 
-      expect(restoredNode.attrs.leftColumns?.[0].checked).toBe(true);
-      expect(restoredNode.attrs.leftColumns?.[1].checked).toBe(false);
-      expect(restoredNode.attrs.rightColumns?.[0].checked).toBe(true);
+      expect(restoredNode.attrs.leftColumns?.[0]!.checked).toBe(true);
+      expect(restoredNode.attrs.leftColumns?.[1]!.checked).toBe(false);
+      expect(restoredNode.attrs.rightColumns?.[0]!.checked).toBe(true);
     });
 
     it('should preserve column aliases after serialization and deserialization', () => {
@@ -1151,12 +1151,12 @@ describe('JoinNode', () => {
       const leftCols = createCheckedColumns([
         {name: 'id', type: 'INT', checked: true},
       ]);
-      leftCols[0].alias = 'left_id';
+      leftCols[0]!.alias = 'left_id';
 
       const rightCols = createCheckedColumns([
         {name: 'id', type: 'INT', checked: true},
       ]);
-      rightCols[0].alias = 'right_id';
+      rightCols[0]!.alias = 'right_id';
 
       // Create a join node with aliases
       const joinNode = createJoinNodeWithInputs(
@@ -1177,8 +1177,8 @@ describe('JoinNode', () => {
       );
 
       // Verify initial state has aliases
-      expect(joinNode.attrs.leftColumns?.[0].alias).toBe('left_id');
-      expect(joinNode.attrs.rightColumns?.[0].alias).toBe('right_id');
+      expect(joinNode.attrs.leftColumns?.[0]!.alias).toBe('left_id');
+      expect(joinNode.attrs.rightColumns?.[0]!.alias).toBe('right_id');
 
       // Serialize the state via attrs
       const serialized = joinNode.attrs;
@@ -1191,10 +1191,10 @@ describe('JoinNode', () => {
         {},
       );
 
-      expect(restoredNode.attrs.leftColumns?.[0].alias).toBe('left_id');
-      expect(restoredNode.attrs.rightColumns?.[0].alias).toBe('right_id');
-      expect(restoredNode.attrs.leftColumns?.[0].checked).toBe(true);
-      expect(restoredNode.attrs.rightColumns?.[0].checked).toBe(true);
+      expect(restoredNode.attrs.leftColumns?.[0]!.alias).toBe('left_id');
+      expect(restoredNode.attrs.rightColumns?.[0]!.alias).toBe('right_id');
+      expect(restoredNode.attrs.leftColumns?.[0]!.checked).toBe(true);
+      expect(restoredNode.attrs.rightColumns?.[0]!.checked).toBe(true);
     });
   });
 });

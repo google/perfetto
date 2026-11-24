@@ -31,7 +31,7 @@ class TraceProcessorContext;
 
 class PprofTraceReader : public ChunkedTraceReader {
  public:
-  explicit PprofTraceReader(TraceProcessorContext* context);
+  PprofTraceReader(TraceProcessorContext* context, uint32_t file_id);
   ~PprofTraceReader() override;
 
   base::Status Parse(TraceBlobView blob) override;
@@ -42,6 +42,7 @@ class PprofTraceReader : public ChunkedTraceReader {
   base::Status ParseProfile();
 
   TraceProcessorContext* const context_;
+  const uint32_t file_id_;
   std::vector<uint8_t> buffer_;
   bool parsed_any_data_ = false;
 

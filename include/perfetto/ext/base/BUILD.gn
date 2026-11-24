@@ -17,8 +17,8 @@ import("../../../../gn/perfetto.gni")
 source_set("base") {
   sources = [
     "android_utils.h",
+    "atomic_file.h",
     "base64.h",
-    "bits.h",
     "circular_queue.h",
     "clock_snapshots.h",
     "container_annotations.h",
@@ -27,13 +27,13 @@ source_set("base") {
     "crash_keys.h",
     "ctrl_c_handler.h",
     "dynamic_string_writer.h",
-    "endian.h",
     "event_fd.h",
     "file_utils.h",
     "flags.h",
     "flat_hash_map.h",
     "flat_hash_map_v1.h",
     "fnv_hash.h",
+    "futex.h",
     "getopt.h",
     "getopt_compat.h",
     "hash.h",
@@ -48,12 +48,14 @@ source_set("base") {
     "periodic_task.h",
     "pipe.h",
     "platform.h",
+    "progress_reporter.h",
     "rt_mutex.h",
     "scoped_file.h",
     "scoped_mmap.h",
     "scoped_sched_boost.h",
     "small_set.h",
     "small_vector.h",
+    "span.h",
     "status_macros.h",
     "status_or.h",
     "string_splitter.h",
@@ -67,6 +69,7 @@ source_set("base") {
     "thread_checker.h",
     "thread_task_runner.h",
     "thread_utils.h",
+    "type_set.h",
     "unix_task_runner.h",
     "utils.h",
     "uuid.h",
@@ -79,7 +82,10 @@ source_set("base") {
     "weak_runner.h",
   ]
   if (enable_perfetto_ipc) {
-    sources += [ "unix_socket.h" ]
+    sources += [
+      "sd_notify.h",
+      "unix_socket.h",
+    ]
   }
   if (perfetto_build_with_android) {
     libs = [ "perfetto_flags_c_lib" ]

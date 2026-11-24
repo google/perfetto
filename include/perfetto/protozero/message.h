@@ -24,6 +24,7 @@
 #include <string>
 #include <type_traits>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
@@ -58,16 +59,46 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // static_assert()s in the Reset() method.
   Message() = default;
 
-  // Clears up the state, allowing the message to be reused as a fresh one.
-  void Reset(ScatteredStreamWriter*, MessageArena*);
+  // Encoding for nested messages. The root selects it in Reset(). Each child
+  // inherits its parent's encoding.
+  // Keep in sync with PerfettoPbMsgEncoding in perfetto/public/pb_msg.h.
+  enum class Encoding : uint8_t {
+    // Standard protobuf. Finalize() writes each child's length into a reserved
+    // field before the child's contents.
+    kLengthDelimited = 0,
 
-  // Commits all the changes to the buffer (backfills the size field of this and
-  // all nested messages) and seals the message. Returns the size of the message
-  // (and all nested sub-messages), without taking into account any chunking.
+    // Append-only format for tracing v2. It needs no patches:
+    // - A nested message starts with a group start tag and ends with a
+    //   closing byte, instead of a fixed-size length field.
+    // - Use it only inside the SMB, for the tracing v2 protocol. The final
+    //   trace output stays canonical protobuf.
+    // See proto_utils::kProtoGroupEndByte for the wire format.
+    kProtoGroup = 1,
+  };
+
+  // Returns the encoding each new child inherits.
+  Encoding encoding() const { return encoding_; }
+
+  // Clears up the state, allowing the message to be reused as a fresh one
+  // with the specified encoding.
+  void Reset(ScatteredStreamWriter*, MessageArena*, Encoding);
+
+  // Convenience wrapper for the default length-delimited encoding.
+  // See the TODO on RootMessage::Reset().
+  void Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
+    Reset(stream_writer, arena, Encoding::kLengthDelimited);
+  }
+
+  // Finalizes all open children, then seals this message:
+  // - Length-delimited: writes the encoded size into the reserved length field,
+  //   if present. For short messages within the current chunk, compaction can
+  //   reduce the field from proto_utils::kMessageLengthFieldSize bytes to one.
+  // - kProtoGroup: writes nothing. The parent writes the closing byte.
+  //
+  // Returns the encoded size of this message's fields, including nested
+  // messages. It excludes this message's own tag, length field and closing
+  // byte.
   // Finalize is idempotent and can be called several times w/o side effects.
-  // Short messages may be compacted in memory into the size field, since their
-  // size can be represented with fewer than
-  // proto_utils::kMessageLengthFieldSize bytes.
   uint32_t Finalize();
 
   // Optional. If is_valid() == true, the corresponding memory region (its
@@ -76,6 +107,8 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // corresponding size field in the parent message. In most cases this is only
   // used for nested messages and the ScatteredStreamWriter::Delegate (e.g.
   // TraceWriterImpl), takes case of the outer message.
+  //
+  // In kProtoGroup mode, this pointer must always be null.
   uint8_t* size_field() const { return size_field_; }
   void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
 
@@ -95,13 +128,11 @@ class PERFETTO_EXPORT_COMPONENT Message {
     if (nested_message_)
       EndNestedMessage();
 
-    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-    uint8_t* pos = buffer;
-
-    pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
-    // WriteVarInt encodes signed values in two's complement form.
-    pos = proto_utils::WriteVarInt(value, pos);
-    WriteToStream(buffer, pos);
+    WriteSimpleField([field_id, value](uint8_t* pos) {
+      pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
+      // WriteVarInt encodes signed values in two's complement form.
+      return proto_utils::WriteVarInt(value, pos);
+    });
   }
 
   // Proto types: sint64, sint32.
@@ -117,12 +148,12 @@ class PERFETTO_EXPORT_COMPONENT Message {
     if (nested_message_)
       EndNestedMessage();
 
-    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-    uint8_t* pos = buffer;
-    // MakeTagVarInt gets super optimized here for constexpr.
-    pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
-    *pos++ = static_cast<uint8_t>(value);
-    WriteToStream(buffer, pos);
+    WriteSimpleField([field_id, value](uint8_t* pos) {
+      // MakeTagVarInt gets super optimized here for constexpr.
+      pos = proto_utils::WriteVarInt(proto_utils::MakeTagVarInt(field_id), pos);
+      *pos++ = static_cast<uint8_t>(value);
+      return pos;
+    });
   }
 
   // Proto types: fixed64, sfixed64, fixed32, sfixed32, double, float.
@@ -131,14 +162,13 @@ class PERFETTO_EXPORT_COMPONENT Message {
     if (nested_message_)
       EndNestedMessage();
 
-    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
-    uint8_t* pos = buffer;
-
-    pos = proto_utils::WriteVarInt(proto_utils::MakeTagFixed<T>(field_id), pos);
-    memcpy(pos, &value, sizeof(T));
-    pos += sizeof(T);
-    // TODO: Optimize memcpy performance, see http://crbug.com/624311 .
-    WriteToStream(buffer, pos);
+    WriteSimpleField([field_id, value](uint8_t* pos) {
+      pos =
+          proto_utils::WriteVarInt(proto_utils::MakeTagFixed<T>(field_id), pos);
+      T le_value = perfetto::base::HostToLE(value);
+      memcpy(pos, &le_value, sizeof(T));
+      return pos + sizeof(T);
+    });
   }
 
   void AppendString(uint32_t field_id, const char* str);
@@ -181,6 +211,12 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // generated by the cppgen_plugin.cc.
   // The caller needs to guarantee that the appended data is properly
   // proto-encoded and each field has a proto preamble.
+  //
+  // In kProtoGroup mode:
+  // - |data| must not contain protobuf group fields. This mode reserves wire
+  //   types 3 and 4 for nested message boundaries.
+  // - A nested message must contain only proto fields. For a raw string or
+  //   bytes payload, use AppendBytes() on the parent.
   void AppendRawProtoBytes(const void* data, size_t size) {
     if (nested_message_)
       EndNestedMessage();
@@ -195,7 +231,26 @@ class PERFETTO_EXPORT_COMPONENT Message {
   Message* BeginNestedMessageInternal(uint32_t field_id);
 
   // Called by Finalize and Append* methods.
+  // Ends the open child: finalizes it, adds its encoded size to this message
+  // and, in kProtoGroup mode, appends its closing byte.
   void EndNestedMessage();
+
+  // |encode| writes at most kMaxSimpleFieldEncodedSize bytes and returns the
+  // end. Encodes in place when the chunk has room, to avoid a copy.
+  template <typename EncodeFn>
+  void WriteSimpleField(EncodeFn encode) {
+    PERFETTO_DCHECK(!is_finalized());
+    if (PERFETTO_LIKELY(stream_writer_->bytes_available() >=
+                        proto_utils::kMaxSimpleFieldEncodedSize)) {
+      uint8_t* begin = stream_writer_->write_ptr();
+      uint8_t* end = encode(begin);
+      stream_writer_->set_write_ptr(end);
+      size_ += static_cast<uint32_t>(end - begin);
+      return;
+    }
+    uint8_t buffer[proto_utils::kMaxSimpleFieldEncodedSize];
+    WriteToStream(buffer, encode(buffer));
+  }
 
   void WriteToStream(const uint8_t* src_begin, const uint8_t* src_end) {
     PERFETTO_DCHECK(!is_finalized());
@@ -227,6 +282,8 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // [optional] Pointer to a non-aligned pre-reserved var-int slot of
   // kMessageLengthFieldSize bytes. When set, the Finalize() method will write
   // the size of proto-encoded message in the pointed memory region.
+  //
+  // In kProtoGroup mode, this pointer is unused and always null.
   uint8_t* size_field_;
 
   // Keeps track of the size of the current message.
@@ -245,6 +302,9 @@ class PERFETTO_EXPORT_COMPONENT Message {
   };
 
   MessageState message_state_;
+
+  // Selected by the root and inherited by every nested message.
+  Encoding encoding_;
 
 #if PERFETTO_DCHECK_IS_ON()
   // Current generation of message. Incremented on Reset.

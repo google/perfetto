@@ -257,7 +257,7 @@ CREATE PERFETTO VIEW args(
 AS
 SELECT
   *,
-  -- This should be kept in sync with GlobalArgsTracker::AddArgSet.
+  -- This should be kept in sync with ArgsTracker::AddArgSet.
   CASE value_type
     WHEN 'int' THEN cast_string!(int_value)
     WHEN 'uint' THEN printf('%u', int_value)
@@ -530,8 +530,10 @@ CREATE PERFETTO VIEW package_list(
   uid LONG,
   -- Bool whether this app is debuggable.
   debuggable LONG,
-  -- Bool whether this app is profileable.
+  -- Bool whether this app is profileable from the shell.
   profileable_from_shell LONG,
+  -- Bool whether this app is profileable by the platform.
+  profileable LONG,
   -- versionCode from the APK.
   version_code LONG
 )

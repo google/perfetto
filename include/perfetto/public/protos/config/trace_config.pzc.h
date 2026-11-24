@@ -32,6 +32,13 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceAttributes);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_AndroidReportConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BufferConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V1);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V2);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V3);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_BuiltinDataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CmdTraceStartDelay);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_CompressionConfig);
@@ -145,6 +152,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   perfetto_protos_TraceConfig_BufferConfig,
                   buffers,
                   1);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  bool,
+                  experimental_trace_buffer_v2_compaction,
+                  50);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
                   perfetto_protos_TraceConfig_DataSource,
@@ -725,5 +737,33 @@ PERFETTO_PB_FIELD(
     enum perfetto_protos_TraceConfig_BufferConfig_ExperimentalMode,
     experimental_mode,
     8);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig,
+                  buffer_type,
+                  9);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V1,
+                  v1,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V2,
+                  v2,
+                  2);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig,
+                  MSG,
+                  perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V3,
+                  v3,
+                  3);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V3);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V2);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig_BufferTypeConfig_V1);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACE_CONFIG_PZC_H_

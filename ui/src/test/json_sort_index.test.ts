@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,37 +24,41 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('json_sort_index_test.json');
 });
 
-test('load trace with sort_index metadata', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+test('json_sort_index', async () => {
+  test.setTimeout(3 * 60_000);
+
+  await pth.step('load trace with sort_index metadata', async () => {
+    await pth.waitForIdleAndScreenshot('loaded.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
-});
 
-test('verify process sort order', async () => {
-  // Processes should be ordered by sort_index (lowest first):
-  // HighPriorityProcess (100, sort_index=1)
-  // MediumPriorityProcess (200, sort_index=5)
-  // LowPriorityProcess (300, sort_index=10)
+  await pth.step('verify process sort order', async () => {
+    // Processes should be ordered by sort_index (lowest first):
+    // HighPriorityProcess (100, sort_index=1)
+    // MediumPriorityProcess (200, sort_index=5)
+    // LowPriorityProcess (300, sort_index=10)
 
-  const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
-  await highPriorityProcess.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('process_order.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+    const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
+    await highPriorityProcess.scrollIntoViewIfNeeded();
+    await pth.waitForIdleAndScreenshot('process_order.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
-});
 
-test('verify thread sort order within process', async () => {
-  // Expand the HighPriorityProcess to see threads
-  const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
-  await highPriorityProcess.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(highPriorityProcess);
+  await pth.step('verify thread sort order within process', async () => {
+    // Expand the HighPriorityProcess to see threads
+    const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
+    await highPriorityProcess.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(highPriorityProcess);
 
-  // Threads should be ordered by sort_index (lowest first):
-  // HighPriorityThread (101, sort_index=10)
-  // MediumPriorityThread (102, sort_index=50)
-  // LowPriorityThread (103, sort_index=100)
+    // Threads should be ordered by sort_index (lowest first):
+    // HighPriorityThread (101, sort_index=10)
+    // MediumPriorityThread (102, sort_index=50)
+    // LowPriorityThread (103, sort_index=100)
 
-  await pth.waitForIdleAndScreenshot('thread_order.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+    await pth.waitForIdleAndScreenshot('thread_order.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
 });

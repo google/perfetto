@@ -75,15 +75,15 @@ describe('TaskTracker', () => {
 
     const tasks = tracker.tasks;
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].label).toBe('my task');
-    expect(tasks[0].elapsed).toBeGreaterThanOrEqual(0);
+    expect(tasks[0]!.label).toBe('my task');
+    expect(tasks[0]!.elapsed).toBeGreaterThanOrEqual(0);
   });
 
   test('uses anonymous label by default', () => {
     const deferred = defer<void>();
     tracker.track(deferred);
 
-    expect(tracker.tasks[0].label).toBe('anonymous');
+    expect(tracker.tasks[0]!.label).toBe('anonymous');
   });
 
   test('can track multiple promises', () => {

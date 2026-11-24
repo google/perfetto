@@ -1,0 +1,196 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_
+#define SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_
+
+#include <cstdint>
+#include <type_traits>
+
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+
+namespace perfetto::trace_processor::core::exec {
+
+// One column of a RowBatch: a window onto storage the batch does not own.
+// Row `row` of the batch is the value at `start() + row`, and so is its bit
+// in the validity: moving the window moves both.
+class ColumnView {
+ public:
+  enum class Kind : uint8_t {
+    kFlat,
+    // No storage: the value is where it would be stored. Always Uint32.
+    kSequence,
+    // `data()` is a Variant array and `type()` is meaningless.
+    kVariant,
+    // Values only for the rows `validity()` has set, stored in row order: a
+    // row's value is at the count of set bits before it (see popcount()). Only
+    // Expand reads one.
+    kSparse,
+  };
+
+  ColumnView() = default;
+
+  // Id is only a storage type for searching a sorted scan: a column read is
+  // Uint32, and one with no storage is a Sequence().
+  static ColumnView Reference(StorageType type,
+                              const void* data,
+                              const BitVector* validity = nullptr,
+                              uint32_t start = 0) {
+    PERFETTO_DCHECK(!type.Is<Id>());
+    ColumnView view;
+    view.type_ = type;
+    view.kind_ = Kind::kFlat;
+    view.data_ = data;
+    view.validity_ = validity;
+    view.start_ = start;
+    return view;
+  }
+
+  // A Uint32 column whose value at each row is where it would be stored, as a
+  // dataframe's id column is. `validity` is null when no row is null.
+  static ColumnView Sequence(const BitVector* validity, uint32_t start) {
+    ColumnView view;
+    view.type_ = Uint32{};
+    view.kind_ = Kind::kSequence;
+    view.validity_ = validity;
+    view.start_ = start;
+    return view;
+  }
+
+  // A column carrying a type per row rather than one for the whole column.
+  static ColumnView Variants(const Variant* data, uint32_t start = 0) {
+    ColumnView view;
+    view.kind_ = Kind::kVariant;
+    view.data_ = data;
+    view.start_ = start;
+    return view;
+  }
+
+  // A sparse column, as a dataframe stores it. `data` is null for an Id
+  // column, whose values are their positions in storage. `popcount[w]` is how
+  // many bits of `validity` are set before word `w`.
+  static ColumnView Sparse(StorageType type,
+                           const void* data,
+                           const BitVector* validity,
+                           const uint32_t* popcount) {
+    ColumnView view;
+    view.type_ = type;
+    view.kind_ = Kind::kSparse;
+    view.data_ = data;
+    view.validity_ = validity;
+    view.popcount_ = popcount;
+    return view;
+  }
+
+  Kind kind() const { return kind_; }
+  StorageType type() const { return type_; }
+
+  // Where the batch's rows start in `data()` and `validity()`.
+  uint32_t start() const { return start_; }
+  void set_start(uint32_t start) { start_ = start; }
+
+  // Where batch row `row` is stored.
+  PERFETTO_ALWAYS_INLINE uint32_t Index(uint32_t row) const {
+    return start_ + row;
+  }
+
+  // The value of batch row `row`, which must hold one.
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE T At(uint32_t row) const {
+    uint32_t index = start_ + row;
+    // Sequences are Uint32, so are only read as uint32_t.
+    if constexpr (std::is_same_v<T, uint32_t>) {
+      if (kind_ == Kind::kSequence) {
+        return index;
+      }
+    } else {
+      PERFETTO_DCHECK(kind_ != Kind::kSequence);
+    }
+    PERFETTO_DCHECK(kind_ != Kind::kSparse);
+    return static_cast<const T*>(data_)[index];
+  }
+
+  // Whether batch row `row` holds a value.
+  PERFETTO_ALWAYS_INLINE bool IsValid(uint32_t row) const {
+    return !validity_ || validity_->is_set(start_ + row);
+  }
+
+  // The values the window is onto, one per row. Not for a kSparse column.
+  const void* data() const {
+    PERFETTO_DCHECK(kind_ != Kind::kSparse);
+    return data_;
+  }
+
+  // The values of a kSparse column, and its popcount.
+  const void* sparse_data() const {
+    PERFETTO_DCHECK(kind_ == Kind::kSparse);
+    return data_;
+  }
+  const uint32_t* popcount() const { return popcount_; }
+
+  // Which stored values are there, or null when they all are.
+  const BitVector* validity() const { return validity_; }
+
+ private:
+  Kind kind_ = Kind::kFlat;
+  StorageType type_{Uint32{}};
+  uint32_t start_ = 0;
+  const void* data_ = nullptr;
+  const BitVector* validity_ = nullptr;
+  const uint32_t* popcount_ = nullptr;
+};
+
+// Whether `column` is a flat column of type `Tag`, which is what
+// FlatColumnReader reads.
+template <typename Tag>
+bool IsFlat(const ColumnView& column) {
+  return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Tag>();
+}
+
+// The kind and storage type of a column view. These decide whether views from
+// different batches can be combined. Kept apart from the view so columns can
+// be compared after their batches are gone.
+struct ColumnShape {
+  static ColumnShape Of(const ColumnView& view) {
+    return {view.kind(), view.type()};
+  }
+
+  ColumnView::Kind kind;
+  StorageType type;
+};
+
+// Whether two batches' views of a column can be combined. A sequence and a
+// stored Uint32 hold the same values: gathering turns one into the other.
+inline bool SameLogicalType(const ColumnShape& a, const ColumnShape& b) {
+  auto is_uint32 = [](const ColumnShape& shape) {
+    return (shape.kind == ColumnView::Kind::kFlat ||
+            shape.kind == ColumnView::Kind::kSequence) &&
+           shape.type.Is<Uint32>();
+  };
+  if (is_uint32(a) && is_uint32(b)) {
+    return true;
+  }
+  return a.kind == b.kind &&
+         (a.kind == ColumnView::Kind::kVariant || a.type == b.type);
+}
+
+}  // namespace perfetto::trace_processor::core::exec
+
+#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_

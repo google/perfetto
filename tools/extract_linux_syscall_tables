@@ -11,7 +11,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SELF_PATH = os.path.relpath(__file__, PROJECT_ROOT).replace('\\', '/')
 
 syscalls = {}
-archs = ['arm64', 'arm32', 'x86', 'x86_64']
+archs = ['arm64', 'arm32', 'x86', 'x86_64', 's390x']
 
 
 def print_tables():
@@ -59,14 +59,18 @@ def print_tables():
   print('#endif  // SRC_KERNEL_UTILS_SYSCALL_TABLE_GENERATED_H_')
 
 
-# Parses a .tbl file (new format).
-def parse_tlb(data):
+# Parses a .tbl file (new format). With |abis|, keeps only the rows of
+# those ABIs, as the kernel's build does for an architecture that shares
+# the generic table.
+def parse_tbl(data, abis=None):
   table = {}
   for line in data.splitlines():
     line = line.strip()
     if line.startswith('#') or not (line):
       continue
     parts = line.split()
+    if abis is not None and parts[1] not in abis:
+      continue
     table[int(parts[0])] = 'sys_' + parts[2]
   return table
 
@@ -83,23 +87,27 @@ def parse_def(data):
 
 
 def Main():
-  KSRC = 'https://raw.githubusercontent.com/torvalds/linux/v6.7/'
+  KSRC = 'https://raw.githubusercontent.com/torvalds/linux/v7.2/'
 
   response = urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_64.tbl')
-  syscalls['x86_64'] = parse_tlb(response.read().decode())
+  syscalls['x86_64'] = parse_tbl(response.read().decode())
 
   response = urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_32.tbl')
-  syscalls['x86'] = parse_tlb(response.read().decode())
+  syscalls['x86'] = parse_tbl(response.read().decode())
 
   response = urlopen(KSRC + 'arch/arm/tools/syscall.tbl')
-  syscalls['arm32'] = parse_tlb(response.read().decode())
+  syscalls['arm32'] = parse_tbl(response.read().decode())
 
-  # From:
-  # arch/arm64/include/asm/unistd.h
-  #   -> arch/arm64/include/uapi/asm/unistd.h
-  #     -> include/uapi/asm-generic/unistd.h
-  response = urlopen(KSRC + 'include/uapi/asm-generic/unistd.h')
-  syscalls['arm64'] = parse_def(response.read().decode())
+  # arm64 shares the generic table (arch/arm64/tools/syscall_64.tbl links
+  # to it), taking the ABIs scripts/Makefile.asm-headers gives every
+  # 64-bit architecture plus those arch/arm64/kernel/Makefile.syscalls adds.
+  response = urlopen(KSRC + 'scripts/syscall.tbl')
+  syscalls['arm64'] = parse_tbl(
+      response.read().decode(),
+      abis={'common', '64', 'renameat', 'rlimit', 'memfd_secret'})
+
+  response = urlopen(KSRC + 'arch/s390/kernel/syscalls/syscall.tbl')
+  syscalls['s390x'] = parse_tbl(response.read().decode(), abis={'common', '64'})
 
   dst_file = os.path.join(PROJECT_ROOT, 'src', 'kernel_utils',
                           'syscall_table_generated.h')

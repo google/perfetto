@@ -34,7 +34,7 @@ package perfetto.protos;
 // detecting code overlaps, if a newer code creation event overlaps with older
 // code we need to asume that the old code was deleted. Code moves are logged,
 // and there is an event to track those.
-
+//
 // Strings used by V8 can have different encodings, instead of coverting to a
 // common encoding (e.g. UTF-8) on device is expensive. Instead we send the
 // "raw" string and do the convestion at trace ingestion time.

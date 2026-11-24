@@ -103,6 +103,16 @@ export class RafScheduler implements Raf {
     this.syncDomRedrawMountEntry(element, component);
   }
 
+  // Discards every mounted component tree and recreates it from scratch, so
+  // all component instances are reconstructed. Used by hot module replacement.
+  remountAll(): void {
+    for (const [element, component] of this.mounts.entries()) {
+      this.syncDomRedrawMountEntry(element, null);
+      this.syncDomRedrawMountEntry(element, component);
+    }
+    this.scheduleFullRedraw();
+  }
+
   shutdown() {
     this._shutdown = true;
   }

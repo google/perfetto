@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <array>
 #include <memory>
+#include <new>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -27,13 +28,22 @@
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/service/histogram.h"
 
+namespace protozero {
+struct ConstBytes;
+}  // namespace protozero
+
 namespace perfetto {
 
 class TracePacket;
+class TraceBufferProtoVms;
 class TraceBuffer_WriterStats;
 
 // Virtual interface for trace buffers to enable multiple implementations.
 // This interface defines the minimal surface used by the tracing service.
+//
+// TODO(sashwinbalaji): Add a trace_buffer.cc with default no-op versions of
+// OnWriteCheckpoint() and similar calls, so each implementation doesn't
+// repeat them.
 class TraceBuffer {
  public:
   using WriterStats = TraceBuffer_WriterStats;
@@ -43,10 +53,11 @@ class TraceBuffer {
 
   // Type of trace buffer implementation.
   // TODO(primiano): remove this once TraceBufferV2 proves itself.
-  // kV2 is experimental.
+  // kV2 and kV3 are experimental.
   enum BufType {
     kV1,
     kV2,
+    kV3,
   };
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().
@@ -91,6 +102,61 @@ class TraceBuffer {
                                      size_t patches_size,
                                      bool other_patches_pending) = 0;
 
+  // Returns true if the buffer accepts tracing v2 data through
+  // CopyChunkV2Untrusted(). The service offers tracing v2 only to data sources
+  // that write into such a buffer.
+  virtual bool supports_tracing_v2() const = 0;
+
+  // Copies a batch of SMB v2 fragments into the buffer. The caller must pass
+  // fragments and batches in write order for each {ProducerID, WriterID}.
+  // The caller owns the fragment array and payloads. Both must remain valid
+  // and unchanged until this call returns.
+  //
+  // Each fragment is a whole packet unless a continuation flag is set.
+  // - |first_continues_from_prev| means the first fragment continues a packet
+  //   that started in this writer's previous batch.
+  // - |last_continues_on_next| means the last fragment continues in this
+  //   writer's next batch.
+  // The caller decodes these flags from its transport. If the transport marks
+  // a batch as lossy, call RecordChunkV2DataLoss() instead of copying it.
+  //
+  // Returns true if the whole batch was stored. Returns false if the batch
+  // was rejected:
+  // - The rejection of a nonempty batch records loss as RecordChunkV2DataLoss()
+  //   does. An empty batch changes nothing.
+  // - Invalid input increments abi_violations. Other rejections increment
+  //   chunks_discarded.
+  //
+  // If supports_tracing_v2() is false, returns false and changes nothing.
+  virtual bool CopyChunkV2Untrusted(const PacketSequenceProperties&,
+                                    const protozero::ConstBytes* fragments,
+                                    size_t num_fragments,
+                                    bool first_continues_from_prev,
+                                    bool last_continues_on_next) = 0;
+
+  // Records a gap after the last SMB v2 batch that the writer appended.
+  // Packets already in the buffer remain readable. The gap stays pending
+  // until the next stored batch carries it or the writer's state is discarded.
+  // Reads report the gap on the first readable packet after it. This does not
+  // increment any statistics.
+  //
+  // Does nothing if the buffer holds no SMB v2 state for the writer. A caller
+  // that cannot identify the destination can call this on every candidate
+  // buffer without creating state for writers that never used it.
+  virtual void RecordChunkV2DataLoss(ProducerID, WriterID) = 0;
+
+  // Increments abi_violations for a violation that the caller found outside
+  // this buffer, e.g. a protocol error in a producer's ring buffer. This only
+  // updates the statistic and does not record a gap on any packet sequence.
+  virtual void RecordAbiViolation() = 0;
+
+  // Tells the buffer that the tracing service has completed its current write.
+  // Called after all CopyChunkUntrusted() or CopyChunkV2Untrusted() calls and
+  // patches in CommitData(), ServiceRingBufferDrainer::Drain() or
+  // ScrapeSharedMemoryBuffers().
+  // The buffer can now read and move the available packets.
+  virtual void OnWriteCheckpoint() = 0;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -103,17 +169,30 @@ class TraceBuffer {
   // producer_uid, and writer_id of the producer/writer that wrote it.
   // Returns false if no packets can be read at this point.
   // |previous_packet_on_sequence_dropped| is a bitmask: 0 if no data was lost
-  // on the sequence before this packet, otherwise nonzero. TraceBufferV2 sets
-  // the DataLossReason cause bits; TraceBufferV1 just sets 1. The value is
-  // forwarded into TracePacket.previous_packet_dropped.
+  // on the sequence before this packet, otherwise nonzero. TraceBufferV2 and
+  // TraceBufferV3 set the DataLossReason cause bits; TraceBufferV1 just sets 1.
+  // The value is forwarded into TracePacket.previous_packet_dropped.
   virtual bool ReadNextTracePacket(
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) = 0;
 
+  // Attempts to reclaim unused buffer space.
+  // The caller must release all packets from previous reads before this call,
+  // because their slices can point into the buffer.
+  // Call BeginRead() before reading again.
+  virtual void MaybeCompact() = 0;
+
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called.
   virtual std::unique_ptr<TraceBuffer> CloneReadOnly() const = 0;
+
+  // Returns the ProtoVM state owned by this buffer, or nullptr if the
+  // implementation cannot run a ProtoVM. The pointer remains valid until the
+  // buffer is destroyed.
+  // The service uses it to set up VMs and emit their state. The buffer feeds
+  // packets to the VMs before overwriting them.
+  virtual TraceBufferProtoVms* protovms() = 0;
 
   virtual void set_read_only() = 0;
   virtual const TraceStats::BufferStats& stats() const = 0;
@@ -133,14 +212,38 @@ class TraceBuffer_WriterStats {
  public:
   using WriterBuckets =
       Histogram<8, 32, 128, 512, 1024, 2048, 4096, 8192, 12288, 16384>;
+  struct ChunkUsage {
+    WriterBuckets chunk_payload_histogram;
+    // ProtocolAbiVersion values that carried this writer's chunks.
+    uint32_t protocol_abi_versions = 0;
+  };
   using WriterStatsMap = base::FlatHashMap<ProducerAndWriterID,
-                                           WriterBuckets,
+                                           ChunkUsage,
                                            std::hash<ProducerAndWriterID>,
                                            base::QuadraticProbe,
                                            /*AppendOnly=*/true>;
 
-  void Insert(ProducerAndWriterID key, HistValue val) {
-    map_.Insert(key, {}).first->Add(val);
+  TraceBuffer_WriterStats() = default;
+  TraceBuffer_WriterStats(const TraceBuffer_WriterStats& other) {
+    for (auto it = other.map_.GetIterator(); it; ++it)
+      map_.Insert(it.key(), it.value());
+  }
+  TraceBuffer_WriterStats& operator=(const TraceBuffer_WriterStats& other) {
+    if (this != &other) {
+      this->~TraceBuffer_WriterStats();
+      new (this) TraceBuffer_WriterStats(other);
+    }
+    return *this;
+  }
+
+  // Adds one chunk of payload size |val|.
+  // |protocol_abi_version| is the ProtocolAbiVersion that carried it.
+  void Insert(ProducerAndWriterID key,
+              HistValue val,
+              uint32_t protocol_abi_version) {
+    ChunkUsage& usage = *map_.Insert(key, {}).first;
+    usage.protocol_abi_versions |= protocol_abi_version;
+    usage.chunk_payload_histogram.Add(val);
   }
 
   WriterStatsMap::Iterator GetIterator() const { return map_.GetIterator(); }

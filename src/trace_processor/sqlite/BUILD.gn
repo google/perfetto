@@ -52,6 +52,7 @@ source_set("sqlite") {
     "../storage",
     "../types",
     "../util:profile_builder",
+    "../util:sort",
   ]
   public_deps = [ "bindings" ]
 }
@@ -92,6 +93,9 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:sqlite",
       "../../base",
     ]
-    sources = [ "sqlite_vtable_benchmark.cc" ]
+    sources = [
+      "sqlite_progress_handler_benchmark.cc",
+      "sqlite_vtable_benchmark.cc",
+    ]
   }
 }

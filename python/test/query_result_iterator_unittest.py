@@ -13,14 +13,51 @@
 # limitations under the License.
 
 import unittest
+from unittest import mock
 
+from perfetto.common import query_result_iterator
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import HAS_POLARS
+from perfetto.common.query_result_iterator import HAS_PYARROW
 from perfetto.common.query_result_iterator import QueryResultIterator
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.protos import ProtoFactory
 
 PROTO_FACTORY = ProtoFactory(PLATFORM_DELEGATE())
+
+CELL_NULL = PROTO_FACTORY.CellsBatch().CELL_NULL
+CELL_VARINT = PROTO_FACTORY.CellsBatch().CELL_VARINT
+CELL_FLOAT64 = PROTO_FACTORY.CellsBatch().CELL_FLOAT64
+CELL_STRING = PROTO_FACTORY.CellsBatch().CELL_STRING
+CELL_BLOB = PROTO_FACTORY.CellsBatch().CELL_BLOB
+
+
+def _typed_result():
+  # Columns: an integer, a float, an integer with a NULL, a string, a mix of
+  # integers and floats, a mix of a string and an integer, and only NULLs.
+  batch = PROTO_FACTORY.CellsBatch()
+  batch.cells.extend([
+      CELL_VARINT,
+      CELL_FLOAT64,
+      CELL_VARINT,
+      CELL_STRING,
+      CELL_VARINT,
+      CELL_STRING,
+      CELL_NULL,
+      CELL_VARINT,
+      CELL_FLOAT64,
+      CELL_NULL,
+      CELL_STRING,
+      CELL_FLOAT64,
+      CELL_VARINT,
+      CELL_NULL,
+  ])
+  batch.varint_cells.extend([1, 10, 2, 2, 20])
+  batch.float64_cells.extend([1.5, 2.5, 3.5])
+  batch.string_cells = 'a\0b\0x\0'
+  batch.is_last_batch = True
+  return QueryResultIterator(
+      ['int', 'float', 'int_null', 'str', 'num', 'mixed', 'null'], [batch])
 
 
 class TestQueryResultIterator(unittest.TestCase):
@@ -455,6 +492,80 @@ class TestQueryResultIteratorPolars(unittest.TestCase):
     # Since we are in the @skipUnless(HAS_POLARS) class this path is only
     # exercised indirectly; the symmetrical test lives outside this class.
     pass
+
+
+@unittest.skipUnless(HAS_PYARROW, 'pyarrow not installed')
+class TestQueryResultIteratorArrow(unittest.TestCase):
+
+  def _typed_result_without_mixed(self):
+    batch = PROTO_FACTORY.CellsBatch()
+    batch.cells.extend([
+        CELL_VARINT,
+        CELL_FLOAT64,
+        CELL_STRING,
+        CELL_BLOB,
+        CELL_VARINT,
+        CELL_NULL,
+        CELL_NULL,
+        CELL_FLOAT64,
+        CELL_STRING,
+        CELL_BLOB,
+        CELL_FLOAT64,
+        CELL_NULL,
+    ])
+    batch.varint_cells.extend([1, 2])
+    batch.float64_cells.extend([1.5, 2.5, 3.5])
+    batch.string_cells = 'a\0b\0'
+    batch.blob_cells.extend([b'\x00', b'\x01'])
+    batch.is_last_batch = True
+    return QueryResultIterator(['int', 'float', 'str', 'blob', 'num', 'null'],
+                               [batch])
+
+  def test_types(self):
+    import pyarrow as pa
+    table = self._typed_result_without_mixed().as_arrow_table()
+    self.assertEqual(
+        table.schema,
+        pa.schema([
+            ('int', pa.int64()),
+            ('float', pa.float64()),
+            ('str', pa.string()),
+            ('blob', pa.binary()),
+            ('num', pa.float64()),
+            ('null', pa.null()),
+        ]))
+    self.assertEqual(
+        table.to_pydict(), {
+            'int': [1, None],
+            'float': [1.5, 2.5],
+            'str': ['a', 'b'],
+            'blob': [b'\x00', b'\x01'],
+            'num': [2.0, 3.5],
+            'null': [None, None],
+        })
+
+  def test_mixed_column_raises(self):
+    with self.assertRaisesRegex(PerfettoException, "'mixed' mixes"):
+      _typed_result().as_arrow_table()
+
+  def test_arrow_c_stream(self):
+    import pyarrow as pa
+    qr = self._typed_result_without_mixed()
+    self.assertEqual(pa.table(qr), qr.as_arrow_table())
+
+  def test_types_without_numpy(self):
+    with mock.patch.object(query_result_iterator, 'HAS_NUMPY', False):
+      qr = self._typed_result_without_mixed()
+    self.assertIsInstance(qr.cells, list)
+    self.assertEqual(qr.as_arrow_table(),
+                     self._typed_result_without_mixed().as_arrow_table())
+
+  def test_no_columns(self):
+    batch = PROTO_FACTORY.CellsBatch()
+    batch.is_last_batch = True
+    table = QueryResultIterator([], [batch]).as_arrow_table()
+    self.assertEqual(table.num_columns, 0)
+    self.assertEqual(table.num_rows, 0)
 
 
 @unittest.skipIf(HAS_POLARS, 'polars is installed, skipping missing-dep test')

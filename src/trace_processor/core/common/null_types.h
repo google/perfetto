@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_NULL_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_COMMON_NULL_TYPES_H_
 
-#include "src/trace_processor/core/util/type_set.h"
+#include "perfetto/ext/base/type_set.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -43,7 +43,7 @@ struct SparseNullWithPopcountUntilFinalization {};
 struct DenseNull {};
 
 // TypeSet of all possible column nullability states.
-using Nullability = core::TypeSet<NonNull,
+using Nullability = base::TypeSet<NonNull,
                                   SparseNull,
                                   SparseNullWithPopcountAlways,
                                   SparseNullWithPopcountUntilFinalization,

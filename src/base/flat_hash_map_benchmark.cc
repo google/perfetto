@@ -703,6 +703,45 @@ BENCHMARK_TEMPLATE(BM_HashMap_InsertDupeInts, FollyF14_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_Default);
 BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, OursV2_Default);
 
+// Compare owning-key insertion with string_view insertion for short (SSO) and
+// heap-allocated keys, including duplicate, mixed, and entirely new keys.
+template <bool Heterogeneous>
+void BM_HashMapV2_StringInsert(benchmark::State& state) {
+  constexpr size_t kNumKeys = 4096;
+  std::vector<std::string> keys;
+  for (size_t i = 0; i < kNumKeys; ++i) {
+    std::string key = "key_" + std::to_string(i);
+    key.resize(static_cast<size_t>(state.range(0)), 'x');
+    keys.push_back(std::move(key));
+  }
+  const size_t num_existing =
+      kNumKeys * static_cast<size_t>(100 - state.range(1)) / 100;
+  base::FlatHashMapV2<std::string, uint64_t> map;
+  for (auto _ : state) {
+    state.PauseTiming();
+    map.Clear();
+    for (size_t i = 0; i < num_existing; ++i)
+      map.Insert(keys[i], 42);
+    state.ResumeTiming();
+    for (const auto& key : keys) {
+      if constexpr (Heterogeneous) {
+        benchmark::DoNotOptimize(map.Insert(std::string_view(key), 42));
+      } else {
+        benchmark::DoNotOptimize(map.Insert(key, 42));
+      }
+    }
+    benchmark::ClobberMemory();
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations() * kNumKeys));
+}
+
+BENCHMARK_TEMPLATE(BM_HashMapV2_StringInsert, false)
+    ->ArgsProduct({{16, 64}, {0, 50, 100}})
+    ->ArgNames({"key_length", "miss_pct"});
+BENCHMARK_TEMPLATE(BM_HashMapV2_StringInsert, true)
+    ->ArgsProduct({{16, 64}, {0, 50, 100}})
+    ->ArgNames({"key_length", "miss_pct"});
+
 // Heterogeneous lookup benchmarks
 template <typename MapType>
 void BM_HashMap_HeterogeneousLookup_String(benchmark::State& state) {

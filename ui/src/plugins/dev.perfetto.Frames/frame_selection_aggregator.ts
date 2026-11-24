@@ -29,6 +29,7 @@ import {Timestamp} from '../../components/widgets/timestamp';
 import type {AreaSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {Engine} from '../../trace_processor/engine';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 
@@ -40,7 +41,7 @@ export class FrameSelectionAggregator implements Aggregator {
   constructor(private readonly trace: Trace) {}
 
   probe(area: AreaSelection): Aggregation | undefined {
-    const dataset = selectTracksAndGetDataset(
+    const tracksDataset = selectTracksAndGetDataset(
       area.tracks,
       {
         id: NUM,
@@ -52,7 +53,15 @@ export class FrameSelectionAggregator implements Aggregator {
       ACTUAL_FRAMES_SLICE_TRACK_KIND,
     );
 
-    if (!dataset) return undefined;
+    if (!tracksDataset) return undefined;
+
+    // The per-layer tracks show a subset of the frames of their process'
+    // 'Actual Timeline', so a frame can be shown by more than one of the
+    // selected tracks. Make sure each frame is only counted once.
+    const dataset = new SourceDataset({
+      src: `select distinct * from (${tracksDataset.query()})`,
+      schema: tracksDataset.schema,
+    });
 
     return {
       getGridConfig: () => this.getGridConfig(),

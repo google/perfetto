@@ -46,7 +46,7 @@ export interface DatagridEngineSQLConfig extends SQLTableSchema {
  *
  * Simplified version: supports flat mode and pivot mode.
  */
-export class SQLDataSource implements DataSource {
+export class SQLDataSource implements DataSource, Disposable {
   private readonly engine: Engine;
   private readonly sqlSchema: SQLTableSchema;
   private readonly preamble?: string;
@@ -273,6 +273,10 @@ export class SQLDataSource implements DataSource {
     this.flatEngine.dispose();
     this.pivotEngine.dispose();
     this.treeEngine.dispose();
+  }
+
+  [Symbol.dispose](): void {
+    this.dispose();
   }
 
   /**

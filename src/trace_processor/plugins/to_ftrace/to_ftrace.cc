@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/dynamic_string_writer.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
@@ -728,8 +729,8 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   auto row = raw[raw_row];
   StringId event_name_id = row.name();
   NullTermStringView event_name = storage_->GetString(event_name_id);
-  if (event_name.StartsWith("chrome_event.") ||
-      event_name.StartsWith("track_event.")) {
+  if (base::StartsWith(event_name, "chrome_event.") ||
+      base::StartsWith(event_name, "track_event.")) {
     return ScopedCString(nullptr, nullptr);
   }
 

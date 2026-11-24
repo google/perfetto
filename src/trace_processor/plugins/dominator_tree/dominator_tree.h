@@ -22,7 +22,7 @@
 
 namespace perfetto::trace_processor {
 
-// An SQL aggregate-function which computes the dominator-tree [1] of a graph.
+// An SQL aggregate-function which computes the dominator-tree of a graph.
 //
 // Arguments:
 //  1) |source_node_id|: a non-null uint32 corresponding to the source of edge.
@@ -39,17 +39,7 @@ namespace perfetto::trace_processor {
 // to be used directly from SQL: instead a "dominator_tree" macro exists in
 // the standard library, wrapping it and making it user-friendly.
 //
-// Implementation notes:
-// This class implements the Lengauer-Tarjan Dominators algorithm [2]. This was
-// chosen as it runs on O(nlog(n)) time: as we expect this class to be used on
-// large tables (i.e. tables containing Java heap graphs), it's important that
-// the code is efficient.
-//
-// As Lengauer-Tarjan Dominators is not the most intuitive algorithm [3] might
-// be a useful resource for grasping the key principles behind it.
-//
-// [1] https://en.wikipedia.org/wiki/Dominator_(graph_theory)
-// [2] https://dl.acm.org/doi/10.1145/357062.357071
+// The algorithm is util::DominatorTree.
 class DominatorTree : public sqlite::AggregateFunction<DominatorTree> {
  public:
   static constexpr char kName[] = "__intrinsic_dominator_tree";

@@ -59,11 +59,20 @@ const validMetricsTest: {
       aggregation: 'total_dur_ns-mean',
     },
   },
+  {
+    inputMetric:
+      'perfetto_android_notifications_blocking_call-blocking_calls-name-ExpNotRow#onMeasure(Big-Text-Style)-max_dur_ms-max',
+    expectedOutput: {
+      notificationName: 'ExpNotRow#onMeasure(Big-Text-Style)',
+      aggregation: 'max_dur_ms-max',
+    },
+  },
 ];
 
 const invalidMetricsTest: string[] = [
   'perfetto_android_blocking_call-cuj-name-com.google.android.apps.nexuslauncher-name-TASKBAR_EXPAND-blocking_calls-name-animation-total_dur_ms-mean',
   'perfetto_cuj_launcher-RECENTS_SCROLLING-counter_metrics-missed_sf_frames-mean',
+  'perfetto_android_notifications_blocking_call-blocking_calls-name-NotificationStackScrollLayout#onMeasure',
 ];
 
 const tester = pinNotificationsBlockingCallHandlerInstance;

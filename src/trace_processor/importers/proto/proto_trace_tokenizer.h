@@ -30,7 +30,6 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/util/decompressor.h"
 
 #include "perfetto/ext/base/status_macros.h"
@@ -58,23 +57,33 @@ class ProtoTraceTokenizer {
       // for size/varint).
       const size_t kMinHeaderBytes = 2;
       const size_t kMaxHeaderBytes = 20;
-      std::optional<TraceBlobView> header = reader_.SliceOff(
-          start_offset,
-          std::min(std::max(avail, kMinHeaderBytes), kMaxHeaderBytes));
+      const size_t header_size =
+          std::min(std::max(avail, kMinHeaderBytes), kMaxHeaderBytes);
 
-      // This means that kMinHeaderBytes was not available. Just wait for the
-      // next round.
-      if (PERFETTO_UNLIKELY(!header)) {
-        return base::OkStatus();
+      // The header is read in place when it lies within one chunk, which
+      // avoids slicing a view of it per packet; only a header that straddles
+      // chunks is stitched together.
+      const uint8_t* header_data =
+          reader_.ContiguousAt(start_offset, header_size);
+      std::optional<TraceBlobView> stitched_header;
+      if (PERFETTO_UNLIKELY(!header_data)) {
+        stitched_header = reader_.SliceOff(start_offset, header_size);
+        // This means that kMinHeaderBytes was not available. Just wait for
+        // the next round.
+        if (!stitched_header) {
+          return base::OkStatus();
+        }
+        header_data = stitched_header->data();
       }
+      const uint8_t* header_end = header_data + header_size;
 
       uint64_t tag;
-      const uint8_t* tag_start = header->data();
-      const uint8_t* tag_end = protozero::proto_utils::ParseVarInt(
-          tag_start, header->data() + header->size(), &tag);
+      const uint8_t* tag_start = header_data;
+      const uint8_t* tag_end =
+          protozero::proto_utils::ParseVarInt(tag_start, header_end, &tag);
 
       if (PERFETTO_UNLIKELY(tag_end == tag_start)) {
-        return header->size() < kMaxHeaderBytes
+        return header_size < kMaxHeaderBytes
                    ? base::OkStatus()
                    : base::ErrStatus(
                          "Failed to parse tag @ 0x%zx (ERR:tp-corrupt)",
@@ -90,9 +99,9 @@ class ProtoTraceTokenizer {
             uint64_t varint;
             const uint8_t* varint_start = tag_end;
             const uint8_t* varint_end = protozero::proto_utils::ParseVarInt(
-                tag_end, header->data() + header->size(), &varint);
+                tag_end, header_end, &varint);
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
-              return header->size() < kMaxHeaderBytes
+              return header_size < kMaxHeaderBytes
                          ? base::OkStatus()
                          : base::ErrStatus(
                                "Failed to skip varint @ 0x%zx (ERR:tp-corrupt)",
@@ -107,9 +116,9 @@ class ProtoTraceTokenizer {
             uint64_t varint;
             const uint8_t* varint_start = tag_end;
             const uint8_t* varint_end = protozero::proto_utils::ParseVarInt(
-                tag_end, header->data() + header->size(), &varint);
+                tag_end, header_end, &varint);
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
-              return header->size() < kMaxHeaderBytes
+              return header_size < kMaxHeaderBytes
                          ? base::OkStatus()
                          : base::ErrStatus(
                                "Failed to skip delimited @ 0x%zx "
@@ -164,12 +173,12 @@ class ProtoTraceTokenizer {
       uint64_t field_size;
       const uint8_t* size_start = tag_end;
       const uint8_t* size_end = protozero::proto_utils::ParseVarInt(
-          size_start, header->data() + header->size(), &field_size);
+          size_start, header_end, &field_size);
 
       // If we had less than the maximum number of header bytes, it's possible
       // that we just need more to actually parse. Otherwise, this is an error.
       if (PERFETTO_UNLIKELY(size_start == size_end)) {
-        return header->size() < kMaxHeaderBytes
+        return header_size < kMaxHeaderBytes
                    ? base::OkStatus()
                    : base::ErrStatus(
                          "Failed to parse TracePacket size (ERR:tp-corrupt)");
@@ -177,7 +186,7 @@ class ProtoTraceTokenizer {
 
       // Empty packets can legitimately happen if the producer ends up emitting
       // no data: just ignore them.
-      auto hdr_size = static_cast<size_t>(size_end - header->data());
+      auto hdr_size = static_cast<size_t>(size_end - header_data);
       if (PERFETTO_UNLIKELY(field_size == 0)) {
         PERFETTO_CHECK(reader_.PopFrontBytes(hdr_size));
         continue;
@@ -191,46 +200,40 @@ class ProtoTraceTokenizer {
       auto packet = reader_.SliceOff(start_offset + hdr_size, field_size);
       PERFETTO_CHECK(packet);
       PERFETTO_CHECK(reader_.PopFrontBytes(hdr_size + field_size));
-      protos::pbzero::TracePacket::Decoder decoder(packet->data(),
-                                                   packet->length());
-      util::CompressionType codec;
-      protozero::ConstBytes field;
-      if (decoder.has_compressed_packets()) {
-        codec = util::CompressionType::kGzip;
-        field = decoder.compressed_packets();
-      } else if (decoder.has_zstd_compressed_packets()) {
-        codec = util::CompressionType::kZstd;
-        field = decoder.zstd_compressed_packets();
-      } else {
-        RETURN_IF_ERROR(callback(std::move(*packet)));
-        continue;
-      }
-
-      TraceBlobView compressed_packets = packet->slice(field.data, field.size);
-      TraceBlobView packets;
-      RETURN_IF_ERROR(
-          Decompress(codec, std::move(compressed_packets), &packets));
-
-      const uint8_t* start = packets.data();
-      const uint8_t* end = packets.data() + packets.length();
-      const uint8_t* ptr = start;
-      while ((end - ptr) > 2) {
-        const uint8_t* packet_outer = ptr;
-        if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag)) {
-          return base::ErrStatus("Expected TracePacket tag (ERR:tp-corrupt)");
-        }
-        uint64_t packet_size = 0;
-        ptr = protozero::proto_utils::ParseVarInt(++ptr, end, &packet_size);
-        const uint8_t* packet_start = ptr;
-        ptr += packet_size;
-        if (PERFETTO_UNLIKELY((ptr - packet_outer) < 2 || ptr > end)) {
-          return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
-        }
-        TraceBlobView sliced =
-            packets.slice(packet_start, static_cast<size_t>(packet_size));
-        RETURN_IF_ERROR(callback(std::move(sliced)));
-      }
+      RETURN_IF_ERROR(callback(std::move(*packet)));
     }
+  }
+
+  // Expands a compressed_packets / zstd_compressed_packets bundle and hands
+  // each packet in it to |callback|. The caller decodes the enclosing packet,
+  // so the bundle is not decoded twice.
+  template <typename Callback = base::Status(TraceBlobView)>
+  base::Status TokenizeCompressedPackets(util::CompressionType codec,
+                                         TraceBlobView compressed_packets,
+                                         Callback callback) {
+    TraceBlobView packets;
+    RETURN_IF_ERROR(Decompress(codec, std::move(compressed_packets), &packets));
+
+    const uint8_t* start = packets.data();
+    const uint8_t* end = packets.data() + packets.length();
+    const uint8_t* ptr = start;
+    while ((end - ptr) > 2) {
+      const uint8_t* packet_outer = ptr;
+      if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag)) {
+        return base::ErrStatus("Expected TracePacket tag (ERR:tp-corrupt)");
+      }
+      uint64_t packet_size = 0;
+      ptr = protozero::proto_utils::ParseVarInt(++ptr, end, &packet_size);
+      const uint8_t* packet_start = ptr;
+      ptr += packet_size;
+      if (PERFETTO_UNLIKELY((ptr - packet_outer) < 2 || ptr > end)) {
+        return base::ErrStatus("Invalid packet size (ERR:tp-corrupt)");
+      }
+      TraceBlobView sliced =
+          packets.slice(packet_start, static_cast<size_t>(packet_size));
+      RETURN_IF_ERROR(callback(std::move(sliced)));
+    }
+    return base::OkStatus();
   }
 
  private:

@@ -39,7 +39,6 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
@@ -66,6 +65,7 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -80,6 +80,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
@@ -245,8 +246,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.args_tracker =
+        std::make_unique<ArgsTracker>(context_.storage.get());
     context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(context_.storage.get());
     context_.global_stats_tracker =
@@ -2686,6 +2687,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
     pkg->set_uid(1000);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(true);
+    pkg->set_profileable(true);
     pkg->set_version_code(42);
   }
   {
@@ -2694,7 +2696,13 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
     pkg->set_uid(1001);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(false);
+    pkg->set_profileable(false);
     pkg->set_version_code(43);
+  }
+  {
+    auto* pkg = pkg_list->add_packages();
+    pkg->set_name("com.test.app3");
+    pkg->set_uid(1002);
   }
 
   Tokenize();
@@ -2711,13 +2719,14 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
   const auto& package_list = context_.storage->package_list_table();
-  ASSERT_EQ(package_list.row_count(), 2u);
+  ASSERT_EQ(package_list.row_count(), 3u);
 
   EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
                "com.test.app");
   EXPECT_EQ(package_list[0].uid(), 1000u);
   EXPECT_EQ(package_list[0].debuggable(), false);
   EXPECT_EQ(package_list[0].profileable_from_shell(), true);
+  EXPECT_EQ(package_list[0].profileable(), true);
   EXPECT_EQ(package_list[0].version_code(), 42);
 
   EXPECT_STREQ(storage_->GetString(package_list[1].package_name()).c_str(),
@@ -2725,7 +2734,12 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   EXPECT_EQ(package_list[1].uid(), 1001u);
   EXPECT_EQ(package_list[1].debuggable(), false);
   EXPECT_EQ(package_list[1].profileable_from_shell(), false);
+  EXPECT_EQ(package_list[1].profileable(), false);
   EXPECT_EQ(package_list[1].version_code(), 43);
+
+  EXPECT_STREQ(storage_->GetString(package_list[2].package_name()).c_str(),
+               "com.test.app3");
+  EXPECT_FALSE(package_list[2].version_code().has_value());
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
@@ -2740,6 +2754,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
     pkg->set_uid(1000);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(true);
+    pkg->set_profileable(true);
     pkg->set_version_code(42);
   }
   {
@@ -2748,6 +2763,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
     pkg->set_uid(1000);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(true);
+    pkg->set_profileable(true);
     pkg->set_version_code(42);
   }
 
@@ -2772,6 +2788,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   EXPECT_EQ(package_list[0].uid(), 1000u);
   EXPECT_EQ(package_list[0].debuggable(), false);
   EXPECT_EQ(package_list[0].profileable_from_shell(), true);
+  EXPECT_EQ(package_list[0].profileable(), true);
   EXPECT_EQ(package_list[0].version_code(), 42);
 }
 
@@ -3040,6 +3057,10 @@ TEST_F(ProtoTraceParserTest,
 }
 
 TEST_F(ProtoTraceParserTest, RecoveredTraceInfoNotPresentIsNull) {
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_timestamp(1000);
+  }
   ASSERT_TRUE(Tokenize().ok());
   context_.sorter->ExtractEventsForced();
 
@@ -3179,6 +3200,52 @@ TEST_F(ProtoTraceParserTest, NonEmptyCpuInfo) {
   EXPECT_STREQ(context_.storage->GetString(cpu_table[0].processor()).c_str(),
                "ARMv8 Processor rev 0 (v8l)");
   EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+}
+
+TEST_F(ProtoTraceParserTest, CpuInfoUniformCapacityFallsBackToFrequencies) {
+  auto* cpu_info = trace_->add_packet()->set_cpu_info();
+  auto* ecore = cpu_info->add_cpus();
+  ecore->set_processor("12th Gen Intel(R) Core(TM) i5-1235U");
+  ecore->set_capacity(1024);
+  ecore->add_frequencies(3300000);
+  auto* pcore = cpu_info->add_cpus();
+  pcore->set_processor("12th Gen Intel(R) Core(TM) i5-1235U");
+  pcore->set_capacity(1024);
+  pcore->add_frequencies(4400000);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& cpu_table = context_.storage->cpu_table();
+  ASSERT_GE(cpu_table.row_count(), 2u);
+  EXPECT_EQ(cpu_table[0].capacity(), 1024u);
+  EXPECT_EQ(cpu_table[1].capacity(), 1024u);
+  EXPECT_EQ(cpu_table[0].cluster_id(), 0u);
+  EXPECT_EQ(cpu_table[1].cluster_id(), 1u);
+}
+
+TEST_F(ProtoTraceParserTest, SystemInfoDeviceTreeCompatible) {
+  auto* packet = trace_->add_packet();
+  packet->set_trusted_packet_sequence_id(1);
+  packet->set_timestamp(1000);
+  auto* sys_info = packet->set_system_info();
+  sys_info->add_device_tree_compatibles("google,gs101-oriole");
+  sys_info->add_device_tree_compatibles("google,gs101");
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  const auto& metadata_table = context_.storage->metadata_table();
+  std::vector<std::string> compatibles;
+  StringId key_id = context_.storage->InternString("device_tree_compatible");
+  for (uint32_t i = 0; i < metadata_table.row_count(); ++i) {
+    if (metadata_table[i].name() == key_id) {
+      compatibles.push_back(
+          context_.storage->GetString(*metadata_table[i].str_value()).c_str());
+    }
+  }
+  EXPECT_THAT(compatibles,
+              testing::ElementsAre("google,gs101-oriole", "google,gs101"));
 }
 
 }  // namespace

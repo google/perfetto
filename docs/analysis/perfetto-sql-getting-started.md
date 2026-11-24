@@ -452,7 +452,7 @@ SELECT
   (
     SELECT string_value
     FROM args
-    WHERE key = 'prev_comm' AND args.arg_set_id = raw.arg_set_id
+    WHERE key = 'prev_comm' AND args.arg_set_id = ftrace_event.arg_set_id
   )
 FROM ftrace_event
 WHERE name = 'sched_switch'

@@ -24,10 +24,10 @@
 
 #include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/tree/tree.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::flamegraph {
 
@@ -52,14 +52,14 @@ struct Config {
   struct BottomUp {};
   struct Pivot {};
   struct FromFrame {};
-  using View = core::TypeSet<TopDown, BottomUp, Pivot, FromFrame>;
+  using View = base::TypeSet<TopDown, BottomUp, Pivot, FromFrame>;
 
   // Views anchored on frames matching |view_pattern|.
-  using PatternViews = core::TypeSet<Pivot, FromFrame>;
+  using PatternViews = base::TypeSet<Pivot, FromFrame>;
   // Views which build the downward (descendant) half of the output.
-  using DownwardViews = core::TypeSet<TopDown, Pivot, FromFrame>;
+  using DownwardViews = base::TypeSet<TopDown, Pivot, FromFrame>;
   // Views which build the upward (ancestor) half of the output.
-  using UpwardViews = core::TypeSet<BottomUp, Pivot>;
+  using UpwardViews = base::TypeSet<BottomUp, Pivot>;
 
   enum class Aggregate {
     kSum,

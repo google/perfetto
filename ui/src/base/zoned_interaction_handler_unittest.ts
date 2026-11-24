@@ -188,7 +188,7 @@ describe('ZonedInteractionHandler', () => {
     );
 
     expect(handleWheel).toHaveBeenCalled();
-    expect(handleWheel.mock.calls[0][0]).toMatchObject({
+    expect(handleWheel.mock.calls[0]![0]).toMatchObject({
       position: {x: 50, y: 50},
       deltaX: 5,
       deltaY: 10,

@@ -14,7 +14,7 @@
 
 @use "../assets/theme.scss" as *;
 
-$border-radius: $border-radius-large;
+$border-radius: $border-radius-medium;
 
 @layer pf-widgets {
   .pf-card {

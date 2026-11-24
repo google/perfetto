@@ -39,9 +39,20 @@ class RootMessage : public T {
   RootMessage(RootMessage&&) = delete;
   RootMessage& operator=(RootMessage&&) = delete;
 
-  void Reset(ScatteredStreamWriter* writer) {
+  // Resets the root and its arena for output to |writer| with |encoding|.
+  // See Message::Encoding.
+  void Reset(ScatteredStreamWriter* writer, Message::Encoding encoding) {
     root_arena_.Reset();
-    Message::Reset(writer, &root_arena_);
+    Message::Reset(writer, &root_arena_, encoding);
+  }
+
+  // Convenience wrapper for the default length-delimited encoding.
+  //
+  // TODO(sashwinbalaji): Remove this overload once Chromium calls the one
+  // above, for example in:
+  // https://crsrc.org/c/services/tracing/public/cpp/perfetto/traced_value_proto_writer.cc
+  void Reset(ScatteredStreamWriter* writer) {
+    Reset(writer, Message::Encoding::kLengthDelimited);
   }
 
  private:

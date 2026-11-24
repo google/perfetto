@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -132,7 +133,7 @@ void* ModuleStateManagerBase::GetState(PerVtabState* s) {
   return s->active_state.get();
 }
 
-void* ModuleStateManagerBase::GetStateByName(const std::string& name) {
+void* ModuleStateManagerBase::GetStateByName(std::string_view name) {
   auto* ptr = state_by_name_.Find(name);
   if (!ptr) {
     return nullptr;

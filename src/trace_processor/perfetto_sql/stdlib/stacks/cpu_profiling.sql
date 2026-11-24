@@ -73,11 +73,9 @@ WHERE
 ORDER BY
   ss.ts;
 
-CREATE PERFETTO TABLE _cpu_profiling_self_callsites AS
-SELECT *
+CREATE PERFETTO TABLE _cpu_profiling_callstacks AS
 FROM _callstacks_for_callsites!((SELECT callsite_id FROM cpu_profiling_samples))
-ORDER BY
-  id;
+|> TREE ACCUMULATE UP SUM(self_count) AS cumulative_count;
 
 -- Table summarising the callstacks captured during any CPU profiling which
 -- occurred during the trace.
@@ -117,17 +115,8 @@ SELECT
   mapping_name,
   source_file,
   line_number,
-  sum(self_count) AS self_count,
-  sum(cumulative_count) AS cumulative_count
-FROM (
-  SELECT r.*, a.cumulative_count
-  FROM _cpu_profiling_self_callsites AS r
-  JOIN _callstacks_self_to_cumulative!((
-    SELECT id, parent_id, self_count
-    FROM _cpu_profiling_self_callsites
-  )) AS a USING (
-    id
-  )
-)
-GROUP BY
+  self_count,
+  cumulative_count
+FROM _cpu_profiling_callstacks
+ORDER BY
   id;

@@ -78,9 +78,8 @@ WHERE name GLOB '*interesting_slice*'
 LIMIT 10;
 ```
 
-Navigating back to the timeline (press “Show timeline”) will show the results
-table in the bottom bar. You can click slice IDs to jump to the slice in the
-timeline.
+The results table appears below the query editor. You can click slice IDs to
+jump to the slice in the timeline.
 
 PerfettoSQL supports multiple
 [pattern matching operators](https://sqlite.org/lang_expr.html#like) like
@@ -130,10 +129,9 @@ AND t.is_main_thread
 ORDER BY dur DESC;
 ```
 
-After running the query in the SQL view, click “Show timeline” in the sidebar
-and the query results will appear in the bottom bar. Queries that include the
-slice columns id, ts, dur, track_id, and slice_id can link to slices in the
-Timeline view for easy navigation. Click the value under id and the timeline
+After running the query in the SQL view, the query results will appear below
+the query editor. Queries that include the slice columns id, ts, dur, track_id,
+and slice_id can link to slices in the Timeline view for easy navigation. Click the value under id and the timeline
 will jump straight to that slice.
 
 ![](/docs/images/analysis-cookbook-unint-sleep.png)
@@ -248,11 +246,11 @@ SELECT
   process_name,
   -- Recommended: Anonymous memory + swap is the best indicator of app memory
   -- pressure
-  MAX(anon_rss_and_swap) / 1024.0 AS peak_anon_rss_and_swap_mb,
+  MAX(anon_rss_and_swap) / 1024.0 / 1024.0 AS peak_anon_rss_and_swap_mb,
   -- FYI: Other memory metrics for additional context
-  MAX(anon_rss) / 1024.0 AS peak_anon_rss_mb,
-  MAX(file_rss) / 1024.0 AS peak_file_rss_mb,
-  MAX(swap) / 1024.0 AS peak_swap_mb
+  MAX(anon_rss) / 1024.0 / 1024.0 AS peak_anon_rss_mb,
+  MAX(file_rss) / 1024.0 / 1024.0 AS peak_file_rss_mb,
+  MAX(swap) / 1024.0 / 1024.0 AS peak_swap_mb
 FROM memory_oom_score_with_rss_and_swap_per_process
 WHERE process_name GLOB 'com.android.systemui*'
 GROUP BY process_name;
@@ -292,7 +290,7 @@ data_sources: {
 ```
 
 With this configured, when clicking on a thread state slice in uninterruptible
-sleep you will see in the bottom bar a field named “blocked_function”. Instead
+sleep you will see in the bottom bar a field named "Blocked function". Instead
 of clicking on individual slices, you can run a query to summarize the data:
 
 ```sql
@@ -386,17 +384,17 @@ AND thread_name = 'OomAdjuster'
 AND name LIKE 'setProcessGroup %';
 ```
 
-Using debug tracks you can add this information to the timeline. Press “Show
-timeline”. In the bottom bar, press “Show debug track” and configure:
+Using debug tracks you can add this information to the timeline. Above the
+query results, press "Add debug track" and configure:
 
-- Track type: counter
-- ts: `ts`
-- value: `group_id`
-- pivot: `process_name`
+- Track type: Counter Track
+- Timestamp: `ts`
+- Value: `group_id`
+- Pivot on: `process_name`
 
 ![](/docs/images/debug-track-setprocessgroup-simple.png)
 
-Press “Show” and you’ll see debug tracks generated from the results:
+Press "Add Track" and you'll see debug tracks generated from the results:
 ![](/docs/images/debug-track-setprocessgroup-simple-result.png)
 
 The integer values for groups are enumerated in `SchedPolicy` in
@@ -534,6 +532,7 @@ data_sources {
 
 ```sql
 INCLUDE PERFETTO MODULE android.job_scheduler_states;
+INCLUDE PERFETTO MODULE time.conversion;
 
 SELECT
   job_id,
@@ -632,7 +631,7 @@ select
   MAX(max_freq) AS max_freq
 FROM cpu_cycles_per_process
 JOIN process USING (upid)
-WHERE process_name = 'system-server'
+WHERE process_name = 'system_server'
 GROUP BY process_name;
 ```
 
@@ -648,11 +647,11 @@ To see cpu utilisation for an interesting slice, use the following query:
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
 select
-  slice_name,
+  name,
   SUM(megacycles)
 FROM cpu_cycles_per_thread_slice
-WHERE slice_name GLOB '*interesting_slice*'  -- or cpu_cycles_per_thread_slice.id=<id of interesting slice>
-GROUP BY slice_name;
+WHERE name GLOB '*interesting_slice*'  -- or cpu_cycles_per_thread_slice.id=<id of interesting slice>
+GROUP BY name;
 ```
 
 Or to check slice utilization for all the slices of your process:

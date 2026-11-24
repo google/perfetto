@@ -20,7 +20,6 @@ import {
   SCROLL_TIMELINE_V4_TRACK,
   type TrackSpec,
 } from '../plugins/org.chromium.ChromeScrollJank/tracks';
-import {Time, type time} from '../base/time';
 
 let pth: PerfettoTestHelper;
 let page: Page;
@@ -37,8 +36,7 @@ test.afterEach(async () => await page.close());
 
 async function selectPluginSlice(
   trackSpec: TrackSpec,
-  name: string,
-  ts: time,
+  eventId: number,
 ): Promise<void> {
   // We cannot use `PerfettoTestHelper.searchSlice()` because omnibox search
   // results don't include track events (slices) created by plugins.
@@ -52,26 +50,14 @@ async function selectPluginSlice(
   // ```
   //
   // but it would break easily, in which case updating the coordinates manually
-  // would be very tedious. So we do the following instead.
+  // would be very tedious. So we select the slice directly by its ID.
+  // The IDs are stable for the given test trace (chrome/scroll_m144.pftrace).
   await page.evaluate(
-    async ({tableName, trackUri, name, ts}) => {
+    ({trackUri, eventId}) => {
       const trace = self.app.trace!;
-
-      // Step 1: Find the ID of the slice.
-      const result = await trace.engine.query(`
-        SELECT id
-        FROM ${tableName}
-        WHERE name = '${name}' AND ts = ${ts}
-      `);
-      if (result.numRows() > 1) {
-        throw new Error('Multiple slices match');
-      }
-      const id = result.firstRow({id: Number()}).id;
-
-      // Step 2: Select the slice.
-      trace.selection.selectTrackEvent(trackUri, id);
+      trace.selection.selectTrackEvent(trackUri, eventId);
     },
-    {tableName: trackSpec.tableName, trackUri: trackSpec.uri, name, ts},
+    {trackUri: trackSpec.uri, eventId},
   );
 }
 
@@ -86,11 +72,7 @@ test('event_latency_track', async () => {
 
   // Select the 'RendererCompositorQueueingDelay' stage within the first
   // janky EventLatency.
-  await selectPluginSlice(
-    EVENT_LATENCY_TRACK,
-    'RendererCompositorQueueingDelay',
-    Time.fromRaw(16784825798017n),
-  );
+  await selectPluginSlice(EVENT_LATENCY_TRACK, 25012);
   await trk.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot('details_panel_stage.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
@@ -110,11 +92,7 @@ test('event_latency_track', async () => {
   );
 
   // Go back to the first janky EventLatency and then jump the corresponding frame.
-  await selectPluginSlice(
-    EVENT_LATENCY_TRACK,
-    'Janky EventLatency',
-    Time.fromRaw(16784822412017n),
-  );
+  await selectPluginSlice(EVENT_LATENCY_TRACK, 24945);
   await page
     .getByText('Frame where this was the first presented EventLatency')
     .click();
@@ -133,11 +111,7 @@ test('scroll_timeline_track', async () => {
 
   // Select the 'GenerationToBrowserMain' stage within the first inertial scroll
   // update.
-  await selectPluginSlice(
-    SCROLL_TIMELINE_TRACK,
-    'GenerationToBrowserMain',
-    Time.fromRaw(16784307235017n),
-  );
+  await selectPluginSlice(SCROLL_TIMELINE_TRACK, 2456);
   await trk.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot('details_panel_stage.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
@@ -160,11 +134,7 @@ test('scroll_timeline_track', async () => {
 
   // Go back to the first inertial scroll update and then jump the corresponding
   // frame.
-  await selectPluginSlice(
-    SCROLL_TIMELINE_TRACK,
-    'Inertial Scroll Update',
-    Time.fromRaw(16784307235017n),
-  );
+  await selectPluginSlice(SCROLL_TIMELINE_TRACK, 2455);
   await page
     .getByText('Frame where this was the first presented scroll update')
     .click();
@@ -183,11 +153,7 @@ test('scroll_timeline_v4_track', async () => {
 
   // Select the 'Real scroll update input generation' stage within the second
   // janky frame.
-  await selectPluginSlice(
-    SCROLL_TIMELINE_V4_TRACK,
-    'Real scroll update input generation',
-    Time.fromRaw(16784838286017n),
-  );
+  await selectPluginSlice(SCROLL_TIMELINE_V4_TRACK, 291);
   await trk.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_stage.png',
@@ -209,11 +175,7 @@ test('scroll_timeline_v4_track', async () => {
   );
 
   // Go back to the second janky frame and then jump the corresponding frame.
-  await selectPluginSlice(
-    SCROLL_TIMELINE_V4_TRACK,
-    'Janky Frame',
-    Time.fromRaw(16784838286017n),
-  );
+  await selectPluginSlice(SCROLL_TIMELINE_V4_TRACK, 290);
   await page.getByText('First scroll update in this frame').click();
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_link_to_scroll_timeline.png',

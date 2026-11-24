@@ -722,5 +722,59 @@ TEST(StringFilterTest, UnspecifiedIsItsOwnCategory) {
   ASSERT_EQ(str5, "secret:P60RE");
 }
 
+TEST(StringFilterTest, ActiveSemanticTypeMaskAndRuleReplacement) {
+  StringFilter filter;
+  std::string empty_rules_str = "secret:val";
+  EXPECT_FALSE(
+      filter.MaybeFilter(empty_rules_str.data(), empty_rules_str.size(), 0));
+  EXPECT_FALSE(
+      filter.MaybeFilter(empty_rules_str.data(), empty_rules_str.size(), 128));
+
+  auto mask_t1 = StringFilter::SemanticTypeMask::FromWords(1ULL << 1, 0);
+  auto mask_t2 = StringFilter::SemanticTypeMask::FromWords(1ULL << 2, 0);
+  auto mask_t70 =
+      StringFilter::SemanticTypeMask::FromWords(0, 1ULL << (70 - 64));
+
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(secret:(.*))", "",
+                 "rule_a", mask_t1);
+
+  // Uncovered semantic types (including UNSPECIFIED=0 and second-word types)
+  // bypass MaybeFilterInternal immediately.
+  std::string s0 = "secret:val";
+  EXPECT_FALSE(filter.MaybeFilter(s0.data(), s0.size(), 0));
+  EXPECT_EQ(s0, "secret:val");
+  EXPECT_FALSE(filter.MaybeFilter(s0.data(), s0.size(), 2));
+  EXPECT_FALSE(filter.MaybeFilter(s0.data(), s0.size(), 70));
+
+  // Covered semantic type 1 redacts as expected.
+  std::string s1 = "secret:val";
+  EXPECT_TRUE(filter.MaybeFilter(s1.data(), s1.size(), 1));
+  EXPECT_EQ(s1, "secret:P60");
+
+  // Replacing a named rule recomputes active_semantic_types_, clearing bit 1
+  // and enabling bits 2 and 70 across both 64-bit mask words.
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(secret:(.*))", "",
+                 "rule_a", mask_t2);
+  filter.AddRule(StringFilter::Policy::kMatchRedactGroups, R"(high:(.*))", "",
+                 "rule_b", mask_t70);
+
+  std::string old_t1 = "secret:val";
+  EXPECT_FALSE(filter.MaybeFilter(old_t1.data(), old_t1.size(), 1));
+  EXPECT_EQ(old_t1, "secret:val");
+
+  std::string new_t2 = "secret:val";
+  EXPECT_TRUE(filter.MaybeFilter(new_t2.data(), new_t2.size(), 2));
+  EXPECT_EQ(new_t2, "secret:P60");
+
+  std::string new_t70 = "high:val";
+  EXPECT_TRUE(filter.MaybeFilter(new_t70.data(), new_t70.size(), 70));
+  EXPECT_EQ(new_t70, "high:P60");
+
+  // Out-of-range semantic types (>= kLimit) fall back to evaluating rules.
+  std::string oor = "secret:val";
+  EXPECT_TRUE(filter.MaybeFilter(oor.data(), oor.size(), 128));
+  EXPECT_EQ(oor, "secret:P60");
+}
+
 }  // namespace
 }  // namespace protozero

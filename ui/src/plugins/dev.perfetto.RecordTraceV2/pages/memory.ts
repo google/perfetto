@@ -167,6 +167,11 @@ function heapDumps(): RecordProbe {
       unit: 'ms',
       min: 0,
     }),
+    smaps: new Toggle({
+      title: 'Include smaps',
+      cssClass: '.thin',
+      descr: 'Also record /proc/self/smaps memory mappings of the process.',
+    }),
   };
   return {
     id: 'mem_heapdumps',
@@ -190,6 +195,7 @@ function heapDumps(): RecordProbe {
                 dumpIntervalMs: s.dumpInterval.value,
                 dumpPhaseMs: s.dumpPhase.value,
               },
+        smapsConfig: s.smaps.enabled ? {} : undefined,
       };
     },
   };

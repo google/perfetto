@@ -38,8 +38,8 @@ TraceBlobView Append(const TraceBlobView& head, const TraceBlobView& tail) {
     return TraceBlobView();
   }
   auto blob = TraceBlob::Allocate(size);
-  memcpy(blob.data(), head.data(), head.size());
-  memcpy(blob.data() + head.size(), tail.data(), tail.size());
+  memcpy(blob.mutable_data(), head.data(), head.size());
+  memcpy(blob.mutable_data() + head.size(), tail.data(), tail.size());
   return TraceBlobView(std::move(blob));
 }
 

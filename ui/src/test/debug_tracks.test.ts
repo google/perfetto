@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -29,64 +27,68 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 });
 
-test('debug tracks', async () => {
-  const omnibox = page.locator('input[ref=omnibox]');
-  await omnibox.focus();
-  await omnibox.selectText();
-  await omnibox.press(':');
-  await pth.waitForPerfettoIdle();
-  await omnibox.fill(SQL_QUERY);
-  await pth.waitForPerfettoIdle();
-  await omnibox.press('Enter');
-  await pth.waitForPerfettoIdle();
+test('debug_tracks', async () => {
+  test.setTimeout(2 * 60_000);
 
-  await page.getByRole('button', {name: 'Add debug track'}).click();
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug track menu.png', {
-    locator: page.locator('.pf-add-debug-track-menu'),
+  await pth.step('debug tracks', async () => {
+    const omnibox = page.locator('input[ref=omnibox]');
+    await omnibox.focus();
+    await omnibox.selectText();
+    await omnibox.press(':');
+    await pth.waitForPerfettoIdle();
+    await omnibox.fill(SQL_QUERY);
+    await pth.waitForPerfettoIdle();
+    await omnibox.press('Enter');
+    await pth.waitForPerfettoIdle();
+
+    await page.getByRole('button', {name: 'Add debug track'}).click();
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('debug track menu.png', {
+      locator: page.locator('.pf-add-debug-track-menu'),
+    });
+
+    await page.keyboard.type('debug track'); // The track name
+    await page.keyboard.press('Enter');
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('debug track added.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
+
+    // Click on a slice on the debug track.
+    await page.mouse.click(590, 180);
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('debug slice clicked.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
+
+    // Close the debug track.
+    const track = pth.locateTrack('debug track');
+    await track.locator('.pf-track__shell').hover();
+    await track.getByText('close').first().click();
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('debug track removed.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
 
-  await page.keyboard.type('debug track'); // The track name
-  await page.keyboard.press('Enter');
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug track added.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
-  });
+  await pth.step('debug tracks pivot', async () => {
+    const omnibox = page.locator('input[ref=omnibox]');
+    await omnibox.focus();
+    await omnibox.selectText();
+    await omnibox.press(':');
+    await pth.waitForPerfettoIdle();
+    await omnibox.fill(SQL_QUERY);
+    await pth.waitForPerfettoIdle();
+    await omnibox.press('Enter');
 
-  // Click on a slice on the debug track.
-  await page.mouse.click(590, 180);
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug slice clicked.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
-  });
-
-  // Close the debug track.
-  const track = pth.locateTrack('debug track');
-  await track.locator('.pf-track__shell').hover();
-  await track.getByText('close').first().click();
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug track removed.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
-  });
-});
-
-test('debug tracks pivot', async () => {
-  const omnibox = page.locator('input[ref=omnibox]');
-  await omnibox.focus();
-  await omnibox.selectText();
-  await omnibox.press(':');
-  await pth.waitForPerfettoIdle();
-  await omnibox.fill(SQL_QUERY);
-  await pth.waitForPerfettoIdle();
-  await omnibox.press('Enter');
-
-  await page.getByRole('button', {name: 'Add debug track'}).click();
-  await pth.waitForPerfettoIdle();
-  await page.keyboard.type('pivot'); // The track name
-  await page.locator('.pf-popup-portal #pivot').selectOption('category');
-  await page.keyboard.press('Enter');
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('debug track pivot.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+    await page.getByRole('button', {name: 'Add debug track'}).click();
+    await pth.waitForPerfettoIdle();
+    await page.keyboard.type('pivot'); // The track name
+    await page.locator('.pf-popup-portal #pivot').selectOption('category');
+    await page.keyboard.press('Enter');
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('debug track pivot.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
 });

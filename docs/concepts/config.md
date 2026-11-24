@@ -261,6 +261,11 @@ the target file (or stdout) using the following TraceConfig fields:
 - `max_file_size_bytes (uint64)`: If set, stops the tracing session after N
   bytes have been written. Used to cap the size of the trace.
 
+- `persist_trace_across_reboots (bool)`: When true, keeps the trace file on disk
+  if the device reboots or shuts down mid-session so it can be recovered on the
+  next boot. Requires `write_into_file: true`. Android only (v59 / Android 26Q4+).
+  See [Persisting Traces Across Reboots](/docs/learning-more/android.md#persisting-traces-across-reboots).
+
 For a complete example of a working trace config in long-tracing mode see
 [`/test/configs/long_trace.cfg`](/test/configs/long_trace.cfg).
 
@@ -511,7 +516,7 @@ event has happened. Passing a trace config that has `START_TRACING` trigger
 causes the tracing session to stay idle (i.e. not recording any data) until
 either the trigger is hit or the `trigger_timeout_ms` timeout is hit.
 
-`trace_duration_ms` and triggered traces can not be used at the same time.
+`duration_ms` and triggered traces can not be used at the same time.
 
 Example config:
 
@@ -550,9 +555,6 @@ detected. This is key for events where the root cause is in the recent past
 Example config:
 
 ```protobuf
-# If no trigger is hit, the trace will end after 30s.
-trigger_timeout_ms: 30000
-
 # If the "missed_frame" is hit, the trace is stopped after 1s.
 trigger_config {
   trigger_mode: STOP_TRACING
@@ -560,6 +562,8 @@ trigger_config {
     name: "missed_frame"
     stop_delay_ms: 1000
   }
+  # If no trigger is hit, the trace will end after 30s.
+  trigger_timeout_ms: 30000
 }
 
 # The rest of the config is as usual.

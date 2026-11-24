@@ -386,6 +386,24 @@ class ProfilingHeapGraph(TestSuite):
           5,2,10,256,"[NULL]",0,"java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"
         '''))
 
+  # A mapping without a package name applies to classes in every location.
+  def test_heap_graph_deobfuscate_no_package(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_deobfuscate_no_package.textproto'),
+        query="""
+        SELECT name, deobfuscated_name
+        FROM heap_graph_class
+        ORDER BY 1, 2;
+        """,
+        out=Csv('''
+          "name","deobfuscated_name"
+          "FactoryProducerDelegateImplActor","[NULL]"
+          "a","DeobfuscatedA"
+          "a","DeobfuscatedA"
+          "a[]","DeobfuscatedA[]"
+          "java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>"
+        '''))
+
   def test_heap_graph_object_4(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_legacy.textproto'),
@@ -788,4 +806,276 @@ class ProfilingHeapGraph(TestSuite):
         out=Csv("""
         "ts","heap_size"
         10,100000
+        """))
+
+  def test_heap_graph_potentially_merged(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            location_names {
+              iid: 1
+              str: "/data/app/~~ASDFG==/invalid.test.android-SDASD/test.apk"
+            }
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+              location_id: 1
+            }
+            types {
+              id: 2
+              class_name: "a"
+              location_id: 1
+            }
+            types {
+              id: 3
+              class_name: "b"
+              location_id: 1
+            }
+            types {
+              id: 4
+              class_name: "b[]"
+              location_id: 1
+            }
+            types {
+              id: 5
+              class_name: "java.lang.Class<b>"
+              location_id: 1
+            }
+            types {
+              id: 6
+              class_name: "c"
+              location_id: 1
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        packet {
+          deobfuscation_mapping {
+            obfuscated_classes {
+              obfuscated_name: "a"
+              deobfuscated_name: "DeobfuscatedA"
+            }
+            obfuscated_classes {
+              obfuscated_name: "b"
+              deobfuscated_name: "DeobfuscatedB"
+              merged_classes {
+                unknown_merged_classes: true
+              }
+            }
+            obfuscated_classes {
+              obfuscated_name: "c"
+              deobfuscated_name: "DeobfuscatedC"
+              merged_classes {
+                merged_classes {
+                  name: "MergedIntoC"
+                }
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT name, deobfuscated_name, potentially_merged
+        FROM heap_graph_class
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","deobfuscated_name","potentially_merged"
+        "a","DeobfuscatedA",0
+        "b","DeobfuscatedB",1
+        "b[]","DeobfuscatedB[]",1
+        "c","DeobfuscatedC",1
+        "java.lang.Class<b>","java.lang.Class<DeobfuscatedB>",1
+        "java.lang.Object","[NULL]",0
+        """))
+
+  def test_heap_graph_root_distance(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            field_names {
+              iid: 1
+              str: "java.lang.Object ref"
+            }
+            field_names {
+              iid: 2
+              str: "java.lang.Object java.lang.ref.Reference.referent"
+            }
+            types {
+              id: 1
+              class_name: "RootA"
+              reference_field_id: 1
+              reference_field_id: 1
+              reference_field_id: 1
+            }
+            types {
+              id: 2
+              class_name: "RootB"
+              reference_field_id: 1
+            }
+            types {
+              id: 3
+              class_name: "Mid1"
+              reference_field_id: 1
+            }
+            types {
+              id: 4
+              class_name: "Mid2"
+              reference_field_id: 1
+            }
+            types {
+              id: 5
+              class_name: "Shared"
+            }
+            types {
+              id: 6
+              class_name: "SoftRef"
+              kind: KIND_SOFT_REFERENCE
+              reference_field_id: 2
+            }
+            types {
+              id: 7
+              class_name: "SoftTarget"
+            }
+            types {
+              id: 8
+              class_name: "WeakRef"
+              kind: KIND_WEAK_REFERENCE
+              reference_field_id: 2
+            }
+            types {
+              id: 9
+              class_name: "WeakTarget"
+            }
+            types {
+              id: 10
+              class_name: "Unreachable"
+            }
+            roots {
+              root_type: ROOT_JAVA_FRAME
+              object_ids: 1
+            }
+            roots {
+              root_type: ROOT_JNI_GLOBAL
+              object_ids: 2
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 16
+              reference_object_id: 3
+              reference_object_id: 6
+              reference_object_id: 8
+            }
+            objects {
+              id: 2
+              type_id: 2
+              self_size: 16
+              reference_object_id: 5
+            }
+            objects {
+              id: 3
+              type_id: 3
+              self_size: 16
+              reference_object_id: 4
+            }
+            objects {
+              id: 4
+              type_id: 4
+              self_size: 16
+              reference_object_id: 5
+            }
+            objects {
+              id: 5
+              type_id: 5
+              self_size: 16
+            }
+            objects {
+              id: 6
+              type_id: 6
+              self_size: 16
+              reference_object_id: 7
+            }
+            objects {
+              id: 7
+              type_id: 7
+              self_size: 16
+            }
+            objects {
+              id: 8
+              type_id: 8
+              self_size: 16
+              reference_object_id: 9
+            }
+            objects {
+              id: 9
+              type_id: 9
+              self_size: 16
+            }
+            objects {
+              id: 10
+              type_id: 10
+              self_size: 16
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT
+          c.name AS type_name,
+          o.reachable,
+          o.root_type,
+          o.root_distance
+        FROM heap_graph_object o
+        JOIN heap_graph_class c ON o.type_id = c.id
+        ORDER BY c.name;
+        """,
+        out=Csv("""
+        "type_name","reachable","root_type","root_distance"
+        "Mid1",1,"[NULL]",1
+        "Mid2",1,"[NULL]",2
+        "RootA",1,"ROOT_JAVA_FRAME",0
+        "RootB",1,"ROOT_JNI_GLOBAL",0
+        "Shared",1,"[NULL]",1
+        "SoftRef",1,"[NULL]",1
+        "SoftTarget",1,"[NULL]",2
+        "Unreachable",0,"[NULL]",-1
+        "WeakRef",1,"[NULL]",1
+        "WeakTarget",0,"[NULL]",-1
         """))

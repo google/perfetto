@@ -147,8 +147,8 @@ WITH
       o.reachable,
       od.field_set_id,
       coalesce(c.deobfuscated_name, c.name) AS type_name
-    FROM heap_graph_object AS o
-    JOIN heap_graph_class AS c
+    FROM heap_graph_class AS c
+    CROSS JOIN heap_graph_object AS o
       ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data AS od
       ON o.object_data_id = od.id

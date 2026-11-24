@@ -45,6 +45,6 @@ describe('Canvas2DRenderer.drawSlices', () => {
 
     expect(rects.length).toBe(2);
     const [a, b] = rects;
-    expect(b.x - (a.x + a.w)).toBeCloseTo(SLICE_GAP_PX);
+    expect(b!.x - (a!.x + a!.w)).toBeCloseTo(SLICE_GAP_PX);
   });
 });

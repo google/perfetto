@@ -17,14 +17,14 @@
 #define SRC_PROFILING_PERF_FRAME_POINTER_UNWINDER_H_
 
 #include <stdint.h>
-#include <memory>
-#include <vector>
-
 #include <unwindstack/Error.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineRiscv64.h>
-#include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Unwinder.h>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
@@ -33,7 +33,7 @@ class FramePointerUnwinder {
  public:
   FramePointerUnwinder(size_t max_frames,
                        unwindstack::Maps* maps,
-                       unwindstack::Regs* regs,
+                       const CpuRegisters* regs,
                        std::shared_ptr<unwindstack::Memory> process_memory,
                        size_t stack_size)
       : max_frames_(max_frames),
@@ -41,7 +41,7 @@ class FramePointerUnwinder {
         regs_(regs),
         process_memory_(process_memory),
         stack_size_(stack_size),
-        arch_(regs->Arch()) {
+        arch_(regs->arch) {
     stack_end_ = regs->sp() + stack_size;
   }
 
@@ -64,8 +64,7 @@ class FramePointerUnwinder {
   }
 
   bool IsArchSupported() const {
-    return arch_ == unwindstack::ARCH_ARM64 ||
-           arch_ == unwindstack::ARCH_X86_64;
+    return arch_ == CpuArch::ARM64 || arch_ == CpuArch::X86_64;
   }
 
   void ClearErrors() {
@@ -77,11 +76,11 @@ class FramePointerUnwinder {
  protected:
   const size_t max_frames_;
   unwindstack::Maps* maps_;
-  unwindstack::Regs* regs_;
+  const CpuRegisters* regs_;
   std::vector<unwindstack::FrameData> frames_;
   std::shared_ptr<unwindstack::Memory> process_memory_;
   const size_t stack_size_;
-  unwindstack::ArchEnum arch_ = unwindstack::ARCH_UNKNOWN;
+  CpuArch arch_ = CpuArch::UNKNOWN;
   bool resolve_names_ = false;
   size_t stack_end_;
 

@@ -22,7 +22,7 @@ package perfetto.protos;
 // storage. This schema should is not an API and should not be dependent upon -
 // it is an implementation detail of Trace Processor and can be changed at any
 // time.
-
+//
 // Outside level schema of all serialized objects. Each self contained
 // serialized object is a separate packet and they don't depend on each other
 // for serialization.

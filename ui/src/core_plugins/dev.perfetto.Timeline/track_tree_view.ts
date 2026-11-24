@@ -60,7 +60,6 @@ import {
   COLOR_TIMELINE_OVERLAY,
   TRACK_SHELL_WIDTH,
 } from '../../frontend/css_constants';
-import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {
   shiftDragPanInteraction,
@@ -122,7 +121,7 @@ function cssColorToRgba(cssColor: string): number {
   ctx.fillRect(0, 0, 1, 1);
   const imageData = ctx.getImageData(0, 0, 1, 1);
   const [r, g, b, a] = imageData.data;
-  const packed = ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
+  const packed = ((r! << 24) | (g! << 16) | (b! << 8) | a!) >>> 0;
 
   cssColorCache.set(cssColor, packed);
   return packed;
@@ -480,7 +479,6 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       renderer,
     );
 
-    renderFlows(this.trace, ctx, size, renderedTracks, rootNode, timescale);
     this.drawHoveredNoteVertical(ctx, timescale, size);
     this.drawHoveredCursorVertical(ctx, timescale, size);
     this.drawNoteVerticals(ctx, timescale, size);
@@ -488,7 +486,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
 
     this.trace.tracks.overlays.forEach((overlay) => {
-      overlay.render(ctx, timescale, size, renderedTracks, colors);
+      overlay.render(ctx, timescale, size, renderedTracks, colors, rootNode);
     });
 
     const renderTime = performance.now() - start;
@@ -531,8 +529,8 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const gridColor = cssColorToRgba(COLOR_BORDER_SECONDARY);
 
     for (let i = 0; i < count; i++) {
-      starts[i] = tickPositions[i];
-      ends[i] = tickPositions[i] + 1;
+      starts[i] = tickPositions[i]!;
+      ends[i] = tickPositions[i]! + 1;
       colors[i] = gridColor;
       patterns[i] = 0;
       depths[i] = 0;

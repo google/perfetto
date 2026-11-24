@@ -40,7 +40,7 @@ package perfetto.protos;
 
 // NOTE: Full TrackEvent support in the client lib and chrome is WIP, thus these
 // protos are still subject to change. Don't depend on them staying as they are.
-
+//
 // Trace events emitted by client instrumentation library (TRACE_EVENT macros),
 // which describe activity on a track, such as a thread or asynchronous event
 // track. The track is specified using separate TrackDescriptor messages and

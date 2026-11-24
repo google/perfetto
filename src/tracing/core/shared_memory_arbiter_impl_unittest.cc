@@ -215,6 +215,97 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   arbiter_->FlushPendingCommitDataRequests();
 }
 
+// TOCTOU between the chunk index recorded in |commit_data_req_| and the
+// page-layout bitmap re-read from shared memory in
+// FlushPendingCommitDataRequests().
+//
+// This models a hostile process that holds a writable mapping of the SMB
+// (e.g. the sandboxed tracing utility on the other side of an
+// elevated_tracing_service.exe producer on Windows). The hostile process:
+//   1. Pre-seeds the SMB so the producer's GetNewChunk() lands on the *last*
+//      page with a *high* chunk index under a kPageDiv14 layout.
+//   2. After the producer batches that chunk for commit (direct-patching keeps
+//      it kChunkBeingWritten), flips the page's layout bits to a coarser
+//      layout while leaving the chunk's two state bits as kChunkBeingWritten.
+//   3. The producer's delayed FlushPendingCommitDataRequests() then re-reads
+//      the (now-hostile) bitmap and combines it with the *stale* chunk index.
+//      GetChunkUnchecked() has only PERFETTO_DCHECK bounds checks, so in a
+//      release build the resulting Chunk points past the end of the SMB.
+//      ReleaseChunkAsComplete() then dereferences page_header(OOB_page_idx).
+//
+// kPageDiv7 is chosen as the hostile layout so that, with the 14-page test
+// buffer, the OOB dereference lands inside the trailing PROT_NONE guard page
+// of PagedMemory, giving a deterministic crash regardless of address-space
+// layout. The same TOCTOU with kPageDiv1 (as in the original report) reaches
+// ~45 KiB past the mapping.
+TEST_P(SharedMemoryArbiterImplTest, HostileServicePageLayoutTOCTOU) {
+  if (page_size() != 4096)
+    GTEST_SKIP() << "Only the 4 KiB page-size config is exercised.";
+
+  arbiter_->SetDirectSMBPatchingSupportedByService();
+  ASSERT_TRUE(arbiter_->EnableDirectSMBPatching());
+  arbiter_->SetBatchCommitsDuration(UINT32_MAX);
+
+  // --- Hostile SMB peer: prepare the buffer so GetNewChunk() picks
+  //     {page = kNumPages-1, chunk = 13}. ---
+  const size_t last_page = kNumPages - 1;
+  for (size_t p = 0; p < last_page; ++p) {
+    auto* phdr =
+        reinterpret_cast<SharedMemoryABI::PageHeader*>(buf() + p * page_size());
+    // kPageDiv1 with its single chunk in kChunkBeingWritten -> no free chunks.
+    phdr->header_bitmap.store(
+        (static_cast<uint32_t>(SharedMemoryABI::kPageDiv1)
+         << SharedMemoryABI::kLayoutShift) |
+            static_cast<uint32_t>(SharedMemoryABI::kChunkBeingWritten),
+        std::memory_order_relaxed);
+  }
+  auto* last_phdr = reinterpret_cast<SharedMemoryABI::PageHeader*>(
+      buf() + last_page * page_size());
+  // kPageDiv14 with chunks 0..12 = kChunkBeingWritten, chunk 13 = kChunkFree.
+  uint32_t seeded = static_cast<uint32_t>(SharedMemoryABI::kPageDiv14)
+                    << SharedMemoryABI::kLayoutShift;
+  for (uint32_t c = 0; c < 13; ++c)
+    seeded |= static_cast<uint32_t>(SharedMemoryABI::kChunkBeingWritten)
+              << (c * SharedMemoryABI::kChunkShift);
+  last_phdr->header_bitmap.store(seeded, std::memory_order_relaxed);
+
+  // --- Producer: acquire the only free chunk. ---
+  SharedMemoryABI::Chunk chunk =
+      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDrop);
+  ASSERT_TRUE(chunk.is_valid());
+  ASSERT_EQ(13u, chunk.chunk_idx());
+  ASSERT_GE(chunk.begin(), buf() + last_page * page_size());
+  ASSERT_LE(chunk.end(), buf() + buf_size());
+
+  // --- Producer: return it with kChunkNeedsPatching so the direct-patching
+  //     path batches {page=last_page, chunk=13} without releasing it. ---
+  chunk.SetFlag(SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+  PatchList ignored;
+  arbiter_->ReturnCompletedChunk(std::move(chunk), 1, &ignored);
+  ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten,
+            arbiter_->shmem_abi_for_testing()->GetChunkState(last_page, 13u));
+
+  // --- Hostile SMB peer: flip the layout so chunk_idx=13 is now out of range
+  //     (kPageDiv7 has 7 chunks of 584 bytes each), but keep bits[27:26]
+  //     (chunk 13's state) = kChunkBeingWritten so the flush path takes the
+  //     GetChunkUnchecked branch. ---
+  uint32_t hostile = (static_cast<uint32_t>(SharedMemoryABI::kPageDiv7)
+                      << SharedMemoryABI::kLayoutShift) |
+                     (static_cast<uint32_t>(SharedMemoryABI::kChunkBeingWritten)
+                      << (13u * SharedMemoryABI::kChunkShift));
+  last_phdr->header_bitmap.store(hostile, std::memory_order_relaxed);
+
+  // --- Producer: delayed flush re-reads the bitmap and mixes it with the
+  //     stale chunk_idx=13. GetChunkUnchecked() computes
+  //       begin = page_start(last_page) + 8 + 13*584
+  //     which is past the end of the SMB; ReleaseChunkAsComplete() then
+  //     derives page_idx = num_pages and dereferences page_header(num_pages),
+  //     i.e. one page past the mapping (the PROT_NONE guard page). ---
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .Times(testing::AnyNumber());
+  arbiter_->FlushPendingCommitDataRequests();
+}
+
 TEST_P(SharedMemoryArbiterImplTest, UseShmemEmulation) {
   arbiter_.reset(new SharedMemoryArbiterImpl(
       buf(), buf_size(), ShmemMode::kShmemEmulation, page_size(),
@@ -611,7 +702,7 @@ TEST_P(SharedMemoryArbiterImplTest, CreateUnboundAndBind) {
 
   // Trace writer should be registered in a non-delayed task.
   EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, 1))
-      .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+      .WillOnce(checkpoint_writer);
   std::unique_ptr<TraceWriter> writer =
       arbiter_->CreateTraceWriter(1, BufferExhaustedPolicy::kDrop);
   task_runner_->RunUntilCheckpoint("writer_registered", 5000);
@@ -712,7 +803,7 @@ class SharedMemoryArbiterImplStartupTracingTest
     auto checkpoint_register1b =
         task_runner_->CreateCheckpoint("writer1b_registered");
     EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, 42))
-        .WillOnce(testing::InvokeWithoutArgs(checkpoint_register1b));
+        .WillOnce(checkpoint_register1b);
     std::unique_ptr<TraceWriter> writer1b =
         arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId1);
     task_runner_->RunUntilCheckpoint("writer1b_registered", 5000);
@@ -762,7 +853,7 @@ class SharedMemoryArbiterImplStartupTracingTest
         task_runner_->CreateCheckpoint("writer_unregistered");
     EXPECT_CALL(mock_producer_endpoint_,
                 UnregisterTraceWriter(writer->writer_id()))
-        .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+        .WillOnce(checkpoint_writer);
     writer.reset();
     task_runner_->RunUntilCheckpoint("writer_unregistered", 5000);
 
@@ -923,7 +1014,7 @@ class SharedMemoryArbiterImplStartupTracingTest
         task_runner_->CreateCheckpoint("writer_unregistered");
     EXPECT_CALL(mock_producer_endpoint_,
                 UnregisterTraceWriter(writer->writer_id()))
-        .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+        .WillOnce(checkpoint_writer);
     writer.reset();
     task_runner_->RunUntilCheckpoint("writer_unregistered", 5000);
 

@@ -17,6 +17,7 @@ import {defer} from '../base/deferred';
 import {ensureExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import type {App, Route} from '../public/app';
+import type {Policy} from '../public/policy';
 import type {SqlPackage} from '../public/extra_sql_packages';
 import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import type {Raf} from '../public/raf';
@@ -25,7 +26,10 @@ import type {Setting} from '../public/settings';
 import type {TraceStream} from '../public/stream';
 import type {DurationPrecision, TimestampFormat} from '../public/timeline';
 import type {NewEngineMode} from '../trace_processor/engine';
-import {type AnalyticsInternal, initAnalytics} from './analytics_impl';
+import {
+  type AnalyticsInternal,
+  initAnalytics,
+} from './analytics/analytics_impl';
 import {
   type CommandInvocation,
   CommandManagerImpl,
@@ -48,6 +52,21 @@ import type {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 import type {Embedder} from './embedder/embedder';
 import {createEmbedder} from './embedder/create_embedder';
+
+// localStorage key for the internal-user answer saved on the previous visit.
+const IS_INTERNAL_USER_KEY = 'isInternalUser';
+
+// Until a policy server exists, every internal-only feature is on for internal
+// users and off for everyone else.
+function derivePolicy(isInternalUser: boolean): Policy {
+  return {
+    enableTraceSharing: isInternalUser,
+    enableTraceUploadForBugReports: isInternalUser,
+    bugReportUrl: isInternalUser
+      ? 'https://goto.google.com/perfetto-ui-bug'
+      : 'https://github.com/google/perfetto/issues/new',
+  };
+}
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -136,7 +155,7 @@ export class AppImpl implements App {
   readonly timezoneOverride: Setting<string>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
-  private _isInternalUser?: boolean;
+  private _policy?: Policy;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
@@ -185,17 +204,24 @@ export class AppImpl implements App {
     }
   }
 
-  get isInternalUser() {
-    if (this._isInternalUser === undefined) {
-      this._isInternalUser = localStorage.getItem('isInternalUser') === '1';
+  get policy(): Policy {
+    // Until setIsInternalUser() gets this visit's answer, use the one saved on
+    // the previous visit.
+    if (this._policy === undefined) {
+      this._policy = derivePolicy(
+        localStorage.getItem(IS_INTERNAL_USER_KEY) === '1',
+      );
     }
-    return this._isInternalUser;
+    return this._policy;
   }
 
+  // Must be called before analytics.initialize(), so that analytics can wait
+  // for the answer before it starts sending.
   setIsInternalUser(promise: Promise<boolean>) {
+    this.analytics.setIsInternalUser(promise);
     promise.then((value) => {
-      this._isInternalUser = value;
-      localStorage.setItem('isInternalUser', value ? '1' : '0');
+      this._policy = derivePolicy(value);
+      localStorage.setItem(IS_INTERNAL_USER_KEY, value ? '1' : '0');
       raf.scheduleFullRedraw();
     });
   }
@@ -226,8 +252,12 @@ export class AppImpl implements App {
     return this.openTrace({type: 'URL', url, serializedAppState});
   }
 
-  openTraceFromStream(stream: TraceStream) {
-    return this.openTrace({type: 'STREAM', stream});
+  openTraceFromStream(
+    stream: TraceStream,
+    title?: string,
+    serializedAppState?: SerializedAppState,
+  ) {
+    return this.openTrace({type: 'STREAM', stream, title, serializedAppState});
   }
 
   openTraceFromBuffer(
@@ -265,7 +295,6 @@ export class AppImpl implements App {
         // - Continue with the trace loading logic (track decider, plugins, etc)
         // - Resolve the promise when everything is done.
         const trace = await loadTrace(this, src);
-        this.omnibox.reset(/* focus= */ false);
         // loadTrace() internally will call setActiveTrace() and change our
         // _currentTrace in the middle of its ececution. We cannot wait for
         // loadTrace to be finished before setting it because some internal
@@ -275,6 +304,7 @@ export class AppImpl implements App {
       } catch (error) {
         result.reject(error);
       } finally {
+        this.omnibox.reset(/* focus= */ false);
         this.isLoadingTrace = false;
         raf.scheduleFullRedraw();
       }

@@ -61,6 +61,8 @@ def main():
       SYNTAQLITE_DIR,
       '--macro-style',
       'rust',
+      '--tokens-file',
+      os.path.join(SYNTAQLITE_DIR, 'perfetto.tokens'),
   ]
   print('Running:', ' '.join(cmd))
   subprocess.check_call(cmd)

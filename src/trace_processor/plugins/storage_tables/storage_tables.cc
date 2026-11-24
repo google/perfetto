@@ -41,6 +41,7 @@
 #include "src/trace_processor/tables/slice_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/state_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/trace_proto_tables_py.h"  // IWYU pragma: keep
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"        // IWYU pragma: keep
 #include "src/trace_processor/tables/winscope_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -119,6 +120,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_gpu_context_table());
     AddDataframe(out, s->mutable_gpu_counter_group_table());
     AddDataframe(out, s->mutable_gpu_table());
+    AddDataframe(out, s->mutable_histogram_bucket_table());
     AddDataframe(out, s->mutable_machine_table());
     AddDataframe(out, s->mutable_memory_snapshot_edge_table());
     AddDataframe(out, s->mutable_memory_snapshot_table());
@@ -164,6 +166,10 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_android_key_events_table());
     AddDataframe(out, s->mutable_android_motion_events_table());
     AddDataframe(out, s->mutable_android_input_event_dispatch_table());
+    AddDataframe(
+        out,
+        s->mutable_android_job_scheduler_pending_reasons_track_event_table());
+    AddDataframe(out, s->mutable_android_job_scheduler_track_event_table());
     AddDataframe(out, s->mutable_inputmethod_clients_table());
     AddDataframe(out, s->mutable_inputmethod_manager_service_table());
     AddDataframe(out, s->mutable_inputmethod_service_table());
@@ -193,6 +199,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_heap_graph_thread_callsite_table());
     AddDataframe(out, s->mutable_heap_graph_java_oome_details_table());
     AddDataframe(out, s->mutable_stack_profile_mapping_table());
+    AddDataframe(out, s->mutable_vulkan_debug_names_table());
     AddDataframe(out, s->mutable_vulkan_memory_allocations_table());
     AddDataframe(out, s->mutable_chrome_raw_table());
     AddDataframe(out, s->mutable_ftrace_event_table());

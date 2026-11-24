@@ -53,7 +53,10 @@ SELECT
   ROW_NUMBER() OVER(PARTITION BY launches.startup_id ORDER BY functions.ts ASC) AS number
 FROM functions
 JOIN android_startups launches ON launches.package GLOB '*' || functions.process_name || '*'
-WHERE functions.function_name GLOB "Choreographer#doFrame*" AND functions.ts > launches.ts;
+WHERE
+  functions.function_name GLOB "Choreographer#doFrame*"
+  AND functions.function_name NOT GLOB "*resynced*"
+  AND functions.ts > launches.ts;
 
 DROP VIEW IF EXISTS android_render_frame_times;
 CREATE PERFETTO VIEW android_render_frame_times AS

@@ -22,14 +22,13 @@
 #include <cstring>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 
 namespace perfetto::trace_processor::core::dataframe::arrow_internal {
-
-static_assert(PERFETTO_IS_LITTLE_ENDIAN());
 
 // Constants and packed structs below mirror the official Arrow flatbuffer
 // schema. Keeping them together makes the serializer and deserializer use the
@@ -41,6 +40,7 @@ constexpr int16_t kMetadataV5 = 4;
 constexpr uint8_t kHeaderSchema = 1;
 constexpr uint8_t kHeaderDictionaryBatch = 2;
 constexpr uint8_t kHeaderRecordBatch = 3;
+constexpr uint8_t kTypeNull = 1;
 constexpr uint8_t kTypeInt = 2;
 constexpr uint8_t kTypeFloatingPoint = 3;
 constexpr uint8_t kTypeUtf8 = 5;
@@ -138,6 +138,20 @@ struct Block {
   int64_t body_length;
 };
 static_assert(sizeof(Block) == 2 * sizeof(int64_t) + 2 * sizeof(int32_t));
+
+inline MessagePrefix HostToLE(MessagePrefix v) {
+  return {base::HostToLE(v.continuation), base::HostToLE(v.metadata_size)};
+}
+inline FieldNode HostToLE(FieldNode v) {
+  return {base::HostToLE(v.length), base::HostToLE(v.null_count)};
+}
+inline ArrowBuffer HostToLE(ArrowBuffer v) {
+  return {base::HostToLE(v.offset), base::HostToLE(v.length)};
+}
+inline Block HostToLE(Block v) {
+  return {base::HostToLE(v.offset), base::HostToLE(v.metadata_length),
+          base::HostToLE(v.padding), base::HostToLE(v.body_length)};
+}
 
 inline base::Status InvalidFile() {
   return base::ErrStatus("Invalid dataframe Arrow file");

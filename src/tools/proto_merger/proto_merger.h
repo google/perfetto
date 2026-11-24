@@ -17,7 +17,7 @@
 #ifndef SRC_TOOLS_PROTO_MERGER_PROTO_MERGER_H_
 #define SRC_TOOLS_PROTO_MERGER_PROTO_MERGER_H_
 
-#include <set>
+#include <unordered_set>
 
 #include "perfetto/base/status.h"
 #include "src/tools/proto_merger/allowlist.h"
@@ -26,6 +26,16 @@
 namespace perfetto {
 namespace proto_merger {
 
+// Which type and label changes of existing fields MergeProtoFiles applies.
+enum class TypeChanges {
+  // All wire-compatible type changes and all label changes.
+  kAll,
+  // Only lossless type changes (e.g. int32 -> int64); labels (optional/
+  // repeated) are kept from the input. Other type changes (e.g.
+  // int64 -> int32, bytes -> message) keep the input type.
+  kLosslessOnly,
+};
+
 // Merges any updates in the proto |upstream| into the proto |input|
 // optionally adding any messages/fields/enums/values specified in the
 // the |allowlist|.
@@ -33,16 +43,18 @@ namespace proto_merger {
 // Some notes about the merging algorithm:
 // * Comments for all values are always taken from |upstream|.
 // * If an enum is allowed, then so are all it's values.
-// * Options for fields and enums are taken from |input| unless explicitly
-//   allowlisted via |allowlisted_options| to be merged from |upstream|.
-// * Changing the type of an existing field is not supported (even if its
-//   just a move); this needs to be handled manually.
+// * Non-allowlisted options for fields and enums are taken from |input|, while
+//   options in |allowlisted_options| are synced from |upstream| (including
+//   additions, updates, and removals).
+// * Type and label changes of existing fields are applied according to
+//   |type_changes|; wire-incompatible type changes fail the merge.
 base::Status MergeProtoFiles(
     const ProtoFile& input,
     const ProtoFile& upstream,
     const Allowlist& allowlist,
     ProtoFile& out,
-    const std::set<std::string>& allowlisted_options = {});
+    TypeChanges type_changes,
+    const std::unordered_set<std::string>& allowlisted_options = {});
 
 }  // namespace proto_merger
 }  // namespace perfetto

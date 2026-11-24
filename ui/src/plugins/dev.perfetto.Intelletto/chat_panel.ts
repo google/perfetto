@@ -277,7 +277,7 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
             (md) => md.provider.id === providerId && md.model.id === modelId,
           );
           if (selected) {
-            onModelChange({providerId, modelId});
+            onModelChange({providerId: providerId!, modelId});
           }
           m.redraw();
         },

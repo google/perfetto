@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 
-#include "perfetto/ext/base/endian.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
@@ -285,21 +285,12 @@ T ReadBigEndian(TraceProcessorContext* context,
   switch (length) {
     case 1:
       return static_cast<T>(*p);
-    case 2: {
-      uint16_t value;
-      memcpy(&value, p, sizeof(value));
-      return static_cast<T>(base::BE16ToHost(value));
-    }
-    case 4: {
-      uint32_t value;
-      memcpy(&value, p, sizeof(value));
-      return static_cast<T>(base::BE32ToHost(value));
-    }
-    case 8: {
-      uint64_t value;
-      memcpy(&value, p, sizeof(value));
-      return static_cast<T>(base::BE64ToHost(value));
-    }
+    case 2:
+      return static_cast<T>(base::LoadBE<uint16_t>(p));
+    case 4:
+      return static_cast<T>(base::LoadBE<uint32_t>(p));
+    case 8:
+      return static_cast<T>(base::LoadBE<uint64_t>(p));
     default:
       break;
   }

@@ -1,0 +1,107 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../../gn/test.gni")
+
+source_set("memcg_fields") {
+  public_deps = [ "../../../../protos/perfetto/config/linux:zero" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace/linux:zero",
+    "../../../base",
+    "../../../protozero",
+  ]
+  sources = [
+    "memcg_fields.cc",
+    "memcg_fields.h",
+  ]
+}
+
+source_set("android_cgroups") {
+  public_deps = [
+    "../../../../protos/perfetto/config/linux:zero",
+    "../../../protozero",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../../profiling/common:proc_utils",
+  ]
+  sources = [
+    "android_cgroups.cc",
+    "android_cgroups.h",
+  ]
+}
+
+source_set("memcg_reader") {
+  public_deps = [
+    ":android_cgroups",
+    ":memcg_fields",
+    "../../../protozero",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/config/linux:zero",
+    "../../../../protos/perfetto/trace/linux:zero",
+    "../../../base",
+    "../../../profiling/common:proc_cmdline",
+    "../packages_list:packages_list_parser",
+  ]
+  sources = [
+    "memcg_reader.cc",
+    "memcg_reader.h",
+  ]
+}
+
+source_set("cgroup") {
+  public_deps = [
+    ":memcg_reader",
+    "../../../tracing/core",
+  ]
+  deps = [
+    "..:data_source",
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/config/linux:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/linux:zero",
+    "../../../base",
+  ]
+  sources = [
+    "cgroup_data_source.cc",
+    "cgroup_data_source.h",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":android_cgroups",
+    ":memcg_fields",
+    ":memcg_reader",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/config/linux:cpp",
+    "../../../../protos/perfetto/trace/linux:cpp",
+    "../../../../protos/perfetto/trace/linux:zero",
+    "../../../base",
+    "../../../base:test_support",
+    "../../../protozero",
+  ]
+  sources = [
+    "android_cgroups_unittest.cc",
+    "memcg_fields_unittest.cc",
+    "memcg_reader_unittest.cc",
+  ]
+}

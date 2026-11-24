@@ -30,7 +30,6 @@ export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
 export class ProfileSession {
   readonly pid: number;
   readonly processName: string;
-  readonly startX: number;
 
   private inner?: TracingSession;
   private intervalHandle?: ReturnType<typeof setInterval>;
@@ -38,19 +37,17 @@ export class ProfileSession {
   private _error?: string;
   private _bufferUsagePct?: number;
 
-  private constructor(pid: number, processName: string, startX: number) {
+  private constructor(pid: number, processName: string) {
     this.pid = pid;
     this.processName = processName;
-    this.startX = startX;
   }
 
   static async start(
     targetOrDevice: TracedWebsocketTarget | AdbDevice,
     pid: number,
     processName: string,
-    startX: number,
   ): Promise<ProfileSession> {
-    const self = new ProfileSession(pid, processName, startX);
+    const self = new ProfileSession(pid, processName);
     const config = buildProcessProfileConfig(pid, processName);
     const result =
       targetOrDevice instanceof TracedWebsocketTarget

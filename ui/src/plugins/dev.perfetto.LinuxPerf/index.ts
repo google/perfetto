@@ -32,6 +32,7 @@ export default class LinuxPerfPlugin implements PerfettoPlugin {
     const result = await trace.engine.query(`
       select id, name, unit, cpu
       from perf_counter_track
+      where utid is null
       order by name, cpu
     `);
     for (

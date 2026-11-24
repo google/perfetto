@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
 
 from collections import namedtuple
 from google.protobuf import descriptor_pb2, message_factory, descriptor_pool
@@ -77,6 +78,14 @@ class Trace(object):
       rss_stat.mm_id = mm_id
     if curr is not None:
       rss_stat.curr = curr
+
+  def add_rss_stat_throttled(self, ts, tid, member, size, mm_id, curr):
+    ftrace = self.__add_ftrace_event(ts, tid)
+    rss_stat = ftrace.rss_stat_throttled
+    rss_stat.member = member
+    rss_stat.size = size
+    rss_stat.mm_id = mm_id
+    rss_stat.curr = curr
 
   def add_ion_event(self, ts, tid, heap_name, len, size=0):
     ftrace = self.__add_ftrace_event(ts, tid)
@@ -890,3 +899,19 @@ def create_trace():
       ),
   )
   return Trace(ProtoTrace(), prototypes)
+
+
+ATOMS_DESCRIPTOR_PATH = (
+    Path(__file__).parent.parent / 'src' / 'trace_processor' / 'importers' /
+    'proto' / 'atoms.descriptor')
+
+
+def get_statsd_atom_message_class():
+  """Loads the Statsd Atom descriptor proto and return its message class."""
+  p = descriptor_pool.DescriptorPool()
+  with open(ATOMS_DESCRIPTOR_PATH, 'rb') as f:
+    desc_set = descriptor_pb2.FileDescriptorSet()
+    desc_set.ParseFromString(f.read())
+    for f_desc in desc_set.file:
+      p.Add(f_desc)
+  return get_message_class(p, p.FindMessageTypeByName('android.os.statsd.Atom'))

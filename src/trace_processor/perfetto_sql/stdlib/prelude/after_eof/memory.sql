@@ -40,7 +40,10 @@ CREATE PERFETTO VIEW heap_graph_class(
   -- The classloader that loaded this class.
   classloader_id LONG,
   -- The kind of class.
-  kind STRING
+  kind STRING,
+  -- True if other classes may have been merged into this class by optimization
+  -- (e.g. R8 class merging).
+  potentially_merged BOOL
 )
 AS
 SELECT
@@ -50,7 +53,8 @@ SELECT
   location,
   superclass_id,
   classloader_id,
-  kind
+  kind,
+  potentially_merged
 FROM __intrinsic_heap_graph_class;
 
 -- The objects on the Dalvik heap.

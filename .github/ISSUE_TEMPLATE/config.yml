@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question
+    url: https://discord.gg/35ShE3A
+    about: Usage questions get the fastest answers in the #help channel on our Discord server.
+  - name: Ask by email
+    url: https://groups.google.com/forum/#!forum/perfetto-dev
+    about: Prefer email? Ask on the perfetto-dev mailing list.
+  - name: Report a Chrome tracing bug
+    url: https://crbug.com/
+    about: Bugs in Chrome's tracing go to crbug.com with Component:Speed>Tracing label:Perfetto.

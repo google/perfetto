@@ -114,8 +114,8 @@ export class FilterInNode implements QueryNode {
       this.primaryInput.finalCols,
       this.matchValuesNode.finalCols,
     ]);
-    if (commonCols.length === 1) {
-      const commonCol = commonCols[0];
+    const commonCol = commonCols.length === 1 ? commonCols[0] : undefined;
+    if (commonCol !== undefined) {
       if (!this.attrs.baseColumn) {
         this.attrs.baseColumn = commonCol;
       }

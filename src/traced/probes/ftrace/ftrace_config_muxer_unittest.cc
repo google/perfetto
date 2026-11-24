@@ -53,8 +53,10 @@ constexpr int kSysEnterId = 329;
 struct FakeSyscallTable {
   static constexpr char names[] =
       "sys_open\0"
-      "sys_read\0";
-  static constexpr SyscallTable::OffT offsets[]{0, 9};
+      "sys_read\0"
+      "sys_uretprobe\0"
+      "sys_uprobe\0";
+  static constexpr SyscallTable::OffT offsets[]{0, 9, 18, 32};
 };
 
 std::string PageSizeKb() {
@@ -524,6 +526,39 @@ TEST_F(FtraceConfigMuxerFakeTableTest, UnknownSyscallFilter) {
   // Unknown syscall is ignored.
   ASSERT_TRUE(model_.SetupConfig(/*id = */ 73, config));
   ASSERT_THAT(model_.GetSyscallFilterForTesting(), UnorderedElementsAre(0));
+}
+
+TEST_F(FtraceConfigMuxerFakeTableTest, AllSyscallsLeaveOutTheTrampolines) {
+  FtraceConfig config = CreateFtraceConfig({"raw_syscalls/sys_enter"});
+
+  ON_CALL(tracefs_, ReadFileIntoString("/root/trace_clock"))
+      .WillByDefault(Return("[local] global boot"));
+  EXPECT_CALL(tracefs_, ReadFileIntoString("/root/trace_clock"))
+      .Times(AnyNumber());
+  EXPECT_CALL(tracefs_, ReadFileIntoString("/root/current_tracer"))
+      .WillOnce(Return("nop"));
+  EXPECT_CALL(tracefs_, ReadOneCharFromFile("/root/tracing_on"))
+      .WillOnce(Return('1'));
+  EXPECT_CALL(tracefs_, WriteToFile(_, _)).WillRepeatedly(Return(true));
+  // Every call but the two the kernel's trampolines make, whose exits
+  // carry no number.
+  EXPECT_CALL(tracefs_,
+              WriteToFile("/root/events/raw_syscalls/sys_enter/filter",
+                          "id != 2 && id != 3"));
+  EXPECT_CALL(tracefs_, WriteToFile("/root/events/raw_syscalls/sys_exit/filter",
+                                    "id != -1"));
+
+  FtraceConfigId id = 38;
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+  ASSERT_TRUE(model_.ActivateConfig(id));
+  ASSERT_THAT(model_.GetSyscallFilterForTesting(), UnorderedElementsAre());
+
+  // Cleared once nothing traces syscalls.
+  EXPECT_CALL(tracefs_,
+              WriteToFile("/root/events/raw_syscalls/sys_enter/filter", "0"));
+  EXPECT_CALL(tracefs_,
+              WriteToFile("/root/events/raw_syscalls/sys_exit/filter", "0"));
+  ASSERT_TRUE(model_.RemoveConfig(id));
 }
 
 TEST_F(FtraceConfigMuxerFakeTableTest, SyscallFilterMuxing) {

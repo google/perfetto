@@ -65,6 +65,7 @@ function sched(): RecordProbe {
     dependencies: [ADV_FTRACE_PROBE_ID, ADV_PROC_ASSOC_PROBE_ID],
     description: 'Enables high-detailed tracking of scheduling events',
     genConfig: function (tc: TraceConfigBuilder) {
+      tc.addDataSource('linux.system_info');
       tc.addFtraceEvents(
         'sched/sched_switch',
         'power/suspend_resume',
@@ -92,6 +93,7 @@ function cpuFreq(): RecordProbe {
     supportedPlatforms: ['ANDROID', 'LINUX', 'CHROME_OS'],
     settings,
     genConfig: function (tc: TraceConfigBuilder) {
+      tc.addDataSource('linux.system_info');
       const cfg = tc.addDataSource(PROC_POLL_DS);
       cfg.sysStatsConfig ??= {};
       cfg.sysStatsConfig.cpufreqPeriodMs = settings.pollMs.value;

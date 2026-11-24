@@ -170,7 +170,8 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
   }
 
   if (!post_query_path_.empty()) {
-    RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true));
+    RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true,
+                                       ctx.global->quiet));
   }
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
@@ -179,9 +180,8 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
   }
 
   if (interactive_) {
-    RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(),
-        InteractiveOptions{20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
+    RETURN_IF_ERROR(
+        StartInteractiveShell(tp.get(), InteractiveOptions{ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));

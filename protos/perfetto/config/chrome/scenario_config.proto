@@ -70,12 +70,11 @@ message TriggerRule {
 // a guardian metric (e.g. FirstContentfulPaint). Collected traces may be saved
 // and uploaded based on upload rules. Scenario enrollment and trace uploads may
 // also be affected by client side scenario and upload limits.
-
+//
 // Start rules from all scenarios in the config are observed by default (when no
 // scenario is active). Once enrolled in a specific scenario, other scenarios
 // are ignored until the active one is exited. Start rules for nested scenarios
 // are only observed once the parent scenario becomes active.
-
 message NestedScenarioConfig {
   // Nested scenario name, unique within the parent scenario.
   optional string scenario_name = 1;

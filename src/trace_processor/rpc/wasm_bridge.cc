@@ -30,11 +30,10 @@ namespace {
 using RpcResponseFn = void(const void*, uint32_t);
 
 Rpc* g_trace_processor_rpc;
+Rpc::Stream* g_rpc_stream;
+Rpc::RequestHandle* g_pending_request;
 
-// The buffer used to pass the request arguments. The caller (JS) decides how
-// big this buffer should be in the Initialize() call.
-uint8_t* g_req_buf;
-uint32_t g_req_buf_size;
+uint32_t g_max_write_size;
 
 PERFETTO_NO_INLINE void OutOfMemoryHandler() {
   fprintf(stderr, "\nCannot enlarge memory\n");
@@ -48,11 +47,11 @@ PERFETTO_NO_INLINE void OutOfMemoryHandler() {
 // +---------------------------------------------------------------------------+
 extern "C" {
 
-// Returns the address of the allocated request buffer.
+// Returns the address JS must write the first request into.
 uint8_t* EMSCRIPTEN_KEEPALIVE
 trace_processor_rpc_init(RpcResponseFn* RpcResponseFn, uint32_t);
 uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
-                                  uint32_t req_buffer_size) {
+                                  uint32_t max_write_size) {
   // Usually OOMs manifest as a failure in dlmalloc() -> sbrk() ->
   //_emscripten_resize_heap() which aborts itself. However in some rare cases
   // sbrk() can fail outside of _emscripten_resize_heap and just return null.
@@ -67,22 +66,21 @@ uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
   // buffer with the response (a proto-encoded TraceProcessorRpc message) and
   // postMessage() it to the controller. See the comment in wasm_bridge.ts for
   // an overview of the JS<>Wasm callstack.
-  g_trace_processor_rpc->SetRpcResponseFunction(resp_function);
+  g_rpc_stream = new Rpc::Stream(*g_trace_processor_rpc, resp_function);
 
-  g_req_buf = new uint8_t[req_buffer_size];
-  g_req_buf_size = req_buffer_size;
-  return g_req_buf;
+  g_max_write_size = max_write_size;
+  g_pending_request =
+      new Rpc::RequestHandle(g_rpc_stream->BeginRequest(g_max_write_size));
+  return g_pending_request->data();
 }
 
-void EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint32_t);
-void trace_processor_on_rpc_request(uint32_t size) {
-  if (PERFETTO_UNLIKELY(size > g_req_buf_size)) {
-    fprintf(stderr,
-            "RPC request size exceeds the buffer passed to "
-            "trace_processor_rpc_init\n");
-    return;
-  }
-  g_trace_processor_rpc->OnRpcRequest(g_req_buf, size);
+// Returning the next address rather than taking one keeps this to a single
+// JS->Wasm call per request: JS knows where to write before it knows the size.
+uint8_t* EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint32_t);
+uint8_t* trace_processor_on_rpc_request(uint32_t size) {
+  g_pending_request->EndRequest(size);
+  *g_pending_request = g_rpc_stream->BeginRequest(g_max_write_size);
+  return g_pending_request->data();
 }
 
 }  // extern "C"

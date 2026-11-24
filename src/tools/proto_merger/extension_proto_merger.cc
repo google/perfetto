@@ -68,26 +68,29 @@ ImportResult ImportProto(const std::string& proto_file,
 }
 
 // Recursively collects all extension files and their helper dependencies,
-// skipping standard base Perfetto protos and google protobuf descriptors.
+// skipping standard base Perfetto protos, google protobuf descriptors,
+// and the input base proto itself.
 void CollectExtensionFiles(
     const google::protobuf::FileDescriptor* file,
+    const google::protobuf::FileDescriptor* input_desc,
     std::unordered_set<const google::protobuf::FileDescriptor*>& visited,
     std::vector<const google::protobuf::FileDescriptor*>& out) {
-  if (!file || !visited.insert(file).second) {
+  if (!file || file == input_desc || !visited.insert(file).second) {
     return;
   }
 
   std::string name(file->name());
   if (base::StartsWith(name, "protos/perfetto/") ||
-      base::StartsWith(name, "google/protobuf/")) {
+      base::StartsWith(name, "google/protobuf/") ||
+      (input_desc && name == input_desc->name())) {
     return;
   }
 
-  out.push_back(file);
-
   for (int i = 0; i < file->dependency_count(); ++i) {
-    CollectExtensionFiles(file->dependency(i), visited, out);
+    CollectExtensionFiles(file->dependency(i), input_desc, visited, out);
   }
+
+  out.push_back(file);
 }
 
 const char kUsage[] =
@@ -190,7 +193,8 @@ base::Status MergeExtensions(const std::string& input,
       return base::ErrStatus("Failed to import extension proto: %s",
                              raw_path.c_str());
     }
-    CollectExtensionFiles(ext_desc, visited_descs, extension_descs);
+    CollectExtensionFiles(ext_desc, input_proto.file_descriptor, visited_descs,
+                          extension_descs);
   }
 
   // Convert the input descriptor into a ProtoFile model while inlining all

@@ -21,8 +21,10 @@ source files are generated from the current working directory, so running this
 script from a different commit will result in mismatched SDK sources.
 
 This will generate:
-- One .zip file for every os-arch combo (e.g. android-arm.zip)
-- SDK source zips (perfetto-cpp-sdk-src.zip, perfetto-c-sdk-src.zip)
+- One .zip file for every os-arch combo (e.g. android-arm.zip), each
+  including the LICENSE file alongside the binaries.
+- SDK source zips (perfetto-cpp-sdk-src.zip, perfetto-c-sdk-src.zip), which
+  LUCI already packages with LICENSE.
 All files will be placed into /tmp/perfetto-v20.0-github-release/ .
 """
 
@@ -30,6 +32,10 @@ import argparse
 import os
 import subprocess
 import sys
+import zipfile
+
+ROOT_DIR = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Expected LUCI artifact manifest. Must stay in sync with
 # infra/luci/recipes/perfetto.py — ARTIFACTS + the platform list in
@@ -248,7 +254,14 @@ def main():
   for arch in sorted(os.listdir(tmpdir)):
     if arch == 'sdk' or not os.path.isdir(os.path.join(tmpdir, arch)):
       continue
+    # Start from scratch on re-runs so LICENSE isn't appended twice.
+    if os.path.exists('%s.zip' % arch):
+      os.remove('%s.zip' % arch)
     exec('zip', '-9r', '%s.zip' % arch, arch)
+    # Add LICENSE straight into the zip rather than copying it into the
+    # rsynced dir, which would trip verify_downloads() on a re-run.
+    with zipfile.ZipFile('%s.zip' % arch, 'a', zipfile.ZIP_DEFLATED) as zf:
+      zf.write(os.path.join(ROOT_DIR, 'LICENSE'), '%s/LICENSE' % arch)
     zips.append(arch + '.zip')
 
   # SDK zips already landed under sdk/ via the rsync above; just move them

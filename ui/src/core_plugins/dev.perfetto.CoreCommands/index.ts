@@ -41,12 +41,22 @@ import {trackMatchesFilter} from '../../core/track_manager';
 import {shareTrace} from '../../frontend/trace_share_utils';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
-import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
+import {
+  DISCORD_URL,
+  getTimeSpanOfSelectionOrVisibleWindow,
+} from '../../public/utils';
 import type {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
 import {ensureExists} from '../../base/assert';
 import type {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
+import {
+  convertTraceToJson,
+  convertTraceToSystrace,
+  downloadTrace,
+  toggleMetatrace,
+} from '../../frontend/trace_actions';
+import {isMetatracingEnabled} from '../../core/metatracing';
 import {legacyMacrosConfigSchema} from './legacy_macros_schema';
 import {Intent} from '../../widgets/common';
 
@@ -338,10 +348,103 @@ export default class CoreCommands implements PerfettoPlugin {
         ctx.closeCurrentTrace();
       },
     });
+
+    // Support links shown with or without a trace. The explicit sortOrders
+    // keep them after support items that other plugins add without one.
+    ctx.sidebar.addMenuItem({
+      section: 'support',
+      sortOrder: 1,
+      text: 'Keyboard shortcuts',
+      action: toggleHelp,
+      icon: 'help',
+    });
+    ctx.sidebar.addMenuItem({
+      section: 'support',
+      sortOrder: 2,
+      text: 'Documentation',
+      href: 'https://perfetto.dev/docs',
+      icon: 'find_in_page',
+    });
+    ctx.sidebar.addMenuItem({
+      section: 'support',
+      sortOrder: 3,
+      text: 'Ask on Discord',
+      href: DISCORD_URL,
+      icon: 'forum',
+    });
+    ctx.sidebar.addMenuItem({
+      section: 'support',
+      sortOrder: 4,
+      text: 'Report a bug',
+      // A callback, because the policy can change after startup, once the
+      // internal extension server answers.
+      href: () => ctx.policy.bugReportUrl,
+      icon: 'bug_report',
+    });
+  }
+
+  // Sidebar items that act on the loaded trace. They're registered through the
+  // trace, so they go away when the trace is closed.
+  private addTraceSidebarItems(trace: TraceImpl) {
+    const app = AppImpl.instance;
+    const downloadDisabled = trace.traceInfo.downloadable
+      ? false
+      : 'Cannot download external trace';
+
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 50,
+      text: 'Share',
+      action: async () => await shareTrace(trace),
+      icon: 'share',
+      // The policy can change after startup, once the internal extension
+      // server answers.
+      hidden: () => !app.policy.enableTraceSharing,
+    });
+    trace.sidebar.addMenuItem({
+      section: 'current_trace',
+      sortOrder: 51,
+      text: 'Download',
+      action: async () => await downloadTrace(trace),
+      icon: 'file_download',
+      disabled: downloadDisabled,
+    });
+
+    // The explicit sortOrders keep these after convert items that other
+    // plugins add without one.
+    trace.sidebar.addMenuItem({
+      section: 'convert_trace',
+      sortOrder: 1,
+      text: 'Convert to .json',
+      action: async () => await convertTraceToJson(trace),
+      icon: 'file_download',
+      disabled: downloadDisabled,
+    });
+    if (trace.traceInfo.hasFtrace) {
+      trace.sidebar.addMenuItem({
+        section: 'convert_trace',
+        sortOrder: 2,
+        text: 'Convert to .systrace',
+        action: async () => await convertTraceToSystrace(trace),
+        icon: 'file_download',
+        disabled: downloadDisabled,
+      });
+    }
+
+    trace.sidebar.addMenuItem({
+      section: 'support',
+      sortOrder: 5,
+      text: () =>
+        isMetatracingEnabled() ? 'Finalize metatrace' : 'Record metatrace',
+      action: () => toggleMetatrace(trace.engine),
+      icon: () => (isMetatracingEnabled() ? 'download' : 'fiber_smart_record'),
+    });
   }
 
   async onTraceLoad(ctx: TraceImpl): Promise<void> {
     const app = AppImpl.instance;
+
+    this.addTraceSidebarItems(ctx);
 
     // Rgister macros from settings first.
     const settingMacros = ensureExists(CoreCommands.macrosSetting).get();
@@ -689,34 +792,6 @@ export default class CoreCommands implements PerfettoPlugin {
       defaultHotkey: 'Escape',
     });
 
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.NextFlow',
-      name: 'Next flow',
-      callback: () => ctx.flows.focusOtherFlow('Forward'),
-      defaultHotkey: 'Mod+]',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.PrevFlow',
-      name: 'Prev flow',
-      callback: () => ctx.flows.focusOtherFlow('Backward'),
-      defaultHotkey: 'Mod+[',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.MoveNextFlow',
-      name: 'Move next flow',
-      callback: () => ctx.flows.moveByFocusedFlow('Forward'),
-      defaultHotkey: ']',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.MovePrevFlow',
-      name: 'Move prev flow',
-      callback: () => ctx.flows.moveByFocusedFlow('Backward'),
-      defaultHotkey: '[',
-    });
-
     // Provides a test bed for resolving events using a SQL table name and ID
     // which is used in deep-linking, amongst other places.
     ctx.commands.registerCommand({
@@ -960,6 +1035,10 @@ function onInputElementFileSelectionChanged(e: Event) {
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Open trace from file',
+  });
   openTraceFiles(files);
 }

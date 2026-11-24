@@ -35,6 +35,7 @@
 *.swp
 /*.pftrace
 /bazel-*
+/blog
 /compile_commands.json
 /fuzz_out/
 /out*

@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 namespace {
@@ -55,7 +55,7 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
 
   // Setup interpreter
   // Register layout:
-  // R0: CastFilterValueResult (filter value)
+  // R0: filter::CastFilterValueResult (filter value)
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
@@ -105,7 +105,7 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
 
   // Setup interpreter
   // Register layout:
-  // R0: CastFilterValueResult (filter value)
+  // R0: filter::CastFilterValueResult (filter value)
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
@@ -150,7 +150,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
                         HasDuplicates{}};
 
   // Register layout:
-  // R0: CastFilterValueListResult (filter value list)
+  // R0: filter::CastFilterValueListResult (filter value list)
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
@@ -193,7 +193,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
                         HasDuplicates{}};
 
   // Register layout:
-  // R0: CastFilterValueListResult
+  // R0: filter::CastFilterValueListResult
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage)
@@ -299,7 +299,7 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
   auto setup = IndexedFilterInSetup::Create(n);
 
   // Register layout:
-  // R0: CastFilterValueListResult
+  // R0: filter::CastFilterValueListResult
   // R1: Slab<uint32_t> (backing for dest)
   // R2: Span<uint32_t> (dest span)
   // R3: StoragePtr
@@ -320,8 +320,9 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
   StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(3), storage_ptr);
 
-  Span<uint32_t> perm_span(setup.perm_slab.data(), setup.perm_slab.data() + n);
-  interpreter.SetRegisterValue(WriteHandle<Span<uint32_t>>(4), perm_span);
+  base::Span<uint32_t> perm_span(setup.perm_slab.data(),
+                                 setup.perm_slab.data() + n);
+  interpreter.SetRegisterValue(WriteHandle<base::Span<uint32_t>>(4), perm_span);
 
   Fetcher fetcher;
   for (uint32_t i = 0; i < k; ++i) {
@@ -345,7 +346,7 @@ void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
   auto setup = IndexedFilterInSetup::Create(n);
 
   // Register layout:
-  // R0: CastFilterValueListResult
+  // R0: filter::CastFilterValueListResult
   // R1: Slab<uint32_t> (backing for span)
   // R2: Span<uint32_t> (source and dest, in-place filtering)
   // R3: StoragePtr

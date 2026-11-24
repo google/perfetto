@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <optional>
 
 #include "perfetto/ext/base/string_utils.h"
@@ -88,9 +89,18 @@ bool ArgsTranslationTable::NeedsTranslation(StringId flat_key_id,
   return KeyIdAndTypeToEnum(flat_key_id, key_id, type).has_value();
 }
 
+bool ArgsTranslationTable::NeedsTranslation(
+    const ArgsInserter& inserter) const {
+  return std::any_of(inserter.args().begin(), inserter.args().end(),
+                     [this](const ArgsTracker::CompactArg& arg) {
+                       return NeedsTranslation(arg.flat_key, arg.key,
+                                               arg.value.type);
+                     });
+}
+
 void ArgsTranslationTable::TranslateArgs(
     const ArgsTracker::CompactArgSet& arg_set,
-    ArgsTracker::BoundInserter& inserter) const {
+    ArgsInserter& inserter) const {
   std::optional<uint64_t> mapping_id;
   std::optional<uint64_t> rel_pc;
 
@@ -284,7 +294,7 @@ std::optional<StringId> ArgsTranslationTable::TranslateClassName(
 void ArgsTranslationTable::EmitMojoMethodLocation(
     std::optional<uint64_t> mapping_id,
     std::optional<uint64_t> rel_pc,
-    ArgsTracker::BoundInserter& inserter) const {
+    ArgsInserter& inserter) const {
   if (!mapping_id || !rel_pc) {
     return;
   }
@@ -300,7 +310,7 @@ void ArgsTranslationTable::EmitMojoMethodLocation(
                     // If the trace already has interface tag as a raw string
                     // (older Chromium versions, local traces, and so on), use
                     // the raw string.
-                    GlobalArgsTracker::UpdatePolicy::kSkipIfExists);
+                    ArgsTracker::UpdatePolicy::kSkipIfExists);
   } else {
     // Could not find the corresponding source location. Let's emit raw arg
     // values so that the data doesn't silently go missing.

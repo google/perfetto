@@ -66,13 +66,16 @@ source_set("export_json") {
     "../base",
     "containers",
     "importers/common",
-    "storage",
     "tables",
     "types",
     "util:args_utils",
     "util:json_value",
+    "util:sort",
   ]
-  public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
+  public_deps = [
+    "../../include/perfetto/ext/trace_processor:export_json",
+    "storage",
+  ]
 }
 
 source_set("metatrace") {
@@ -155,6 +158,7 @@ source_set("storage_minimal") {
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
     "importers/proto:minimal",
+    "importers/proto:proto_to_args_parser",
     "importers/systrace:systrace_line",
     "sorter",
     "storage",
@@ -164,7 +168,6 @@ source_set("storage_minimal") {
     "util:clock",
     "util:decompressor",
     "util:descriptors",
-    "util:proto_to_args_parser",
     "util:trace_type",
   ]
   public_deps = [ "../../include/perfetto/trace_processor:storage" ]
@@ -224,6 +227,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/stdlib",
       "plugins/ancestor",
       "plugins/android_framework_track_event",
+      "plugins/android_job_scheduler",
       "plugins/android_process_state",
       "plugins/args",
       "plugins/art_heap_graph_functions",
@@ -247,6 +251,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/experimental_flamegraph",
       "plugins/experimental_flat_slice",
       "plugins/experimental_slice_layout",
+      "plugins/flamechart:intrinsics",
       "plugins/flamegraph:intrinsics",
       "plugins/graph_scan",
       "plugins/graph_traversal",
@@ -308,7 +313,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       deps += [
         "plugins/winscope_importer",
         "plugins/winscope_proto_to_args_with_defaults",
-        "plugins/winscope_surfaceflinger_hierarchy_paths",
       ]
     }
 
@@ -379,6 +383,15 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
   }
 
+  # trace_processor_shell running its traceconv-compatible CLI.
+  executable("traceconv") {
+    deps = [
+      ":trace_processor_shell_lib",
+      "../../gn:default_deps",
+    ]
+    sources = [ "traceconv_main.cc" ]
+  }
+
   # Shell target which does not link all the extra libraryes linked by
   # trace processor shell (e.g. httpd, libprotobuf etc.). Use for binary size
   # analysis of the trace processor library.
@@ -444,7 +457,9 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":top_level_unittests",
     "containers:unittests",
+    "core/common:unittests",
     "core/dataframe:unittests",
+    "core/exec:unittests",
     "core/interpreter:unittests",
     "core/tree:unittests",
     "core/util:unittests",
@@ -469,14 +484,18 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "../perfetto_sql/analysis:unittests",
+      "../tools/pfsql:unittests",
       "perfetto_sql/engine:unittests",
       "perfetto_sql/parser:unittests",
+      "perfetto_sql/pipeline:unittests",
       "perfetto_sql/tokenizer:unittests",
       "plugins/ancestor:unittests",
+      "plugins/android_job_scheduler:unittests",
       "plugins/connected_flow:unittests",
       "plugins/descendant:unittests",
       "plugins/experimental_flat_slice:unittests",
       "plugins/experimental_slice_layout:unittests",
+      "plugins/flamechart:unittests",
       "plugins/flamegraph:unittests",
       "plugins/span_join_operator:unittests",
       "plugins/strace:unittests",
@@ -487,6 +506,9 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_etm_importer) {
     deps += [ "importers/etm:unittests" ]
+  }
+  if (enable_perfetto_winscope) {
+    deps += [ "plugins/winscope_importer:unittests" ]
   }
 }
 

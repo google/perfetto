@@ -32,10 +32,6 @@ namespace protozero {
 
 using namespace proto_utils;
 
-#if !PERFETTO_IS_LITTLE_ENDIAN()
-#error Unimplemented for big endian archs.
-#endif
-
 const Field TypedProtoDecoderBase::kInvalidField{};
 
 namespace {
@@ -114,12 +110,12 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
     new_pos = pos + sizeof(uint64_t);
     if (PERFETTO_UNLIKELY(new_pos > end))
       return res;
-    memcpy(&int_value, pos, sizeof(uint64_t));
+    int_value = perfetto::base::LoadLE<uint64_t>(pos);
   } else if (field_type == static_cast<uint8_t>(ProtoWireType::kFixed32)) {
     new_pos = pos + sizeof(uint32_t);
     if (PERFETTO_UNLIKELY(new_pos > end))
       return res;
-    memcpy(&int_value, pos, sizeof(uint32_t));
+    int_value = perfetto::base::LoadLE<uint32_t>(pos);
   } else {
     PERFETTO_DLOG("Invalid proto field type: %u", field_type);
     return res;
@@ -261,6 +257,7 @@ PERFETTO_ALWAYS_INLINE void TypedProtoDecoderBase::ParseAllFieldsImpl(
       // not stored here because fields_ is indexed directly by field id, and
       // extension ids are sparse and potentially very high. Callers that need
       // them should decode selectively and consume them from unknown_fields().
+      has_out_of_range_fields_ = true;
       continue;
     }
 

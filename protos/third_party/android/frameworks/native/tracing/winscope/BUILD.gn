@@ -15,13 +15,13 @@
 import("../../../../../../../gn/proto_library.gni")
 
 # Out-of-tree winscope schema, mirroring the Android tree layout
-# (frameworks/native/tracing/winscope and frameworks/base/proto/tracing/winscope;
-# shared leaves under native .../winscope/common). It's split in two: protos
-# that use custom options can't be compiled with the C++ proto backend, so they
-# go in winscope_extensions (protozero only); everything else is in
-# winscope_regular, which also builds C++ for the unittests. When adding a proto,
-# put it in winscope_extensions if it (or anything it imports) uses a custom
-# option.
+# (frameworks/native/tracing/winscope and
+# frameworks/base/proto/tracing/winscope; shared leaves under native
+# .../winscope/common). It's split in two: protos that use custom options can't
+# be compiled with the C++ proto backend, so they go in winscope_extensions
+# (protozero only); everything else is in winscope_regular, which also builds
+# C++ for the unittests. When adding a proto, put it in winscope_extensions if
+# it (or anything it imports) uses a custom option.
 perfetto_proto_library("winscope_regular_@TYPE@") {
   sources = [
     # native-owned (this directory)

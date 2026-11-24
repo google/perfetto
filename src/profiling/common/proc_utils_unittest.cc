@@ -154,6 +154,18 @@ TEST(ProcUtilsTest, FindProfilablePids) {
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
 }
 
+TEST(ProcUtilsTest, PidMatchesCmdlinePatterns) {
+  EXPECT_TRUE(glob_aware::PidMatchesCmdlinePatterns(getpid(), {"*"}));
+  EXPECT_FALSE(glob_aware::PidMatchesCmdlinePatterns(
+      getpid(), {"no_such_binary_for_sure"}));
+  EXPECT_FALSE(glob_aware::PidMatchesCmdlinePatterns(getpid(), {}));
+}
+
+TEST(ProcUtilsTest, GetUidFromProcfs) {
+  EXPECT_EQ(GetUidFromProcfs(getpid()), geteuid());
+  EXPECT_EQ(GetUidFromProcfs(-1), std::nullopt);
+}
+
 TEST(ProcUtilsTest, GetRssAnonAndSwap) {
   std::string status = "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB";
   EXPECT_EQ(GetRssAnonAndSwap(status), 20000u);
@@ -191,6 +203,22 @@ TEST(ProcUtilsTest, GetUidsInvalidTooFew) {
       "Uid: 1 2 3\n";
   auto uids = GetUids(status);
   EXPECT_EQ(uids, std::nullopt);
+}
+
+TEST(ProcUtilsTest, GetCgroupV2Path) {
+  EXPECT_EQ(GetCgroupV2Path("0::/uid_1000/pid_123"), "/uid_1000/pid_123");
+  EXPECT_EQ(GetCgroupV2Path("3:cpuset:/foreground\n2:cpu:/\n1:blkio:/\n"
+                            "0::/system/uid_1000/pid_1490\n"),
+            "/system/uid_1000/pid_1490");
+  EXPECT_EQ(GetCgroupV2Path("0::/apps/uid_10123/pid_4567 (deleted)\n"),
+            "/apps/uid_10123/pid_4567");
+  EXPECT_EQ(GetCgroupV2Path(""), std::nullopt);
+  EXPECT_EQ(GetCgroupV2Path("1:cpuset:/foreground\n"), std::nullopt);
+}
+
+TEST(ProcUtilsTest, IsProcessFrozen) {
+  EXPECT_FALSE(IsProcessFrozen(getpid()));
+  EXPECT_FALSE(IsProcessFrozen(-1));
 }
 
 }  // namespace

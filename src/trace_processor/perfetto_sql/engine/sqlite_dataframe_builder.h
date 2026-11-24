@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
@@ -47,6 +48,13 @@ BuildRuntimeDataframeFromSqliteStatement(
     SqliteConnection::PreparedStatement* stmt,
     std::string_view error_context,
     SqliteDataframeBuilderOptions options = {});
+
+// Adds a row of `values`, one for each column, to `builder`. Fails on a blob,
+// which a dataframe cannot hold, and on a value of a different type to the
+// rest of its column.
+base::Status AddSqliteValuesRow(dataframe::RuntimeDataframeBuilder& builder,
+                                sqlite3_value** values,
+                                uint32_t count);
 
 }  // namespace perfetto::trace_processor
 

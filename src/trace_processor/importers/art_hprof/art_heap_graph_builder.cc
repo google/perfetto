@@ -17,7 +17,7 @@
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include <algorithm>
 #include <cinttypes>
-#include "perfetto/ext/base/endian.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 
@@ -646,12 +646,10 @@ namespace {
 
 // HPROF stores array elements big endian; convert to native endianness in
 // place so the buffer can be handed to the storage as-is.
-template <typename T, typename Conv>
-void ConvertElements(uint8_t* data, size_t element_count, Conv conv) {
+template <typename T>
+void ConvertElements(uint8_t* data, size_t element_count) {
   for (size_t i = 0; i < element_count; ++i) {
-    T value;
-    memcpy(&value, data + i * sizeof(T), sizeof(T));
-    value = conv(value);
+    T value = base::LoadBE<T>(data + i * sizeof(T));
     memcpy(data + i * sizeof(T), &value, sizeof(T));
   }
 }
@@ -659,13 +657,13 @@ void ConvertElements(uint8_t* data, size_t element_count, Conv conv) {
 void ToNativeEndian(uint8_t* data, size_t element_count, size_t element_size) {
   switch (element_size) {
     case 2:
-      ConvertElements<uint16_t>(data, element_count, base::BE16ToHost);
+      ConvertElements<uint16_t>(data, element_count);
       break;
     case 4:
-      ConvertElements<uint32_t>(data, element_count, base::BE32ToHost);
+      ConvertElements<uint32_t>(data, element_count);
       break;
     case 8:
-      ConvertElements<uint64_t>(data, element_count, base::BE64ToHost);
+      ConvertElements<uint64_t>(data, element_count);
       break;
     default:
       break;
@@ -724,16 +722,17 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
     // view would pin the whole trace chunk it points into, however small the
     // array is.
     TraceBlob blob = TraceBlob::Allocate(data_length);
-    if (!iterator_->ReadInto(blob.data(), data_length)) {
+    uint8_t* data = blob.mutable_data();
+    if (!iterator_->ReadInto(data, data_length)) {
       return false;
     }
     if (element_type == FieldType::kBoolean) {
       // Normalise to 0/1 to match the values exposed for boolean arrays.
       for (size_t i = 0; i < data_length; ++i) {
-        blob.data()[i] = blob.data()[i] != 0 ? 1 : 0;
+        data[i] = data[i] != 0 ? 1 : 0;
       }
     } else {
-      ToNativeEndian(blob.data(), element_count, type_size);
+      ToNativeEndian(data, element_count, type_size);
     }
     obj.SetArrayData(TraceBlobView(std::move(blob)), element_count);
   }

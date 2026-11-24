@@ -61,6 +61,55 @@ export class TraceFileStream implements TraceStream {
   }
 }
 
+// Loads a trace from a browser ReadableStream. ReadableStreams transferred via
+// postMessage preserve backpressure across windows, bounding how far the sender
+// can run ahead of TraceProcessor.
+export class TraceReadableStream implements TraceStream {
+  private readonly reader: ReadableStreamDefaultReader<unknown>;
+  private bytesRead = 0;
+
+  constructor(
+    stream: ReadableStream<unknown>,
+    private readonly bytesTotal = 0,
+  ) {
+    this.reader = stream.getReader();
+  }
+
+  async readChunk(): Promise<TraceChunk> {
+    const result = await this.reader.read();
+    if (result.done) {
+      this.reader.releaseLock();
+      return {
+        data: new Uint8Array(),
+        eof: true,
+        bytesRead: this.bytesRead,
+        bytesTotal: this.bytesTotal,
+      };
+    }
+
+    const data = traceStreamChunkToUint8Array(result.value);
+    this.bytesRead += data.byteLength;
+    return {
+      data,
+      eof: false,
+      bytesRead: this.bytesRead,
+      bytesTotal: this.bytesTotal,
+    };
+  }
+}
+
+function traceStreamChunkToUint8Array(chunk: unknown): Uint8Array {
+  if (chunk instanceof ArrayBuffer) {
+    return new Uint8Array(chunk);
+  }
+  if (ArrayBuffer.isView(chunk)) {
+    return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+  }
+  throw new Error(
+    'Trace ReadableStream chunks must be ArrayBuffers or ArrayBuffer views',
+  );
+}
+
 // Loads a trace from an ArrayBuffer. For the window.open() + postMessage
 // use-case, used by other dashboards (see post_message_handler.ts).
 export class TraceBufferStream implements TraceStream {
@@ -150,7 +199,7 @@ export class TraceHttpStream implements TraceStream {
 
     let data;
     if (chunks.length === 1) {
-      data = chunks[0];
+      data = chunks[0]!;
     } else {
       // Stitch all the chunks into one big array:
       data = new Uint8Array(bytesRead);
@@ -219,7 +268,7 @@ export class TraceMultipleFilesStream implements TraceStream {
   private stream: TraceFileStream;
 
   constructor(private traceFiles: ReadonlyArray<File>) {
-    this.stream = new TraceFileStream(traceFiles[this.index]);
+    this.stream = new TraceFileStream(traceFiles[this.index]!);
     this.bytesRead = 0;
     // The total size of the TAR archive is the sum of:
     // - 512 bytes for each file's header.
@@ -236,11 +285,11 @@ export class TraceMultipleFilesStream implements TraceStream {
       case 'HEADER': {
         // Construct the 512-byte TAR header for the current file.
         const data = new Uint8Array(512);
-        const name = this.traceFiles[this.index].name;
+        const name = this.traceFiles[this.index]!.name;
         for (let i = 0; i < Math.min(name.length, 99); ++i) {
           data[i] = name.charCodeAt(i);
         }
-        const size = this.traceFiles[this.index].size.toString(8);
+        const size = this.traceFiles[this.index]!.size.toString(8);
         if (size.length >= 12) {
           throw new Error('Trace file size is too big to encode as tar file');
         }
@@ -298,7 +347,7 @@ export class TraceMultipleFilesStream implements TraceStream {
         } else {
           // Otherwise, move to the HEADER state for the next file.
           this.state = {kind: 'HEADER'};
-          this.stream = new TraceFileStream(this.traceFiles[++this.index]);
+          this.stream = new TraceFileStream(this.traceFiles[++this.index]!);
         }
         if (lastBlockSize === 0) {
           // If the file size is a multiple of 512, no padding is needed.

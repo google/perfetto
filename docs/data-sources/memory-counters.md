@@ -104,13 +104,13 @@ When `mm_event` is enabled, the following mm event types are recorded:
 - mem.mm.maj_flt: Major page faults
 - mem.mm.swp_flt: Page faults served by swapcache
 - mem.mm.read_io: Read page faults backed by I/O
-- mem.mm..compaction: Memory compaction events
+- mem.mm.compaction: Memory compaction events
 - mem.mm.reclaim: Memory reclaim events
 
 For each event type, the event records:
 
 - count: how many times the event happened since the previous event.
-- min_lat: the smallest latency (the duration of the mm event) recorded since
+- avg_lat: the average latency (the duration of the mm event) recorded since
   the previous event.
 - max_lat: the highest latency recorded since the previous event.
 
@@ -296,7 +296,7 @@ below, PID=27985).
 ### SQL {#lmk-sql}
 
 Both newer lmkd and legacy kernel-driven lowmemorykiller events are normalized
-at import time and available under the `mem.lmk` key in the `instants` table.
+at import time and available under the `mem.lmk` key in the `instant` table.
 
 ```sql
 SELECT ts, process.name, process.pid

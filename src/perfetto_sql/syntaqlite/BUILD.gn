@@ -36,7 +36,12 @@ source_set("syntaqlite") {
   assert_no_deps = [ "../../trace_processor/*" ]
   visibility = [
     "..:intrinsic_macro_expansion",
+    "../../tools/pfsql:source_tree",
+    "../../trace_processor/perfetto_sql/engine:unittests",
     "../../trace_processor/perfetto_sql/parser:*",
+    "../../trace_processor/perfetto_sql/pipeline:*",
+    "../../trace_processor/perfetto_sql/pipeline/operations",
+    "../../trace_processor/perfetto_sql/schema:*",
     "../../trace_processor/perfetto_sql/tokenizer",
     "../../trace_processor/util:sql_module_doc_parser",
     "../analysis:*",

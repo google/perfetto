@@ -27,8 +27,8 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -157,9 +158,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU2(uint16_t& value) {
   const uint8_t* d = Peek(2);
   if (!d)
     return false;
-  uint16_t raw;
-  std::memcpy(&raw, d, sizeof(raw));
-  value = base::BE16ToHost(raw);
+  value = base::LoadBE<uint16_t>(d);
   current_offset_ += 2;
   return true;
 }
@@ -168,9 +167,7 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadU4(uint32_t& value) {
   const uint8_t* d = Peek(4);
   if (!d)
     return false;
-  uint32_t raw;
-  std::memcpy(&raw, d, sizeof(raw));
-  value = base::BE32ToHost(raw);
+  value = base::LoadBE<uint32_t>(d);
   current_offset_ += 4;
   return true;
 }
@@ -185,13 +182,9 @@ bool ArtHprofParser::TraceBlobViewIterator::ReadId(uint64_t& value,
     return false;
 
   if (id_size == 4) {
-    uint32_t raw;
-    std::memcpy(&raw, d, sizeof(raw));
-    value = base::BE32ToHost(raw);
+    value = base::LoadBE<uint32_t>(d);
   } else {
-    uint64_t raw;
-    std::memcpy(&raw, d, sizeof(raw));
-    value = base::BE64ToHost(raw);
+    value = base::LoadBE<uint64_t>(d);
   }
   current_offset_ += id_size;
   return true;
@@ -288,6 +281,7 @@ void ArtHprofParser::TraceBlobViewIterator::Shrink() {
 }
 
 void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   auto& class_table = *context_->storage->mutable_heap_graph_class_table();
 
   for (auto it = graph.GetClasses().GetIterator(); it; ++it) {
@@ -305,7 +299,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     class_row.classloader_id = 0;
     class_row.kind = kind_id;
 
-    tables::HeapGraphClassTable::Id table_id = class_table.Insert(class_row).id;
+    tables::HeapGraphClassTable::Id table_id =
+        heap_graph_tracker->InsertClass(class_row).id;
     class_map_[class_id] = table_id;
     class_name_map_[class_id] = class_def.GetName();
   }
@@ -396,7 +391,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     class_row.classloader_id = 0;
     class_row.kind = kind_id;
 
-    tables::HeapGraphClassTable::Id table_id = class_table.Insert(class_row).id;
+    tables::HeapGraphClassTable::Id table_id =
+        heap_graph_tracker->InsertClass(class_row).id;
     class_object_map_[class_id] = table_id;
   }
 }
@@ -459,6 +455,7 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
 }
 
 void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   auto& object_table = *context_->storage->mutable_heap_graph_object_table();
   auto& reference_table =
       *context_->storage->mutable_heap_graph_reference_table();
@@ -496,6 +493,7 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
         static_cast<uint32_t>(reference_table.row_count());
     object_table[owner_table_id].set_reference_set_id(reference_set_id);
 
+    const bool index_fields = obj.GetObjectType() != ObjectType::kObjectArray;
     for (const auto& ref : refs) {
       std::optional<tables::HeapGraphObjectTable::Id> owned_table_id;
       StringId field_type_id = unknown_type_id;
@@ -514,7 +512,7 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
       reference_row.field_name = ref.field_name;
       reference_row.field_type_name = field_type_id;
 
-      reference_table.Insert(reference_row);
+      heap_graph_tracker->InsertReference(reference_row, index_fields);
     }
   }
 }
@@ -705,10 +703,11 @@ class ArtHprofImporter : public TraceImporter<ArtHprofImporter> {
   ArtHprofImporter() : TraceImporter(MakeDescriptor()) {}
   ~ArtHprofImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     static constexpr char kMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
                                       'R', 'O', 'F', 'I', 'L', 'E'};
-    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+    return {size >= sizeof(kMagic) &&
+            memcmp(data, kMagic, sizeof(kMagic)) == 0};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

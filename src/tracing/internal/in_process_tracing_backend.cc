@@ -55,7 +55,9 @@ std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
                         args.producer_name, args.shmem_size_hint_bytes,
                         /*in_process=*/true,
                         TracingService::ProducerSMBScrapingMode::kEnabled,
-                        args.shmem_page_size_hint_bytes);
+                        args.shmem_page_size_hint_bytes, /*shm=*/nullptr,
+                        /*sdk_version=*/{}, /*machine_name=*/{},
+                        kProtocolAbiV1 | kProtocolAbiV2);
 }
 
 std::unique_ptr<ConsumerEndpoint> InProcessTracingBackend::ConnectConsumer(

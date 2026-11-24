@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::strace_importer {
 
 namespace {
 
-void AddArgs(ArgsTracker::BoundInserter* inserter,
+void AddArgs(ArgsInserter* inserter,
              StringId args_key,
              std::optional<StringId> args_id,
              StringId ret_key,
@@ -59,8 +59,8 @@ void StraceTraceParser::Parse(int64_t ts, StraceEvent evt) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(evt.tid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
 
-  auto args_cb = [&](ArgsTracker::BoundInserter* inserter) {
-    AddArgs(inserter, args_key_id_, evt.args_id, ret_key_id_,
+  auto args_cb = [&](ArgsInserter& inserter) {
+    AddArgs(&inserter, args_key_id_, evt.args_id, ret_key_id_,
             evt.return_value_id);
   };
 
@@ -70,9 +70,12 @@ void StraceTraceParser::Parse(int64_t ts, StraceEvent evt) {
   // resumes with their unfinished starts.
   switch (evt.kind) {
     case StraceEventKind::kComplete:
+      // With `-T` the line carries how long the call took; without it there
+      // is only the entry timestamp, so the slice stays a zero-duration
+      // marker rather than being stretched to the next event.
       context_->slice_tracker->Scoped(ts, track, category_id_,
-                                      evt.syscall_name_id, /*duration=*/0,
-                                      args_cb);
+                                      evt.syscall_name_id,
+                                      evt.duration_ns.value_or(0), args_cb);
       return;
     case StraceEventKind::kUnfinished:
       context_->slice_tracker->Begin(ts, track, category_id_,

@@ -21,6 +21,7 @@
 #include <cstring>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -66,6 +67,11 @@ inline constexpr auto kInt32Sparse = CreateTypedDataframeSpec(
     {"_auto_id", "val"},
     CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
     CreateTypedColumnSpec(Int32{}, SparseNull{}, Unsorted{}));
+
+inline constexpr auto kStringSparse = CreateTypedDataframeSpec(
+    {"_auto_id", "str"},
+    CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}, NoDuplicates{}),
+    CreateTypedColumnSpec(String{}, SparseNull{}, Unsorted{}));
 
 inline constexpr auto kIdOnly = CreateTypedDataframeSpec(
     {"_auto_id"},
@@ -230,6 +236,39 @@ TEST(ArrowSerializerTest, WritesValidityAndDensifiesSparseNumericBuffer) {
   EXPECT_EQ(ReadBodyValue<int32_t>(bytes, *batch, 1, 2), 33);
 }
 
+TEST(ArrowSerializerTest, WritesAllNullColumnAsNullType) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto source = MakeDataframe(kInt32Sparse, &pool, std::optional<int32_t>{},
+                              std::optional<int32_t>{});
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+  auto batch = ReadRecordBatch(bytes);
+
+  ASSERT_TRUE(batch);
+  ASSERT_EQ(batch->nodes.size(), 1u);
+  EXPECT_EQ(batch->nodes[0].length, 2);
+  EXPECT_EQ(batch->nodes[0].null_count, 2);
+  EXPECT_EQ(batch->buffers.size(), 0u);
+  auto fields = ReadSchema(bytes).VecTable(schema_field::kFields);
+  ASSERT_EQ(fields.size(), 1u);
+  EXPECT_EQ(fields[0].Scalar<uint8_t>(field_field::kTypeType), kTypeNull);
+  EXPECT_TRUE(fields[0].Scalar<bool>(field_field::kNullable));
+}
+
+TEST(ArrowSerializerTest, WritesNoDictionaryForAllNullStringColumn) {
+  using namespace arrow_internal;
+  StringPool pool;
+  auto source =
+      MakeDataframe(kStringSparse, &pool, std::optional<StringPool::Id>{});
+  std::vector<uint8_t> bytes = Serialize(source, pool);
+
+  EXPECT_FALSE(ReadDictionaryBatch(bytes, 0));
+  auto fields = ReadSchema(bytes).VecTable(schema_field::kFields);
+  ASSERT_EQ(fields.size(), 1u);
+  EXPECT_EQ(fields[0].Scalar<uint8_t>(field_field::kTypeType), kTypeNull);
+  EXPECT_FALSE(static_cast<bool>(fields[0].Table(field_field::kDictionary)));
+}
+
 TEST(ArrowSerializerTest, WritesDictionaryIndicesAndValues) {
   StringPool pool;
   auto hello = pool.InternString(base::StringView("hello"));
@@ -379,6 +418,31 @@ TEST(ArrowSerializerTest, ValidatesPrepareWriteLifecycle) {
   EXPECT_THAT(serializer.Write(other, pool, sink), IsError());
   EXPECT_THAT(serializer.Write(source, other_pool, sink), IsError());
   EXPECT_OK(serializer.Write(source, pool, sink));
+}
+
+TEST(ArrowSerializerTest, RejectsReplacementAfterPrepare) {
+  StringPool pool;
+  auto short_value = pool.InternString(base::StringView("a"));
+  auto long_value = pool.InternString(base::StringView("a longer value"));
+  auto source = MakeDataframe(kStringNonNull, &pool, short_value);
+  auto replacement = MakeDataframe(kStringNonNull, &pool, long_value);
+  source.Finalize();
+  replacement.Finalize();
+  ASSERT_EQ(source.mutations(), replacement.mutations());
+  uint64_t previous_mutations = source.mutations();
+  ArrowSerializer serializer;
+  ASSERT_OK(serializer.Prepare(source, pool));
+
+  source = std::move(replacement);
+  EXPECT_GT(source.mutations(), previous_mutations);
+  bool wrote = false;
+  EXPECT_THAT(serializer.Write(source, pool,
+                               [&](const uint8_t*, size_t) {
+                                 wrote = true;
+                                 return base::OkStatus();
+                               }),
+              IsError());
+  EXPECT_FALSE(wrote);
 }
 
 TEST(ArrowSerializerTest, CanBeReused) {

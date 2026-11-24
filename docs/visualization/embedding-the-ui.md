@@ -70,8 +70,8 @@ function waitForReady() {
 ## Step 3: Post the trace
 
 Once the handshake completes, post an object with a single `perfetto` key to the
-iframe's `contentWindow`. Only `buffer` (an `ArrayBuffer` of raw trace bytes) and
-`title` are required:
+iframe's `contentWindow`. Pass `title` and exactly one of `buffer` (an
+`ArrayBuffer` of raw trace bytes) or `stream` (a transferred `ReadableStream`):
 
 ```js
 async function openTrace() {
@@ -96,14 +96,21 @@ async function openTrace() {
 
 The full set of fields on the `perfetto` object:
 
-- `buffer` (required): `ArrayBuffer` of raw trace bytes.
+- `buffer`: `ArrayBuffer` of raw trace bytes. Exactly one of `buffer` or `stream`
+  is required.
+- `stream`: transferred `ReadableStream` containing the trace data. Exactly one
+  of `buffer` or `stream` is required.
+- `bytesTotal` (optional): total stream size used for progress reporting. Zero
+  or omitted means unknown.
 - `title` (required): string shown as the trace title.
 - `fileName` (optional): suggested name if the user downloads the trace.
 - `url` (optional): sharing URL. See [Deep linking](/docs/visualization/deep-linking-to-perfetto-ui.md)
   for how `url` and `appStateHash` enable sharing.
 - `appStateHash` (optional): 40-char hex hash restoring saved UI state.
-- `localOnly` (optional): defaults to `true` for posted traces, which disables
-  download/share. Set `false` to re-enable them.
+- `shareable` / `downloadable` (optional): both default to `false` for posted
+  traces, which disables share/download. Set `true` to enable them.
+- `localOnly` (optional, legacy): `false` sets both `shareable` and
+  `downloadable` to `true`.
 - `keepApiOpen` (optional): if `true`, the listener stays active so you can post
   more traces later. If omitted, the handler removes its listener after the
   first trace.
@@ -117,6 +124,35 @@ the first trace.
 TIP: A bare `ArrayBuffer` is also accepted (the UI treats it as a trace titled
 "External trace"), but posting the `{ perfetto: { buffer, title } }` object is
 preferred so you control the title.
+
+### Stream a trace without buffering the whole file
+
+For a large trace, pass the response body directly instead of first converting
+it to an `ArrayBuffer`:
+
+```js
+async function openTraceStream() {
+  await waitForReady();
+
+  const response = await fetch('/api/trace');
+  if (!response.body) throw new Error('Response body is not streamable');
+
+  const stream = response.body;
+  const bytesTotal = Number(response.headers.get('content-length')) || 0;
+  iframe.contentWindow.postMessage(
+    {perfetto: {stream, bytesTotal, title: 'My embedded trace'}},
+    '*',
+    [stream],
+  );
+}
+```
+
+The stream must be transferred as shown above and must not have been read first.
+The browser automatically regulates how quickly data is produced as Perfetto
+loads it. Streamed traces are not retained, so they cannot subsequently be
+downloaded, shared, or cached. See the
+[embedding API reference](/docs/visualization/embedding-api-reference.md) for
+the precise stream requirements.
 
 ## Step 4 (optional): Drive the view
 
@@ -210,7 +246,8 @@ The UI guards which origins may push traces:
   origins are trusted. Traces from these open immediately with no prompt, so
   local development just works.
 - From any other origin (e.g. your production domain), the UI shows a modal:
-  _"&lt;origin&gt; is trying to open a trace file. Do you trust the origin?"_
+  _"&lt;origin&gt; is trying to open a trace file. Do you trust the origin and
+  want to proceed?"_
   with **No / Yes / Always trust**. "Always trust" persists the origin in
   `localStorage`, so each of your users sees the prompt at most once.
 

@@ -28,7 +28,6 @@ import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
 import {renderDataGrid as renderDataGridDemo} from './demos/datagrid_demo';
-import {renderDataGrid as renderDataGridPlayground} from './demos/datagrid_playground';
 import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
@@ -39,6 +38,7 @@ import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
+import {renderMergedClassWarning} from './demos/merged_class_warning_demo';
 import {renderMiddleEllipsis} from './demos/middle_ellipsis_demo';
 import {renderModal} from './demos/modal_demo';
 import {renderMultiselect} from './demos/multiselect_demo';
@@ -54,7 +54,7 @@ import {renderSplitPanel} from './demos/split_panel_demo';
 import {renderCombobox} from './demos/combobox_demo';
 import {renderSwitch} from './demos/switch_demo';
 import {renderTabs} from './demos/tabs_demo';
-import {renderTabStrip} from './demos/tabstrip_demo';
+import {renderTabStrip} from './demos/tab_strip_demo';
 import {renderTagInput} from './demos/tag_input_demo';
 import {renderTextInput} from './demos/text_input_demo';
 import {renderTextParagraph} from './demos/text_paragraph_demo';
@@ -89,12 +89,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
   {id: 'datagrid', label: 'DataGrid', view: renderDataGridDemo},
-  {
-    id: 'datagrid-playground',
-    label: 'DataGrid Playground',
-    view: renderDataGridPlayground,
-    fullWidth: true,
-  },
   {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
@@ -104,6 +98,11 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},
   {id: 'menu', label: 'Menu', view: renderMenu},
+  {
+    id: 'merged-class-warning',
+    label: 'MergedClassWarning',
+    view: renderMergedClassWarning,
+  },
   {id: 'middleellipsis', label: 'MiddleEllipsis', view: renderMiddleEllipsis},
   {id: 'modal', label: 'Modal', view: renderModal},
   {id: 'multiselect', label: 'Multiselect', view: renderMultiselect},

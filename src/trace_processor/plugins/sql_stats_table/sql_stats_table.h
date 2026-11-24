@@ -24,7 +24,7 @@
 namespace perfetto::trace_processor {
 class QueryConstraints;
 class TraceStorage;
-}
+}  // namespace perfetto::trace_processor
 namespace perfetto::trace_processor::sql_stats_table {
 
 // A virtual table that allows to introspect performances of the SQL engine

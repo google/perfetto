@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/descriptors.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -52,6 +53,27 @@ bool IsIntentionallyRemovedType(const std::string& raw_type_name) {
   };
   for (const char* removed : kRemovedTypes) {
     if (raw_type_name == removed) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Pre-renumbering revision of frameworks_base_wattson_soc_model.proto (landed
+// in early November 2026 Android builds), where WattsonCurve had
+// `oneof unit { cluster = 1; policy = 2; }` (putting uint64 dep_freq at
+// tag 5 vs packed float active_mw at tag 5 in the built-in schema) and
+// WattsonSocModel used WattsonCpuPolicy instead of WattsonCpuCluster.
+// TODO(b/524094370): remove once Nov 2026 trunk builds (b/584282228) age out.
+bool IsObsoleteWattsonSocModelFile(
+    const std::string& file_name,
+    const protos::pbzero::FileDescriptorProto::Decoder& file) {
+  if (!base::EndsWith(file_name, "frameworks_base_wattson_soc_model.proto")) {
+    return false;
+  }
+  for (auto it = file.message_type(); it; ++it) {
+    protos::pbzero::DescriptorProto::Decoder msg(*it);
+    if (msg.name().ToStdStringView() == "WattsonCpuPolicy") {
       return true;
     }
   }
@@ -129,7 +151,7 @@ base::Status CheckExtensionField(
     extension_type_checks->push_back(
         {/*extendee_full_name=*/proto_descriptor.full_name(),
          /*field_name=*/field.name(),
-         /*existing_raw_type=*/existing_field->raw_type_name(),
+         /*existing_field=*/*existing_field,
          /*new_raw_type=*/field.raw_type_name()});
   }
   return base::OkStatus();
@@ -379,8 +401,7 @@ base::Status DescriptorPool::AddNestedProtoDescriptors(
                                               merge_existing_messages));
   }
   for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
-    extensions->push_back(
-        {package_name, proto_descriptor.full_name(), *ext_it});
+    extensions->push_back({package_name, full_name, *ext_it});
   }
   return base::OkStatus();
 }
@@ -432,6 +453,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     size_t size,
     const std::vector<std::string>& skip_prefixes,
     bool merge_existing_messages) {
+  generation_++;
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
   std::vector<ExtensionInfo> extensions;
@@ -441,6 +463,12 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     const std::string file_name = file.name().ToStdString();
     if (base::StartsWithAny(file_name, skip_prefixes))
       continue;
+    if (merge_existing_messages &&
+        FindDescriptorIdx(".com.android.internal.WattsonSocModel")
+            .has_value() &&
+        IsObsoleteWattsonSocModelFile(file_name, file)) {
+      continue;
+    }
     if (!merge_existing_messages &&
         processed_files_.find(file_name) != processed_files_.end()) {
       // This file has been loaded once already. Skip.
@@ -483,6 +511,20 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
           if (IsIntentionallyRemovedType(field.raw_type_name())) {
             continue;
           }
+          // Old traces may reference pre-migration types without defining
+          // them. Restore the previously resolved field, if available.
+          // TODO(b/524094370): harden this once OOT migrations stabilize.
+          auto it = std::find_if(
+              extension_type_checks.begin(), extension_type_checks.end(),
+              [&](const ExtensionTypeCheck& check) {
+                return check.extendee_full_name == descriptor.full_name() &&
+                       check.existing_field.number() == field.number() &&
+                       !check.existing_field.resolved_type_name().empty();
+              });
+          if (it != extension_type_checks.end()) {
+            field = it->existing_field;
+            continue;
+          }
           return base::ErrStatus(
               "Unable to find short type %s in field inside message %s",
               field.raw_type_name().c_str(), descriptor.full_name().c_str());
@@ -496,11 +538,12 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
   // Fourth pass: verify deferred type checks are structurally compatible
   // now that all field types have been resolved.
   for (const auto& check : extension_type_checks) {
-    if (check.existing_raw_type.empty() || check.new_raw_type.empty()) {
+    const std::string& existing_raw_type = check.existing_field.raw_type_name();
+    if (existing_raw_type.empty() || check.new_raw_type.empty()) {
       continue;
     }
     std::optional<uint32_t> opt_existing_idx =
-        ResolveShortType(check.extendee_full_name, check.existing_raw_type);
+        ResolveShortType(check.extendee_full_name, existing_raw_type);
     std::optional<uint32_t> opt_new_idx =
         ResolveShortType(check.extendee_full_name, check.new_raw_type);
     // Both types must resolve before we can compare; either can be absent.
@@ -511,14 +554,14 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     if (!opt_existing_idx.has_value() || !opt_new_idx.has_value()) {
       // A type isn't in the pool: normal for a trace recorded before an
       // out-of-tree migration renamed it. Can't compare structurally, but the
-      // tag and wire type already matched and the existing definition is kept,
-      // so the field still decodes. Tolerate rather than reject the trace.
+      // tag and wire type already matched, so the field still decodes.
+      // Tolerate rather than reject the trace.
       // TODO(b/524094370): harden this once OOT migrations stabilize.
       PERFETTO_DLOG(
           "Field %s re-introduced as %s (was %s): unresolved type, "
           "skipping compatibility check",
           check.field_name.c_str(), check.new_raw_type.c_str(),
-          check.existing_raw_type.c_str());
+          existing_raw_type.c_str());
       continue;
     }
     std::set<CanonicalDescriptorPair> comparisons_in_progress;
@@ -529,7 +572,7 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
           "Field %s re-introduced as %s (was %s) and the two messages are "
           "not structurally identical",
           check.field_name.c_str(), check.new_raw_type.c_str(),
-          check.existing_raw_type.c_str());
+          existing_raw_type.c_str());
     }
   }
 
@@ -588,6 +631,12 @@ base::Status DescriptorPool::ResolveUninterpretedOption(
     protos::pbzero::UninterpretedOption::NamePart::Decoder name_part(*it);
     const auto* option_field_desc =
         field_options_desc.FindFieldByName(name_part.name_part().ToStdString());
+    if (!option_field_desc) {
+      return base::ErrStatus("Unknown option %s for field %s in message %s",
+                             name_part.name_part().ToStdString().c_str(),
+                             field_desc.name().c_str(),
+                             proto_desc.full_name().c_str());
+    }
 
     // It's not immediately clear how options with multiple names should
     // be parsed. This likely requires digging into protobuf compiler
@@ -690,17 +739,24 @@ std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
   return it->second;
 }
 
+std::optional<uint32_t> DescriptorPool::FindDescriptorIdx(
+    CachedDescriptor& cache,
+    std::string_view full_name) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(full_name));
+  }
+  return cache.descriptor_idx_;
+}
+
 std::optional<std::string> DescriptorPool::FindEnumString(
     CachedDescriptor& cache,
     std::string_view enum_name,
     int32_t value) const {
-  if (!cache.descriptor_idx_) {
-    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
-  }
-  if (!cache.descriptor_idx_) {
+  auto idx = FindDescriptorIdx(cache, enum_name);
+  if (!idx) {
     return std::nullopt;
   }
-  return descriptors_[*cache.descriptor_idx_].FindEnumString(value);
+  return descriptors_[*idx].FindEnumString(value);
 }
 
 int64_t DescriptorPool::FlagSetToViews(
@@ -726,6 +782,18 @@ int64_t DescriptorPool::FlagSetToViews(
     }
   }
   return static_cast<int64_t>(unmatched);
+}
+
+int64_t DescriptorPool::FlagSetToViews(
+    CachedDescriptor& cache,
+    std::string_view enum_name,
+    int64_t mask,
+    std::vector<std::string_view>* out) const {
+  auto idx = FindDescriptorIdx(cache, enum_name);
+  if (!idx) {
+    return mask;
+  }
+  return FlagSetToViews(*idx, mask, out);
 }
 
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {

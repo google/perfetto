@@ -27,6 +27,7 @@
 #include <atomic>
 #include <chrono>
 #include <cinttypes>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -907,12 +908,6 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
         "TraceConfig's write_into_file must be true when using --detach");
     return 1;
   }
-  if (open_out_file) {
-    if (!OpenOutputFile(no_clobber))
-      return 1;
-    if (!trace_config_->write_into_file())
-      packet_writer_.emplace(trace_out_stream_.get());
-  }
 
   bool will_trace_indefinitely =
       trace_config_->duration_ms() == 0 &&
@@ -927,6 +922,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     PERFETTO_ELOG(
         "Can't trace indefinitely when reporting to Android framework.");
     return 1;
+  }
+
+  // Open output file after all cases that could cause an early exit
+  // to avoid leaving an unused persistent file behind.
+  if (open_out_file) {
+    if (!OpenOutputFile(no_clobber))
+      return 1;
+    if (!trace_config_->write_into_file())
+      packet_writer_.emplace(trace_out_stream_.get());
   }
 
   if (background_) {
@@ -1102,6 +1106,14 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   SetupCtrlCSignalHandler();
   task_runner_.Run();
 
+  // Keep the persistent trace for --upload-after-reboot only if the device
+  // may be shutting down: init either sends us SIGTERM or stops traced first
+  // (we lose the connection mid-session). In all other cases the trace was
+  // already reported, or never will be, so remove it.
+  bool maybe_rebooting = ctrl_c_signal_ == SIGTERM || !connected_;
+  if (!maybe_rebooting && !persistent_file_path_.empty())
+    base::Unlink(persistent_file_path_.c_str());
+
   return tracing_succeeded_ ? 0 : 1;
 }
 
@@ -1248,9 +1260,15 @@ void PerfettoCmd::OnTimeout() {
 }
 
 void PerfettoCmd::CheckTraceDataTimeout() {
+  // A timeout can still run after finalization. Ignore it to avoid finalizing
+  // the trace again or posting another timeout.
+  if (tracing_succeeded_)
+    return;
+
   if (trace_data_timeout_armed_) {
     PERFETTO_ELOG("Timed out while waiting for OnTraceData, aborting");
     FinalizeTraceAndExit();
+    return;
   }
   trace_data_timeout_armed_ = true;
   task_runner_.PostDelayedTask(
@@ -1259,12 +1277,23 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+  // - If WritePackets() fails, we call FinalizeTraceAndExit(), which:
+  //   - Resets the writer.
+  //   - Calls Quit() on the task runner.
+  // - Quit() does not stop the current IPC handler. Another buffered reply can
+  //   call OnTraceData() again, after the writer is gone.
+  // - FinalizeTraceAndExit() also sets |tracing_succeeded_| to true, so we use
+  //   that to ignore these later callbacks.
+  if (tracing_succeeded_)
+    return;
+
   trace_data_timeout_armed_ = false;
 
   PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
-    PERFETTO_ELOG("Failed to write packets");
+    PERFETTO_PLOG("Failed to write packets");
     FinalizeTraceAndExit();
+    return;
   }
 
   if (!has_more)
@@ -1321,10 +1350,19 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
 }
 
 void PerfettoCmd::FinalizeTraceAndExit() {
+  // Trace data and timeout callbacks can both reach this path. Report and close
+  // the output only once.
+  if (tracing_succeeded_)
+    return;
+
   LogUploadEvent(PerfettoStatsdAtom::kFinalizeTraceAndExit);
   packet_writer_.reset();
 
-  if (save_to_incidentd_) {
+  if (ctrl_c_signal_ == SIGTERM && !persistent_file_path_.empty()) {
+    // Shutting down (e.g. reboot): system_server may already be gone. Don't
+    // report, keep the file for --upload-after-reboot.
+    trace_out_stream_.reset();
+  } else if (save_to_incidentd_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     SaveTraceIntoIncidentOrCrash();
 #endif
@@ -1344,6 +1382,10 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     }
   }
 
+  // Set this even after write errors or readback timeouts. It marks
+  // finalization complete, not whether all packets were written. Later
+  // callbacks use it to avoid accessing the destroyed writer or finalizing
+  // again.
   tracing_succeeded_ = true;
   task_runner_.Quit();
 }
@@ -1407,9 +1449,9 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
   if (g_perfetto_cmd != this)
     return;
   ctrl_c_handler_installed_ = true;
-  base::InstallCtrlCHandler([] {
+  base::InstallCtrlCHandler([](int signal) {
     if (PerfettoCmd* main_thread = g_perfetto_cmd.load())
-      main_thread->SignalCtrlC();
+      main_thread->SignalCtrlC(signal);
   });
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [weak_this] {

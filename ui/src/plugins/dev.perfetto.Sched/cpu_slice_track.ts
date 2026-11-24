@@ -117,7 +117,7 @@ export function createCpuSliceTrack(
       const variants = new Array<ColorVariant>(n);
 
       for (let i = 0; i < n; ++i) {
-        const row = slices[i].row;
+        const row = slices[i]!.row;
         const isThreadHovered = hoveredUtid === row.utid;
         const isProcessHovered = hoveredPid === row.pid;
 

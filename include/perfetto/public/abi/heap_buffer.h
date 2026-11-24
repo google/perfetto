@@ -17,35 +17,34 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_ABI_HEAP_BUFFER_H_
 #define INCLUDE_PERFETTO_PUBLIC_ABI_HEAP_BUFFER_H_
 
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // A PerfettoHeapBuffer can be used to serialize protobuf data using the
-// PerfettoStreamWriter interface. Stores data on heap allocated buffers, which
+// PerfettoPbMsgWriter interface. Stores data on heap allocated buffers, which
 // can be read back with PerfettoHeapBufferCopyInto().
 
 struct PerfettoHeapBuffer;
 
 // Creates a PerfettoHeapBuffer. Takes a pointer to an (uninitialized)
-// PerfettoStreamWriter (owned by the caller). The stream writer can be user
-// later to serialize protobuf data.
+// PerfettoPbMsgWriter (owned by the caller). The writer can be used later to
+// serialize protobuf data, and its encoding is set to standard
+// length-delimited protobuf.
 PERFETTO_SDK_EXPORT struct PerfettoHeapBuffer* PerfettoHeapBufferCreate(
-    struct PerfettoStreamWriter*);
+    struct PerfettoPbMsgWriter*);
 
 // Copies data from the heap buffer to `dst` (up to `size` bytes).
-PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyInto(
-    struct PerfettoHeapBuffer*,
-    struct PerfettoStreamWriter*,
-    void* dst,
-    size_t size);
+PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyInto(struct PerfettoHeapBuffer*,
+                                                    struct PerfettoPbMsgWriter*,
+                                                    void* dst,
+                                                    size_t size);
 
 // Destroys the heap buffer.
-PERFETTO_SDK_EXPORT void PerfettoHeapBufferDestroy(
-    struct PerfettoHeapBuffer*,
-    struct PerfettoStreamWriter*);
+PERFETTO_SDK_EXPORT void PerfettoHeapBufferDestroy(struct PerfettoHeapBuffer*,
+                                                   struct PerfettoPbMsgWriter*);
 
 #ifdef __cplusplus
 }

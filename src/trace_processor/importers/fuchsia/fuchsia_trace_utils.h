@@ -210,6 +210,11 @@ class RecordCursor {
   void SetWordIndex(size_t index);
 
   bool ReadTimestamp(uint64_t ticks_per_second, int64_t* ts_out);
+  // Reads an inline string (or string record payload) of length
+  // `string_ref_or_len & 0x7FFF` and advances the cursor past its 8-byte
+  // aligned words. If `string_out` is non-null, truncates at the first NUL byte
+  // ('\0') so producers emitting fixed-size buffers with trailing NUL padding
+  // do not leave embedded NULs in interned strings.
   bool ReadInlineString(uint32_t string_ref_or_len,
                         base::StringView* string_out);
   bool ReadInlineThread(FuchsiaThreadInfo* thread_out);

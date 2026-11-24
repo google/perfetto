@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/util/trace_type.h"
+#include "src/trace_processor/util/sort.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -69,8 +70,9 @@ const TraceImporterBase* TraceImporterRegistry::FindImporter(
   return it ? it->get() : nullptr;
 }
 
-TraceImporterId TraceImporterRegistry::Guess(const uint8_t* data,
-                                             size_t size) const {
+TraceImporterRegistry::GuessResult TraceImporterRegistry::Guess(
+    const uint8_t* data,
+    size_t size) const {
   // Sniff every importer in detection_priority order, lowest first. Priorities
   // are globally unique so the order is total.
   struct Entry {
@@ -81,16 +83,16 @@ TraceImporterId TraceImporterRegistry::Guess(const uint8_t* data,
   for (auto it = importers_.GetIterator(); it; ++it) {
     entries.push_back({it.key(), it.value().get()});
   }
-  std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
-    return a.importer->descriptor().detection_priority <
-           b.importer->descriptor().detection_priority;
+  SortByKey(entries.begin(), entries.end(), [](const Entry& e) {
+    return e.importer->descriptor().detection_priority;
   });
   for (const Entry& e : entries) {
-    if (e.importer->Sniff(data, size)) {
-      return e.id;
+    SniffResult res = e.importer->Sniff(data, size);
+    if (res.matches) {
+      return {e.id, res.content_priority};
     }
   }
-  return TraceImporterId();
+  return {};
 }
 
 const char* TraceImporterRegistry::ToString(TraceImporterId id) const {

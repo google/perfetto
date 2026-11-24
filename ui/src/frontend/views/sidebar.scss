@@ -386,24 +386,3 @@ li.pf-sidebar__item {
     margin-top: 11px;
   }
 }
-
-// Note: The hiring banner doesn't use theme colors.
-.pf-hiring-banner {
-  font-size: var(--pf-font-size-s);
-  background: #db4634;
-  box-shadow: 0 0 3px var(--pf-color-box-shadow);
-  left: -65px;
-  letter-spacing: 1px;
-  line-height: 25px;
-  position: absolute;
-  text-align: center;
-  top: 20px;
-  transform: rotate(-45deg);
-  width: 200px;
-  z-index: 5;
-
-  a {
-    color: white;
-    text-decoration: none;
-  }
-}

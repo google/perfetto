@@ -38,6 +38,7 @@ _base_unittests_targets += [
 _tracing_unittests_targets += [
   "src/tracing/core:unittests",
   "src/tracing/service:unittests",
+  "src/tracing/v2:unittests",
   "src/tracing:unittests",
 ]
 
@@ -122,7 +123,8 @@ if (enable_perfetto_android_java_sdk) {
 
 _trace_processor_unittests_targets += [ "src/trace_redaction:unittests" ]
 
-# This list MUST be defined in the end of the file, to concat all the updated sub-lists.
+# This list MUST be defined in the end of the file, to concat all the updated
+# sub-lists.
 _unittests_subset_binaries = [
   {
     name = "perfetto_base_unittests"
@@ -158,19 +160,22 @@ template("perfetto_generate_unittests") {
   foreach(subset, _unittests_subset_binaries) {
     # Generate subset test binaries only in standalone build
     if (perfetto_build_standalone) {
-      # In some build configurations "subset.targets" may be empty, so we skip it.
+      # In some build configurations "subset.targets" may be empty, so we skip
+      # it.
       if (subset.targets != []) {
         test(subset.name) {
           deps = subset.targets + _default_unittests_deps
         }
 
-        # Adding this subset binary as a dependency to "perfetto_unittests" automatically
-        # add it to the "all_targets" list as a transitive dependency.
+        # Adding this subset binary as a dependency to "perfetto_unittests"
+        # automatically add it to the "all_targets" list as a transitive
+        # dependency.
         _all_test_targets += [ ":${subset.name}" ]
       }
     }
     _all_test_targets += subset.targets
   }
+
   test(target_name) {
     forward_variables_from(invoker, "*")
     deps = _all_test_targets + _default_unittests_deps

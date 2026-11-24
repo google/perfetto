@@ -106,9 +106,9 @@ void ConvertFieldDescriptor(const google::protobuf::FieldDescriptorProto& src,
     dst->set_default_value(src.default_value());
   if (src.has_oneof_index())
     dst->set_oneof_index(src.oneof_index());
-  if (src.has_options() && src.options().has_packed()) {
-    auto* opts = dst->set_options();
-    opts->set_packed(src.options().packed());
+  if (src.has_options()) {
+    std::string options = src.options().SerializeAsString();
+    dst->set_options()->AppendRawProtoBytes(options.data(), options.size());
   }
 }
 
@@ -490,13 +490,15 @@ base::StatusOr<std::vector<Registry>> ParseRegistryFile(
 
 base::Status ValidateRegistry(const Registry& reg) {
   if (reg.scope != "perfetto.protos.TrackEvent" &&
+      reg.scope != "perfetto.protos.TrackDescriptor" &&
       reg.scope != "perfetto.protos.TracePacket" &&
       reg.scope != "perfetto.protos.InternedData" &&
       reg.scope != "perfetto.protos.TrackEvent.State") {
     return base::ErrStatus(
         "Invalid scope '%s' in '%s'; expected one of: "
-        "perfetto.protos.TrackEvent, perfetto.protos.TracePacket, "
-        "perfetto.protos.InternedData, perfetto.protos.TrackEvent.State",
+        "perfetto.protos.TrackEvent, perfetto.protos.TrackDescriptor, "
+        "perfetto.protos.TracePacket, perfetto.protos.InternedData, "
+        "perfetto.protos.TrackEvent.State",
         reg.scope.c_str(), reg.source_path.c_str());
   }
 

@@ -57,12 +57,18 @@ class PacketSequenceStateGeneration : public RefCounted {
   using CustomState = ::perfetto::trace_processor::CustomState;
 
   static RefPtr<PacketSequenceStateGeneration> CreateFirst(
-      TraceProcessorContext* context);
+      TraceProcessorContext* context,
+      uint32_t trusted_packet_sequence_id);
 
   RefPtr<PacketSequenceStateGeneration> OnPacketLoss();
   RefPtr<PacketSequenceStateGeneration> OnIncrementalStateCleared();
   RefPtr<PacketSequenceStateGeneration> OnNewTracePacketDefaults(
       TraceBlobView trace_packet_defaults);
+
+  // The trusted_packet_sequence_id of the packets in this sequence.
+  uint32_t trusted_packet_sequence_id() const {
+    return trusted_packet_sequence_id_;
+  }
 
   // Persistent pid/tid for this packet sequence (set by ThreadDescriptor).
   // Carried across every transition (including SEQ_INCREMENTAL_STATE_CLEARED).
@@ -122,17 +128,29 @@ class PacketSequenceStateGeneration : public RefCounted {
     return &*trace_packet_defaults_;
   }
 
-  // Returns |nullptr| if no defaults were set.
+  // Returns |nullptr| if no defaults were set. The defaults are fixed for
+  // the lifetime of a generation, so the decoder is resolved once.
   protos::pbzero::TracePacketDefaults::Decoder* GetTracePacketDefaults() {
+    if (PERFETTO_LIKELY(trace_packet_defaults_resolved_)) {
+      return trace_packet_defaults_decoder_;
+    }
+    trace_packet_defaults_resolved_ = true;
     if (!trace_packet_defaults_.has_value()) {
       return nullptr;
     }
-    return trace_packet_defaults_
-        ->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
+    trace_packet_defaults_decoder_ =
+        trace_packet_defaults_
+            ->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
+    return trace_packet_defaults_decoder_;
   }
 
-  // Returns |nullptr| if no TrackEventDefaults were set.
+  // Returns |nullptr| if no TrackEventDefaults were set. The defaults are
+  // fixed for the lifetime of a generation, so the lookup is memoized.
   protos::pbzero::TrackEventDefaults::Decoder* GetTrackEventDefaults() {
+    if (PERFETTO_LIKELY(track_event_defaults_resolved_)) {
+      return track_event_defaults_;
+    }
+    track_event_defaults_resolved_ = true;
     auto* packet_defaults_view = GetTracePacketDefaultsView();
     if (packet_defaults_view) {
       auto* track_event_defaults_view =
@@ -141,11 +159,12 @@ class PacketSequenceStateGeneration : public RefCounted {
                                           protos::pbzero::TracePacketDefaults::
                                               kTrackEventDefaultsFieldNumber>();
       if (track_event_defaults_view) {
-        return track_event_defaults_view
-            ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
+        track_event_defaults_ =
+            track_event_defaults_view
+                ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
       }
     }
-    return nullptr;
+    return track_event_defaults_;
   }
 
   // Extension point for custom incremental state. Custom state classes need
@@ -168,10 +187,12 @@ class PacketSequenceStateGeneration : public RefCounted {
   StringPool::Id InternAndCacheStringValue(InternedMessageView* view);
 
   PacketSequenceStateGeneration(
+      uint32_t trusted_packet_sequence_id,
       RefPtr<IncrementalState> incremental_state,
       std::optional<InternedMessageView> trace_packet_defaults,
       bool is_incremental_state_valid)
-      : incremental_state_(std::move(incremental_state)),
+      : trusted_packet_sequence_id_(trusted_packet_sequence_id),
+        incremental_state_(std::move(incremental_state)),
         trace_packet_defaults_(std::move(trace_packet_defaults)),
         is_incremental_state_valid_(is_incremental_state_valid) {}
 
@@ -183,6 +204,8 @@ class PacketSequenceStateGeneration : public RefCounted {
     incremental_state_->InternMessage(field_id, std::move(message));
   }
 
+  uint32_t trusted_packet_sequence_id_;
+
   // Shared with sibling generations within the same incremental-state
   // interval (one new IncrementalState is constructed on
   // SEQ_INCREMENTAL_STATE_CLEARED).
@@ -190,6 +213,11 @@ class PacketSequenceStateGeneration : public RefCounted {
 
   // Per-slice state.
   std::optional<InternedMessageView> trace_packet_defaults_;
+  bool trace_packet_defaults_resolved_ = false;
+  protos::pbzero::TracePacketDefaults::Decoder* trace_packet_defaults_decoder_ =
+      nullptr;
+  bool track_event_defaults_resolved_ = false;
+  protos::pbzero::TrackEventDefaults::Decoder* track_event_defaults_ = nullptr;
   // TODO(carlscab): Should not be needed as clients of this class should not
   // care about validity.
   bool is_incremental_state_valid_ = true;

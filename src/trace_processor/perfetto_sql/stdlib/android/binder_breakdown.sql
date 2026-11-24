@@ -116,14 +116,24 @@ AS (
 -- Server side flattened descendant slices.
 CREATE PERFETTO TABLE _binder_server_flat_descendants AS
 SELECT *
-FROM _binder_flatten_descendants!(binder_reply_id, server_ts, server_dur, 'binder reply')
+FROM _binder_flatten_descendants!(
+  binder_reply_id,
+  server_ts,
+  server_dur,
+  'binder reply'
+)
 ORDER BY
   id;
 
 -- Client side flattened descendant slices.
 CREATE PERFETTO TABLE _binder_client_flat_descendants AS
 SELECT *
-FROM _binder_flatten_descendants!(binder_txn_id, client_ts, client_dur, 'binder transaction')
+FROM _binder_flatten_descendants!(
+  binder_txn_id,
+  client_ts,
+  client_dur,
+  'binder transaction'
+)
 ORDER BY
   id;
 

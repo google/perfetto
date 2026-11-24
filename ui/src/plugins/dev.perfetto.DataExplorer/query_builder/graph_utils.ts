@@ -408,8 +408,8 @@ export function calculateUndockLayouts(
 ): Map<string, {x: number; y: number}> {
   const layouts = new Map<string, {x: number; y: number}>();
 
-  for (let i = 0; i < children.length; i++) {
-    layouts.set(children[i].nodeId, {
+  for (const [i, child] of children.entries()) {
+    layouts.set(child.nodeId, {
       x: parentLayout.x + UNDOCK_X_OFFSET + i * UNDOCK_STAGGER,
       y: parentLayout.y + i * UNDOCK_STAGGER,
     });
@@ -695,7 +695,8 @@ export function createGroupFromSelection(
     (n) => !n.nextNodes.some((next) => innerSet.has(next.nodeId)),
   );
 
-  if (endNodes.length === 0) {
+  const endNode = endNodes[0];
+  if (endNode === undefined) {
     return errResult(
       'Cannot create group: the selected nodes form a cycle with no output.',
     );
@@ -706,8 +707,6 @@ export function createGroupFromSelection(
         'The group must have exactly one output node.',
     );
   }
-
-  const endNode = endNodes[0];
 
   // Collect all external connections (sources outside the group → inner nodes).
   const externalConnections: ExternalGroupConnection[] = [];
@@ -801,7 +800,8 @@ export function applyGroupRewiring(groupNode: GroupNode): void {
   // endNode no longer has direct outer connections; GroupNode owns them.
   // Mutate in-place so existing references to the array stay consistent.
   for (let i = endNode.nextNodes.length - 1; i >= 0; i--) {
-    if (!innerSet.has(endNode.nextNodes[i].nodeId)) {
+    const next = endNode.nextNodes[i];
+    if (next !== undefined && !innerSet.has(next.nodeId)) {
       endNode.nextNodes.splice(i, 1);
     }
   }

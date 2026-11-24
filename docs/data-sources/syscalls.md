@@ -3,8 +3,8 @@
 On Linux and Android (userdebug builds only) Perfetto can keep track of system
 calls.
 
-Right now only the syscall number is recorded in the trace, the arguments are
-not stored to limit the trace size overhead.
+The syscall number and its raw argument values are recorded on entry, and the
+return value on exit.
 
 At import time, the Trace Processor uses an internal syscall mapping table,
 currently supporting x86, x86_64, ArmEabi, aarch32 and aarch64. These tables are

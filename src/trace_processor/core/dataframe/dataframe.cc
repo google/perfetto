@@ -105,6 +105,30 @@ Dataframe::Dataframe(bool finalized,
   }
 }
 
+Dataframe& Dataframe::operator=(Dataframe&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+  const uint64_t previous_mutations = mutations();
+  column_names_ = std::move(other.column_names_);
+  columns_ = std::move(other.columns_);
+  column_ptrs_ = std::move(other.column_ptrs_);
+  indexes_ = std::move(other.indexes_);
+  row_count_ = other.row_count_;
+  string_pool_ = other.string_pool_;
+  non_column_mutations_ = previous_mutations + 1;
+  finalized_ = other.finalized_;
+  ++replacement_generation_;
+  return *this;
+}
+
+Dataframe& Dataframe::operator=(const Dataframe& other) {
+  if (this != &other) {
+    *this = Dataframe(other);
+  }
+  return *this;
+}
+
 base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     std::vector<FilterSpec>& filter_specs,
     const std::vector<DistinctSpec>& distinct_specs,
@@ -218,6 +242,14 @@ Dataframe Dataframe::RemoveIndexAt(uint32_t pos) const {
 }
 
 void Dataframe::Finalize() {
+  FinalizeColumns(/*estimate_distinct=*/true);
+}
+
+void Dataframe::FinalizeWithoutStatistics() {
+  FinalizeColumns(/*estimate_distinct=*/false);
+}
+
+void Dataframe::FinalizeColumns(bool estimate_distinct) {
   if (finalized_) {
     return;
   }
@@ -273,7 +305,9 @@ void Dataframe::Finalize() {
       default:
         PERFETTO_FATAL("Invalid nullability type");
     }
-    c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
+    if (estimate_distinct) {
+      c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
+    }
   }
   // Bump the mutation counter so that any cursors with cached pointers
   // know to refresh them: shrink_to_fit() may have reallocated the internal

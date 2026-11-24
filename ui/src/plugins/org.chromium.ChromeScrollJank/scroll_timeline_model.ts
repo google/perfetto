@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  materializeRows,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import type {Engine} from '../../trace_processor/engine';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
-import {rows} from './utils';
 import {SCROLL_TIMELINE_TRACK} from './tracks';
 import type {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
@@ -338,7 +341,7 @@ async function queryStepTemplates(engine: Engine): Promise<StepTemplate[]> {
         ts_column_name,
         dur_column_name
       FROM chrome_scroll_update_info_step_templates;`);
-  return rows(stepTemplatesResult, {
+  return materializeRows(stepTemplatesResult, {
     step_name: STR,
     ts_column_name: STR_NULL,
     dur_column_name: STR_NULL,
@@ -374,7 +377,7 @@ async function queryChromeScrollUpdateInfoColumnNames(
   const columnNamesResult = await engine.query(`
       INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
       SELECT name FROM pragma_table_info('chrome_scroll_update_info');`);
-  return rows(columnNamesResult, {name: STR}).map((row) => row.name);
+  return materializeRows(columnNamesResult, {name: STR}).map((row) => row.name);
 }
 
 /**

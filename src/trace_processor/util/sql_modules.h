@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -27,7 +28,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 
-namespace perfetto ::trace_processor::sql_modules {
+namespace perfetto::trace_processor::sql_modules {
 
 using NameToPackage =
     base::FlatHashMap<std::string,
@@ -43,6 +44,9 @@ using NameToPackage =
 // The string_view bodies must outlive every connection holding this package.
 struct RegisteredPackage {
   base::FlatHashMap<std::string, std::string_view> modules;
+  // Whether the package is the standard library built into the binary, as
+  // opposed to one a caller registered.
+  bool builtin = false;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {
@@ -54,9 +58,24 @@ inline std::string ReplaceSlashWithDot(std::string str) {
   return str;
 }
 
+inline std::optional<base::StringView> StripSqlExtension(
+    base::StringView path) {
+  constexpr std::string_view kPfSqlExt = ".pf.sql";
+  if (base::EndsWith(path, kPfSqlExt)) {
+    return path.substr(0, path.size() - kPfSqlExt.size());
+  }
+  constexpr std::string_view kSqlExt = ".sql";
+  if (base::EndsWith(path, kSqlExt)) {
+    return path.substr(0, path.size() - kSqlExt.size());
+  }
+  return std::nullopt;
+}
+
 inline std::string GetIncludeKey(const std::string& path) {
   base::StringView path_view(path);
-  auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
+  auto stripped = StripSqlExtension(path_view);
+  auto path_no_extension =
+      stripped.value_or(path_view.substr(0, path_view.rfind('.')));
   return ReplaceSlashWithDot(path_no_extension.ToStdString());
 }
 

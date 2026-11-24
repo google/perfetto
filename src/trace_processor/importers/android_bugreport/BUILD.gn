@@ -22,7 +22,7 @@ source_set("android_log_event") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../containers",
   ]
 }
@@ -31,7 +31,7 @@ source_set("android_dumpstate_event") {
   sources = [ "android_dumpstate_event.h" ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../containers",
   ]
 }
@@ -55,6 +55,7 @@ source_set("android_bugreport") {
     "chunked_line_reader.cc",
     "chunked_line_reader.h",
   ]
+  public_deps = [ "../../sorter" ]
   deps = [
     ":android_dumpstate_event",
     ":android_log_event",
@@ -64,10 +65,10 @@ source_set("android_bugreport") {
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../base",
-    "../../sorter:sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../../util:sort",
     "../../util:trace_type",
     "../../util:zip_reader",
     "../common",

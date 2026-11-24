@@ -49,6 +49,7 @@
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
+#include "src/profiling/smaps/smaps_data_source.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
@@ -472,8 +473,15 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
                static_cast<size_t>(ds_id), tracing_session_id,
                config.name().c_str());
 
+  // perfetto.metatrace data source
   if (config.name() == MetatraceWriter::kDataSourceName) {
     StartMetatraceSource(ds_id, static_cast<BufferID>(config.target_buffer()));
+    return;
+  }
+
+  // linux.smaps data source
+  if (config.name() == SmapsDataSource::kDataSourceName) {
+    StartSmapsDataSource(ds_id, config);
     return;
   }
 
@@ -666,6 +674,20 @@ void PerfProducer::StopDataSource(DataSourceInstanceID ds_id) {
     return;
   }
 
+  // Smaps: wait for enqueued work (if any), then ack the stop in a separate
+  // task.
+  auto smaps_it = smaps_data_sources_.find(ds_id);
+  if (smaps_it != smaps_data_sources_.end()) {
+    auto weak_this = weak_factory_.GetWeakPtr();
+    smaps_it->second.Stop([weak_this, ds_id] {
+      if (!weak_this)
+        return;
+      weak_this->smaps_data_sources_.erase(ds_id);
+      weak_this->endpoint_->NotifyDataSourceStopped(ds_id);
+    });
+    return;
+  }
+
   auto ds_it = data_sources_.find(ds_id);
   if (ds_it == data_sources_.end()) {
     // Most likely, the source is missing due to an abrupt stop (via
@@ -696,7 +718,7 @@ void PerfProducer::Flush(FlushRequestID flush_id,
                          const DataSourceInstanceID* data_source_ids,
                          size_t num_data_sources,
                          FlushFlags) {
-  // Flush metatracing if requested.
+  // Flush the metatrace and smaps sources if requested.
   for (size_t i = 0; i < num_data_sources; i++) {
     auto ds_id = data_source_ids[i];
     PERFETTO_DLOG("Flush(%zu)", static_cast<size_t>(ds_id));
@@ -704,6 +726,13 @@ void PerfProducer::Flush(FlushRequestID flush_id,
     auto meta_it = metatrace_writers_.find(ds_id);
     if (meta_it != metatrace_writers_.end()) {
       meta_it->second.WriteAllAndFlushTraceWriter([] {});
+      continue;
+    }
+
+    auto smaps_it = smaps_data_sources_.find(ds_id);
+    if (smaps_it != smaps_data_sources_.end()) {
+      smaps_it->second.Flush();
+      continue;
     }
   }
 
@@ -717,8 +746,10 @@ void PerfProducer::ClearIncrementalState(
     auto ds_id = data_source_ids[i];
     PERFETTO_DLOG("ClearIncrementalState(%zu)", static_cast<size_t>(ds_id));
 
-    if (metatrace_writers_.find(ds_id) != metatrace_writers_.end())
+    if (metatrace_writers_.find(ds_id) != metatrace_writers_.end() ||
+        smaps_data_sources_.find(ds_id) != smaps_data_sources_.end()) {
       continue;
+    }
 
     auto ds_it = data_sources_.find(ds_id);
     if (ds_it == data_sources_.end()) {
@@ -1360,6 +1391,26 @@ void PerfProducer::StartMetatraceSource(DataSourceInstanceID ds_id,
                                    metatrace::TAG_ANY);
 }
 
+void PerfProducer::StartSmapsDataSource(DataSourceInstanceID ds_id,
+                                        const DataSourceConfig& config) {
+  std::optional<SmapsDataSource::Config> smaps_config =
+      SmapsDataSource::Config::Create(config);
+  if (!smaps_config.has_value()) {
+    PERFETTO_ELOG("linux.smaps config rejected.");
+    return;
+  }
+
+  auto writer = endpoint_->CreateTraceWriter(
+      static_cast<BufferID>(config.target_buffer()),
+      BufferExhaustedPolicy::kStall);
+
+  auto [it, inserted] = smaps_data_sources_.try_emplace(
+      ds_id, std::move(smaps_config.value()), task_runner_, std::move(writer));
+  PERFETTO_DCHECK(inserted);
+  if (inserted)
+    it->second.Start();
+}
+
 void PerfProducer::ConnectWithRetries(const char* socket_name) {
   PERFETTO_DCHECK(state_ == kNotStarted);
   state_ = kNotConnected;
@@ -1402,9 +1453,16 @@ void PerfProducer::OnConnect() {
     endpoint_->RegisterDataSource(desc);
   }
   {
-    // metatrace
+    // perfetto.metatrace
     DataSourceDescriptor desc;
     desc.set_name(MetatraceWriter::kDataSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
+  {
+    // linux.smaps
+    DataSourceDescriptor desc;
+    desc.set_name(SmapsDataSource::kDataSourceName);
+    desc.set_will_notify_on_stop(true);
     endpoint_->RegisterDataSource(desc);
   }
   // Used by tracebox to synchronize with traced_probes being registered.

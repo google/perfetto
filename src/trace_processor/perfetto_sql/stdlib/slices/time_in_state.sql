@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- For each thread slice, returns the sum of the time it spent in various
@@ -55,32 +53,31 @@ CREATE PERFETTO TABLE thread_slice_time_in_state(
   dur DURATION
 )
 AS
-SELECT
-  ii.id_0 AS id,
-  ts.name,
-  ts.utid,
-  ts.thread_name,
-  ts.upid,
-  ts.process_name,
-  tstate.state,
-  tstate.io_wait,
-  tstate.blocked_function,
-  sum(ii.dur) AS dur
-FROM _interval_intersect!(
+INTERVAL INTERSECTION OF (
   (
-    (SELECT * FROM thread_slice WHERE utid > 0 AND dur > 0),
-    (SELECT * FROM thread_state WHERE dur > 0)
-  ),
-  (utid)
-) AS ii
-JOIN thread_slice AS ts
-  ON ts.id = ii.id_0
-JOIN thread_state AS tstate
-  ON tstate.id = ii.id_1
+    SELECT id, ts, dur, name, utid, thread_name, upid, process_name
+    FROM thread_slice
+    WHERE
+      utid > 0
+      AND dur > 0
+  ) AS s,
+  (
+    SELECT ts, dur, utid, state, io_wait, blocked_function
+    FROM thread_state
+    WHERE
+      dur > 0
+  ) AS st
+) PER utid
+|> AGGREGATE
+  SUM(dur) AS dur
 GROUP BY
-  ii.id_0,
-  tstate.state,
-  tstate.io_wait,
-  tstate.blocked_function
-ORDER BY
-  ii.id_0;
+  s.id,
+  s.name,
+  utid,
+  s.thread_name,
+  s.upid,
+  s.process_name,
+  st.state,
+  st.io_wait,
+  st.blocked_function
+|> ORDER BY id;

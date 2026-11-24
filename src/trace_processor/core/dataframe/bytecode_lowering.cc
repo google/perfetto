@@ -27,8 +27,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/span.h"
+#include "perfetto/ext/base/type_set.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
@@ -42,8 +45,6 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -64,9 +65,9 @@ enum RegType : uint32_t {
 };
 
 // TypeSet of all possible sparse nullability states.
-using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullWithPopcountAlways,
-                                SparseNullWithPopcountUntilFinalization>;
+using SparseNullTypes = base::TypeSet<SparseNull,
+                                      SparseNullWithPopcountAlways,
+                                      SparseNullWithPopcountUntilFinalization>;
 
 // Gets the appropriate bound modifier and range operation type
 // for a given range operation.
@@ -88,18 +89,19 @@ GetSortedFilterArgs(const RangeOp& op) {
   }
 }
 
-// Helper to get byte size of storage types for layout calculation.
-uint8_t GetDataSize(StorageType type) {
+// Helper to get the row layout type of storage types for layout calculation.
+RowLayout::Type GetRowLayoutType(StorageType type) {
   switch (type.index()) {
     case StorageType::GetTypeIndex<Id>():
     case StorageType::GetTypeIndex<Uint32>():
-    case StorageType::GetTypeIndex<Int32>():
     case StorageType::GetTypeIndex<String>():
-      return sizeof(uint32_t);
+      return RowLayout::Type::kUint32;
+    case StorageType::GetTypeIndex<Int32>():
+      return RowLayout::Type::kInt32;
     case StorageType::GetTypeIndex<Int64>():
-      return sizeof(int64_t);
+      return RowLayout::Type::kInt64;
     case StorageType::GetTypeIndex<Double>():
-      return sizeof(double);
+      return RowLayout::Type::kDouble;
     default:
       PERFETTO_FATAL("Invalid storage type");
   }
@@ -277,7 +279,7 @@ void BytecodeLowering::LowerRangeScanFilter(const logical::Filter& f) {
   auto value = EmitCastFilterValue(*f.value_index, f.storage, *non_null_op);
   auto range_reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
   auto slab_reg = builder_.AllocateRegister<Slab<uint32_t>>();
-  auto span_reg = builder_.AllocateRegister<Span<uint32_t>>();
+  auto span_reg = builder_.AllocateRegister<base::Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>();
@@ -362,9 +364,9 @@ void BytecodeLowering::LowerIndexListScanFilter(const logical::Filter& f) {
 }
 
 void BytecodeLowering::LowerIndexFilter(const logical::IndexFilter& idx) {
-  i::RwHandle<Span<uint32_t>> source_reg = IndexRegisterFor(idx.index);
-  i::RwHandle<Span<uint32_t>> dest_reg =
-      builder_.AllocateRegister<Span<uint32_t>>();
+  i::RwHandle<base::Span<uint32_t>> source_reg = IndexRegisterFor(idx.index);
+  i::RwHandle<base::Span<uint32_t>> dest_reg =
+      builder_.AllocateRegister<base::Span<uint32_t>>();
 
   // The current row range — used by FilterIn's scan fallback when the IN list
   // is too large for binary search and the index is ignored.
@@ -378,8 +380,8 @@ void BytecodeLowering::LowerIndexFilter(const logical::IndexFilter& idx) {
   // CopySpanIntersectingRange copies from there into this buffer.
   i::RwHandle<Slab<uint32_t>> output_slab_reg =
       builder_.AllocateRegister<Slab<uint32_t>>();
-  i::RwHandle<Span<uint32_t>> output_span_reg =
-      builder_.AllocateRegister<Span<uint32_t>>();
+  i::RwHandle<base::Span<uint32_t>> output_span_reg =
+      builder_.AllocateRegister<base::Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>();
@@ -457,8 +459,8 @@ void BytecodeLowering::LowerIndexFilter(const logical::IndexFilter& idx) {
 void BytecodeLowering::LowerEmpty() {
   i::RwHandle<Slab<uint32_t>> slab_reg =
       builder_.AllocateRegister<Slab<uint32_t>>();
-  i::RwHandle<Span<uint32_t>> span_reg =
-      builder_.AllocateRegister<Span<uint32_t>>();
+  i::RwHandle<base::Span<uint32_t>> span_reg =
+      builder_.AllocateRegister<base::Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>();
@@ -467,7 +469,7 @@ void BytecodeLowering::LowerEmpty() {
     bc.arg<B::dest_span_register>() = span_reg;
   }
   indices_reg_ = span_reg;
-  SetRows(logical::RowEstimate{0, 0});
+  SetRows(core::RowEstimate{0, 0});
 }
 
 void BytecodeLowering::LowerDistinct(const logical::Distinct& d) {
@@ -476,10 +478,10 @@ void BytecodeLowering::LowerDistinct(const logical::Distinct& d) {
   for (uint32_t col : d.cols) {
     row_layout_params.push_back({col, false});
   }
-  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
-  i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
-  auto buffer_reg =
-      CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
+  RowLayout layout = MakeRowLayout(row_layout_params);
+  auto total_row_stride = static_cast<uint16_t>(layout.stride());
+  i::RwHandle<base::Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  auto buffer_reg = CopyToRowLayout(layout, indices, {}, row_layout_params);
   {
     using B = i::Distinct;
     auto& bc = AddOpcode<B>();
@@ -502,7 +504,7 @@ void BytecodeLowering::LowerSort(const logical::Sort& sort) {
 
   // main_indices_span will be modified by the final sort operation.
   // EnsureIndicesAreInSlab makes it an RwHandle.
-  i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
+  i::RwHandle<base::Span<uint32_t>> indices = EnsureIndicesAreInSlab();
 
   bool has_string_sort_keys = false;
   for (const auto& spec : sort_specs) {
@@ -531,7 +533,7 @@ void BytecodeLowering::LowerSort(const logical::Sort& sort) {
         continue;
       }
 
-      i::RwHandle<Span<uint32_t>> translated;
+      i::RwHandle<base::Span<uint32_t>> translated;
       if (col.null_storage.nullability().Is<NonNull>()) {
         // If the column is non-null, we can use the main indices directly.
         translated = indices;
@@ -540,7 +542,7 @@ void BytecodeLowering::LowerSort(const logical::Sort& sort) {
         // This ensures that the main_indices_span is not modified, allowing
         // each string column to be processed independently from the original
         // set of rows.
-        i::RwHandle<Span<uint32_t>> scratch =
+        i::RwHandle<base::Span<uint32_t>> scratch =
             GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
 
         // 1. Copy the current indices to our temporary scratch span.
@@ -589,9 +591,10 @@ void BytecodeLowering::LowerSort(const logical::Sort& sort) {
         {spec.col, columns_[spec.col]->storage.type().Is<String>(),
          spec.direction == SortDirection::kDescending});
   }
-  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
-  auto buffer_reg = CopyToRowLayout(total_row_stride, indices, string_rank_map,
-                                    row_layout_params);
+  RowLayout layout = MakeRowLayout(row_layout_params);
+  auto total_row_stride = static_cast<uint16_t>(layout.stride());
+  auto buffer_reg =
+      CopyToRowLayout(layout, indices, string_rank_map, row_layout_params);
   {
     using B = i::SortRowLayout;
     auto& op = AddOpcode<B>();
@@ -673,11 +676,11 @@ void BytecodeLowering::LowerOutput(const logical::Output& out) {
   }
 
   auto in_memory_indices = EnsureIndicesAreInSlab();
-  i::RwHandle<Span<uint32_t>> storage_update_register;
+  i::RwHandle<base::Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
     i::RwHandle<Slab<uint32_t>> slab_register =
         builder_.AllocateRegister<Slab<uint32_t>>();
-    storage_update_register = builder_.AllocateRegister<Span<uint32_t>>();
+    storage_update_register = builder_.AllocateRegister<base::Span<uint32_t>>();
     {
       using B = i::AllocateIndices;
       auto& bc = AddOpcode<B>();
@@ -730,12 +733,12 @@ void BytecodeLowering::LowerOutput(const logical::Output& out) {
   plan_.params.output_register = storage_update_register;
 }
 
-i::ReadHandle<i::CastFilterValueResult> BytecodeLowering::EmitCastFilterValue(
-    uint32_t value_index,
-    const StorageType& type,
-    const NonNullOp& op) {
-  i::RwHandle<i::CastFilterValueResult> value_reg =
-      builder_.AllocateRegister<i::CastFilterValueResult>();
+i::ReadHandle<filter::CastFilterValueResult>
+BytecodeLowering::EmitCastFilterValue(uint32_t value_index,
+                                      const StorageType& type,
+                                      const NonNullOp& op) {
+  i::RwHandle<filter::CastFilterValueResult> value_reg =
+      builder_.AllocateRegister<filter::CastFilterValueResult>();
   {
     using B = i::CastFilterValueBase;
     auto& bc = AddOpcode<B>(i::Index<i::CastFilterValue>(type));
@@ -746,12 +749,12 @@ i::ReadHandle<i::CastFilterValueResult> BytecodeLowering::EmitCastFilterValue(
   return value_reg;
 }
 
-i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>>
+i::RwHandle<std::unique_ptr<filter::CastFilterValueListResult>>
 BytecodeLowering::EmitCastFilterValueList(uint32_t value_index,
                                           const StorageType& type) {
-  i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>> value =
-      builder_
-          .AllocateRegister<std::unique_ptr<i::CastFilterValueListResult>>();
+  i::RwHandle<std::unique_ptr<filter::CastFilterValueListResult>> value =
+      builder_.AllocateRegister<
+          std::unique_ptr<filter::CastFilterValueListResult>>();
   {
     using B = i::CastFilterValueListBase;
     auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(type));
@@ -762,9 +765,10 @@ BytecodeLowering::EmitCastFilterValueList(uint32_t value_index,
   return value;
 }
 
-void BytecodeLowering::PruneNullIndices(uint32_t col,
-                                        i::RwHandle<Span<uint32_t>> indices,
-                                        NullPruneScope scope) {
+void BytecodeLowering::PruneNullIndices(
+    uint32_t col,
+    i::RwHandle<base::Span<uint32_t>> indices,
+    NullPruneScope scope) {
   // The scope only records whether this prune narrows the result; the row
   // counts themselves come from the plan.
   base::ignore_result(scope);
@@ -786,9 +790,9 @@ void BytecodeLowering::PruneNullIndices(uint32_t col,
   }
 }
 
-i::RwHandle<Span<uint32_t>> BytecodeLowering::TranslateNonNullIndices(
+i::RwHandle<base::Span<uint32_t>> BytecodeLowering::TranslateNonNullIndices(
     uint32_t col,
-    i::RwHandle<Span<uint32_t>> table_indices_register,
+    i::RwHandle<base::Span<uint32_t>> table_indices_register,
     bool in_place) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
@@ -815,9 +819,9 @@ i::RwHandle<Span<uint32_t>> BytecodeLowering::TranslateNonNullIndices(
   }
 }
 
-PERFETTO_NO_INLINE i::RwHandle<Span<uint32_t>>
+PERFETTO_NO_INLINE i::RwHandle<base::Span<uint32_t>>
 BytecodeLowering::EnsureIndicesAreInSlab() {
-  using SpanReg = i::RwHandle<Span<uint32_t>>;
+  using SpanReg = i::RwHandle<base::Span<uint32_t>>;
   using SlabReg = i::RwHandle<Slab<uint32_t>>;
 
   if (PERFETTO_LIKELY(std::holds_alternative<SpanReg>(indices_reg_))) {
@@ -829,7 +833,7 @@ BytecodeLowering::EnsureIndicesAreInSlab() {
   auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
 
   SlabReg slab_reg = builder_.AllocateRegister<Slab<uint32_t>>();
-  SpanReg span_reg = builder_.AllocateRegister<Span<uint32_t>>();
+  SpanReg span_reg = builder_.AllocateRegister<base::Span<uint32_t>>();
   {
     using B = i::AllocateIndices;
     auto& bc = AddOpcode<B>();
@@ -948,9 +952,9 @@ i::ReadHandle<const BitVector*> BytecodeLowering::SmallValueEqBvRegisterFor(
   return reg;
 }
 
-i::ReadHandle<Span<const uint32_t>>
+i::ReadHandle<base::Span<const uint32_t>>
 BytecodeLowering::SmallValueEqPopcountRegisterFor(uint32_t col) {
-  auto [reg, inserted] = cache_.GetOrAllocate<Span<const uint32_t>>(
+  auto [reg, inserted] = cache_.GetOrAllocate<base::Span<const uint32_t>>(
       kSmallValueEqPopcountReg, columns_[col].get());
   if (inserted) {
     plan_.register_inits.emplace_back(
@@ -960,9 +964,10 @@ BytecodeLowering::SmallValueEqPopcountRegisterFor(uint32_t col) {
   return reg;
 }
 
-i::RwHandle<Span<uint32_t>> BytecodeLowering::IndexRegisterFor(uint32_t pos) {
+i::RwHandle<base::Span<uint32_t>> BytecodeLowering::IndexRegisterFor(
+    uint32_t pos) {
   auto [reg, inserted] =
-      cache_.GetOrAllocate<Span<uint32_t>>(kIndexReg, &indexes_[pos]);
+      cache_.GetOrAllocate<base::Span<uint32_t>>(kIndexReg, &indexes_[pos]);
   if (inserted) {
     plan_.register_inits.emplace_back(RegisterInit{
         reg.index, RegisterInit::IndexVector{}, static_cast<uint16_t>(pos)});
@@ -970,8 +975,8 @@ i::RwHandle<Span<uint32_t>> BytecodeLowering::IndexRegisterFor(uint32_t pos) {
   return reg;
 }
 
-i::RwHandle<Span<uint32_t>> BytecodeLowering::GetOrCreateScratchSpanRegister(
-    uint32_t size) {
+i::RwHandle<base::Span<uint32_t>>
+BytecodeLowering::GetOrCreateScratchSpanRegister(uint32_t size) {
   auto scratch = builder_.GetOrCreateScratchRegisters(size);
   {
     using B = i::AllocateIndices;
@@ -992,25 +997,26 @@ void BytecodeLowering::MaybeReleaseScratchSpanRegister() {
   }
 }
 
-uint16_t BytecodeLowering::CalculateRowLayoutStride(
+RowLayout BytecodeLowering::MakeRowLayout(
     const std::vector<RowLayoutParams>& row_layout_params) {
   PERFETTO_CHECK(!row_layout_params.empty());
-  uint16_t calculated_total_row_stride = 0;
+  std::vector<RowLayout::Column> columns;
+  columns.reserve(row_layout_params.size());
   for (const auto& param : row_layout_params) {
     const Column& col = GetColumn(param.column);
-    bool is_non_null = col.null_storage.nullability().Is<NonNull>();
-    calculated_total_row_stride +=
-        (is_non_null ? 0u : 1u) + GetDataSize(col.storage.type());
+    columns.push_back({GetRowLayoutType(col.storage.type()),
+                       !col.null_storage.nullability().Is<NonNull>(),
+                       param.invert_copied_bits});
   }
-  return calculated_total_row_stride;
+  return RowLayout(columns);
 }
 
 i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
-    uint16_t row_stride,
-    i::RwHandle<Span<uint32_t>> indices,
+    const RowLayout& layout,
+    i::RwHandle<base::Span<uint32_t>> indices,
     i::ReadHandle<i::StringIdToRankMap> rank_map,
     const std::vector<RowLayoutParams>& row_layout_params) {
-  uint32_t buffer_size = plan_.params.max_row_count * row_stride;
+  uint32_t buffer_size = plan_.params.max_row_count * layout.stride();
   i::RwHandle<Slab<uint8_t>> new_buffer_reg =
       builder_.AllocateRegister<Slab<uint8_t>>();
   {
@@ -1019,8 +1025,8 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
     op.arg<B::buffer_size>() = buffer_size;
     op.arg<B::dest_buffer_register>() = new_buffer_reg;
   }
-  uint16_t current_offset = 0;
-  for (const auto& param : row_layout_params) {
+  for (uint32_t i = 0; i < row_layout_params.size(); ++i) {
+    const RowLayoutParams& param = row_layout_params[i];
     const Column& col = GetColumn(param.column);
     const auto& nullability = col.null_storage.nullability();
     auto null_bv_reg = EnsurePrefixPopcountFor(param.column);
@@ -1036,14 +1042,12 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
       op.arg<B::source_indices_register>() = indices;
       op.arg<B::dest_buffer_register>() = new_buffer_reg;
       op.arg<B::rank_map_register>() = rank_map;
-      op.arg<B::row_layout_offset>() = current_offset;
-      op.arg<B::row_layout_stride>() = row_stride;
+      op.arg<B::row_layout_offset>() =
+          static_cast<uint16_t>(layout.slot(i).offset);
+      op.arg<B::row_layout_stride>() = static_cast<uint16_t>(layout.stride());
       op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
     }
-    current_offset +=
-        (nullability.Is<NonNull>() ? 0u : 1u) + GetDataSize(col.storage.type());
   }
-  PERFETTO_CHECK(current_offset == row_stride);
   return new_buffer_reg;
 }
 

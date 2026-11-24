@@ -131,6 +131,71 @@ class StraceParser(TestSuite):
         2,2
         """))
 
+  def test_strace_bracketed_pid_and_durations(self):
+    # Lines taken from real strace 6.13 `-ttt -T -f` stderr output, where
+    # pids come as "[pid    75]" prefixes rather than the bare form strace
+    # uses with -o, and every completed call carries a "<seconds>" duration
+    # from -T. The root process's lines carry the prefix too, as they do
+    # when strace is attached to several processes (-p A -p B).
+    return DiffTestBlueprint(
+        trace=Path('pid_prefix_durations.strace'),
+        query="""
+        SELECT s.ts, s.dur, s.name, t.tid
+        FROM slice s
+        JOIN thread_track tt ON s.track_id = tt.id
+        JOIN thread t USING (utid)
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "ts","dur","name","tid"
+        1787734451075961000,1261000,"execve",74
+        1787734451084425000,371000,"execve",75
+        1787734451084774000,310585000,"wait4",74
+        1787734451088553000,305284000,"clock_nanosleep",75
+        1787734451396054000,27000,"wait4",74
+        """))
+
+  def test_strace_duration_stripped_from_return_value(self):
+    # The "<0.000027>" suffix belongs to the slice duration, not to the
+    # recorded return value.
+    return DiffTestBlueprint(
+        trace=Path('pid_prefix_durations.strace'),
+        query="""
+        SELECT a.string_value
+        FROM slice s
+        JOIN args a ON s.arg_set_id = a.arg_set_id
+        WHERE s.name = 'wait4' AND a.key = 'ret'
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "string_value"
+        "75"
+        "-1 ECHILD (No child processes)"
+        """))
+
+  def test_strace_bracketed_pid_non_syscall_lines(self):
+    # strace's own "Process N attached" diagnostic, the exit banner and the
+    # signal-delivery line are all skipped as ordinary non-syscall lines.
+    # In particular the ':' in "strace:" must not be read as a `-t`/`-tt`
+    # timestamp: that would raise a spurious "re-run with -ttt" error on a
+    # trace that already uses -ttt.
+    return DiffTestBlueprint(
+        trace=Path('pid_prefix_durations.strace'),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name IN ('strace_parse_failure',
+                        'strace_unsupported_timestamp_format',
+                        'strace_missing_pid')
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","value"
+        "strace_missing_pid",0
+        "strace_parse_failure",3
+        "strace_unsupported_timestamp_format",0
+        """))
+
   def test_strace_unfinished_resumed(self):
     return DiffTestBlueprint(
         trace=Path('unfinished_resumed.strace'),

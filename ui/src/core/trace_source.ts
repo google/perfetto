@@ -45,8 +45,9 @@ export interface TraceUrlSource {
 }
 
 export interface TraceStreamSource {
-  type: 'STREAM';
-  stream: TraceStream;
+  readonly type: 'STREAM';
+  readonly stream: TraceStream;
+  readonly title?: string;
 }
 
 export interface TraceHttpRpcSource {
@@ -75,6 +76,10 @@ export interface TraceArrayBufferSource {
   // |localOnly| field.
   readonly shareable?: boolean;
   readonly downloadable?: boolean;
+
+  // Whether the trace may be stored in the cache storage, so that reloading
+  // the page (?local_cache_key=...) reopens it. Defaults to true when unset.
+  readonly cacheable?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.

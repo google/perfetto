@@ -74,17 +74,43 @@ constexpr size_t ArraySize(const T (&)[TSize]) {
   return TSize;
 }
 
-// Adds `a` and `b` into `*result`, returning false on overflow. The value of
-// `*result` is unspecified when false is returned.
+// Adds `a` and `b` into `*result`, returning false on overflow, when
+// `*result` holds the sum wrapped to 64 bits. Free of branches, so a loop of
+// these vectorizes.
 inline bool CheckedAdd(int64_t a, int64_t b, int64_t* result) {
+  *result =
+      static_cast<int64_t>(static_cast<uint64_t>(a) + static_cast<uint64_t>(b));
+  // Overflowed if both operands have the sign the sum does not.
+  return ((a ^ *result) & (b ^ *result)) >= 0;
+}
+
+// Subtracts `b` from `a` into `*result`, returning false on overflow, when
+// `*result` holds the difference wrapped to 64 bits. Free of branches, so a
+// loop of these vectorizes.
+inline bool CheckedSub(int64_t a, int64_t b, int64_t* result) {
+  *result =
+      static_cast<int64_t>(static_cast<uint64_t>(a) - static_cast<uint64_t>(b));
+  // Overflowed if the operands' signs differ and the difference has `b`'s.
+  return ((a ^ b) & (a ^ *result)) >= 0;
+}
+
+// Multiplies `a` by `b` into `*result`, returning false on overflow. The
+// value of `*result` is unspecified when false is returned.
+inline bool CheckedMul(int64_t a, int64_t b, int64_t* result) {
 #if defined(__clang__) || defined(__GNUC__)
-  return !__builtin_add_overflow(a, b, result);
+  return !__builtin_mul_overflow(a, b, result);
 #else
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
   constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
-  if ((b > 0 && a > kMax - b) || (b < 0 && a < kMin - b))
-    return false;
-  *result = a + b;
+  // Checked before multiplying, by dividing a limit by one operand, which
+  // never itself overflows.
+  if (a != 0 && b != 0) {
+    bool overflows = (a < 0) == (b < 0) ? (a > 0 ? a > kMax / b : a < kMax / b)
+                                        : (a > 0 ? b < kMin / a : a < kMin / b);
+    if (overflows)
+      return false;
+  }
+  *result = a * b;
   return true;
 #endif
 }
@@ -100,52 +126,55 @@ inline bool IsZero(int64_t value) {
   return value == 0;
 }
 
+// Returns the bits of `value` with -0.0 turned into 0.0 and every NaN into
+// the same NaN, so equal values, and all NaNs, have the same bits.
+inline uint64_t CanonicalFloatBits(double value) {
+  uint64_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  if (PERFETTO_UNLIKELY((bits << 1) == 0)) {
+    return 0;
+  }
+  if (PERFETTO_UNLIKELY((bits << 1) > (uint64_t{0x7FF} << 53))) {
+    double nan = std::numeric_limits<double>::quiet_NaN();
+    memcpy(&bits, &nan, sizeof(bits));
+  }
+  return bits;
+}
+inline uint32_t CanonicalFloatBits(float value) {
+  uint32_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  if (PERFETTO_UNLIKELY((bits << 1) == 0)) {
+    return 0;
+  }
+  if (PERFETTO_UNLIKELY((bits << 1) > (uint32_t{0xFF} << 24))) {
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    memcpy(&bits, &nan, sizeof(bits));
+  }
+  return bits;
+}
+
 // Adds `a` and `b`, clamping to INT64_MIN / INT64_MAX on overflow instead of
 // wrapping (which is UB and can flip the sign of the result).
 inline int64_t SaturatingAdd(int64_t a, int64_t b) {
-  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
-  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
-#if defined(__clang__) || defined(__GNUC__)
   int64_t result;
-  if (PERFETTO_UNLIKELY(__builtin_add_overflow(a, b, &result)))
-    return a < 0 ? kMin : kMax;
+  if (PERFETTO_UNLIKELY(!CheckedAdd(a, b, &result))) {
+    // Only operands of the same sign overflow.
+    return a < 0 ? std::numeric_limits<int64_t>::min()
+                 : std::numeric_limits<int64_t>::max();
+  }
   return result;
-#else
-  if (b > 0 && a > kMax - b)
-    return kMax;
-  if (b < 0 && a < kMin - b)
-    return kMin;
-  return a + b;
-#endif
 }
 
 // Multiplies `a` by `b`, clamping to INT64_MIN / INT64_MAX on overflow instead
 // of wrapping (which is UB and can flip the sign of the result).
 inline int64_t SaturatingMultiply(int64_t a, int64_t b) {
-  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
-  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
-#if defined(__clang__) || defined(__GNUC__)
   int64_t result;
-  if (PERFETTO_UNLIKELY(__builtin_mul_overflow(a, b, &result))) {
-    // On overflow the true product's sign is the XOR of the operands' signs.
-    // Neither operand can be zero here (0 never overflows).
-    return ((a < 0) == (b < 0)) ? kMax : kMin;
+  if (PERFETTO_UNLIKELY(!CheckedMul(a, b, &result))) {
+    // The true product's sign is the XOR of the operands' signs.
+    return (a < 0) == (b < 0) ? std::numeric_limits<int64_t>::max()
+                              : std::numeric_limits<int64_t>::min();
   }
   return result;
-#else
-  // Portable fallback (e.g. MSVC cl.exe): detect overflow *before* multiplying
-  // by dividing a limit by one operand, which never itself overflows.
-  if (a == 0 || b == 0)
-    return 0;
-  if ((a < 0) == (b < 0)) {  // Same sign: product is positive.
-    if (a > 0 ? (a > kMax / b) : (a < kMax / b))
-      return kMax;
-  } else {  // Opposite signs: product is negative.
-    if (a > 0 ? (b < kMin / a) : (a < kMin / b))
-      return kMin;
-  }
-  return a * b;
-#endif
 }
 
 // Function object which invokes 'free' on its parameter, which must be

@@ -75,8 +75,11 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   }
 #endif
 
-  if (!fd)
-    fd = base::TempFile::CreateUnlinked().ReleaseFD();
+  if (!fd) {
+    fd = base::TempFile::Create(base::TempFile::LinkMode::kUnlinked)
+             .ValueOrDie()
+             .ReleaseFD();
+  }
 
   PERFETTO_CHECK(fd);
   int res = ftruncate(fd.get(), static_cast<off_t>(size_with_meta));
@@ -317,6 +320,8 @@ SharedRingBuffer::SharedRingBuffer(SharedRingBuffer&& other) noexcept {
 
 SharedRingBuffer& SharedRingBuffer::operator=(
     SharedRingBuffer&& other) noexcept {
+  if (this == &other)
+    return *this;
   mem_fd_ = std::move(other.mem_fd_);
   std::tie(meta_, mem_, size_, size_mask_) =
       std::tie(other.meta_, other.mem_, other.size_, other.size_mask_);

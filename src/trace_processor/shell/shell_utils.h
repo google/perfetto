@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_SHELL_SHELL_UTILS_H_
 
 #include <string>
+#include <string_view>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -26,10 +27,21 @@ namespace perfetto::trace_processor {
 
 bool StderrSupportsColors();
 
-base::Status PrintStats(TraceProcessor* tp);
+enum class StatusLabelStyle {
+  kSuccess,  // e.g. "Trace loaded"
+  kHint,     // e.g. "Tip", "hint"
+  kMuted,    // routine information, e.g. query timings
+};
 
-base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
-                                   const std::string& output_name);
+// Prints a status line to stderr for people (rather than a log line, which
+// carries a timestamp and source location). |label| is highlighted according
+// to |style| when stderr supports colors and is followed by ": " and
+// |message| unless |message| is empty.
+void PrintStatusLine(StatusLabelStyle style,
+                     std::string_view label,
+                     std::string_view message);
+
+base::Status PrintStats(TraceProcessor* tp);
 
 // Exports the contents of Trace Processor in |format| to |output_name|.
 base::Status ExportTrace(TraceProcessor* trace_processor,

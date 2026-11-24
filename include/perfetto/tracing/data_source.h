@@ -524,6 +524,7 @@ class DataSource : public DataSourceBase {
         DerivedDataSource::GetDefaultBufferExhaustedPolicy();
     params.buffer_exhausted_policy_configurable =
         DerivedDataSource::kBufferExhaustedPolicyConfigurable;
+    params.supports_tracing_v2 = true;
     return Helper::type().Register(
         descriptor, factory, params, no_flush,
         GetCreateTlsFn(

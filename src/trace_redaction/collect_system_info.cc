@@ -19,6 +19,7 @@
 #include "perfetto/protozero/field.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 
 namespace perfetto::trace_redaction {
@@ -42,6 +43,14 @@ base::Status CollectSystemInfo::Collect(
 
   if (packet.has_ftrace_events()) {
     return OnFtraceEvents(packet.ftrace_events(), context);
+  }
+
+  if (packet.has_service_event()) {
+    protos::pbzero::TracingServiceEvent::Decoder service_event(
+        packet.service_event());
+    if (service_event.tracing_started() && packet.has_timestamp()) {
+      context->tracing_started_ts = packet.timestamp();
+    }
   }
 
   return base::OkStatus();

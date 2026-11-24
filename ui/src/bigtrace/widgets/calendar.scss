@@ -1,0 +1,87 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-bt-calendar {
+  min-width: 196px;
+
+  &__nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    margin-bottom: 2px;
+    font-size: var(--pf-font-size-s);
+
+    > span:first-child {
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  &__month-name {
+    flex: 1;
+    text-align: right;
+    font-weight: 500;
+  }
+
+  &__weekdays,
+  &__days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  &__weekdays span {
+    text-align: center;
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-xs);
+    height: 20px;
+  }
+
+  &__day {
+    height: 28px;
+    border: 0;
+    padding: 0;
+    background: none;
+    border-radius: 4px;
+    font: inherit;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--pf-color-background-secondary);
+    }
+
+    &:disabled {
+      color: var(--pf-color-text-muted);
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    &--blank {
+      pointer-events: none;
+    }
+
+    &--today {
+      outline: 1px solid var(--pf-color-primary);
+      outline-offset: -1px;
+    }
+
+    &--picked,
+    &--picked:hover:not(:disabled) {
+      background: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
+      font-weight: 500;
+    }
+  }
+}

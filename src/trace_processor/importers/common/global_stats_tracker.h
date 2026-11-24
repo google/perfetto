@@ -21,15 +21,17 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/stats_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/metadata_tables_fwd.h"
 
 namespace perfetto::trace_processor {
 
@@ -40,10 +42,31 @@ namespace perfetto::trace_processor {
 // side index for O(1) row lookup on update.
 class GlobalStatsTracker {
  public:
-  using MachineId = tables::MachineTable::Id;
-  using TraceId = tables::TraceFileTable::Id;
+  using MachineId = tables::MachineTable_Id;
+  using TraceId = tables::TraceFileTable_Id;
 
   explicit GlobalStatsTracker(TraceStorage* storage);
+
+  // Returns the key of the dynamic stat descriptor called `name`, creating the
+  // descriptor if it does not exist yet.
+  //
+  // A dynamic stat descriptor holds the name, severity, source and description
+  // of a stat whose name is only known at runtime, e.g. an error kind defined
+  // by a trace producer. Such stats are kSingle stats with
+  // kMachineAndTrace scope. Their keys start at stats::kNumKeys and can be
+  // passed to every function below, and to ImportLogsTracker, like the keys
+  // in stats.h. If the descriptor already exists, `severity`, `source` and
+  // `description` are ignored: the first call wins.
+  //
+  // Unlike the stats in stats.h, a dynamic stat only gets a row in the stats
+  // table for the (machine, trace) contexts it is written in.
+  //
+  // `name` must not be the name of a stat in stats.h: callers should prefix
+  // it to keep the two apart.
+  size_t InternDynamicStatDescriptor(std::string_view name,
+                                     stats::Severity severity,
+                                     stats::Source source,
+                                     std::string_view description);
 
   void SetStats(std::optional<MachineId> machine_id,
                 std::optional<TraceId> trace_id,
@@ -94,7 +117,7 @@ class GlobalStatsTracker {
   // wall-time elapsed (in nanoseconds) since this call. `key` must be a
   // kGlobal stat.
   inline auto TraceExecutionTimeIntoStats(size_t key) {
-    PERFETTO_CHECK(stats::kScopes[key] == stats::Scope::kGlobal);
+    PERFETTO_CHECK(GetDescriptor(key).scope == stats::Scope::kGlobal);
     base::TimeNanos start = base::GetWallTimeNs();
     return base::OnScopeExit([this, key, start] {
       IncrementGlobalStats(key, (base::GetWallTimeNs() - start).count());
@@ -132,7 +155,31 @@ class GlobalStatsTracker {
                                  std::optional<MachineId> machine_id,
                                  std::optional<TraceId> trace_id);
 
+  // Finds or inserts the kIndexedHistogram row for (key, index, machine_id,
+  // trace_id) and sets the count of the bucket matching
+  // [lower_bound, upper_bound) to `count`, replacing any previous count. The
+  // stat's value is kept equal to the sum of its bucket counts. Replacing
+  // (rather than accumulating) suits producers that emit cumulative
+  // histograms, where each emission supersedes the previous one.
+  void SetIndexedHistogramBucket(std::optional<MachineId> machine_id,
+                                 std::optional<TraceId> trace_id,
+                                 size_t key,
+                                 int index,
+                                 int64_t lower_bound,
+                                 int64_t upper_bound,
+                                 int64_t count);
+
  private:
+  // Describes a stat: an entry of stats.h, or a dynamic stat descriptor.
+  struct StatDescriptor {
+    StringId name;
+    StringId description;
+    stats::Type type;
+    stats::Severity severity;
+    stats::Source source;
+    stats::Scope scope;
+  };
+
   // Side-index entry: identifies a unique row in the StatsTable.
   struct StatsEntry {
     size_t key;
@@ -152,6 +199,23 @@ class GlobalStatsTracker {
     }
   };
 
+  struct HistogramBucketEntry {
+    tables::StatsTable_Id stat_id;
+    int64_t lower_bound;
+    int64_t upper_bound;
+
+    bool operator==(const HistogramBucketEntry& other) const {
+      return stat_id == other.stat_id && lower_bound == other.lower_bound &&
+             upper_bound == other.upper_bound;
+    }
+
+    template <typename H>
+    friend H PerfettoHashValue(H h, const HistogramBucketEntry& value) {
+      return H::Combine(std::move(h), value.stat_id.value, value.lower_bound,
+                        value.upper_bound);
+    }
+  };
+
   struct ContextIds {
     std::optional<MachineId> machine_id;
     std::optional<TraceId> trace_id;
@@ -166,25 +230,37 @@ class GlobalStatsTracker {
     }
   };
 
+  const StatDescriptor& GetDescriptor(size_t key) const {
+    PERFETTO_CHECK(key < descriptors_.size());
+    return descriptors_[key];
+  }
+
   ContextIds GetContextIds(size_t key,
                            std::optional<MachineId> machine_id,
                            std::optional<TraceId> trace_id) const;
 
-  // Returns the table row for an existing entry, or inserts a new row with
-  // value=0 and registers it in the side index.
-  tables::StatsTable::RowReference FindOrInsertRow(size_t key,
-                                                   std::optional<int> index,
-                                                   const ContextIds& ctx);
+  // Returns the table row id for an existing entry, or inserts a new row
+  // with value=0 and registers it in the side index.
+  tables::StatsTable_Id FindOrInsertRow(size_t key,
+                                        std::optional<int> index,
+                                        const ContextIds& ctx);
 
   TraceStorage* const storage_;
 
+  // Indexed by stat key. The first stats::kNumKeys entries mirror stats.h;
+  // each dynamic stat descriptor appends one more.
+  std::vector<StatDescriptor> descriptors_;
+
+  // Keys of the dynamic stat descriptors, by name.
+  base::FlatHashMap<StringId, size_t> dynamic_key_by_name_;
+
   // Pre-interned constant strings, keyed by stats:: enum values.
-  std::array<StringId, stats::kNumKeys> name_ids_;
-  std::array<StringId, stats::kNumKeys> description_ids_;
   std::array<StringId, stats::kNumSeverities> severity_ids_;
   std::array<StringId, stats::kNumSources> source_ids_;
 
-  base::FlatHashMap<StatsEntry, tables::StatsTable::Id> id_by_entry_;
+  base::FlatHashMap<StatsEntry, tables::StatsTable_Id> id_by_entry_;
+  base::FlatHashMap<HistogramBucketEntry, tables::HistogramBucketTable_Id>
+      bucket_id_by_entry_;
 };
 
 }  // namespace perfetto::trace_processor

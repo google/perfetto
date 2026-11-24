@@ -30,6 +30,12 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+// TODO(rsavitski): centralise all references to both the mount point and the
+// nesting of Android's cgroup v2 directories. We are technically hardcoding
+// paths that are under libprocessgroup's control, so we could at least colocate
+// the references (currently in traced, traced_probes, and heapprofd).
+constexpr char kCgroupV2Root[] = "/sys/fs/cgroup";
+
 std::optional<uint32_t> ParseProcStatusSize(const std::string& status,
                                             const std::string& key) {
   auto entry_idx = status.find(key);
@@ -86,6 +92,36 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
   }
 }
 
+// Example file below. The line with the "0::" prefix is used by the kernel
+// to indicate cgroup v2. (deleted) suffix is technically possible for some
+// zombie or dead-leader situations, but is not important here.
+//
+// 3:cpuset:/foreground
+// 2:cpu:/
+// 1:blkio:/
+// 0::/system/uid_1000/pid_1490
+std::optional<std::string> GetCgroupV2Path(const std::string& proc_pid_cgroup) {
+  for (const std::string& line : base::SplitString(proc_pid_cgroup, "\n")) {
+    if (base::StartsWith(line, "0::"))
+      return base::StripSuffix(line.substr(3), " (deleted)");
+  }
+  return std::nullopt;
+}
+
+// Note: we only check the per-process freeze control file (which might not
+// reflect freeze status inherited from higher levels such as uid), but the
+// android platform only freezes at process level in practice.
+bool IsProcessFrozen(pid_t pid) {
+  std::string contents;
+  if (!base::ReadFile("/proc/" + std::to_string(pid) + "/cgroup", &contents))
+    return false;
+  std::optional<std::string> path = GetCgroupV2Path(contents);
+  std::string state;
+  return path &&
+         base::ReadFile(kCgroupV2Root + *path + "/cgroup.freeze", &state) &&
+         base::TrimWhitespace(state) == "1";
+}
+
 std::optional<Uids> GetUids(const std::string& status) {
   auto entry_idx = status.find("Uid:");
   if (entry_idx == std::string::npos)
@@ -116,6 +152,14 @@ std::optional<Uids> GetUids(const std::string& status) {
   return uids;
 }
 
+std::optional<uid_t> GetUidFromProcfs(pid_t pid) {
+  base::StackString<32> path("/proc/%d", static_cast<int>(pid));
+  struct stat statbuf{};
+  if (stat(path.c_str(), &statbuf) != 0)
+    return std::nullopt;
+  return statbuf.st_uid;
+}
+
 // Normalize cmdline in place. Stores new beginning of string in *cmdline_ptr.
 // Returns new size of string (from new beginning).
 // Modifies string in *cmdline_ptr.
@@ -133,14 +177,10 @@ ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
     *first_at = '\0';
     first_arg = first_at;
   }
-  char* start = static_cast<char*>(
-      memrchr(cmdline, '/', static_cast<size_t>(first_arg - cmdline)));
-  if (start == nullptr) {
-    start = cmdline;
-  } else {
-    // Skip the /.
-    start++;
-  }
+  // Skip past the last path separator of argv0, if it exists.
+  char* start = first_arg;
+  while (start > cmdline && start[-1] != '/')
+    start--;
   *cmdline_ptr = start;
   return first_arg - start;
 }
@@ -259,15 +299,29 @@ bool MatchCmdlineGlobPatterns(const std::string& cmdline,
   return false;
 }
 
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns) {
+  if (patterns.empty())
+    return false;
+  std::string cmdline;
+  if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
+    return false;
+  // A readable but empty cmdline indicates that this is a kthread or a
+  // zombie, which are of no interest to the calling profilers.
+  if (cmdline.empty())
+    return false;
+  return glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns);
+}
+
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids) {
-  ForEachPid([&patterns, pids](pid_t pid) {
-    if (pid == getpid())
+  if (patterns.empty())
+    return;
+  pid_t self_pid = getpid();
+  ForEachPid([&](pid_t pid) {
+    if (pid == self_pid)
       return;
-    std::string cmdline;
-    if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
-      return;
-    if (glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns))
+    if (PidMatchesCmdlinePatterns(pid, patterns))
       pids->insert(pid);
   });
 }

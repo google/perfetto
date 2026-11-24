@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -171,7 +172,22 @@ class TraceBlobViewReader {
   //  * if `offset` < 'file_offset()' this method will CHECK fail.
   //  * calling this function invalidates all iterators created from this
   //  reader.
-  bool PopFrontUntil(size_t offset);
+  bool PopFrontUntil(size_t target_offset) {
+    PERFETTO_CHECK(start_offset() <= target_offset);
+    // Nearly every pop stays inside the first chunk.
+    if (PERFETTO_LIKELY(!data_.empty())) {
+      Entry& entry = data_.front();
+      size_t bytes_to_pop = target_offset - entry.start_offset;
+      if (PERFETTO_LIKELY(bytes_to_pop < entry.data.size())) {
+        entry.data =
+            std::move(entry.data)
+                .slice_off(bytes_to_pop, entry.data.size() - bytes_to_pop);
+        entry.start_offset += bytes_to_pop;
+        return true;
+      }
+    }
+    return PopFrontUntilSlow(target_offset);
+  }
 
   // Shrinks the buffer by dropping `bytes` from the front of the buffer. If not
   // enough data is present as much data as possible will be dropped and `false`
@@ -214,7 +230,20 @@ class TraceBlobViewReader {
   // allocate a new chunk of memory and copy over the data instead.
   //
   // NOTE: If `offset` < 'file_offset()' this method will CHECK fail.
-  std::optional<TraceBlobView> SliceOff(size_t offset, size_t length) const;
+  std::optional<TraceBlobView> SliceOff(size_t offset, size_t length) const {
+    // Nearly every slice lies inside the first chunk; the rest is stitched
+    // out of line.
+    if (PERFETTO_LIKELY(!data_.empty() && length != 0)) {
+      const Entry& entry = data_.front();
+      // An |offset| before the chunk wraps |rel_off| past |size|.
+      size_t rel_off = offset - entry.start_offset;
+      size_t size = entry.data.size();
+      if (PERFETTO_LIKELY(rel_off <= size && length <= size - rel_off)) {
+        return entry.data.slice_off(rel_off, length);
+      }
+    }
+    return SliceOffSlow(offset, length);
+  }
 
   // Similar to SliceOff but this method will not combine slices but instead
   // potentially return multiple chunks. Useful if we are extracting slices to
@@ -235,6 +264,9 @@ class TraceBlobViewReader {
   bool empty() const { return data_.empty(); }
 
  private:
+  bool PopFrontUntilSlow(size_t target_offset);
+  std::optional<TraceBlobView> SliceOffSlow(size_t offset, size_t length) const;
+
   template <typename Visitor>
   auto SliceOffImpl(size_t offset, size_t length, Visitor& visitor) const;
 

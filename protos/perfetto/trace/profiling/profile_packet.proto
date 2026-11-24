@@ -54,7 +54,6 @@ package perfetto.protos;
 //   of a performance counter (which might be a timer), and optionally a
 //   callstack of the process that was scheduled at the time of the sample.
 //
-
 // The packet emitted by heapprofd for each heap snapshot. A snapshot can
 // involve more than one ProfilePacket if the snapshot is big (when |continued|
 // is true). The cardinality and grouping is as follows:

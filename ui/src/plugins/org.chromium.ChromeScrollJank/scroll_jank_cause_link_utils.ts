@@ -163,11 +163,11 @@ async function getChromeCauseTracks(
       };
       utids.push(utid);
     } else {
-      threadsWithTrack[utid].trackIds.push(it.trackId);
+      threadsWithTrack[utid]!.trackIds.push(it.trackId);
     }
   }
 
-  return utids.map((each) => threadsWithTrack[each]);
+  return utids.map((each) => threadsWithTrack[each]!);
 }
 
 export function getCauseLink(
@@ -200,7 +200,7 @@ export function getCauseLink(
         icon: Icons.UpdateSelection,
         onclick: () => {
           trace.scrollTo({
-            track: {uri: trackUris[0], expandGroup: true},
+            track: {uri: trackUris[0]!, expandGroup: true},
           });
           if (exists(ts) && exists(dur)) {
             trace.scrollTo({

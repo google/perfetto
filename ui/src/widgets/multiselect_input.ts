@@ -128,7 +128,7 @@ export class MultiselectInput implements m.ClassComponent<MultiselectInputAttrs>
                 ev.preventDefault();
               } else if (ev.key === 'Enter') {
                 if (filteredOptions.length > 0) {
-                  const option = filteredOptions[this.selectedItemIndex];
+                  const option = filteredOptions[this.selectedItemIndex]!;
                   const alreadyAdded = selectedOptions.includes(option.key);
                   if (alreadyAdded) {
                     attrs.onOptionRemove(option.key);
@@ -160,7 +160,7 @@ export class MultiselectInput implements m.ClassComponent<MultiselectInputAttrs>
                   selectedOptions.length > 0
                 ) {
                   attrs.onOptionRemove(
-                    selectedOptions[selectedOptions.length - 1],
+                    selectedOptions[selectedOptions.length - 1]!,
                   );
                   ev.preventDefault();
                 }

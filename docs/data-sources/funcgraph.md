@@ -103,11 +103,11 @@ can be queried like any other slice. For example, to find the kernel functions
 that accounted for the most aggregate time:
 
 ```sql
-SELECT name, COUNT(*) AS calls, SUM(dur) AS total_dur
+SELECT slice.name, COUNT(*) AS calls, SUM(dur) AS total_dur
 FROM slice
 JOIN track ON slice.track_id = track.id
 WHERE track.name = 'Funcgraph'
-GROUP BY name
+GROUP BY slice.name
 ORDER BY total_dur DESC
 LIMIT 20;
 ```

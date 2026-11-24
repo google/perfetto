@@ -34,7 +34,6 @@ service RelayPort {
 }
 
 // Arguments for rpc SyncClock
-
 message InitRelayRequest {
   optional SystemInfo system_info = 1;
 }
@@ -42,7 +41,7 @@ message InitRelayRequest {
 message InitRelayResponse {}
 
 // Arguments for rpc SyncClock
-
+//
 // For the client to send its clock readings to the host.
 message SyncClockRequest {
   // Relay service synchronizes its clocks with the host using round-trip

@@ -55,9 +55,9 @@ source_set("shared_lib") {
     "data_source.cc",
     "heap_buffer.cc",
     "pb_decoder.cc",
+    "pb_msg_writer.cc",
+    "pb_msg_writer.h",
     "producer.cc",
-    "stream_writer.cc",
-    "stream_writer.h",
     "thread_utils.cc",
     "tracing_session.cc",
   ]

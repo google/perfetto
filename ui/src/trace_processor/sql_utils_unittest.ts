@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {constraintsToQuerySuffix, rowsToSelectStatement} from './sql_utils';
+import {
+  constraintsToQuerySuffix,
+  rowsToSelectStatement,
+  stripTrailingSemicolons,
+} from './sql_utils';
 
 // Clean up repeated whitespaces to allow for easier testing.
 function normalize(s: string): string {
@@ -134,6 +138,27 @@ describe('createTableQuery', () => {
     expect(query).toBe(
       "SELECT 123 AS foo, 'bar' AS bar, 123 AS baz, NULL AS qux " +
         'UNION ALL SELECT NULL AS foo, NULL AS bar, NULL AS baz, NULL AS qux',
+    );
+  });
+});
+
+describe('stripTrailingSemicolons', () => {
+  const q = 'select * from slice';
+
+  test('strips trailing semicolons and whitespace', () => {
+    expect(stripTrailingSemicolons(q)).toBe(q);
+    expect(stripTrailingSemicolons(`${q};`)).toBe(q);
+    expect(stripTrailingSemicolons(`${q} ; ;\n`)).toBe(q);
+    expect(stripTrailingSemicolons(`${q}\n  `)).toBe(q);
+  });
+
+  test('blank statements become empty', () => {
+    expect(stripTrailingSemicolons(' ; ; \n')).toBe('');
+  });
+
+  test('semicolons in string literals are preserved', () => {
+    expect(stripTrailingSemicolons("select ';' as name;")).toBe(
+      "select ';' as name",
     );
   });
 });

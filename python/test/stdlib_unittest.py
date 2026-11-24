@@ -20,10 +20,134 @@ ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.docs_parse import Arg, parse_file
+from python.generators.sql_processing.docs_parse import Arg as PfsqlArg
+from python.generators.sql_processing.docs_parse import DocParseOptions, parse_module
+from python.generators.sql_processing.docs_parse_legacy import Arg, parse_file
+from python.generators.sql_processing import docs_parse, utils
+from python.generators.sql_processing.utils import check_banned_usage
 
 
-class TestStdlib(unittest.TestCase):
+def _pfsql_module(**kwargs):
+  """A module as printed by `pfsql parse`, with nothing in it by default."""
+  module = {
+      'module': 'slices.test',
+      'path': 'slices/test.sql',
+      'includes': [],
+      'symbols': [],
+      'references': [],
+      'mutations': [],
+      'uses_like': False,
+      'docs': {
+          'table_views': [],
+          'functions': [],
+          'macros': []
+      },
+      'errors': [],
+  }
+  module.update(kwargs)
+  return module
+
+
+def _pfsql_table(name='slices_table', description='Table.', **kwargs):
+  table = {
+      'name':
+          name,
+      'type':
+          'TABLE',
+      'description':
+          description,
+      'or_replace':
+          False,
+      'columns': [{
+          'name': 'id',
+          'type': 'JOINID(slice.id)',
+          'description': 'Column.',
+          'is_variadic': False,
+      }],
+  }
+  table.update(kwargs)
+  symbol = {'name': name, 'kind': 'table', 'form': 'perfetto', 'references': []}
+  return _pfsql_module(
+      symbols=[symbol],
+      docs={
+          'table_views': [table],
+          'functions': [],
+          'macros': []
+      })
+
+
+class TestStdlibPfsql(unittest.TestCase):
+
+  def test_table(self):
+    res = parse_module('slices/test.sql', _pfsql_table())
+    self.assertListEqual(res.errors, [])
+    self.assertEqual(res.table_views[0].name, 'slices_table')
+    self.assertEqual(res.table_views[0].cols, {
+        'id': PfsqlArg('JOINID', 'JOINID(slice.id)', 'Column.'),
+    })
+
+  def test_validates_docs(self):
+    res = parse_module('slices/test.sql',
+                       _pfsql_table(description='', or_replace=True))
+    self.assertEqual(len(res.errors), 1)
+    self.assertIn('CREATE OR REPLACE is not allowed', res.errors[0])
+
+  def test_deprecated_package_is_skipped(self):
+    self.assertIsNone(parse_module('deprecated/test.sql', _pfsql_module()))
+
+  def test_internal_virtual_table_is_kept(self):
+    module = _pfsql_module(symbols=[{
+        'name': '_span',
+        'kind': 'table',
+        'form': 'virtual',
+        'references': ['a', 'b']
+    }])
+    res = parse_module('slices/test.sql', module,
+                       DocParseOptions(include_internal=True))
+    self.assertListEqual(res.errors, [])
+    self.assertEqual(res.table_views[0].name, '_span')
+
+  def test_banned_patterns(self):
+    module = _pfsql_module(
+        includes=['slices.*', 'viz.foo'],
+        references=['RUN_METRIC'],
+        uses_like=True,
+        mutations=[{
+            'kind': 'drop',
+            'object_type': 'table',
+            'name': 'gone'
+        }, {
+            'kind': 'insert',
+            'object_type': '',
+            'name': 't'
+        }],
+        symbols=[{
+            'name': 'plain',
+            'kind': 'table',
+            'form': 'plain',
+            'references': []
+        }])
+    parsed = parse_module('slices/test.sql', module,
+                          DocParseOptions(include_internal=True))
+    errors = '\n'.join(check_banned_usage(parsed, module))
+    for expected in [
+        'RUN_METRIC', 'LIKE', "Dropping object TABLE 'gone'", 'INSERT INTO',
+        'wildcards', "'plain' uses CREATE TABLE", "depend on 'viz'"
+    ]:
+      self.assertIn(expected, errors)
+
+
+# Delete this along with docs_parse_legacy.py.
+class TestStdlibLegacy(unittest.TestCase):
+
+  # google3 calls these from their original modules.
+  def test_google3_entry_points(self):
+    sql = 'SELECT 1 FROM foo WHERE a LIKE b;'
+    res = docs_parse.parse_file('slices/test.sql', sql)
+    self.assertListEqual(res.errors, [])
+    errors = utils.check_banned_patterns(res, sql)
+    self.assertEqual(len(errors), 1)
+    self.assertIn('LIKE is banned', errors[0])
 
   # Checks that custom prefixes (cr for chrome/util) are allowed.
   def test_custom_module_prefix(self):

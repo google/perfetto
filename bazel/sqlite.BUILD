@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This build file is used for both @perfetto_dep_sqlite and
-# @perfetto_dep_sqlite_src.
+# This build file is used for @perfetto_dep_sqlite.
 
 load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
-
-# #############################
-# @perfetto_dep_sqlite section
-# #############################
 
 filegroup(
     name = "headers",
@@ -53,6 +48,7 @@ sqlite_copts = [
     "-DSQLITE_OMIT_AUTOINIT",
     "-DSQLITE_ENABLE_JSON1",
     "-DSQLITE_ENABLE_MATH_FUNCTIONS",
+    "-DSQLITE_ENABLE_PERCENTILE",
 ] + PERFETTO_CONFIG.deps_copts.sqlite
 
 cc_library(
@@ -64,19 +60,5 @@ cc_library(
     hdrs = [":headers"],
     copts = sqlite_copts,
     includes = include_sqlite,
-    visibility = ["//visibility:public"],
-)
-
-# ################################
-# @perfetto_dep_sqlite_src section
-# ################################
-
-cc_library(
-    name = "percentile_ext",
-    srcs = [
-        "ext/misc/percentile.c",
-    ],
-    copts = sqlite_copts,
-    deps = PERFETTO_CONFIG.deps.sqlite,
     visibility = ["//visibility:public"],
 )

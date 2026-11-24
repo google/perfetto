@@ -17,15 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_DEOBFUSCATION_TRACKER_H_
 
-#include <cstddef>
 #include <optional>
-#include <tuple>
 #include <unordered_set>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
@@ -36,21 +32,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
-
-struct NameInPackage {
-  StringId name;
-  StringId package;
-
-  bool operator==(const NameInPackage& b) const {
-    return std::tie(name, package) == std::tie(b.name, b.package);
-  }
-
-  struct Hasher {
-    size_t operator()(const NameInPackage& o) const {
-      return static_cast<size_t>(base::MurmurHashCombine(o.name, o.package));
-    }
-  };
-};
 
 class DeobfuscationTracker : public Destructible {
  public:
@@ -66,9 +47,19 @@ class DeobfuscationTracker : public Destructible {
   void OnEventsFullyExtracted();
 
  private:
-  using JavaFrameMap = base::
-      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>;
+  // Java frames sharing an obfuscated name, grouped by the package they were
+  // attributed to. The package is "memfd" for frames from memfd mappings.
+  struct FramesInPackage {
+    StringId package;
+    std::vector<FrameId> frames;
+  };
+  using JavaFrameMap =
+      base::FlatHashMap<StringId, std::vector<FramesInPackage>>;
 
+  static void AddJavaFrame(JavaFrameMap& java_frames_for_name,
+                           StringId name,
+                           StringId package,
+                           FrameId frame_id);
   void BuildJavaFrameMaps(
       JavaFrameMap& java_frames_for_name,
       std::unordered_set<FrameId>& frames_needing_package_guess);
@@ -78,8 +69,7 @@ class DeobfuscationTracker : public Destructible {
   void DeobfuscateHeapGraph(
       const protos::pbzero::DeobfuscationMapping::Decoder& mapping);
   void DeobfuscateHeapGraphClass(
-      std::optional<StringId> package_name_id,
-      StringId obfuscated_class_name_id,
+      const std::vector<tables::HeapGraphClassTable::RowNumber>& rows,
       const protos::pbzero::ObfuscatedClass::Decoder& cls);
   void GuessPackages(JavaFrameMap& java_frames_for_name,
                      std::unordered_set<FrameId>& frames_needing_package_guess);

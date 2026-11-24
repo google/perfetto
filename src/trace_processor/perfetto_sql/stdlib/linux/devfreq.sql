@@ -16,7 +16,8 @@
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Gets devfreq frequency counter based on device queried. These counters will
--- only be available if the "devfreq/devfreq_frequency" ftrace event is enabled.
+-- only be available if the "devfreq/devfreq_frequency" ftrace event or
+-- sys_stats devfreq polling (devfreq_period_ms) is enabled.
 CREATE PERFETTO FUNCTION _get_devfreq_counters(
   -- Devfreq name to query for.
   device_name STRING
@@ -38,16 +39,19 @@ SELECT
   count_w_dur.dur,
   cast_int!(count_w_dur.value) AS freq
 FROM counter_leading_intervals!((
-  SELECT c.*
+  SELECT c.id, c.ts, c.track_id, c.value
   FROM counter c
-  JOIN track t ON t.id = c.track_id
-  WHERE t.type = 'linux_device_frequency'
-    AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
+  WHERE c.track_id IN (
+    SELECT t.id FROM track t
+    WHERE t.type = 'linux_device_frequency'
+      AND EXTRACT_ARG(t.dimension_arg_set_id, 'linux_device') GLOB $device_name
+  )
 )) AS count_w_dur;
 
 -- ARM DSU device frequency counters. This table will only be populated on
--- traces collected with "devfreq/devfreq_frequency" ftrace event enabled,
--- and from ARM devices with the DSU (DynamIQ Shared Unit) hardware.
+-- traces collected with "devfreq/devfreq_frequency" ftrace event or sys_stats
+-- devfreq polling (devfreq_period_ms) enabled, and from ARM devices with the
+-- DSU (DynamIQ Shared Unit) hardware.
 CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
   -- Unique identifier for this counter.
   id LONG,
@@ -61,4 +65,6 @@ CREATE PERFETTO TABLE linux_devfreq_dsu_counter(
 AS
 SELECT id, ts, dur, freq AS dsu_freq FROM _get_devfreq_counters('*devfreq_dsu')
 UNION ALL
-SELECT id, ts, dur, freq AS dsu_freq FROM _get_devfreq_counters('*dsufreq');
+SELECT id, ts, dur, freq AS dsu_freq FROM _get_devfreq_counters('*dsufreq')
+UNION ALL
+SELECT id, ts, dur, freq AS dsu_freq FROM _get_devfreq_counters('*dsu_target');

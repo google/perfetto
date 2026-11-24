@@ -38,6 +38,7 @@ namespace perfetto::trace_processor::gecko_importer {
 
 // Forward declaration for internal struct.
 struct GeckoThread;
+struct GeckoLib;
 
 struct Callsite {
   CallsiteId id;
@@ -60,7 +61,8 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
   // `t.strings`.
   std::vector<Callsite> ProcessPreprocessedFramesAndStacks(
       const GeckoThread& t,
-      const std::vector<std::string>& strings);
+      const std::vector<std::string>& strings,
+      const std::vector<GeckoLib>& libs);
   std::vector<Callsite> ProcessLegacyFramesAndStacks(
       const GeckoThread& t,
       const std::vector<std::string>& strings);

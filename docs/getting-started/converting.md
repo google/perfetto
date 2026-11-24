@@ -481,8 +481,8 @@ To create a counter track, you'll:
     `name`, and importantly, its `counter` field should be populated. This tells
     Perfetto to treat this track as a counter.
 2.  Emit `TrackEvent` packets with `type: TYPE_COUNTER`. Each such packet should
-    have a `timestamp` and a `counter_value` (which can be an integer or a
-    double).
+    have a `timestamp` and either a `counter_value` (an integer) or a
+    `double_counter_value` (a double).
 
 ### Python Example: Counters
 
@@ -1218,8 +1218,8 @@ NOTE: Frames are ordered from outermost (bottom of stack, e.g.,
 `main()`) to innermost (top of stack, where the event occurred).
 
 When you provide a callstack on the slice end event, Trace Processor stores it
-separately from the begin callstack (under the `end_callsite_id` argument in the
-`slice` table). This is handy for quickly comparing entry/exit stacks.
+separately from the begin callstack (as `end_callsite_id` rather than
+`callsite_id`). This is handy for quickly comparing entry/exit stacks.
 
 After running the script, opening the generated `my_custom_trace.pftrace` in the
 [Perfetto UI](https://ui.perfetto.dev) will display the following output:
@@ -1307,10 +1307,10 @@ Unlike the other examples on this page, there's no track or slice to look at
 in the timeline view. Instead, after running the script and opening
 `my_custom_trace.pftrace` in the [Perfetto UI](https://ui.perfetto.dev), these
 attributes show up on the "Overview" page, reachable from the left sidebar,
-under the "Info and Stats (advanced)" tab, alongside the rest of the trace's
-metadata.
+under the "Trace Attributes" section of the "Metadata" tab, alongside the rest
+of the trace's metadata.
 
-![Trace attributes in the Info and Stats page](/docs/images/converting-trace-attributes.png)
+![Trace attributes in the Overview page](/docs/images/converting-trace-attributes.png)
 
 In Trace Processor, each attribute becomes a row in the `metadata` table, with
 its key prefixed by `trace_attribute.` to keep custom attributes separate from
@@ -1321,6 +1321,101 @@ Perfetto UI's Query tab or with
 SELECT name, ifnull(str_value, cast(int_value as text)) AS value
 FROM metadata
 WHERE name GLOB 'trace_attribute.*';
+```
+
+## Reporting Sampling Errors
+
+If your data comes from a stack sampler (a profiler that periodically captures
+callstacks), some samples may fail: the sampler could not read a thread's
+stack, or could not unwind it. Recording these failures in the trace shows how
+much data is missing and why, instead of leaving silent gaps.
+
+Stack samples are written as
+[StackSample](/protos/perfetto/trace/profiling/stack_sample.proto) packets. To
+report a sample that could not be taken, emit a `StackSample` with its `error`
+field set instead of a callstack:
+
+1.  Describe the error with an `ErrorDescriptor`. For the kinds Perfetto knows
+    about, set `builtin`: `BUILTIN_SAMPLE_FAILED` when the sample could not be
+    taken at all, `BUILTIN_UNWIND_FAILED` when its stack could not be unwound.
+2.  For any other kind, set `name` instead, namespaced with a
+    reverse-domain-style prefix (e.g. `com.example.profiler.mapping_not_found`)
+    so it doesn't collide with kinds used by other producers. You can also set
+    a `severity` (`SEVERITY_INFO`, `SEVERITY_DATA_LOSS` or `SEVERITY_ERROR`;
+    data loss if unset) and a `description`.
+3.  Keep the sample's `timestamp` and `task_context`, but leave out the
+    callstack: the error stands in for it.
+
+If your sampler reports many errors, intern the descriptors: emit each one
+once in `interned_data.stack_sample_error_descriptors` with an `iid`, and
+reference it from each sample with `error_iid`.
+
+NOTE: A sample can't have both an error and a callstack. If it does, Trace
+Processor keeps the error, ignores the callstack and counts the sample in the
+`stack_sample_error_with_callstack` stat.
+
+### Python Example: Sampling Errors
+
+Copy the following Python code into the `populate_packets(builder)` function in
+your `trace_converter_template.py` script.
+
+<details>
+<summary><b>Click to expand/collapse Python code</b></summary>
+
+```python
+    from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import StackSample
+
+    ErrorDescriptor = StackSample.ErrorDescriptor
+
+    def emit_sample(ts, frames=None, error=None):
+        """Writes a StackSample with either a callstack or an error."""
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+        sample = packet.stack_sample
+        sample.task_context.pid = 1234
+        sample.task_context.tid = 1234
+        if error is not None:
+            sample.error.CopyFrom(error)
+        for function_name in frames or []:
+            sample.callstack.frames.add().function_name = function_name
+
+    # 1. A sample that was taken successfully
+    emit_sample(ts=1000, frames=["main", "HandleRequest"])
+
+    # 2. The sampler could not take this sample at all
+    emit_sample(
+        ts=2000,
+        error=ErrorDescriptor(builtin=ErrorDescriptor.BUILTIN_SAMPLE_FAILED),
+    )
+
+    # 3. An error of a kind defined by the producer
+    emit_sample(
+        ts=3000,
+        error=ErrorDescriptor(
+            name="com.example.profiler.mapping_not_found",
+            severity=ErrorDescriptor.SEVERITY_DATA_LOSS,
+            description="No memory mapping was found for the sampled pc.",
+        ),
+    )
+```
+
+</details>
+
+Trace Processor doesn't create a sample for an error. Instead, each error
+counts towards a stat for its kind: `stack_sample_failed` and
+`stack_sample_unwind_failed` for the builtin kinds, and
+`stack_sample_error.<name>` for each kind you define. In the
+[Perfetto UI](https://ui.perfetto.dev), these stats show up on the "Overview"
+page, reachable from the left sidebar: data loss in the "Data Losses" tab,
+errors in the "Trace Errors" tab, and all of them in the "Stats" tab.
+
+You can also query them using SQL in the Perfetto UI's Query tab or with
+[Trace Processor](/docs/analysis/getting-started.md):
+```sql
+SELECT name, severity, value
+FROM stats
+WHERE name GLOB 'stack_sample_*' AND value > 0;
 ```
 
 ## Exporting the data back out
@@ -1340,7 +1435,7 @@ and `sqlite` produces a database any SQLite tool can open. For how to choose
 between the formats and the exact contents of each, see
 [Export trace data](/docs/getting-started/command-line-analysis.md#export-trace-data)
 and the
-[Trace Processor reference](/docs/analysis/trace-processor.md#subcommand-export).
+[Trace Processor reference](/docs/reference/trace-processor-cli.md#subcommand-export).
 
 ## Next Steps
 

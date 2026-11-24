@@ -50,6 +50,7 @@ RUN set -ex; \
         zlib1g-dev \
         unzip \
         xz-utils \
+        valgrind \
         gcc-9 \
         g++-9 \
         gcc-9-multilib \

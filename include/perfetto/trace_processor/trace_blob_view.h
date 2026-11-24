@@ -76,16 +76,28 @@ class alignas(8) TraceBlobView {
   TraceBlobView& operator=(const TraceBlobView&) = delete;
 
   // [data, data+length] must be <= the current TraceBlobView.
-  TraceBlobView slice(const uint8_t* data, size_t length) const {
+  TraceBlobView slice(const uint8_t* data, size_t length) const& {
     PERFETTO_DCHECK(data >= data_);
     PERFETTO_DCHECK(data + length <= data_ + length_);
     return {data, length, blob_};
   }
 
+  // Transfer ownership when the original view is no longer needed.
+  TraceBlobView slice(const uint8_t* data, size_t length) && {
+    PERFETTO_DCHECK(data >= data_);
+    PERFETTO_DCHECK(data + length <= data_ + length_);
+    return {data, length, std::move(blob_)};
+  }
+
   // Like slice() but takes an offset rather than a pointer as 1st argument.
-  TraceBlobView slice_off(size_t off, size_t length) const {
+  TraceBlobView slice_off(size_t off, size_t length) const& {
     PERFETTO_DCHECK(off + length <= length_);
     return {data_ + off, length, blob_};
+  }
+
+  TraceBlobView slice_off(size_t off, size_t length) && {
+    PERFETTO_DCHECK(off + length <= length_);
+    return {data_ + off, length, std::move(blob_)};
   }
 
   TraceBlobView copy() const { return slice(data_, length_); }

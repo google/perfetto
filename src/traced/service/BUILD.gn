@@ -53,7 +53,7 @@ source_set("service") {
     "../../base:version",
     "../../tracing/core",
     "../../tracing/ipc/service",
-    "../../tracing/service:service",
+    "../../tracing/service",
   ]
 
   sources = [ "service.cc" ]
@@ -77,7 +77,7 @@ source_set("builtin_producer") {
     "../../../protos/perfetto/config/android:zero",
     "../../base",
     "../../tracing/core",
-    "../../tracing/service:service",
+    "../../tracing/service",
   ]
 
   sources = [

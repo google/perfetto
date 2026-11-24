@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
@@ -56,6 +56,7 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -159,8 +160,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.args_tracker =
+        std::make_unique<ArgsTracker>(context_.storage.get());
     context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(context_.storage.get());
     context_.global_stats_tracker =
@@ -207,7 +208,9 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     tokenizer_ = std::make_unique<FuchsiaTraceTokenizer>(&context_);
   }
 
-  void push_word(uint64_t word) { trace_bytes_.push_back(word); }
+  void push_word(uint64_t word) {
+    trace_bytes_.push_back(base::HostToLE(word));
+  }
 
   void ResetTraceBuffers() {
     trace_bytes_.clear();

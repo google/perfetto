@@ -24,8 +24,16 @@
 
 namespace perfetto::trace_redaction {
 
-// Removes all package list entries that don't match `Context.package_uid`.
-// Returns `base::ErrStatus()` if `Context.package_uid` was not set.
+// Retains only the package list entry whose normalized UID matches
+// `NormalizeUid(Context.package_uid)`.
+//
+// On Android, `packages.list` entries store normalized UIDs (uid < 100,000),
+// whereas `Context.package_uid` can hold either a full per-user UID (when
+// provided via `--uid`) or a normalized UID. Filtering against
+// `NormalizeUid(Context.package_uid)` ensures that secondary user and Work
+// Profile traces still retain their package metadata in the redacted trace.
+//
+// Returns `base::ErrStatus()` if `Context.package_uid` is not set.
 class PrunePackageList final : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,

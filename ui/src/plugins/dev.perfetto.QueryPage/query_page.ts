@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {Engine} from 'syntaqlite';
 import {assetSrc} from '../../base/assets';
-import {Icons} from '../../base/semantic_icons';
 import type {QueryResponse} from '../../components/query_table/queries';
 import {QueryHistoryComponent} from '../../components/widgets/query_history';
 import type {Setting} from '../../public/settings';
@@ -32,12 +31,9 @@ import {Spinner} from '../../widgets/spinner';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {Anchor} from '../../widgets/anchor';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {ResultsTable} from './results_table';
-
-const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
 
 // Represents a single query editor tab with its own state.
 export interface QueryEditorTab {
@@ -244,55 +240,8 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             title: 'Auto-format the SQL query',
             onclick: () => this.formatSql(attrs, tab.id, tab.editorText),
           }),
-          trace.isInternalUser &&
-            m(Button, {
-              icon: 'wand_stars',
-              title:
-                'Generate SQL queries with the Perfetto SQL Agent! Give feedback: go/perfetto-llm-bug',
-              label: 'Generate SQL Queries with AI',
-              onclick: () => {
-                window.open('http://go/perfetto-sql-agent', '_blank');
-              },
-            }),
         ]),
       ]),
-      this.shouldDisplayPerfettoSqlAgentBanner(attrs) &&
-        m(
-          Box,
-          m(
-            Callout,
-            {
-              icon: 'wand_stars',
-              dismissible: true,
-              onDismiss: () => {
-                this.hidePerfettoSqlAgentBanner();
-              },
-            },
-            [
-              'Try out the ',
-              m(
-                Anchor,
-                {
-                  href: 'http://go/perfetto-sql-agent',
-                  target: '_blank',
-                  icon: Icons.ExternalLink,
-                },
-                'Perfetto SQL Agent',
-              ),
-              ' to generate SQL queries and ',
-              m(
-                Anchor,
-                {
-                  href: 'http://go/perfetto-llm-user-guide#report-issues',
-                  target: '_blank',
-                  icon: Icons.ExternalLink,
-                },
-                'give feedback',
-              ),
-              '!',
-            ],
-          ),
-        ),
       tab.editorText.includes('"') &&
         m(
           Box,
@@ -380,17 +329,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         attrs.onTabAdd?.(tableName, query, true);
       },
     });
-  }
-
-  private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {
-    return (
-      attrs.trace.isInternalUser &&
-      localStorage.getItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY) !== 'true'
-    );
-  }
-
-  private hidePerfettoSqlAgentBanner() {
-    localStorage.setItem(HIDE_PERFETTO_SQL_AGENT_BANNER_KEY, 'true');
   }
 
   private async formatSql(attrs: QueryPageAttrs, tabId: string, text: string) {

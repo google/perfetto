@@ -29,7 +29,6 @@ namespace perfetto::trace_redaction {
 class CollectClocksTest : public testing::Test {
  protected:
   base::Status Collect() {
-    std::string trace_buffer;
     for (auto&& packet : packets_) {
       std::string p = packet.SerializeAsString();
       protos::pbzero::TracePacket::Decoder decoder(p);

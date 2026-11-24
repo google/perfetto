@@ -20,7 +20,11 @@ import {
   type EChartEventHandler,
   type EChartClickParams,
 } from './echart_view';
-import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
+import {
+  buildLegendOption,
+  buildTooltipOption,
+  renderTooltip,
+} from './chart_option_builder';
 import type {LegendPosition} from './common';
 
 /**
@@ -152,7 +156,11 @@ function buildPieOption(
         const name = params.name ?? '';
         const value = params.value ?? 0;
         const pct = params.percent?.toFixed(1) ?? '0';
-        return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
+        return renderTooltip([
+          m('div', name),
+          m('div', `Value: ${formatValue(value)}`),
+          m('div', `${pct}%`),
+        ]);
       },
     }),
     legend: showLegend ? buildLegendOption(legendPosition) : {show: false},
@@ -191,7 +199,7 @@ function buildPieEventHandlers(
         const p = params as EChartClickParams;
         const idx = p.dataIndex;
         if (idx !== undefined && idx >= 0 && idx < slices.length) {
-          onSliceClick(slices[idx]);
+          onSliceClick(slices[idx]!);
         }
       },
     },

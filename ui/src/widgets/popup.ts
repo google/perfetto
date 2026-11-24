@@ -19,7 +19,7 @@ import m from 'mithril';
 import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
-import {ensureExists} from '../base/assert';
+import {ensureExists, ensureDefined} from '../base/assert';
 import type {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
@@ -368,7 +368,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           phase: 'beforeWrite',
           requires: ['computeStyles'],
           fn: ({state}) => {
-            state.styles.popper.width = `${state.rects.reference.width}px`;
+            ensureDefined(state.styles.popper).width =
+              `${state.rects.reference.width}px`;
           },
           effect: ({state}) => {
             const trigger = state.elements.reference as HTMLElement;
@@ -379,48 +380,6 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     } else {
       matchWidthModifier = [];
     }
-
-    // Custom modifier to hide popup when trigger is not visible. This can be
-    // due to the trigger or one of its ancestors having display:none.
-    const hideOnInvisible: Modifier<'hideOnInvisible', {}> = {
-      name: 'hideOnInvisible',
-      enabled: true,
-      phase: 'main',
-      fn({state}) {
-        const reference = state.elements.reference;
-        if (!(reference instanceof HTMLElement)) {
-          return;
-        }
-
-        // Check if checkVisibility is supported
-        if (typeof reference.checkVisibility === 'function') {
-          const isVisible = reference.checkVisibility();
-
-          if (!isVisible) {
-            // Hide the popper by setting display to none
-            state.elements.popper.style.display = 'none';
-          } else {
-            // Show the popper
-            state.elements.popper.style.display = '';
-          }
-        } else {
-          // Fallback for browsers that don't support checkVisibility()
-          // Use intersection observer or other visibility checks
-          const rect = reference.getBoundingClientRect();
-          const isVisible =
-            rect.top >= 0 &&
-            rect.left >= 0 &&
-            rect.bottom <=
-              (window.innerHeight || document.documentElement.clientHeight) &&
-            rect.right <=
-              (window.innerWidth || document.documentElement.clientWidth) &&
-            window.getComputedStyle(reference).visibility !== 'hidden' &&
-            window.getComputedStyle(reference).display !== 'none';
-
-          state.elements.popper.style.display = isVisible ? '' : 'none';
-        }
-      },
-    };
 
     const options: Partial<OptionsGeneric<ExtendedModifiers>> = {
       placement: position,
@@ -445,7 +404,6 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         // Don't let the arrow reach the end of the popup, which looks odd when
         // the popup has rounded corners
         {name: 'arrow', options: {padding: 2}},
-        hideOnInvisible,
         ...matchWidthModifier,
       ],
     };

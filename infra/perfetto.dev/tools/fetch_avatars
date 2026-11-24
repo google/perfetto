@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Downloads contributor avatars from GitHub into the blog branch.
+
+With no arguments it reads every post's front matter, collects the authors and
+fetches the ones that aren't committed yet. Avatars are committed so that the
+site build never touches the network, and so readers don't send their IP to
+github.com just by loading a post.
+
+  infra/perfetto.dev/tools/fetch_avatars            # whatever is missing
+  infra/perfetto.dev/tools/fetch_avatars --force    # re-download everything
+  infra/perfetto.dev/tools/fetch_avatars primiano   # just these handles
+
+Note github.com/<handle>.png serves whatever format the user uploaded --
+frequently JPEG, despite the .png in the URL. Files are named after what
+actually arrives, because GCS sets Content-Type from the extension and a .png
+holding JPEG bytes would not render.
+"""
+
+import argparse
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
+BLOG_DIR = os.path.join(ROOT_DIR, 'blog')
+AUTHORS_DIR = os.path.join(BLOG_DIR, 'authors')
+
+# Keep in sync with AVATAR_EXTS in src/blog.mjs.
+MAGIC = {b'\x89PN': 'png', b'\xff\xd8\xff': 'jpg'}
+EXTS = ('png', 'jpg')
+
+POST_DIR_RE = re.compile(r'^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$')
+AUTHOR_RE = re.compile(r'^author:[ \t]*(.*)$', re.M)
+HANDLE_RE = re.compile(r'^@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})$')
+
+
+def authors_in_posts():
+  """Every @handle appearing in any post's front matter, in first-seen order."""
+  handles = []
+  if not os.path.isdir(BLOG_DIR):
+    sys.exit(f'No blog worktree at {BLOG_DIR}.\n'
+             'Create one with: git worktree add blog blog')
+  for name in sorted(os.listdir(BLOG_DIR)):
+    post = os.path.join(BLOG_DIR, name, 'post.md')
+    if not POST_DIR_RE.match(name) or not os.path.isfile(post):
+      continue
+    with open(post, encoding='utf-8') as f:
+      # Front matter only: stop at the closing '---' so a stray "author:" in
+      # the prose can't be picked up.
+      head = f.read().split('\n---', 2)[0]
+    m = AUTHOR_RE.search(head)
+    if not m:
+      print(f'WARNING: {name}/post.md has no author', file=sys.stderr)
+      continue
+    for tok in m.group(1).split():
+      hm = HANDLE_RE.match(tok)
+      if not hm:
+        sys.exit(f'{name}/post.md: bad author {tok!r}, expected @handle')
+      if hm.group(1) not in handles:
+        handles.append(hm.group(1))
+  return handles
+
+
+def committed(handle):
+  """The path of this handle's committed avatar, or None."""
+  for ext in EXTS:
+    path = os.path.join(AUTHORS_DIR, f'{handle}.{ext}')
+    if os.path.exists(path):
+      return path
+  return None
+
+
+def fetch(handle):
+  url = f'https://github.com/{handle}.png?size=160'
+  try:
+    with urllib.request.urlopen(url, timeout=30) as resp:
+      data = resp.read()
+  except urllib.error.HTTPError as e:
+    if e.code == 404:
+      # Team/project bylines (see NON_GITHUB_AUTHORS in blog.mjs) have no
+      # GitHub account; their avatar is committed by hand.
+      print(f'  {handle}: no GitHub account, skipping (commit an avatar by '
+            f'hand if it needs one)', file=sys.stderr)
+      return
+    sys.exit(f'  {handle}: download failed ({e})')
+  except urllib.error.URLError as e:
+    sys.exit(f'  {handle}: download failed ({e})')
+
+  ext = MAGIC.get(data[:3])
+  if ext is None:
+    sys.exit(f'  {handle}: not a PNG or JPEG (magic {data[:3]!r}), '
+             'refusing to commit it')
+
+  os.makedirs(AUTHORS_DIR, exist_ok=True)
+  # Drop the other format first, so a handle never ends up with two files and
+  # blog.mjs picking the stale one.
+  for other in EXTS:
+    if other != ext:
+      stale = os.path.join(AUTHORS_DIR, f'{handle}.{other}')
+      if os.path.exists(stale):
+        os.remove(stale)
+  out = os.path.join(AUTHORS_DIR, f'{handle}.{ext}')
+  with open(out, 'wb') as f:
+    f.write(data)
+  print(f'  {handle}: wrote authors/{handle}.{ext} ({len(data)} bytes)')
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      description=__doc__.split('\n')[0],
+      formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('handles', nargs='*',
+                      help='GitHub handles; default is every post author')
+  parser.add_argument('--force', action='store_true',
+                      help='re-download even if already committed')
+  args = parser.parse_args()
+
+  handles = [h.lstrip('@') for h in args.handles] or authors_in_posts()
+  if not handles:
+    print('No post authors found; nothing to do.')
+    return 0
+
+  todo = handles if args.force else [h for h in handles if not committed(h)]
+  skipped = len(handles) - len(todo)
+  if skipped:
+    print(f'{skipped} avatar(s) already committed; --force to re-download')
+  if not todo:
+    return 0
+
+  print(f'Fetching {len(todo)} avatar(s) from GitHub')
+  for handle in todo:
+    fetch(handle)
+  print('Commit these on the blog branch so the build stays offline.')
+  return 0
+
+
+if __name__ == '__main__':
+  sys.exit(main())

@@ -277,11 +277,15 @@ inline std::string SqlValueTypeToSqliteTypeName(SqlValue::Type type) {
   PERFETTO_FATAL("Not reached");  // For gcc
 }
 
-// Returns the column names for the table named by |raw_table_name|.
-base::Status GetColumnsForTable(
-    sqlite3* db,
-    const std::string& raw_table_name,
-    std::vector<std::pair<SqlValue::Type, std::string>>& columns);
+struct SqliteColumn {
+  std::string name;
+  // As declared, which SQLite does not enforce.
+  std::string type;
+  bool hidden = false;
+};
+
+// The columns of the table, view or table function SQLite knows as `name`.
+std::vector<SqliteColumn> GetColumns(sqlite3* db, const std::string& name);
 
 // Given an SqlValue::Type, converts it to a human-readable string.
 // This should really only be used for debugging messages.

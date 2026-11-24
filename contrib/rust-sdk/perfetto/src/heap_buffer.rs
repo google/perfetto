@@ -31,7 +31,7 @@ impl<'a> HeapBuffer<'a> {
         let mut inner_writer = writer.writer.borrow_mut();
         // SAFETY:
         // - `inner_writer` must be a pointer to a properly initialized
-        //   PerfettoStreamWriter struct, which the StreamWriter interface
+        //   PerfettoPbMsgWriter struct, which the StreamWriter interface
         //   is guaranteed to provide.
         let buffer = unsafe { PerfettoHeapBufferCreate(&mut *inner_writer as *mut _) };
         HeapBuffer { buffer, writer }
@@ -43,7 +43,7 @@ impl<'a> HeapBuffer<'a> {
         // SAFETY:
         // - `self.buffer` must have been created with PerfettoHeapBufferCreate.
         // - `inner_writer` must be a pointer to a properly initialized
-        //   PerfettoStreamWriter struct, which the StreamWriter interface
+        //   PerfettoPbMsgWriter struct, which the StreamWriter interface
         //   is guaranteed to provide.
         unsafe {
             PerfettoHeapBufferCopyInto(
@@ -62,7 +62,7 @@ impl Drop for HeapBuffer<'_> {
         // SAFETY:
         // - `self.buffer` must have been created with PerfettoHeapBufferCreate.
         // - `inner_writer` must be a pointer to a properly initialized
-        //   PerfettoStreamWriter struct, which the StreamWriter interface
+        //   PerfettoPbMsgWriter struct, which the StreamWriter interface
         //   is guaranteed to provide.
         unsafe { PerfettoHeapBufferDestroy(self.buffer, &mut *inner_writer as *mut _) };
     }

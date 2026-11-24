@@ -42,6 +42,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
@@ -171,12 +172,16 @@ Commands:
 Common flags (apply to all commands):
   -h, --help                  Show help (per-command if after a command).
   -v, --version               Print version.
+      --no-progress           Disable live progress.
+      --quiet                 Suppress progress and routine status output.
       --full-sort             Force full sort ignoring windowing.
       --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
       --add-sql-package PATH  Register SQL files from a directory as a package.
   -m, --metatrace FILE        Enable metatracing, write to FILE.
 
 Run '%s help <command>' for per-command flags and details.
+Scripting or AI agent? Run '%s help agent' for a short guide: keeping a trace
+loaded across many queries, discovering tables and the SQL standard library.
 
 Examples:
   tp trace.pb                                       Interactive shell.
@@ -193,7 +198,91 @@ Classic interface:
   fully supported and will remain so. Existing scripts will continue to work.
   Run '%s --help-classic' to see the classic flag reference.
 )",
-         argv0, argv0, argv0);
+         argv0, argv0, argv0, argv0);
+}
+
+// Printed by `trace_processor help agent`: a compact, self-contained guide
+// to driving trace_processor from scripts and coding agents, kept in the
+// binary so it is available wherever trace_processor is, with no separate
+// install. Agents rarely open --help on their own; the parse-time tip in
+// the query subcommand is what points them here. The guided workflows
+// live in the Perfetto agent skill (see the link at the end).
+void PrintAgentGuide(const char* argv0) {
+  // Meant to be copied into scripts: show the bare program name rather than
+  // whatever absolute path this binary was invoked as.
+  const char* slash = strrchr(argv0, '/');
+  const char* name = slash ? slash + 1 : argv0;
+  printf(R"(trace_processor for scripts and AI agents
+==========================================
+
+1. Load the trace once, then run many queries against it.
+   Parsing is the slow part (seconds to minutes); a warm session pays it once.
+
+     %s server unix --name SESSION --daemonize TRACE_FILE
+     %s query --remote SESSION "SELECT ts, dur, name FROM slice LIMIT 5"
+     %s query --remote SESSION -f queries.sql        # long SQL from a file
+     %s server kill SESSION                          # when completely done
+
+   Tables and modules created in one call stay available for the next.
+   Several ';'-separated statements per call are fine; each result set is
+   printed in turn. One-shot form (re-parses the trace every time, only for a
+   single quick question): %s query TRACE_FILE "SELECT ..."
+
+2. Reading output. Run by a coding agent (e.g. CLAUDECODE set, stdout not a
+   terminal), `query` is in agent mode:
+   - Results are compact markdown tables.
+   - Results over 1000 rows or 10KB show their first and last 20 rows and a
+     footer like `(first 20 and last 20 of 5000 rows. ...)`. Aggregate or
+     LIMIT rather than raising the caps (--max-rows/--max-bytes, 0 = no
+     limit).
+   - Cells are cut at 500 characters (--max-cell-width).
+   - Errors are one JSON line on stderr with the error, the failing
+     statement, its location (query:LINE:COL) and often a hint.
+   --agent / --no-agent force it on or off; --format csv gives plain CSV.
+
+3. Discover instead of guessing.
+
+     SELECT * FROM slice LIMIT 0;                     -- exact columns of any
+                                                      -- table, view or query
+     SELECT name FROM perfetto_tables;                -- every table/view
+     SELECT qualified_name, object_type, short_description
+     FROM __intrinsic_stdlib_objects
+     WHERE exposed = 1 AND regexp('startup|launch', summary, 'i')
+     LIMIT 20;                                        -- search the stdlib
+     SELECT summary FROM __intrinsic_stdlib_objects
+     WHERE qualified_name = 'android.startup.startups.android_startups';
+                                                      -- docs for one object
+     INCLUDE PERFETTO MODULE android.startup.startups; -- then use it
+
+   The standard library (https://perfetto.dev/docs/analysis/stdlib-docs) has
+   ready-made tables for most common questions; prefer it over hand-written
+   joins on raw tables.
+
+4. Core tables: slice (anything with a duration), thread, process,
+   thread_state (Running/Runnable/Sleeping), sched (on-CPU time), counter,
+   track, args. Frequently useful modules:
+     slices.with_context      thread_slice / process_slice / thread_or_process_slice
+     sched.with_context       sched_with_thread_process
+     android.startup.startups android_startups
+     android.anrs             android_anrs
+     android.frames.timeline  android_frames
+     android.memory.heap_graph.dominator_tree   Java heap retained sizes
+     linux.cpu.frequency      cpu frequency residency
+     stacks.cpu_profiling     CPU sampling call stacks
+
+5. PerfettoSQL rules of thumb.
+   - Join on utid/upid (unique per trace), never tid/pid (recycled by the OS);
+     report thread/process names to the user, not ids.
+   - dur = -1 means the slice was still open at trace end; dur = 0 is an
+     instant event. Handle both when summing durations.
+   - Use GLOB or regexp(pattern, str, 'i') for matching, not LIKE.
+   - Aggregate (COUNT/GROUP BY/LIMIT) rather than dumping raw rows.
+
+6. More: https://perfetto.dev/docs/analysis/trace-processor (reference),
+   https://perfetto.dev/docs/getting-started/using-ai (agent skill with
+   guided Android memory and GPU workflows, plus an installable bundle).
+)",
+         name, name, name, name, name);
 }
 
 void PrintClassicUsage(char** argv) {
@@ -339,8 +428,6 @@ Advanced:
                                       Only valid with -q or --run-metrics and
                                       the file will only be written if the
                                       execution is successful.
- -W, --wide                           Prints interactive output with double
-                                      column width.
  --analyze-trace-proto-content        Enables trace proto content analysis in
                                       trace processor.
  --crop-track-events                  Ignores track event outside of the
@@ -850,6 +937,10 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
         continue;
       if (strcmp(argv[i], "help") == 0) {
         if (i + 1 < argc) {
+          if (strcmp(argv[i + 1], "agent") == 0) {
+            PrintAgentGuide(argv[0]);
+            return base::OkStatus();
+          }
           // `help <command>` -- find the named subcommand and print its usage.
           for (auto* sc : subcommands) {
             if (strcmp(sc->name(), argv[i + 1]) == 0) {
@@ -927,6 +1018,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                                  usage.c_str());
         }
       }
+      base::ProgressReporter::GetInstance().set_enabled(!global.no_progress &&
+                                                        !global.quiet);
       if (global.help) {
         printf("%s", usage.c_str());
         return base::OkStatus();
@@ -937,6 +1030,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
+      RETURN_IF_ERROR(profiling::ResolveDebuginfodOptions(
+          global.debuginfod_options, &global.debuginfod));
 
       // Parse metric extensions and populate their descriptor pool. The
       // pool is always created (built-in metrics need it for output
@@ -1128,6 +1223,9 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       args.emplace_back("-i");
     if (options.wide)
       args.emplace_back("-W");
+    // Agent mode is a feature of the query subcommand: the classic interface
+    // keeps printing exactly what it always has.
+    args.emplace_back("--no-agent");
     if (!options.perf_file_path.empty()) {
       args.emplace_back("--perf-file");
       args.emplace_back(options.perf_file_path);
@@ -1159,7 +1257,10 @@ int PERFETTO_EXPORT_ENTRYPOINT TraceProcessorShellMain(int argc, char** argv) {
   auto shell = TraceProcessorShell::CreateWithDefaultPlatform();
   auto status = shell->Run(argc, argv);
   if (!status.ok()) {
-    fprintf(stderr, "%s\n", status.c_message());
+    // Some errors are printed where they happen (e.g. as JSON for agents).
+    if (!status.GetPayload("perfetto.dev/has_printed_error")) {
+      fprintf(stderr, "%s\n", status.c_message());
+    }
     return 1;
   }
   return 0;

@@ -302,7 +302,7 @@ describe('datagrid_node_creation', () => {
 
       // A new node should have been inserted
       expect(source.nextNodes).toHaveLength(1);
-      expect(source.nextNodes[0].type).toBe(NodeType.kFilter);
+      expect(source.nextNodes[0]!.type).toBe(NodeType.kFilter);
       expect(deps.initializedNodes.size).toBe(1);
       expect(stateUpdates).toHaveLength(1);
     });
@@ -330,9 +330,9 @@ describe('datagrid_node_creation', () => {
 
       // New filter node should be inserted between source and sort
       expect(source.nextNodes).toHaveLength(1);
-      expect(source.nextNodes[0].type).toBe(NodeType.kFilter);
+      expect(source.nextNodes[0]!.type).toBe(NodeType.kFilter);
       // Sort should now be downstream of the new filter
-      expect(source.nextNodes[0].nextNodes).toContain(sortChild);
+      expect(source.nextNodes[0]!.nextNodes).toContain(sortChild);
     });
   });
 });

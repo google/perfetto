@@ -27,6 +27,7 @@ source_set("strace") {
     "strace_trace_tokenizer.cc",
     "strace_trace_tokenizer.h",
   ]
+  public_deps = [ "../../sorter" ]
   deps = [
     "../..:storage_minimal",
     "../../../../gn:default_deps",
@@ -34,7 +35,6 @@ source_set("strace") {
     "../../containers",
     "../../core/plugin",
     "../../importers/common",
-    "../../sorter",
     "../../storage",
     "../../types",
     "../../util:clock",

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "How much native memory did you use, and where did it go?" — heapprofd
-// coverage vs the smaps native total, plus the top unreleased call-stacks over
-// the whole trace, for one process. Self-contained: owns its query slot and
-// loading logic.
+// "Native Memory" - heapprofd coverage vs the smaps native total, plus the top
+// unreleased call-stacks over the whole trace, for one process. Self-contained:
+// owns its query slot and loading logic.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
@@ -32,29 +31,67 @@ import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
 import {deltaText, formatBytes, formatDelta, statCard} from '../mem_format';
 import {Ratio} from '../../../components/ratio';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {findProcessTrack, showAreaInTimelineLink} from '../process_links';
 import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
+import {Checkbox} from '../../../../../widgets/checkbox';
+import {Tooltip} from '../../../../../widgets/tooltip';
+import {PopupPosition} from '../../../../../widgets/popup';
+import {
+  categorizeFrame,
+  extractProcessToken,
+  type FrameCategory,
+} from './frame_categories';
 
-const TITLE = 'How much native memory did you use, and where did it go?';
-const SUBTITLE =
-  "Aggregated by allocation callstack — the clearest signal when it's " +
-  'available.';
+const TITLE = 'Native Memory';
+const MAX_STACK_ROWS = 5;
+const COLLAPSED_MIDDLE_FRAMES = 3;
+const COLLAPSED_ROOT_FRAMES = 2;
+const COLLAPSED_FRAME_THRESHOLD =
+  1 + COLLAPSED_MIDDLE_FRAMES + COLLAPSED_ROOT_FRAMES;
 
-// One top-unreleased heapprofd callsite with its app-only frame chain
-// (leaf → root).
+const COLLAPSE_CATEGORIES: ReadonlyArray<{
+  readonly id: Exclude<FrameCategory, 'app'>;
+  readonly label: string;
+  readonly tooltip: string;
+  readonly defaultCollapsed: boolean;
+}> = [
+  {
+    id: 'system',
+    label: 'System',
+    tooltip: 'Android framework and native OS/vendor libraries',
+    defaultCollapsed: false,
+  },
+  {
+    id: 'runtime',
+    label: 'Runtime',
+    tooltip:
+      'Allocators, libc/ART/JNI glue, event-loop/IPC/coroutine scaffolding, ' +
+      'and unwinder markers',
+    defaultCollapsed: true,
+  },
+];
+
+interface NativeFrame {
+  readonly name: string;
+  readonly mapping?: string;
+  readonly category: FrameCategory;
+}
+
+// One top-unreleased heapprofd callsite with its frame chain (leaf → root).
 interface NativeStack {
-  unreleased: number;
-  allocs: number;
-  frames: string[];
+  readonly topId: number;
+  readonly unreleased: number;
+  readonly allocs: number;
+  readonly frames: NativeFrame[];
 }
 
 interface NativeData {
   readonly hasProfile: boolean;
-  // Top app-attributed callsites by unreleased bytes in the selected window.
+  // App-attributed callsites by unreleased bytes in the selected window.
   readonly stacks: NativeStack[];
   // Total positive-net unreleased bytes in the window (share-bar denominator).
   readonly profileTotal: number;
@@ -206,41 +243,43 @@ async function loadNativeStacks(
       HAVING SUM(a.size) > 0
     )`;
 
-  const stacks: NativeStack[] = [];
+  const procRes = await trace.engine.query(
+    `SELECT name FROM process WHERE upid = ${upid}`,
+  );
+  const procToken = extractProcessToken(
+    procRes.maybeFirstRow({name: STR_NULL})?.name ?? undefined,
+  );
+
   const stackRes = await trace.engine.query(`
+    INCLUDE PERFETTO MODULE callstacks.stack_profile;
+
     WITH
     ${unrelCte},
-    top_sites AS (
-      SELECT * FROM (
-        SELECT u.*, ROW_NUMBER() OVER (
-          ORDER BY u.unreleased DESC
-        ) AS rn
-        FROM unrel u
-      ) WHERE rn <= 5
-    ),
-    chain(top_id, unreleased, allocs, callsite_id, depth) AS (
-      SELECT callsite_id, unreleased, allocs, callsite_id, 0
-      FROM top_sites
+    chain(top_id, unreleased, allocs, node_id, depth) AS (
+      SELECT u.callsite_id, u.unreleased, u.allocs, f.id, 0
+      FROM unrel u
+      JOIN _callstack_spc_forest f USING (callsite_id)
+      WHERE f.is_leaf_function_in_callsite_frame
       UNION ALL
-      SELECT c.top_id, c.unreleased, c.allocs, sc.parent_id, c.depth + 1
+      SELECT c.top_id, c.unreleased, c.allocs, f.parent_id, c.depth + 1
       FROM chain c
-      JOIN stack_profile_callsite sc ON sc.id = c.callsite_id
-      WHERE sc.parent_id IS NOT NULL AND c.depth < 128
+      JOIN _callstack_spc_forest f ON f.id = c.node_id
+      WHERE f.parent_id IS NOT NULL AND c.depth < 128
     )
     SELECT
       c.top_id AS top_id,
       CAST(c.unreleased AS INT) AS unreleased,
       CAST(c.allocs AS INT) AS allocs,
       c.depth AS depth,
-      coalesce(f.deobfuscated_name, f.name, '<unknown>') AS frame_name,
+      f.name AS frame_name,
       mp.name AS mapping_name
     FROM chain c
-    JOIN stack_profile_callsite sc ON sc.id = c.callsite_id
-    JOIN stack_profile_frame f ON sc.frame_id = f.id
-    LEFT JOIN stack_profile_mapping mp ON f.mapping = mp.id
+    JOIN _callstack_spc_forest f ON f.id = c.node_id
+    LEFT JOIN stack_profile_mapping mp ON f.mapping_id = mp.id
     ORDER BY c.top_id, c.depth ASC
   `);
-  let cur: (NativeStack & {topId: number}) | undefined;
+  const stacks: NativeStack[] = [];
+  let cur: NativeStack | undefined;
   for (
     const it = stackRes.iter({
       top_id: NUM,
@@ -262,11 +301,15 @@ async function loadNativeStacks(
       };
       stacks.push(cur);
     }
-    // Keep only frames from the app under test; drop system/runtime libraries.
-    if (isAppMapping(it.mapping_name ?? undefined)) {
-      cur.frames.push(it.frame_name);
-    }
+    const name = it.frame_name.trim() || 'unknown';
+    const mapping = it.mapping_name ?? undefined;
+    cur.frames.push({
+      name,
+      mapping,
+      category: categorizeFrame(name, mapping, procToken),
+    });
   }
+
   stacks.sort((a, b) => b.unreleased - a.unreleased);
 
   const totRes = await trace.engine.query(`
@@ -297,21 +340,55 @@ async function loadNativeStacks(
   };
 }
 
-// True when a frame's mapping belongs to the app under test rather than a
-// system/runtime library. App code is installed under /data/app or /data/data.
-function isAppMapping(mapping?: string): boolean {
-  if (mapping === undefined) return false;
-  return /^\/data\/(app|data)\//.test(mapping);
-}
+// Renders a frame chain (leaf → root), collapsing the middle when
+// > COLLAPSED_FRAME_THRESHOLD frames unless expanded, with an inline toggle
+// link.
+function renderStackFrames(
+  frames: NativeFrame[],
+  expanded: boolean,
+  onToggle: () => void,
+): m.Children {
+  const frameEl = (f: NativeFrame) => {
+    const title =
+      f.mapping !== undefined
+        ? `[${f.category}] ${f.name}\n${f.mapping}`
+        : `[${f.category}] ${f.name}`;
+    return m('.pf-memscope-stack__frame', {title}, f.name);
+  };
+  const toggleLink = (label: string) =>
+    m(
+      '.pf-memscope-stack__frame',
+      m(
+        'a.pf-memscope-show-more',
+        {
+          href: '#',
+          onclick: (e: Event) => {
+            e.preventDefault();
+            onToggle();
+          },
+        },
+        label,
+      ),
+    );
 
-// Shrinks an (already app-only) frame chain (leaf → root) to a short snippet.
-function stackSnippet(frames: string[]): string[] {
-  if (frames.length === 0) return ['(no app frames)'];
-  if (frames.length <= 7) return frames;
-  const leaf = frames[0];
-  const middle = frames.slice(1, -2).slice(0, 4);
-  const root = frames.slice(-2);
-  return [leaf, ...middle, '…', ...root];
+  if (frames.length <= COLLAPSED_FRAME_THRESHOLD) {
+    return frames.map(frameEl);
+  }
+  if (expanded) {
+    return [...frames.map(frameEl), toggleLink('Show less')];
+  }
+  const leaf = frames[0]!;
+  const middle = frames
+    .slice(1, -COLLAPSED_ROOT_FRAMES)
+    .slice(0, COLLAPSED_MIDDLE_FRAMES);
+  const root = frames.slice(-COLLAPSED_ROOT_FRAMES);
+  const hiddenCount = frames.length - 1 - middle.length - root.length;
+  return [
+    frameEl(leaf),
+    ...middle.map(frameEl),
+    toggleLink(`Show all (${hiddenCount} more)…`),
+    ...root.map(frameEl),
+  ];
 }
 
 export interface NativeSectionAttrs {
@@ -324,6 +401,11 @@ export interface NativeSectionAttrs {
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
   private readonly slot = new AsyncMemo<NativeData>();
+  private readonly collapsedCategories = new Set<FrameCategory>(
+    COLLAPSE_CATEGORIES.filter((c) => c.defaultCollapsed).map((c) => c.id),
+  );
+  private rowLimit = MAX_STACK_ROWS;
+  private readonly expandedStacks = new Set<number>();
 
   onremove() {
     this.slot.dispose();
@@ -344,13 +426,12 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       retainOn: ['sel', 'base'],
     }).data;
     if (data === undefined) {
-      return loadingPanel({title: TITLE, subtitle: SUBTITLE}); // Still loading.
+      return loadingPanel({title: TITLE}); // Still loading.
     }
 
     if (!data.hasProfile) {
       return emptyPanel({
         title: TITLE,
-        subtitle: SUBTITLE,
         message:
           'No native heap profile (heapprofd) data in this trace for this ' +
           'process.',
@@ -362,23 +443,54 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
     const coveragePct = nativeRss > 0 ? (seen / nativeRss) * 100 : undefined;
     const overhead = nativeRss > seen ? nativeRss - seen : 0;
 
-    const stackRows = data.stacks.slice(0, 5).map((s) => [
-      m(
-        '.pf-memscope-stack',
-        stackSnippet(s.frames).map((f) =>
-          m('.pf-memscope-stack__frame', {title: f}, f),
+    const stackRows = data.stacks.slice(0, this.rowLimit).map((s) => {
+      const frames = s.frames.filter(
+        (f) => !this.collapsedCategories.has(f.category),
+      );
+      const expanded = this.expandedStacks.has(s.topId);
+      return [
+        m(
+          '.pf-memscope-stack',
+          frames.length > 0
+            ? renderStackFrames(frames, expanded, () => {
+                if (this.expandedStacks.has(s.topId)) {
+                  this.expandedStacks.delete(s.topId);
+                } else {
+                  this.expandedStacks.add(s.topId);
+                }
+              })
+            : m('.pf-memscope-stack__empty', '(all frames hidden by filter)'),
         ),
-      ),
-      formatBytes(s.unreleased),
-      s.allocs.toLocaleString(),
-      m(ShareBar, {frac: profileTotal > 0 ? s.unreleased / profileTotal : 0}),
-    ]);
+        formatBytes(s.unreleased),
+        s.allocs.toLocaleString(),
+        m(ProgressBar, {
+          pct: profileTotal > 0 ? (s.unreleased / profileTotal) * 100 : 0,
+        }),
+      ];
+    });
+    if (data.stacks.length > this.rowLimit) {
+      stackRows.push([
+        m(
+          'a.pf-memscope-show-more',
+          {
+            href: '#',
+            onclick: (e: Event) => {
+              e.preventDefault();
+              this.rowLimit += 10;
+            },
+          },
+          'Show more…',
+        ),
+        '',
+        '',
+        '',
+      ]);
+    }
 
     return m(
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        subtitle: SUBTITLE,
         controls: showAreaInTimelineLink(
           trace,
           findProcessTrack(trace, upid, (k) => k.startsWith('heap_profile:'))
@@ -395,7 +507,7 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
             {intent: Intent.Warning},
             'The native profiler only sees allocations made ',
             m('b', 'after'),
-            " tracing started — it can't explain the past. Leaks present " +
+            " tracing started - it can't explain the past. Leaks present " +
               'before t=0 are invisible here; trust the composition totals ' +
               'above for the full resident picture.',
           ),
@@ -454,15 +566,33 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
               bLabel: 'Unseen (pre-trace)',
               bBytes: overhead,
             }),
-          stackRows.length > 0
+          data.stacks.length > 0
             ? topTable({
                 title: 'Top allocation call-stacks',
-                subtitle: comparing
-                  ? 'unreleased between baseline and selected snapshot · ' +
-                    'app frames only'
-                  : selTs !== undefined
-                    ? 'unreleased up to the selected snapshot · app frames only'
-                    : 'unreleased over the whole trace · app frames only',
+                controls: m('.pf-memscope-stack-legend', [
+                  m('span.pf-memscope-stack-legend__label', 'Hide frames:'),
+                  COLLAPSE_CATEGORIES.map((cat) => {
+                    const collapsed = this.collapsedCategories.has(cat.id);
+                    return m(
+                      Tooltip,
+                      {
+                        trigger: m(Checkbox, {
+                          label: cat.label,
+                          checked: collapsed,
+                          onchange: (e) => {
+                            if ((e.target as HTMLInputElement).checked) {
+                              this.collapsedCategories.add(cat.id);
+                            } else {
+                              this.collapsedCategories.delete(cat.id);
+                            }
+                          },
+                        }),
+                        position: PopupPosition.Top,
+                      },
+                      cat.tooltip,
+                    );
+                  }),
+                ]),
                 cols: [
                   {label: 'Call-stack snippet'},
                   {label: comparing ? 'Δ unreleased' : 'Unreleased', num: true},

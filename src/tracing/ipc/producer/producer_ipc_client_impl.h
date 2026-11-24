@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include <memory>
+#include <optional>
 #include <set>
 #include <vector>
 
@@ -30,6 +32,7 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/ipc/producer_port.ipc.h"
 
@@ -38,6 +41,10 @@ namespace perfetto {
 namespace base {
 class TaskRunner;
 }  // namespace base
+
+namespace test {
+class ProducerIPCClientTestPeer;
+}  // namespace test
 
 class Producer;
 class SharedMemoryArbiter;
@@ -48,6 +55,10 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// TODO(sashwinbalaji): Check all paths through Disconnect(), OnDisconnect(),
+// and ScheduleDisconnect() again. Check for unnecessary steps, incorrect
+// cleanup or callback order, and object lifetime errors.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
@@ -77,9 +88,17 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  void InitializeV2RingBuffer(const DataSourceConfig&) override;
+  void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)> callback) override;
+  void DrainV2RingBuffer() override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
+      BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriterV2(
+      BufferID,
       BufferExhaustedPolicy) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
@@ -96,15 +115,22 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Defined in tracing_integration_test.cc.
+  friend class test::ProducerIPCClientTestPeer;
+
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
 
   // Invoked soon after having established the connection with the service.
-  void OnConnectionInitialized(bool connection_succeeded,
-                               bool using_shmem_provided_by_producer,
-                               bool direct_smb_patching_supported,
-                               bool use_shmem_emulation);
+  // |offered_versions| is the bitmask sent in the request.
+  void OnConnectionInitialized(
+      uint32_t offered_versions,
+      ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response);
+
+  bool HasNegotiatedV2Abi() const {
+    return !!(protocol_abi_versions_ & kProtocolAbiV2);
+  }
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
@@ -132,6 +158,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
+  // Bitmask of the versions agreed in InitializeConnection, zero until then.
+  uint32_t protocol_abi_versions_ = 0;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   std::set<DataSourceInstanceID> data_sources_setup_;
@@ -144,6 +172,23 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+  // Owns the ring buffer and creates v2 writers.
+  //
+  // States:
+  // - nullopt: initialization has not been attempted.
+  // - nullptr: sizing or allocation failed.
+  //   Later InitializeV2RingBuffer() calls on the same connection do not retry
+  //   initialization, to avoid changing the pointer while v2 writer threads
+  //   read it without a lock.
+  // - Non-null pointer: the arbiter exists and tracks service attachment.
+  //
+  // Set by InitializeV2RingBuffer() when an instance selects v2, before the
+  // first v2 writer.
+  // Writer threads then read it without a lock.
+  // OnDisconnect() does not reset this member because v2 writer threads can
+  // still read it or use the arbiter.
+  std::optional<std::unique_ptr<tracing_v2::ProducerRingBufferArbiter>>
+      v2_ring_buffer_arbiter_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

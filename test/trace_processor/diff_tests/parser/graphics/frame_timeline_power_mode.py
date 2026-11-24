@@ -36,6 +36,7 @@ class JankType:
   JANK_DISPLAY_NOT_ON = 8192
   JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS = 16384
   JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS = 32768
+  JANK_DEQUEUE_BUFFER_DELAY = 65536
 
 
 class JankSeverityType:
@@ -130,5 +131,28 @@ trace.add_actual_display_frame_start_event(
     jank_type=JankType.JANK_DISPLAY_NOT_ON,
     prediction_type=PredictionType.PREDICTION_VALID)
 trace.add_frame_end_event(ts=170, cookie=8)
+
+# SurfaceFrame with DequeueBuffer Delay
+trace.add_expected_surface_frame_start_event(
+    ts=180,
+    cookie=9,
+    token=5,
+    display_frame_token=4,
+    pid=1000,
+    layer_name="Layer1")
+trace.add_frame_end_event(ts=190, cookie=9)
+trace.add_actual_surface_frame_start_event(
+    ts=180,
+    cookie=10,
+    token=5,
+    display_frame_token=4,
+    pid=1000,
+    layer_name="Layer1",
+    present_type=PresentType.PRESENT_LATE,
+    on_time_finish=1,
+    gpu_composition=0,
+    jank_type=JankType.JANK_DEQUEUE_BUFFER_DELAY,
+    prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=195, cookie=10)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

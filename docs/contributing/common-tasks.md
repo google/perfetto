@@ -11,7 +11,7 @@ Go to [UI plugins page](ui-plugins) to learn how to do it.
 
 ### Contribute to SQL standard library
 
-1. Add or edit an SQL file inside `perfetto/src/trace_processor/stdlib/`. This SQL file will be a new standard library module.
+1. Add or edit an SQL file inside `perfetto/src/trace_processor/perfetto_sql/stdlib/`. This SQL file will be a new standard library module.
 2. For a new file inside an existing package add the file to the corresponding `BUILD.gn`.
 3. For a new package (subdirectory of `/stdlib/`), the package name (directory name) has to be added to the list in `/stdlib/BUILD.gn`.
 

@@ -26,11 +26,14 @@
 //    it is just a return value that feeds the next build's cache signature.
 
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import ejs from "ejs";
 import { Renderer, marked } from "marked";
 import hljs from "highlight.js";
 import { headingAnchor } from "./md_utils.mjs";
+
+const railroad = createRequire(import.meta.url)("railroad-diagrams");
 
 const CS_BASE_URL = "https://github.com/google/perfetto/blob/main/";
 
@@ -57,10 +60,13 @@ export function resetLinkCache() {
 
 // Creates the mutable per-render state. `mdFile` is the absolute path of the
 // markdown being rendered; it anchors relative link resolution.
-export function newContext(mdFile) {
+export function newContext(mdFile, blogSlug) {
   return {
     mdFile,
     title: "",
+    // Set only when rendering a blog post. Switches image and link handling:
+    // posts reference images by bare filename and link to /blog/<slug>.
+    blogSlug,
     // sitePath -> absolute source path, for every image the page references.
     assets: new Map(),
   };
@@ -115,6 +121,20 @@ function renderHeading(ctx, text, level) {
 }
 
 function renderLink(ctx, originalLinkFn, href, title, text) {
+  if (ctx.blogSlug !== undefined) {
+    // Without this, /blog/other-post would fall through to the source-code
+    // branch below, get rewritten to github.com and then fail the dead-link
+    // check. Docs and source links still work from a post.
+    if (href.startsWith("/blog/")) {
+      return originalLinkFn(href, title, text);
+    }
+    if (!href.match(/^(https?:)|^(mailto:)|^#|^\//)) {
+      throw new Error(
+        `Relative link '${href}'. Blog posts link to other posts as ` +
+          `/blog/<slug> and to docs as /docs/<path>.`,
+      );
+    }
+  }
   if (href.startsWith("../")) {
     throw new Error(
       `Don\'t use relative paths in docs, always use /docs/xxx ` +
@@ -138,16 +158,40 @@ function renderLink(ctx, originalLinkFn, href, title, text) {
     sourceCodeLink = sourceCodeLink.replace(/#(\d+)$/g, "#L$1");
 
     // Strip the / prefix from the link, as CS_BASE_URL already endsin '/'.
-    sourceCodeLink = sourceCodeLink.replace(/^[/]/,'');
+    sourceCodeLink = sourceCodeLink.replace(/^[/]/, "");
     assertNoDeadLink(ctx, sourceCodeLink);
     href = CS_BASE_URL + sourceCodeLink;
   }
   return originalLinkFn(href, title, text);
 }
 
+// Makes a diagram item, such as a Terminal, a link to `href`.
+function railroadLink(item, href) {
+  item.tagName = "a";
+  item.attrs.href = href;
+  return item;
+}
+
+// A ```railroad block is an expression over the railroad-diagrams
+// constructors, e.g. Diagram(Terminal('FROM'), NonTerminal('table')), plus
+// Link(item, href). ```railroad <name> labels the diagram with a rule name.
+function renderRailroad(text, name) {
+  const scope = { ...railroad, Link: railroadLink };
+  const names = Object.keys(scope);
+  const diagram = new Function(...names, `return (${text});`)(
+    ...names.map((n) => scope[n]),
+  );
+  const label = name ? `<div class="railroad-name">${name}</div>` : "";
+  return `<div class="railroad">${label}${diagram.toString()}</div>`;
+}
+
 function renderCode(text, lang) {
   if (lang === "mermaid") {
     return `<div class="mermaid">${text}</div>`;
+  }
+  const [kind, ...rest] = (lang || "").split(/\s+/);
+  if (kind === "railroad") {
+    return renderRailroad(text, rest.join(" "));
   }
 
   let hlHtml = "";
@@ -173,12 +217,45 @@ function renderCode(text, lang) {
   );
 }
 
+// Release notes routinely carry a screen recording. Markdown has no video
+// syntax, so `![alt](demo.mp4)` is written like an image and turned into a
+// player here -- which also means the file goes through the normal asset
+// pipeline and gets copied to the output like any screenshot.
+const VIDEO_EXTS = [".mp4", ".webm"];
+
+function isVideo(href) {
+  return VIDEO_EXTS.some((e) => href.toLowerCase().endsWith(e));
+}
+
+function renderVideo(href, text) {
+  const alt = text ? ` aria-label="${text}"` : "";
+  return (
+    `<video class="md-video" controls preload="metadata"${alt}>` +
+    `<source src="${href}">` +
+    `</video>`
+  );
+}
+
 function renderImage(ctx, originalImgFn, href, title, text) {
+  if (ctx.blogSlug !== undefined && !href.match(/^(https?:)|^#|^\//)) {
+    const src = path.join(path.dirname(ctx.mdFile), href);
+    if (!existsCached(src)) {
+      throw new Error(`Missing image '${href}'`);
+    }
+    ctx.assets.set(`blog/media/${ctx.blogSlug}/${href}`, src);
+    href = `/blog/media/${ctx.blogSlug}/${href}`;
+    return isVideo(href)
+      ? renderVideo(href, text)
+      : originalImgFn(href, title, text);
+  }
   const docsHref = hrefInDocs(ctx, href);
   if (docsHref !== undefined) {
     // Record it rather than copying: build.mjs owns the output map, and this
     // list doubles as the page's dynamic dependency set (the old depfile).
     ctx.assets.set(docsHref.replace(/^\//, ""), ROOT_DIR + docsHref);
+  }
+  if (isVideo(href)) {
+    return renderVideo(href, text);
   }
   if (href.endsWith(".svg")) {
     return `<object type="image/svg+xml" data="${href}"></object>`;
@@ -278,7 +355,11 @@ export function renderMarkdown(rawMarkdown, ctx) {
   const originalHtmlFn = renderer.html.bind(renderer);
   renderer.html = (html) => renderHtml(ctx, originalHtmlFn, html);
 
-  return marked.parse(rawMarkdown, { renderer: renderer });
+  // mangle:false disables marked's obfuscation of autolinked email addresses.
+  // That obfuscation picks hex-vs-decimal entities with Math.random(), so it
+  // made every build byte-different for no real benefit -- the addresses are
+  // plain text in the markdown source on GitHub anyway.
+  return marked.parse(rawMarkdown, { renderer: renderer, mangle: false });
 }
 
 // EJS templates are compiled once and reused across all ~150 pages.
@@ -298,6 +379,15 @@ export function resetTemplateCache() {
   templateCache.clear();
 }
 
+// The link preview image of a blog page: its cover, which is always a PNG
+// (explicit or generated). The index has no cover of its own and borrows the
+// newest post's.
+function ogImageUrl(post, siteUrl) {
+  if (post === undefined) return undefined;
+  const p = post.isIndex ? post.posts[0] : post;
+  return p === undefined ? undefined : `${siteUrl}/${p.cover.sitePath}`;
+}
+
 const FALLBACK_TITLE =
   "Perfetto - System profiling, app tracing and trace analysis";
 
@@ -307,18 +397,42 @@ const FALLBACK_TITLE =
 //   templatePath EJS template, or null to emit the bare markdown HTML (_nav).
 //   sitePath     output path relative to the site root, e.g. "docs/faq".
 //   nav          the rendered _nav.html fragment, or undefined.
-export function renderPage({ markdown, mdFile, templatePath, sitePath, nav }) {
-  const ctx = newContext(mdFile);
+//   siteUrl      origin for absolute URLs, e.g. "https://perfetto.dev".
+export function renderPage({
+  markdown,
+  mdFile,
+  templatePath,
+  sitePath,
+  nav,
+  post,
+  siteUrl = "https://perfetto.dev",
+}) {
+  const ctx = newContext(mdFile, post === undefined ? undefined : post.slug);
   const markdownHtml = markdown === null ? "" : renderMarkdown(markdown, ctx);
 
   if (!templatePath) {
     return { html: markdownHtml, assets: ctx.assets, title: ctx.title };
   }
 
+  // `post` is set on blog pages: a post record, or {isIndex, posts} for the
+  // blog index. A post's title comes from its front matter rather than the
+  // first <h1>, so it is already known here; the docs take whatever
+  // renderHeading() saw.
+  let title = ctx.title;
+  let suffix = " - Perfetto Tracing Docs";
+  if (post !== undefined) {
+    title = post.isIndex ? "Blog" : post.title;
+    suffix = post.isIndex ? " - Perfetto" : " - Perfetto Blog";
+  }
   const templateData = {
     markdown: markdownHtml,
-    title: ctx.title ? `${ctx.title} - Perfetto Tracing Docs` : FALLBACK_TITLE,
+    title: title ? `${title}${suffix}` : FALLBACK_TITLE,
     fileName: "/" + sitePath,
+    siteUrl,
+    post,
+    description: post === undefined ? undefined : post.summary,
+    ogType: post !== undefined && !post.isIndex ? "article" : undefined,
+    ogImage: ogImageUrl(post, siteUrl),
   };
   if (nav !== undefined) {
     templateData["nav"] = nav;

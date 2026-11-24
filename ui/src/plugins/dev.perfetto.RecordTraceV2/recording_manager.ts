@@ -262,9 +262,9 @@ export class RecordingManager {
     const presets = getPresetsForPlatform(this.currentPlatform);
     if (presets.length > 0) {
       this.loadConfig({
-        config: presets[0].session,
-        configId: `preset:${presets[0].id}`,
-        configName: presets[0].title,
+        config: presets[0]!.session,
+        configId: `preset:${presets[0]!.id}`,
+        configName: presets[0]!.title,
       });
     } else {
       this.clearSession();

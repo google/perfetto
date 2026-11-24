@@ -155,7 +155,7 @@ export function* generateTicks(
   ) {
     if (time >= timeSpan.start) {
       patternIndex = patternIndex % tickPattern.length;
-      const type = tickPattern[patternIndex];
+      const type = tickPattern[patternIndex]!;
       yield {type, time: Time.add(time, offset)};
     }
   }

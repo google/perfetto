@@ -69,7 +69,7 @@ base::MachineID GenerateMachineID(base::UnixSocket* sock,
       case base::SockFamily::kInet6:
         PERFETTO_FALLTHROUGH;
       case base::SockFamily::kVsock:
-        pos = host_id.rfind(":");
+        pos = host_id.rfind(':');
         if (pos != std::string::npos)
           host_id.resize(pos);
         break;

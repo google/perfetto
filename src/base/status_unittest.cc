@@ -16,6 +16,7 @@
 
 #include "perfetto/base/status.h"
 #include <string>
+#include <utility>
 
 #include "test/gtest_and_gmock.h"
 
@@ -67,6 +68,44 @@ TEST(StatusTest, SetMultipleAndDuplicate) {
   ASSERT_EQ(status.GetPayload("test.foo.com/bar"), "other_value");
   ASSERT_EQ(status.GetPayload("test.foo.com/bar1"), "1");
   ASSERT_EQ(status.GetPayload("test.foo.com/bar2"), "2");
+}
+
+TEST(StatusTest, OkHasEmptyMessage) {
+  Status status = OkStatus();
+  EXPECT_TRUE(status.ok());
+  EXPECT_EQ(status.message(), "");
+}
+
+TEST(StatusTest, CopyClonesError) {
+  Status error = ErrStatus("bad");
+  error.SetPayload("test.foo.com/bar", "1");
+  Status copy = error;
+  copy.SetPayload("test.foo.com/bar", "2");
+  EXPECT_EQ(copy.message(), "bad");
+  EXPECT_EQ(error.GetPayload("test.foo.com/bar"), "1");
+  EXPECT_EQ(copy.GetPayload("test.foo.com/bar"), "2");
+
+  copy = OkStatus();
+  EXPECT_TRUE(copy.ok());
+  copy = error;
+  EXPECT_EQ(copy.message(), "bad");
+}
+
+// Using a moved-from status is a bug, so it must not pass for ok.
+TEST(StatusTest, MovedFromIsAnError) {
+  Status ok = OkStatus();
+  Status error = ErrStatus("bad");
+  Status ok_moved = std::move(ok);
+  Status error_moved = std::move(error);
+  EXPECT_TRUE(ok_moved.ok());
+  EXPECT_EQ(error_moved.message(), "bad");
+  EXPECT_FALSE(ok.ok());     // NOLINT(bugprone-use-after-move)
+  EXPECT_FALSE(error.ok());  // NOLINT(bugprone-use-after-move)
+  EXPECT_EQ(error.message(), "Status accessed after move");
+
+  // A moved-from status can be assigned again.
+  error = ErrStatus("again");
+  EXPECT_EQ(error.message(), "again");
 }
 
 }  // namespace perfetto::base

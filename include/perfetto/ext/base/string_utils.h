@@ -173,8 +173,8 @@ inline std::optional<int64_t> StringViewToInt64(const base::StringView& sv,
 //   return StringViewToNumber<double>(sv);
 // }
 
-bool StartsWith(const std::string& str, const std::string& prefix);
-bool EndsWith(const std::string& str, const std::string& suffix);
+bool StartsWith(std::string_view str, std::string_view prefix);
+bool EndsWith(std::string_view str, std::string_view suffix);
 bool StartsWithAny(const std::string& str,
                    const std::vector<std::string>& prefixes);
 bool Contains(const std::string& haystack, const std::string& needle);
@@ -182,7 +182,9 @@ bool Contains(const std::string& haystack, char needle);
 bool Contains(const std::vector<std::string>& haystack,
               const std::string& needle);
 size_t Find(const StringView& needle, const StringView& haystack);
-bool CaseInsensitiveEqual(const std::string& first, const std::string& second);
+bool CaseInsensitiveEqual(std::string_view first, std::string_view second);
+bool CaseInsensitiveOneOf(std::string_view str,
+                          const std::vector<std::string_view>& others);
 std::string Join(const std::vector<std::string>& parts,
                  const std::string& delim);
 std::vector<std::string> SplitString(const std::string& text,
@@ -303,6 +305,9 @@ class StackString {
   }
 
   StringView string_view() const { return StringView(buf_, len_); }
+  std::string_view ToStdStringView() const {
+    return std::string_view(buf_, len_);
+  }
   std::string ToStdString() const { return std::string(buf_, len_); }
   const char* c_str() const { return buf_; }
   size_t len() const { return len_; }

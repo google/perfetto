@@ -53,7 +53,8 @@ interface CounterDetails {
   delta: number;
 
   // The rate: (F(N+1) - F(N)) / dt
-  rate: number;
+  // This can be null if the samples share the same timestamp.
+  rate: number | null;
 
   args?: ArgsDict;
 }
@@ -109,7 +110,10 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
       }),
       m(TreeNode, {
         left: 'Rate',
-        right: this.formatWithUnit(info.rate, 'rate'),
+        right:
+          info.rate === null
+            ? 'N/A (next sample has same timestamp)'
+            : this.formatWithUnit(info.rate, 'rate'),
       }),
     ];
   }
@@ -206,7 +210,7 @@ async function loadCounterDetails(
   const row = counter.iter({
     value: NUM,
     delta: NUM,
-    rate: NUM,
+    rate: NUM_NULL,
     leftTs: LONG,
     rightTs: LONG_NULL,
     argSetId: NUM_NULL,

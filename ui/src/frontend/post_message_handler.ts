@@ -22,24 +22,31 @@ import type {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME, isValidGcsFileName} from '../base/gcs_uploader';
 import {toArrayBuffer} from '../base/utils';
+import {TraceReadableStream} from '../core/trace_stream';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
-interface PostedTrace {
-  buffer: ArrayBuffer;
+interface PostedTraceBase {
   title: string;
-  fileName?: string;
-  url?: string;
 
   // The hash of the app state to load from GCS after the trace is loaded
   appStateHash?: string;
+
+  keepApiOpen?: boolean;
+}
+
+// A trace posted as a single in-memory buffer.
+export interface PostedBufferTrace extends PostedTraceBase {
+  kind: 'buffer';
+  buffer: ArrayBuffer;
+  fileName?: string;
+  url?: string;
 
   // Whether the UI may share the trace externally (e.g. upload it to GCS
   // as a permalink) and/or download it to disk. Both default to false:
   // traces pushed via postMessage are local-only unless the sender opts in.
   shareable?: boolean;
   downloadable?: boolean;
-  keepApiOpen?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
@@ -52,11 +59,37 @@ interface PostedTrace {
   pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }
 
-// The raw, un-sanitized trace as received over postMessage(). Senders routinely
-// pass a view (e.g. Uint8Array) for |buffer| despite PostedTrace typing it as a
-// pure ArrayBuffer, so model that here. sanitizePostedTrace() normalizes it.
-interface RawPostedTrace extends Omit<PostedTrace, 'buffer'> {
-  buffer: ArrayBuffer | ArrayBufferView;
+// A trace posted as a transferred ReadableStream. The stream is consumed while
+// loading and not retained, so it can't be shared, downloaded or cached.
+export interface PostedStreamTrace extends PostedTraceBase {
+  kind: 'stream';
+  stream: ReadableStream<unknown>;
+
+  // Total size of the stream for progress reporting; 0 means unknown.
+  bytesTotal: number;
+}
+
+export type PostedTrace = PostedBufferTrace | PostedStreamTrace;
+
+// The raw, un-sanitized trace as received over postMessage(). Nothing here can
+// be trusted: sanitizePostedTrace() validates it and converts it to a
+// PostedTrace.
+interface RawPostedTrace {
+  title: string;
+  appStateHash?: string;
+  keepApiOpen?: boolean;
+
+  // Exactly one of |buffer| and |stream| must be set. Senders routinely pass a
+  // view (e.g. Uint8Array) for |buffer|, so accept either.
+  buffer?: ArrayBuffer | ArrayBufferView;
+  stream?: ReadableStream<unknown>;
+  bytesTotal?: number;
+
+  fileName?: string;
+  url?: string;
+  shareable?: boolean;
+  downloadable?: boolean;
+  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 
   // Legacy field: senders that predate the shareable/downloadable split may
   // still pass |localOnly|. localOnly: false opts into both sharing and
@@ -146,6 +179,7 @@ export function parsePostedTrace(
     return sanitizePostedTrace(data.perfetto);
   } else if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
     return {
+      kind: 'buffer',
       title: 'External trace',
       // A bare buffer gives the sender no way to opt into sharing or
       // downloading, so both default to false (matching the wrapped path).
@@ -158,8 +192,8 @@ export function parsePostedTrace(
   }
 }
 
-// The message handler supports loading traces from an ArrayBuffer.
-// There is no other requirement than sending the ArrayBuffer as the |data|
+// The message handler supports loading traces from an ArrayBuffer or a
+// transferred ReadableStream. A bare ArrayBuffer can be sent as the |data|
 // property. However, since this will happen across different origins, it is not
 // possible for the source website to inspect whether the message handler is
 // ready, so the message handler always replies to a 'PING' message with 'PONG',
@@ -246,7 +280,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     return;
   }
 
-  if (postedTrace.buffer.byteLength === 0) {
+  if (postedTrace.kind === 'buffer' && postedTrace.buffer.byteLength === 0) {
     throw new Error('Incoming message trace buffer is empty');
   }
 
@@ -284,7 +318,18 @@ export function postMessageHandler(messageEvent: MessageEvent) {
         appState = parsedState.value;
       }
     }
-    AppImpl.instance.openTraceFromBuffer(postedTrace, appState);
+    switch (postedTrace.kind) {
+      case 'buffer':
+        AppImpl.instance.openTraceFromBuffer(postedTrace, appState);
+        break;
+      case 'stream':
+        AppImpl.instance.openTraceFromStream(
+          new TraceReadableStream(postedTrace.stream, postedTrace.bytesTotal),
+          postedTrace.title,
+          appState,
+        );
+        break;
+    }
   };
 
   const trustAndOpenTrace = () => {
@@ -329,22 +374,49 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   });
 }
 
-function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
+// Validates and normalizes a trace received over postMessage(). Returns
+// undefined unless exactly one of |buffer| and |stream| is valid.
+function sanitizePostedTrace(
+  postedTrace: RawPostedTrace,
+): PostedTrace | undefined {
+  const {buffer, stream} = postedTrace;
+  const base: PostedTraceBase = {
+    title: sanitizeString(postedTrace.title),
+    appStateHash: postedTrace.appStateHash,
+    keepApiOpen: postedTrace.keepApiOpen,
+  };
+
+  if (stream instanceof ReadableStream && buffer === undefined) {
+    return {
+      ...base,
+      kind: 'stream',
+      stream,
+      bytesTotal: sanitizeBytesTotal(postedTrace.bytesTotal),
+    };
+  }
+
+  // Anything other than an ArrayBuffer or a view (string, number, etc.) is
+  // rejected rather than slipping through and being treated as an ArrayBuffer
+  // downstream.
+  const isBinary = buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer);
+  if (!isBinary || stream !== undefined) {
+    return undefined;
+  }
+
   // Translate the legacy |localOnly| field. Absent localOnly defaults to true
   // (local-only); localOnly: false opts into both sharing and downloading.
   // Explicit shareable/downloadable fields win over the legacy field.
   const localOnly = postedTrace.localOnly ?? true;
-  const result: PostedTrace = {
-    title: sanitizeString(postedTrace.title),
+  const result: PostedBufferTrace = {
+    ...base,
+    kind: 'buffer',
     // Senders routinely pass a view (e.g. Uint8Array) despite the static type;
     // normalize to a pure ArrayBuffer at the boundary. See b/390473162.
-    buffer: toArrayBuffer(postedTrace.buffer),
-    keepApiOpen: postedTrace.keepApiOpen,
+    buffer: toArrayBuffer(buffer),
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace, unless the caller allows it.
     shareable: postedTrace.shareable ?? !localOnly,
     downloadable: postedTrace.downloadable ?? !localOnly,
-    appStateHash: postedTrace.appStateHash,
     pluginArgs: postedTrace.pluginArgs,
   };
   if (postedTrace.fileName !== undefined) {
@@ -354,6 +426,15 @@ function sanitizePostedTrace(postedTrace: RawPostedTrace): PostedTrace {
     result.url = sanitizeString(postedTrace.url);
   }
   return result;
+}
+
+// Returns the stream size for progress reporting, or 0 if it is unknown or
+// invalid.
+function sanitizeBytesTotal(bytesTotal: unknown): number {
+  if (typeof bytesTotal !== 'number' || !Number.isFinite(bytesTotal)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(bytesTotal));
 }
 
 function sanitizeString(str: string): string {
@@ -408,13 +489,6 @@ function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
   if (wrapped.perfetto === undefined) {
     return false;
   }
-  // Senders routinely pass a view (e.g. Uint8Array) for |buffer| despite the
-  // static ArrayBuffer type, so accept either. Anything else (string, number,
-  // undefined) is rejected here rather than slipping through and being treated
-  // as an ArrayBuffer downstream.
-  const buffer = wrapped.perfetto.buffer;
-  return (
-    (buffer instanceof ArrayBuffer || ArrayBuffer.isView(buffer)) &&
-    typeof wrapped.perfetto.title === 'string'
-  );
+  // The trace payload itself is validated by sanitizePostedTrace().
+  return typeof wrapped.perfetto.title === 'string';
 }

@@ -62,13 +62,10 @@ export class DistinctValuesSubmenu implements m.ClassComponent<DistinctValuesSub
     const {datasource, field, excludeNull, valueFormatter, onApply} = attrs;
 
     // Fetch distinct values - only called when submenu is visible
-    const {data, isPending} = datasource.useDistinctValues(field);
-
-    if (isPending || data === undefined) {
-      return m('.pf-distinct-values-menu', [
-        m(MenuItem, {label: 'Loading...', disabled: true}),
-      ]);
-    }
+    const {data = [], isPending} = datasource.useDistinctValues(
+      field,
+      this.searchQuery,
+    );
 
     // Filter out null if requested (use "is null" filter instead)
     const distinctValues = excludeNull ? data.filter((v) => v !== null) : data;
@@ -165,9 +162,11 @@ export class DistinctValuesSubmenu implements m.ClassComponent<DistinctValuesSub
                   disabled: true,
                 }),
             ]
-          : m(EmptyState, {
-              title: 'No matches',
-            }),
+          : isPending
+            ? m(MenuItem, {label: 'Loading...', disabled: true})
+            : m(EmptyState, {
+                title: 'No matches',
+              }),
       ),
       m('.pf-distinct-values-menu__footer', [
         m(MenuItem, {

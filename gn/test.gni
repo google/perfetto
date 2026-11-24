@@ -25,6 +25,7 @@ if (perfetto_root_path == "//") {
   import("//testing/test.gni")
 } else {
   assert(perfetto_build_with_embedder)
+
   template("test") {
     group(target_name) {
       not_needed(invoker, "*")

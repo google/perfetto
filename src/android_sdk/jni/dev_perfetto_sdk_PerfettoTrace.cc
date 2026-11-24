@@ -19,6 +19,7 @@
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h"
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 #include "src/android_sdk/jni/macros.h"
+#include "src/android_sdk/jni/register_natives.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/nativehelper/utils.h"
@@ -43,11 +44,6 @@ static jlong dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid(
   return sdk_for_jni::get_process_track_uuid();
 }
 
-static jlong dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid(
-    PERFETTO_JNI_HOST_PARAMS_COMMA jlong tid) {
-  return sdk_for_jni::get_thread_track_uuid(tid);
-}
-
 static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
                                                             jclass,
                                                             jstring name,
@@ -57,9 +53,10 @@ static void dev_perfetto_sdk_PerfettoTrace_activate_trigger(JNIEnv* env,
                                 static_cast<uint32_t>(ttl_ms));
 }
 
-void dev_perfetto_sdk_PerfettoTrace_register(JNIEnv*,
-                                             jclass,
-                                             bool is_backend_in_process) {
+static void dev_perfetto_sdk_PerfettoTrace_register(
+    JNIEnv*,
+    jclass,
+    jboolean is_backend_in_process) {
   sdk_for_jni::register_perfetto(is_backend_in_process);
 }
 
@@ -106,15 +103,14 @@ static jlong dev_perfetto_sdk_PerfettoTrace_start_session(
     jboolean is_backend_in_process,
     jbyteArray config_bytes) {
   jsize length = env->GetArrayLength(config_bytes);
-  std::vector<uint8_t> data;
-  data.reserve(length);
+  std::vector<uint8_t> data(static_cast<size_t>(length));
   env->GetByteArrayRegion(config_bytes, 0, length,
                           reinterpret_cast<jbyte*>(data.data()));
 
   auto session =
       new sdk_for_jni::Session(is_backend_in_process, data.data(), length);
 
-  return reinterpret_cast<long>(session);
+  return toJLong(session);
 }
 
 static jbyteArray dev_perfetto_sdk_PerfettoTrace_stop_session(
@@ -130,11 +126,28 @@ static jbyteArray dev_perfetto_sdk_PerfettoTrace_stop_session(
 
   delete session;
 
-  jbyteArray bytes = env->NewByteArray(data.size());
-  env->SetByteArrayRegion(bytes, 0, data.size(),
+  const jsize size = static_cast<jsize>(data.size());
+  jbyteArray bytes = env->NewByteArray(size);
+  if (bytes == nullptr) {
+    // Return with the pending exception from NewByteArray().
+    return nullptr;
+  }
+  env->SetByteArrayRegion(bytes, 0, size,
                           reinterpret_cast<jbyte*>(data.data()));
   return bytes;
 }
+
+// Lets Java probe whether the Perfetto natives are bound: it is registered
+// last, only once every other native is bound, and unregistered (like every
+// other native) if registration fails, in which case calling it throws
+// UnsatisfiedLinkError.
+static void dev_perfetto_sdk_PerfettoNativeLibrary_probe(
+    PERFETTO_JNI_HOST_PARAMS) {}
+
+static const JNINativeMethod gNativeLibraryMethods[] = {
+    {"native_probe", "()V",
+     (void*)dev_perfetto_sdk_PerfettoNativeLibrary_probe},
+};
 
 static const JNINativeMethod gCategoryMethods[] = {
     {"native_init", "(Ljava/lang/String;[Ljava/lang/String;)J",
@@ -152,8 +165,6 @@ static const JNINativeMethod gCategoryMethods[] = {
 static const JNINativeMethod gTraceMethods[] = {
     {"native_get_process_track_uuid", "()J",
      (void*)dev_perfetto_sdk_PerfettoTrace_get_process_track_uuid},
-    {"native_get_thread_track_uuid", "(J)J",
-     (void*)dev_perfetto_sdk_PerfettoTrace_get_thread_track_uuid},
     {"native_activate_trigger", "(Ljava/lang/String;I)V",
      (void*)dev_perfetto_sdk_PerfettoTrace_activate_trigger},
     {"native_register", "(Z)V", (void*)dev_perfetto_sdk_PerfettoTrace_register},
@@ -162,33 +173,82 @@ static const JNINativeMethod gTraceMethods[] = {
     {"native_stop_session", "(J)[B",
      (void*)dev_perfetto_sdk_PerfettoTrace_stop_session}};
 
-int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(
-      env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace"),
-      gTraceMethods, NELEM(gTraceMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register perfetto native methods.");
+static const NativeClass kTraceClasses[] = {
+    {TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace"),
+     gTraceMethods, NELEM(gTraceMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace$Category"),
+     gCategoryMethods, NELEM(gCategoryMethods)},
+};
 
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace$Category"),
-      gCategoryMethods, NELEM(gCategoryMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register category native methods.");
+static bool register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
+  return RegisterNativeClassesMayFail(env, kTraceClasses, NELEM(kTraceClasses));
+}
 
-  return 0;
+static void unregister_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
+  UnregisterNativeClasses(env, kTraceClasses, NELEM(kTraceClasses));
+}
+
+static const NativeClass kNativeLibraryClasses[] = {
+    {TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoNativeLibrary"),
+     gNativeLibraryMethods, NELEM(gNativeLibraryMethods)},
+};
+
+static bool register_dev_perfetto_sdk_PerfettoNativeLibrary(JNIEnv* env) {
+  return RegisterNativeClassesMayFail(env, kNativeLibraryClasses,
+                                      NELEM(kNativeLibraryClasses));
+}
+
+static void unregister_dev_perfetto_sdk_PerfettoNativeLibrary(JNIEnv* env) {
+  UnregisterNativeClasses(env, kNativeLibraryClasses,
+                          NELEM(kNativeLibraryClasses));
 }
 
 }  // namespace jni
 }  // namespace perfetto
 
-JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+#ifdef PERFETTO_JNI_ART_STATIC_INTEGRATION
+// If building for ART static integration (e.g. Libcore), give it a unique name
+// so we can call it manually
+extern "C" jint JNI_OnLoad_Perfetto(JavaVM* vm, void* /*reserved*/) {
+#else
+// If building as a standalone library, keep the standard name
+JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
+#endif
   JNIEnv* env;
   if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
     return JNI_ERR;
   }
 
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrace(env);
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoTrackEventExtra(env);
-  perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(env);
+  // Registration failures must never abort the process: in the ART static
+  // integration this runs during runtime startup of every process (including
+  // zygote), so an abort would bootloop the device. Instead, attempt every
+  // registration (so all failures get logged) and report the failure via the
+  // return value. Callers handle that gracefully: libcore logs and skips
+  // Perfetto JNI, while System.loadLibrary() throws UnsatisfiedLinkError.
+  // See ag/43011617.
+  bool ok = perfetto::jni::register_dev_perfetto_sdk_PerfettoTrace(env);
+  ok &= perfetto::jni::register_dev_perfetto_sdk_PerfettoTrackEventExtra(env);
+  ok &=
+      perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(env);
+  // Register the availability probe (see PerfettoNativeLibrary.java) last, and
+  // only if everything else succeeded: a bound probe then guarantees that every
+  // other native is bound, even if the rollback below were to fail.
+  if (ok) {
+    ok = perfetto::jni::register_dev_perfetto_sdk_PerfettoNativeLibrary(env);
+  }
+  if (!ok) {
+    // Roll back any partial registration so that Java never observes a
+    // half-bound SDK (e.g. Category.register() working while the
+    // TrackEventExtra natives are missing).
+    perfetto::jni::unregister_dev_perfetto_sdk_PerfettoTrace(env);
+    perfetto::jni::unregister_dev_perfetto_sdk_PerfettoTrackEventExtra(env);
+    perfetto::jni::unregister_dev_perfetto_sdk_PerfettoNativeMemoryCleaner(env);
+    perfetto::jni::unregister_dev_perfetto_sdk_PerfettoNativeLibrary(env);
+    __android_log_print(ANDROID_LOG_ERROR, "PerfettoJNI",
+                        "Perfetto JNI registration failed; Perfetto Java SDK "
+                        "tracing will be unavailable.");
+    return JNI_ERR;
+  }
 
   return JNI_VERSION_1_6;
 }

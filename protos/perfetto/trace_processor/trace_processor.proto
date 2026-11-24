@@ -24,7 +24,7 @@ import "protos/perfetto/trace_summary/file.proto";
 
 // This file defines the schema for {,un}marshalling arguments and return values
 // when interfacing to the trace processor binary interface.
-
+//
 // The Trace Processor can be used in three modes:
 // 1. Fully native from C++ or directly using trace_processor_shell.
 //    In this case, this file isn't really relevant because no binary
@@ -36,7 +36,6 @@ import "protos/perfetto/trace_summary/file.proto";
 // 3. Using the HTTP+RPC interface, by running trace_processor_shell -D.
 //    In this case these messages are used to {,un}marshall HTTP requests and
 //    response made through src/trace_processor/rpc/httpd.cc .
-
 enum TraceProcessorApiVersion {
   // This variable has been introduced in v15 and is used to deal with API
   // mismatches between UI and trace_processor_shell --httpd.
@@ -70,7 +69,6 @@ enum TraceProcessorApiVersion {
 // Each message is prefixed by a tag (field = 1, type = length delimited) and a
 // varint encoding its size (this is so the whole stream can also be read /
 // written as if it was a repeated field of TraceProcessorRpcStream).
-
 message TraceProcessorRpcStream {
   repeated TraceProcessorRpc msg = 1;
 }
@@ -133,7 +131,6 @@ message TraceProcessorRpc {
 
   // Request/Response arguments.
   // Not all requests / responses require an argument.
-
   oneof args {
     // TraceProcessorMethod request args.
 

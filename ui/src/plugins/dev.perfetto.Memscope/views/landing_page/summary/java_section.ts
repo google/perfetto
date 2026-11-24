@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "How much Java memory did you use, and where did it go?" — from the full
-// heap graph: reachability, totals and the three top-classes tables, for the
-// latest heap dump of one process. Self-contained: owns its query slot and
-// loading logic.
+// "Java Memory" - from the full heap graph: reachability, totals and the three
+// top-classes tables, for the latest heap dump of one process. Self-contained:
+// owns its query slot and loading logic.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
@@ -43,14 +43,11 @@ import {
   shortClassName,
   topTable,
 } from '../section_widgets';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
-const TITLE = 'How much Java memory did you use, and where did it go?';
-const SUBTITLE =
-  'From the full heap graph — complete and exact, with retention but no ' +
-  'callstacks.';
+const TITLE = 'Java Memory';
 
 // Per-class aggregation row at a dump. All sizes/counts are reachable-only (see
 // landing_page_spec.md): unreachable garbage is excluded so the three tables'
@@ -247,10 +244,10 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
 // (app/third-party) ancestor of each object. Instances of one class can resolve
 // to different owners, so we report up to RETAINER_MAX_VIAS of them, each with
 // the bytes attributed to it (the shallow size of the library objects that
-// terminate at that owner — a clean partition, not the overlapping dominated
+// terminate at that owner - a clean partition, not the overlapping dominated
 // sizes shown in the table). When the chain reaches the super root without
-// passing through an app class — i.e. the object is held directly by the GC
-// root set — the retainer is reported as "GC root". Wrapped defensively: a heap
+// passing through an app class - i.e. the object is held directly by the GC
+// root set - the retainer is reported as "GC root". Wrapped defensively: a heap
 // graph without a dominator tree yields an empty map.
 //
 // At most this many distinct owners are surfaced per class, ...
@@ -265,7 +262,7 @@ async function loadRetainers(
   const retainerOf = new Map<string, ClassRetainer[]>();
   try {
     await trace.engine.query(
-      'INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;',
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;',
     );
     await trace.engine.query('INCLUDE PERFETTO MODULE graphs.scan;');
     const res = await trace.engine.query(`
@@ -314,7 +311,7 @@ async function loadRetainers(
         FROM _graph_scan!(
           (
             SELECT d.idom_id AS source_node_id, d.id AS dest_node_id
-            FROM _raw_heap_graph_dominator_tree d
+            FROM heap_graph_dominator_tree d
             JOIN obj ob ON ob.id = d.id
             WHERE d.idom_id IS NOT NULL
           ),
@@ -322,7 +319,7 @@ async function loadRetainers(
             SELECT ob.id,
               CASE WHEN ob.is_app = 1 THEN ob.id ELSE -1 END AS nearest_app_id
             FROM obj ob
-            JOIN _raw_heap_graph_dominator_tree d ON d.id = ob.id
+            JOIN heap_graph_dominator_tree d ON d.id = ob.id
             WHERE d.idom_id IS NULL
           ),
           (nearest_app_id),
@@ -403,14 +400,14 @@ async function loadRetainers(
     // Drop trailing owners that are tiny next to the class's biggest one; the
     // SQL already ordered each list largest-first.
     for (const [cls, list] of retainerOf) {
-      const cutoff = list[0].bytes * RETAINER_MIN_SHARE;
+      const cutoff = list[0]!.bytes * RETAINER_MIN_SHARE;
       retainerOf.set(
         cls,
         list.filter((r) => r.bytes >= cutoff),
       );
     }
   } catch {
-    // No dominator tree (e.g. non-Android heap graph) — skip the annotation.
+    // No dominator tree (e.g. non-Android heap graph) - skip the annotation.
   }
   return retainerOf;
 }
@@ -467,12 +464,11 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       // }),
     }).data;
     if (data === undefined) {
-      return loadingPanel({title: TITLE, subtitle: SUBTITLE}); // Still loading.
+      return loadingPanel({title: TITLE}); // Still loading.
     }
     if (data.dumps.length === 0) {
       return emptyPanel({
         title: TITLE,
-        subtitle: SUBTITLE,
         message: 'No Java heap graph in this trace for this process',
         detail: 'Capture a java_hprof dump to see the managed heap',
       });
@@ -483,7 +479,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
     const baseDump =
       baseTs !== undefined ? nearestByTs(data.dumps, baseTs) : undefined;
     // Both endpoints can resolve to the same dump (dumps are sparser than
-    // smaps snapshots) — that's not a comparison.
+    // smaps snapshots) - that's not a comparison.
     const baseStats =
       baseDump !== undefined && baseDump.ts !== cur.ts ? baseDump : undefined;
     const comparing = baseStats !== undefined;
@@ -530,11 +526,13 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       baseTotal: number,
     ): m.Children => {
       const frac = total > 0 ? value / total : 0;
-      if (!comparing) return m(ShareBar, {frac});
+      if (!comparing) return m(ProgressBar, {pct: frac * 100});
       const baseFrac =
         baseValue !== undefined && baseTotal > 0 ? baseValue / baseTotal : 0;
-      return withDelta(m(ShareBar, {frac}), (frac - baseFrac) * 100, (n) =>
-        n === 0 ? '±0 pts' : `${n > 0 ? '+' : ''}${n.toFixed(1)} pts`,
+      return withDelta(
+        m(ProgressBar, {pct: frac * 100}),
+        (frac - baseFrac) * 100,
+        (n) => (n === 0 ? '±0 pts' : `${n > 0 ? '+' : ''}${n.toFixed(1)} pts`),
       );
     };
     const unreachableHeap = cur.totalHeapSize - cur.reachableHeapSize;
@@ -555,7 +553,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
         m('b', shortClassName(topRetainer.typeName)),
         ' retains ',
         m('b', formatBytes(retained)),
-        ' — ',
+        ' - ',
         m(
           'b',
           `${Math.round((retained / reachableTotal) * 100)}% of the ` +
@@ -573,7 +571,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
     }
 
     // All three class tables show the same five reachable-only columns
-    // (Class · Instances · Shallow · Retained · Share); only the ranking and
+    // (Class - Instances - Shallow - Retained - Share); only the ranking and
     // the share denominator differ. `shareMetric` selects the value the share
     // bar measures and `shareTotal`/`shareBaseTotal` its denominator.
     const classCols = [
@@ -597,7 +595,11 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName)),
+        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
+          trace.plugins
+            .getPlugin(HeapDumpExplorerPlugin)
+            .updateHeadDump(upid, cur.ts),
+        ),
         withDelta(
           c.reachableObjCount.toLocaleString(),
           b !== undefined
@@ -614,7 +616,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
         withDelta(
           c.reachableNativeSizeBytes > 0
             ? formatBytes(c.reachableNativeSizeBytes)
-            : '—',
+            : '-',
           b !== undefined
             ? c.reachableNativeSizeBytes - b.reachableNativeSizeBytes
             : undefined,
@@ -672,7 +674,6 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        subtitle: SUBTITLE,
         controls: [
           showInTimelineLink(
             trace,
@@ -699,7 +700,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
             m(
               'span.pf-memscope-memmap__section-hint',
               comparing && baseIdx !== undefined
-                ? `dumps #${baseIdx + 1} → #${selIdx + 1} · Δ vs baseline`
+                ? `dumps #${baseIdx + 1} → #${selIdx + 1} - Δ vs baseline`
                 : `dump #${selIdx + 1} of ${data.dumps.length}`,
             ),
           ]),
@@ -726,7 +727,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
                       cur.totalObjCount - baseStats.totalObjCount,
                       `Δ ${formatCountDelta(cur.totalObjCount - baseStats.totalObjCount)} vs baseline`,
                     )
-                  : `${cur.reachableObjCount.toLocaleString()} reach · ` +
+                  : `${cur.reachableObjCount.toLocaleString()} reach - ` +
                     `${(
                       cur.totalObjCount - cur.reachableObjCount
                     ).toLocaleString()} unreach`,

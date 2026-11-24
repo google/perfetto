@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/row_estimate.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 
@@ -42,19 +43,6 @@ namespace perfetto::trace_processor::core::dataframe {
 // null bitvectors and index materialization are all decisions about *how* to
 // run an operation and belong to whatever lowers this plan.
 namespace logical {
-
-// The number of rows flowing into or out of an operation.
-struct RowEstimate {
-  // The most rows there can possibly be.
-  uint32_t max = 0;
-
-  // The number of rows the planner expects.
-  uint32_t estimated = 0;
-
-  bool operator==(const RowEstimate& o) const {
-    return max == o.max && estimated == o.estimated;
-  }
-};
 
 // How the planner chose to evaluate a filter. This is an annotation, not part
 // of the filter's meaning: dropping it leaves the predicate intact.
@@ -195,12 +183,33 @@ struct LogicalPlan {
   uint32_t filter_value_count = 0;
 
   // Rows the whole plan produces.
-  logical::RowEstimate rows;
+  core::RowEstimate rows;
 
   // Renders the plan one operation per line. For debugging and tests; not
   // parsed back.
   std::string ToString() const;
 };
+
+// The index serving the most of `all_specs` not already handled, and those
+// specs in the index's column order: an equality or IN on each of its
+// leading columns, ending at the first IN. Null if no index serves any, or
+// there are too few rows for one to help.
+struct BestIndex {
+  uint32_t best_index_idx;
+  std::vector<uint32_t> best_index_specs;
+};
+std::optional<BestIndex> GetBestIndexForFilterSpecs(
+    uint32_t max_row_count,
+    const std::vector<FilterSpec>& all_specs,
+    const std::vector<uint8_t>& spec_already_handled,
+    const std::vector<Index>& indexes);
+
+// How `op` on `col` is answered by searching the column rather than testing
+// its rows, if it can be: the column must be sorted and hold no nulls, and
+// `op` one which keeps a contiguous run of its rows. Each strategy narrows a
+// range of rows; see filter_kernels.h for the searches.
+std::optional<logical::FilterStrategy> SortedFilterStrategy(const Column& col,
+                                                            const Op& op);
 
 // Chooses how a query should be run and records that as a LogicalPlan.
 //

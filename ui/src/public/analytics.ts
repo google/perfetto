@@ -14,10 +14,26 @@
 
 import type {ErrorDetails} from '../base/logging';
 
-export type TraceCategories = 'Trace Actions' | 'Record Trace' | 'User Actions';
+// An event that any plugin can send with Analytics.logEvent(). Each kind of
+// event has a unique `kind`, which is how code tells them apart.
+export type BasicAnalyticsEvent = PageViewEvent | ActionEvent;
+
+// The user opened a page, e.g. '/viewer' ('' for the home page).
+export interface PageViewEvent {
+  readonly kind: 'page_view';
+  readonly page: string;
+}
+
+// The user did something, e.g. 'Download trace'.
+export interface ActionEvent {
+  readonly kind: 'action';
+  // Groups the action in reports. Can be left out if none of these fit.
+  readonly category?: 'Trace Actions' | 'Record Trace' | 'User Actions';
+  readonly action: string;
+}
 
 export interface Analytics {
-  logEvent(category: TraceCategories | null, event: string): void;
+  logEvent(event: BasicAnalyticsEvent): void;
   logError(err: ErrorDetails): void;
   isEnabled(): boolean;
 }

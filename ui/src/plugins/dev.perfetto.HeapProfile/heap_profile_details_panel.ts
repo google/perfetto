@@ -14,18 +14,18 @@
 
 import m from 'mithril';
 
+import {download} from '../../base/download_utils';
 import {extensions} from '../../components/extensions';
 import type {time} from '../../base/time';
 import {
   type TreeExplorerQueryMetric,
+  TreeExplorerFetcher,
   metricsFromTableOrSubquery,
 } from '../../components/tree_explorer_fetcher';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {FlamegraphProfile} from '../../components/flamegraph_profile';
-import {
-  type PprofProfileType,
-  convertTraceToPprofAndDownload,
-} from '../../frontend/trace_converter';
+import {type PprofProfileType, convertTrace} from '../../base/trace_converter';
+
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {
   TrackEventDetailsPanel,
@@ -52,11 +52,26 @@ import {Icon} from '../../widgets/icon';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
+  mergedClassNodeIcon,
+  mergedClassNodeTooltipRenderer,
+} from '../../components/merged_class_flamegraph_hooks';
+import {
+  MERGED_CLASS_FLAMEGRAPH_PROPERTY,
+  MERGED_CLASS_PROPERTY,
+  mergedClassColumnSql,
+} from './merged_class_sql';
+import {
   buildOomeCallstackMetrics,
   loadOomeDetails,
   renderOomeDetails,
   type OomeDetails,
 } from './oome_callstack_common';
+
+// Flag potentially merged classes in heap graph flamegraphs.
+const MERGED_CLASS_NODE_ICON = mergedClassNodeIcon(MERGED_CLASS_PROPERTY);
+const MERGED_CLASS_NODE_TOOLTIP = mergedClassNodeTooltipRenderer(
+  MERGED_CLASS_PROPERTY,
+);
 
 const DOCS_NATIVE_HEAP_PROFILER =
   'https://perfetto.dev/docs/data-sources/native-heap-profiler';
@@ -178,7 +193,9 @@ interface Props {
   type: ProfileType;
 }
 
-export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel {
+export class HeapProfileFlamegraphDetailsPanel
+  implements TrackEventDetailsPanel, Disposable
+{
   private readonly props: Props;
   private flamegraphModalDismissed = false;
   private oomeDetails?: OomeDetails;
@@ -194,6 +211,11 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
   };
 
   readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
+
+  // Created next to the metrics it serves and owned by this panel: whoever
+  // replaces the panel is responsible for disposing it (see the area-selection
+  // tab and track details panel which create these panels).
+  private readonly fetcher: TreeExplorerFetcher;
 
   constructor(
     private readonly trace: Trace,
@@ -231,6 +253,11 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
       this.state = createDefaultTreeExplorerState(this.metrics);
       onStateChange(this.state);
     }
+    this.fetcher = new TreeExplorerFetcher(this.trace, this.metrics);
+  }
+
+  [Symbol.dispose](): void {
+    this.fetcher[Symbol.dispose]();
   }
 
   async load() {
@@ -277,14 +304,20 @@ export class HeapProfileFlamegraphDetailsPanel implements TrackEventDetailsPanel
           ),
         },
         m(TreeExplorerPanel, {
-          trace: this.trace,
-          metrics: this.metrics,
+          fetcher: this.fetcher,
           state: this.state,
           onStateChange: (state) => {
             this.state = state;
             this.onStateChange(state);
           },
           extraDownloadItems: this.pprofDownloadItems(type, ts),
+          // Only heap graph metrics have the potentially_merged column.
+          ...(type === ProfileType.JAVA_HEAP_GRAPH
+            ? {
+                nodeIcon: MERGED_CLASS_NODE_ICON,
+                renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
+              }
+            : {}),
         }),
       ),
     );
@@ -433,13 +466,15 @@ function flamegraphMetrics(
               heap_type,
               self_size as value,
               self_count,
-              path_hash_stable
-            from _heap_graph_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -475,13 +510,15 @@ function flamegraphMetrics(
               heap_type,
               self_size,
               self_count as value,
-              path_hash_stable
-            from _heap_graph_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -512,13 +549,15 @@ function flamegraphMetrics(
               heap_type,
               self_size as value,
               self_count,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -554,13 +593,15 @@ function flamegraphMetrics(
               heap_type,
               self_size,
               self_count as value,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -692,12 +733,21 @@ async function downloadPprof(
     return;
   }
   const blob = await trace.getTraceFile();
-  await convertTraceToPprofAndDownload(
-    blob,
+  const result = await convertTrace(blob, {
+    format: 'pprof',
     profileType,
-    pid.firstRow({pid: NUM}).pid,
+    pid: pid.firstRow({pid: NUM}).pid,
     ts,
-  );
+    onStatus: (s) => trace.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    showModal({
+      title: 'Pprof conversion failed',
+      content: m('div', result.error.message),
+    });
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 function getHeapGraphDuplicateObjectsView(

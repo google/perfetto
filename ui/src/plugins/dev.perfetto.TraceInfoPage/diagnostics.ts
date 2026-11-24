@@ -27,6 +27,7 @@ import {Section} from '../../widgets/section';
 import {Icon} from '../../widgets/icon';
 import {clamp} from '../../base/math_utils';
 import {createStatusCards, loadOverviewData} from './tabs/overview_data';
+import type {HTMLAttrs} from '../../widgets/common';
 
 // Diagnostics with a confidence above this are treated as high severity: they
 // trigger the auto-opened details tab.
@@ -174,22 +175,22 @@ function renderCardHeader(title: string, confidence: number): m.Children {
 // coloured left border.
 // ============================================================================
 
-export interface DiagnosticCardAttrs {
+export interface DiagnosticCardAttrs extends HTMLAttrs {
   readonly diagnostic: Diagnostic;
-  readonly onclick: () => void;
 }
 
 export class DiagnosticCard implements m.ClassComponent<DiagnosticCardAttrs> {
   view({attrs}: m.CVnode<DiagnosticCardAttrs>): m.Children {
-    const {diagnostic} = attrs;
+    const {diagnostic, ...htmlAttrs} = attrs;
     return m(
       Card,
       {
+        ...htmlAttrs,
+        interactive: true,
         className:
           'pf-trace-info-page__diagnostic-card ' +
           'pf-trace-info-page__status-card--clickable',
         style: {borderLeftColor: severityBucketColor(diagnostic.confidence)},
-        onclick: attrs.onclick,
       },
       renderCardHeader('Trace config issue', diagnostic.confidence),
       m(

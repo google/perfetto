@@ -38,6 +38,8 @@ struct UnixServerArgs {
   IdleStart idle_start = IdleStart::kAuto;
   // If true, detach into the background (POSIX only) before serving.
   bool daemonize = false;
+  // Keep the machine-readable startup record but suppress usage hints.
+  bool quiet = false;
 };
 
 // Runs an RPC server over an AF_UNIX socket at |args.socket_path|, serving the

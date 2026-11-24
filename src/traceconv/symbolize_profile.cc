@@ -33,8 +33,11 @@ namespace trace_to_text {
 // be prepended to the profile to attach the symbol information.
 base::Status SymbolizeProfile(std::istream* input,
                               std::ostream* output,
-                              bool verbose) {
+                              bool verbose,
+                              bool quiet,
+                              const profiling::DebuginfodConfig& debuginfod) {
   profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
 
   const char* breakpad_dir = getenv("BREAKPAD_SYMBOL_DIR");
   if (breakpad_dir != nullptr) {
@@ -51,12 +54,13 @@ base::Status SymbolizeProfile(std::istream* input,
 
   if (sym_config.index_symbol_paths.empty() &&
       sym_config.find_symbol_paths.empty() &&
-      sym_config.breakpad_paths.empty()) {
+      sym_config.breakpad_paths.empty() && debuginfod.urls.empty()) {
     return base::ErrStatus(
         "no symbol paths configured: set the PERFETTO_BINARY_PATH "
         "environment variable to a colon-separated list of directories "
         "containing the unstripped binaries (or BREAKPAD_SYMBOL_DIR for "
-        "Breakpad symbol files) and try again");
+        "Breakpad symbol files), or pass --debuginfod with "
+        "--debuginfod-urls to download debug files by build ID");
   }
 
   trace_processor::Config config;
@@ -73,7 +77,7 @@ base::Status SymbolizeProfile(std::istream* input,
   }
 
   auto result =
-      profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose);
+      profiling::SymbolizeDatabaseAndLog(tp.get(), sym_config, verbose, quiet);
   if (result.error != profiling::SymbolizerError::kOk) {
     return base::ErrStatus("symbolization failed: %s",
                            result.error_details.c_str());

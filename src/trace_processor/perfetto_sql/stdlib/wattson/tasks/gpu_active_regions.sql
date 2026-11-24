@@ -13,15 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.gpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.gpu.freq_idle;
 
 INCLUDE PERFETTO MODULE wattson.tasks.gpu_tasks;
-
-INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Step 1: Find active GPU regions (contiguous freq > 0)
 CREATE PERFETTO TABLE _gpu_active_regions AS
@@ -54,18 +50,8 @@ GROUP BY
 
 -- Step 2: Find tasks within active regions
 CREATE PERFETTO TABLE _gpu_active_region_tasks AS
-SELECT ii.ts, ii.dur, ta.uid, id_0 AS region_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_gpu_active_regions),
-    _ii_subquery!(_gpu_tasks)
-  ),
-  ()
-) AS ii
-JOIN _gpu_active_regions AS p
-  ON p._auto_id = id_0
-JOIN _gpu_tasks AS ta
-  ON ta._auto_id = id_1;
+INTERVAL INTERSECTION OF (_gpu_active_regions AS region, _gpu_tasks AS task)
+|> SELECT ts, dur, task.uid, region.group_id AS region_id;
 
 -- Step 3: Find active region task boundaries
 CREATE PERFETTO VIEW _gpu_active_region_boundaries AS
@@ -91,22 +77,12 @@ GROUP BY
   region_id;
 
 -- Step 4: Classify gaps within active regions
-CREATE PERFETTO TABLE _all_gaps AS
-SELECT ts, dur FROM _gpu_active_task_count WHERE active_tasks = 0;
-
 CREATE PERFETTO TABLE _gaps_in_active_regions AS
-SELECT ii.ts, ii.dur, id_0 AS region_id
-FROM _interval_intersect!(
-  (
-    (SELECT _auto_id AS id, ts, dur FROM _gpu_active_regions),
-    (SELECT _auto_id AS id, ts, dur FROM _all_gaps)
-  ),
-  ()
-) AS ii
-JOIN _gpu_active_regions AS p
-  ON p._auto_id = id_0
-JOIN _all_gaps AS g
-  ON g._auto_id = id_1;
+INTERVAL INTERSECTION OF (
+  _gpu_active_regions AS region,
+  (SELECT ts, dur FROM _gpu_active_task_count WHERE active_tasks = 0) AS gap
+)
+|> SELECT ts, dur, region.group_id AS region_id;
 
 CREATE PERFETTO TABLE _gpu_active_region_gaps AS
 SELECT
@@ -114,7 +90,7 @@ SELECT
   g.dur,
   CASE
     WHEN b.min_ts IS NULL THEN -1
-    WHEN g.ts + g.dur <= b.min_ts THEN b.first_uid
+    WHEN g.ts + g.dur <= b.min_ts THEN coalesce(b.first_uid, -1)
     ELSE -1
   END AS uid
 FROM _gaps_in_active_regions AS g
@@ -122,15 +98,8 @@ JOIN _gpu_active_region_boundaries AS b ON g.region_id = b.region_id;
 
 -- Step 5: Final Gap Attribution with Power
 CREATE PERFETTO TABLE _gpu_gap_attribution AS
-SELECT ii.ts, ii.dur, coalesce(ta.uid, -1) AS uid, p.gpu_mw AS estimated_mw
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_gpu_active_region_gaps),
-    _ii_subquery!(_gpu_estimates_mw)
-  ),
-  ()
-) AS ii
-JOIN _gpu_active_region_gaps AS ta
-  ON ta._auto_id = id_0
-JOIN _gpu_estimates_mw AS p
-  ON p._auto_id = id_1;
+INTERVAL INTERSECTION OF (
+  _gpu_active_region_gaps AS gap,
+  _gpu_estimates_mw AS power
+)
+|> SELECT ts, dur, gap.uid, power.gpu_mw AS estimated_mw;

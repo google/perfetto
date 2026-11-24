@@ -27,7 +27,6 @@
 
 using ::testing::_;
 using ::testing::Eq;
-using ::testing::InvokeWithoutArgs;
 using ::testing::Property;
 
 namespace perfetto {
@@ -104,7 +103,7 @@ void MockProducer::RegisterDataSource(
   ds_desc.set_handles_incremental_state_clear(handle_incremental_state_clear);
   ds_desc.set_no_flush(no_flush);
   if (protovm_program) {
-    *ds_desc.mutable_protovm_program() = *protovm_program;
+    ds_desc.set_protovm_program_raw(protovm_program->SerializeAsString());
   }
   service_endpoint_->RegisterDataSource(ds_desc);
 }
@@ -192,8 +191,7 @@ void MockProducer::WaitForDataSourceStop(const std::string& name) {
   auto on_ds_stop = task_runner_->CreateCheckpoint(checkpoint_name);
   ASSERT_EQ(1u, data_source_instances_.count(name));
   DataSourceInstanceID ds_id = data_source_instances_[name].id;
-  EXPECT_CALL(*this, StopDataSource(ds_id))
-      .WillOnce(InvokeWithoutArgs(on_ds_stop));
+  EXPECT_CALL(*this, StopDataSource(ds_id)).WillOnce(on_ds_stop);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   data_source_instances_.erase(name);
 }

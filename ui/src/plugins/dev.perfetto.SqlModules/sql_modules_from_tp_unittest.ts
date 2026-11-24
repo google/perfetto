@@ -16,6 +16,7 @@ import protos from '../../protos';
 import type {Trace} from '../../public/trace';
 import {createQueryResult} from '../../trace_processor/query_result';
 import {loadSqlModulesFromTp} from './sql_modules_from_tp';
+import type {StdlibModuleImpl} from './sql_modules_impl';
 
 const CELL_TYPE = protos.QueryResult.CellsBatch.CellType;
 
@@ -81,6 +82,65 @@ function makeQueryResult(rows: readonly ObjectRow[]) {
   result.appendResultBatch(protos.QueryResult.encode(resultProto).finish());
   return result;
 }
+
+function makeIncludesResult(rows: ReadonlyArray<readonly [string, string]>) {
+  const batch = protos.QueryResult.CellsBatch.create({
+    cells: rows.flatMap(() => [CELL_TYPE.CELL_STRING, CELL_TYPE.CELL_STRING]),
+    stringCells: rows.flat().join('\0'),
+    isLastBatch: true,
+  });
+  const resultProto = protos.QueryResult.create({
+    columnNames: ['module', 'included_module'],
+    batch: [batch],
+  });
+  const result = createQueryResult({query: 'stdlib includes'});
+  result.appendResultBatch(protos.QueryResult.encode(resultProto).finish());
+  return result;
+}
+
+const METADATA = {
+  modules: {'test.module': {tags: ['test'], data_check_sql: null}},
+  tables: {test_table: {importance: 'high' as const, data_check_sql: null}},
+};
+
+function makeModuleRow() {
+  return makeQueryResult([
+    ['test', 'test.module', 'test.module', 'MODULE', '', 1, '', '', '[]', '[]'],
+  ]);
+}
+
+test('reads module includes from trace processor', async () => {
+  const trace = {
+    engine: {
+      query: async () => makeModuleRow(),
+      tryQuery: async () => ({
+        ok: true,
+        value: makeIncludesResult([['test.module', 'other.module']]),
+      }),
+    },
+  } as unknown as Trace;
+
+  const sqlModules = await loadSqlModulesFromTp(trace, METADATA);
+
+  expect((sqlModules.listModules()[0] as StdlibModuleImpl).includes).toEqual([
+    'other.module',
+  ]);
+});
+
+test('has no includes if trace processor does not expose them', async () => {
+  const trace = {
+    engine: {
+      query: async () => makeModuleRow(),
+      tryQuery: async () => ({ok: false, error: 'no such table'}),
+    },
+  } as unknown as Trace;
+
+  const sqlModules = await loadSqlModulesFromTp(trace, METADATA);
+
+  expect((sqlModules.listModules()[0] as StdlibModuleImpl).includes).toEqual(
+    [],
+  );
+});
 
 test('loads the unified stdlib object catalog', async () => {
   const entry = (name: string, type: string) =>
@@ -155,30 +215,22 @@ test('loads the unified stdlib object catalog', async () => {
         queries.push(sql);
         return result;
       },
+      tryQuery: async () => ({ok: true, value: makeIncludesResult([])}),
     },
   } as unknown as Trace;
 
-  const sqlModules = await loadSqlModulesFromTp(trace, {
-    'test.module': {
-      tags: ['test'],
-      includes: [],
-      data_check_sql: null,
-      tables: {
-        test_table: {importance: 'high', data_check_sql: null},
-      },
-    },
-  });
+  const sqlModules = await loadSqlModulesFromTp(trace, METADATA);
 
   expect(queries).toHaveLength(1);
   expect(queries[0]).toContain('FROM __intrinsic_stdlib_objects');
-  const module = sqlModules.listModules()[0];
+  const module = sqlModules.listModules()[0]!;
   expect(module.includeKey).toBe('test.module');
   expect(module.tables.map((table) => table.name)).toEqual(['test_table']);
-  expect(module.tables[0].importance).toBe('high');
-  expect(module.tables[0].columns[0].name).toBe('value');
-  expect(module.functions[0].name).toBe('test_function');
-  expect(module.functions[0].returnType).toBe('LONG');
-  expect(module.tableFunctions[0].name).toBe('test_table_function');
-  expect(module.tableFunctions[0].returnCols[0].name).toBe('output');
-  expect(module.macros[0].name).toBe('test_macro');
+  expect(module.tables[0]!.importance).toBe('high');
+  expect(module.tables[0]!.columns[0]!.name).toBe('value');
+  expect(module.functions[0]!.name).toBe('test_function');
+  expect(module.functions[0]!.returnType).toBe('LONG');
+  expect(module.tableFunctions[0]!.name).toBe('test_table_function');
+  expect(module.tableFunctions[0]!.returnCols[0]!.name).toBe('output');
+  expect(module.macros[0]!.name).toBe('test_macro');
 });

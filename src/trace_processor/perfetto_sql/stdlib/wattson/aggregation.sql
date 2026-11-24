@@ -13,25 +13,38 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
-INCLUDE PERFETTO MODULE wattson.cpu.idle;
-
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
 
 INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
 
-INCLUDE PERFETTO MODULE wattson.utils;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
--- ========================================================
--- MACRO: _wattson_threads_aggregation
---
--- Low-level macro to calculate energy and power attribution per thread/process.
--- ========================================================
-CREATE PERFETTO MACRO _wattson_threads_aggregation(
-  tasks_table TableOrSubquery,
+-- Active energy (mW * ns) of each thread over the part of its slices that
+-- overlaps [win_ts, win_ts + win_dur), with the same half-open and
+-- zero-duration point semantics as interval intersection.
+CREATE PERFETTO FUNCTION _wattson_window_active_mw_ns(
+  win_ts TIMESTAMP,
+  win_dur LONG
+)
+RETURNS TABLE(utid JOINID(thread.id), mw_ns DOUBLE)
+AS
+SELECT
+  utid,
+  sum(estimated_mw * (min(ts + dur, $win_ts + $win_dur) - max(ts, $win_ts))) AS mw_ns
+FROM _estimates_w_tasks_attribution
+WHERE
+  (ts < $win_ts + $win_dur OR (ts = $win_ts AND $win_dur = 0))
+  AND (ts + dur > $win_ts OR (ts = $win_ts AND dur = 0))
+GROUP BY
+  utid;
+
+-- Joins per (period_id, utid) active energy with the idle transition cost and
+-- the thread metadata.
+CREATE PERFETTO MACRO _wattson_threads_summary(
+  -- Table with columns (period_id, utid, total_mw_ns).
+  active_table TableOrSubquery,
   window_table TableOrSubquery,
   cpus_table TableOrSubquery
 )
@@ -42,19 +55,9 @@ AS (
       SELECT
         period_id,
         utid,
-        thread_name,
-        process_name,
-        package_name,
-        tid,
-        pid,
-        upid,
-        uid,
-        sum(estimated_mw * dur) / 1e9 AS active_mws,
-        sum(estimated_mw * dur) AS total_mw_ns
-      FROM $tasks_table
-      GROUP BY
-        period_id,
-        utid
+        total_mw_ns / 1e9 AS active_mws,
+        total_mw_ns
+      FROM $active_table
     ),
     -- Calculate Idle Cost
     idle_summary AS (
@@ -78,13 +81,13 @@ AS (
     a.period_id,
     w.dur AS period_dur,
     a.utid,
-    a.tid,
-    a.pid,
-    a.upid,
-    a.uid,
-    coalesce(a.thread_name, 'Thread ' || a.tid) AS thread_name,
-    coalesce(a.process_name, '') AS process_name,
-    coalesce(a.package_name, '') AS package_name,
+    md.tid,
+    md.pid,
+    md.upid,
+    md.uid,
+    coalesce(md.thread_name, 'Thread ' || md.tid) AS thread_name,
+    coalesce(md.process_name, '') AS process_name,
+    coalesce(md.package_name, '') AS package_name,
     a.active_mws AS estimated_mws,
     -- Fixed power calculation: divide by the specific period duration
     a.total_mw_ns / w.dur AS estimated_mw,
@@ -95,8 +98,42 @@ AS (
   FROM active_summary AS a
   JOIN $window_table AS w
     ON a.period_id = w.period_id
+  -- The descriptive columns depend only on utid, so they are looked up here,
+  -- once per aggregated thread, rather than being dragged through every slice.
+  JOIN _wattson_task_metadata AS md
+    ON a.utid = md.utid
   LEFT JOIN idle_summary AS i
     ON a.period_id = i.period_id AND a.utid = i.utid
+);
+
+-- ========================================================
+-- MACRO: _wattson_threads_aggregation
+--
+-- Low-level macro to calculate energy and power attribution per thread/process.
+-- ========================================================
+CREATE PERFETTO MACRO _wattson_threads_aggregation(
+  tasks_table TableOrSubquery,
+  window_table TableOrSubquery,
+  cpus_table TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (
+  SELECT
+    *
+  FROM _wattson_threads_summary!(
+    (
+      SELECT
+        period_id,
+        utid,
+        sum(estimated_mw * dur) AS total_mw_ns
+      FROM $tasks_table
+      GROUP BY
+        period_id,
+        utid
+    ),
+    $window_table,
+    $cpus_table
+  )
 );
 
 -- ========================================================
@@ -121,30 +158,6 @@ CREATE PERFETTO MACRO wattson_threads_aggregation(
 )
 RETURNS TableOrSubquery
 AS (
-  WITH
-    windowed_active_state AS (
-      SELECT
-        ii.dur,
-        ii.id_1 AS period_id,
-        tasks.estimated_mw,
-        tasks.thread_name,
-        tasks.process_name,
-        tasks.tid,
-        tasks.pid,
-        tasks.upid,
-        tasks.uid,
-        tasks.package_name,
-        tasks.utid
-      FROM _interval_intersect!(
-      (
-        _ii_subquery!(_estimates_w_tasks_attribution),
-        (SELECT period_id AS id, * FROM $window_table)
-      ),
-      ()
-    ) AS ii
-      JOIN _estimates_w_tasks_attribution AS tasks
-        ON tasks._auto_id = id_0
-    )
   SELECT
     period_id,
     period_dur,
@@ -158,8 +171,17 @@ AS (
     estimated_mw,
     idle_transitions_mws,
     total_mws
-  FROM _wattson_threads_aggregation!(
-    windowed_active_state,
+  FROM _wattson_threads_summary!(
+    (
+      SELECT
+        w.period_id,
+        a.utid,
+        sum(a.mw_ns) AS total_mw_ns
+      FROM $window_table AS w, _wattson_window_active_mw_ns(w.ts, w.dur) AS a
+      GROUP BY
+        w.period_id,
+        a.utid
+    ),
     $window_table,
     _wattson_cpus
   )
@@ -185,7 +207,7 @@ RETURNS TableOrSubquery
 AS (
   -- 1. Cache base components
   WITH
-    base_components AS (
+    base_components AS MATERIALIZED (
       SELECT
         *
       FROM _wattson_base_components_avg_mw!($window_table)
@@ -387,12 +409,8 @@ CREATE PERFETTO VIEW wattson_metric_metadata(
   metric_version LONG,
   -- Wattson power curve version
   power_model_version LONG,
-  -- Wattson estimation will be crude
-  -- if missing cpu/idle counter
+  -- Deprecated: always 0
   is_crude_estimate BOOL
 )
 AS
-SELECT
-  4 AS metric_version,
-  1 AS power_model_version,
-  CAST(NOT EXISTS (SELECT 1 FROM _wattson_cpuidle_counters_exist) AS INTEGER) AS is_crude_estimate;
+SELECT 4 AS metric_version, 1 AS power_model_version, 0 AS is_crude_estimate;

@@ -20,12 +20,11 @@ import "protos/perfetto/trace/trace_packet.proto";
 
 package perfetto.protos;
 
+// Do NOT add any other field here. This is just a convenience wrapper for
+// the use case of a trace being saved to a file. There are other cases
+// (streaming) where TracePacket are directly streamed without being wrapped
+// in a Trace proto. Nothing should ever rely on the full trace, all the
+// logic should be based on TracePacket(s).
 message Trace {
   repeated TracePacket packet = 1;
-
-  // Do NOT add any other field here. This is just a convenience wrapper for
-  // the use case of a trace being saved to a file. There are other cases
-  // (streaming) where TracePacket are directly streamed without being wrapped
-  // in a Trace proto. Nothing should ever rely on the full trace, all the
-  // logic should be based on TracePacket(s).
 }

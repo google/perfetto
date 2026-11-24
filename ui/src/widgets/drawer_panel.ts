@@ -17,44 +17,7 @@ import m from 'mithril';
 import {assertUnreachable} from '../base/assert';
 import {Gate, type MithrilEvent} from '../base/mithril_utils';
 import {Button, ButtonBar} from './button';
-import {classNames} from '../base/classnames';
-import type {HTMLAttrs} from './common';
-import {Icons} from '../base/semantic_icons';
-
-export interface TabAttrs extends HTMLAttrs {
-  // Is this tab currently active?
-  readonly active?: boolean;
-  // Whether to show a close button on the tab.
-  readonly hasCloseButton?: boolean;
-  // What happens when the close button is clicked.
-  readonly onClose?: () => void;
-}
-
-export class Tab implements m.ClassComponent<TabAttrs> {
-  view({attrs, children}: m.CVnode<TabAttrs>): m.Children {
-    const {active, hasCloseButton, ...rest} = attrs;
-    return m(
-      '.pf-drawer-panel__tab',
-      {
-        ...rest,
-        className: classNames(active && 'pf-drawer-panel__tab--active'),
-        onauxclick: () => {
-          attrs.onClose?.();
-        },
-      },
-      m('.pf-drawer-panel__tab-title', children),
-      hasCloseButton &&
-        m(Button, {
-          compact: true,
-          icon: Icons.Close,
-          onclick: (e) => {
-            e.stopPropagation();
-            attrs.onClose?.();
-          },
-        }),
-    );
-  }
-}
+import {TabStrip} from './tab_strip';
 
 export interface DrawerTab {
   // Unique identifier for the tab.
@@ -202,7 +165,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = isTabsMode
-      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0].key)
+      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0]!.key)
       : undefined;
 
     // Render tabs UI and drawer content based on mode
@@ -228,7 +191,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
             this.onPointerMove(e),
           onpointerup: (e: PointerEvent) => this.onPointerUp(e),
           onpointercancel: (e: PointerEvent) => this.onPointerCancel(e),
-          onpointercapturelost: (e: PointerEvent) =>
+          onlostpointercapture: (e: PointerEvent) =>
             this.onPointerCaptureLost(e),
         },
         [
@@ -256,15 +219,15 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   ): m.Children {
     return tabs.map((tab) =>
       m(
-        Tab,
+        TabStrip.Tab,
         {
+          key: tab.key,
           active: tab.key === activeKey,
-          hasCloseButton: tab.closable,
           onclick: () => {
             this.internalActiveTab = tab.key;
             onTabChange?.(tab.key);
           },
-          onClose: () => onTabClose?.(tab.key),
+          onClose: tab.closable ? () => onTabClose?.(tab.key) : undefined,
         },
         tab.title,
       ),

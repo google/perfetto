@@ -18,6 +18,36 @@ from python.generators.diff_tests.testing import Csv, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
+_UTILIZATION_TRACE = TextProto(r"""
+packet {
+  clock_snapshot {
+    clocks { clock_id: 3 timestamp: 0 }
+    clocks { clock_id: 6 timestamp: 0 }
+  }
+}
+packet {
+  cpu_info {
+    cpus { processor: "little" capacity: 100 }
+    cpus { processor: "little" capacity: 100 }
+    cpus { processor: "big" capacity: 1000 }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event { timestamp: 1000000 pid: 0 sched_switch { prev_comm: "swapper/0" prev_pid: 0 prev_prio: 120 prev_state: 0 next_comm: "t1" next_pid: 1 next_prio: 120 } }
+    event { timestamp: 2000000 pid: 1 sched_switch { prev_comm: "t1" prev_pid: 1 prev_prio: 120 prev_state: 0 next_comm: "swapper/0" next_pid: 0 next_prio: 120 } }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event { timestamp: 1500000 pid: 0 sched_switch { prev_comm: "swapper/2" prev_pid: 0 prev_prio: 120 prev_state: 0 next_comm: "t2" next_pid: 2 next_prio: 120 } }
+    event { timestamp: 2000000 pid: 2 sched_switch { prev_comm: "t2" prev_pid: 2 prev_prio: 120 prev_state: 0 next_comm: "swapper/2" next_pid: 0 next_prio: 120 } }
+  }
+}
+""")
+
 
 class CpuClusters(TestSuite):
 
@@ -381,4 +411,24 @@ class CpuClusters(TestSuite):
         0,0,"[NULL]"
         1,1,"[NULL]"
         2,2,"[NULL]"
+        """))
+
+  def test_android_cpu_cluster_utilization_in_interval(self):
+    return DiffTestBlueprint(
+        trace=_UTILIZATION_TRACE,
+        query="""
+        INCLUDE PERFETTO MODULE android.cpu.cluster_utilization;
+
+        SELECT
+          cluster_type,
+          core_count,
+          active_dur,
+          utilization
+        FROM android_cpu_cluster_utilization_in_interval(1000000, 2000000)
+        ORDER BY cluster_type;
+        """,
+        out=Csv("""
+        "cluster_type","core_count","active_dur","utilization"
+        "big",1,500000,0.250000
+        "little",2,1000000,0.250000
         """))

@@ -109,7 +109,8 @@ export interface TrackShellAttrs extends HTMLAttrs {
   readonly lite?: boolean;
 
   // Called when the track is expanded or collapsed (when the node is clicked).
-  readonly onCollapsedChanged?: (collapsed: boolean) => void;
+  // `shiftKey` is set if the shift key was pressed when the track was clicked.
+  readonly onCollapsedChanged?: (collapsed: boolean, shiftKey: boolean) => void;
 
   // Mouse events within the track content element.
   readonly onTrackContentMouseMove?: (
@@ -237,8 +238,8 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           selected && 'pf-track__shell--selected',
           lite && 'pf-track__shell--lite',
         ),
-        onclick: () => {
-          collapsible && attrs.onCollapsedChanged?.(!collapsed);
+        onclick: (e: MouseEvent) => {
+          collapsible && attrs.onCollapsedChanged?.(!collapsed, e.shiftKey);
           if (!collapsed) {
             this.scrollIntoView = true;
           }

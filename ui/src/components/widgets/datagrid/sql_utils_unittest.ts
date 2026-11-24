@@ -15,6 +15,7 @@
 import {
   filterToSql,
   quoteIdentifier,
+  quickFilterToSql,
   sqlAggregateExpr,
   sqlPathMatch,
   sqlPathNotMatch,
@@ -357,5 +358,42 @@ describe('filterToSql', () => {
     expect(
       filterToSql({field: 'x', op: 'not in', value: ['a', 'b']}, 'col'),
     ).toBe("col NOT IN ('a', 'b')");
+  });
+});
+
+describe('quickFilterToSql', () => {
+  test('single column', () => {
+    expect(quickFilterToSql('fo', ['a'])).toBe(
+      "((typeof(a) != 'blob' AND CAST(a AS TEXT) GLOB '*[fF][oO]*'))",
+    );
+  });
+
+  test('multiple columns are OR-ed', () => {
+    expect(quickFilterToSql('x', ['a', 'b'])).toBe(
+      "((typeof(a) != 'blob' AND CAST(a AS TEXT) GLOB '*[xX]*') OR " +
+        "(typeof(b) != 'blob' AND CAST(b AS TEXT) GLOB '*[xX]*'))",
+    );
+  });
+
+  test('no columns matches nothing', () => {
+    expect(quickFilterToSql('x', [])).toBe('FALSE');
+  });
+
+  test('digits are not case-expanded', () => {
+    expect(quickFilterToSql('12', ['a'])).toContain("GLOB '*12*'");
+  });
+
+  test('non-ASCII letters are not case-expanded', () => {
+    expect(quickFilterToSql('é', ['a'])).toContain("GLOB '*é*'");
+  });
+
+  test('glob special characters are escaped', () => {
+    expect(quickFilterToSql('*', ['a'])).toContain("GLOB '*[*]*'");
+    expect(quickFilterToSql('?', ['a'])).toContain("GLOB '*[?]*'");
+    expect(quickFilterToSql('[', ['a'])).toContain("GLOB '*[[]*'");
+  });
+
+  test('single quotes are escaped', () => {
+    expect(quickFilterToSql("'", ['a'])).toContain("GLOB '*''*'");
   });
 });

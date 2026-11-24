@@ -41,8 +41,10 @@ ThreadTaskRunner::ThreadTaskRunner(ThreadTaskRunner&& other) noexcept
 }
 
 ThreadTaskRunner& ThreadTaskRunner::operator=(ThreadTaskRunner&& other) {
-  this->~ThreadTaskRunner();
-  new (this) ThreadTaskRunner(std::move(other));
+  if (this != &other) {
+    this->~ThreadTaskRunner();
+    new (this) ThreadTaskRunner(std::move(other));
+  }
   return *this;
 }
 

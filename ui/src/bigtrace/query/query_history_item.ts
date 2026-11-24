@@ -27,13 +27,16 @@ import {
 } from './query_store';
 import {formatDate} from '../../base/time';
 import {showModal} from '../../widgets/modal';
-import {historyStore, formatCompactDate} from './history_store';
+import {
+  historyStore,
+  formatCompactDate,
+  formatCompactTime,
+} from './history_store';
 
 // Reopens an existing history entry.
 export type OpenQueryFn = (
   query: string,
   uuid: string,
-  materialize: boolean,
   forceNew?: boolean,
   limit?: number,
   startTime?: number,
@@ -115,7 +118,6 @@ function makeFullSqlExpander(
 export function renderHistoryItem(
   entry: QueryExecution,
   index: number,
-  isMaterialized: boolean,
   openQuery?: OpenQueryFn,
 ): m.Children {
   const queryText = entry.perfettoSql || '';
@@ -124,7 +126,9 @@ export function renderHistoryItem(
   const rows = entry.processedRows;
   const link = entry.tableLink;
   const dateObj = startTime !== undefined ? new Date(startTime) : null;
-  // Compact for the narrow sidebar; hover reveals the full UTC timestamp.
+  // Compact time for the narrow sidebar (the day is on the group header);
+  // hover and the standalone delete modal reveal the full local + UTC date.
+  const timeString = dateObj ? formatCompactTime(dateObj) : 'N/A';
   const localString = dateObj ? formatCompactDate(dateObj) : 'N/A';
   const utcString =
     startTime !== undefined
@@ -133,7 +137,7 @@ export function renderHistoryItem(
 
   const openThis = () => {
     if (openQuery && uuid) {
-      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+      openQuery(queryText, uuid, false, entry.limit, startTime);
     }
   };
 
@@ -183,7 +187,12 @@ export function renderHistoryItem(
           });
           if (!confirmed) return;
           await queryHistoryStorage.deleteQuery(uuid);
+          queryStore.update(uuid, {
+            tableName: undefined,
+            tableLink: undefined,
+          });
           historyStore.refreshNow();
+          m.redraw();
         },
         icon: Icons.Delete,
         // Red hover so destructive intent reads before click.
@@ -219,14 +228,13 @@ export function renderHistoryItem(
           ),
           m(
             'span.pf-bt-history-item-date',
-            {title: `UTC: ${utcString}`},
-            localString,
+            {title: `${localString} (UTC: ${utcString})`},
+            timeString,
           ),
         ]),
       ],
     ),
-    // Materialized only: a banded strip between the header and the SQL pre.
-    isMaterialized &&
+    entry.materialized !== false &&
       m(
         'div.pf-bt-history-item-details',
         {

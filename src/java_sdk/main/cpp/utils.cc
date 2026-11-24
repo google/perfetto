@@ -32,7 +32,7 @@ namespace java_sdk {
 namespace utils {
 TracingSession TracingSession::Builder::Build() {
   struct PerfettoPbMsgWriter writer;
-  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer);
 
   struct perfetto_protos_TraceConfig cfg;
   PerfettoPbMsgInit(&cfg.msg, &writer);
@@ -75,10 +75,10 @@ TracingSession TracingSession::Builder::Build() {
 
     perfetto_protos_TraceConfig_end_data_sources(&cfg, &data_sources);
   }
-  size_t cfg_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+  size_t cfg_size = PerfettoPbMsgWriterGetWrittenSize(&writer);
   std::unique_ptr<uint8_t[]> ser(new uint8_t[cfg_size]);
-  PerfettoHeapBufferCopyInto(hb, &writer.writer, ser.get(), cfg_size);
-  PerfettoHeapBufferDestroy(hb, &writer.writer);
+  PerfettoHeapBufferCopyInto(hb, &writer, ser.get(), cfg_size);
+  PerfettoHeapBufferDestroy(hb, &writer);
 
   struct PerfettoTracingSessionImpl* ts =
       PerfettoTracingSessionInProcessCreate();

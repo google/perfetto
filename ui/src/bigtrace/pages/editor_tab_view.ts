@@ -21,22 +21,18 @@ import {Editor} from '../../widgets/editor';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {SplitPanel} from '../../widgets/split_panel';
 import {Stack, StackAuto} from '../../widgets/stack';
-import {Switch} from '../../widgets/switch';
 import {TextInput} from '../../widgets/text_input';
-import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {getBigtraceEndpoint} from '../settings/endpoint_storage';
-import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
-import {setHistoryActiveTab} from '../query/query_history';
 import {formatPerfettoSql} from '../query/sql_formatter';
-import {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import type {QueryRunner} from '../query/query_runner';
 import {
   type BigTraceEditorTab,
   type QueryTabsState,
-  deriveTitleFromQuery,
+  hasQueryText,
   effectiveTabSettings,
 } from './query_tabs_state';
+import {openQuerySettingsModal} from './query_settings_modal';
 import {renderResultsPanel} from './results_panel';
+import {QueryLauncher} from './query_launcher';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import type {SettingsBindings} from '../settings/tab_bound_setting';
 import {BigtraceSettingsBar} from './bigtrace_settings_bar';
@@ -54,13 +50,27 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
   view({attrs}: m.Vnode<EditorTabViewAttrs>): m.Children {
     const {tab, tabsState, runner, useBigtraceBackend} = attrs;
 
-    // Tabs reopened from history wire up their dataSource on first render.
+    // Tabs restored from localStorage rehydrate their execution on first render.
     if (tab.queryUuid && !tab.dataSource) {
-      attachAsyncDataSource(tab, runner);
+      void runner.rehydrateTab(tab);
     }
 
-    if (tab.dataSource && tab.queryResult && tab.materialize && tab.execution) {
+    if (tab.dataSource && tab.queryResult && tab.execution) {
       tab.queryResult.totalRowCount = tab.execution.processedRows;
+    }
+
+    // A tab with no configuration yet shows the launcher instead of the editor:
+    // every query starts from a preset or a deliberate custom setup. A
+    // configured tab shows it too while its Settings are open.
+    if (!tab.configured || tab.settingsSession !== undefined) {
+      return m(
+        '.pf-bt-editor-tab',
+        m(QueryLauncher, {
+          tab,
+          tabsState,
+          bindings: buildTabBindings(tab, tabsState),
+        }),
+      );
     }
 
     return m('.pf-bt-editor-tab', [
@@ -79,14 +89,16 @@ export class EditorTabView implements m.ClassComponent<EditorTabViewAttrs> {
           runner,
           useBigtraceBackend,
         ),
-        secondPanel: renderResultsPanel(tab, tabsState),
+        secondPanel: renderResultsPanel(tab, tabsState, () =>
+          runner.refreshStatus(tab),
+        ),
       }),
     ]);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Per-tab bindings shared between the chip strip and any modal it opens.
+// Per-tab bindings shared between the chip strip and the settings form.
 // Getters read live; setters mutate in place and mark dirty.
 // getEffectiveSettings layers per-tab overrides over global defaults so
 // /trace_metadata sees a complete settings array even before the user edits.
@@ -138,13 +150,34 @@ function buildTabBindings(
       tab.disabledSettings = [...set];
       tabsState.markDirty();
     },
-    getSql: () => tab.editorText,
-    setQueryAndTitle: (perfettoSql, title) => {
-      tab.editorText = perfettoSql;
-      // A title other than "Query N" sticks — maybeAutoNameTab won't replace it.
-      if (title) tab.title = title;
+    getRowLimit: () => tab.limit,
+    setRowLimit: (limit) => {
+      tab.limit = limit;
       tabsState.markDirty();
-      m.redraw();
+    },
+    getExperimentFilter: () => tab.experimentFilter,
+    setExperimentFilter: (filter) => {
+      tab.experimentFilter = filter;
+      tabsState.markDirty();
+    },
+    getDateFilter: () => tab.dateFilter,
+    setDateFilter: (filter) => {
+      tab.dateFilter = filter;
+      tabsState.markDirty();
+    },
+    getTraceLimit: () => tab.traceLimit,
+    setTraceLimit: (limit) => {
+      if (limit >= 0) {
+        tab.traceLimit = limit;
+        tabsState.markDirty();
+      }
+    },
+    getTableTtlDays: () => tab.tableTtlDays,
+    setTableTtlDays: (days) => {
+      if (days > 0) {
+        tab.tableTtlDays = days;
+        tabsState.markDirty();
+      }
     },
   };
 }
@@ -164,7 +197,7 @@ async function formatTabQuery(
 }
 
 // ---------------------------------------------------------------------------
-// Editor panel: toolbar (Run/Cancel + limit + Persistent) and the editor.
+// Editor panel: toolbar (Run/Cancel + row limit + settings) and the editor.
 // ---------------------------------------------------------------------------
 
 function renderEditorPanel(
@@ -189,12 +222,8 @@ function renderEditorPanel(
               icon: 'play_arrow',
               intent: Intent.Primary,
               variant: ButtonVariant.Filled,
-              disabled: deriveTitleFromQuery(tab.editorText) === undefined,
-              onclick: () => {
-                setHistoryActiveTab(tab.materialize);
-                tabsState.maybeAutoNameTab(tab.id, tab.editorText);
-                runner.run(tab, tab.editorText);
-              },
+              disabled: !hasQueryText(tab.editorText),
+              onclick: () => runner.run(tab, tab.editorText),
             }),
         m(
           Stack,
@@ -202,44 +231,16 @@ function renderEditorPanel(
           'or press',
           m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
         ),
-        m(StackAuto),
+        m('span.pf-bt-divider', {'aria-hidden': 'true'}),
         // Icon-only to keep the toolbar lean; the editor binds the same chord.
         m(Button, {
           icon: 'format_align_left',
           title: 'Format query (Alt+Shift+F)',
-          disabled: deriveTitleFromQuery(tab.editorText) === undefined,
+          disabled: !hasQueryText(tab.editorText),
           onclick: () => void formatTabQuery(tab, tabsState, tab.editorText),
         }),
-        useBigtraceBackend && [
-          m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
-          m(Switch, {
-            label: 'Persistent',
-            title:
-              'ON: results saved to History (Persistent tab) — reopen later. ' +
-              'OFF: results shown inline and discarded when the tab closes.',
-            checked: tab.materialize,
-            disabled: tab.isLoading,
-            onchange: (e: Event) => {
-              tab.materialize = (e.target as HTMLInputElement).checked;
-              setHistoryActiveTab(tab.materialize);
-              tabsState.markDirty();
-            },
-          }),
-          m('span.pf-bt-toolbar-divider', {'aria-hidden': 'true'}),
-          m('span', 'Limit:'),
-          m(TextInput, {
-            type: 'number',
-            value: String(tab.limit),
-            placeholder: 'Limit',
-            disabled: tab.isLoading,
-            onInput: (value: string) => {
-              const newLimit = parseInt(value, 10);
-              if (!isNaN(newLimit) && newLimit > 0) {
-                tab.limit = newLimit;
-              }
-            },
-          }),
-        ],
+        m(StackAuto),
+        useBigtraceBackend && renderRunControls(tab, tabsState),
       ]),
     ]),
     tab.editorText.includes('"') &&
@@ -261,50 +262,45 @@ function renderEditorPanel(
         tab.editorText = text;
         tabsState.markDirty();
       },
-      onExecute: (query: string) => {
-        setHistoryActiveTab(tab.materialize);
-        tabsState.maybeAutoNameTab(tab.id, query);
-        runner.run(tab, query);
-      },
+      onExecute: (query: string) => runner.run(tab, query),
     }),
   ]);
 }
 
-// ---------------------------------------------------------------------------
-// Lazily build the data source for tabs restored from localStorage.
-// ---------------------------------------------------------------------------
-
-function attachAsyncDataSource(
+// Row cap and the gear opening the query-settings modal (the trace cap and
+// every non-trace-selection setting).
+function renderRunControls(
   tab: BigTraceEditorTab,
-  runner: QueryRunner,
-): void {
-  if (!tab.queryUuid) return;
-  const queryClient = new BigtraceQueryClient(getBigtraceEndpoint());
-  tab.queryClient = queryClient;
-  if (!tab.materialize) {
-    tab.dataSource = new InMemoryDataSource([]);
-    return;
-  }
-  tab.dataSource = new BigtraceAsyncDataSource(
-    tab.queryUuid,
-    queryClient,
-    () => tab.execution?.processedRows ?? 0,
-    tab.lifecycle.signal,
-  );
-  tab.isLoading = true;
-  runner.startPolling(tab);
-
-  if (tab.queryResult === undefined) {
-    tab.queryResult = {
-      rows: [],
-      columns: [],
-      error: undefined,
-      totalRowCount: 0,
-      durationMs: 0,
-      statementWithOutputCount: 0,
-      statementCount: 1,
-      lastStatementSql: tab.editorText,
-      query: tab.editorText,
-    };
-  }
+  tabsState: QueryTabsState,
+): m.Children {
+  return [
+    m('span', 'Rows:'),
+    m(TextInput, {
+      type: 'number',
+      className: 'pf-bt-limit-input',
+      value: String(tab.limit),
+      title: 'Maximum rows this query returns.',
+      disabled: tab.isLoading,
+      onInput: (value: string) => {
+        const newLimit = parseInt(value, 10);
+        if (!isNaN(newLimit) && newLimit >= 0) {
+          tab.limit = newLimit;
+          tabsState.markDirty();
+        }
+      },
+    }),
+    m(Button, {
+      icon: 'settings',
+      title:
+        'Advanced query settings — the trace cap and the query options. ' +
+        'Applied from the next run.',
+      disabled: tab.isLoading,
+      onclick: () =>
+        void openQuerySettingsModal(
+          tab,
+          tabsState,
+          buildTabBindings(tab, tabsState),
+        ),
+    }),
+  ];
 }

@@ -51,6 +51,10 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
         sys_write_string_id_ = id;
       } else if (!strcmp(name, "sys_rt_sigreturn")) {
         sys_rt_sigreturn_string_id_ = id;
+      } else if (!strcmp(name, "sys_uprobe")) {
+        sys_uprobe_string_id_ = id;
+      } else if (!strcmp(name, "sys_uretprobe")) {
+        sys_uretprobe_string_id_ = id;
       }
     } else {
       base::StackString<64> unknown_str("sys_%zu", i);

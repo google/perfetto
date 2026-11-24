@@ -27,9 +27,10 @@ WHERE
 
 CREATE OR REPLACE PERFETTO TABLE _class_ancestor_ids AS
 SELECT id
-FROM _tree_reachable_ancestors_or_self!((
-    SELECT id, parent_id FROM _heap_graph_dominator_class_tree
-  ), (SELECT id FROM _top_class_nodes));
+FROM _tree_reachable_ancestors_or_self!(
+  (SELECT id, parent_id FROM _heap_graph_dominator_class_tree),
+  (SELECT id FROM _top_class_nodes)
+);
 
 CREATE OR REPLACE PERFETTO TABLE _class_labels AS
 SELECT

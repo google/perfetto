@@ -86,9 +86,9 @@ export class Canvas2DRenderer implements Renderer {
 
     for (let i = 0; i < count; i++) {
       // Transform X from data space to screen space (centered)
-      const screenX = xs[i] * scale + offset;
-      const y = rowTopFromLayout(rowLayout, depths[i]);
-      const h = rowHeightFromLayout(rowLayout, depths[i]);
+      const screenX = xs[i]! * scale + offset;
+      const y = rowTopFromLayout(rowLayout, depths[i]!);
+      const h = rowHeightFromLayout(rowLayout, depths[i]!);
 
       // CPU-side culling
       if (clip !== undefined) {
@@ -107,7 +107,7 @@ export class Canvas2DRenderer implements Renderer {
       }
 
       // Convert packed RGBA (0xRRGGBBAA) to CSS string
-      const rgba = colors[i];
+      const rgba = colors[i]!;
       if (previousColor !== rgba) {
         const r = (rgba >> 24) & 0xff;
         const g = (rgba >> 16) & 0xff;
@@ -135,15 +135,15 @@ export class Canvas2DRenderer implements Renderer {
     let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
-      const depth = depths[i];
+      const depth = depths[i]!;
 
       // Compute row position from two-tier formula
       const y = rowTopFromLayout(rowLayout, depth);
       const h = rowHeightFromLayout(rowLayout, depth);
 
       // Transform X from data coordinates to screen coordinates
-      const startPx = starts[i] * scale + offset;
-      const rawEndPx = ends[i] * scale + offset;
+      const startPx = starts[i]! * scale + offset;
+      const rawEndPx = ends[i]! * scale + offset;
       // Inset the right edge so adjacent slices stay visually distinct.
       const endPx = Math.max(startPx + 1, rawEndPx - SLICE_GAP_PX);
       const w = Math.max(endPx - startPx, 1);
@@ -184,7 +184,7 @@ export class Canvas2DRenderer implements Renderer {
       }
 
       // Convert packed RGBA (0xRRGGBBAA) to CSS string
-      const rgba = colors[i];
+      const rgba = colors[i]!;
       if (previousColor !== rgba) {
         const r = (rgba >> 24) & 0xff;
         const g = (rgba >> 16) & 0xff;
@@ -196,7 +196,7 @@ export class Canvas2DRenderer implements Renderer {
       }
       ctx.fillRect(drawX, drawY, drawW, drawH);
 
-      const flags = patterns[i];
+      const flags = patterns[i]!;
       if (flags & RECT_PATTERN_HATCHED && w >= 5) {
         ctx.fillStyle = getHatchedPattern(ctx);
         ctx.fillRect(drawX, drawY, drawW, drawH);
@@ -246,8 +246,8 @@ export class Canvas2DRenderer implements Renderer {
 
     for (let i = 0; i < count; i++) {
       // Compute segment bounds
-      const x = Math.round(tx(xs[i]));
-      const nextX = Math.round(tx(xnext[i]));
+      const x = Math.round(tx(xs[i]!));
+      const nextX = Math.round(tx(xnext[i]!));
 
       // Don't render segments that are fully outside the clip region
       if (clip) {
@@ -260,10 +260,10 @@ export class Canvas2DRenderer implements Renderer {
         if (physX >= clip.right) break;
       }
 
-      const y = ty(ys[i]);
-      const minY = ty(minYs[i]);
-      const maxY = ty(maxYs[i]);
-      const fill = fillAlpha[i];
+      const y = ty(ys[i]!);
+      const minY = ty(minYs[i]!);
+      const maxY = ty(maxYs[i]!);
+      const fill = fillAlpha[i]!;
 
       // If fillAlpha is close to zero, don't draw anything at all
       if (fill >= 0.01) {

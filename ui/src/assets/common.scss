@@ -45,6 +45,11 @@ html {
   height: 100%;
   width: 100%;
   touch-action: pan-x pan-y;
+
+  // Prevents overscroll navigation.
+  // Note: Must be applied to the root element ONLY.
+  // See https://issues.chromium.org/issues/41483088
+  overscroll-behavior: contain;
 }
 
 @media (pointer: coarse) {
@@ -66,8 +71,6 @@ body > main {
   width: 100%;
   padding: 0;
   margin: 0;
-  // Prevent overscroll gestures (e.g. back/forward navigation, pull-to-refresh)
-  overscroll-behavior: contain;
   overflow: hidden;
 }
 

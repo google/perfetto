@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -346,6 +347,21 @@ TEST(PerfInvocationTest, FindAttrInRecordWithIdentifier) {
 
   ASSERT_THAT(attr_ptr, IsOkAndHolds(NotNull()));
   EXPECT_THAT((*attr_ptr)->read_format(), Eq(1u));
+}
+
+TEST(PerfInvocationTest, SimpleperfMetaInfoEventTypeInfoWithExtraFields) {
+  std::string raw_meta_info =
+      std::string("event_type_info\0cpu-cycles,0,0,0,0,0,0\n", 40);
+  feature::SimpleperfMetaInfo meta_info;
+  TraceBlobView view(
+      TraceBlob::CopyFrom(raw_meta_info.data(), raw_meta_info.size()));
+
+  base::Status status = feature::SimpleperfMetaInfo::Parse(view, meta_info);
+
+  EXPECT_TRUE(status.ok());
+  auto* name = meta_info.event_type_info.Find({0, 0});
+  ASSERT_NE(name, nullptr);
+  EXPECT_EQ(*name, "cpu-cycles");
 }
 
 }  // namespace

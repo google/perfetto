@@ -103,24 +103,6 @@ function parseMarkdown(md) {
   return { title, headings, body: bodyParts.join(" ") };
 }
 
-// Maps doc URL -> its nav label from toc.md. These curated labels ("Boot
-// Tracing") are often what people search, while the on-page H1 is a fuller
-// sentence ("Recording traces on Android boot"), so they're worth indexing.
-function parseTocLabels(tocMd) {
-  const map = new Map();
-  // Deliberately .md only: the generated reference pages are linked as
-  // `.autogen` and have never carried a nav label in the index.
-  const re = /\[([^\]]+)\]\(([^)]+?\.md)\)/g; // [Label](relative/path.md)
-  let m;
-  while ((m = re.exec(tocMd)) !== null) {
-    const label = stripInline(m[1]);
-    const rel = m[2].replace(/^\.\//, "").replace(/\.md$/, "");
-    const url = rel === "README" ? "/docs/" : "/docs/" + rel;
-    if (label) map.set(url, label);
-  }
-  return map;
-}
-
 // Lowercase alphanumeric tokens, keeping a trailing "++"/"#" so "c++" and "c#"
 // stay searchable. Tokens shorter than 2 chars are dropped as noise.
 function searchTokenize(str) {
@@ -140,13 +122,11 @@ function searchTokenize(str) {
 //   post        -- parallel to terms; each a flat [docIdx, weight, ...] array
 //   docLen      -- per-doc total weighted token count (BM25 length normalization)
 //   titleTokens -- per-doc tokenized title, for the title boost
-//   navTokens   -- per-doc tokenized nav label, or null; also for the title boost
 function buildInvertedIndex(docs) {
   const FIELD_BOOST = { title: 8, heading: 4, body: 1 };
   const postings = new Map(); // token -> Map(docIdx -> weight)
   const docLen = new Array(docs.length).fill(0);
   const titleTokens = new Array(docs.length);
-  const navTokens = new Array(docs.length).fill(null);
   const addTokens = (i, tokens, boost) => {
     for (const tok of tokens) {
       let postingList = postings.get(tok);
@@ -162,12 +142,8 @@ function buildInvertedIndex(docs) {
     const d = docs[i];
     titleTokens[i] = searchTokenize(d.t || "");
     addTokens(i, titleTokens[i], FIELD_BOOST.title);
-    // The toc.md nav label (d.n) is a curated keyword alias -- index at title
-    // weight. Same for the URL slug (last path segment, e.g. "perfetto-cli").
-    if (d.n) {
-      navTokens[i] = searchTokenize(d.n);
-      addTokens(i, navTokens[i], FIELD_BOOST.title);
-    }
+    // The URL slug (last path segment, e.g. "perfetto-cli") is a curated
+    // keyword -- index it at title weight.
     const slug = d.u.split("/").filter(Boolean).pop() || "";
     addTokens(i, searchTokenize(slug), FIELD_BOOST.title);
     for (const h of d.h || []) {
@@ -185,7 +161,7 @@ function buildInvertedIndex(docs) {
     }
     return flat;
   });
-  return { terms, post, docLen, titleTokens, navTokens };
+  return { terms, post, docLen, titleTokens };
 }
 
 // True for pages that build to HTML but aren't real search targets: the docsify
@@ -213,18 +189,8 @@ export function parseSearchDoc(url, markdown, full) {
 }
 
 // parsedDocs: parseSearchDoc() results with nulls already filtered out.
-export function assembleSearchIndex(parsedDocs, tocMd) {
-  const navLabels = parseTocLabels(tocMd);
-  const docs = [];
-  for (const parsed of parsedDocs) {
-    // Copy: parsed docs are memoized, so they must not accumulate an `n` field
-    // across builds.
-    const doc = { ...parsed };
-    const nav = navLabels.get(doc.u);
-    if (nav && nav !== doc.t) doc.n = nav;
-    docs.push(doc);
-  }
-
+export function assembleSearchIndex(parsedDocs) {
+  const docs = [...parsedDocs];
   docs.sort((a, b) => a.u.localeCompare(b.u)); // Deterministic output.
   const index = buildInvertedIndex(docs);
   // The docs-site proxy serves this file uncompressed, so gzip it here and let

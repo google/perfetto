@@ -29,10 +29,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -98,7 +98,7 @@ struct Tree {
   struct Column {
     // Null-typed columns have no payload at all; their null_bv marks every
     // row as null and their data is never read.
-    using Type = TypeSet<Int64, Double, String, Null>;
+    using Type = base::TypeSet<Int64, Double, String, Null>;
 
     // Creates a null-typed column of |rows| rows: no payload, every row null.
     static Column CreateNull(uint32_t rows) {
@@ -135,15 +135,15 @@ struct Tree {
     }
 
     template <typename T>
-    Span<T> unchecked_span() {
-      return Span<T>(unchecked_data<T>(),
-                     unchecked_data<T>() + data.size() / sizeof(T));
+    base::Span<T> unchecked_span() {
+      return base::Span<T>(unchecked_data<T>(),
+                           unchecked_data<T>() + data.size() / sizeof(T));
     }
 
     template <typename T>
-    Span<const T> unchecked_span() const {
-      return Span<const T>(unchecked_data<T>(),
-                           unchecked_data<T>() + data.size() / sizeof(T));
+    base::Span<const T> unchecked_span() const {
+      return base::Span<const T>(unchecked_data<T>(),
+                                 unchecked_data<T>() + data.size() / sizeof(T));
     }
 
     Type type = Type(Int64{});

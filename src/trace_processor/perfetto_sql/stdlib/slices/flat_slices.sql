@@ -14,7 +14,20 @@
 -- limitations under the License.
 INCLUDE PERFETTO MODULE slices.with_context;
 
-INCLUDE PERFETTO MODULE intervals.overlap;
+-- Each stack flattened to its deepest active slice. Unfinished and instant
+-- slices are dropped, along with everything below them.
+CREATE PERFETTO TABLE _slice_flat_intervals AS
+FROM (
+  SELECT id, parent_id, ts, dur, iif(parent_id IS NULL, id, 0) AS own_root_id
+  FROM slice
+)
+-- Only a root contributes its id, so the sum down each path is the root's id.
+|> TREE ACCUMULATE DOWN SUM(own_root_id) AS root_id, MIN(dur) AS min_dur
+|> WHERE min_dur > 0
+-- TODO(lalitm): MAX(id) stands in for the deepest slice and relies on a
+-- child's id being greater than its parent's, which is not guaranteed.
+-- Switch to ARG_MAX(id, depth) once pipelines support it.
+|> INTERVAL FLATTEN PER root_id AGGREGATE MAX(id) AS id;
 
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting; we do this by projecting every slice in a stack to
@@ -54,18 +67,6 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 -- @column pid                Alias for `process.pid`.
 -- @column process_name       Alias for `process.name`.
 CREATE PERFETTO TABLE _slice_flattened AS
-WITH
-  root_slices AS (SELECT * FROM slice WHERE parent_id IS NULL),
-  child_slices AS (
-    SELECT anc.id AS root_id, slice.*
-    FROM slice, ancestor_slice(slice.id) AS anc
-    WHERE
-      slice.parent_id IS NOT NULL
-  ),
-  flat_slices AS (
-    SELECT root_id, id, ts, dur
-    FROM _intervals_flatten!(_intervals_merge_root_and_children!(root_slices, child_slices))
-  )
 SELECT
   id AS slice_id,
   flat_slices.ts,
@@ -80,7 +81,7 @@ SELECT
   upid,
   pid,
   process_name
-FROM flat_slices
+FROM _slice_flat_intervals AS flat_slices
 JOIN thread_slice USING (id);
 
 CREATE PERFETTO INDEX _slice_flattened_id_idx ON _slice_flattened(slice_id);

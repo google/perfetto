@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {maybeUndefined} from '../../../base/utils';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
 
 /**
@@ -235,9 +234,8 @@ export function getColumnInfo(
   const titleParts: m.Children[] = [];
   let currentSchema = schema;
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    const entry = maybeUndefined(currentSchema[part]);
+  for (const [i, part] of parts.entries()) {
+    const entry = currentSchema[part];
 
     if (!entry) {
       return undefined;

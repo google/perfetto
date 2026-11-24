@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/bits.h"
+#include "perfetto/base/bits.h"
 
 #include "test/gtest_and_gmock.h"
 

@@ -43,8 +43,8 @@ class PinCujScopedJank implements MetricHandler {
       return undefined;
     }
     return {
-      process: expandProcessName(match.groups.process),
-      cujName: match.groups.cujName,
+      process: expandProcessName(match.groups.process!),
+      cujName: match.groups.cujName!,
       jankType: match.groups.jankType as JankType,
       isWeighted: !!match.groups.jps,
     };

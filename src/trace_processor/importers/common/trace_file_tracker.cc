@@ -42,13 +42,20 @@ tables::TraceFileTable::Id TraceFileTracker::AddFileImpl(StringId name) {
   std::optional<tables::TraceFileTable::Id> parent =
       parsing_stack_.empty() ? std::nullopt
                              : std::make_optional(parsing_stack_.back());
-  return context_->storage->mutable_trace_file_table()
-      ->Insert(
-          {parent, name, /*size=*/0,
-           context_->storage->InternString(
-               context_->trace_importer_registry->ToString(TraceImporterId())),
-           /*processing_order=*/std::nullopt, /*is_container=*/0})
-      .id;
+  tables::TraceFileTable::Id id =
+      context_->storage->mutable_trace_file_table()
+          ->Insert({parent, name, /*size=*/0,
+                    context_->storage->InternString(
+                        context_->trace_importer_registry->ToString(
+                            TraceImporterId())),
+                    /*processing_order=*/std::nullopt, /*is_container=*/0})
+          .id;
+
+  StringId inherited_name = parent ? names_[parent->value] : kNullStringId;
+  bool named = !name.is_null() && !context_->storage->GetString(name).empty();
+  PERFETTO_DCHECK(names_.size() == id.value);
+  names_.push_back(named ? name : inherited_name);
+  return id;
 }
 
 void TraceFileTracker::SetSize(tables::TraceFileTable::Id id, uint64_t size) {

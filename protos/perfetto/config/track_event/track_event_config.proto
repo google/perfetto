@@ -18,45 +18,44 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// The following fields define the set of enabled trace categories. Each list
+// item is a glob.
+//
+// To determine if category is enabled, it is checked against the filters in
+// the following order:
+//
+//   1. Exact matches in enabled categories.
+//   2. Exact matches in enabled tags.
+//   3. Exact matches in disabled categories.
+//   4. Exact matches in disabled tags.
+//   5. Pattern matches in enabled categories.
+//   6. Pattern matches in enabled tags.
+//   7. Pattern matches in disabled categories.
+//   8. Pattern matches in disabled tags.
+//
+// If none of the steps produced a match:
+//  - In the C++ SDK (`perfetto::Category`), categories are enabled by
+//  default.
+//  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
+//
+// Examples:
+//
+//  - To enable all non-slow/debug categories:
+//
+//       enabled_categories: "*"
+//
+//  - To enable specific categories:
+//
+//       disabled_categories: "*"
+//       enabled_categories: "my_category"
+//       enabled_categories: "my_category2"
+//
+//  - To enable only categories with a specific tag:
+//
+//       disabled_tags: "*"
+//       enabled_tags: "my_tag"
+//
 message TrackEventConfig {
-  // The following fields define the set of enabled trace categories. Each list
-  // item is a glob.
-  //
-  // To determine if category is enabled, it is checked against the filters in
-  // the following order:
-  //
-  //   1. Exact matches in enabled categories.
-  //   2. Exact matches in enabled tags.
-  //   3. Exact matches in disabled categories.
-  //   4. Exact matches in disabled tags.
-  //   5. Pattern matches in enabled categories.
-  //   6. Pattern matches in enabled tags.
-  //   7. Pattern matches in disabled categories.
-  //   8. Pattern matches in disabled tags.
-  //
-  // If none of the steps produced a match:
-  //  - In the C++ SDK (`perfetto::Category`), categories are enabled by
-  //  default.
-  //  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
-  //
-  // Examples:
-  //
-  //  - To enable all non-slow/debug categories:
-  //
-  //       enabled_categories: "*"
-  //
-  //  - To enable specific categories:
-  //
-  //       disabled_categories: "*"
-  //       enabled_categories: "my_category"
-  //       enabled_categories: "my_category2"
-  //
-  //  - To enable only categories with a specific tag:
-  //
-  //       disabled_tags: "*"
-  //       enabled_tags: "my_tag"
-  //
-
   // Default: []
   repeated string disabled_categories = 1;
 

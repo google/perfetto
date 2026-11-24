@@ -1,7 +1,8 @@
 # Memscope and Memory Overview
 
-NOTE: Memscope and Memory Overview are currently available on the Autopush and
-Canary channels. Switch channels using the
+NOTE: Memscope and Memory Overview are currently under heavy development, so
+while they are now available on all branches, you may get better results using
+the **canary** or **autopush** channel. Change the channel using the
 [release channel flag](https://ui.perfetto.dev/#!/flags/releaseChannel).
 
 Perfetto provides two complementary features for memory analysis:

@@ -1,0 +1,114 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/perfetto_sql/engine/connection_catalog.h"
+
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <sqlite3.h>
+
+#include "src/perfetto_sql/analysis/relation.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_column.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
+
+namespace perfetto::trace_processor {
+namespace {
+
+namespace analysis = ::perfetto::perfetto_sql::analysis;
+
+// Finds the stored CREATE VIEW SQL for the view named $name. Temporary views
+// shadow database views of the same name, so their rows sort first. SQL
+// identifiers are case-insensitive but sqlite_master stores names with the
+// case the user typed at CREATE time, so both sides are lowercased.
+constexpr char kFindViewSql[] = R"(
+  SELECT sql FROM (
+    SELECT sql, 0 AS priority FROM sqlite_temp_master
+    WHERE type = 'view' AND lower(name) = lower($name)
+    UNION ALL
+    SELECT sql, 1 AS priority FROM sqlite_master
+    WHERE type = 'view' AND lower(name) = lower($name)
+  )
+  ORDER BY priority
+  LIMIT 1
+)";
+
+}  // namespace
+
+ConnectionCatalog::ConnectionCatalog(PerfettoSqlConnection* connection)
+    : connection_(connection) {}
+
+std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
+    std::string_view name) const {
+  const dataframe::Dataframe* dataframe = connection_->GetDataframeOrNull(name);
+  if (!dataframe) {
+    // A view is expanded instead, so its columns are traced through it.
+    if (FindViewSql(name)) {
+      return std::nullopt;
+    }
+    analysis::LeafRelation relation{std::string(name), {}};
+    for (const auto& column : sqlite::utils::GetColumns(
+             connection_->sqlite_connection()->db(), relation.name)) {
+      relation.columns.push_back({column.name, std::nullopt, column.hidden});
+    }
+    if (relation.columns.empty()) {
+      return std::nullopt;
+    }
+    return relation;
+  }
+  analysis::LeafRelation relation;
+  relation.name = name;
+  const std::vector<std::string>& columns = dataframe->column_names();
+  relation.columns.reserve(columns.size());
+  for (uint32_t i = 0; i < columns.size(); ++i) {
+    relation.columns.push_back(
+        {columns[i], sql_schema::ToAnalysisType(dataframe->column_type(i)),
+         dataframe::IsHiddenColumn(columns[i])});
+  }
+  return relation;
+}
+
+std::optional<std::string> ConnectionCatalog::FindViewSql(
+    std::string_view name) const {
+  SqliteConnection::PreparedStatement stmt =
+      connection_->sqlite_connection()->PrepareStatement(
+          SqlSource::FromTraceProcessorImplementation(kFindViewSql));
+  // A named parameter binds every occurrence of $name in the query.
+  sqlite3_stmt* raw = stmt.sqlite_stmt();
+  sqlite3_bind_text(raw, sqlite3_bind_parameter_index(raw, "$name"),
+                    name.data(), static_cast<int>(name.size()),
+                    sqlite::utils::kSqliteTransient);
+  if (!stmt.Step()) {
+    return std::nullopt;
+  }
+  const char* sql = sqlite::column::Text(stmt.sqlite_stmt(), 0);
+  return sql ? std::make_optional(std::string(sql)) : std::nullopt;
+}
+
+const dataframe::Dataframe* ConnectionCatalog::FindDataframe(
+    std::string_view name) const {
+  return connection_->GetDataframeOrNull(name);
+}
+
+}  // namespace perfetto::trace_processor

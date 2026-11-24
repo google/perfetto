@@ -26,9 +26,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * @hide
  */
 final class PerfettoTrackEventExtra {
-  static {
-    PerfettoNativeLibrary.load();
-  }
 
   private final long mPtr;
 
@@ -123,6 +120,7 @@ final class PerfettoTrackEventExtra {
     private final long mExtraPtr;
     private final String mName;
     private final long mId;
+    private final long mParentUuid;
     private final boolean mIsNameStatic;
 
     NamedTrack(
@@ -135,6 +133,7 @@ final class PerfettoTrackEventExtra {
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
       mId = id;
+      mParentUuid = parentUuid;
       mIsNameStatic = isNameStatic;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
@@ -146,6 +145,14 @@ final class PerfettoTrackEventExtra {
 
     public String getName() {
       return mName;
+    }
+
+    public long getId() {
+      return mId;
+    }
+
+    public long getParentUuid() {
+      return mParentUuid;
     }
 
     public boolean isNameStatic() {
@@ -267,6 +274,7 @@ final class PerfettoTrackEventExtra {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
+    private final long mParentUuid;
     private final boolean mIsNameStatic;
 
     CounterTrack(
@@ -277,6 +285,7 @@ final class PerfettoTrackEventExtra {
       mPtr = native_init(name, parentUuid, isNameStatic);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
+      mParentUuid = parentUuid;
       mIsNameStatic = isNameStatic;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
@@ -288,6 +297,10 @@ final class PerfettoTrackEventExtra {
 
     public String getName() {
       return mName;
+    }
+
+    public long getParentUuid() {
+      return mParentUuid;
     }
 
     public boolean isNameStatic() {
@@ -308,6 +321,7 @@ final class PerfettoTrackEventExtra {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
+    private final long mParentUuid;
     private final boolean mIsNameStatic;
 
     StateTrack(
@@ -318,6 +332,7 @@ final class PerfettoTrackEventExtra {
       mPtr = native_init(name, parentUuid, isNameStatic);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
+      mParentUuid = parentUuid;
       mIsNameStatic = isNameStatic;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
@@ -329,6 +344,10 @@ final class PerfettoTrackEventExtra {
 
     public String getName() {
       return mName;
+    }
+
+    public long getParentUuid() {
+      return mParentUuid;
     }
 
     public boolean isNameStatic() {

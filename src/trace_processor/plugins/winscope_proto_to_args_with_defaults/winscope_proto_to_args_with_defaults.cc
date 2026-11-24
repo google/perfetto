@@ -46,20 +46,20 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
+#include "src/trace_processor/importers/common/arg_sink.h"
+#include "src/trace_processor/importers/proto/proto_to_args_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/plugins/winscope_importer/deinterning_arg_sink.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_importer.h"
 #include "src/trace_processor/plugins/winscope_importer/winscope_proto_mapping.h"
 #include "src/trace_processor/plugins/winscope_proto_to_args_with_defaults/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto::trace_processor::winscope_proto_to_args_with_defaults {
 
 namespace {
-constexpr char kDeinternError[] = "STRING DE-INTERNING ERROR";
-
 class WinscopeProtoToArgsWithDefaults : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
@@ -152,160 +152,73 @@ using Row = tables::WinscopeArgsWithDefaultsTable::Row;
 using RowId = tables::WinscopeArgsWithDefaultsTable::Id;
 using KeyToRowMap = std::unordered_map<StringPool::Id, RowId>;
 
-class Delegate : public util::ProtoToArgsParser::Delegate {
+// Writes each arg as a row of the args-with-defaults table. With a group's
+// |key_to_row| map, args of the same key across the group share one row and
+// defaults are only added for keys the group has not seen.
+class WinscopeArgsSink : public ArgSink {
  public:
-  using Key = util::ProtoToArgsParser::Key;
-  explicit Delegate(StringPool* pool,
-                    const uint32_t base64_proto_id,
-                    tables::WinscopeArgsWithDefaultsTable* table,
-                    KeyToRowMap* key_to_row,
-                    const InternedData* interned_data)
-      : pool_(pool),
-        base64_proto_id_(base64_proto_id),
+  WinscopeArgsSink(const uint32_t base64_proto_id,
+                   tables::WinscopeArgsWithDefaultsTable* table,
+                   KeyToRowMap* key_to_row)
+      : base64_proto_id_(base64_proto_id),
         table_(table),
-        key_to_row_(key_to_row),
-        interned_data_(interned_data) {}
+        key_to_row_(key_to_row) {}
 
-  using Id = StringPool::Id;
-  Id InternString(base::StringView s) override {
-    return pool_->InternString(s);
-  }
-  void AddInteger(Id flat_key, Id key_id, int64_t res) override {
-    Key key = KeyFromIds(flat_key, key_id);
-    if (TryAddDeinternedString(key, res)) {
-      return;
-    }
+  void Add(ArgKey key, Variadic value) override {
     RowReference r = GetOrCreateRow(key);
-    r.set_int_value(res);
-  }
-  void AddUnsignedInteger(Id flat_key, Id key_id, uint64_t res) override {
-    Key key = KeyFromIds(flat_key, key_id);
-    if (TryAddDeinternedString(key, static_cast<int64_t>(res))) {
-      return;
+    switch (value.type) {
+      case Variadic::kInt:
+        r.set_int_value(value.int_value);
+        break;
+      case Variadic::kUint:
+        r.set_int_value(static_cast<int64_t>(value.uint_value));
+        break;
+      case Variadic::kBool:
+        r.set_int_value(value.bool_value);
+        break;
+      case Variadic::kString:
+        r.set_string_value(value.string_value);
+        break;
+      case Variadic::kReal:
+        r.set_real_value(value.real_value);
+        break;
+      case Variadic::kNull:
+        break;
+      case Variadic::kPointer:
+      case Variadic::kJson:
+        PERFETTO_FATAL("Unsupported");
     }
-    RowReference r = GetOrCreateRow(key);
-    r.set_int_value(int64_t(res));
   }
-  void AddString(Id flat_key,
-                 Id key_id,
-                 const protozero::ConstChars& res) override {
-    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
-    r.set_string_value(
-        pool_->InternString(base::StringView((res.ToStdString()))));
-  }
-  void AddString(Id flat_key, Id key_id, const std::string& res) override {
-    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
-    r.set_string_value(pool_->InternString(base::StringView(res)));
-  }
-  void AddDouble(Id flat_key, Id key_id, double res) override {
-    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
-    r.set_real_value(res);
-  }
-  void AddBoolean(Id flat_key, Id key_id, bool res) override {
-    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
-    r.set_int_value(res);
-  }
-  void AddBytes(Id flat_key,
-                Id key_id,
-                const protozero::ConstBytes& res) override {
-    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
-    r.set_string_value(
-        pool_->InternString(base::StringView((res.ToStdString()))));
-  }
-  void AddNull(Id flat_key, Id key_id) override {
-    GetOrCreateRow(KeyFromIds(flat_key, key_id));
-  }
-  void AddPointer(Id, Id, uint64_t) override { PERFETTO_FATAL("Unsupported"); }
-  bool AddJson(Id, Id, const protozero::ConstChars&) override {
-    PERFETTO_FATAL("Unsupported");
-  }
-  size_t GetArrayEntryIndex(const std::string&) override {
-    PERFETTO_FATAL("Unsupported");
-  }
-  size_t IncrementArrayEntryIndex(const std::string&) override {
-    PERFETTO_FATAL("Unsupported");
-  }
-  PacketSequenceStateGeneration* seq_state() override { return nullptr; }
 
-  bool ShouldAddDefaultArg(const Key& key) override {
-    if (!key_to_row_) {
-      return true;
-    }
-    auto key_id = pool_->InternString(base::StringView(key.key));
-    auto pos = key_to_row_->find(key_id);
-    return pos == key_to_row_->end();
+  bool WantsDefault(ArgKey key) override {
+    return !key_to_row_ || key_to_row_->find(key.key) == key_to_row_->end();
   }
 
  private:
-  InternedMessageView* GetInternedMessageView(uint32_t, uint64_t) override {
-    return nullptr;
-  }
-
-  Key KeyFromIds(Id flat_key, Id key) const {
-    return Key{pool_->Get(flat_key).ToStdString(),
-               pool_->Get(key).ToStdString()};
-  }
-
-  RowReference GetOrCreateRow(const Key& key) {
+  RowReference GetOrCreateRow(ArgKey key) {
     RowId row_id;
     if (!key_to_row_) {
-      Row new_row;
-      row_id = table_->Insert(new_row).id;
+      row_id = table_->Insert(Row()).id;
     } else {
-      auto key_id = pool_->InternString(base::StringView(key.key));
-      auto pos = key_to_row_->find(key_id);
+      auto pos = key_to_row_->find(key.key);
       if (pos != key_to_row_->end()) {
         row_id = pos->second;
       } else {
-        Row new_row;
-        row_id = table_->Insert(new_row).id;
-        key_to_row_->insert({key_id, row_id});
+        row_id = table_->Insert(Row()).id;
+        key_to_row_->insert({key.key, row_id});
       }
     }
 
     auto row = (*table_)[row_id];
-    row.set_key(pool_->InternString(base::StringView(key.key)));
-    row.set_flat_key(pool_->InternString(base::StringView(key.flat_key)));
+    row.set_key(key.key);
+    row.set_flat_key(key.flat_key);
     row.set_base64_proto_id(base64_proto_id_);
     return row;
   }
 
-  bool TryAddDeinternedString(const Key& key, int64_t iid) {
-    if (!interned_data_ || !base::EndsWith(key.key, "_iid")) {
-      return false;
-    }
-    const Id deinterned_flat_key = pool_->InternString(
-        base::StringView(key.flat_key.substr(0, key.flat_key.size() - 4)));
-    const Id deinterned_key = pool_->InternString(
-        base::StringView(key.key.substr(0, key.key.size() - 4)));
-    const auto deinterned_value = TryDeinternString(key, iid);
-    if (!deinterned_value) {
-      AddString(deinterned_flat_key, deinterned_key,
-                protozero::ConstChars{kDeinternError, sizeof(kDeinternError)});
-      return false;
-    }
-    AddString(deinterned_flat_key, deinterned_key, *deinterned_value);
-    return true;
-  }
-
-  std::optional<std::string> TryDeinternString(const Key& key, int64_t iid) {
-    DeinternedIids* deinterned_iids = interned_data_->Find(
-        pool_->InternString(base::StringView(key.flat_key)));
-    if (!deinterned_iids) {
-      return std::nullopt;
-    }
-    auto* deinterned_value = deinterned_iids->Find(iid);
-    if (!deinterned_value) {
-      return std::nullopt;
-    }
-    return pool_->Get(*(deinterned_value)).data();
-  }
-
-  StringPool* pool_;
   const uint32_t base64_proto_id_;
   tables::WinscopeArgsWithDefaultsTable* table_;
   KeyToRowMap* key_to_row_;
-  const InternedData* interned_data_;
 };
 
 base::Status InsertRows(
@@ -366,8 +279,29 @@ base::Status InsertRows(
       }
     }
     InternedData* interned_data = proto_to_interned_data.Find(*base64_proto_id);
-    Delegate delegate(string_pool, *base64_proto_id, inflated_args_table,
-                      key_to_row, interned_data);
+    WinscopeArgsSink args_sink(*base64_proto_id, inflated_args_table,
+                               key_to_row);
+    std::optional<winscope::DeinterningArgSink> deinterning_sink;
+    if (interned_data) {
+      deinterning_sink.emplace(
+          args_sink, *string_pool,
+          [interned_data, string_pool](
+              ArgKey key, uint64_t iid) -> std::optional<base::StringView> {
+            DeinternedIids* iids = interned_data->Find(key.flat_key);
+            if (!iids) {
+              return std::nullopt;
+            }
+            DeinternedValue* value = iids->Find(static_cast<Iid>(iid));
+            if (!value) {
+              return std::nullopt;
+            }
+            return string_pool->Get(*value);
+          });
+    }
+    ArgSink& sink = deinterning_sink ? static_cast<ArgSink&>(*deinterning_sink)
+                                     : static_cast<ArgSink&>(args_sink);
+    util::ProtoArgsEnv env;
+    env.bytes = util::ProtoArgsEnv::BytesMode::kRaw;
 
     const std::vector<uint32_t>* allowed_fields_per_row = nullptr;
     std::optional<std::vector<uint32_t>> fields_per_row;
@@ -380,7 +314,7 @@ base::Status InsertRows(
 
     RETURN_IF_ERROR(args_parser.ParseMessage(
         cb, proto_name,
-        allowed_fields ? allowed_fields : allowed_fields_per_row, delegate,
+        allowed_fields ? allowed_fields : allowed_fields_per_row, env, sink,
         nullptr, true));
   }
   return base::OkStatus();
@@ -416,7 +350,7 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
         base::ErrStatus("Failed to find %s table.", table_name_str.c_str()));
   }
 
-  base::StatusOr<const char* const> proto_name =
+  base::StatusOr<const char*> proto_name =
       util::winscope_proto_mapping::GetProtoName(table_name_str);
   if (!proto_name.ok()) {
     return OnFailure(proto_name.status());

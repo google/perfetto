@@ -65,8 +65,10 @@ struct Obj {
   }
 
   Obj& operator=(const Obj& other) {
-    this->~Obj();
-    new (this) Obj(other);
+    if (this != &other) {
+      this->~Obj();
+      new (this) Obj(other);
+    }
     return *this;
   }
 
@@ -125,6 +127,23 @@ TEST(SmallVectorTest, GrowOnHeap) {
   for (size_t i = 0; i < 4; i++)
     EXPECT_TRUE(v[i].moved_into);
   EXPECT_FALSE(v.back().moved_into);
+}
+
+TEST(SmallVectorTest, Reserve) {
+  SmallVector<Obj, 4> v;
+  v.emplace_back(size_t{0});
+  v.reserve(3);
+  EXPECT_EQ(v.capacity(), 4u);
+  v.reserve(10);
+  EXPECT_EQ(v.capacity(), 10u);
+  EXPECT_EQ(v[0].value, 0u);
+  EXPECT_TRUE(v[0].moved_into);
+  // Adding up to the reserved capacity does not move the elements again.
+  const Obj* first = &v[0];
+  for (size_t i = 1; i < 10; i++)
+    v.emplace_back(i);
+  EXPECT_EQ(&v[0], first);
+  EXPECT_EQ(v.capacity(), 10u);
 }
 
 class SmallVectorTestP : public testing::TestWithParam<size_t> {};

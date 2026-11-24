@@ -25,12 +25,14 @@ CREATE PERFETTO TABLE _bind_dispatch AS
 WITH
   next_sibling AS MATERIALIZED (
     SELECT *
-    FROM graph_next_sibling!((
+    FROM graph_next_sibling!(
+      (
         SELECT id AS node_id, parent_id AS node_parent_id, ts AS sort_key
         FROM slice
         WHERE
           dur = 0
-      ))
+      )
+    )
   ),
   service AS (
     SELECT

@@ -320,7 +320,7 @@ function getPluginArgs(app: AppImpl, pluginId: string): RouteArgs {
 
     // Only include entries that match the regex
     if (match) {
-      const newKey = match[1];
+      const newKey = match[1]!;
       // Use the capture group (what comes after the prefix) as the new key
       result[newKey] = value;
     }

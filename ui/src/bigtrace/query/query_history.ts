@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Tabs, type TabsTab} from '../../widgets/tabs';
+import {Icons} from '../../base/semantic_icons';
+import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
 import type {QueryExecution} from './query_store';
-import {historyStore} from './history_store';
+import {groupHistoryByDay, historyStore} from './history_store';
 import {renderHistoryItem, type OpenQueryFn} from './query_history_item';
 
 interface QueryHistoryComponentAttrs {
@@ -27,9 +28,10 @@ interface QueryHistoryComponentAttrs {
   readonly refreshSignal?: number;
 }
 
-export {setHistoryActiveTab} from './history_store';
-
 export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryComponentAttrs> {
+  private allExpanded = true;
+  private openGen = 0;
+
   oninit(vnode: m.CVnode<QueryHistoryComponentAttrs>) {
     historyStore.requestRefresh(vnode.attrs.refreshSignal ?? 0);
   }
@@ -41,108 +43,90 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
 
   view({attrs}: m.CVnode<QueryHistoryComponentAttrs>) {
     const {openQuery, ...rest} = attrs;
+    const shown = historyStore.history;
 
-    if (historyStore.isLoading && historyStore.history.length === 0) {
-      return m(
-        EmptyState,
-        {
-          title: 'Loading history...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        },
-        m(Spinner),
-      );
-    }
-
-    if (historyStore.error) {
-      return m(EmptyState, {
-        title: `Failed to load history: ${historyStore.error}`,
-        icon: 'error',
-        fillHeight: true,
-      });
-    }
-
-    const standardQueries = historyStore.history.filter((h) => !h.materialized);
-    const materializedQueries = historyStore.history.filter(
-      (h) => h.materialized,
-    );
-
-    // Span-wrap titles so hover tooltips explain "Ephemeral"/"Persistent".
-    const tabs: TabsTab[] = [
-      {
-        key: 'standard',
-        title: m(
-          'span',
-          {
-            title:
-              'Queries run with Persistent OFF — results were shown ' +
-              'inline at run time and not saved. Reopen here to see the ' +
-              'SQL again or rerun.',
-          },
-          `Ephemeral (${standardQueries.length})`,
-        ),
-        content: this.renderHistoryList(standardQueries, false, openQuery),
-      },
-      {
-        key: 'materialized',
-        title: m(
-          'span',
-          {
-            title:
-              'Queries run with Persistent ON — results saved to a ' +
-              'temporary backend table you can reopen and browse here.',
-          },
-          `Persistent (${materializedQueries.length})`,
-        ),
-        content: this.renderHistoryList(materializedQueries, true, openQuery),
-      },
-    ];
-
+    // The frame is unconditional: loading and error states render inside the
+    // list, so the panel keeps its bounded layout and the refresh button stays
+    // reachable — that button is how you retry a failed load.
     return m(
       '.pf-query-history',
       rest,
-      m(Tabs, {
-        tabs: tabs,
-        activeTabKey: historyStore.activeTabKey,
-        onTabChange: (key) => {
-          historyStore.activeTabKey = key;
-          m.redraw();
-        },
-        rightContent: m(Button, {
-          icon: 'refresh',
-          title: 'Refresh history',
-          onclick: () => historyStore.refreshNow(),
-        }),
-      }),
+      m(
+        '.pf-bt-history-toolbar',
+        m(
+          '.pf-bt-history-actions',
+          m(Button, {
+            icon: this.allExpanded ? Icons.UnfoldLess : Icons.UnfoldMore,
+            title: this.allExpanded ? 'Collapse all' : 'Expand all',
+            onclick: () => {
+              this.allExpanded = !this.allExpanded;
+              this.openGen++;
+            },
+          }),
+          m(Button, {
+            icon: 'refresh',
+            title: 'Refresh history',
+            onclick: () => historyStore.refreshNow(),
+          }),
+        ),
+      ),
+      m('.pf-bt-history-list', this.renderBody(shown, openQuery)),
     );
+  }
+
+  private renderBody(
+    shown: QueryExecution[],
+    openQuery: OpenQueryFn,
+  ): m.Children {
+    if (historyStore.isLoading && historyStore.history.length === 0) {
+      return m(
+        EmptyState,
+        {title: 'Loading history…', icon: 'hourglass_empty', fillHeight: true},
+        m(Spinner),
+      );
+    }
+    if (historyStore.error !== null) {
+      return m(
+        EmptyState,
+        {title: "Couldn't load history", icon: 'error', fillHeight: true},
+        m('div.pf-bt-history-empty-hint', historyStore.error),
+      );
+    }
+    return this.renderHistoryList(shown, openQuery);
   }
 
   private renderHistoryList(
     queries: QueryExecution[],
-    isMaterialized: boolean,
     openQuery?: OpenQueryFn,
   ): m.Children {
     if (queries.length === 0) {
       return m(
         EmptyState,
         {
-          title: isMaterialized
-            ? 'No persistent queries yet'
-            : 'No ephemeral queries yet',
+          title: 'No queries yet',
           icon: 'search',
           fillHeight: true,
         },
-        m(
-          'div.pf-bt-history-empty-hint',
-          isMaterialized
-            ? 'Run a query with Persistent on to see it here.'
-            : 'Run a query with Persistent off to see it here.',
-        ),
+        m('div.pf-bt-history-empty-hint', 'Queries you run show up here.'),
       );
     }
 
-    return queries.map((entry, index) =>
-      renderHistoryItem(entry, index, isMaterialized, openQuery),
+    return m(
+      Accordion,
+      {multi: true},
+      groupHistoryByDay(queries).map((group) =>
+        m(
+          AccordionSection,
+          {
+            key: `${group.dayKey}-${this.openGen}`,
+            defaultOpen: this.allExpanded,
+            summary: `${group.label} (${group.entries.length})`,
+          },
+          group.entries.map((entry, index) =>
+            renderHistoryItem(entry, index, openQuery),
+          ),
+        ),
+      ),
     );
   }
 }

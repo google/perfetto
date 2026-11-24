@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,19 +24,23 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 });
 
-test('ftrace tracks', async () => {
-  const ftraceGroupTrack = pth.locateTrack('Ftrace Events');
-  await pth.toggleTrackGroup(ftraceGroupTrack);
-  await pth.waitForIdleAndScreenshot('ftrace_events.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
-  });
-});
+test('ftrace_tracks_and_tab', async () => {
+  test.setTimeout(2 * 60_000);
 
-test('ftrace tab', async () => {
-  await page.mouse.move(0, 0);
-  await page.click('button[title="More Tabs"]');
-  await page.getByRole('button', {name: 'Ftrace Events'}).click();
-  await pth.waitForIdleAndScreenshot('ftrace_tab.png', {
-    locator: page.locator('.pf-drawer-panel__drawer'),
+  await pth.step('ftrace tracks', async () => {
+    const ftraceGroupTrack = pth.locateTrack('Ftrace Events');
+    await pth.toggleTrackGroup(ftraceGroupTrack);
+    await pth.waitForIdleAndScreenshot('ftrace_events.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
+  });
+
+  await pth.step('ftrace tab', async () => {
+    await page.mouse.move(0, 0);
+    await page.click('button[title="More Tabs"]');
+    await page.getByRole('button', {name: 'Ftrace Events'}).click();
+    await pth.waitForIdleAndScreenshot('ftrace_tab.png', {
+      locator: page.locator('.pf-drawer-panel__drawer'),
+    });
   });
 });

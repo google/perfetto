@@ -35,6 +35,7 @@ if (perfetto_root_path == "//") {
 # - Source files in the codebase #include base/build_config and use the
 #   pattern #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 buildflag_gen_dir_ = "$root_gen_dir/$perfetto_root_path/build_config"
+
 action("gen_buildflags") {
   script = "write_buildflag_header.py"
   gen_header_path = "$buildflag_gen_dir_/perfetto_build_flags.h"
@@ -383,7 +384,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       if (build_with_chromium) {
         public_deps = [ "//third_party/sqlite:sqlite_dev" ]
       } else {
-        public_deps = [ "//third_party/sqlite:sqlite" ]
+        public_deps = [ "//third_party/sqlite" ]
       }
       public_configs = [ ":sqlite_third_party_include_path" ]
     }
@@ -399,11 +400,26 @@ config("sqlite_third_party_include_path") {
 }
 
 if (enable_perfetto_trace_processor_mac_instruments) {
+  pkg_config("pkgconfig_expat") {
+    pkg_deps = [ "expat" ]
+  }
+
+  config("system_expat_config") {
+    if (perfetto_use_pkgconfig) {
+      configs = [ ":pkgconfig_expat" ]
+    } else {
+      # Fallback if pkg-config isn't enabled.
+      libs = [ "expat" ]
+    }
+  }
+
   group("expat") {
-    if (perfetto_root_path == "//") {
+    if (perfetto_use_system_expat) {
+      public_configs = [ ":system_expat_config" ]
+    } else if (perfetto_root_path == "//") {
       public_deps = [ "//buildtools:expat" ]
     } else {
-      public_deps = [ "//third_party/expat:expat" ]
+      public_deps = [ "//third_party/expat" ]
     }
   }
 }
@@ -422,8 +438,26 @@ if (enable_perfetto_grpc) {
 if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
   # Only available in standalone builds.
+
+  pkg_config("pkgconfig_linenoise") {
+    pkg_deps = [ "linenoise" ]
+  }
+
+  config("system_linenoise_config") {
+    if (perfetto_use_pkgconfig) {
+      configs = [ ":pkgconfig_linenoise" ]
+    } else {
+      # Fallback if pkg-config isn't enabled.
+      libs = [ "linenoise" ]
+    }
+  }
+
   group("linenoise") {
-    public_deps = [ "//buildtools:linenoise" ]
+    if (perfetto_use_system_linenoise) {
+      public_configs = [ ":system_linenoise_config" ]
+    } else {
+      public_deps = [ "//buildtools:linenoise" ]
+    }
   }
 }  # if (enable_perfetto_trace_processor_linenoise)
 
@@ -517,10 +551,13 @@ if (enable_perfetto_fuzzers && use_libfuzzer) {
 # or provided (for other build systems).
 perfetto_py_library("pandas_py") {
 }
+
 perfetto_py_library("tp_vendor_py") {
 }
+
 perfetto_py_library("tp_resolvers_py") {
 }
+
 perfetto_py_library("protobuf_py") {
 }
 
@@ -572,8 +609,8 @@ if (enable_perfetto_re2) {
     } else if (perfetto_root_path == "//") {
       public_deps = [ "//buildtools:re2" ]
     } else {
-      # This part will be overridden by the various build generators (Android.bp,
-      # Bazel) to point to the right path.
+      # This part will be overridden by the various build generators
+      # (Android.bp, Bazel) to point to the right path.
       public_deps = [ "//third_party/re2" ]
     }
   }

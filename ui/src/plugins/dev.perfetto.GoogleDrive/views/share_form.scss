@@ -1,0 +1,48 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The "Share to Google Drive" dialog is built from the standard widgets (Form,
+// TextInput, Button, Callout, ...), which bring their own styling. Only the
+// layout specific to this dialog lives here.
+.pf-gdrive-share {
+  // Fill the modal, which is at least a quarter of the viewport wide, but do
+  // not let the form get cramped when that is narrow.
+  min-width: min(400px, 100%);
+
+  // The read-only location field takes the room left over by its "Change"
+  // button.
+  &__location {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Separate the action row from the fields above it.
+  &__footer {
+    margin-top: 8px;
+  }
+
+  // Shown once the trace is in Drive: a plain icon and line of text.
+  &__saved {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--pf-color-success);
+    font-weight: 500;
+  }
+
+  &__progress-text {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+}

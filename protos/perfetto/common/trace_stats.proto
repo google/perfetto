@@ -24,10 +24,24 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 22.
+  // Next id: 27.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
+
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    enum BufferType {
+      BUFFER_TYPE_UNSPECIFIED = 0;
+      BUFFER_TYPE_V1 = 1;
+      BUFFER_TYPE_V2 = 2;
+      BUFFER_TYPE_V3 = 3;
+    }
+    // Reports the implementation actually used, which can differ from the
+    // requested type because the service skips unsupported implementations.
+    // Older services do not set this field, so an absent value means the type
+    // was not reported.
+    optional BufferType buffer_type = 25;
 
     // Num. bytes written into the circular buffer, including chunk headers.
     optional uint64 bytes_written = 1;
@@ -81,8 +95,10 @@ message TraceStats {
     // Num. chunks overwritten before they have been read (i.e. loss of data).
     optional uint64 chunks_overwritten = 3;
 
-    // Num. chunks discarded (i.e. loss of data). Can be > 0 only when a buffer
-    // is configured with FillPolicy == DISCARD.
+    // Num. chunks discarded (i.e. loss of data). For SMB chunks, this can be
+    // > 0 only when a buffer is configured with FillPolicy == DISCARD.
+    // TraceBufferV2 also counts SMB v2 batches rejected because their
+    // producer has a ProtoVM on this buffer.
     optional uint64 chunks_discarded = 18;
 
     // Num. chunks (!= packets) that were fully read from the circular buffer by
@@ -95,6 +111,28 @@ message TraceStats {
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;
+
+    // Number of completed TraceBufferV2 compactions.
+    // Includes compactions that move no chunks and excludes calls that skip
+    // compaction, such as calls on read-only buffers.
+    // For TraceBufferV3, this counts staging compactions.
+    //
+    // Compaction moves remaining chunks to the front and clears the unused
+    // tail.
+    // It keeps the pages that a similar write cycle can reuse, and releases
+    // the other whole pages where supported.
+    // The next writes start after the remaining chunks, which can reduce how
+    // often |write_wrap_count| and |chunks_overwritten| increase.
+    // Incomplete chunks can remain until later writes overwrite them.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions = 23;
+
+    // Number of TraceBufferV2 compactions skipped because live chunks were
+    // on both sides of the write cursor.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions_skipped = 24;
 
     // Num. out-of-band (OOB) patches that succeeded.
     optional uint64 patches_succeeded = 5;
@@ -113,13 +151,19 @@ message TraceStats {
     // stop at that point, for that sequence, increasing this counter.
     optional uint64 readaheads_failed = 8;
 
-    // Num. of violations of the SharedMemoryABI found while writing or reading
-    // the buffer. This is an indication of either a bug in the producer(s) or
-    // malicious producer(s).
+    // Num. of violations of the SharedMemoryABI or the shared ring buffer ABI
+    // found while writing or reading the buffer. This includes SMB v2 packets
+    // that TraceBufferV2 cannot rewrite because they are malformed or nest
+    // more than 128 groups. It also includes chunks whose writer ID already
+    // uses the other input format.
+    // This is an indication of either a bug in the producer(s) or malicious
+    // producer(s).
     optional uint64 abi_violations = 9;
 
     // The fields below have been introduced in Android R.
 
+    // TraceBufferV1 only. For TraceBufferV2, see DATA_LOSS_WRITER_ABORT in
+    // TracePacket.previous_packet_dropped.
     // Num. of times the service detected packet loss on a trace writer
     // sequence. This is usually caused by exhaustion of available chunks in the
     // writer process's SMB. Note that this relies on the client's TraceWriter
@@ -130,6 +174,62 @@ message TraceStats {
     // Was shadow_buffer_stats (ShadowBufferStats), a testing-only stat used
     // to validate TraceBufferV2 against V1.
     reserved 21;
+
+    // TraceBufferV2 only. Num. SMB v2 packets dropped at read time because
+    // they contain a nested message larger than 256 MiB, the limit of the
+    // four-byte length field. The packet can be valid. Loss is reported on the
+    // next packet of the same sequence.
+    optional uint64 oversized_packets_dropped = 22;
+
+    // Experimental statistics for TraceBufferV3, subject to change.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    //
+    // Next id: 12.
+    message ExperimentalV3Stats {
+      // Bundles stored so far.
+      optional uint64 bundles_written = 1;
+
+      // Packet bytes in |bundles_written|, before compression.
+      // Includes each packet's header.
+      optional uint64 uncompressed_bytes_written = 2;
+
+      // Bytes |bundles_written| took in the buffer, after compression.
+      // Includes each bundle's header.
+      optional uint64 compressed_bytes_written = 3;
+
+      // Bundles overwritten in RING_BUFFER mode before they were read.
+      optional uint64 bundles_overwritten = 4;
+
+      // Packet bytes in |bundles_overwritten|, before compression.
+      optional uint64 uncompressed_bytes_overwritten = 11;
+
+      // Bundles dropped because their stored size exceeds
+      // |BufferStats.buffer_size| or their uncompressed size exceeds 32 bits.
+      optional uint64 bundles_too_large = 5;
+
+      // Longest bundling pass in microseconds, including compaction.
+      optional uint64 bundling_max_us = 6;
+
+      // Inclusive upper bound of each bucket of bundling pass durations, in
+      // microseconds.
+      repeated int64 bundling_time_us_histogram_def = 7 [packed = true];
+
+      // Number of bundling passes in each bucket.
+      // Has one more entry than |_def|, for passes above the last bound.
+      repeated uint64 bundling_time_us_histogram_counts = 8 [packed = true];
+
+      // Total duration of the bundling passes in each bucket, in microseconds.
+      // Has one more entry than |_def|, for passes above the last bound.
+      repeated int64 bundling_time_us_histogram_sum = 9 [packed = true];
+
+      // Bundling passes run before a write that might not fit in staging.
+      optional uint64 staging_space_passes = 10;
+    }
+
+    // Only set for TraceBufferV3.
+    optional ExperimentalV3Stats experimental_v3_stats = 26;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
@@ -144,6 +244,13 @@ message TraceStats {
 
     // The buffer index (0..N, as defined in the TraceConfig).
     optional uint32 buffer = 4;
+
+    // Which protocol carried this writer's chunks to the buffer.
+    // This is a bitmask of ProtocolAbiVersion (see producer_port.proto).
+    // The value is 1 for the SMB (v1) and 2 for the tracing v2 ring buffer.
+    // Both bits are set only if a v1 and a v2 writer of the same producer used
+    // the same writer ID which should NOT be happening.
+    optional uint32 protocol_abi_versions = 5;
 
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).

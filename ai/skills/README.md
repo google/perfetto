@@ -1,129 +1,206 @@
-# Perfetto Skills
+<div align="center">
 
-This directory holds a single **skill**: model-agnostic instructions
-that teach an AI agent how to do something useful with Perfetto. A
-skill is how Perfetto and the teams that use it encode the knowledge
-an expert would share when sitting next to a colleague — what to look
-at, which tables to query, what good queries look like, and how to
-interpret the results.
+<h1>Perfetto AI skill</h1>
 
-The format follows the [Agent Skills](https://agentskills.io)
-convention: a skill is a directory containing a `SKILL.md` with YAML
-frontmatter (`name`, `description`) and a markdown body. Any tool that
-implements the convention — Claude Code, Gemini CLI, OpenAI Codex —
-can load it.
+<p><strong>Let your coding agent record and analyse Perfetto traces.</strong></p>
 
-This is part of the ecosystem described in
-[RFC-0025: AI in Perfetto](https://github.com/google/perfetto/discussions/5763)
-and [RFC-0026](https://github.com/google/perfetto/discussions/5892).
+<p>
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#example-prompts">Example prompts</a> ·
+  <a href="#what-the-agent-gets">What the agent gets</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
 
-## One skill, a router, and reusable files
+</div>
 
-Everything Perfetto ships is consolidated into **one** skill,
-`ai/skills/perfetto/`. Its entry point is a lean router; the actual
-knowledge lives in reference and workflow files the router dispatches
-to and loads on demand. This keeps a single, broad `description` in
-the agent's context budget instead of many sibling skills competing to
-match, and lets each piece be loaded only when the task needs it.
+## What is it?
+
+The Perfetto AI skill is a [skill](https://agentskills.io) for coding agents
+such as Claude Code, Codex, OpenCode, Antigravity and Cursor. Point your agent
+at a trace and ask questions in plain English: it loads the trace into
+`trace_processor`, writes the PerfettoSQL and reports what it found. It can
+also record traces and follow guided workflows for Android memory and GPU
+analysis. The skill bundles `trace_processor`, so there is nothing else to
+install.
+
+## Quick start
+
+### 1. Install the skill
+
+Pick your agent. The skill is published to the
+[`ai-agents`](https://github.com/google/perfetto/tree/ai-agents) branch with
+each Perfetto release.
+
+<details open>
+<summary>Claude Code</summary>
+<p></p>
 
 ```
-ai/skills/perfetto/
-├── SKILL-template.md            # the router (see below — NOT named SKILL.md)
-├── infra-references/
-│   └── querying.md              # how to run trace_processor + PerfettoSQL
-├── environment-references/
-│   └── setup.md                 # $SKILL_ROOT + the bundled trace_processor
-└── workflows/
-    └── android_memory/
-        ├── heap_dump.md
-        ├── heap_dump_cluster.md
-        ├── heap_dump_caching_optimizer.md
-        └── scripts/             # SQL/Python shipped with these workflows
+/plugin marketplace add google/perfetto@ai-agents
+/plugin install perfetto@perfetto
 ```
 
-Three kinds of file:
+Update through `/plugin`, which pulls the latest `ai-agents` branch.
+</details>
 
-- **`workflows/<domain>/*.md`** — entry points the router dispatches
-  *to*: domain-specific guided investigations (a heap dump on Android,
-  jank on Chrome, …). Group related workflows in a `<domain>/`
-  subfolder. A workflow is self-contained — it carries its own queries
-  and any helper scripts under a sibling `scripts/` dir.
-- **`infra-references/*.md`** — domain-agnostic mechanics a workflow
-  (or an ad-hoc request) pulls *in*: how to query a trace, etc.
-- **`environment-references/*.md`** — environment setup: what to set
-  `$SKILL_ROOT` to and how to invoke the bundled `trace_processor`.
+<details>
+<summary>Codex</summary>
+<p></p>
 
-## The source tree is a build input, not a drop-in
-
-Unlike a normal Agent Skill, this tree is **not** directly loadable.
-Two source-only conventions mean it has to pass through the bundler
-(`tools/release/build_ai_agents.py`) before any agent can load it:
-
-1. **`SKILL-template.md`, not `SKILL.md`.** The router is named so a
-   discovery layer scanning for `SKILL.md` will not pick up the
-   unassembled source tree. The bundler renames it to `SKILL.md`.
-2. **No `bin/trace_processor` in source.** The setup doc points every
-   `trace_processor` invocation at `$SKILL_ROOT/bin/trace_processor`,
-   but that wrapper is not checked in here — the bundler copies it in
-   from `tools/trace_processor` at build time, so every install
-   (plugin or fallback) carries a working binary inside the skill.
-
-Every agent gets the identical assembled skill. See
-[`ai/extensions/README.md`](../extensions/README.md) for how the
-assembled bundle reaches end users.
-
-## Reference other files by `$SKILL_ROOT`-anchored path
-
-Every path a file mentions — links to other skill files, and the
-helper scripts a workflow runs — is written as `$SKILL_ROOT/<path>`,
-where `<path>` is relative to the skill root (the directory holding
-`SKILL.md`) and never relative to the file doing the referencing. So
-from `workflows/android_memory/heap_dump.md`:
-
-```markdown
-follow `$SKILL_ROOT/infra-references/querying.md` first, then come back here.
+```bash
+codex plugin marketplace add google/perfetto --ref ai-agents
 ```
 
-Not `../../infra-references/querying.md` (file-relative), and not a
-bare `infra-references/querying.md` either. Likewise a helper script is
-`$SKILL_ROOT/workflows/android_memory/scripts/cluster_paths.py`, and a
-`trace_processor` invocation spells the full path:
+Then install the `perfetto` plugin from Codex's plugin list.
+</details>
 
-```sh
-trace_processor query --remote SESSION --query-file \
-  $SKILL_ROOT/workflows/android_memory/scripts/triage_dominator_path.sql
+<details>
+<summary>OpenCode</summary>
+<p></p>
+
+Add to `opencode.json`:
+
+```json
+"skills": {
+  "urls": ["https://raw.githubusercontent.com/google/perfetto/ai-agents/plugins/perfetto/skills"]
+}
 ```
 
-`$SKILL_ROOT` is the one anchor that makes this unambiguous. The skill
-is loaded from a plugin/install directory that is **not** the agent's
-working directory (that's the user's workspace, where the trace lives),
-so a bare relative path would resolve against the wrong place.
-`environment-references/setup.md` — the always-required first read —
-tells the agent to set `$SKILL_ROOT` to the directory it loaded
-`SKILL.md` from, and to put the bundled `$SKILL_ROOT/bin` on the
-session's `PATH` so bare `trace_processor` commands work. Once it's set,
-every `$SKILL_ROOT/...` path resolves the same way regardless of the
-working directory, whether the agent is opening a referenced markdown
-file or passing a script to the shell.
+The URL always serves the latest published skill.
+</details>
 
-The router (`SKILL-template.md`) sits at the skill root, so its
-`$SKILL_ROOT/...` links have no intermediate `../`; every other file
-speaks the same path language. A file can move between subfolders
-without rewriting its outgoing links (only references *to* it change).
+<details>
+<summary>Antigravity, Cursor, Pi and any other agent</summary>
+<p></p>
 
-## Authoring
+Use the installer, which needs Python 3:
 
-- **Portability.** A file will be read by tools without access to this
-  checkout. Never use repo-relative paths like `src/trace_processor/...`
-  or refer to `tools/...` scripts; assume the reader only has
-  `trace_processor` and a trace. Link to absolute URLs on
-  [perfetto.dev/docs](https://perfetto.dev/docs).
-- **The router (`SKILL-template.md`)** stays minimal: match broad in
-  its `description`, then route. When you add a workflow, add one row
-  to its table. Keep it short.
-- **Add a workflow** as `workflows/<domain>/<name>.md`, with any
-  scripts in a sibling `scripts/`. Write the body in the imperative,
-  like a runbook. Pull in `$SKILL_ROOT/infra-references/querying.md`
-  (anchored path, as above) rather than re-explaining how to query.
-- **Test against a real trace** before checking in. Files that have
-  never been run end up with broken syntax and wrong column names.
+```bash
+# macOS / Linux: into an agent's default directory
+curl -fsSL https://get.perfetto.dev/agents-install | python3 - --agent <claude|codex|opencode|antigravity|pi>
+
+# macOS / Linux: into any skills directory, e.g. one committed to your repo
+curl -fsSL https://get.perfetto.dev/agents-install | python3 - --target <path>
+```
+
+```powershell
+# Windows (use curl.exe, not the PowerShell curl alias)
+curl.exe -fsSL https://get.perfetto.dev/agents-install | python - --target <path>
+```
+
+Re-run the same command to update. Pass `--version vX.Y` to pin a release.
+</details>
+
+<details>
+<summary>Offline</summary>
+<p></p>
+
+Each [GitHub release](https://github.com/google/perfetto/releases) carries a
+`perfetto-ai-skill.zip`. Unzip it into your agent's skills directory, for
+example `.claude/skills/`. See the
+[offline install docs](https://perfetto.dev/docs/getting-started/using-ai#offline-install)
+for seeding the `trace_processor` cache on a machine with no network.
+</details>
+
+Offline installs, updating and more are covered in the
+[docs](https://perfetto.dev/docs/getting-started/using-ai).
+
+### 2. Ask about a trace
+
+Mention a trace file and ask your question:
+
+```
+> Investigate object retention and potential leaks in heap_dump.pftrace.
+```
+
+No trace yet? Let the agent record one:
+
+```
+> Record a Java heap dump of com.example.app from my connected device and
+  find what is keeping memory alive.
+```
+
+You do not need to mention the skill: the agent picks it up whenever the
+conversation involves a trace or a performance problem. In Claude Code you can
+also invoke it explicitly with `/perfetto:perfetto`.
+
+## Example prompts
+
+### Memory leaks and heap dumps
+
+Guided workflows for leaks, OOMs, churn and allocation hot paths.
+
+```
+> Investigate object retention and potential leaks in heap_dump.pftrace.
+> Why does com.example.app's Java heap keep growing? Compare before.pftrace
+  and after.pftrace.
+> Analyze native heap allocations and find memory growth hot paths in
+  native_heap.pftrace.
+> Which code paths allocate the most short-lived objects in
+  java_alloc.pftrace?
+> Here are 40 heap dumps of com.example.app in ~/dumps/. Cluster them and
+  find the common root causes.
+```
+
+### Ad-hoc trace analysis
+
+Any question you could answer with PerfettoSQL.
+
+```
+> Load ~/traces/startup.pftrace and tell me which threads used the most CPU
+  in the first two seconds.
+> Why is app startup slow in startup.pftrace? Break down the main thread.
+> Find the top causes of uninterruptible sleep for com.example.myapp in
+  trace.pftrace.
+> Which frames were janky in jank.pftrace and what was the UI thread doing?
+```
+
+### Recording
+
+Traces from a connected Android device or the local Linux machine.
+
+```
+> Record a 10 second trace of com.example.app starting up on my connected
+  device, then tell me what took the longest.
+```
+
+### GPU performance
+
+Is the workload GPU-bound or host-bound, and why. Counter support is deepest
+for NVIDIA/CUDA today.
+
+```
+> Is this workload GPU-bound or host-bound? The trace is at game.pftrace.
+> The GPU looks busy but the workload is slow. Was the clock throttled or
+  slow to ramp in gpu.pftrace?
+> Which kernels dominate this CUDA trace, and are they compute-bound or
+  memory-bound?
+```
+
+## What the agent gets
+
+- **`trace_processor`**, bundled inside the skill as a wrapper that
+  downloads the matching prebuilt on first use.
+- **A router** (`SKILL.md`) whose `description` is what makes the agent
+  reach for the skill at all. It names symptoms and file types (slow
+  startup, jank, ANRs, memory growth, GPU, `.pftrace`, systrace, Chrome
+  JSON) rather than just "Perfetto", because users describe problems,
+  not tools. The body is short: setup, then "which of these is your
+  situation", each pointing at one file.
+- **Workflows** (`workflows/<domain>/*.md`) for investigations we know
+  how to do well: Android Java heap dumps, native heap profiles,
+  allocation churn, GPU busy/idle decomposition, frequency residency,
+  compute kernel analysis. Each is a runbook that runs shipped SQL or
+  Python scripts and tells the agent how to read the result.
+- **A querying reference** (`infra-references/querying.md`) for
+  everything else: how to keep a trace loaded across many queries, how
+  to discover tables and the SQL standard library instead of guessing,
+  which modules answer the common questions, and a short list of
+  PerfettoSQL rules of thumb.
+- **Recording guides** for Android and Linux, with example configs, for
+  when there is no trace yet.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how the skill is designed,
+how to change it and how it ships.

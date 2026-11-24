@@ -79,7 +79,7 @@ TEST(ProtoFileSerializerTest, DeletedMessageFieldIsPreserved) {
   std::string out = ProtoFileToDotProto(file);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
   EXPECT_THAT(out, HasSubstr("string deleted_upstream = 2;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, DeletedOneofFieldIsPreserved) {
@@ -97,7 +97,7 @@ TEST(ProtoFileSerializerTest, DeletedOneofFieldIsPreserved) {
   std::string out = ProtoFileToDotProto(file);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
   EXPECT_THAT(out, HasSubstr("string deleted_upstream = 2;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, DeletedEnumValueIsPreserved) {
@@ -111,7 +111,7 @@ TEST(ProtoFileSerializerTest, DeletedEnumValueIsPreserved) {
   std::string out = ProtoFileToDotProto(file);
   EXPECT_THAT(out, HasSubstr("OK = 0;"));
   EXPECT_THAT(out, HasSubstr("LEGACY_STATUS = 1;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 // End-to-end regression test: a field deleted upstream inside a oneof (and a
@@ -159,7 +159,9 @@ TEST(ProtoFileSerializerTest, MergeKeepsFieldsDeletedUpstream) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
@@ -189,14 +191,16 @@ TEST(ProtoFileSerializerTest, MergeDropsNonAllowlistedUpstreamFields) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
   EXPECT_THAT(out, Not(HasSubstr("new_upstream")));
 }
 
-void VerifyDeletedCommentNotDuplicated(
+void VerifyDeletedCommentStripped(
     const std::vector<std::string>& existing_comments) {
   ProtoFile input;
   {
@@ -216,29 +220,24 @@ void VerifyDeletedCommentNotDuplicated(
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
-
-  size_t first_pos = out.find(kDeletedCommentWarning);
-  ASSERT_NE(first_pos, std::string::npos);
-  size_t second_pos = out.find(kDeletedCommentWarning, first_pos + 1);
-  EXPECT_EQ(second_pos, std::string::npos)
-      << "Comment was duplicated in output:\n"
-      << out;
+  EXPECT_THAT(out, Not(HasSubstr(kDeletedCommentWarning)));
 }
 
-// Test that we don't repeatedly add the "not present upstream" comment to
-// deleted fields when we perform a merge on an input that already has this
-// comment.
-TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedComment) {
-  VerifyDeletedCommentNotDuplicated(
+// Test that we strip any existing "not present upstream" comment from deleted
+// fields when we perform a merge on an input that already has this comment.
+TEST(ProtoFileSerializerTest, MergeStripsLegacyDeletedComment) {
+  VerifyDeletedCommentStripped(
       {"", " The following enums/messages/fields are not present upstream",
        ""});
 }
 
-TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedCommentFormatted) {
-  VerifyDeletedCommentNotDuplicated(
+TEST(ProtoFileSerializerTest, MergeStripsLegacyDeletedCommentFormatted) {
+  VerifyDeletedCommentStripped(
       {"The following enums/messages/fields are not present upstream"});
 }
 
@@ -260,7 +259,8 @@ TEST(ProtoFileSerializerTest, TypeTransitionDisallowedFails) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  base::Status status =
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll);
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.c_message(), HasSubstr("changed from bool to string"));
 }
@@ -283,7 +283,8 @@ TEST(ProtoFileSerializerTest, TypeTransitionAllowedSucceeds) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  base::Status status =
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll);
   ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
@@ -316,12 +317,90 @@ TEST(ProtoFileSerializerTest, TypeTransitionEnumAllowedSucceeds) {
   }
 
   ProtoFile merged;
-  base::Status status = MergeProtoFiles(input, upstream, Allowlist{}, merged);
+  base::Status status =
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll);
   ASSERT_TRUE(status.ok()) << status.c_message();
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("Container.MyEnum state = 1;"));
   EXPECT_THAT(out, Not(HasSubstr("bool state")));
+}
+
+// Merges a "Container" message whose field 1 changes from |from| to |to| with
+// TypeChanges::kLosslessOnly, and returns the merged field.
+ProtoFile::Field MergeLosslessChangesOnly(const ProtoFile::Field& from,
+                                          const ProtoFile::Field& to) {
+  auto make_file = [](const ProtoFile::Field& field) {
+    ProtoFile file;
+    ProtoFile::Message payload{};
+    payload.name = "Payload";
+    file.messages.push_back(payload);
+    ProtoFile::Message container{};
+    container.name = "Container";
+    container.fields.push_back(field);
+    file.messages.push_back(container);
+    return file;
+  };
+  ProtoFile merged;
+  base::Status status =
+      MergeProtoFiles(make_file(from), make_file(to), Allowlist{}, merged,
+                      TypeChanges::kLosslessOnly);
+  EXPECT_TRUE(status.ok()) << status.c_message();
+  return merged.messages[1].fields[0];
+}
+
+TEST(ProtoFileSerializerTest, LosslessChangesOnlyAppliesLosslessTypeChanges) {
+  struct Case {
+    std::string from;
+    std::string to;
+    std::string expected;
+  };
+  for (const auto& c : std::vector<Case>{{"int32", "int64", "int64"},
+                                         {"bool", "uint32", "uint32"},
+                                         {"int64", "int32", "int64"},
+                                         {"uint32", "int32", "uint32"},
+                                         {"fixed32", "sfixed32", "fixed32"},
+                                         {"string", "bytes", "string"},
+                                         {"bytes", "Payload", "bytes"},
+                                         {"Payload", "bytes", "Payload"}}) {
+    EXPECT_EQ(MergeLosslessChangesOnly(MakeField(c.from, "field", 1),
+                                       MakeField(c.to, "field", 1))
+                  .type,
+              c.expected)
+        << c.from << " -> " << c.to;
+  }
+}
+
+TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsLabel) {
+  ProtoFile::Field repeated = MakeField("int32", "field", 1);
+  repeated.is_repeated = true;
+  EXPECT_TRUE(MergeLosslessChangesOnly(repeated, MakeField("int32", "field", 1))
+                  .is_repeated);
+}
+
+// With TypeChanges::kAll, a field changed to a new enum would use an enum that
+// is not allowlisted, so missing from the output.
+TEST(ProtoFileSerializerTest, LosslessChangesOnlyKeepsTypeOfNewEnum) {
+  ProtoFile input;
+  ProtoFile::Message message{};
+  message.name = "Container";
+  message.fields.push_back(MakeField("bool", "state", 1));
+  input.messages.push_back(message);
+
+  ProtoFile upstream = input;
+  upstream.messages[0].fields[0] = MakeField("Container.MyEnum", "state", 1);
+  ProtoFile::Enum en{};
+  en.name = "MyEnum";
+  en.values.push_back(MakeEnumValue("UNKNOWN", 0));
+  upstream.messages[0].enums.push_back(en);
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kLosslessOnly)
+                  .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("bool state = 1;"));
+  EXPECT_THAT(out, Not(HasSubstr("MyEnum")));
 }
 
 TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {
@@ -344,9 +423,9 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionIsMerged) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
-          .ok());
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1 [deprecated = true];"));
@@ -372,12 +451,90 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumIsMerged) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
-          .ok());
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("ACTIVE = 1 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedOptionRemovedUpstreamIsRemoved) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    auto f1 = MakeField("int32", "un_deprecated", 1);
+    f1.options.push_back({"deprecated", "true"});
+    message.fields.push_back(f1);
+
+    auto f2 = MakeField("int32", "with_downstream_opt", 2);
+    f2.options.push_back({"deprecated", "true"});
+    f2.options.push_back({"(.my.custom_opt)", "true"});
+    message.fields.push_back(f2);
+
+    auto f3 = MakeField("int32", "still_deprecated", 3);
+    f3.options.push_back({"deprecated", "true"});
+    message.fields.push_back(f3);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("int32", "un_deprecated", 1));
+    message.fields.push_back(MakeField("int32", "with_downstream_opt", 2));
+
+    auto f3 = MakeField("int32", "still_deprecated", 3);
+    f3.options.push_back({"deprecated", "true"});
+    message.fields.push_back(f3);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("int32 un_deprecated = 1;"));
+  EXPECT_THAT(
+      out,
+      HasSubstr("int32 with_downstream_opt = 2 [(.my.custom_opt) = true];"));
+  EXPECT_THAT(out,
+              HasSubstr("int32 still_deprecated = 3 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumRemovedUpstreamIsRemoved) {
+  ProtoFile input;
+  {
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    auto val = MakeEnumValue("ACTIVE", 1);
+    val.options.push_back({"deprecated", "true"});
+    en.values.push_back(val);
+    input.enums.push_back(en);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    en.values.push_back(MakeEnumValue("ACTIVE", 1));
+    upstream.enums.push_back(en);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged,
+                              TypeChanges::kAll, {"deprecated"})
+                  .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("ACTIVE = 1;"));
 }
 
 TEST(ProtoFileSerializerTest,
@@ -461,7 +618,9 @@ TEST(ProtoFileSerializerTest,
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
@@ -554,7 +713,9 @@ TEST(ProtoFileSerializerTest, PassthroughInNestedDefinition) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
@@ -649,7 +810,9 @@ TEST(ProtoFileSerializerTest, PassthroughDeepRecursion) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
   EXPECT_THAT(out, HasSubstr("int32 f1 = 1;"));
@@ -685,7 +848,9 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
   }
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
@@ -699,9 +864,9 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
   // 2. reserved_field is kept in active fields with [deprecated = true]
   EXPECT_THAT(out, HasSubstr("string reserved_field = 2 [deprecated = true];"));
 
-  // 3. truly_deleted_field is placed in the commented-out section
+  // 3. truly_deleted_field is preserved in deleted_fields without warning
   EXPECT_THAT(out, HasSubstr("bool truly_deleted_field = 3;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
@@ -774,15 +939,16 @@ TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(
-      MergeProtoFiles(input_file, upstream_file, Allowlist{}, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, Allowlist{}, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
   EXPECT_THAT(out, HasSubstr("int32 active_field = 1;"));
   EXPECT_THAT(out, HasSubstr("string legacy_field = 2 [deprecated = true];"));
   EXPECT_THAT(out, HasSubstr("bool deleted_field = 3;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
@@ -873,7 +1039,9 @@ TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
   ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
 
   ProtoFile merged;
-  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged).ok());
+  ASSERT_TRUE(MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                              TypeChanges::kAll)
+                  .ok());
 
   std::string out = ProtoFileToDotProto(merged);
 
@@ -898,6 +1066,269 @@ TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
   google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
   const auto* merged_desc = importer_merged.Import("merged.proto");
   EXPECT_NE(merged_desc, nullptr);
+}
+
+size_t CountOccurrences(const std::string& haystack,
+                        const std::string& needle) {
+  size_t count = 0;
+  for (size_t pos = haystack.find(needle); pos != std::string::npos;
+       pos = haystack.find(needle, pos + needle.size())) {
+    ++count;
+  }
+  return count;
+}
+
+// Builds a "Container" message with a oneof "data" holding `other = 1`, plus
+// `snapshot = 93` either in the oneof or as a plain field.
+ProtoFile MakeContainerFile(bool snapshot_in_oneof) {
+  ProtoFile file;
+  ProtoFile::Message message{};
+  message.name = "Container";
+  ProtoFile::Oneof oneof{};
+  oneof.name = "data";
+  oneof.fields.push_back(MakeField("int32", "other", 1));
+  if (snapshot_in_oneof) {
+    oneof.fields.push_back(MakeField("string", "snapshot", 93));
+  } else {
+    message.fields.push_back(MakeField("string", "snapshot", 93));
+  }
+  message.oneofs.push_back(oneof);
+  file.messages.push_back(message);
+  return file;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedFieldInInputOneofIsNotDuplicated) {
+  ProtoFile input = MakeContainerFile(/*snapshot_in_oneof=*/true);
+  ProtoFile upstream = MakeContainerFile(/*snapshot_in_oneof=*/false);
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields.insert(93);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedFieldInUpstreamOneofIsNotDuplicated) {
+  ProtoFile input = MakeContainerFile(/*snapshot_in_oneof=*/false);
+  ProtoFile upstream = MakeContainerFile(/*snapshot_in_oneof=*/true);
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].oneofs["data"].insert(93);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedNewFieldIsStillAdded) {
+  ProtoFile input = MakeContainerFile(/*snapshot_in_oneof=*/true);
+  ProtoFile upstream = MakeContainerFile(/*snapshot_in_oneof=*/false);
+  upstream.messages[0].fields.push_back(MakeField("string", "fresh", 94));
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].fields.insert(93);
+  allowlist.messages["Container"].fields.insert(94);
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("string fresh = 94;"));
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+}
+
+TEST(ProtoFileSerializerTest,
+     PathFieldInInputOneofButPlainUpstreamIsNotDuplicated) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input_file(temp_dir.path(), "input.proto", R"(
+    syntax = "proto3";
+    package perfetto.protos;
+    message Layer { int32 id = 1; }
+    message Snapshot { repeated Layer layers = 1; }
+    message Packet { oneof data { int32 other = 1; Snapshot snapshot = 93; } }
+  )");
+  TempProtoFile upstream_file(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto3";
+    package perfetto.protos;
+    message Layer { int32 id = 1; bool is_visible = 2; }
+    message Snapshot { repeated Layer layers = 1; }
+    message Packet { oneof data { int32 other = 1; } Snapshot snapshot = 93; }
+  )");
+
+  protozero::MultiFileErrorCollectorImpl mfe_input;
+  protozero::MultiFileErrorCollectorImpl mfe_upstream;
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe_input);
+  const auto* input_desc = importer_input.Import("input.proto");
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe_upstream);
+  const auto* upstream_desc = importer_upstream.Import("upstream.proto");
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(upstream_desc, nullptr);
+
+  const auto* packet_desc = upstream_desc->FindMessageTypeByName("Packet");
+  ASSERT_NE(packet_desc, nullptr);
+  Allowlist allowed;
+  ASSERT_TRUE(AllowlistFromFieldList(*packet_desc,
+                                     {"snapshot.layers.is_visible"}, allowed)
+                  .ok());
+
+  ProtoFile merged;
+  ASSERT_TRUE(MergeProtoFiles(ProtoFileFromDescriptor("", *input_desc),
+                              ProtoFileFromDescriptor("", *upstream_desc),
+                              allowed, merged, TypeChanges::kAll)
+                  .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("bool is_visible = 2;"));
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+
+  // The merged proto must be valid: before the fix, protoc rejected it with
+  // "snapshot" is already defined.
+  TempProtoFile merged_file(
+      temp_dir.path(), "merged.proto",
+      "syntax = \"proto3\";\npackage perfetto.protos;\n" + out);
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+}
+
+TEST(ProtoFileSerializerTest, NewUpstreamOneofWithOnlyExistingFieldsIsDropped) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("string", "snapshot", 93));
+    input.messages.push_back(message);
+  }
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    ProtoFile::Oneof oneof{};
+    oneof.name = "wrapper";
+    oneof.fields.push_back(MakeField("string", "snapshot", 93));
+    message.oneofs.push_back(oneof);
+    upstream.messages.push_back(message);
+  }
+
+  Allowlist allowlist;
+  allowlist.messages["Container"].oneofs["wrapper"] = {93};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, allowlist, merged, TypeChanges::kAll)
+          .ok());
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, Not(HasSubstr("oneof wrapper"))) << out;
+  EXPECT_EQ(CountOccurrences(out, "snapshot = 93"), 1u) << out;
+
+  // The merged proto must be valid: an empty oneof is rejected by protoc.
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile merged_file(
+      temp_dir.path(), "merged.proto",
+      "syntax = \"proto3\";\npackage perfetto.protos;\n" + out);
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", temp_dir.path());
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+}
+
+TEST(ProtoFileSerializerTest,
+     ReservedUpstreamFieldWithDeletedTypeIsPlacedInDeletedFields) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Message note_msg{};
+    note_msg.name = "Note";
+    note_msg.fields.push_back(MakeField("string", "key", 1));
+    note_msg.fields.push_back(MakeField("string", "value", 2));
+    message.nested_messages.push_back(note_msg);
+
+    ProtoFile::Field notes_field = MakeField("Note", "notes", 46);
+    notes_field.is_repeated = true;
+    message.fields.push_back(notes_field);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.reserved_numbers.insert(46);
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+
+  size_t pos_note_msg = out.find("message Note {");
+  size_t pos_notes_field = out.find("repeated Note notes = 46");
+
+  EXPECT_NE(pos_note_msg, std::string::npos);
+  EXPECT_NE(pos_notes_field, std::string::npos);
+  EXPECT_LT(pos_note_msg, pos_notes_field)
+      << "message Note must be defined before repeated Note notes is used:\n"
+      << out;
+
+  EXPECT_THAT(out, HasSubstr("repeated Note notes = 46 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest,
+     DeletedOneofFieldWithDeletedTypeIsMarkedDeprecated) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Message note_msg{};
+    note_msg.name = "Note";
+    note_msg.fields.push_back(MakeField("string", "key", 1));
+    message.nested_messages.push_back(note_msg);
+
+    ProtoFile::Oneof oneof{};
+    oneof.name = "data";
+    oneof.fields.push_back(MakeField("Note", "note", 1));
+    message.oneofs.push_back(oneof);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    ProtoFile::Oneof oneof{};
+    oneof.name = "data";
+    message.oneofs.push_back(oneof);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("Note note = 1 [deprecated = true];"));
 }
 
 TEST(ProtoFileSerializerTest, ExtensionProtoMergerInlinesAllExtensions) {
@@ -1105,10 +1536,14 @@ TEST(ExtensionProtoMergerTest, MergeExtensionsEndToEnd) {
   EXPECT_THAT(out,
               HasSubstr("optional AppWakelockBundle app_wakelock = 1100;"));
 
-  // Verify relocated helper types
+  // Verify relocated helper types appear BEFORE their target message
   EXPECT_THAT(out, HasSubstr("enum ReceiverType {"));
   EXPECT_THAT(out, HasSubstr("message AndroidMessageQueue {"));
   EXPECT_THAT(out, HasSubstr("message AppWakelockBundle {"));
+  EXPECT_LT(out.find("message AndroidMessageQueue {"),
+            out.find("message TrackEvent {"));
+  EXPECT_LT(out.find("message AppWakelockBundle {"),
+            out.find("message TracePacket {"));
 }
 
 TEST(ExtensionProtoMergerTest, CrossFileExtensionDependency) {
@@ -1156,7 +1591,611 @@ TEST(ExtensionProtoMergerTest, CrossFileExtensionDependency) {
   EXPECT_THAT(out, HasSubstr("message TrackEvent {"));
   EXPECT_THAT(out, HasSubstr("optional SharedMeta shared_meta = 3000;"));
   EXPECT_THAT(out, HasSubstr("message SharedMeta {"));
+  EXPECT_LT(out.find("message SharedMeta {"), out.find("message TrackEvent {"));
 }
+
+TEST(ExtensionProtoMergerTest, UnassociatedHelpersAreOmitted) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  std::string base_content = R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to 9999;
+    }
+  )";
+
+  std::string ext_content = R"(
+    syntax = "proto2";
+    package com.android.unassociated;
+    import "base.proto";
+
+    message UnusedHelper {
+      optional string data = 1;
+    }
+
+    message OtherMessage {
+      extensions 100 to 200;
+    }
+
+    extend OtherMessage {
+      optional UnusedHelper unused = 101;
+    }
+  )";
+
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", base_content);
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", ext_content);
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  EXPECT_THAT(out, HasSubstr("message TrackEvent {"));
+  EXPECT_THAT(out, Not(HasSubstr("UnusedHelper")));
+  EXPECT_THAT(out, Not(HasSubstr("OtherMessage")));
+}
+
+// Imports |file_name| from |dir| and converts it.
+ProtoFile ImportProtoFile(const std::string& dir,
+                          const std::string& file_name) {
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", dir);
+  google::protobuf::compiler::Importer importer(&dst, &mfe);
+  const auto* desc = importer.Import(file_name);
+  PERFETTO_CHECK(desc);
+  return ProtoFileFromDescriptor("", *desc);
+}
+
+// Returns the text of the top-level message |message_name| in |proto_text|.
+std::string FindMessageText(const std::string& proto_text,
+                            const std::string& message_name) {
+  size_t start_pos = proto_text.find("message " + message_name + " {");
+  PERFETTO_CHECK(start_pos != std::string::npos);
+  size_t end_pos = proto_text.find("\n}", start_pos);
+  PERFETTO_CHECK(end_pos != std::string::npos);
+  return proto_text.substr(start_pos, end_pos + 1 - start_pos);
+}
+
+// Single numbers, `a to b` and `a to max` ranges are written correctly.
+TEST(ProtoFileSerializerTest, ExtensionRangesAreSerialized) {
+  ProtoFile file;
+  ProtoFile::Message message{};
+  message.name = "OneofOptions";
+  ProtoFile::ExtensionsStatement statement;
+  statement.ranges = {
+      {100, 101},
+      {200, 300},
+      {1000, google::protobuf::FieldDescriptor::kMaxNumber + 1},
+  };
+  message.extensions_statements.push_back(statement);
+  file.messages.push_back(message);
+
+  std::string out = ProtoFileToDotProto(file);
+  EXPECT_THAT(out, HasSubstr("  extensions 100, 200 to 299, 1000 to max;\n"));
+}
+
+// Ranges are taken from the input, not from upstream.
+TEST(ProtoFileSerializerTest, MergeKeepsExtensionRangesOfInput) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message OneofOptions {
+      extensions 1000 to max;
+    }
+    message TracePacket {
+      optional int32 timestamp = 1;
+      optional int32 inlined_extension = 1000;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message OneofOptions {
+      extensions 1000 to max;
+    }
+    message TracePacket {
+      optional int32 timestamp = 1;
+      extensions 1000 to max;
+    }
+  )");
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(FindMessageText(out, "OneofOptions"),
+              HasSubstr("extensions 1000 to max;"));
+  std::string trace_packet_text = FindMessageText(out, "TracePacket");
+  EXPECT_THAT(trace_packet_text, HasSubstr("int32 inlined_extension = 1000;"));
+  EXPECT_THAT(trace_packet_text, Not(HasSubstr("extensions")));
+}
+
+// Each `extensions` statement keeps its own comments, also in nested messages.
+TEST(ProtoFileSerializerTest, MergeKeepsExtensionsStatementComments) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Multi {
+      extensions 100 to 199;
+      extensions 500, 1000 to max;
+      message Inner {
+        extensions 100 to 199;
+      }
+    }
+    message Split {
+      optional int32 inlined = 1000;
+      extensions 1001 to max;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Multi {
+      // First statement.
+      extensions 100 to 199;
+
+      // Second statement.
+      extensions 500, 1000 to max;  // Trailing.
+
+      message Inner {
+        // Inner statement.
+        extensions 100 to 199;
+      }
+    }
+    message Split {
+      // Split statement.
+      extensions 1000 to max;
+    }
+  )");
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      Allowlist{}, merged, TypeChanges::kAll)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  std::string multi_text = FindMessageText(out, "Multi");
+  EXPECT_THAT(multi_text, HasSubstr("  // First statement.\n"
+                                    "  extensions 100 to 199;\n"
+                                    "\n"
+                                    "  // Second statement.\n"
+                                    "  extensions 500, 1000 to max;\n"
+                                    "  // Trailing.\n"));
+  EXPECT_THAT(multi_text, HasSubstr("    // Inner statement.\n"
+                                    "    extensions 100 to 199;\n"));
+  // The input range was split, but upstream's comment is still found.
+  EXPECT_THAT(FindMessageText(out, "Split"),
+              HasSubstr("  // Split statement.\n"
+                        "  extensions 1001 to max;\n"));
+}
+
+// A message added through the allowlist keeps upstream's `extensions`.
+TEST(ProtoFileSerializerTest, MergeAddsExtensionsOfNewAllowlistedMessage) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Existing {
+      optional int32 a = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Existing {
+      optional int32 a = 1;
+      message NewNested {
+        extensions 100 to 199;
+      }
+    }
+    message NewThing {
+      optional int32 b = 1;
+      // New ranges.
+      extensions 1000 to max;
+    }
+  )");
+
+  Allowlist allowlist;
+  allowlist.messages["NewThing"].fields = {1};
+  allowlist.messages["Existing"].nested_messages["NewNested"] = {};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      allowlist, merged, TypeChanges::kAll)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(FindMessageText(out, "NewThing"),
+              HasSubstr("  // New ranges.\n"
+                        "  extensions 1000 to max;\n"));
+  EXPECT_THAT(FindMessageText(out, "Existing"),
+              HasSubstr("    extensions 100 to 199;\n"));
+}
+
+// A new upstream field inside an input range is cut out of that range.
+TEST(ProtoFileSerializerTest, MergeCutsNewFieldsOutOfInputRanges) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 a = 1;
+      extensions 1000 to max;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 a = 1;
+      optional int32 b = 1000;
+      oneof choice {
+        int32 c = 2000;
+      }
+    }
+  )");
+
+  Allowlist allowlist;
+  allowlist.messages["Root"].fields = {1000};
+  allowlist.messages["Root"].oneofs["choice"] = {2000};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      allowlist, merged, TypeChanges::kAll)
+          .ok());
+
+  std::string root_text = FindMessageText(ProtoFileToDotProto(merged), "Root");
+  EXPECT_THAT(root_text, HasSubstr("int32 b = 1000;"));
+  EXPECT_THAT(root_text, HasSubstr("int32 c = 2000;"));
+  EXPECT_THAT(root_text, HasSubstr("extensions 1001 to 1999, 2001 to max;\n"));
+}
+
+// Inlined extension field numbers are cut out of the ranges.
+TEST(ExtensionProtoMergerTest, InlinedExtensionsAreCutOutOfRanges) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to 2000;
+      extensions 3000 to 3999;
+      extensions 5000;
+      extensions 6000 to max;
+    }
+    message OneofOptions {
+      extensions 1000 to max;
+    }
+  )");
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "base.proto";
+
+    extend perfetto.protos.TrackEvent {
+      optional int32 in_middle = 1001;
+      optional int32 at_end = 3999;
+      optional int32 whole_range = 5000;
+    }
+  )");
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  std::string track_event_text = FindMessageText(out, "TrackEvent");
+  EXPECT_THAT(track_event_text, HasSubstr("optional int32 in_middle = 1001;"));
+  EXPECT_THAT(track_event_text, HasSubstr("extensions 1000, 1002 to 2000;\n"));
+  EXPECT_THAT(track_event_text, HasSubstr("extensions 3000 to 3998;\n"));
+  EXPECT_THAT(track_event_text, Not(HasSubstr("extensions 5000")));
+  EXPECT_THAT(track_event_text, HasSubstr("extensions 6000 to max;\n"));
+  EXPECT_THAT(FindMessageText(out, "OneofOptions"),
+              HasSubstr("extensions 1000 to max;"));
+}
+
+// A helper message that only declares `extensions` is still copied over.
+TEST(ExtensionProtoMergerTest, HelperWithOnlyExtensionsIsKept) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to max;
+    }
+  )");
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "base.proto";
+
+    message Helper {
+      extensions 100 to 199;
+    }
+    extend perfetto.protos.TrackEvent {
+      optional Helper helper = 2000;
+    }
+  )");
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  EXPECT_THAT(FindMessageText(out, "Helper"),
+              HasSubstr("extensions 100 to 199;\n"));
+}
+
+// Imports |input_name| and |upstream_name| from |dir|, allowlists
+// |allowed_fields| rooted at |root| in upstream, merges and returns the
+// serialized result. Also checks that the result is a valid proto.
+std::string MergeWithFieldList(const std::string& dir,
+                               const std::string& input_name,
+                               const std::string& upstream_name,
+                               const std::string& root,
+                               const std::vector<std::string>& allowed_fields) {
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", dir);
+  dst.MapPath("", "buildtools/protobuf/src");
+
+  google::protobuf::compiler::Importer importer_input(&dst, &mfe);
+  const auto* input_desc = importer_input.Import(input_name);
+  google::protobuf::compiler::Importer importer_upstream(&dst, &mfe);
+  const auto* upstream_desc = importer_upstream.Import(upstream_name);
+  EXPECT_NE(input_desc, nullptr);
+  EXPECT_NE(upstream_desc, nullptr);
+  if (!input_desc || !upstream_desc)
+    return "";
+
+  const auto* root_desc = upstream_desc->FindMessageTypeByName(root);
+  EXPECT_NE(root_desc, nullptr);
+  if (!root_desc)
+    return "";
+
+  Allowlist allowed;
+  base::Status status =
+      AllowlistFromFieldList(*root_desc, allowed_fields, allowed);
+  EXPECT_TRUE(status.ok()) << status.message();
+
+  ProtoFile input_file = ProtoFileFromDescriptor("", *input_desc);
+  ProtoFile upstream_file = ProtoFileFromDescriptor("", *upstream_desc);
+  ProtoFile merged;
+  status = MergeProtoFiles(input_file, upstream_file, allowed, merged,
+                           TypeChanges::kAll);
+  EXPECT_TRUE(status.ok()) << status.message();
+  std::string out = ProtoFileToDotProto(merged);
+
+  // The merged output must be a self-contained, valid proto.
+  TempProtoFile merged_file(dir, "merged.proto",
+                            "syntax = \"proto3\";\n"
+                            "package perfetto.protos;\n" +
+                                out);
+  protozero::MultiFileErrorCollectorImpl mfe_merged;
+  google::protobuf::compiler::Importer importer_merged(&dst, &mfe_merged);
+  EXPECT_NE(importer_merged.Import("merged.proto"), nullptr) << out;
+  return out;
+}
+
+// Approving a deep field whose parents are missing downstream must also add
+// the parent fields and messages on the path (but nothing else inside them),
+// otherwise the approved field is unreachable from the root.
+TEST(AllowlistFromFieldListTest, AddsMissingParentFieldsOnPath) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Leaf {
+      optional int32 leaf_value = 1;
+    }
+    message Patch {
+      optional int32 not_approved = 1;
+      optional Leaf approved = 11;
+    }
+    message Other {
+      optional int32 other_value = 1;
+    }
+    message Ext {
+      optional Patch patch = 7;
+      optional Other other = 8;
+    }
+    message Root {
+      optional int32 existing = 1;
+      optional Ext ext = 112;
+      optional int32 not_on_path = 113;
+    }
+  )");
+
+  std::string out =
+      MergeWithFieldList(temp_dir.path(), "input.proto", "upstream.proto",
+                         "Root", {"ext.patch.approved"});
+
+  // Path fields and messages.
+  EXPECT_THAT(FindMessageText(out, "Root"), HasSubstr("Ext ext = 112;"));
+  EXPECT_THAT(FindMessageText(out, "Ext"), HasSubstr("Patch patch = 7;"));
+  EXPECT_THAT(FindMessageText(out, "Patch"), HasSubstr("Leaf approved = 11;"));
+
+  // The approved field's type, with everything inside it.
+  EXPECT_THAT(FindMessageText(out, "Leaf"), HasSubstr("int32 leaf_value = 1;"));
+
+  // Nothing else inside the path messages.
+  EXPECT_THAT(out, Not(HasSubstr("not_on_path")));
+  EXPECT_THAT(out, Not(HasSubstr("not_approved")));
+  EXPECT_THAT(out, Not(HasSubstr("Other other")));
+  EXPECT_THAT(out, Not(HasSubstr("message Other")));
+}
+
+// A field whose type is a message with no fields must still bring that
+// message definition along, otherwise the merged proto doesn't compile.
+TEST(AllowlistFromFieldListTest, AddsEmptyMessageType) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message EmptyMessage {}
+    message Root {
+      optional int32 existing = 1;
+      optional EmptyMessage clear = 2;
+      map<string, EmptyMessage> clear_map = 3;
+    }
+  )");
+
+  std::string out =
+      MergeWithFieldList(temp_dir.path(), "input.proto", "upstream.proto",
+                         "Root", {"clear", "clear_map"});
+
+  EXPECT_THAT(out, HasSubstr("message EmptyMessage {"));
+  EXPECT_THAT(FindMessageText(out, "Root"),
+              HasSubstr("EmptyMessage clear = 2;"));
+  EXPECT_THAT(FindMessageText(out, "Root"),
+              HasSubstr("map<string,EmptyMessage> clear_map = 3;"));
+}
+
+// Path a.b.c.d where only d is approved: a and c are missing downstream, b
+// (and its message types) already exist. Missing path fields are added once,
+// existing ones are kept as they are, and no other sibling field is added.
+TEST(AllowlistFromFieldListTest, MixedExistingAndMissingParents) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message B {
+      optional int32 b_existing = 5;
+    }
+    message A {
+      optional B b = 1;
+    }
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message D {
+      optional int32 d_value = 1;
+    }
+    message C {
+      optional D d = 1;
+      optional int32 c_sibling = 2;
+    }
+    message B {
+      optional C c = 3;
+      optional int32 b_sibling = 4;
+      optional int32 b_existing = 5;
+    }
+    message A {
+      optional B b = 1;
+      optional int32 a_sibling = 2;
+    }
+    message Root {
+      optional int32 existing = 1;
+      optional A a = 2;
+      optional int32 root_sibling = 3;
+    }
+  )");
+
+  std::string out = MergeWithFieldList(temp_dir.path(), "input.proto",
+                                       "upstream.proto", "Root", {"a.b.c.d"});
+
+  // Missing path fields are added; the existing one (b) is kept, not doubled.
+  EXPECT_THAT(FindMessageText(out, "Root"), HasSubstr("A a = 2;"));
+  std::string a_text = FindMessageText(out, "A");
+  EXPECT_THAT(a_text, HasSubstr("B b = 1;"));
+  EXPECT_EQ(a_text.find("B b = 1;"), a_text.rfind("B b = 1;"));
+  EXPECT_THAT(FindMessageText(out, "B"), HasSubstr("C c = 3;"));
+  EXPECT_THAT(FindMessageText(out, "B"), HasSubstr("int32 b_existing = 5;"));
+  EXPECT_THAT(FindMessageText(out, "C"), HasSubstr("D d = 1;"));
+  EXPECT_THAT(FindMessageText(out, "D"), HasSubstr("int32 d_value = 1;"));
+
+  // No sibling field at any level of the path is added.
+  EXPECT_THAT(out, Not(HasSubstr("root_sibling")));
+  EXPECT_THAT(out, Not(HasSubstr("a_sibling")));
+  EXPECT_THAT(out, Not(HasSubstr("b_sibling")));
+  EXPECT_THAT(out, Not(HasSubstr("c_sibling")));
+}
+
+// Approving both a parent and a field inside it must allow everything inside
+// the parent, regardless of the order of the entries.
+TEST(AllowlistFromFieldListTest, ParentApprovedAfterChildIsRecursive) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 existing = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Ext {
+      optional int32 a = 1;
+      optional int32 b = 2;
+    }
+    message Root {
+      optional int32 existing = 1;
+      optional Ext ext = 2;
+    }
+  )");
+
+  std::string out =
+      MergeWithFieldList(temp_dir.path(), "input.proto", "upstream.proto",
+                         "Root", {"ext.a", "ext"});
+
+  EXPECT_THAT(FindMessageText(out, "Root"), HasSubstr("Ext ext = 2;"));
+  EXPECT_THAT(FindMessageText(out, "Ext"), HasSubstr("int32 a = 1;"));
+  EXPECT_THAT(FindMessageText(out, "Ext"), HasSubstr("int32 b = 2;"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto

@@ -16,39 +16,40 @@
 
 #include "perfetto/trace_processor/trace_blob.h"
 
-#include <stdlib.h>
-#include <string.h>
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#include <sys/mman.h>
-#endif
+#include <stddef.h>
+#include <stdint.h>
 
 #include <algorithm>
+#include <memory>
+#include <new>
+#include <utility>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_mmap.h"
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 
 namespace perfetto {
 namespace trace_processor {
+namespace {
+
+void DeleteHeapBuf(void* ctx) {
+  delete[] static_cast<uint8_t*>(ctx);
+}
+
+}  // namespace
 
 // static
 TraceBlob TraceBlob::Allocate(size_t size) {
-  TraceBlob blob(Ownership::kHeapBuf, new uint8_t[size], size);
-  PERFETTO_CHECK(blob.data_);
-  return blob;
+  uint8_t* data = new uint8_t[size];
+  PERFETTO_CHECK(data);
+  return FromHeapBuf(data, size);
 }
 
 // static
 TraceBlob TraceBlob::CopyFrom(const void* src, size_t size) {
   TraceBlob blob = Allocate(size);
   const uint8_t* src_u8 = static_cast<const uint8_t*>(src);
-  std::copy(src_u8, src_u8 + size, blob.data_);
+  std::copy(src_u8, src_u8 + size, blob.mutable_data());
   return blob;
 }
 
@@ -56,70 +57,60 @@ TraceBlob TraceBlob::CopyFrom(const void* src, size_t size) {
 TraceBlob TraceBlob::TakeOwnership(std::unique_ptr<uint8_t[]> buf,
                                    size_t size) {
   PERFETTO_CHECK(buf);
-  return TraceBlob(Ownership::kHeapBuf, buf.release(), size);
+  return FromHeapBuf(buf.release(), size);
 }
 
 // static
 TraceBlob TraceBlob::FromMmap(base::ScopedMmap mapped) {
   PERFETTO_CHECK(mapped.IsValid());
-  TraceBlob blob(Ownership::kNullOrMmapped,
-                 static_cast<uint8_t*>(mapped.data()), mapped.length());
-  blob.mapping_ = std::make_unique<base::ScopedMmap>(std::move(mapped));
-  return blob;
+  uint8_t* data = static_cast<uint8_t*>(mapped.data());
+  size_t size = mapped.length();
+  return Adopt(data, size, std::move(mapped));
 }
 
 // static
-TraceBlob TraceBlob::FromMmap(void* data, size_t size) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+TraceBlob TraceBlob::Adopt(const uint8_t* data,
+                           size_t size,
+                           void* ctx,
+                           Deleter deleter) {
   PERFETTO_CHECK(data);
-  TraceBlob blob(Ownership::kNullOrMmapped, static_cast<uint8_t*>(data), size);
-  blob.mapping_ = std::make_unique<base::ScopedMmap>(
-      base::ScopedMmap::InheritMmappedRange(data, size));
-  return blob;
-#else
-  base::ignore_result(data);
-  base::ignore_result(size);
-  PERFETTO_FATAL("mmap not supported");
-#endif
+  PERFETTO_CHECK(deleter);
+  return TraceBlob(data, nullptr, size, ctx, deleter);
 }
 
-TraceBlob::TraceBlob(Ownership ownership, uint8_t* data, size_t size)
-    : ownership_(ownership), data_(data), size_(size) {}
+// static
+TraceBlob TraceBlob::FromHeapBuf(uint8_t* buf, size_t size) {
+  return TraceBlob(buf, buf, size, buf, &DeleteHeapBuf);
+}
+
+TraceBlob::TraceBlob(const uint8_t* data,
+                     uint8_t* mutable_data,
+                     size_t size,
+                     void* ctx,
+                     Deleter deleter)
+    : data_(data),
+      mutable_data_(mutable_data),
+      size_(size),
+      ctx_(ctx),
+      deleter_(deleter) {}
+
+uint8_t* TraceBlob::mutable_data() const {
+  PERFETTO_DCHECK(mutable_data_);
+  return mutable_data_;
+}
 
 TraceBlob::~TraceBlob() {
-  switch (ownership_) {
-    case Ownership::kHeapBuf:
-      delete[] data_;
-      break;
-
-    case Ownership::kNullOrMmapped:
-      if (mapping_) {
-        PERFETTO_CHECK(mapping_->reset());
-      }
-      break;
-  }
-  data_ = nullptr;
-  size_ = 0;
+  if (deleter_)
+    deleter_(ctx_);
 }
 
 TraceBlob::TraceBlob(TraceBlob&& other) noexcept
-    : RefCounted(std::move(other)) {
-  static_assert(
-      sizeof(*this) == base::AlignUp<sizeof(void*)>(
-                           sizeof(data_) + sizeof(size_) + sizeof(ownership_) +
-                           sizeof(mapping_) + sizeof(RefCounted)),
-      "TraceBlob move constructor needs updating");
-  data_ = other.data_;
-  size_ = other.size_;
-  ownership_ = other.ownership_;
-  mapping_ = std::move(other.mapping_);
-  other.data_ = nullptr;
-  other.size_ = 0;
-  other.ownership_ = Ownership::kNullOrMmapped;
-  other.mapping_ = nullptr;
-}
+    : RefCounted(std::move(other)),
+      data_(std::exchange(other.data_, nullptr)),
+      mutable_data_(std::exchange(other.mutable_data_, nullptr)),
+      size_(std::exchange(other.size_, 0)),
+      ctx_(std::exchange(other.ctx_, nullptr)),
+      deleter_(std::exchange(other.deleter_, nullptr)) {}
 
 TraceBlob& TraceBlob::operator=(TraceBlob&& other) noexcept {
   if (this == &other)

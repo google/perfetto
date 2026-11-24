@@ -6,24 +6,24 @@ during a tracing session, with references to code and IPC requests / responses.
 1.  One or more producers connect to the tracing service and sets up their IPC
     channels.
 2.  Each producer advertises one or more data sources through the
-    [`RegisterDataSource`](/protos/perfetto/ipc/producer_port.proto#34) IPC.
+    [`RegisterDataSource`](/protos/perfetto/ipc/producer_port.proto#33) IPC.
     Nothing more happens on the Producer until this point. Nothing traces by
     default.
 3.  A consumer connects to the tracing service and sets up the IPC channel.
 4.  The consumer starts a tracing session sending a
     [trace config](/docs/concepts/config.md) to the service through the
-    [`EnableTracing`](/protos/perfetto/ipc/consumer_port.proto#65) IPC.
+    [`EnableTracing`](/protos/perfetto/ipc/consumer_port.proto#38) IPC.
 6.  The service creates as many new trace buffers as specified in the config.
 7.  The service iterates through the
-    [`data_sources`](/protos/perfetto/config/trace_config.proto#50) section of
+    [`data_sources`](/protos/perfetto/config/trace_config.proto#127) section of
     the trace config: for each entry, if a matching data source is found in the
     producer(s) (accordingly to what advertised in step 2):
 8.  The service sends a
-    [`SetupTracing`](/protos/perfetto/ipc/producer_port.proto#112) IPC message,
+    [`SetupTracing`](/protos/perfetto/ipc/producer_port.proto#305) IPC message,
     passing a shared memory buffer  to the producer(s) (only once for each
     producer).
 9.  The service sends a
-    [`StartDataSource`](/protos/perfetto/ipc/producer_port.proto#105) IPC message
+    [`StartDataSource`](/protos/perfetto/ipc/producer_port.proto#291) IPC message
     to each producer, for each data source configured in the trace config and
     present in the producer (if any).
 10. The producer creates one or more data source instance, as instructed in
@@ -40,7 +40,7 @@ during a tracing session, with references to code and IPC requests / responses.
 15. When this happens the `TraceWriter` will release the current chunk and
     acquire a new chunk through the `SharedMemoryArbiter`.
 16. The `SharedMemoryArbiter` will, out-of-band, send a
-    [`CommitDataRequest`](/protos/perfetto/ipc/producer_port.proto#41) to the
+    [`CommitDataRequest`](/protos/perfetto/ipc/producer_port.proto#44) to the
     service, requesting it to move some chunks of the shared memory buffer into
     the final trace buffer.
 17. If one or more long `TracePacket` were fragmented over several chunks, it is
@@ -52,25 +52,25 @@ during a tracing session, with references to code and IPC requests / responses.
 18. The service will check if the given chunk, identified by the tuple
     `{ProducerID (unspoofable), WriterID, ChunkID}` is still present in the
     trace buffer and if so will proceed to patch it (% checks).
-19. The consumer sends a [`FlushRequest`](/protos/perfetto/ipc/consumer_port.proto#52)
+19. The consumer sends a [`FlushRequest`](/protos/perfetto/ipc/consumer_port.proto#61)
     to the service, asking it commit all data on flight in the trace buffers.
 20. The service, in turn, issues a
-    [`Flush`](/protos/perfetto/ipc/producer_port.proto#132) request to all
+    [`Flush`](/protos/perfetto/ipc/producer_port.proto#314) request to all
     producers involved in the trace session.
 21. The producer(s) will `Flush()` all their `TraceWriter` and reply to the
     service flush request.
 22. Once the service has received an ACK to all flush requests from all
     producers (or the
-    [flush timeout](/protos/perfetto/ipc/consumer_port.proto#117) has expired)
+    [flush timeout](/protos/perfetto/ipc/consumer_port.proto#209) has expired)
     it replies to the consumer's `FlushRequest`
 23. The consumer optionally sends a
-    [`DisableTracing`](/protos/perfetto/ipc/consumer_port.proto#38) IPC request
+    [`DisableTracing`](/protos/perfetto/ipc/consumer_port.proto#41) IPC request
     to stop tracing and freeze the content of the trace buffers.
 24. The service will in turn broadcast a
-    [`StopDataSource`](/protos/perfetto/ipc/producer_port.proto#110) request for
+    [`StopDataSource`](/protos/perfetto/ipc/producer_port.proto#299) request for
     each data source in each Producer.
 23. At this point the Consumer issues a
-    [`ReadBuffers`](/protos/perfetto/ipc/consumer_port.proto#41) IPC request
+    [`ReadBuffers`](/protos/perfetto/ipc/consumer_port.proto#48) IPC request
     (unless it did previously pass a file descriptor to the service when
     enabling the trace through the `write_into_file` field of the trace config).
 24. The service reads the trace buffers and streams all the `TracePacket(s)`

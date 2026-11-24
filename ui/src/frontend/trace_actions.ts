@@ -24,30 +24,56 @@ import {AppImpl} from '../core/app_impl';
 import type {Trace} from '../public/trace';
 import type {TraceImpl} from '../core/trace_impl';
 import {download, downloadUrl} from '../base/download_utils';
-import {
-  convertTraceToJsonAndDownload,
-  convertTraceToSystraceAndDownload,
-} from './trace_converter';
+import {convertTrace} from '../base/trace_converter';
+import {maybeShowErrorDialog} from './error_dialog';
 import {showModal} from '../widgets/modal';
 import {ensureExists, assertIsArrayBufferView} from '../base/assert';
 
 const TRACE_SUFFIX = '.perfetto-trace';
 
 export async function convertTraceToSystrace(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Convert to .systrace',
+  });
   const file = await trace.getTraceFile();
-  await convertTraceToSystraceAndDownload(file);
+  const result = await convertTrace(file, {
+    format: 'systrace',
+    onStatus: (s) => AppImpl.instance.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    maybeShowErrorDialog(result.error);
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 export async function convertTraceToJson(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Convert to .json',
+  });
   const file = await trace.getTraceFile();
-  await convertTraceToJsonAndDownload(file);
+  const result = await convertTrace(file, {
+    format: 'json',
+    onStatus: (s) => AppImpl.instance.omnibox.showStatusMessage(s),
+  });
+  if (!result.ok) {
+    maybeShowErrorDialog(result.error);
+    return;
+  }
+  download({content: result.result.buffer, fileName: result.result.name});
 }
 
 export async function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Download trace',
+  });
 
   const src = trace.traceInfo.source;
   const filePickerAcceptTypes = [
@@ -72,7 +98,7 @@ export async function downloadTrace(trace: TraceImpl) {
       },
     });
   } else if (src.type === 'URL') {
-    const fileName = src.url.split('/').slice(-1)[0];
+    const fileName = src.url.split('/').slice(-1)[0]!;
     downloadUrl({url: src.url, fileName});
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
@@ -98,7 +124,11 @@ export async function downloadTrace(trace: TraceImpl) {
 }
 
 function recordMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Record metatrace',
+  });
 
   const highPrecisionTimersAvailable =
     window.crossOriginIsolated || engine.mode === 'HTTP_RPC';
@@ -144,7 +174,11 @@ export async function toggleMetatrace(e: Engine) {
 }
 
 async function finaliseMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Finalise metatrace');
+  AppImpl.instance.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Finalise metatrace',
+  });
 
   const jsEvents = disableMetatracingAndGetTrace();
 

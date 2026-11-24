@@ -37,114 +37,11 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
 namespace {
-
-// Assumed number of distinct values matched by an IN filter when the list size
-// is not known at plan time. Scales the single-value equality estimate. Matches
-// SQLite's own tuning constant for "x IN (SELECT ...)" (see whereLoopAddBtree).
-constexpr double kAssumedInListSize = 25;
-
-// Rows surviving a scalar equality filter on a HasDuplicates column with
-// `estimated_distinct` distinct values (0 = unknown). With a known count, a
-// uniform column keeps ~1/estimated_distinct of the rows; otherwise fall back
-// to the data-blind heuristic.
-double EqualityFilterRows(uint32_t row_count, uint32_t estimated_distinct) {
-  if (estimated_distinct > 0) {
-    return static_cast<double>(row_count) / estimated_distinct;
-  }
-  return row_count / (2 * log2(row_count));
-}
-
-// Tracks how many rows are left as operations are applied.
-class RowModel {
- public:
-  explicit RowModel(uint32_t row_count) : rows_{row_count, row_count} {}
-
-  logical::RowEstimate rows() const { return rows_; }
-
-  // Filters whose selectivity we cannot reason about keep half the rows.
-  void ApplyNonEqualityFilter() {
-    if (rows_.estimated > 1) {
-      rows_.estimated = rows_.estimated / 2;
-    }
-  }
-
-  void ApplyEqualityFilter(DuplicateState duplicate_state,
-                           uint32_t estimated_distinct) {
-    if (duplicate_state.Is<HasDuplicates>()) {
-      if (rows_.estimated > 1) {
-        // Estimate against the pre-selective-filter row count and keep the
-        // most selective result: correlated filters on one scan shouldn't
-        // compound and collapse the estimate toward 1.
-        SetSelectiveBase();
-        rows_.estimated =
-            std::min(rows_.estimated,
-                     std::max(1u, static_cast<uint32_t>(EqualityFilterRows(
-                                      *selective_base_, estimated_distinct))));
-      }
-      return;
-    }
-    PERFETTO_CHECK(duplicate_state.Is<NoDuplicates>());
-    rows_.estimated = std::min(1u, rows_.estimated);
-    rows_.max = std::min(1u, rows_.max);
-  }
-
-  void ApplyInFilter(DuplicateState duplicate_state,
-                     uint32_t estimated_distinct) {
-    if (!duplicate_state.Is<HasDuplicates>() || rows_.estimated <= 1) {
-      return;
-    }
-    // An IN is a union of equalities over the list values. The list size is
-    // unknown at plan time, so scale the single-value estimate by an assumed
-    // distinct-value count. As with equality, estimate against the
-    // pre-selective-filter row count and keep the most selective result.
-    SetSelectiveBase();
-    double per_value = EqualityFilterRows(*selective_base_, estimated_distinct);
-    double new_count = std::min(static_cast<double>(*selective_base_),
-                                per_value * kAssumedInListSize);
-    rows_.estimated = std::min(rows_.estimated,
-                               std::max(1u, static_cast<uint32_t>(new_count)));
-  }
-
-  void ApplyOneRow() {
-    rows_.estimated = std::min(1u, rows_.estimated);
-    rows_.max = std::min(1u, rows_.max);
-  }
-
-  void ApplyZeroRows() {
-    rows_.estimated = 0;
-    rows_.max = 0;
-  }
-
-  void ApplyLimitOffset(uint32_t limit, uint32_t offset) {
-    // Offset will cut out `offset` rows from the start of indices.
-    rows_.max -= std::min(rows_.max, offset);
-
-    // Limit will only preserve at most `limit` rows.
-    rows_.max = std::min(limit, rows_.max);
-
-    // The max row count is also the best possible estimate we can make for
-    // the row count.
-    rows_.estimated = rows_.max;
-  }
-
- private:
-  void SetSelectiveBase() {
-    if (!selective_base_) {
-      selective_base_ = rows_.estimated;
-    }
-  }
-
-  logical::RowEstimate rows_;
-
-  // Row count before the first selective (equality/IN) filter was applied.
-  // Used to avoid compounding the selectivity of multiple such filters: only
-  // the most selective one determines the estimate.
-  std::optional<uint32_t> selective_base_;
-};
 
 // Calculates filter preference score for ordering filters.
 // Lower scores are applied first for better efficiency.
@@ -189,59 +86,6 @@ uint32_t FilterPreference(const FilterSpec& fs, const Column& col) {
     return kStringSortedInequality;
   }
   return kLeastPreferred;
-}
-
-struct BestIndex {
-  uint32_t best_index_idx;
-  std::vector<uint32_t> best_index_specs;
-};
-std::optional<BestIndex> GetBestIndexForFilterSpecs(
-    uint32_t max_row_count,
-    const std::vector<FilterSpec>& all_specs,
-    const std::vector<uint8_t>& spec_already_handled,
-    const std::vector<Index>& indexes) {
-  // If we have very few rows, there's no point in using an index.
-  if (max_row_count <= 1) {
-    return std::nullopt;
-  }
-  uint32_t best_index_idx = std::numeric_limits<uint32_t>::max();
-  std::vector<uint32_t> best_index_specs;
-  for (uint32_t i = 0; i < indexes.size(); ++i) {
-    const Index& index = indexes[i];
-    std::vector<uint32_t> current_specs_for_this_index;
-    for (uint32_t column : index.columns()) {
-      bool found_spec_for_column = false;
-      for (uint32_t spec_idx = 0; spec_idx < all_specs.size(); ++spec_idx) {
-        if (spec_already_handled[spec_idx]) {
-          continue;
-        }
-        const FilterSpec& current_spec = all_specs[spec_idx];
-        if (current_spec.col == column &&
-            (current_spec.op.Is<Eq>() || current_spec.op.Is<In>())) {
-          current_specs_for_this_index.push_back(spec_idx);
-          found_spec_for_column = true;
-          break;
-        }
-      }
-      if (!found_spec_for_column) {
-        break;
-      }
-      // An In filter produces non-contiguous output, breaking the sort
-      // invariant needed by subsequent columns' binary searches. So In
-      // must be terminal: stop matching further index columns.
-      if (all_specs[current_specs_for_this_index.back()].op.Is<In>()) {
-        break;
-      }
-    }
-    if (current_specs_for_this_index.size() > best_index_specs.size()) {
-      best_index_idx = i;
-      best_index_specs = std::move(current_specs_for_this_index);
-    }
-  }
-  if (best_index_idx == std::numeric_limits<uint32_t>::max()) {
-    return std::nullopt;
-  }
-  return BestIndex{best_index_idx, std::move(best_index_specs)};
 }
 
 // Builds the logical plan for one query.
@@ -308,13 +152,9 @@ class Planner {
 
 base::Status Planner::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
-  std::stable_sort(specs.begin(), specs.end(),
-                   [this](const FilterSpec& a, const FilterSpec& b) {
-                     const auto& a_col = GetColumn(a.col);
-                     const auto& b_col = GetColumn(b.col);
-                     return FilterPreference(a, a_col) <
-                            FilterPreference(b, b_col);
-                   });
+  StableSortByKey(specs.begin(), specs.end(), [this](const FilterSpec& fs) {
+    return FilterPreference(fs, GetColumn(fs.col));
+  });
 
   std::vector<uint8_t> specs_handled(specs.size(), false);
 
@@ -395,35 +235,16 @@ base::Status Planner::Filter(std::vector<FilterSpec>& specs) {
 }
 
 bool Planner::TrySortedFilter(FilterSpec& spec) {
-  auto non_null_op = spec.op.TryDowncast<NonNullOp>();
-  if (!non_null_op) {
-    return false;
-  }
-  const Column& col = GetColumn(spec.col);
-  const auto& nullability = col.null_storage.nullability();
-  if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
-    return false;
-  }
-  if (!non_null_op->TryDowncast<RangeOp>()) {
+  std::optional<logical::FilterStrategy> strategy =
+      SortedFilterStrategy(GetColumn(spec.col), spec.op);
+  if (!strategy) {
     return false;
   }
 
   // We should have ordered the constraints such that we only reach this
   // point with range indices.
   PERFETTO_CHECK(rows_are_range_);
-
-  StorageType ct = col.storage.type();
-  if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() &&
-      non_null_op->Is<Eq>()) {
-    AddFilter(spec, logical::SetIdSortedSearch{});
-    return true;
-  }
-  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
-      non_null_op->Is<Eq>()) {
-    AddFilter(spec, logical::SmallValueLookup{});
-    return true;
-  }
-  AddFilter(spec, logical::BinarySearch{});
+  AddFilter(spec, *strategy);
   return true;
 }
 
@@ -700,8 +521,8 @@ std::string ValueSlotToString(const std::optional<uint32_t>& slot) {
   return slot ? std::to_string(*slot) : "none";
 }
 
-std::string RowsToString(const logical::RowEstimate& in,
-                         const logical::RowEstimate& out) {
+std::string RowsToString(const core::RowEstimate& in,
+                         const core::RowEstimate& out) {
   return "rows=" + std::to_string(in.estimated) + "/" + std::to_string(in.max) +
          "->" + std::to_string(out.estimated) + "/" + std::to_string(out.max);
 }
@@ -799,6 +620,80 @@ std::string LogicalPlan::ToString() const {
     }
   }
   return res;
+}
+
+std::optional<BestIndex> GetBestIndexForFilterSpecs(
+    uint32_t max_row_count,
+    const std::vector<FilterSpec>& all_specs,
+    const std::vector<uint8_t>& spec_already_handled,
+    const std::vector<Index>& indexes) {
+  // If we have very few rows, there's no point in using an index.
+  if (max_row_count <= 1) {
+    return std::nullopt;
+  }
+  uint32_t best_index_idx = std::numeric_limits<uint32_t>::max();
+  std::vector<uint32_t> best_index_specs;
+  for (uint32_t i = 0; i < indexes.size(); ++i) {
+    const Index& index = indexes[i];
+    std::vector<uint32_t> current_specs_for_this_index;
+    for (uint32_t column : index.columns()) {
+      bool found_spec_for_column = false;
+      for (uint32_t spec_idx = 0; spec_idx < all_specs.size(); ++spec_idx) {
+        if (spec_already_handled[spec_idx]) {
+          continue;
+        }
+        const FilterSpec& current_spec = all_specs[spec_idx];
+        if (current_spec.col == column &&
+            (current_spec.op.Is<Eq>() || current_spec.op.Is<In>())) {
+          current_specs_for_this_index.push_back(spec_idx);
+          found_spec_for_column = true;
+          break;
+        }
+      }
+      if (!found_spec_for_column) {
+        break;
+      }
+      // An In filter produces non-contiguous output, breaking the sort
+      // invariant needed by subsequent columns' binary searches. So In
+      // must be terminal: stop matching further index columns.
+      if (all_specs[current_specs_for_this_index.back()].op.Is<In>()) {
+        break;
+      }
+    }
+    if (current_specs_for_this_index.size() > best_index_specs.size()) {
+      best_index_idx = i;
+      best_index_specs = std::move(current_specs_for_this_index);
+    }
+  }
+  if (best_index_idx == std::numeric_limits<uint32_t>::max()) {
+    return std::nullopt;
+  }
+  return BestIndex{best_index_idx, std::move(best_index_specs)};
+}
+
+std::optional<logical::FilterStrategy> SortedFilterStrategy(const Column& col,
+                                                            const Op& op) {
+  auto non_null_op = op.TryDowncast<NonNullOp>();
+  if (!non_null_op) {
+    return std::nullopt;
+  }
+  const auto& nullability = col.null_storage.nullability();
+  if (!nullability.Is<NonNull>() || col.sort_state.Is<Unsorted>()) {
+    return std::nullopt;
+  }
+  if (!non_null_op->TryDowncast<RangeOp>()) {
+    return std::nullopt;
+  }
+  StorageType ct = col.storage.type();
+  if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() &&
+      non_null_op->Is<Eq>()) {
+    return logical::SetIdSortedSearch{};
+  }
+  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
+      non_null_op->Is<Eq>()) {
+    return logical::SmallValueLookup{};
+  }
+  return logical::BinarySearch{};
 }
 
 base::StatusOr<LogicalPlan> LogicalPlanner::Plan(

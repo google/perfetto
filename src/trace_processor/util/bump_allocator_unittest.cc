@@ -102,6 +102,18 @@ TEST_F(BumpAllocatorUnittest, EraseFrontFreeChunk) {
   allocator_.Free(id);
 }
 
+TEST_F(BumpAllocatorUnittest, Clear) {
+  for (uint32_t i = 0; i < 3; ++i) {
+    allocator_.Alloc(BumpAllocator::kChunkSize);
+  }
+  BumpAllocator::AllocId before = allocator_.PastTheEndId();
+  allocator_.Clear();
+  BumpAllocator::AllocId after = allocator_.Alloc(8);
+  EXPECT_TRUE(after >= before);
+  EXPECT_EQ(after.chunk_offset, 0u);
+  allocator_.Clear();
+}
+
 TEST_F(BumpAllocatorUnittest, StressTest) {
   std::minstd_rand0 rnd_engine;
   for (int i = 0; i < 1000; i++) {

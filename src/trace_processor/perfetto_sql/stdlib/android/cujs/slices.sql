@@ -18,7 +18,7 @@ INCLUDE PERFETTO MODULE android.cujs.boundaries;
 INCLUDE PERFETTO MODULE android.cujs.threads;
 
 -- Slices overlapping with the CUJ boundaries in the app processes.
-CREATE PERFETTO TABLE _android_jank_cuj_slice(
+CREATE PERFETTO VIEW _android_jank_cuj_slice(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- Process ID of the process.
@@ -87,7 +87,7 @@ WHERE
   slice.dur > 0;
 
 -- Slices overlapping with the main thread CUJ boundaries in the app processes.
-CREATE PERFETTO TABLE _android_jank_cuj_main_thread_slice(
+CREATE PERFETTO VIEW _android_jank_cuj_main_thread_slice(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- Process ID of the process.
@@ -142,7 +142,7 @@ WHERE
   slice.dur > 0;
 
 -- Slices overlapping with the render thread CUJ boundaries in the app processes.
-CREATE PERFETTO TABLE _android_jank_cuj_render_thread_slice(
+CREATE PERFETTO VIEW _android_jank_cuj_render_thread_slice(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- Process ID of the process.
@@ -197,7 +197,7 @@ WHERE
   slice.dur > 0;
 
 -- Slices overlapping with the SF CUJ boundaries in SurfaceFlinger.
-CREATE PERFETTO TABLE _android_jank_cuj_sf_slice(
+CREATE PERFETTO VIEW _android_jank_cuj_sf_slice(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- Process ID of the process.
@@ -266,7 +266,7 @@ WHERE
   slice.dur > 0;
 
 -- Slices overlapping with the SF main thread CUJ boundaries in SurfaceFlinger.
-CREATE PERFETTO TABLE _android_jank_cuj_sf_main_thread_slice(
+CREATE PERFETTO VIEW _android_jank_cuj_sf_main_thread_slice(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- Process ID of the process.
@@ -330,7 +330,7 @@ WHERE
 -- For RenderEngine thread we use a different approach as it's only used when SF falls back to
 -- client composition. Instead of taking all slices during CUJ, we look at each frame explicitly
 -- and only take slices that are within RenderEngine frame boundaries.
-CREATE PERFETTO TABLE _android_jank_cuj_sf_render_engine_slice(
+CREATE PERFETTO VIEW _android_jank_cuj_sf_render_engine_slice(
   -- Unique incremental ID for each CUJ.
   cuj_id LONG,
   -- Process ID of the process.

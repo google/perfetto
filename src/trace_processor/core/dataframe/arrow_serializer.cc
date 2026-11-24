@@ -219,6 +219,11 @@ W::Offset BuildUtf8(W& w) {
   return w.EndTable();
 }
 
+W::Offset BuildNull(W& w) {
+  w.StartTable();
+  return w.EndTable();
+}
+
 W::Offset BuildDictionaryEncoding(W& w, int64_t id) {
   auto index_type = BuildInt(w, kDictionaryIndexBits, true);
   w.StartTable();
@@ -231,12 +236,16 @@ W::Offset BuildField(W& w,
                      const std::string& name,
                      StorageType type,
                      bool nullable,
+                     bool all_null,
                      int64_t dictionary_id) {
   uint8_t arrow_type;
   W::Offset type_table;
   W::Offset dictionary;
-  bool has_dictionary = type.Is<core::String>();
-  if (type.Is<core::String>()) {
+  bool has_dictionary = !all_null && type.Is<core::String>();
+  if (all_null) {
+    arrow_type = kTypeNull;
+    type_table = BuildNull(w);
+  } else if (type.Is<core::String>()) {
     arrow_type = kTypeUtf8;
     type_table = BuildUtf8(w);
     dictionary = BuildDictionaryEncoding(w, dictionary_id);
@@ -277,12 +286,10 @@ W::Offset BuildRecordBatch(W& w,
                            uint32_t rows,
                            const std::vector<FieldNode>& nodes,
                            const std::vector<ArrowBuffer>& buffers) {
-  auto buffer_vector =
-      w.WriteVecStruct(buffers.data(), sizeof(ArrowBuffer),
-                       static_cast<uint32_t>(buffers.size()), alignof(int64_t));
-  auto node_vector =
-      w.WriteVecStruct(nodes.data(), sizeof(FieldNode),
-                       static_cast<uint32_t>(nodes.size()), alignof(int64_t));
+  auto buffer_vector = w.WriteVecStruct(
+      buffers.data(), static_cast<uint32_t>(buffers.size()), alignof(int64_t));
+  auto node_vector = w.WriteVecStruct(
+      nodes.data(), static_cast<uint32_t>(nodes.size()), alignof(int64_t));
   w.StartTable();
   w.FieldI64(record_batch_field::kLength, rows);
   w.FieldOffset(record_batch_field::kNodes, node_vector);
@@ -306,11 +313,10 @@ W::Offset BuildFooter(W& w,
                       W::Offset schema,
                       const std::vector<Block>& dictionary_blocks,
                       const Block& block) {
-  auto blocks = w.WriteVecStruct(&block, sizeof(block), kRecordBatchCount,
-                                 alignof(int64_t));
+  auto blocks = w.WriteVecStruct(&block, kRecordBatchCount, alignof(int64_t));
   auto dictionaries = w.WriteVecStruct(
-      dictionary_blocks.data(), sizeof(Block),
-      static_cast<uint32_t>(dictionary_blocks.size()), alignof(int64_t));
+      dictionary_blocks.data(), static_cast<uint32_t>(dictionary_blocks.size()),
+      alignof(int64_t));
   w.StartTable();
   w.FieldI16(footer_field::kVersion, kMetadataV5);
   w.FieldOffset(footer_field::kSchema, schema);
@@ -496,8 +502,16 @@ base::Status ArrowSerializer::PlanBody(const Dataframe& dataframe,
     PreparedColumn prepared{i, dataframe.column_names_[i], nullable, type, 0};
     int64_t null_count = 0;
     if (nullable) {
-      const BitVector& validity = column.null_storage.GetNullBitVector();
-      null_count = CountNulls(plan->rows, validity);
+      null_count =
+          CountNulls(plan->rows, column.null_storage.GetNullBitVector());
+    }
+    if (plan->rows && null_count == plan->rows) {
+      prepared.all_null = true;
+      plan->nodes.push_back({plan->rows, null_count});
+      prepared_columns_.push_back(std::move(prepared));
+      continue;
+    }
+    if (nullable) {
       ASSIGN_OR_RETURN(auto validity_buffer,
                        AddBuffer(ValidityBufferSize(plan->rows), &body_cursor));
       plan->buffers.push_back(validity_buffer);
@@ -539,7 +553,7 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
     fields.reserve(prepared_columns_.size());
     for (const auto& column : prepared_columns_) {
       fields.push_back(BuildField(w, column.name, column.storage_type,
-                                  column.nullable,
+                                  column.nullable, column.all_null,
                                   static_cast<int64_t>(column.dictionary)));
     }
     auto field_vector =
@@ -623,6 +637,7 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
 base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
                                                 const StringPool& pool) {
   Reset();
+#if PERFETTO_IS_LITTLE_ENDIAN()
   if (!dataframe.finalized()) {
     return base::ErrStatus(
         "Arrow serialization requires a finalized dataframe");
@@ -654,6 +669,10 @@ base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
   prepared_string_pool_ = &pool;
   prepared_mutations_ = dataframe.mutations();
   return static_cast<size_t>(total);
+#else   // PERFETTO_IS_LITTLE_ENDIAN()
+  return base::ErrStatus(
+      "Arrow serialization is not supported on big-endian hosts");
+#endif  // PERFETTO_IS_LITTLE_ENDIAN()
 }
 
 base::Status ArrowSerializer::WriteDictionary(const DictionaryPlan& dictionary,
@@ -704,6 +723,9 @@ base::Status ArrowSerializer::WriteBody(const Dataframe& dataframe,
                                         const WriteFn& write) {
   uint32_t rows = dataframe.row_count();
   for (const auto& prepared : prepared_columns_) {
+    if (prepared.all_null) {
+      continue;
+    }
     const auto& column = *dataframe.columns_[prepared.dataframe_column];
     Nullability nullability = column.null_storage.nullability();
     bool sparse = IsSparse(nullability);

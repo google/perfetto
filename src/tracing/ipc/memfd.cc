@@ -18,10 +18,6 @@
 
 #include <errno.h>
 
-#define PERFETTO_MEMFD_ENABLED()             \
-  PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-      PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX)
-
 #if PERFETTO_MEMFD_ENABLED()
 
 #include <stdio.h>

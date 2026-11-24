@@ -162,6 +162,7 @@ void PackagesListDataSource::Start() {
       package_proto->set_debuggable(package.debuggable);
       package_proto->set_profileable_from_shell(package.profileable_from_shell);
       package_proto->set_version_code(package.version_code);
+      package_proto->set_profileable(package.profileable);
     }
 
     trace_packet->Finalize();
@@ -231,6 +232,7 @@ void PackagesListDataSource::WriteIncrementalPacket() {
         package_proto->set_profileable_from_shell(
             package.profileable_from_shell);
         package_proto->set_version_code(package.version_code);
+        package_proto->set_profileable(package.profileable);
       }
     }
   }

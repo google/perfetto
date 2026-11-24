@@ -85,8 +85,8 @@ export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
         console.warn('Could not parse ADB device', line);
         continue;
       }
-      const serial = m[1];
-      const model = m[2];
+      const serial = m[1]!;
+      const model = m[2]!;
       devices.set(serial, model);
     }
     return devices;

@@ -23,7 +23,6 @@ package perfetto.protos;
 // https://chromium.googlesource.com/chromium/src/+/master/docs/memory-infra/ .
 // This is unrelated to the native or java heap profilers (those protos live
 // in //protos/perfetto/trace/profiling/).
-
 message MemoryTrackerSnapshot {
   // Memory snapshot of a process. The snapshot contains memory data that is
   // from 2 different sources, namely system stats and instrumentation stats.
@@ -44,7 +43,7 @@ message MemoryTrackerSnapshot {
     // nodes, edges are used to mark nodes that account for the same memory. See
     // this doc for examples of the usage:
     // https://docs.google.com/document/d/1WGQRJ1sjJrfVkNcgPVY6frm64UqPc94tsxUOXImZUZI
-
+    //
     // A single node in the memory graph.
     message MemoryNode {
       // Unique ID of the node across all processes involved in the global

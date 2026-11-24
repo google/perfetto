@@ -61,7 +61,13 @@ uint32_t GetXCR0EAX() {
 
 // If we are building with -msse4 check that the CPU actually supports it.
 // This file must be kept in sync with gn/standalone/BUILD.gn.
-void PERFETTO_EXPORT_COMPONENT __attribute__((constructor))
+//
+// Priority 101 is the earliest non-reserved constructor priority. With the
+// default (65535) this would run after protobuf's descriptor registration
+// (priority 102), which already executes BMI2 instructions and SIGILLs on
+// older CPUs before this check can print its message. See
+// https://github.com/google/perfetto/issues/7504.
+void PERFETTO_EXPORT_COMPONENT __attribute__((constructor(101)))
 CheckCpuOptimizations() {
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
   PERFETTO_GETCPUID(eax, ebx, ecx, edx, 1, 0);

@@ -125,7 +125,7 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
 
   {
     struct PerfettoPbMsgWriter writer;
-    struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+    struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer);
     struct perfetto_protos_DataSourceDescriptor desc;
     PerfettoPbMsgInit(&desc.msg, &writer);
 
@@ -140,10 +140,10 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
           params.protovm_program, params.protovm_program_size);
     }
 
-    desc_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+    desc_size = PerfettoPbMsgWriterGetWrittenSize(&writer);
     desc_buf = malloc(desc_size);
-    PerfettoHeapBufferCopyInto(hb, &writer.writer, desc_buf, desc_size);
-    PerfettoHeapBufferDestroy(hb, &writer.writer);
+    PerfettoHeapBufferCopyInto(hb, &writer, desc_buf, desc_size);
+    PerfettoHeapBufferDestroy(hb, &writer);
   }
 
   if (!desc_buf) {
@@ -192,6 +192,7 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
     PerfettoDsSetBufferExhaustedPolicyConfigurable(ds_impl, true);
   }
 
+  PerfettoDsSetSupportsTracingV2(ds_impl, /*supports=*/true);
   success = PerfettoDsImplRegister(ds_impl, &ds->enabled, desc_buf, desc_size);
   free(desc_buf);
   if (!success) {
@@ -282,7 +283,7 @@ struct PerfettoDsRootTracePacket {
 static inline void PerfettoDsTracerPacketBegin(
     struct PerfettoDsTracerIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer = PerfettoDsTracerImplPacketBegin(iterator->impl.tracer);
+  PerfettoDsTracerImplPacketBegin(iterator->impl.tracer, &root->writer);
   PerfettoPbMsgInit(&root->msg.msg, &root->writer);
 }
 
@@ -292,7 +293,7 @@ static inline void PerfettoDsTracerPacketEnd(
     struct PerfettoDsTracerIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
   PerfettoPbMsgFinalize(&root->msg.msg);
-  PerfettoDsTracerImplPacketEnd(iterator->impl.tracer, &root->writer.writer);
+  PerfettoDsTracerImplPacketEnd(iterator->impl.tracer, &root->writer);
 }
 
 static inline void PerfettoDsTracerFlush(

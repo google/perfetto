@@ -46,6 +46,8 @@ import {
   type TreeExplorerFilter,
   type TreeExplorerMetric,
   type TreeExplorerNode,
+  type TreeExplorerNodeIconFn,
+  type TreeExplorerNodeTooltipRenderer,
   type TreeExplorerOptionalAction,
   type TreeExplorerPropertyDefinition,
   type TreeExplorerState,
@@ -61,6 +63,13 @@ const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
+// Node decorations (marker square, icon) are laid out left to right.
+const NODE_DECORATION_LEFT_MARGIN_PX = 2;
+const NODE_DECORATION_GAP_PX = 2; // Between decorations, and before the label.
+const MARKER_SQUARE_SIZE_PX = 3;
+const MARKER_SQUARE_MIN_NODE_WIDTH_PX = 15;
+const NODE_ICON_SIZE_PX = 14;
+const NODE_ICON_FONT_STYLE = `${NODE_ICON_SIZE_PX}px Material Symbols Sharp`;
 const PADDING_NODE_COUNT = 8;
 
 interface BaseSource {
@@ -136,6 +145,14 @@ export interface FlamegraphAttrs {
   // the caller so the (separate) filter bar can drive it.
   readonly highlightRegex?: RegExp;
 
+  // Optional icon drawn before a node's name. Evaluated for every drawn node
+  // on every render, so it can depend on the caller's current state.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+
+  // Optional custom renderer for a node's tooltip. Receives the default
+  // tooltip content and returns what to show, e.g. to add content above it.
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
+
   readonly onStateChange: (state: TreeExplorerState) => void;
 }
 
@@ -161,6 +178,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     () => this.attrs.data,
     () => this.canvasWidth,
     () => this.zoomRegion,
+    () => this.yOffset,
   ]);
   private renderNodes?: ReadonlyArray<RenderNode>;
 
@@ -179,9 +197,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private hoveredY?: number;
 
   private canvasWidth = 0;
+  private canvasHeight = 0;
+  // Pushes the graph down so a bottom up graph's root sits at the bottom.
+  private yOffset = 0;
   private labelCharWidth = 0;
   private viewportRect?: Rect2D;
-  private lastPopupVisible = false;
 
   constructor({attrs}: m.Vnode<FlamegraphAttrs, {}>) {
     this.attrs = attrs;
@@ -266,22 +286,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             this.canvasApi = api;
             this.flushPendingScroll();
           },
-          onscroll: (e: MithrilEvent<Event>) => {
-            // Only redraw if popup visibility would change
-            if (!this.tooltipPos) {
-              e.redraw = false;
-              return;
-            }
-            const target = e.target as HTMLElement;
-            const scrollTop = target.scrollTop;
-            const clientHeight = target.clientHeight;
-            const tooltipY = this.tooltipPos.y;
-            const nowVisible =
-              tooltipY >= scrollTop && tooltipY <= scrollTop + clientHeight;
-            if (nowVisible === this.lastPopupVisible) {
-              e.redraw = false;
-            }
-          },
           onCanvasRedraw: ({
             ctx,
             virtualCanvasSize,
@@ -296,6 +300,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           {
             style: {
               height: `${canvasHeight}px`,
+              flexGrow: 1,
               cursor: hoveredNode === undefined ? 'default' : 'pointer',
             },
             onmousemove: (e: MithrilEvent<MouseEvent>) => {
@@ -322,7 +327,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 this.tooltipPos = undefined;
                 return;
               }
-              const renderNode = this.renderNodes![newHoveredIdx];
+              const renderNode = this.renderNodes![newHoveredIdx]!;
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -378,10 +383,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           },
           (() => {
             const popupVisible =
-              this.isPopupAnchorVisible() &&
-              (this.tooltipPos?.state === 'HOVER' ||
-                this.tooltipPos?.state === 'CLICK');
-            this.lastPopupVisible = popupVisible;
+              this.tooltipPos?.state === 'HOVER' ||
+              this.tooltipPos?.state === 'CLICK';
             return m(
               Popup,
               {
@@ -411,8 +414,32 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     canvasRect: Rect2D,
     viewportRect: Rect2D,
   ) {
+    // On resize in bottom up, keep the same distance from the bottom edge so
+    // the root stays where it was.
+    const prevRect = this.viewportRect;
+    if (
+      this.attrs.state.view.kind === 'BOTTOM_UP' &&
+      this.canvasApi !== undefined &&
+      prevRect !== undefined &&
+      prevRect.height > 0 &&
+      (prevRect.height !== viewportRect.height ||
+        this.canvasHeight !== size.height)
+    ) {
+      const prevDist = this.canvasHeight - prevRect.bottom;
+      const dist = size.height - viewportRect.bottom;
+      const {y} = this.canvasApi.scrollTo({});
+      this.canvasApi.scrollTo({y: y + dist - prevDist});
+    }
     this.viewportRect = viewportRect;
     this.canvasWidth = size.width;
+    this.canvasHeight = size.height;
+    // The canvas is at least as tall as the viewport, so in bottom up the
+    // padding goes above the leaves and the root sits on the bottom edge.
+    const data = this.attrs.data;
+    this.yOffset =
+      data !== undefined && this.attrs.state.view.kind === 'BOTTOM_UP'
+        ? size.height - (data.maxDepth - data.minDepth + 1) * NODE_HEIGHT
+        : 0;
 
     if (this.renderNodesMonitor.ifStateChanged()) {
       if (this.attrs.data === undefined) {
@@ -427,6 +454,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             type: 'ROOT',
           },
           size.width,
+          this.yOffset,
         );
         this.lastClickedNode = this.renderNodes?.find((n) =>
           isIntersecting(this.lastClickedNode?.x, this.lastClickedNode?.y, n),
@@ -465,7 +493,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       .trim();
 
     for (let i = 0; i < this.renderNodes.length; i++) {
-      const node = this.renderNodes[i];
+      const node = this.renderNodes[i]!;
       const {x, y, width: width, source, state} = node;
       if (y + NODE_HEIGHT <= yStart || y >= yEnd) {
         continue;
@@ -486,7 +514,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         name = '(merged)';
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
-        name = nodes[source.queryIdx].name;
+        name = nodes[source.queryIdx]!.name;
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
       const highlighted =
@@ -497,30 +525,28 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       ctx.fillStyle = bgColor.cssString;
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
-      // Render marker
-      const MARKER_SIZE = 3;
-      const MARKER_LEFT_MARGIN = 2;
-      const MIN_WIDTH_FOR_MARKER = 15; // Don't show marker on very small nodes
-      const hasMarker =
-        source.kind === 'NODE' &&
-        nodes[source.queryIdx].marker !== undefined &&
-        width >= MIN_WIDTH_FOR_MARKER;
-      if (hasMarker) {
-        ctx.fillStyle = textColor.cssString;
-        const markerX = x + MARKER_LEFT_MARGIN;
-        const markerY = y + 2; // Position at top of node with small margin
-        ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
-      }
-
-      // Text positioning - no need to reserve space since marker is in top corner
-      const widthNoPadding = width - LABEL_PADDING_PX * 2;
-      if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
+      const treeNode =
+        source.kind === 'NODE' ? nodes[source.queryIdx] : undefined;
+      const labelStart =
+        treeNode !== undefined
+          ? drawNodeDecorations(
+              ctx,
+              treeNode.marker,
+              this.attrs.nodeIcon?.(treeNode.propertyValues),
+              x,
+              y,
+              width,
+              textColor.cssString,
+            )
+          : LABEL_PADDING_PX;
+      const labelWidth = width - labelStart - LABEL_PADDING_PX;
+      if (labelWidth >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
         ctx.fillStyle = textColor.cssString;
         ctx.fillText(
-          name.substring(0, widthNoPadding / this.labelCharWidth),
-          x + LABEL_PADDING_PX,
+          name.substring(0, labelWidth / this.labelCharWidth),
+          x + labelStart,
           y + (NODE_HEIGHT - 1) / 2,
-          widthNoPadding,
+          labelWidth,
         );
       }
       if (highlighted) {
@@ -546,14 +572,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         ctx.lineWidth = 0.5;
       }
     }
-  }
-
-  private isPopupAnchorVisible(): boolean {
-    if (!this.tooltipPos || !this.viewportRect) {
-      return false;
-    }
-    const {y} = this.tooltipPos;
-    return y >= this.viewportRect.top && y <= this.viewportRect.bottom;
   }
 
   private renderTooltip() {
@@ -601,7 +619,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
-    } = nodes[queryIdx];
+    } = nodes[queryIdx]!;
 
     const percent = displayPercentage(
       cumulativeValue,
@@ -624,8 +642,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       selfPercentText += `, parent: ${parentSelfPercent}`;
     }
     const nameLabel = nameColumnLabel ?? 'Name';
-    return m(
-      'div',
+    const defaultContent = [
       // Show marker at the top of the tooltip
       marker &&
         m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
@@ -660,7 +677,18 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }
         return null;
       }),
-      this.renderNodeActionBar(source, name, nodes[queryIdx], nodeActions),
+      this.renderNodeActionBar(source, name, nodes[queryIdx]!, nodeActions),
+    ];
+    const {renderNodeTooltip} = this.attrs;
+    const node = nodes[queryIdx]!;
+    return m(
+      'div',
+      renderNodeTooltip === undefined
+        ? defaultContent
+        : renderNodeTooltip(
+            {properties: node.propertyValues, node},
+            defaultContent,
+          ),
     );
   }
 
@@ -1122,10 +1150,51 @@ export function buildFlamegraphExportString(
   }
 }
 
+// Draws a node's decorations (marker square, then `icon`) left to right from
+// its left edge and returns the x offset, relative to the node's left edge,
+// at which the label should start. Each drawn decoration moves `cursor` past
+// itself so decorations never overlap. A square on its own sits in the
+// top-left corner without moving the label; the icon sits inline before the
+// label and pushes it right. Decorations that do not fit are not drawn.
+function drawNodeDecorations(
+  ctx: CanvasRenderingContext2D,
+  marker: string | undefined,
+  icon: string | undefined,
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+): number {
+  ctx.fillStyle = color;
+  let cursor = NODE_DECORATION_LEFT_MARGIN_PX;
+  if (marker !== undefined && width >= MARKER_SQUARE_MIN_NODE_WIDTH_PX) {
+    ctx.fillRect(
+      x + cursor,
+      y + 2,
+      MARKER_SQUARE_SIZE_PX,
+      MARKER_SQUARE_SIZE_PX,
+    );
+    // Only reserve horizontal space if an icon follows on the same row.
+    if (icon !== undefined) {
+      cursor += MARKER_SQUARE_SIZE_PX + NODE_DECORATION_GAP_PX;
+    }
+  }
+  const labelStart = cursor + NODE_ICON_SIZE_PX + NODE_DECORATION_GAP_PX;
+  if (icon === undefined || width < labelStart) {
+    return LABEL_PADDING_PX;
+  }
+  ctx.font = NODE_ICON_FONT_STYLE;
+  ctx.fillText(icon, x + cursor, y + (NODE_HEIGHT - 1) / 2);
+  // Restore the label font, which the caller relies on.
+  ctx.font = LABEL_FONT_STYLE;
+  return labelStart;
+}
+
 function computeRenderNodes(
   {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
   zoomRegion: ZoomRegion,
   canvasWidth: number,
+  yOffset: number,
 ): ReadonlyArray<RenderNode> {
   const renderNodes: RenderNode[] = [];
 
@@ -1133,7 +1202,7 @@ function computeRenderNodes(
   const keyToChildMergedIdx = new Map<string, number>();
   renderNodes.push({
     x: 0,
-    y: -minDepth * NODE_HEIGHT,
+    y: yOffset - minDepth * NODE_HEIGHT,
     width: canvasWidth,
     source: {
       kind: 'ROOT',
@@ -1150,7 +1219,7 @@ function computeRenderNodes(
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
-    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
     assertTrue(depth !== 0);
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
@@ -1172,7 +1241,7 @@ function computeRenderNodes(
     const relativeWidth = relativeXEnd - relativeXStart;
 
     const x = Math.max(0, relativeXStart) / queryXPerPx;
-    const y = NODE_HEIGHT * (depth - minDepth);
+    const y = yOffset + NODE_HEIGHT * (depth - minDepth);
     const width = depthMatchingZoom
       ? Math.min(relativeWidth, zoomQueryWidth) / queryXPerPx
       : relativeWidth / queryXPerPx;
@@ -1192,7 +1261,7 @@ function computeRenderNodes(
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
-        const r = renderNodes[childMergedIdx];
+        const r = renderNodes[childMergedIdx]!;
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
           ? Math.min(qXEnd - r.source.queryXStart, zoomQueryWidth) / queryXPerPx
           : (qXEnd - r.source.queryXStart) / queryXPerPx;

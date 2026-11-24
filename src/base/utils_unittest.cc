@@ -218,6 +218,83 @@ TEST(UtilsTest, RoundUpToPowerOfTwo) {
   EXPECT_EQ(RoundUpToPowerOfTwo((uint32_t{1} << 31) + 1), 0u);
 }
 
+TEST(UtilsTest, CheckedAdd) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  int64_t result;
+  ASSERT_TRUE(CheckedAdd(5, -7, &result));
+  EXPECT_EQ(result, -2);
+  ASSERT_TRUE(CheckedAdd(kMax, kMin, &result));
+  EXPECT_EQ(result, -1);
+  EXPECT_FALSE(CheckedAdd(kMax, 1, &result));
+  EXPECT_FALSE(CheckedAdd(kMin, -1, &result));
+  EXPECT_FALSE(CheckedAdd(kMin, kMin, &result));
+}
+
+TEST(UtilsTest, CheckedSub) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  int64_t result;
+  ASSERT_TRUE(CheckedSub(5, 7, &result));
+  EXPECT_EQ(result, -2);
+  // Subtracting the minimum is fine while the result stays representable.
+  ASSERT_TRUE(CheckedSub(-1, kMin, &result));
+  EXPECT_EQ(result, kMax);
+  EXPECT_FALSE(CheckedSub(0, kMin, &result));
+  EXPECT_FALSE(CheckedSub(kMin, 1, &result));
+  EXPECT_FALSE(CheckedSub(kMax, -1, &result));
+}
+
+TEST(UtilsTest, CheckedMul) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  int64_t result;
+  ASSERT_TRUE(CheckedMul(-6, 7, &result));
+  EXPECT_EQ(result, -42);
+  ASSERT_TRUE(CheckedMul(kMin, 1, &result));
+  EXPECT_EQ(result, kMin);
+  ASSERT_TRUE(CheckedMul(kMax, -1, &result));
+  EXPECT_EQ(result, -kMax);
+  EXPECT_FALSE(CheckedMul(kMin, -1, &result));
+  EXPECT_FALSE(CheckedMul(kMax, 2, &result));
+  EXPECT_FALSE(CheckedMul(kMin / 2 - 1, 2, &result));
+  EXPECT_FALSE(CheckedMul(int64_t{1} << 32, int64_t{1} << 31, &result));
+}
+
+TEST(UtilsTest, CanonicalFloatBits) {
+  auto from_bits = [](uint64_t bits) {
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+  };
+  auto bits_of = [](double value) {
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+  };
+  EXPECT_EQ(CanonicalFloatBits(-0.0), 0u);
+  EXPECT_EQ(CanonicalFloatBits(0.0), 0u);
+  EXPECT_EQ(CanonicalFloatBits(1.5), bits_of(1.5));
+  EXPECT_EQ(CanonicalFloatBits(-1.5), bits_of(-1.5));
+
+  constexpr double kInf = std::numeric_limits<double>::infinity();
+  EXPECT_EQ(CanonicalFloatBits(kInf), bits_of(kInf));
+  EXPECT_EQ(CanonicalFloatBits(-kInf), bits_of(-kInf));
+
+  uint64_t nan = CanonicalFloatBits(std::numeric_limits<double>::quiet_NaN());
+  EXPECT_EQ(CanonicalFloatBits(-std::numeric_limits<double>::quiet_NaN()), nan);
+  EXPECT_EQ(CanonicalFloatBits(std::numeric_limits<double>::signaling_NaN()),
+            nan);
+  EXPECT_EQ(CanonicalFloatBits(from_bits(0x7FF0000000000001)), nan);
+  EXPECT_EQ(CanonicalFloatBits(from_bits(0xFFF8000000000123)), nan);
+
+  EXPECT_EQ(CanonicalFloatBits(-0.0f), 0u);
+  EXPECT_EQ(CanonicalFloatBits(std::numeric_limits<float>::infinity()),
+            0x7F800000u);
+  EXPECT_EQ(CanonicalFloatBits(-std::numeric_limits<float>::quiet_NaN()),
+            CanonicalFloatBits(std::numeric_limits<float>::quiet_NaN()));
+}
+
 TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
@@ -268,8 +345,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Copy empty file.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, "");
@@ -277,8 +354,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Copy small file.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     std::string payload = "payload\n\r123";
     WriteAll(*src, payload.data(), payload.size());
@@ -293,8 +370,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Copy large file.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     std::string payload(35678, 'A');
     WriteAll(*src, payload.data(), payload.size());
@@ -305,8 +382,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Test CopyFileContents doesn't change 'src' offset.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     std::string payload = "payload\n\r123";
     WriteAll(*src, payload.data(), payload.size());
@@ -324,8 +401,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Test CopyFileContents doesn't change 'src' offset when failed.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst_normal_file = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst_normal_file = TempFile::Create().ValueOrDie();
     ScopedFile dst_read_only = OpenFile(dst_normal_file.path(), O_RDONLY);
 
     std::string payload = "payload\n\r123";
@@ -357,7 +434,7 @@ TEST(UtilsTest, CopyFileContents) {
     std::string src_content;
     ASSERT_TRUE(ReadFileDescriptor(*proc_self_src, &src_content));
 
-    TempFile dst = TempFile::Create();
+    TempFile dst = TempFile::Create().ValueOrDie();
     ASSERT_OK(CopyFileContents(*proc_self_src, *dst));
     assert_file_content_fn(dst, src_content);
   }
@@ -365,7 +442,7 @@ TEST(UtilsTest, CopyFileContents) {
 }
 
 TEST(UtilsTest, SeekFile) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
 
   ASSERT_TRUE(SeekFile(*file, 3));
@@ -375,7 +452,7 @@ TEST(UtilsTest, SeekFile) {
 }
 
 TEST(UtilsTest, TruncateFile) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
 
   ASSERT_TRUE(TruncateFile(*file, 3));
@@ -397,13 +474,13 @@ TEST(UtilsTest, SeekAndTruncateFileErrors) {
   EXPECT_FALSE(TruncateFile(-1, 0));
 
   constexpr uint64_t kTooLarge = std::numeric_limits<uint64_t>::max();
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   EXPECT_FALSE(SeekFile(*file, kTooLarge));
   EXPECT_FALSE(TruncateFile(*file, kTooLarge));
 }
 
 TEST(UtilsTest, GetFileSize) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
@@ -415,7 +492,6 @@ TEST(UtilsTest, GetFileSize) {
   ASSERT_EQ(maybe_size.value(), payload.size());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
   auto tmp = TempDir::Create();
   std::string tmp_path = tmp.path() + "/temp.txt";
@@ -428,8 +504,8 @@ TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
-  TempFile file = TempFile::Create();
-  const std::string& tmp_path = file.path();
+  TempFile tmp_file = TempFile::Create().ValueOrDie();
+  const std::string& tmp_path = tmp_file.path();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
@@ -452,7 +528,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
   }
 
   {
-    TempFile file = TempFile::Create();
+    TempFile file = TempFile::Create().ValueOrDie();
     WriteAll(*file, payload.data(), payload.size());
 
     auto fstream = OpenFstream(file.path(), "r");
@@ -463,7 +539,6 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
     ASSERT_EQ(actual, payload);
   }
 }
-#endif
 
 TEST(UtilsTest, SaturatingAdd) {
   constexpr int64_t kMax = std::numeric_limits<int64_t>::max();

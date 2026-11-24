@@ -46,7 +46,7 @@ function pickMeasureColumn(
   if (agg === 'COUNT_DISTINCT') {
     // COUNT_DISTINCT works on any column; keep current or pick first.
     return (
-      currentCol ?? (allColumns.length > 0 ? allColumns[0].name : undefined)
+      currentCol ?? (allColumns.length > 0 ? allColumns[0]!.name : undefined)
     );
   }
   // Numeric aggregations: reset if current column isn't numeric.
@@ -54,7 +54,7 @@ function pickMeasureColumn(
   if (currentCol && numericNames.has(currentCol)) {
     return currentCol;
   }
-  return numericColumns.length > 0 ? numericColumns[0].name : undefined;
+  return numericColumns.length > 0 ? numericColumns[0]!.name : undefined;
 }
 
 export interface ChartConfigPopupContext {

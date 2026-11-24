@@ -79,7 +79,7 @@ std::string MakeTrimmed(const char* chars, int len) {
 // The Instruments XML tokenizer reads instruments traces exported with:
 //
 //   xctrace export --input /path/to/profile.trace --xpath
-//     '//trace-toc/run/data/table[@schema="os-signpost and
+//     '//trace-toc/run/data/table[@schema="os-signpost" and
 //        @category="PointsOfInterest"] |
 //      //trace-toc/run/data/table[@schema="cpu-profile"]'
 //
@@ -590,11 +590,11 @@ class InstrumentsXmlImporter : public TraceImporter<InstrumentsXmlImporter> {
   InstrumentsXmlImporter() : TraceImporter(MakeDescriptor()) {}
   ~InstrumentsXmlImporter() override;
 
-  bool Sniff(const uint8_t* data, size_t size) const override {
+  SniffResult Sniff(const uint8_t* data, size_t size) const override {
     std::string start(reinterpret_cast<const char*>(data),
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
-    return base::StartsWith(start,
-                            "<?xml version=\"1.0\"?>\n<trace-query-result>");
+    return {base::StartsWith(start,
+                             "<?xml version=\"1.0\"?>\n<trace-query-result>")};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

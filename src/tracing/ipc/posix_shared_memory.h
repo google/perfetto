@@ -30,8 +30,8 @@
 
 #include <memory>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 
 namespace perfetto {
@@ -45,17 +45,26 @@ class PosixSharedMemory : public SharedMemory {
     std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) override;
   };
 
-  // Create a brand new SHM region.
-  static std::unique_ptr<PosixSharedMemory> Create(size_t size);
+  // Creates and maps a shared memory region of |size| bytes.
+  // Uses a memfd with seals that prevent resizing and adding further seals.
+  // In-tree Android builds require a sealed memfd.
+  // Other builds fall back to an unlinked temporary file if memfd creation
+  // fails.
+  // Returns an error status on failure.
+  static base::StatusOr<std::unique_ptr<PosixSharedMemory>> Create(size_t size);
 
-  // Mmaps a file descriptor to an existing SHM region. If
-  // |require_seals_if_supported| is true and the system supports
-  // memfd_create(), the FD is required to be a sealed memfd with F_SEAL_SEAL,
-  // F_SEAL_GROW, and F_SEAL_SHRINK seals set (otherwise, nullptr is returned).
-  // May also return nullptr if mapping fails for another reason (e.g. OOM).
+  // Mmaps an existing SHM region for shared read/write access.
+  // - Takes ownership of the descriptor, also on failure.
+  // - Returns nullptr if descriptor validation fails.
+  // - Also returns nullptr if mmap() fails (e.g. OOM).
+  // - Rejects an empty file, and a file larger than |max_size|, before mmap().
+  // - If |require_seals_if_supported| is true and the system supports
+  //   memfd_create, requires F_SEAL_SEAL, F_SEAL_GROW and F_SEAL_SHRINK
+  //   before it reads the size.
   static std::unique_ptr<PosixSharedMemory> AttachToFd(
       base::ScopedFile,
-      bool require_seals_if_supported = true);
+      bool require_seals_if_supported,
+      size_t max_size);
 
   ~PosixSharedMemory() override;
 
@@ -67,7 +76,10 @@ class PosixSharedMemory : public SharedMemory {
   size_t size() const override { return size_; }
 
  private:
-  static std::unique_ptr<PosixSharedMemory> MapFD(base::ScopedFile, size_t);
+  // Returns an error status if mmap() fails.
+  static base::StatusOr<std::unique_ptr<PosixSharedMemory>> MapFD(
+      base::ScopedFile,
+      size_t);
 
   PosixSharedMemory(void* start, size_t size, base::ScopedFile);
   PosixSharedMemory(const PosixSharedMemory&) = delete;

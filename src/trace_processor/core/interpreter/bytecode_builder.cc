@@ -21,10 +21,10 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -60,7 +60,7 @@ BytecodeBuilder::ScratchRegisters BytecodeBuilder::GetOrCreateScratchRegisters(
     return ScratchRegisters{slot.slab, slot.span};
   }
   auto slab = AllocateRegister<Slab<uint32_t>>();
-  auto span = AllocateRegister<Span<uint32_t>>();
+  auto span = AllocateRegister<base::Span<uint32_t>>();
   scratch_slots_.push_back(ScratchIndices{size, slab, span, false});
   return ScratchRegisters{slab, span};
 }

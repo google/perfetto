@@ -122,7 +122,7 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
       onpointercancel: (e: PointerEvent) => {
         this.endDrag(attrs, e.pointerId);
       },
-      onpointercapturelost: (e: PointerEvent) => {
+      onlostpointercapture: (e: PointerEvent) => {
         this.endDrag(attrs, e.pointerId);
       },
       ...rest,

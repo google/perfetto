@@ -11,6 +11,9 @@ importers:
       mermaid:
         specifier: ^11.16.1
         version: 11.16.1
+      railroad-diagrams:
+        specifier: 1.0.0
+        version: 1.0.0
       sass:
         specifier: ^1.94.0
         version: 1.101.0
@@ -27,6 +30,9 @@ importers:
       marked:
         specifier: ^4.3.0
         version: 4.3.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       protobufjs:
         specifier: ^7.5.8
         version: 7.6.5
@@ -569,6 +575,10 @@ packages:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
+
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
 
@@ -578,6 +588,9 @@ packages:
   protobufjs@7.6.5:
     resolution: {integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==}
     engines: {node: '>=12.0.0'}
+
+  railroad-diagrams@1.0.0:
+    resolution: {integrity: sha512-cz93DjNeLY0idrCNOH6PviZGRN9GJhsdm9hpn1YCS879fj4W+x5IFJhhkRZcwVgMmFF7R82UA/7Oh+R8lLZg6A==}
 
   readdirp@5.0.0:
     resolution: {integrity: sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ==}
@@ -1178,6 +1191,8 @@ snapshots:
   picomatch@4.0.5:
     optional: true
 
+  pngjs@7.0.0: {}
+
   points-on-curve@0.2.0: {}
 
   points-on-path@0.2.1:
@@ -1198,6 +1213,8 @@ snapshots:
       '@protobufjs/utf8': 1.1.2
       '@types/node': 26.1.1
       long: 5.3.2
+
+  railroad-diagrams@1.0.0: {}
 
   readdirp@5.0.0: {}
 

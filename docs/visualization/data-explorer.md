@@ -60,7 +60,7 @@ multiple projects to keep separate analyses distinct, or do them all on in one p
 ### Nodes
 
 The core concept in the Data Explorer is a **node**. Nodes fall into
-three categories:
+four categories:
 
 ![Data Explorer node types: source, modification, and multi-source nodes](../images/data-explorer-nodes.png)
 
@@ -73,8 +73,8 @@ three categories:
   no single primary source. Examples: join, union, interval intersect,
   create slices.
 - **Export nodes** - sit at the end of a pipeline and produce output
-  outside the query graph: a dashboard view, a chart, a metric spec,
-  or a trace summary for cross-trace analysis.
+  outside the query graph: a dashboard view, a metric spec, or a trace
+  summary for cross-trace analysis.
 
 ### The Graph
 
@@ -174,7 +174,7 @@ the node menu. Under **Sources**, pick the starting point for your data:
 </video>
 
 With a node selected, open the node menu and pick an operation. The new
-node is automatically wired to the selected node. Operations come in two
+node is automatically wired to the selected node. Operations come in three
 kinds:
 
 **Modification nodes** transform a single input:
@@ -186,7 +186,7 @@ kinds:
 | [**Sort**](#sort) | Order rows by one or more columns, ascending or descending. |
 | [**Modify Columns**](#modify-columns) | Rename, remove, or change the types of columns. |
 | [**Add Columns**](#add-columns) | Add columns from a secondary source or computed expressions. |
-| [**Limit / Offset**](#limit-offset) | Restrict the number of rows returned. |
+| [**Limit and Offset**](#limit-offset) | Restrict the number of rows returned. |
 | [**Filter During**](#filter) | Keep rows that fall within intervals from a secondary source. |
 | [**Counter to Intervals**](#counter-to-intervals) | Convert counter data (timestamps, no duration) into intervals with `ts` and `dur`. |
 | [**Charts**](#charts) | Visualize data as bar charts or histograms; clicking a bar adds a filter. |
@@ -205,7 +205,7 @@ primary input:
 
 | Node | Description |
 |------|-------------|
-| [**Dashboard**](#dashboard) | Export the data source to a dashboard. |
+| [**Export to Dashboard**](#dashboard) | Export the data source to a dashboard. |
 | [**Metrics**](#metrics) | Define a trace metric with a value column and dimensions. |
 | [**Trace Summary**](#trace-summary) | Bundle multiple metrics into a single trace summary specification. |
 
@@ -225,7 +225,7 @@ bottom of the Data Explorer. The grid supports:
 - **Column filtering** - filter values inline within the grid
 - **Export to timeline** - send results back to the main timeline as a
   [debug track](/docs/analysis/debug-tracks.md) using the **Export to
-  timeline** button in the data grid toolbar
+  Timeline** item in the results panel menu
 
 To see the generated SQL for a selected node, click the **SQL** tab in
 the node sidebar. The **Proto** tab shows the node's internal query
@@ -234,16 +234,16 @@ sharing query graphs programmatically.
 
 ## Import / Export
 
-Use the **Export** button to save the current graph as a JSON file. Use
-**Import** to reload a previously saved graph. This is useful for sharing
-query pipelines with teammates or saving work across sessions.
+Use **Export to JSON** in the canvas menu to save the current graph as a
+JSON file. Use **Import from JSON** to reload a previously saved graph.
+This is useful for sharing query pipelines with teammates or saving work
+across sessions.
 
 ## Examples
 
-Click **Examples** in the Data Explorer toolbar to load a curated set of
-pre-built query graphs. These cover common analysis patterns — finding
-long slices, aggregating CPU time by process, filtering events to a time
-window, joining thread metadata, and building dashboards — and are a good
+The navigation panel lists a curated set of pre-built query graphs under
+**Tutorials** and **Solutions**. These cover graph basics, joins,
+time-based queries, and a slice analysis pipeline, and are a good
 starting point for building your own queries.
 
 ## Node Reference
@@ -309,7 +309,7 @@ using a [Modify Columns](#modify-columns) node downstream.
 A time interval used as a data source. The interval can be entered
 manually or synced from the current timeline selection - in the latter
 case it updates dynamically as the selection changes. Useful as input to
-[Filter During](#filter-during) or [Interval Intersect](#interval-intersect).
+[Filter During](#filter) or [Interval Intersect](#interval-intersect).
 
 ---
 
@@ -547,7 +547,7 @@ Multiple columns of any mix of types can be added in a single node,
 each configured independently. Each column's type can be overridden
 inline if the automatic inference is incorrect.
 
-#### Limit / Offset {#limit-offset}
+#### Limit and Offset {#limit-offset}
 
 Restricts how many rows are returned and optionally skips a leading
 number of rows. Equivalent to SQL `LIMIT` / `OFFSET`. Default is
@@ -564,7 +564,7 @@ intervals by pairing each sample with the next, producing `ts`, `dur`,
 
 This is a necessary prerequisite for using counter data with
 interval-based nodes like [Interval Intersect](#interval-intersect) or
-[Filter During](#filter-during).
+[Filter During](#filter).
 
 #### Charts {#charts}
 

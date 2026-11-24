@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -48,7 +49,12 @@ bool AnyPositiveStat(TraceProcessorContext* context, Pred pred) {
     // context's rows.
     if (it.machine_id() != machine_id || it.trace_id() != trace_id)
       continue;
-    if (pred(static_cast<size_t>(it.key())))
+    // The predicates look keys up in stats.h, which has no entry for dynamic
+    // stats (see GlobalStatsTracker::InternDynamicStatDescriptor).
+    auto key = static_cast<size_t>(it.key());
+    if (key >= stats::kNumKeys)
+      continue;
+    if (pred(key))
       return true;
   }
   return false;
@@ -104,14 +110,14 @@ bool TraceDiagnosticsHelper::HasFtraceCpuDataLoss() const {
 bool TraceDiagnosticsHelper::HasTracedDataLoss() const {
   return AnyPositiveStat(context_, [](size_t key) {
     return stats::kSeverities[key] == stats::kDataLoss &&
-           base::StringView(stats::kNames[key]).StartsWith("traced_");
+           base::StartsWith(base::StringView(stats::kNames[key]), "traced_");
   });
 }
 
 bool TraceDiagnosticsHelper::HasHeapprofdErrorStats() const {
   return AnyPositiveStat(context_, [](size_t key) {
     return stats::kSeverities[key] == stats::kError &&
-           base::StringView(stats::kNames[key]).StartsWith("heapprofd");
+           base::StartsWith(base::StringView(stats::kNames[key]), "heapprofd");
   });
 }
 
@@ -141,7 +147,8 @@ bool TraceDiagnosticsHelper::HasVideoErrorStats() const {
   return AnyPositiveStat(context_, [](size_t key) {
     return (stats::kSeverities[key] == stats::kError ||
             stats::kSeverities[key] == stats::kDataLoss) &&
-           base::StringView(stats::kNames[key]).StartsWith("android_video_");
+           base::StartsWith(base::StringView(stats::kNames[key]),
+                            "android_video_");
   });
 }
 

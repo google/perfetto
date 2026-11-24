@@ -380,7 +380,8 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
-  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::TempFile tx_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   static constexpr char kFileContent[] = "shared file";
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),
@@ -426,7 +427,8 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
   EXPECT_CALL(proxy_events_, OnConnect()).WillOnce(on_connect);
   task_runner_->RunUntilCheckpoint("on_connect");
 
-  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::TempFile tx_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   static constexpr char kFileContent[] = "shared file";
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),

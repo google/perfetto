@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -35,18 +36,23 @@ class CommittedStateManager {
   CommittedStateManager(const CommittedStateManager&) = delete;
   CommittedStateManager& operator=(const CommittedStateManager&) = delete;
 
-  std::shared_ptr<void> Load(const std::string& name) const {
+  std::shared_ptr<void> Load(std::string_view name) const {
     const auto* p = map_.Find(name);
     return p ? *p : nullptr;
   }
-  void Store(const std::string& name, std::shared_ptr<void> state) {
+  void Store(std::string_view name, std::shared_ptr<void> state) {
     map_.Erase(name);
-    map_.Insert(name, std::move(state));
+    map_.Insert(std::string(name), std::move(state));
   }
-  void Erase(const std::string& name) { map_.Erase(name); }
+  void Erase(std::string_view name) { map_.Erase(name); }
 
  private:
-  base::FlatHashMap<std::string, std::shared_ptr<void>> map_;
+  // SQL object names are case-insensitive, so the map must be too.
+  base::FlatHashMapV2<std::string,
+                      std::shared_ptr<void>,
+                      base::CaseInsensitiveHash,
+                      base::CaseInsensitiveEq>
+      map_;
 };
 
 }  // namespace perfetto::trace_processor::sqlite

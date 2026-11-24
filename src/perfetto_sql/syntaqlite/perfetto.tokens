@@ -1,0 +1,4 @@
+# Operators PerfettoSQL adds to SQLite's.
+
+# Separates the stages of a pipeline: `FROM t |> WHERE ... |> SELECT ...`.
+PIPE = "|>";

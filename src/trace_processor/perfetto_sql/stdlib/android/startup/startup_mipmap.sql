@@ -19,8 +19,6 @@ INCLUDE PERFETTO MODULE android.startup.startups;
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.states;
@@ -38,65 +36,84 @@ WHERE
 ORDER BY
   ts;
 
--- Flatten slices that occur within the startups.
+-- Flattened slices on the threads of the startups. Stretches with no slice
+-- are filled with a NULL slice so that thread states outside of any slice are
+-- kept when intersecting below.
 CREATE PERFETTO TABLE _mipmap_flat_slice AS
-SELECT _slice_flattened.*
-FROM _slice_flattened
-JOIN _mipmap_startup USING (utid);
+FROM (
+  SELECT f.slice_id, f.ts, f.dur, f.utid, f.depth, f.name
+  FROM _slice_flattened AS f
+  JOIN track
+    ON f.track_id = track.id
+  WHERE
+    track.type = 'thread_execution'
+    AND f.utid IN (SELECT utid FROM _mipmap_startup)
+)
+|> INTERVAL FILL GAPS WITH (
+  SELECT DISTINCT utid, trace_start() AS ts, trace_dur() AS dur
+  FROM _mipmap_startup
+) AS bg PER utid;
 
--- Span join flattened slices with thread states to get thread state information for each slice.
-CREATE VIRTUAL TABLE _mipmap_flat_slice_thread_states_and_slices_sp USING SPAN_LEFT_JOIN(
-    thread_state PARTITIONED utid,
-    _mipmap_flat_slice PARTITIONED utid);
+-- Intersect the thread states, the flattened slices and the startups.
+CREATE PERFETTO TABLE _mipmap_startup_slice_raw AS
+INTERVAL INTERSECTION OF (
+  (
+    -- Thread states still open at the end of the trace have dur = -1.
+    SELECT
+      ts,
+      iif(dur = -1, trace_end() - ts, dur) AS dur,
+      utid,
+      state,
+      cpu,
+      io_wait,
+      blocked_function,
+      irq_context
+    FROM thread_state
+    WHERE
+      utid IN (SELECT utid FROM _mipmap_startup)
+  ) AS t,
+  _mipmap_flat_slice AS f,
+  _mipmap_startup AS s
+) PER utid
+|> SELECT
+  ts,
+  dur,
+  utid,
+  f.slice_id,
+  f.depth,
+  f.name,
+  t.state,
+  t.cpu,
+  t.io_wait,
+  t.blocked_function,
+  t.irq_context,
+  s.startup_id,
+  s.upid,
+  s.startup_type,
+  s.package,
+  s.dur AS startup_dur;
 
--- Create a table from the span join results.
-CREATE PERFETTO TABLE _mipmap_flat_slice_thread_states_and_slices AS
+-- The slices with thread states that occurred during each startup.
+CREATE PERFETTO VIEW _mipmap_startup_slice AS
 SELECT
-  row_number() OVER () AS id,
   ts,
   dur,
   utid,
   slice_id,
   depth,
   name,
-  sched_state_to_human_readable_string(state) AS state,
+  coalesce(name, sched_state_to_human_readable_string(state)) AS synth_name,
   cpu,
+  sched_state_to_human_readable_string(state) AS state,
   io_wait,
   blocked_function,
-  coalesce(name, sched_state_to_human_readable_string(state)) AS synth_name,
-  irq_context
-FROM _mipmap_flat_slice_thread_states_and_slices_sp;
-
--- Intersect the slices with thread states with the unique startup intervals.
--- This table contains the slices that occurred during each startup.
-CREATE PERFETTO TABLE _mipmap_startup_slice AS
-SELECT
-  ii.ts,
-  ii.dur,
-  slice.utid,
-  slice.id AS slice_id,
-  slice.depth,
-  slice.name,
-  slice.synth_name,
-  slice.cpu,
-  slice.state,
-  slice.io_wait,
-  slice.blocked_function,
-  slice.irq_context,
-  startup.startup_id,
-  startup.upid,
-  startup.startup_type,
-  startup.package,
-  startup.dur AS startup_dur
-FROM _interval_intersect
-    !(
-      (
-        (SELECT * FROM _mipmap_flat_slice_thread_states_and_slices WHERE dur > -1), (_mipmap_startup)),
-      (utid)) AS ii
-JOIN _mipmap_flat_slice_thread_states_and_slices AS slice
-  ON slice.id = ii.id_0
-JOIN _mipmap_startup AS startup
-  ON startup.id = ii.id_1;
+  irq_context,
+  startup_id,
+  upid,
+  startup_type,
+  package,
+  startup_dur
+FROM _mipmap_startup_slice_raw;
 
 -- ------------------------------------------------------------------
 -- MIPMAP Generation Call

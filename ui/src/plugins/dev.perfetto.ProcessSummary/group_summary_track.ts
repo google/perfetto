@@ -113,10 +113,10 @@ function computeHover(
   const t = timescale.pxToHpTime(x).toTime('floor');
 
   const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
-  if (i === j || i >= data.starts.length || t > data.ends[i]) return undefined;
+  if (i === j || i >= data.starts.length || t > data.ends[i]!) return undefined;
 
-  const utid = data.utids[i];
-  const count = data.counts[i];
+  const utid = data.utids[i]!;
+  const count = data.counts[i]!;
   const pid = threads.get(utid)?.pid;
   return {utid, lane, count, pid};
 }
@@ -284,7 +284,7 @@ export class GroupSummaryTrack implements TrackRenderer {
       } else {
         // Not valid - traverse children
         for (let i = node.children.length - 1; i >= 0; i--) {
-          stack.push(node.children[i]);
+          stack.push(node.children[i]!);
         }
       }
     }
@@ -367,29 +367,8 @@ export class GroupSummaryTrack implements TrackRenderer {
     const task = await deferChunkedTask({priority});
 
     const numRows = queryRes.numRows();
-    const slices: Data = {
-      start,
-      end,
-      resolution,
-      length: numRows,
-      maxLanes,
-      counts: new Uint32Array(numRows),
-      starts: new BigInt64Array(numRows),
-      ends: new BigInt64Array(numRows),
-      lanes: new Uint32Array(numRows),
-      utids: new Int32Array(numRows),
-      colorSchemes: new Array(numRows),
-      // Relative timestamps for fast rendering
-      startRelNs: new Float32Array(numRows),
-      endRelNs: new Float32Array(numRows),
-      depths: new Uint16Array(numRows),
-      // Working buffer for per-frame color computation
-      renderColors: new Uint32Array(numRows),
-      // Reusable patterns buffer (all zeros - no patterns)
-      patterns: new Uint8Array(numRows),
-    };
 
-    const it = queryRes.iter({
+    const it = queryRes.decodeColumns({
       count: NUM,
       ts: LONG,
       dur: LONG,
@@ -397,7 +376,18 @@ export class GroupSummaryTrack implements TrackRenderer {
       utid: NUM,
     });
 
-    for (let row = 0; it.valid(); it.next(), row++) {
+    const starts = it.ts;
+    const counts = new Uint32Array(it.count);
+    const lanes = new Uint32Array(it.lane);
+    const depths = new Uint16Array(it.lane);
+    const utids = new Int32Array(it.utid);
+    const ends = new BigInt64Array(numRows);
+    const startRelNs = new Float32Array(numRows);
+    const endRelNs = new Float32Array(numRows);
+    const colorSchemes = new Array(numRows);
+    let frameEnd = end;
+
+    for (let row = 0; row < numRows; row++) {
       // Periodically check for cancellation during iteration
       if (row % 50 === 0) {
         if (signal.isCancelled) {
@@ -409,29 +399,47 @@ export class GroupSummaryTrack implements TrackRenderer {
         }
       }
 
-      const ts = it.ts;
-      const dur = it.dur;
+      const ts = it.ts[row]!;
+      const dur = it.dur[row]!;
       const endTs = ts + dur;
 
-      slices.counts[row] = it.count;
-      slices.starts[row] = ts;
-      slices.ends[row] = endTs;
-      slices.lanes[row] = it.lane;
-      slices.utids[row] = it.utid;
-      slices.end = Time.max(Time.fromRaw(endTs), slices.end);
+      ends[row] = endTs;
+      frameEnd = Time.max(Time.fromRaw(endTs), frameEnd);
 
       // Store relative timestamps as floats for fast rendering
-      slices.startRelNs[row] = Number(ts - start);
-      slices.endRelNs[row] = Number(endTs - start);
-
-      slices.depths[row] = it.lane;
+      // TODO(stevegolton): Calculate these in SQL.
+      startRelNs[row] = Number(ts - start);
+      endRelNs[row] = Number(endTs - start);
 
       // Cache color scheme for 'sched' mode (depends on utid).
       if (this.mode === 'sched') {
-        const threadInfo = this.threads.get(it.utid);
-        slices.colorSchemes[row] = colorForThread(threadInfo);
+        const threadInfo = this.threads.get(it.utid[row]!);
+        colorSchemes[row] = colorForThread(threadInfo);
       }
     }
+
+    const slices: Data = {
+      start,
+      end: frameEnd,
+      resolution,
+      length: numRows,
+      maxLanes,
+      counts,
+      starts,
+      ends,
+      lanes,
+      utids,
+      colorSchemes,
+      // Relative timestamps for fast rendering
+      startRelNs,
+      endRelNs,
+      depths,
+      // Working buffer for per-frame color computation
+      renderColors: new Uint32Array(numRows),
+      // Reusable patterns buffer (all zeros - no patterns)
+      patterns: new Uint8Array(numRows),
+    };
+
     return slices;
   }
 
@@ -502,7 +510,7 @@ export class GroupSummaryTrack implements TrackRenderer {
         return undefined;
       }
 
-      const trackUri = this.sliceTracks[laneIndex].uri;
+      const trackUri = this.sliceTracks[laneIndex]!.uri;
       const track = this.trace.tracks.getTrack(trackUri);
       const trackTitle = (track as {title?: string})?.title ?? trackUri;
 
@@ -575,8 +583,8 @@ export class GroupSummaryTrack implements TrackRenderer {
     checkerboardExcept(
       ctx,
       this.getHeight(),
-      0,
-      size.width,
+      Math.max(0, timescale.timeToPx(Time.MIN)),
+      Math.min(size.width, timescale.timeToPx(Time.MAX)),
       timescale.timeToPx(data.start),
       timescale.timeToPx(data.end),
     );
@@ -593,8 +601,8 @@ export class GroupSummaryTrack implements TrackRenderer {
     if (this.mode === 'sched') {
       const isHovering = timeline.hoveredUtid !== undefined;
       for (let i = 0; i < count; i++) {
-        const colorScheme = data.colorSchemes[i];
-        const utid = data.utids[i];
+        const colorScheme = data.colorSchemes[i]!;
+        const utid = data.utids[i]!;
         const threadInfo = this.threads.get(utid);
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         const pid = (threadInfo ? threadInfo.pid : -1) || -1;

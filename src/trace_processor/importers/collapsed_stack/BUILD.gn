@@ -22,7 +22,7 @@ source_set("collapsed_stack") {
     "../../importers/common",
     "../../storage",
     "../../tables:tables_python",
-    "../../types:types",
+    "../../types",
     "../../util:trace_blob_view_reader",
     "../../util:trace_type",
   ]

@@ -15,9 +15,11 @@
 import m from 'mithril';
 import {AsyncMemo} from '../../base/async_memo';
 import {sqliteString} from '../../base/string_utils';
+import {Memo} from '../../base/memo';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {
   metricsFromTableOrSubquery,
+  TreeExplorerFetcher,
   type TreeExplorerQueryMetric,
 } from '../../components/tree_explorer_fetcher';
 import type {AreaSelection, AreaSelectionTab} from '../../public/selection';
@@ -35,17 +37,15 @@ interface Metadata {
   readonly availableArgs: ReadonlyArray<string>;
 }
 
-interface MetricsCache {
-  readonly key: string;
-  readonly metrics: ReadonlyArray<TreeExplorerQueryMetric>;
-}
-
 export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
   readonly id = 'track_event_callstack_flamegraph';
   readonly name = 'Track Event Callstacks';
 
   private readonly metadataSlot = new AsyncMemo<Metadata>();
-  private metricsCache?: MetricsCache;
+  // The fetcher (and so the virtual tables built for the metrics) is created
+  // for the metric set it serves and disposed by the memo as soon as that set
+  // changes, so at most one generation is alive at a time.
+  private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   constructor(
     private readonly trace: Trace,
@@ -70,15 +70,20 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
 
     const state = this.getState();
     const addedMetricIds = state?.addedMetricIds ?? [];
-    const metrics = this.getMetrics(
-      samplesSql,
-      metadata.data.hasWeight,
-      addedMetricIds,
-    );
+    const {hasWeight} = metadata.data;
+    const fetcher = this.fetcherMemo.use({
+      key: {samplesSql, hasWeight, addedMetricIds},
+      compute: () =>
+        new TreeExplorerFetcher(
+          this.trace,
+          buildMetrics(samplesSql, hasWeight, addedMetricIds),
+        ),
+    });
+    const metrics = fetcher.metrics;
     const currentState = updateTreeExplorerState(state, metrics);
     if (currentState !== state) {
-      // Persist so the state reference is stable on the next render:
-      // TreeExplorerPanel refetches whenever the state identity changes.
+      // Persist so the selected metric is stable on the next render, rather
+      // than being re-derived (and possibly changing) every frame.
       this.setState(currentState);
     }
     const added = new Set(addedMetricIds);
@@ -89,8 +94,7 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
     return {
       isLoading: metadata.isPending,
       content: m(TreeExplorerPanel, {
-        trace: this.trace,
-        metrics,
+        fetcher,
         addableMetrics,
         state: currentState,
         onAddMetric: (metric) => {
@@ -135,19 +139,6 @@ export class TrackEventCallstackFlamegraphTab implements AreaSelectionTab {
       if (it.key !== null) availableArgs.push(it.key);
     }
     return {hasWeight, availableArgs};
-  }
-
-  private getMetrics(
-    samplesSql: string,
-    hasWeight: boolean,
-    addedMetricIds: ReadonlyArray<string>,
-  ): ReadonlyArray<TreeExplorerQueryMetric> {
-    const key = `${samplesSql}\0${hasWeight}\0${addedMetricIds.join('\0')}`;
-    if (this.metricsCache?.key === key) return this.metricsCache.metrics;
-
-    const metrics = buildMetrics(samplesSql, hasWeight, addedMetricIds);
-    this.metricsCache = {key, metrics};
-    return metrics;
   }
 }
 

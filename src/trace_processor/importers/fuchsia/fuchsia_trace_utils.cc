@@ -16,6 +16,10 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 
+#include <cstring>
+
+#include "perfetto/base/endian.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace fuchsia_trace_utils {
@@ -105,8 +109,7 @@ bool RecordCursor::ReadTimestamp(uint64_t ticks_per_second, int64_t* ts_out) {
     return false;
   }
   if (ts_out != nullptr) {
-    uint64_t ticks;
-    memcpy(&ticks, ts_data, sizeof(uint64_t));
+    uint64_t ticks = base::LoadLE<uint64_t>(ts_data);
     *ts_out = TicksToNs(ticks, ticks_per_second);
   }
   return true;
@@ -122,8 +125,13 @@ bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
     return false;
   }
   if (string_out != nullptr) {
-    *string_out =
-        base::StringView(reinterpret_cast<const char*>(string_data), len);
+    // FXT strings are length-delimited and not NUL-terminated (e.g. strings
+    // whose length is a multiple of 8 have no trailing zero padding), so bound
+    // the scan to |len| with strnlen. Truncating at the first NUL guards
+    // against producers that include NUL bytes inside the declared length
+    // (such as a fixed-size name buffer with trailing NUL padding).
+    const char* str = reinterpret_cast<const char*>(string_data);
+    *string_out = base::StringView(str, len > 0 ? strnlen(str, len) : 0);
   }
   return true;
 }
@@ -134,8 +142,8 @@ bool RecordCursor::ReadInlineThread(FuchsiaThreadInfo* thread_out) {
     return false;
   }
   if (thread_out != nullptr) {
-    memcpy(&thread_out->pid, thread_data, sizeof(uint64_t));
-    memcpy(&thread_out->tid, thread_data + sizeof(uint64_t), sizeof(uint64_t));
+    thread_out->pid = base::LoadLE<uint64_t>(thread_data);
+    thread_out->tid = base::LoadLE<uint64_t>(thread_data + sizeof(uint64_t));
   }
   return true;
 }
@@ -146,7 +154,7 @@ bool RecordCursor::ReadInt64(int64_t* out) {
     return false;
   }
   if (out != nullptr) {
-    memcpy(out, out_data, sizeof(int64_t));
+    *out = base::LoadLE<int64_t>(out_data);
   }
   return true;
 }
@@ -157,7 +165,7 @@ bool RecordCursor::ReadUint64(uint64_t* out) {
     return false;
   }
   if (out != nullptr) {
-    memcpy(out, out_data, sizeof(uint64_t));
+    *out = base::LoadLE<uint64_t>(out_data);
   }
   return true;
 }
@@ -170,7 +178,7 @@ bool RecordCursor::ReadDouble(double* out) {
     return false;
   }
   if (out != nullptr) {
-    memcpy(out, out_data, sizeof(double));
+    *out = base::LoadLE<double>(out_data);
   }
   return true;
 }

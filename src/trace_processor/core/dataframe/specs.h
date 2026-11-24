@@ -6,11 +6,13 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
 #include "src/trace_processor/core/common/null_types.h"
@@ -18,7 +20,6 @@
 #include "src/trace_processor/core/common/sort_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -133,6 +134,16 @@ struct LimitSpec {
 // -----------------------------------------------------------------------------
 
 // Defines the properties of a column in the dataframe.
+// The column a dataframe is given when it has no id of its own, so that every
+// row has one.
+inline constexpr std::string_view kAutoIdColumnName = "_auto_id";
+
+// Whether a dataframe column is hidden: kept for the engine's own use, but not
+// one of the columns the dataframe shows, as in `SELECT *`.
+inline bool IsHiddenColumn(std::string_view name) {
+  return name == kAutoIdColumnName;
+}
+
 struct ColumnSpec {
   StorageType type;
   Nullability nullability;

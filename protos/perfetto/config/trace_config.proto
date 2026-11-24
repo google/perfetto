@@ -29,8 +29,9 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 50.
+// Next id: 51.
 message TraceConfig {
+  // Next id: 10.
   message BufferConfig {
     optional uint32 size_kb = 1;
 
@@ -78,9 +79,11 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // When true, uses the experimental TraceBufferV2 implementation for this
-    // buffer. This is for testing purposes only and may be removed in future
-    // versions.
+    // Deprecated: use |buffer_type| instead.
+    // Kept for backwards compatibility because older builds do not understand
+    // |buffer_type| and field configs use it to validate TRACE_BUFFER_V2. Set
+    // it alongside |buffer_type| to select the buffer type on older builds.
+    // TODO(sashwinbalaji): Remove this in 27Q2.
     enum ExperimentalMode {
       // Use the default V1 implementation.
       MODE_UNSPECIFIED = 0;
@@ -92,9 +95,39 @@ message TraceConfig {
       // V2 against V1.
       reserved 2;
     }
-    optional ExperimentalMode experimental_mode = 8;
+    optional ExperimentalMode experimental_mode = 8 [deprecated = true];
+
+    // Selects the trace buffer implementation, ignoring |experimental_mode|.
+    // The service picks the supported type with the highest field number, or V1
+    // if none is supported.
+    // If allocating the picked type fails, tracing fails without a fallback.
+    //
+    // Introduced in: perfetto v60.
+    // Supported on: Android 27Q1+.
+    message BufferTypeConfig {
+      message V1 {}
+      message V2 {}
+
+      // Stages chunks in a TraceBufferV2, then moves complete packets into
+      // compressed bundles in a second buffer.
+      // Design: RFC 0050, https://github.com/google/perfetto/discussions/7838.
+      message V3 {}
+
+      optional V1 v1 = 1;
+      optional V2 v2 = 2;
+      optional V3 v3 = 3;
+    }
+    optional BufferTypeConfig buffer_type = 9;
   }
   repeated BufferConfig buffers = 1;
+
+  // Enables compaction after reads for this session's TraceBufferV2 and
+  // TraceBufferV3 buffers.
+  // Defaults to false and does not affect V1 or read-only V2 buffers.
+  // V3 also compacts staging after each bundling pass that reads all readable
+  // packets, even when this flag is false.
+  // A DISCARD buffer that stopped stays stopped.
+  optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
     // Filters and data-source specific config. It contains also the unique name
@@ -390,11 +423,11 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 4;
-
+      //
       // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
       // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
+      CLONE_SNAPSHOT = 4;
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -535,12 +568,11 @@ message TraceConfig {
   // incident. This field is read by perfetto_cmd, rather than the tracing
   // service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * all of |destination_package|, |destination_class| and |privacy_level|
+  //    must be set.
+  //  * |skip_incidentd| must be explicitly set to true.
   message IncidentReportConfig {
-    // In this message, either:
-    //  * all of |destination_package|, |destination_class| and |privacy_level|
-    //    must be set.
-    //  * |skip_incidentd| must be explicitly set to true.
-
     optional string destination_package = 1;
     optional string destination_class = 2;
     // Level of filtering in the requested incident. See |Destination| in
@@ -599,6 +631,15 @@ message TraceConfig {
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
   // Android T with a different field number. Updated in Android U with a new
   // bytecode version which supports string filtering.
+  //
+  // The principles and terminology of string filtering is heavily inspired by
+  // iptables. A "rule" decide how strings should be filtered. Each rule
+  // contains a "policy" which indicates the algorithm to use for filtering.
+  // A "chain" is a list of rules which will be sequentially checked against
+  // each string.
+  //
+  // The first rule which applies to the string terminates filtering for that
+  // string. If no rules apply, the string is left unchanged.
   message TraceFilter {
     // =========================
     // Filter bytecode.
@@ -614,15 +655,6 @@ message TraceConfig {
     // =========================
     // String filtering
     // =========================
-
-    // The principles and terminology of string filtering is heavily inspired by
-    // iptables. A "rule" decide how strings should be filtered. Each rule
-    // contains a "policy" which indicates the algorithm to use for filtering.
-    // A "chain" is a list of rules which will be sequentially checked against
-    // each string.
-    //
-    // The first rule which applies to the string terminates filtering for that
-    // string. If no rules apply, the string is left unchanged.
 
     // A policy specifies which algorithm should be used for filtering the
     // string.
@@ -773,11 +805,10 @@ message TraceConfig {
   // Android framework. This field is read by perfetto_cmd, rather than the
   // tracing service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * |reporter_service_package| and |reporter_service_class| must be set.
+  //  * |skip_reporting| must be explicitly set to true.
   message AndroidReportConfig {
-    // In this message, either:
-    //  * |reporter_service_package| and |reporter_service_class| must be set.
-    //  * |skip_reporting| must be explicitly set to true.
-
     optional string reporter_service_package = 1;
     optional string reporter_service_class = 2;
 
@@ -814,6 +845,10 @@ message TraceConfig {
     // pass to a non-priv app (note that the framework will still check
     // manifest permissions even though SELinux permissions are worked around).
     optional bool use_pipe_in_framework_for_testing = 4;
+
+    // Reserved for Google-internal extensions.
+    // 1000: TracePriority trace_priority
+    extensions 1000 to 1099;
   }
   optional AndroidReportConfig android_report_config = 34;
 
@@ -914,7 +949,7 @@ message TraceConfig {
 
     // The following modes are intended for advanced usage and not recommended
     // for general use.
-
+    //
     // Do not flush buffers before periodic writes into the file.
     // Use this mode if you want to minimize the performance impact of flushes
     // and can tolerate potentially missing the most recent data in the trace

@@ -58,14 +58,14 @@ client that originally started the session and detached.
 Overall `--attach=key` makes the `perfetto` cmdline client behave as if it was
 never detached. This means that:
 
-- sending a `SIGKILL` (or Ctrl-C) to the client will gracefully stop the tracing
+- sending a `SIGTERM` (or Ctrl-C) to the client will gracefully stop the tracing
   session.
 - If the `duration_ms` time limit is hit, the client will be informed by the
   service and exit soon after.
 
 When re-attaching it is possible to also specify a further `--stop` argument.
 `--stop` will gracefully terminate the tracing session immediately after
-re-attaching (This is to avoid a race where SIGKILL is sent too early, before
+re-attaching (This is to avoid a race where SIGTERM is sent too early, before
 the client gets a chance to attach or even register the signal handler).
 
 No other cmdline argument other than `--stop` can be passed when using

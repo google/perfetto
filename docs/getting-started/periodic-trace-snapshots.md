@@ -185,7 +185,8 @@ Start the tracing services and begin tracing. If you are using `tracebox`:
 
 ```bash
 # tracebox starts traced and traced_probes automatically.
-./tracebox -c snapshot_config.pbtxt --txt \
+# --system-sockets lets later clone commands connect to this session.
+./tracebox --system-sockets -c snapshot_config.pbtxt --txt \
   --background -o /tmp/snapshot_bg
 ```
 
@@ -232,7 +233,7 @@ TAB: Linux
 perfetto --clone-by-name my_snapshot \
   -o /tmp/snapshot_1.pftrace
 # Or with tracebox:
-./tracebox --clone-by-name my_snapshot \
+./tracebox perfetto --clone-by-name my_snapshot \
   -o /tmp/snapshot_1.pftrace
 ```
 
@@ -275,7 +276,7 @@ the Python API, or by opening it in the
 Run a one-off query directly from the command line using the `query` subcommand:
 
 ```bash
-trace_processor_shell query /tmp/snapshot_1.pftrace "
+./trace_processor query /tmp/snapshot_1.pftrace "
   INCLUDE PERFETTO MODULE linux.cpu.frequency;
   SELECT * FROM cpu_frequency_counters LIMIT 100;
 "
@@ -284,7 +285,7 @@ trace_processor_shell query /tmp/snapshot_1.pftrace "
 Or open an interactive SQL shell to explore the data:
 
 ```bash
-trace_processor_shell /tmp/snapshot_1.pftrace
+./trace_processor /tmp/snapshot_1.pftrace
 ```
 
 Here are some useful queries:
@@ -324,7 +325,7 @@ WHERE t.name GLOB 'batt.*';
 SELECT ts, t.name, value
 FROM counter AS c
 LEFT JOIN counter_track AS t ON c.track_id = t.id
-WHERE t.name GLOB '*thermal*';
+WHERE t.type = 'thermal_temperature';
 ```
 
 ### Querying with the Python API
@@ -385,7 +386,7 @@ for i in $(seq 1 10); do
   adb shell perfetto --clone-by-name my_snapshot -o "$SNAP"
   adb pull "$SNAP" /tmp/
   echo "=== Snapshot $i ==="
-  trace_processor_shell query /tmp/"snap_${i}.pftrace" "
+  ./trace_processor query /tmp/"snap_${i}.pftrace" "
     INCLUDE PERFETTO MODULE linux.cpu.frequency;
     SELECT cpu, avg(freq) AS avg_freq_khz
     FROM cpu_frequency_counters
@@ -402,7 +403,7 @@ for i in $(seq 1 10); do
   SNAP="/tmp/snap_${i}.pftrace"
   perfetto --clone-by-name my_snapshot -o "$SNAP"
   echo "=== Snapshot $i ==="
-  trace_processor_shell query "$SNAP" "
+  ./trace_processor query "$SNAP" "
     INCLUDE PERFETTO MODULE linux.cpu.frequency;
     SELECT cpu, avg(freq) AS avg_freq_khz
     FROM cpu_frequency_counters

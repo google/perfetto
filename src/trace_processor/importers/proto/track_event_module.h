@@ -44,9 +44,12 @@ class TrackEventModule : public ProtoImporterModule {
 
   void OnFirstPacketOnSequence(uint32_t) override;
 
-  void ParseTrackEventData(const protos::pbzero::TracePacket::Decoder& decoder,
-                           int64_t ts,
-                           const TrackEventData& data);
+  void ParseTrackEventData(int64_t ts,
+                           const TrackEventData& data,
+                           protozero::ConstBytes event,
+                           uint32_t sequence_id) {
+    parser_.ParseTrackEvent(ts, &data, event, sequence_id);
+  }
 
   void OnEventsFullyExtracted() override;
 

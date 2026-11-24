@@ -36,10 +36,14 @@ import type {
   DuplicateBitmapGroup,
   DuplicateStringGroup,
   DuplicateArrayGroup,
+  Field,
+  ArrayElem,
+  HeapDump,
 } from './types';
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
-import {type time, Time} from '../../base/time';
+import {Time} from '../../base/time';
+import {mergedClassNamesSql} from '../dev.perfetto.HeapProfile/merged_class_sql';
 
 /**
  * Reinterpret a SQL int64 as an unsigned 64-bit native pointer.
@@ -52,14 +56,9 @@ function toNativePtr(v: bigint): bigint {
   return BigInt.asUintN(64, v);
 }
 
-export interface HeapDump {
-  readonly upid: number;
-  readonly ts: time;
-  readonly processName: string | null;
-  readonly pid: number;
-}
-
-export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
+export async function loadDumpsList(
+  engine: Engine,
+): Promise<readonly HeapDump[]> {
   const res = await engine.query(`
     SELECT
       g.upid AS upid,
@@ -85,7 +84,7 @@ export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
       upid: it.upid,
       ts: Time.fromRaw(it.ts),
       processName: it.pname,
-      pid: it.pid ?? 0,
+      pid: it.pid,
     });
   }
   return result;
@@ -246,9 +245,31 @@ async function batchBitmapBufferHashes(
   return result;
 }
 
+// Whether the trace has HPROF field values (heap_graph_primitive).
+export async function hasFieldValues(engine: Engine): Promise<boolean> {
+  const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
+  return res.iter({}).valid();
+}
+
+// Names (deobfuscated where possible) of the classes in `dump` that may
+// include other classes merged in by app optimization (e.g. R8 class
+// merging). Empty unless the trace includes a deobfuscation mapping.
+export async function getPotentiallyMergedClasses(
+  engine: Engine,
+  dump: HeapDump,
+): Promise<ReadonlySet<string>> {
+  const res = await engine.query(mergedClassNamesSql(dump.upid, dump.ts));
+  const names = new Set<string>();
+  for (const it = res.iter({name: STR}); it.valid(); it.next()) {
+    names.add(it.name);
+  }
+  return names;
+}
+
 export async function getOverview(
   engine: Engine,
   activeDump: HeapDump,
+  hasPrimitives: boolean,
 ): Promise<OverviewData> {
   const dumpFilter = dumpFilterSql(activeDump, 'o');
   const oomeInfo = await getOome(engine, activeDump);
@@ -326,10 +347,6 @@ export async function getOverview(
   // Duplicate bitmaps grouped by pixel content hash. Each bitmap's compressed
   // DumpData buffer is hashed to detect true content duplicates rather than
   // just matching on dimensions. Skipped for proto heap graphs (no HPROF data).
-  const hasPrimitivesRes = await engine.query(
-    `SELECT 1 FROM heap_graph_primitive LIMIT 1`,
-  );
-  const hasPrimitives = hasPrimitivesRes.iter({}).valid();
   const dupRes = hasPrimitives
     ? await engine.query(`
     SELECT
@@ -515,7 +532,6 @@ export async function getOverview(
     duplicateStrings:
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
     duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
-    hasFieldValues: hasPrimitives,
     oomScore,
     oomBucket,
     anonRssAndSwapSize,
@@ -563,16 +579,14 @@ export async function getOome(
   return undefined;
 }
 
-type FieldEntry = {name: string; typeName: string; value: PrimOrRef};
-
 /** Fetch primitive and reference field values for an object. */
 async function fetchFieldValues(
   engine: Engine,
   activeDump: HeapDump,
   refSetId: number | null,
   fieldSetId: number | null,
-): Promise<FieldEntry[]> {
-  const fields: FieldEntry[] = [];
+): Promise<Field[]> {
+  const fields: Field[] = [];
 
   if (fieldSetId !== null) {
     const fRes = await engine.query(`
@@ -703,9 +717,9 @@ export async function fetchShortestPathFromRoot(
 /** Batch-fetch shortest reference paths for multiple objects. */
 export async function fetchShortestPaths(
   engine: Engine,
-  ids: number[],
-): Promise<Map<number, PathEntry[]>> {
-  const result = new Map<number, PathEntry[]>();
+  ids: readonly number[],
+): Promise<Map<number, readonly PathEntry[]>> {
+  const result = new Map<number, readonly PathEntry[]>();
   if (ids.length === 0) return result;
 
   await requireDominatorTree(engine);
@@ -721,7 +735,7 @@ export async function fetchShortestPaths(
       (
         SELECT id AS source_node_id, parent_id AS dest_node_id,
           0 AS edge_weight
-        FROM _heap_graph_object_min_depth_tree
+        FROM heap_graph_shortest_path_tree
         WHERE parent_id IS NOT NULL
       ),
       (${seeds}),
@@ -738,7 +752,7 @@ export async function fetchShortestPaths(
   // Fetch parent_id links to reconstruct ordered chains.
   const parentRes = await engine.query(`
     SELECT id, parent_id
-    FROM _heap_graph_object_min_depth_tree
+    FROM heap_graph_shortest_path_tree
     WHERE id IN (${Array.from(allNodeIds).join(',')})
   `);
   const parentMap = new Map<number, number | null>();
@@ -831,7 +845,7 @@ export async function fetchShortestPaths(
   for (const [targetId, chain] of pathChains) {
     const path: PathEntry[] = [];
     for (let i = 0; i < chain.length; i++) {
-      const row = nodeMap.get(chain[i]);
+      const row = nodeMap.get(chain[i]!);
       if (!row) continue;
       const field =
         i < chain.length - 1
@@ -847,9 +861,9 @@ export async function fetchShortestPaths(
 /** Batch-fetch dominator-tree paths for multiple objects. */
 export async function fetchDominatorPaths(
   engine: Engine,
-  ids: number[],
-): Promise<Map<number, PathEntry[]>> {
-  const result = new Map<number, PathEntry[]>();
+  ids: readonly number[],
+): Promise<Map<number, readonly PathEntry[]>> {
+  const result = new Map<number, readonly PathEntry[]>();
   if (ids.length === 0) return result;
 
   await requireDominatorTree(engine);
@@ -972,7 +986,7 @@ export async function fetchDominatorPaths(
   for (const [targetId, chain] of pathChains) {
     const path: PathEntry[] = [];
     for (let i = 0; i < chain.length; i++) {
-      const row = nodeMap.get(chain[i]);
+      const row = nodeMap.get(chain[i]!);
       if (!row) continue;
       const field =
         i < chain.length - 1
@@ -989,7 +1003,7 @@ export async function getInstance(
   engine: Engine,
   activeDump: HeapDump,
   id: number,
-): Promise<InstanceDetail | null> {
+): Promise<InstanceDetail | undefined> {
   await requireDominatorTree(engine);
   const objRes = await engine.query(`
     SELECT
@@ -1036,7 +1050,7 @@ export async function getInstance(
     dominated_native: NUM_NULL,
     dominated_obj_count: NUM_NULL,
   });
-  if (!oit.valid()) return null;
+  if (!oit.valid()) return undefined;
 
   const fullClassName = className(oit.cls, oit.deob);
   const classKind = oit.class_kind;
@@ -1052,10 +1066,10 @@ export async function getInstance(
 
   const reachabilityName = KIND_TO_REACHABILITY[classKind] ?? 'strong';
 
-  const row = rowFromIter({...oit, class_kind: classKind});
-  row.reachabilityName = reachabilityName;
+  const baseRow = rowFromIter({...oit, class_kind: classKind});
 
   // Detect referent for Reference subclasses.
+  let referent: InstanceRow | null = null;
   if (reachabilityName !== 'strong' && refSetId !== null) {
     const refResult = await engine.query(`
       SELECT
@@ -1079,14 +1093,14 @@ export async function getInstance(
     });
     if (rit.valid() && rit.owned_id !== null && rit.owned_id !== 0) {
       const refCls = className(rit.ref_cls, rit.ref_deob);
-      row.referent = {
+      referent = {
         id: rit.owned_id,
         display: makeDisplay(refCls, rit.owned_id),
         className: refCls,
         isRoot: false,
         rootTypeNames: null,
         reachabilityName: 'strong',
-        heap: row.heap,
+        heap: baseRow.heap,
         shallowJava: 0,
         shallowNative: 0,
         retainedTotal: 0,
@@ -1100,6 +1114,8 @@ export async function getInstance(
       };
     }
   }
+
+  const row: InstanceRow = {...baseRow, reachabilityName, referent};
 
   // Look up the java.lang.Class<X> object for this class.
   let classObjRow: InstanceRow | null = null;
@@ -1116,7 +1132,7 @@ export async function getInstance(
           OR c.deobfuscated_name = '${classObjName}')
     `);
     const rows = collectRows(cRes);
-    if (rows.length > 0) classObjRow = rows[0];
+    if (rows.length > 0) classObjRow = rows[0]!;
   }
 
   const instanceFields =
@@ -1126,7 +1142,7 @@ export async function getInstance(
 
   let arrayLength = 0;
   let elemTypeName: string | null = null;
-  const arrayElems: InstanceDetail['arrayElems'] = [];
+  const arrayElems: ArrayElem[] = [];
   if (isArrayInstance) {
     elemTypeName = fullClassName.slice(0, -2); // "int[]" → "int"
     if (arrayDataId !== null && arrayElementType !== null) {
@@ -1142,7 +1158,7 @@ export async function getInstance(
             idx: i,
             value: {
               kind: 'prim',
-              v: formatPrimValue(arrayElementType, values[i]),
+              v: formatPrimValue(arrayElementType, values[i]!),
             },
           });
         }
@@ -1294,20 +1310,20 @@ export async function getInstance(
 export async function getClassHierarchy(
   engine: Engine,
   startClassId: number,
-): Promise<string[]> {
+): Promise<readonly string[]> {
   const res = await engine.query(`
-    INCLUDE PERFETTO MODULE graphs.search;
-
-    SELECT
-      dfs.node_id AS class_id,
-      dfs.parent_node_id AS child_class_id,
-      coalesce(c.deobfuscated_name, c.name) AS name
-    FROM graph_reachable_dfs!(
-      (SELECT id AS source_node_id, superclass_id AS dest_node_id
-       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
-      (SELECT ${startClassId} AS node_id)
-    ) AS dfs
-    JOIN heap_graph_class c ON c.id = dfs.node_id
+    GRAPH DFS TREE
+      NODES (
+        SELECT id, coalesce(deobfuscated_name, name) AS name
+        FROM heap_graph_class
+      )
+      EDGES (
+        SELECT id AS src, superclass_id AS dst
+        FROM heap_graph_class
+        WHERE superclass_id IS NOT NULL
+      )
+      FROM (SELECT ${startClassId} AS id)
+    |> SELECT id AS class_id, parent_id AS child_class_id, name
   `);
 
   type Row = {classId: number; childClassId: number | null; className: string};
@@ -1351,20 +1367,32 @@ export async function getSubclassNames(
   engine: Engine,
   activeDump: HeapDump,
   rootName: string,
-): Promise<string[]> {
+): Promise<readonly string[]> {
   const res = await engine.query(`
-    INCLUDE PERFETTO MODULE graphs.search;
-    SELECT DISTINCT coalesce(c.deobfuscated_name, c.name) AS name
-    FROM graph_reachable_dfs!(
-      (SELECT superclass_id AS source_node_id, id AS dest_node_id
-       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
-      (SELECT id AS node_id FROM heap_graph_class
-       WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
-       LIMIT 1)
-    ) AS dfs
-    JOIN heap_graph_class c ON c.id = dfs.node_id
-    JOIN heap_graph_object o ON o.type_id = c.id
-    WHERE ${dumpFilterSql(activeDump, 'o')}
+    GRAPH DFS TREE
+      NODES (
+        SELECT
+          c.id,
+          coalesce(c.deobfuscated_name, c.name) AS name,
+          c.id IN (
+            SELECT o.type_id FROM heap_graph_object o
+            WHERE ${dumpFilterSql(activeDump, 'o')}
+          ) AS in_dump
+        FROM heap_graph_class c
+      )
+      EDGES (
+        SELECT superclass_id AS src, id AS dst
+        FROM heap_graph_class
+        WHERE superclass_id IS NOT NULL
+      )
+      FROM (
+        SELECT id FROM heap_graph_class
+        WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
+        LIMIT 1
+      )
+    |> WHERE in_dump = 1
+    |> SELECT name
+    |> DISTINCT
   `);
   const names: string[] = [];
   for (const it = res.iter({name: STR}); it.valid(); it.next()) {
@@ -1525,7 +1553,7 @@ async function computeBitmapDumpData(
   const count = Math.min(nativesPtrs.length, bufferObjIds.length);
   for (let i = 0; i < count; i++) {
     if (bufferObjIds[i] !== undefined && bufferObjIds[i] !== 0) {
-      bufferMap.set(nativesPtrs[i], bufferObjIds[i]);
+      bufferMap.set(nativesPtrs[i]!, bufferObjIds[i]!);
     }
   }
 
@@ -1612,7 +1640,7 @@ export async function search(
   engine: Engine,
   activeDump: HeapDump,
   query: string,
-): Promise<InstanceRow[]> {
+): Promise<readonly InstanceRow[]> {
   await requireDominatorTree(engine);
   if (query.startsWith('0x') || query.startsWith('0X')) {
     const numId = parseInt(query, 16);
@@ -1649,7 +1677,7 @@ export async function search(
 export async function getStringList(
   engine: Engine,
   activeDump: HeapDump,
-): Promise<StringListRow[]> {
+): Promise<readonly StringListRow[]> {
   await requireDominatorTree(engine);
   const res = await engine.query(`
     SELECT
@@ -1713,7 +1741,7 @@ export async function getStringList(
 export async function getBitmapList(
   engine: Engine,
   activeDump: HeapDump,
-): Promise<BitmapListRow[]> {
+): Promise<readonly BitmapListRow[]> {
   await requireDominatorTree(engine);
   const dumpData = await loadBitmapDumpData(engine, activeDump);
 
@@ -1897,27 +1925,28 @@ function primFieldValue(it: {
 }
 
 //
-// The _heap_graph_object_tree_aggregation table computes cumulative reachable
+// The heap_graph_shortest_path_tree table computes cumulative reachable
 // sizes via a BFS tree.  The table materialisation is expensive on first access,
 // so we load it asynchronously and fill in reachable columns after the initial
-// render.
+// render. Objects outside the tree, which are unreachable, only count themselves.
 
 /** Fetch reachable (cumulative) sizes for a set of object IDs. */
 async function getReachableSizes(
   engine: Engine,
-  ids: number[],
+  ids: readonly number[],
 ): Promise<Map<number, {size: number; native: number; count: number}>> {
   await engine.query(
-    `INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`,
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.shortest_path_tree`,
   );
   if (ids.length === 0) return new Map();
   const res = await engine.query(`
-    SELECT id,
-      cumulative_size AS size,
-      cumulative_native_size AS native_size,
-      cumulative_count AS count
-    FROM _heap_graph_object_tree_aggregation
-    WHERE id IN (${ids.join(',')})
+    SELECT o.id,
+      coalesce(t.cumulative_size, o.self_size) AS size,
+      coalesce(t.cumulative_native_size, o.native_size) AS native_size,
+      coalesce(t.cumulative_count, 1) AS count
+    FROM heap_graph_object o
+    LEFT JOIN heap_graph_shortest_path_tree t USING (id)
+    WHERE o.id IN (${ids.join(',')})
   `);
   const map = new Map<number, {size: number; native: number; count: number}>();
   for (
@@ -1936,7 +1965,7 @@ async function getReachableSizes(
  */
 export async function enrichWithReachable(
   engine: Engine,
-  rows: InstanceRow[],
+  rows: readonly InstanceRow[],
 ): Promise<void> {
   const unenriched = rows.filter((r) => r.reachableSize === null);
   if (unenriched.length === 0) return;
@@ -1955,7 +1984,7 @@ export async function enrichWithReachable(
  */
 export async function enrichFieldsWithReachable(
   engine: Engine,
-  fields: {name: string; typeName: string; value: PrimOrRef}[],
+  fields: readonly Field[],
 ): Promise<void> {
   const ids: number[] = [];
   for (const f of fields) {
@@ -1980,7 +2009,7 @@ export async function enrichFieldsWithReachable(
  */
 export async function enrichArrayElemsWithReachable(
   engine: Engine,
-  elems: {idx: number; value: PrimOrRef}[],
+  elems: readonly ArrayElem[],
 ): Promise<void> {
   const ids: number[] = [];
   for (const e of elems) {

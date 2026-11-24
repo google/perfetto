@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto_cc_proto_descriptor.gni")
+import("../../../../gn/test.gni")
 
 source_set("minimal") {
   sources = [
@@ -20,8 +21,6 @@ source_set("minimal") {
     "active_chrome_processes_tracker.h",
     "app_wakelock_module.cc",
     "app_wakelock_module.h",
-    "args_parser.cc",
-    "args_parser.h",
     "blob_packet_writer.cc",
     "blob_packet_writer.h",
     "chrome_string_lookup.cc",
@@ -64,6 +63,10 @@ source_set("minimal") {
     "selective_track_event_decoder.h",
     "stack_profile_sequence_state.cc",
     "stack_profile_sequence_state.h",
+    "tracing_service_module.cc",
+    "tracing_service_module.h",
+    "track_event_arg_fields.cc",
+    "track_event_arg_fields.h",
     "track_event_event_importer.h",
     "track_event_extension_parser.cc",
     "track_event_extension_parser.h",
@@ -79,13 +82,17 @@ source_set("minimal") {
     "user_tracker.cc",
     "user_tracker.h",
   ]
-  public_deps = [ ":proto_importer_module" ]
+  public_deps = [
+    ":proto_importer_module",
+    ":proto_to_args_parser",
+    "../../../../protos/third_party/android/connectivity:connectivity_network_trace_zero",
+  ]
   deps = [
     ":gen_cc_chrome_track_event_descriptor",
     ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../include/perfetto/trace_processor",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace:zero",
@@ -103,9 +110,9 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/perfetto/trace/translation:zero",
-    "../../../../protos/third_party/android/connectivity:connectivity_network_trace_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_interned_data_zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_trace_packet_zero",
+    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../../protos/third_party/chromium:zero",
     "../../../base",
@@ -122,6 +129,7 @@ source_set("minimal") {
     "../../util:json_parser",
     "../../util:profiler_util",
     "../../util:simple_json_parser",
+    "../../util:sort",
     "../../util:trace_blob_view_reader",
     "../../util:trace_type",
     "../common",
@@ -206,6 +214,10 @@ source_set("full") {
     "vulkan_memory_tracker.cc",
     "vulkan_memory_tracker.h",
   ]
+  public_deps = [
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/third_party/android/art:art_heap_graph_zero",
+  ]
   deps = [
     ":gen_cc_android_extension_descriptor",
     ":gen_cc_gpu_interned_data_descriptor",
@@ -213,6 +225,7 @@ source_set("full") {
     ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
+    ":proto_to_args_parser",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced:sys_stats_counters",
     "../../../../protos/perfetto/common:zero",
@@ -225,13 +238,11 @@ source_set("full") {
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/linux:zero",
     "../../../../protos/perfetto/trace/power:zero",
-    "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/perfetto/trace/ps:zero",
     "../../../../protos/perfetto/trace/statsd:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/translation:zero",
-    "../../../../protos/third_party/android/art:art_heap_graph_zero",
     "../../../../protos/third_party/android/frameworks/native/tracing:frameworks_native_trace_packet_zero",
     "../../../../protos/third_party/android/packages/modules/bluetooth/tracing:bluetooth_tracing_zero",
     "../../../base",
@@ -248,7 +259,7 @@ source_set("full") {
     "../../util:descriptors",
     "../../util:profiler_util",
     "../../util:proto_profiler",
-    "../../util:proto_to_args_parser",
+    "../../util:sort",
     "../common",
     "../common:parser_types",
     "../etw:full",
@@ -260,6 +271,35 @@ source_set("full") {
   ]
 }
 
+source_set("proto_to_args_parser") {
+  sources = [
+    "proto_to_args_parser.cc",
+    "proto_to_args_parser.h",
+  ]
+  deps = [
+    ":gen_cc_track_event_descriptor",
+    ":packet_sequence_state_generation_hdr",
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
+    "../../../../protos/perfetto/trace_processor:zero",
+    "../../../protozero",
+    "../../util:json_args",
+    "../../util:json_parser",
+  ]
+  public_deps = [
+    "../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../base",
+    "../../containers",
+    "../../types",
+    "../../util:descriptors",
+    "../../util:interned_message_view",
+    "../common",
+  ]
+}
+
 source_set("proto_importer_module") {
   sources = [
     "proto_importer_module.cc",
@@ -267,17 +307,19 @@ source_set("proto_importer_module") {
     "selective_trace_packet_decoder.h",
     "typed_proto_field.h",
   ]
-  public_deps = [ ":packet_sequence_state_generation_hdr" ]
+  public_deps = [
+    ":packet_sequence_state_generation_hdr",
+    "../../sorter",
+    "../common:parser_types",
+  ]
   deps = [
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/protozero",
-    "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../include/perfetto/trace_processor",
     "../../../../protos/perfetto/trace:zero",
     "../../../base",
-    "../../sorter",
     "../../types",
-    "../common:parser_types",
   ]
 }
 
@@ -288,13 +330,15 @@ source_set("packet_sequence_state_generation_hdr") {
     "track_event_sequence_state.h",
     "track_event_thread_descriptor.h",
   ]
+  public_deps = [
+    "../../../../protos/perfetto/trace:non_minimal_zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
+  ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base",
-    "../../../../protos/perfetto/trace:non_minimal_zero",
-    "../../../../protos/perfetto/trace/track_event:zero",
     "../../containers",
-    "../../types:types",
+    "../../types",
     "../../util:interned_message_view",
     "../common:synthetic_tid_hdr",
   ]
@@ -339,7 +383,7 @@ perfetto_cc_proto_descriptor("gen_cc_gpu_interned_data_descriptor") {
       "../../../../protos/perfetto/trace/gpu:gpu_interned_data_descriptor"
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "active_chrome_processes_tracker_unittest.cc",
@@ -352,6 +396,7 @@ source_set("unittests") {
     "perf_sample_tracker_unittest.cc",
     "pigweed_detokenizer_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
+    "proto_to_args_parser_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",
     "proto_trace_reader_unittest.cc",
     "proto_trace_tokenizer_unittest.cc",
@@ -362,6 +407,8 @@ source_set("unittests") {
     ":gen_cc_trace_descriptor",
     ":minimal",
     ":packet_sequence_state_generation_hdr",
+    ":proto_to_args_parser",
+    "../..:gen_cc_test_messages_descriptor",
     "../..:storage_minimal",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
@@ -385,6 +432,7 @@ source_set("unittests") {
     "../../../../protos/third_party/chromium:zero",
     "../../../base:test_support",
     "../../../protozero",
+    "../../../protozero:testing_messages_zero",
     "../../containers",
     "../../core/dataframe",
     "../../sorter",
@@ -398,4 +446,22 @@ source_set("unittests") {
     "../common",
     "../ftrace:full",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "proto_to_args_parser_benchmark.cc" ]
+    deps = [
+      ":proto_to_args_parser",
+      "../..:gen_cc_test_messages_descriptor",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../base",
+      "../../../protozero",
+      "../../../protozero:testing_messages_zero",
+      "../../containers",
+      "../../util:descriptors",
+    ]
+  }
 }

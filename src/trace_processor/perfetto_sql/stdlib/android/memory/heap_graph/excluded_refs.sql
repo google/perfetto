@@ -25,12 +25,21 @@ WHERE
 ORDER BY
   type_id;
 
-CREATE PERFETTO TABLE _excluded_refs AS
-SELECT ref.id
-FROM heap_graph_object AS robj
+-- Strong reference edges of the heap graph: references out of reachable
+-- objects, minus the referent of weak, phantom and finalizer references.
+CREATE PERFETTO TABLE _heap_graph_strong_edges(
+  -- Object holding the reference.
+  src LONG,
+  -- Object referred to.
+  dst LONG
+)
+AS
+SELECT ref.owner_id AS src, ref.owned_id AS dst
+FROM heap_graph_object AS o
 CROSS JOIN heap_graph_reference AS ref USING (reference_set_id)
-CROSS JOIN _ref_type_ids USING (type_id)
 WHERE
-  ref.field_name = 'java.lang.ref.Reference.referent'
-ORDER BY
-  ref.id;
+  o.reachable = 1
+  AND o.reference_set_id IS NOT NULL
+  AND ref.owned_id IS NOT NULL
+  AND NOT (o.type_id IN _ref_type_ids
+  AND ref.field_name = 'java.lang.ref.Reference.referent');

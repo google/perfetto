@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Presentational widgets shared by the Memscope per-section panels (Java,
-// bitmaps, native): the compact top-N table, class-name cells, the share bar,
-// the delta cell and the single-ratio bar.
+// bitmaps, native): the compact top-N table, class-name cells, the delta cell
+// and the single-ratio bar.
 
 import m from 'mithril';
 import {Panel} from '../../components/panel';
@@ -24,18 +24,17 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {Stack} from '../../../../widgets/stack';
 
 // A section panel shown when the trace has no data for it: keeps the panel's
-// title/subtitle (so the page reads consistently) and states what's missing
-// in the body, rather than rendering nothing.
+// title (so the page reads consistently) and states what's missing in the
+// body, rather than rendering nothing.
 export function emptyPanel(opts: {
   title: string;
-  subtitle?: string;
   message: string;
   detail?: m.Children;
 }): m.Child {
   return m(
     Panel,
     {className: 'pf-memscope-panel--empty'},
-    m(Panel.Header, {title: opts.title, subtitle: opts.subtitle}),
+    m(Panel.Header, {title: opts.title}),
     m(
       Panel.Body,
       m(
@@ -50,16 +49,13 @@ export function emptyPanel(opts: {
   );
 }
 
-// A section panel shown while its data is loading: the panel (title/subtitle)
-// is laid out immediately with a loading placeholder in the body, so the page
-// doesn't jump as sections resolve.
-export function loadingPanel(opts: {
-  title: string;
-  subtitle?: string;
-}): m.Child {
+// A section panel shown while its data is loading: the panel is laid out
+// immediately with a loading placeholder in the body, so the page doesn't
+// jump as sections resolve.
+export function loadingPanel(opts: {title: string}): m.Child {
   return m(
     Panel,
-    m(Panel.Header, {title: opts.title, subtitle: opts.subtitle}),
+    m(Panel.Header, {title: opts.title}),
     m(
       Panel.Body,
       m(
@@ -87,15 +83,14 @@ export function shortClassName(name: string): string {
 // Compact titled table used by the Java / bitmaps / native sections.
 export function topTable(opts: {
   title: string;
-  subtitle?: string;
+  controls?: m.Children;
   cols: {label: string; num?: boolean}[];
   rows: m.Children[][];
 }): m.Child {
   return m('.pf-memscope-toptable', [
-    m('.pf-memscope-toptable__title', [
-      opts.title,
-      opts.subtitle !== undefined &&
-        m('span.pf-memscope-toptable__subtitle', ` · ${opts.subtitle}`),
+    m('.pf-memscope-toptable__header', [
+      m('.pf-memscope-toptable__title', opts.title),
+      opts.controls,
     ]),
     m(
       Table,
@@ -115,7 +110,7 @@ export function topTable(opts: {
           m(
             'tr',
             cells.map((cell, i) =>
-              m(opts.cols[i].num ? 'td.pf-memscope-table__num' : 'td', cell),
+              m(opts.cols[i]!.num ? 'td.pf-memscope-table__num' : 'td', cell),
             ),
           ),
         ),
@@ -131,16 +126,23 @@ export function heapDumpClassHref(cls: string): string {
   return `#!/heapdump/objects_${encodeURIComponent(cls)}`;
 }
 
+// Link to the Heap Dump Explorer's bitmaps view.
+export function heapDumpBitmapsHref(): string {
+  return '#!/heapdump/bitmaps';
+}
+
 // A class-name cell. The class name links to that class's instances in the Heap
 // Dump Explorer. When `retainers` are given, each one adds a `↳ via <owner>`
 // line naming an app-side class that dominates this (library) class's instances
 // up the dominator chain, with the bytes attributed to that owner; the owner
 // name links to the explorer too. A class held through several owners shows
 // several lines, so a single misleading "via" can't imply all the retained
-// bytes flow through one owner.
+// bytes flow through one owner. `onclick` runs before any of the links is
+// followed.
 export function classNameCell(
   full: string,
   retainers?: ReadonlyArray<{name: string; bytes: number}>,
+  onclick?: () => void,
 ): m.Child {
   const vias = (retainers ?? []).filter((r) => r.name !== full);
   // With one owner the byte count just echoes the row's retained size, so omit
@@ -149,7 +151,7 @@ export function classNameCell(
   return m('.pf-memscope-classcell', [
     m(
       'a.pf-memscope-classname',
-      {href: heapDumpClassHref(full), title: full},
+      {href: heapDumpClassHref(full), title: full, onclick},
       shortClassName(full),
     ),
     ...vias.map((r) =>
@@ -160,10 +162,10 @@ export function classNameCell(
           '↳ via ',
           m(
             'a.pf-memscope-classcell__vialink',
-            {href: heapDumpClassHref(r.name)},
+            {href: heapDumpClassHref(r.name), onclick},
             shortClassName(r.name),
           ),
-          showBytes ? ` · ${formatBytes(r.bytes)}` : '',
+          showBytes ? ` - ${formatBytes(r.bytes)}` : '',
         ],
       ),
     ),

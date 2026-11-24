@@ -69,7 +69,7 @@ archive together with the trace files.
 ## {#detection} Detection and placement
 
 Trace Processor detects a manifest by content, not by file name: any file
-whose contents (after leading whitespace) start with `{"perfetto_manifest"`
+whose contents (ignoring whitespace) start with `{"perfetto_manifest"`
 is treated as a manifest. By convention the file is named
 `perfetto_manifest.json`, and that is the name the Perfetto UI uses when it
 generates one, but any name works.
@@ -269,11 +269,13 @@ Setting the same key twice overwrites: the last value wins.
 Wherever a clock name is expected, one of:
 
 `REALTIME`, `REALTIME_COARSE`, `MONOTONIC`, `MONOTONIC_COARSE`,
-`MONOTONIC_RAW`, `BOOTTIME`
+`MONOTONIC_RAW`, `BOOTTIME`, `TRACE_FILE`
 
 These correspond to the builtin clocks in
 [builtin_clock.proto](/protos/perfetto/common/builtin_clock.proto) and the
-POSIX `clock_gettime` domains of the same names.
+POSIX `clock_gettime` domains of the same names. `TRACE_FILE` is the file's
+own per-file timeline (same as omitting `clock`); in `trace_time` it requires
+`file`.
 
 ## {#sql} Effects on the SQL surface
 

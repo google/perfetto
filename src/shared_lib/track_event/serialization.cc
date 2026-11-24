@@ -90,14 +90,12 @@ NewTracePacketInternal(perfetto::TraceWriterBase* trace_writer,
   return packet;
 }
 
-void ResetIncrementalStateIfRequired(
+void ResetIncrementalState(
     perfetto::TraceWriterBase* trace_writer,
     perfetto::shlib::TrackEventIncrementalState* incr_state,
     const perfetto::shlib::TrackEventTlsState& tls_state,
     const perfetto::TraceTimestamp& timestamp) {
-  if (!incr_state->was_cleared) {
-    return;
-  }
+  PERFETTO_DCHECK(incr_state->was_cleared);
   incr_state->was_cleared = false;
 
   const uint32_t default_clock = PerfettoDsGetDefaultClockId();
@@ -112,6 +110,7 @@ void ResetIncrementalStateIfRequired(
   auto pid = perfetto::Platform::GetCurrentProcessId();
   uint64_t thread_track_uuid =
       perfetto_te_process_track_uuid ^ static_cast<uint64_t>(tid);
+  incr_state->thread_track_uuid = thread_track_uuid;
   auto ts_unit_multiplier = tls_state.timestamp_unit_multiplier;
   {
     // Mark any incremental state before this point invalid. Also set up
