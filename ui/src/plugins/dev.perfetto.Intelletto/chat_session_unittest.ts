@@ -252,3 +252,94 @@ describe('ChatSession retry', () => {
     expect(session.canRetry).toBe(false);
   });
 });
+
+describe('ChatSession dynamic registries', () => {
+  test('resolves tools, context, and system prompt dynamically across trace switches', async () => {
+    const toolsA = new ToolRegistry();
+    toolsA.registerTool({
+      name: 'tool_a',
+      description: 'Tool for trace A',
+      shape: {},
+      callback: async () => 'from_a',
+    });
+    const contextA = new ContextRegistry();
+    contextA.registerContextProvider({
+      id: 'trace',
+      description: 'Trace A context format',
+      getContext: () => ({summary: 'Trace A', data: 'Current trace: A'}),
+    });
+
+    const toolsB = new ToolRegistry();
+    toolsB.registerTool({
+      name: 'tool_b',
+      description: 'Tool for trace B',
+      shape: {},
+      callback: async () => 'from_b',
+    });
+    const contextB = new ContextRegistry();
+    contextB.registerContextProvider({
+      id: 'trace',
+      description: 'Trace B context format',
+      getContext: () => ({summary: 'Trace B', data: 'Current trace: B'}),
+    });
+
+    let activeTools = toolsA;
+    let activeContext = contextA;
+
+    const requests: Request[] = [];
+    const protocol: Protocol = {
+      id: 'test-proto',
+      label: 'Test',
+      capabilities: {nativeToolCalling: true, streaming: true},
+      credentialFields: [],
+      async *createStream(_model, request) {
+        requests.push({...request, messages: [...request.messages]});
+        yield {type: 'text', text: 'ok'};
+        yield {type: 'stop', reason: 'end'};
+      },
+    };
+    const gateway = new LlmGateway(createFakeProvidersSetting());
+    gateway.registerProtocol(protocol);
+    gateway.registerProvider({
+      id: MODEL.providerId,
+      protocol: protocol.id,
+      credentials: {},
+      models: [
+        {id: MODEL.modelId, modelName: MODEL.modelId, roles: ['agentic']},
+      ],
+    });
+
+    const session = new ChatSession(
+      gateway,
+      () => activeTools,
+      () => activeContext,
+      () => activeContext.descriptions().join('\n'),
+    );
+
+    await session.send('First question', MODEL);
+
+    // Switch to trace B mid-session.
+    activeTools = toolsB;
+    activeContext = contextB;
+
+    await session.send('Second question', MODEL);
+
+    expect(requests).toHaveLength(2);
+    expect(ensureDefined(requests[0]).tools?.map((t) => t.name)).toEqual([
+      'tool_a',
+    ]);
+    expect(ensureDefined(requests[0]).systemPrompt).toContain(
+      'Trace A context format',
+    );
+    expect(ensureDefined(requests[1]).tools?.map((t) => t.name)).toEqual([
+      'tool_b',
+    ]);
+    expect(ensureDefined(requests[1]).systemPrompt).toContain(
+      'Trace B context format',
+    );
+    expect(ensureDefined(requests[1]).messages[2]).toEqual({
+      role: 'user',
+      text: 'Context for this question:\n- Trace B: Current trace: B\n\nQuestion: Second question',
+    });
+  });
+});

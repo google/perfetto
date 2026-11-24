@@ -36,7 +36,11 @@ import type {
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
 import {registerDataExplorerTools} from './data_explorer_tools';
-import {ContextRegistry, registerCoreContextProviders} from './context';
+import {
+  ContextRegistry,
+  registerAppContextProviders,
+  registerCoreContextProviders,
+} from './context';
 import {registerCoreTools} from './core_tools';
 import {registerSkillTools, skillsPromptSection} from './skill_tools';
 import {SYSTEM_PROMPT} from './system_prompt';
@@ -76,6 +80,42 @@ export default class IntellettoPlugin
   private static skillsPromise: Promise<ReadonlyArray<SkillInfo>> =
     Promise.resolve([]);
 
+  // App-scoped active chat session, shared across traces so opening or
+  // switching traces keeps the panel and conversation alive.
+  private static session?: ChatSession;
+
+  // The IntellettoPlugin instance for the currently loaded trace, if any.
+  // Supplies trace-scoped tools and context providers.
+  private static activeInstance?: IntellettoPlugin;
+
+  // Fallback registries used when no trace is loaded.
+  private static readonly emptyTools = new ToolRegistry();
+  private static appContext = new ContextRegistry();
+
+  private static getActiveTools(): ToolRegistry {
+    return (
+      IntellettoPlugin.activeInstance?.tools ?? IntellettoPlugin.emptyTools
+    );
+  }
+
+  private static getActiveContext(): ContextRegistry {
+    return (
+      IntellettoPlugin.activeInstance?.context ?? IntellettoPlugin.appContext
+    );
+  }
+
+  private static getOrCreateSession(
+    gateway: LlmGateway,
+    skills: ReadonlyArray<SkillInfo>,
+  ): ChatSession {
+    return (IntellettoPlugin.session ??= new ChatSession(
+      gateway,
+      () => IntellettoPlugin.getActiveTools(),
+      () => IntellettoPlugin.getActiveContext(),
+      () => assembleSystemPrompt(IntellettoPlugin.getActiveContext(), skills),
+    ));
+  }
+
   static onActivate(app: App): void {
     IntellettoPlugin.selectedModelSetting = app.settings.register({
       id: `${IntellettoPlugin.id}#SelectedModel`,
@@ -109,65 +149,23 @@ export default class IntellettoPlugin
         },
       )
       .finally(() => m.redraw());
-  }
 
-  // The shared tool registry for this trace. Core tools plus any contributed by
-  // other plugins land here; the chat panel hands it to the agent.
-  private readonly tools = new ToolRegistry();
+    IntellettoPlugin.appContext = new ContextRegistry();
+    registerAppContextProviders(IntellettoPlugin.appContext, app);
 
-  // The shared context-provider registry for this trace. Core providers (page,
-  // selection) plus any contributed by other plugins; the chat panel samples it
-  // for the context strip and the prompt.
-  private readonly context = new ContextRegistry();
-
-  // The conversation state for this trace. Owned here - not by the chat panel
-  // component - so the conversation survives the side panel being closed and
-  // reopened. Created lazily on first panel open, so context providers
-  // registered by dependent plugins are in by the time the system prompt is
-  // assembled.
-  private session?: ChatSession;
-
-  constructor(private readonly trace: Trace) {
-    registerCoreTools(this.tools, this.trace);
-    registerTimelineTools(this.tools, this.trace);
-    registerSkillTools(this.tools, this.trace.skills, this.trace.engine);
-    registerCoreContextProviders(this.context, this.trace);
-  }
-
-  /**
-   * IntellettoToolRegistrar: contribute a tool the assistant can call. Call
-   * from a dependent plugin's onTraceLoad.
-   */
-  registerTool<S extends ZodRawShape>(tool: ToolRegistration<S>): void {
-    this.tools.registerTool(tool);
-  }
-
-  /**
-   * IntellettoToolRegistrar: contribute a context provider describing what the
-   * user is looking at. Call from a dependent plugin's onTraceLoad.
-   */
-  registerContextProvider(provider: ContextProviderRegistration): void {
-    this.context.registerContextProvider(provider);
-  }
-
-  /** Register the chat side panel and the open-assistant command for a trace. */
-  async onTraceLoad(trace: Trace): Promise<void> {
-    const gateway = LlmPlugin.gateway;
-
-    // One chat session per trace - the conversation is scoped to the open
-    // trace and kept in memory only (re-created on the next trace load). It
-    // reads the shared registries, so tools registered by other plugins
-    // (before or after the panel is first opened) are all visible to the
-    // agent.
-    trace.sidePanel.registerTab({
+    // App-scoped chat side panel so Intelletto stays available before a trace
+    // is loaded and persists across trace switches. Tools and context are
+    // resolved dynamically from the active trace's plugin instance.
+    app.sidePanel.registerTab({
       uri: SIDE_PANEL_URI,
       title: 'Intelletto',
       icon: 'psychology',
       render: () => {
+        const gateway = LlmPlugin.gateway;
         const skills = IntellettoPlugin.skills;
         const session =
           skills !== undefined
-            ? this.getOrCreateSession(gateway, skills)
+            ? IntellettoPlugin.getOrCreateSession(gateway, skills)
             : undefined;
         const models = gateway
           .listModels()
@@ -194,10 +192,10 @@ export default class IntellettoPlugin
               void session.send(msg, selectedModel);
             } else {
               void IntellettoPlugin.skillsPromise.then((loadedSkills) => {
-                void this.getOrCreateSession(gateway, loadedSkills).send(
-                  msg,
-                  selectedModel,
-                );
+                void IntellettoPlugin.getOrCreateSession(
+                  gateway,
+                  loadedSkills,
+                ).send(msg, selectedModel);
               });
             }
           },
@@ -205,8 +203,10 @@ export default class IntellettoPlugin
           activeConversationId: undefined,
           onOpenConversation: () => {},
           onNewConversation: () => {
-            this.session?.cancel();
-            this.session = undefined;
+            if (IntellettoPlugin.session?.loading) {
+              IntellettoPlugin.session.cancel();
+            }
+            IntellettoPlugin.session = undefined;
           },
           pendingMessages: session?.queuedFollowUps ?? [],
           onDeletePendingMsg: (index) => session?.removeQueuedFollowUp(index),
@@ -215,7 +215,7 @@ export default class IntellettoPlugin
               session?.sendQueuedFollowUpNow(index, selectedModel);
             }
           },
-          contextItems: this.context.buildContextItems(),
+          contextItems: IntellettoPlugin.getActiveContext().buildContextItems(),
           excludedContextIds: session?.excludedContext ?? EMPTY_SET,
           onToggleContext: (id) => session?.toggleContext(id),
           models,
@@ -227,13 +227,63 @@ export default class IntellettoPlugin
       },
     });
 
-    trace.commands.registerCommand({
+    app.commands.registerCommand({
       id: 'dev.perfetto.Intelletto#Open',
       name: 'Intelletto: Open assistant',
-      callback: () => trace.sidePanel.showTab(SIDE_PANEL_URI),
+      callback: () => app.sidePanel.showTab(SIDE_PANEL_URI),
       defaultHotkey: 'Mod+Shift+A',
     });
+  }
 
+  // The shared tool registry for this trace. Core tools plus any contributed by
+  // other plugins land here; the chat panel hands it to the agent.
+  private readonly tools = new ToolRegistry();
+
+  // The shared context-provider registry for this trace. Core providers (trace,
+  // page, viewport, selection) plus any contributed by other plugins; the chat
+  // panel samples it for the context strip and the prompt.
+  private readonly context = new ContextRegistry();
+
+  constructor(private readonly trace: Trace) {
+    registerCoreTools(this.tools, this.trace);
+    registerTimelineTools(this.tools, this.trace);
+    registerSkillTools(this.tools, this.trace.skills, this.trace.engine);
+    registerCoreContextProviders(this.context, this.trace);
+    if (
+      IntellettoPlugin.activeInstance !== undefined &&
+      IntellettoPlugin.session?.loading
+    ) {
+      IntellettoPlugin.session.cancel();
+    }
+    IntellettoPlugin.activeInstance = this;
+    trace.trash.defer(() => {
+      if (IntellettoPlugin.activeInstance === this) {
+        if (IntellettoPlugin.session?.loading) {
+          IntellettoPlugin.session.cancel();
+        }
+        IntellettoPlugin.activeInstance = undefined;
+      }
+    });
+  }
+
+  /**
+   * IntellettoToolRegistrar: contribute a tool the assistant can call. Call
+   * from a dependent plugin's onTraceLoad.
+   */
+  registerTool<S extends ZodRawShape>(tool: ToolRegistration<S>): void {
+    this.tools.registerTool(tool);
+  }
+
+  /**
+   * IntellettoToolRegistrar: contribute a context provider describing what the
+   * user is looking at. Call from a dependent plugin's onTraceLoad.
+   */
+  registerContextProvider(provider: ContextProviderRegistration): void {
+    this.context.registerContextProvider(provider);
+  }
+
+  /** Register trace-scoped tools (Data Explorer, WebMCP) for a loaded trace. */
+  async onTraceLoad(trace: Trace): Promise<void> {
     // Pull in the Data Explorer graph tools and selected-node context.
     registerDataExplorerTools(this.tools, this.context, trace);
 
@@ -242,18 +292,6 @@ export default class IntellettoPlugin
     // and call them. No-ops gracefully when the API is not available.
     const webmcpController = registerWebMCPTools(this.tools);
     trace.trash.defer(() => webmcpController?.abort());
-  }
-
-  private getOrCreateSession(
-    gateway: LlmGateway,
-    skills: ReadonlyArray<SkillInfo>,
-  ): ChatSession {
-    return (this.session ??= new ChatSession(
-      gateway,
-      this.tools,
-      this.context,
-      assembleSystemPrompt(this.context, skills),
-    ));
   }
 }
 
