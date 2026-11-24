@@ -126,6 +126,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../containers",
     "../../core/common",
+    "../../core/dataframe",
     "../../core/exec",
     "../../core/util",
     "../../sqlite",
