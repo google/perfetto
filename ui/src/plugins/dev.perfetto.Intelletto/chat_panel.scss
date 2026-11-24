@@ -37,18 +37,50 @@
     max-width: 220px;
     font-size: 0.85em;
     color: var(--pf-color-text-muted);
-    background: transparent;
-    border-color: transparent;
+    display: flex;
+    align-items: center;
     border-radius: 6px;
-    transition:
-      background-color 0.12s ease,
-      color 0.12s ease;
+
+    .pf-button__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
     &:hover,
-    &:focus {
-      background: var(--pf-color-background-secondary);
+    &:focus,
+    &.pf-active {
       color: var(--pf-color-text);
-      border-color: transparent;
+    }
+  }
+
+  &__model-menu {
+    border-radius: 10px;
+    min-width: 190px;
+
+    .pf-menu {
+      margin: 4px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .pf-menu-title {
+      padding: 6px 10px 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .pf-menu-item {
+      border-radius: 6px;
+      padding: 7px 10px;
+      align-items: center;
+
+      &.pf-active {
+        font-weight: 500;
+      }
+    }
+
+    .pf-menu-item__right-icon {
+      color: var(--pf-color-primary);
+      font-size: 16px;
     }
   }
 

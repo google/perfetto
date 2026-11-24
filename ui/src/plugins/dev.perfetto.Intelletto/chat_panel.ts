@@ -24,8 +24,9 @@ import m from 'mithril';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
+import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
 import {showModal} from '../../widgets/modal';
-import {Select} from '../../widgets/select';
+import {PopupPosition} from '../../widgets/popup';
 import type {
   LlmGateway,
   ModelDetails,
@@ -313,29 +314,77 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
     // If we get here current model should be defined
     assertExists(currentModel);
 
+    const currentDetails = models.find(
+      (md) =>
+        md.provider.id === currentModel.providerId &&
+        md.model.id === currentModel.modelId,
+    );
+    const label =
+      currentDetails !== undefined
+        ? shortModelName(currentDetails)
+        : currentModel.modelId;
+    const tooltip =
+      currentDetails !== undefined
+        ? modelName(currentDetails)
+        : `${currentModel.providerId}/${currentModel.modelId}`;
+
+    // Group models by provider while preserving registration order.
+    const groups: Array<{
+      readonly providerId: string;
+      readonly providerLabel: string;
+      readonly models: ModelDetails[];
+    }> = [];
+    const groupByProvider = new Map<string, (typeof groups)[number]>();
+    for (const md of models) {
+      let group = groupByProvider.get(md.provider.id);
+      if (group === undefined) {
+        group = {
+          providerId: md.provider.id,
+          providerLabel: md.provider.label || md.provider.protocolName,
+          models: [],
+        };
+        groupByProvider.set(md.provider.id, group);
+        groups.push(group);
+      }
+      group.models.push(md);
+    }
+
     return m(
-      Select,
+      PopupMenu,
       {
-        class: 'pf-intelletto__model',
-        value: `${currentModel.providerId}/${currentModel.modelId}`,
-        onchange: (e: Event) => {
-          const [providerId, ...modelIdParts] = (
-            e.target as HTMLSelectElement
-          ).value.split('/');
-          const modelId = modelIdParts.join('/');
-          const selected = models.find(
-            (md) => md.provider.id === providerId && md.model.id === modelId,
-          );
-          if (selected) {
-            onModelChange({providerId: providerId!, modelId});
-          }
-          m.redraw();
-        },
+        className: 'pf-popup-menu pf-intelletto__model-menu',
+        position: PopupPosition.TopEnd,
+        showArrow: false,
+        offset: 4,
+        trigger: m(Button, {
+          className: 'pf-intelletto__model',
+          label,
+          title: tooltip,
+          rightIcon: 'keyboard_arrow_down',
+          variant: ButtonVariant.Minimal,
+          shrink: true,
+        }),
       },
-      models.map((md) => {
-        const value = `${md.provider.id}/${md.model.id}`;
-        return m('option', {key: value, value}, modelName(md));
-      }),
+      groups.flatMap((group, idx) => [
+        idx > 0 && m(MenuDivider),
+        m(MenuTitle, {label: group.providerLabel}),
+        ...group.models.map((md) => {
+          const isSelected =
+            md.provider.id === currentModel.providerId &&
+            md.model.id === currentModel.modelId;
+          return m(MenuItem, {
+            label: shortModelName(md),
+            rightIcon: isSelected ? 'check' : undefined,
+            active: isSelected,
+            onclick: () => {
+              onModelChange({
+                providerId: md.provider.id,
+                modelId: md.model.id,
+              });
+            },
+          });
+        }),
+      ]),
     );
   }
 
@@ -423,10 +472,13 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   }
 }
 
-function modelName(model: ModelDetails) {
+function shortModelName(model: ModelDetails): string {
+  return model.model.label || model.model.modelName;
+}
+
+function modelName(model: ModelDetails): string {
   const protocolName = model.provider.label || model.provider.protocolName;
-  const modelName = model.model.label || model.model.modelName;
-  return `${protocolName}/${modelName}`;
+  return `${protocolName}/${shortModelName(model)}`;
 }
 
 function prettyJson(value: unknown): string {
