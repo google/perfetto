@@ -82,6 +82,35 @@ const FILE_META_SCHEMA = z.object({
   resourceKey: OPTIONAL_RESOURCE_KEY,
 });
 
+const DRIVE_PERMISSION_SCHEMA = z.object({
+  id: z.string(),
+  type: z.enum(['user', 'group', 'domain', 'anyone']),
+  role: z.string(),
+  emailAddress: z.string().optional(),
+  displayName: z.string().optional(),
+  domain: z.string().optional(),
+  allowFileDiscovery: z.boolean().optional(),
+});
+
+const FILE_PERMISSIONS_SCHEMA = z.object({
+  permissions: z.array(DRIVE_PERMISSION_SCHEMA).default([]),
+});
+
+export type DriveFilePermission = z.infer<typeof DRIVE_PERMISSION_SCHEMA>;
+
+export type DriveCreatePermission =
+  | {
+      readonly type: 'domain';
+      readonly domain: string;
+      readonly role: string;
+      readonly allowFileDiscovery: boolean;
+    }
+  | {
+      readonly type: 'anyone';
+      readonly role: string;
+      readonly allowFileDiscovery: boolean;
+    };
+
 // The resource key (from the "Open with" state payload) is required to access
 // some link-shared files the user has not opened before. Drive expects it in
 // the X-Goog-Drive-Resource-Keys header as "<fileId>/<resourceKey>".
@@ -427,6 +456,92 @@ export class DriveClient {
         return okResult(meta.data);
       },
     );
+  }
+
+  // Fetches the permissions on a Drive file via the permissions.list endpoint
+  // (which works for Shared Drives and returns 403 when the caller cannot view
+  // permissions). Never rejects.
+  async getPermissions(
+    oauthToken: string,
+    fileId: string,
+    resourceKey?: string,
+  ): Promise<Result<ReadonlyArray<DriveFilePermission>, DriveError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    if (resourceKey !== undefined && !isValidDriveId(resourceKey)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive resource key',
+      });
+    }
+    try {
+      const url = new URL(
+        `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      );
+      url.searchParams.set(
+        'fields',
+        'permissions(id,type,role,emailAddress,displayName,domain,allowFileDiscovery)',
+      );
+      url.searchParams.set('supportsAllDrives', 'true');
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${oauthToken}`,
+          ...resourceKeyHeaders(fileId, resourceKey),
+        },
+      });
+      if (!response.ok) {
+        return errResult(httpDriveError(response.status));
+      }
+      const parsed = FILE_PERMISSIONS_SCHEMA.safeParse(await response.json());
+      if (!parsed.success) {
+        return errResult({type: 'error', cause: parsed.error});
+      }
+      return okResult(parsed.data.permissions);
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
+  }
+
+  // Creates (or updates in place for domain/anyone) a permission on a Drive
+  // file. Never rejects.
+  async createPermission(
+    oauthToken: string,
+    fileId: string,
+    permission: DriveCreatePermission,
+  ): Promise<Result<void, DriveError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    try {
+      const url = new URL(
+        `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      );
+      url.searchParams.set('supportsAllDrives', 'true');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${oauthToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(permission),
+      });
+      if (!response.ok) {
+        const responseText = await response.text().catch(() => '');
+        const reason = driveErrorMessage(responseText);
+        const err = httpDriveError(response.status);
+        return errResult(reason !== undefined ? {...err, cause: reason} : err);
+      }
+      return okResult();
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
   }
 
   // Sends an authenticated GET for a file to the Drive REST API and parses the
