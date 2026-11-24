@@ -275,8 +275,9 @@ A frame stays unlinked when no composite has its presentation time, for
 example because the encoder adjusted the timestamps, or when composites
 with different vsync ids share it. The
 `android_video_vsync_composite_unmatched` stat counts composites with no
-matching video frame, and `android_video_vsync_present_time_ambiguous`
-counts present times that map to conflicting vsync ids and matched a
-frame. The display id in the composite packets is SurfaceFlinger's id for
-the virtual display, which is unrelated to the video stream's display id,
-so the present time is the only key the match can use.
+matching video frame on virtual displays that matched at least one frame
+(ignoring unrelated virtual displays such as `screenrecord`), and
+`android_video_vsync_present_time_ambiguous` counts present times that map to
+conflicting vsync ids and matched a frame. The display id in the composite
+packets is SurfaceFlinger's id for the virtual display, which is unrelated to
+the video stream's display id, so the present time is the key the match uses.

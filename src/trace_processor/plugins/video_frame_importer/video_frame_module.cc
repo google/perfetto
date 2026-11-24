@@ -258,13 +258,17 @@ void VideoFrameModule::ParseVirtualDisplayComposite(
   // present_time_us is the queued buffer's timestamp, which the encoder
   // normally carries through as the frame's pts, so it's the join key.
   // display_id is SurfaceFlinger's id for the virtual display, which is
-  // unrelated to VideoFrame.display_id, so it can't narrow the match.
+  // unrelated to VideoFrame.display_id, so it can't narrow the match directly,
+  // but identifies which virtual display(s) are actually being captured when
+  // counting unmatched composites.
+  const uint64_t vd_id =
+      composite.has_display_id() ? composite.display_id() : 0u;
+  composites_.push_back(Composite{vd_id, composite.present_time_us()});
   auto [info, inserted] = composites_by_present_us_.Insert(
       composite.present_time_us(), CompositeInfo{composite.vsync_id()});
   if (!inserted && info->vsync_id != composite.vsync_id()) {
     info->conflicting = true;
   }
-  info->count++;
 }
 
 void VideoFrameModule::OnEventsFullyExtracted() {
@@ -283,13 +287,32 @@ void VideoFrameModule::OnEventsFullyExtracted() {
       (*table_)[row].set_frame_timeline_vsync_id(info->vsync_id);
     }
   }
+  // Identify virtual displays that matched at least one video frame so
+  // unrelated virtual displays (e.g. concurrent screenrecord or Cast) do not
+  // inflate android_video_vsync_composite_unmatched.
+  base::FlatHashMap<uint64_t, bool> captured_vd_ids;
+  for (const Composite& c : composites_) {
+    const CompositeInfo* info =
+        composites_by_present_us_.Find(c.present_time_us);
+    if (info && info->matched) {
+      captured_vd_ids[c.display_id] = true;
+    }
+  }
   int64_t unmatched_composites = 0;
+  for (const Composite& c : composites_) {
+    if (!captured_vd_ids.Find(c.display_id)) {
+      continue;
+    }
+    const CompositeInfo* info =
+        composites_by_present_us_.Find(c.present_time_us);
+    if (!info || !info->matched) {
+      unmatched_composites++;
+    }
+  }
   int64_t ambiguous_present_times = 0;
   for (auto it = composites_by_present_us_.GetIterator(); it; ++it) {
     const CompositeInfo& info = it.value();
-    if (!info.matched) {
-      unmatched_composites += info.count;
-    } else if (info.conflicting) {
+    if (info.matched && info.conflicting) {
       ambiguous_present_times++;
     }
   }

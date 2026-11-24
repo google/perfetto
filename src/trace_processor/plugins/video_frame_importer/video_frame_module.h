@@ -82,11 +82,14 @@ class VideoFrameModule : public ProtoImporterModule {
     int64_t emitted_bytes = 0;
     bool size_cap_hit = false;
   };
+  // One valid VirtualDisplayComposite packet (vsync_id >= 0).
+  struct Composite {
+    uint64_t display_id = 0;
+    int64_t present_time_us = 0;
+  };
   // The VirtualDisplayComposite packets seen for one present_time_us.
   struct CompositeInfo {
     int64_t vsync_id = 0;
-    // Number of packets with this present time.
-    uint32_t count = 0;
     // Set if packets with this present time carry different vsync ids, so it
     // is ambiguous which composite produced a frame with this pts.
     bool conflicting = false;
@@ -100,6 +103,9 @@ class VideoFrameModule : public ProtoImporterModule {
   base::FlatHashMap<uint32_t, StreamInfo> stream_info_by_id_;
   // Keyed by present_time_us, from VirtualDisplayComposite packets.
   base::FlatHashMap<int64_t, CompositeInfo> composites_by_present_us_;
+  // All valid composites, used to restrict unmatched counts to virtual displays
+  // that matched at least one video frame.
+  std::vector<Composite> composites_;
   // (table row, pts_us) of each access unit with a pts, joined against
   // composites_by_present_us_ once all packets are parsed.
   std::vector<std::pair<uint32_t, int64_t>> row_pts_us_;

@@ -67,10 +67,10 @@ namespace perfetto::trace_processor::stats {
   F(android_video_vsync_composite_unmatched,                                   \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
       "android.surfaceflinger.virtualdisplay VirtualDisplayComposite packets " \
+      "on a captured virtual display (one with at least one matched frame) "   \
       "whose present_time_us matched no android.display.video frame pts_us, "  \
-      "so their vsync id is not linked to a video frame. Expected for "        \
-      "virtual displays that are not being captured, and for frames the "      \
-      "encoder dropped or re-timed."),                                         \
+      "e.g. frames the encoder dropped or re-timed. Uncaptured virtual "       \
+      "displays (such as screenrecord or Cast) are ignored."),                 \
   F(android_video_vsync_present_time_ambiguous,                                \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
       "present_time_us values that VirtualDisplayComposite packets map to "    \

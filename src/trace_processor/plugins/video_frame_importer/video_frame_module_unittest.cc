@@ -108,10 +108,15 @@ class VideoFrameModuleTest : public testing::Test {
 
   // Feeds one VirtualDisplayComposite, written as the frameworks_native
   // TracePacket extension (field 1100), to the module.
-  void PushVirtualDisplayComposite(VideoFrameModule& module,
-                                   int64_t present_time_us,
-                                   int64_t vsync_id) {
+  void PushVirtualDisplayComposite(
+      VideoFrameModule& module,
+      int64_t present_time_us,
+      int64_t vsync_id,
+      std::optional<uint64_t> display_id = std::nullopt) {
     protozero::HeapBuffered<VirtualDisplayComposite> vdc;
+    if (display_id.has_value()) {
+      vdc->set_display_id(*display_id);
+    }
     vdc->set_present_time_us(present_time_us);
     vdc->set_vsync_id(vsync_id);
     std::vector<uint8_t> vdc_bytes = vdc.SerializeAsArray();
@@ -228,15 +233,43 @@ TEST_F(VideoFrameModuleTest, LeavesFrameUnlinkedWithoutMatchingComposite) {
   auto module = MakeModule();
   PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
                  /*pts_us=*/500000);
-  // A composite whose present time matches no frame, e.g. one queued to a
-  // virtual display that isn't being captured.
+  // A composite on a virtual display that matched zero video frames (e.g. a
+  // concurrent screenrecord or Cast session) leaves the frame unlinked without
+  // inflating unmatched composites.
   PushVirtualDisplayComposite(*module, /*present_time_us=*/600000,
-                              /*vsync_id=*/42);
+                              /*vsync_id=*/42, /*display_id=*/10);
   module->OnEventsFullyExtracted();
 
   ASSERT_EQ(FrameRowCount(), 1u);
   EXPECT_EQ(VsyncId(0), std::nullopt);
-  EXPECT_EQ(UnmatchedComposites(), 1);
+  EXPECT_EQ(UnmatchedComposites(), 0);
+  EXPECT_EQ(AmbiguousPresentTimes(), 0);
+}
+
+TEST_F(VideoFrameModuleTest,
+       CountsUnmatchedCompositesOnlyOnCapturedVirtualDisplays) {
+  auto module = MakeModule();
+  // Virtual display 10 is captured by android.display.video: one composite
+  // matches a frame, and two others were dropped by the encoder.
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
+                              /*vsync_id=*/42, /*display_id=*/10);
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/600000,
+                              /*vsync_id=*/43, /*display_id=*/10);
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/700000,
+                              /*vsync_id=*/44, /*display_id=*/10);
+  // Virtual display 20 is an unrelated virtual display (e.g. screenrecord)
+  // with zero matching video frames: none of its composites count as unmatched.
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/500420,
+                              /*vsync_id=*/42, /*display_id=*/20);
+  PushVirtualDisplayComposite(*module, /*present_time_us=*/600420,
+                              /*vsync_id=*/43, /*display_id=*/20);
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
+                 /*pts_us=*/500000);
+  module->OnEventsFullyExtracted();
+
+  ASSERT_EQ(FrameRowCount(), 1u);
+  EXPECT_EQ(VsyncId(0), 42);
+  EXPECT_EQ(UnmatchedComposites(), 2);
   EXPECT_EQ(AmbiguousPresentTimes(), 0);
 }
 
