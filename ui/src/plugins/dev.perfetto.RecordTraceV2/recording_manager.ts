@@ -379,6 +379,7 @@ export class CurrentTracingSession {
   readonly uuid = uuidv4();
   readonly fileName: string;
   readonly isCompressed: boolean;
+  readonly started: Promise<void>;
   private _expectedEndTime: number | undefined;
   private recMgr: RecordingManager;
   private autoOpenedTriggered = false;
@@ -393,13 +394,14 @@ export class CurrentTracingSession {
     this.isCompressed = traceCfg.compressionType !== 0;
     if (recMgr.currentTarget === undefined) {
       this.error = 'No target selected';
+      this.started = Promise.resolve();
       return;
     }
     if (recMgr.currentTarget.emitsCompressedtrace) {
       this.fileName += '.gz';
       this.isCompressed = true;
     }
-    this.start(traceCfg, recMgr.currentTarget);
+    this.started = this.start(traceCfg, recMgr.currentTarget);
   }
 
   async start(traceCfg: protos.TraceConfig, target: RecordingTarget) {

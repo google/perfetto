@@ -38,6 +38,8 @@ export class ToolRegistry {
   private readonly tools = new Map<string, ToolDef>();
   private readonly toolRegisteredListeners = new Set<(tool: ToolDef) => void>();
 
+  constructor(private readonly parent?: ToolRegistry) {}
+
   /** Listen for tools added to this registry. */
   addToolRegisteredListener(listener: (tool: ToolDef) => void): Disposable {
     this.toolRegisteredListeners.add(listener);
@@ -67,12 +69,22 @@ export class ToolRegistry {
 
   /** Look up a tool by name, or undefined if not registered. */
   get(name: string): ToolDef | undefined {
-    return this.tools.get(name);
+    return this.tools.get(name) ?? this.parent?.get(name);
   }
 
-  /** All registered tools, in registration order. */
+  /** All registered tools, parent tools first, in registration order. */
   list(): readonly ToolDef[] {
-    return Array.from(this.tools.values());
+    if (this.parent === undefined) {
+      return Array.from(this.tools.values());
+    }
+    const combined = new Map<string, ToolDef>();
+    for (const tool of this.parent.list()) {
+      combined.set(tool.name, tool);
+    }
+    for (const [name, tool] of this.tools) {
+      combined.set(name, tool);
+    }
+    return Array.from(combined.values());
   }
 
   /**
@@ -81,7 +93,7 @@ export class ToolRegistry {
    * error.
    */
   async call(name: string, rawArgs: unknown): Promise<string> {
-    const tool = this.tools.get(name);
+    const tool = this.get(name);
     if (tool === undefined) throw new Error(`Unknown tool "${name}"`);
     const parsed = tool.inputSchema.safeParse(rawArgs ?? {});
     if (!parsed.success) {

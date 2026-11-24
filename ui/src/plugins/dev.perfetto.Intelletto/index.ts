@@ -29,6 +29,7 @@ import type {
 } from '../dev.perfetto.Llm/gateway';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
+import RecordTraceV2Plugin from '../dev.perfetto.RecordTraceV2';
 import type {
   ContextProviderRegistration,
   IntellettoToolRegistrar,
@@ -45,6 +46,7 @@ import {
 } from './context';
 import {registerCoreTools} from './core_tools';
 import {type Evidence, EvidenceStore} from './evidence';
+import {registerRecordingTools} from './recording_tools';
 import {registerSkillTools, skillsPromptSection} from './skill_tools';
 import {SYSTEM_PROMPT} from './system_prompt';
 import {registerTimelineTools} from './timeline_tools';
@@ -73,6 +75,7 @@ export default class IntellettoPlugin
     LlmPlugin,
     QueryPagePlugin,
     DataExplorerPlugin,
+    RecordTraceV2Plugin,
   ];
 
   // App-scoped persisted setting: the user's last-selected model for the
@@ -91,14 +94,14 @@ export default class IntellettoPlugin
   // Supplies trace-scoped tools and context providers.
   private static activeInstance?: IntellettoPlugin;
 
-  // Fallback registries used when no trace is loaded.
-  private static readonly emptyTools = new ToolRegistry();
+  // App-scoped registries available even when no trace is loaded (trace-scoped
+  // tool registries inherit from appTools so app tools stay available once a
+  // trace is open too).
+  private static appTools = new ToolRegistry();
   private static appContext = new ContextRegistry();
 
   private static getActiveTools(): ToolRegistry {
-    return (
-      IntellettoPlugin.activeInstance?.tools ?? IntellettoPlugin.emptyTools
-    );
+    return IntellettoPlugin.activeInstance?.tools ?? IntellettoPlugin.appTools;
   }
 
   private static getActiveContext(): ContextRegistry {
@@ -157,6 +160,8 @@ export default class IntellettoPlugin
     IntellettoPlugin.conversationStore = new ConversationStore(() =>
       m.redraw(),
     );
+    IntellettoPlugin.appTools = new ToolRegistry();
+    registerRecordingTools(IntellettoPlugin.appTools, app);
     IntellettoPlugin.appContext = new ContextRegistry();
     registerAppContextProviders(IntellettoPlugin.appContext, app);
 
@@ -302,9 +307,10 @@ export default class IntellettoPlugin
   // shared across all traces.
   private static conversationStore: ConversationStore;
 
-  // The shared tool registry for this trace. Core tools plus any contributed by
-  // other plugins land here; the chat panel hands it to the agent.
-  private readonly tools = new ToolRegistry();
+  // The shared tool registry for this trace, inheriting app-scoped tools. Core
+  // tools plus any contributed by other plugins land here; the chat panel
+  // hands it to the agent.
+  private readonly tools = new ToolRegistry(IntellettoPlugin.appTools);
 
   // The shared context-provider registry for this trace. Core providers (trace,
   // page, viewport, selection) plus any contributed by other plugins; the chat
