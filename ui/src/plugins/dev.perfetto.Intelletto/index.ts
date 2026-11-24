@@ -110,7 +110,9 @@ export default class IntellettoPlugin
       defaultValue: undefined,
       headless: true,
     });
-    IntellettoPlugin.conversationStore = new ConversationStore();
+    IntellettoPlugin.conversationStore = new ConversationStore(() =>
+      m.redraw(),
+    );
     IntellettoPlugin.appContext = new ContextRegistry();
     registerAppContextProviders(IntellettoPlugin.appContext, app);
 
@@ -179,7 +181,7 @@ export default class IntellettoPlugin
     });
   }
 
-  // App-scoped store of past conversations, persisted to localStorage and
+  // App-scoped store of past conversations, persisted to IndexedDB and
   // shared across all traces.
   private static conversationStore: ConversationStore;
 
