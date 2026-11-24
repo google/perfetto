@@ -31,6 +31,27 @@
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core {
+namespace internal {
+
+// A FlexVector's allocation after it grows.
+struct GrownFlexVector {
+  void* data;
+  uint64_t capacity;
+};
+
+// Grows the FlexVector allocation `data`, which holds `capacity` elements of
+// `width` bytes aligned to `align`. The new capacity is at least `min_capacity`
+// and at least FlexVector::kGrowthFactor times the old one. Copies the first
+// `used_bytes` and frees the old allocation. Not a template, so every
+// FlexVector shares one copy of this code.
+GrownFlexVector GrowFlexVector(void* data,
+                               uint64_t used_bytes,
+                               uint64_t capacity,
+                               uint64_t min_capacity,
+                               size_t width,
+                               size_t align);
+
+}  // namespace internal
 
 // A dynamically resizable vector with aligned memory allocation.
 //
@@ -114,7 +135,7 @@ class FlexVector {
     PERFETTO_DCHECK(capacity() % kCapacityMultiple == 0);
     PERFETTO_DCHECK(size_ <= capacity());
     if (PERFETTO_UNLIKELY(size_ == capacity())) {
-      IncreaseCapacity();
+      GrowTo(size_ + 1);
     }
     slab_[size_++] = value;
   }
@@ -123,8 +144,8 @@ class FlexVector {
   PERFETTO_ALWAYS_INLINE void push_back_multiple(T value, uint64_t count) {
     PERFETTO_DCHECK(capacity() % kCapacityMultiple == 0);
     PERFETTO_DCHECK(size_ <= capacity());
-    while (PERFETTO_UNLIKELY(size_ + count > capacity())) {
-      IncreaseCapacity();
+    if (PERFETTO_UNLIKELY(size_ + count > capacity())) {
+      GrowTo(size_ + count);
     }
     // Filled through a local pointer and size: a store through `slab_` could
     // alias `size_`, which would otherwise be written back every element.
@@ -159,17 +180,9 @@ class FlexVector {
   // `kGrowthFactor`, so interleaving reserve calls with push_backs cannot
   // degrade to quadratic copying.
   void reserve(uint64_t new_capacity) {
-    if (new_capacity <= capacity()) {
-      return;
+    if (new_capacity > capacity()) {
+      GrowTo(new_capacity);
     }
-    uint64_t target = std::max(
-        new_capacity,
-        static_cast<uint64_t>(static_cast<double>(capacity()) * kGrowthFactor));
-    Slab<T> new_slab = Slab<T>::Alloc(base::AlignUp(target, kCapacityMultiple));
-    if (size_ > 0) {
-      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
-    }
-    slab_ = std::move(new_slab);
   }
 
   // Resizes the vector to the specified size. If growing, new elements are
@@ -238,18 +251,14 @@ class FlexVector {
   explicit FlexVector(uint64_t capacity, uint64_t size)
       : slab_(Slab<T>::Alloc(capacity)), size_(size) {}
 
-  PERFETTO_NO_INLINE void IncreaseCapacity() {
-    uint64_t new_capacity = std::max<uint64_t>(
-        base::AlignUp(static_cast<size_t>(static_cast<double>(capacity()) *
-                                          kGrowthFactor),
-                      kCapacityMultiple),
-        kCapacityMultiple);
-    Slab<T> new_slab = Slab<T>::Alloc(new_capacity);
-    if (slab_.size() > 0) {
-      // Copy from the original slab data
-      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
-    }
-    slab_ = std::move(new_slab);
+  // Grows the capacity to at least `min_capacity`, and by at least
+  // kGrowthFactor. The work happens in GrowFlexVector(), which every T shares.
+  PERFETTO_NO_INLINE void GrowTo(uint64_t min_capacity) {
+    uint64_t old_capacity = slab_.size();
+    internal::GrownFlexVector grown = internal::GrowFlexVector(
+        slab_.Release(), size_ * sizeof(T), old_capacity, min_capacity,
+        sizeof(T), alignof(T));
+    slab_.Adopt(static_cast<T*>(grown.data), grown.capacity);
   }
 
   // The underlying memory slab.

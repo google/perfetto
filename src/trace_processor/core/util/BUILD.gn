@@ -17,6 +17,7 @@ import("../../../../gn/test.gni")
 source_set("util") {
   sources = [
     "bit_vector.h",
+    "flex_vector.cc",
     "flex_vector.h",
     "heap.h",
     "interval_gaps.h",
