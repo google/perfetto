@@ -318,7 +318,15 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
               when 'thread_execution' then 0
               when 'art_method_tracing' then 1
               else 99
-            end as track_rank
+            end as track_rank,
+            -- The workers of a ninja build that were busy until later go
+            -- first, so that the long tail of the build is at the top
+            -- rather than scattered among tracks that went idle early.
+            min(iif(
+              t.type = 'ninja_worker',
+              -(select max(sl.ts + sl.dur) from slice sl
+                where sl.track_id = t.id),
+              0)) as rank_in_type
           from tracks t
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
           group by
@@ -358,7 +366,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         left join _threads_with_kernel_flag k using (utid)
         left join process tp on thread.upid = tp.upid
         left join machine on machine.id = s.machine_id
-        order by s.track_rank, lower_name
+        order by s.track_rank, s.rank_in_type, lower_name
       `,
     });
 
