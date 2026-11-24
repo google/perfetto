@@ -37,15 +37,28 @@
       margin-right: 16px;
     }
 
+    .pf-home-page__branding {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 25px;
+    }
+
     .pf-home-page__title {
       display: flex;
       flex-direction: row;
       align-items: center;
       justify-content: center;
       font-size: 60px;
-      margin: 25px;
+      line-height: 1;
       text-align: center;
       font-weight: 300;
+    }
+
+    .pf-home-page__attribution {
+      font-size: 15px;
+      color: var(--pf-color-text-muted);
+      margin-top: 0;
     }
 
     .pf-home-page__hints {
@@ -203,11 +216,22 @@
     }
   } // .pf-home-page__center
 
-  .pf-home-page__privacy {
+  .pf-home-page__footer {
     font-size: 0.9em;
     grid-area: footer;
     align-self: center;
-    margin-bottom: 40px;
+    padding: 24px 0 40px;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+
+    &-separator {
+      width: 1px;
+      height: 14px;
+      background-color: var(--pf-color-border);
+    }
   }
 } // .pf-home-page
 

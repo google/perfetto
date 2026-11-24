@@ -58,6 +58,7 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
       this.renderSidebarHeader(app),
       this.renderSidebarContent(app),
       this.renderSidebarFooter(app),
+      this.renderSidebarLegal(),
     );
   }
 
@@ -120,6 +121,33 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
           },
           VERSION,
         ),
+      ),
+    );
+  }
+
+  private renderSidebarLegal() {
+    return m(
+      '.pf-sidebar__legal',
+      m('span', 'by Google'),
+      m('span.pf-sidebar__legal-sep', '·'),
+      m(
+        'a',
+        {
+          href: 'https://policies.google.com/privacy',
+          target: '_blank',
+          rel: 'noopener',
+        },
+        'Privacy',
+      ),
+      m('span.pf-sidebar__legal-sep', '·'),
+      m(
+        'a',
+        {
+          href: 'https://policies.google.com/terms',
+          target: '_blank',
+          rel: 'noopener',
+        },
+        'Terms',
       ),
     );
   }

@@ -55,22 +55,38 @@ export class HomePage implements m.ClassComponent {
       m(
         '.pf-home-page__center',
         m(
-          '.pf-home-page__title',
-          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
-          'Perfetto',
+          '.pf-home-page__branding',
+          m(
+            '.pf-home-page__title',
+            m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
+            'Perfetto',
+          ),
+          m('.pf-home-page__attribution', 'by Google'),
         ),
         m(Hints),
         m(ChannelSelect),
       ),
       m(
-        Anchor,
-        {
-          className: 'pf-home-page__privacy',
-          href: 'https://policies.google.com/privacy',
-          target: '_blank',
-          icon: Icons.ExternalLink,
-        },
-        'Privacy policy',
+        '.pf-home-page__footer',
+        m(
+          Anchor,
+          {
+            href: 'https://policies.google.com/privacy',
+            target: '_blank',
+            icon: Icons.ExternalLink,
+          },
+          'Privacy policy',
+        ),
+        m('.pf-home-page__footer-separator'),
+        m(
+          Anchor,
+          {
+            href: 'https://policies.google.com/terms',
+            target: '_blank',
+            icon: Icons.ExternalLink,
+          },
+          'Terms of service',
+        ),
       ),
     );
   }
