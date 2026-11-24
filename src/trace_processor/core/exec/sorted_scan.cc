@@ -85,7 +85,7 @@ SortedScan::State::~State() = default;
 
 std::unique_ptr<OperatorState> SortedScan::MakeState(Context& context) const {
   auto state = std::make_unique<State>();
-  state->reader.Init(columns_, context);
+  state->reader.Init(columns_);
   state->context = &context;
   return state;
 }
