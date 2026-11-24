@@ -6310,6 +6310,9 @@ perfetto_cc_library(
         "src/trace_processor/util/symbolizer/subprocess.h",
         "src/trace_processor/util/symbolizer/symbolizer.h",
     ],
+    deps = [
+        ":src_trace_processor_util_build_id",
+    ],
     linkstatic = True,
 )
 
