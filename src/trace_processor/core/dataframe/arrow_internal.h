@@ -209,11 +209,10 @@ inline bool IsSparse(Nullability type) {
   return IsNullable(type) && !type.Is<core::DenseNull>();
 }
 
+// Reads the |index|-th little-endian T from |data|.
 template <typename T>
 T Load(const uint8_t* data, uint32_t index) {
-  T value;
-  memcpy(&value, data + static_cast<size_t>(index) * sizeof(T), sizeof(T));
-  return value;
+  return base::LoadLE<T>(data + static_cast<size_t>(index) * sizeof(T));
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe::arrow_internal
