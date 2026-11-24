@@ -44,6 +44,8 @@ std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter();
 //   create one "Worker N" track for each concurrent stream of jobs. Tracks are
 //   reused across invocations, so their number stays close to the -j level
 //   rather than growing with the number of builds in the log.
+// - A "Builds" track has one slice per invocation, and an "Active jobs"
+//   counter track has the number of jobs running at each moment.
 // Once ninja recompacts the log (on its own, or via ninja -t recompact) the
 // boundaries of the builds that were in it are gone: recompaction deletes, for
 // each output, all but the most recent entry and rewrites the log. Those

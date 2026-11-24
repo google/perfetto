@@ -1023,6 +1023,9 @@ occasionally adding fields.
     "Worker 2" and so on. These are tracks of type `ninja_worker` and belong to
     no process or thread: a `.ninja_log` does not say which ninja job slot ran
     a build step.
+  - A "Builds" track has one slice per build in the log, so a build can be
+    told apart from the next one and selected as a whole, and an "Active jobs"
+    counter track has the number of build steps running at each moment.
   - The timestamps (start and end times) are converted from milliseconds to
     nanoseconds for consistency within Perfetto.
   - Log format versions 5 to 7 are read. ninja bumped the version to v6 in

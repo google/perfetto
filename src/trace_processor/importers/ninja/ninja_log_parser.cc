@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -73,6 +74,19 @@ constexpr auto kWorkerBlueprint = tracks::SliceBlueprint(
     tracks::FnNameBlueprint([](uint32_t worker) {
       return base::StackString<32>("Worker %u", worker);
     }));
+
+constexpr auto kBuildsBlueprint =
+    tracks::SliceBlueprint("ninja_builds",
+                           tracks::DimensionBlueprints(),
+                           tracks::StaticNameBlueprint("Builds"));
+
+constexpr auto kActiveJobsBlueprint =
+    tracks::CounterBlueprint("ninja_active_jobs",
+                             tracks::UnknownUnitBlueprint(),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("Active jobs"));
+
+constexpr int64_t kMsToNs = 1000 * 1000;
 }  // namespace
 
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
@@ -242,15 +256,24 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
   // ninjatracing does with --showall.
   std::vector<Job> jobs;
   jobs.reserve(jobs_.size() - skipped);
-  int64_t build_offset_ms = 0;
+  struct Build {
+    int64_t start_ms;
+    int64_t end_ms;
+  };
+  std::vector<Build> builds;
   int64_t last_end_seen = 0;
   for (size_t i = skipped; i < jobs_.size(); ++i) {
     Job& job = jobs_[i];
-    if (!whole_log_recompacted && job.end_ms < last_end_seen)
-      build_offset_ms += last_end_seen;
+    if (builds.empty() ||
+        (!whole_log_recompacted && job.end_ms < last_end_seen)) {
+      const int64_t start_ms = builds.empty() ? 0 : builds.back().end_ms;
+      builds.push_back(Build{start_ms, start_ms});
+    }
+    Build& build = builds.back();
     last_end_seen = job.end_ms;
-    job.start_ms += build_offset_ms;
-    job.end_ms += build_offset_ms;
+    job.start_ms += build.start_ms;
+    job.end_ms += build.start_ms;
+    build.end_ms = std::max(build.end_ms, job.end_ms);
 
     // If more hashes show up back-to-back with the same timestamps, merge them
     // together as they identify multiple outputs for the same build rule.
@@ -291,7 +314,23 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
     TrackId track_id;
   };
   std::vector<Worker> workers;
+  size_t builds_written = 0;
   for (const auto& job : jobs) {
+    // One slice per build, from the moment ninja started (which is where its
+    // timestamps count from) to the end of its last job. The slice table is
+    // sorted by timestamp, so it has to go in before the jobs of that build.
+    for (; builds_written < builds.size() &&
+           builds[builds_written].start_ms <= job.start_ms;
+         ++builds_written) {
+      const Build& build = builds[builds_written];
+      base::StackString<32> name("Build %zu", builds_written + 1);
+      ctx_->slice_tracker->Scoped(
+          build.start_ms * kMsToNs,
+          ctx_->track_tracker->InternTrack(kBuildsBlueprint), StringId::Null(),
+          ctx_->storage->InternString(name.string_view()),
+          (build.end_ms - build.start_ms) * kMsToNs);
+    }
+
     Worker* worker = nullptr;
     for (Worker& cur : workers) {
       // Pick the worker which has the greatest end time (busy_until) <= the
@@ -313,12 +352,31 @@ base::Status NinjaLogParser::OnPushDataToSorter() {
       worker = &workers.back();
     }
 
-    static constexpr int64_t kMsToNs = 1000ul * 1000;
     const int64_t start_ns = job.start_ms * kMsToNs;
     const int64_t dur_ns = (job.end_ms - job.start_ms) * kMsToNs;
     StringId name_id = ctx_->storage->InternString(base::StringView(job.names));
     ctx_->slice_tracker->Scoped(start_ns, worker->track_id, StringId::Null(),
                                 name_id, dur_ns);
+  }
+
+  // The number of jobs running at each moment. Jobs that end at a timestamp
+  // are counted out before the ones starting at it are counted in, and only
+  // the outcome is written.
+  std::vector<std::pair<int64_t, int32_t>> edges;
+  edges.reserve(jobs.size() * 2);
+  for (const auto& job : jobs) {
+    edges.emplace_back(job.start_ms, 1);
+    edges.emplace_back(job.end_ms, -1);
+  }
+  std::sort(edges.begin(), edges.end());
+  int32_t active_jobs = 0;
+  for (size_t i = 0; i < edges.size(); ++i) {
+    active_jobs += edges[i].second;
+    if (i + 1 < edges.size() && edges[i + 1].first == edges[i].first)
+      continue;
+    ctx_->event_tracker->PushCounter(
+        edges[i].first * kMsToNs, static_cast<double>(active_jobs),
+        ctx_->track_tracker->InternTrack(kActiveJobsBlueprint));
   }
   return base::OkStatus();
 }

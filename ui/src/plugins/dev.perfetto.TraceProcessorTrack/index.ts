@@ -251,7 +251,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         new TrackNode({
           uri,
           name: trackName,
-          sortOrder: utid !== undefined || upid !== undefined ? 30 : 0,
+          sortOrder:
+            schema.sortOrder ??
+            (utid !== undefined || upid !== undefined ? 30 : 0),
           chips: removeFalsyValues([
             isKernelThread === 0 && isMainThread === 1 && 'main thread',
           ]),
@@ -484,7 +486,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         new TrackNode({
           uri,
           name: displayName,
-          sortOrder: utid !== undefined || upid !== undefined ? 20 : 0,
+          sortOrder:
+            schema.sortOrder ??
+            (utid !== undefined || upid !== undefined ? 20 : 0),
           chips: removeFalsyValues([
             isKernelThread === 0 && isMainThread === 1 && 'main thread',
           ]),

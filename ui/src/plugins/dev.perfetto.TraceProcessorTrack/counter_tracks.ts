@@ -29,6 +29,13 @@ interface CounterTrackTypeSchema {
   readonly unit?: string;
 
   /**
+   * Optional position of the track among its siblings: a track with a lower
+   * value goes first. When absent, the track is ordered like any other track
+   * of its kind.
+   */
+  readonly sortOrder?: number;
+
+  /**
    * Optional function to provide a rich description renderer for the track.
    *
    * This function is called during track registration to generate custom
@@ -419,5 +426,12 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'pixel_fwtp_counters',
     topLevelGroup: 'HARDWARE',
     group: 'Pixel Firmware',
+  },
+  {
+    // Right below the 'ninja_builds' slice track and above the workers.
+    type: 'ninja_active_jobs',
+    topLevelGroup: undefined,
+    group: undefined,
+    sortOrder: 1,
   },
 ];

@@ -114,7 +114,9 @@ class NinjaParser(TestSuite):
           select
             (select count(*) from track where type = 'ninja_worker')
               as workers,
-            (select count(*) from slice) as slices,
+            (select count(*) from slice
+             join track on slice.track_id = track.id
+             where track.type = 'ninja_worker') as slices,
             (select value from stats where name = 'ninja_parse_errors')
               as parse_errors
         """,
@@ -197,4 +199,43 @@ class NinjaParser(TestSuite):
         out=Csv("""
           "workers","thread_tracks","processes"
           6,0,0
+        """))
+
+  # One slice per build on a track of its own, from the moment ninja started
+  # to the end of the last job of that build: the second build here starts
+  # where the first one ends.
+  def test_ninja_log_builds_track(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_two_builds.ninja_log'),
+        query="""
+          select track.name as track, slice.ts, slice.dur, slice.name
+          from slice
+          join track on slice.track_id = track.id
+          where track.type = 'ninja_builds'
+          order by slice.ts
+        """,
+        out=Csv("""
+          "track","ts","dur","name"
+          "Builds",0,200000000,"Build 1"
+          "Builds",200000000,50000000,"Build 2"
+        """))
+
+  # The number of jobs running at each moment: obj/a.o and obj/b.o together,
+  # then obj/c.o alone, then the one job of the second build.
+  def test_ninja_log_active_jobs(self):
+    return DiffTestBlueprint(
+        trace=Path('build_log_two_builds.ninja_log'),
+        query="""
+          select counter_track.name as track, counter.ts, counter.value
+          from counter
+          join counter_track on counter.track_id = counter_track.id
+          where counter_track.type = 'ninja_active_jobs'
+          order by counter.ts
+        """,
+        out=Csv("""
+          "track","ts","value"
+          "Active jobs",0,2.000000
+          "Active jobs",100000000,1.000000
+          "Active jobs",200000000,1.000000
+          "Active jobs",250000000,0.000000
         """))
