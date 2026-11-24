@@ -135,7 +135,6 @@ export default class IntellettoPlugin
       defaultValue: undefined,
       headless: true,
     });
-
     // Kick off skill index loading immediately so it's ready by the time the
     // user opens the panel, and redraw once loaded so isLoadingSkills clears.
     IntellettoPlugin.skills = undefined;
@@ -153,7 +152,9 @@ export default class IntellettoPlugin
       )
       .finally(() => m.redraw());
 
-    IntellettoPlugin.conversationStore = new ConversationStore();
+    IntellettoPlugin.conversationStore = new ConversationStore(() =>
+      m.redraw(),
+    );
     IntellettoPlugin.appContext = new ContextRegistry();
     registerAppContextProviders(IntellettoPlugin.appContext, app);
 
@@ -285,7 +286,7 @@ export default class IntellettoPlugin
     });
   }
 
-  // App-scoped store of past conversations, persisted to localStorage and
+  // App-scoped store of past conversations, persisted to IndexedDB and
   // shared across all traces.
   private static conversationStore: ConversationStore;
 
