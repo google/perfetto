@@ -23,10 +23,10 @@
 #include <utility>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_db.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_database.h"
@@ -342,16 +342,11 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 void SqliteConnection::SetProgressCallback(int steps,
                                            ProgressCallback callback,
                                            void* ctx) {
-#if defined(SQLITE_OMIT_PROGRESS_CALLBACK)
-  // SQLite has no sqlite3_progress_handler() in this build.
-  base::ignore_result(steps, callback, ctx);
-#else
-  sqlite3_progress_handler(db_.get(), steps, callback, ctx);
-#endif
+  sqlite::db::ProgressHandler(db_.get(), steps, callback, ctx);
 }
 
 void SqliteConnection::Interrupt() {
-  sqlite3_interrupt(db_.get());
+  sqlite::db::Interrupt(db_.get());
 }
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,

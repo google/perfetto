@@ -23,6 +23,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_db.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -92,8 +93,11 @@ TEST(TraceProcessorImplTest, InterruptWhileIdleDoesNotAffectNextQuery) {
 // An interrupt arriving between two statements of a query, while no statement
 // runs, still stops the next statement. Without SQLite progress callbacks (as
 // in Chromium's SQLite), such an interrupt is still lost.
-#if !defined(SQLITE_OMIT_PROGRESS_CALLBACK)
 TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
+  if (!sqlite::db::kHasProgressHandler) {
+    GTEST_SKIP()
+        << "Needs SQLite progress handlers, which Chromium's SQLite omits";
+  }
   auto tp = CreateTraceProcessor();
   std::string sql = std::string("SELECT 1; ") + kLongQuery;
   uint32_t offset = 0;
@@ -113,7 +117,6 @@ TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
   CountRows(*second);
   EXPECT_THAT(second->Status().message(), HasSubstr("interrupted"));
 }
-#endif
 
 // RestoreInitialTables() replaces the SQLite connection, which must keep
 // checking for interrupts.

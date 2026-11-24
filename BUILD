@@ -5976,6 +5976,7 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h",
         "src/trace_processor/sqlite/bindings/sqlite_bind.h",
         "src/trace_processor/sqlite/bindings/sqlite_column.h",
+        "src/trace_processor/sqlite/bindings/sqlite_db.h",
         "src/trace_processor/sqlite/bindings/sqlite_function.h",
         "src/trace_processor/sqlite/bindings/sqlite_module.h",
         "src/trace_processor/sqlite/bindings/sqlite_result.h",

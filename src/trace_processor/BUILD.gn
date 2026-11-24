@@ -435,9 +435,7 @@ perfetto_unittest_source_set("top_level_unittests") {
     sources += [ "trace_processor_impl_unittest.cc" ]
     deps += [
       ":lib",
-
-      # For SQLITE_OMIT_PROGRESS_CALLBACK, set by Chromium's SQLite.
-      "../../gn:sqlite",
+      "sqlite",
     ]
   }
 
