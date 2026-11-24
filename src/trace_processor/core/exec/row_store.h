@@ -80,7 +80,7 @@ class RowStore {
   // Lets go of every row held.
   void Clear();
 
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   // By column of the batches appended, whether it is never read back: such
