@@ -22,10 +22,12 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -101,8 +103,6 @@ void SeenBytes::Clear() {
   tracking_ = false;
   groups_ = 0;
 }
-
-AggregateFunction::~AggregateFunction() = default;
 
 void AggregateFunction::Subtract(const GroupMerge*,
                                  uint32_t,
@@ -408,25 +408,41 @@ class Extreme final : public AggregateFunction {
   const uint64_t mask_;
 };
 
-}  // namespace
-
-std::unique_ptr<AggregateFunction> MakeAggregateFunction(
+const AggregateFunction* MakeAggregateFunction(
     AggregateCall::Function function) {
+  static const Count kCountStar(false);
+  static const Sum kSum;
+  static const Count kCount(true);
+  // Flips every bit but the sign: the smallest value is the largest word.
+  static const Extreme kMin(~(uint64_t{1} << 63));
+  // Flips the sign: words order as the values do, the least being zero.
+  static const Extreme kMax(uint64_t{1} << 63);
   switch (function) {
     case AggregateCall::Function::kCountStar:
-      return std::make_unique<Count>(false);
+      return &kCountStar;
     case AggregateCall::Function::kSum:
-      return std::make_unique<Sum>();
+      return &kSum;
     case AggregateCall::Function::kCount:
-      return std::make_unique<Count>(true);
+      return &kCount;
     case AggregateCall::Function::kMin:
-      // Flips every bit but the sign: the smallest value is the largest word.
-      return std::make_unique<Extreme>(~(uint64_t{1} << 63));
+      return &kMin;
     case AggregateCall::Function::kMax:
-      // Flips the sign: words order as the values do, the least being zero.
-      return std::make_unique<Extreme>(uint64_t{1} << 63);
+      return &kMax;
   }
   return nullptr;
+}
+
+}  // namespace
+
+core::ArenaSpan<const AggregateFunction*> MakeAggregateFunctions(
+    core::Arena& arena,
+    base::Span<const AggregateCall> calls) {
+  auto functions = arena.NewSpan<const AggregateFunction*>(
+      static_cast<uint32_t>(calls.size()));
+  for (uint32_t i = 0; i < calls.size(); ++i) {
+    functions[i] = MakeAggregateFunction(calls[i].function);
+  }
+  return functions;
 }
 
 ColumnBuffer FinalizeToBuffer(Context& context,

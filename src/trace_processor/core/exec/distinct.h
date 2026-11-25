@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -44,13 +45,12 @@ class Distinct final : public Transform {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override {
-    out->reads = columns_;
+    out->reads.assign(columns_.begin(), columns_.end());
   }
 
   static constexpr uint32_t kMaxColumns = 64;
 
-  explicit Distinct(std::vector<uint32_t> columns);
-  ~Distinct() override;
+  explicit Distinct(core::ArenaSpan<uint32_t> columns);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
@@ -74,7 +74,7 @@ class Distinct final : public Transform {
     CallScratch<FlexVector<uint32_t>> kept;
   };
 
-  std::vector<uint32_t> columns_;
+  core::ArenaSpan<uint32_t> columns_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -59,7 +59,7 @@ IntervalLaneSpec Spec() {
   IntervalLaneSpec spec;
   spec.ts_column = 0;
   spec.dur_column = 1;
-  spec.key_columns = {2};
+  spec.key_columns = test::InArena<uint32_t>({2});
   spec.group_column = 3;
   return spec;
 }

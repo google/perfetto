@@ -181,11 +181,14 @@ BENCHMARK(BM_StepsTreeNumberNodes)->Apply(Sizes);
 void BM_StepsTreeAccumulateDown(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [](core::Arena&) {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
         steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeAccumulateDown>(TreeAccumulateSpec{
-            kNode, kParentNode, {{AggregateCall::Function::kSum, kValue}}}));
+        steps.push_back(std::make_unique<TreeAccumulateDown>(
+            arena, TreeAccumulateSpec{
+                       kNode, kParentNode,
+                       arena.CopySpan<AggregateCall>(
+                           {{AggregateCall::Function::kSum, kValue}})}));
         return steps;
       },
       nullptr);
@@ -195,11 +198,14 @@ BENCHMARK(BM_StepsTreeAccumulateDown)->Apply(Sizes);
 void BM_StepsTreeAccumulateUp(benchmark::State& state) {
   Run(
       state, true, ReadDirection::kForwards,
-      [](core::Arena&) {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
         steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeAccumulateUp>(TreeAccumulateSpec{
-            kNode, kParentNode, {{AggregateCall::Function::kSum, kValue}}}));
+        steps.push_back(std::make_unique<TreeAccumulateUp>(
+            arena, TreeAccumulateSpec{
+                       kNode, kParentNode,
+                       arena.CopySpan<AggregateCall>(
+                           {{AggregateCall::Function::kSum, kValue}})}));
         return steps;
       },
       nullptr);

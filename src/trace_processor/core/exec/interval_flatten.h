@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -36,7 +37,7 @@ namespace perfetto::trace_processor::core::exec {
 
 struct IntervalFlattenSpec {
   IntervalLaneSpec lanes;
-  std::vector<AggregateCall> aggregates;
+  core::ArenaSpan<AggregateCall> aggregates;
 };
 
 // INTERVAL FLATTEN. The input must be grouped by the keys and ordered by ts
@@ -48,21 +49,20 @@ struct IntervalFlattenSpec {
 // Aggregates are computed with the shared functions a batch of segments at a
 // time: each interval's state is kept in a slot of its own, combined into a
 // tree over the segments it was live in, so any function works.
-class IntervalFlatten : public Operator {
+class IntervalFlatten final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override {
     out->keeps = StepColumns::Keeps::kNone;
     DescribeLaneReads(spec_.lanes, out);
-    DescribeAggregateReads(spec_.aggregates, out);
+    DescribeAggregateReads(spec_.aggregates.span(), out);
     // The bounds, the keys, the aggregates and each row's group number.
     out->added = static_cast<uint32_t>(2 + spec_.lanes.key_columns.size() +
                                        spec_.aggregates.size() + 1);
   }
 
-  explicit IntervalFlatten(IntervalFlattenSpec);
-  ~IntervalFlatten() override;
+  IntervalFlatten(core::Arena&, IntervalFlattenSpec);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
@@ -88,7 +88,7 @@ class IntervalFlatten : public Operator {
 
   struct State : OperatorState {
     explicit State(const IntervalLaneSpec& lanes)
-        : keys(this, lanes.key_columns) {}
+        : keys(this, lanes.key_columns.span()) {}
     ~State() override;
 
     // Every aggregate's states: the tree's first nodes are there from the
@@ -194,8 +194,8 @@ class IntervalFlatten : public Operator {
   // Whether the input has PER columns.
   bool keyed_;
   // By aggregate of the spec.
-  std::vector<std::unique_ptr<AggregateFunction>> functions_;
-  std::vector<uint32_t> offsets_;
+  core::ArenaSpan<const AggregateFunction*> functions_;
+  core::ArenaSpan<uint32_t> offsets_;
   uint32_t stride_ = 0;
   // Whether every function can subtract, so AggregateDeltas may be used.
   bool subtract_ = false;

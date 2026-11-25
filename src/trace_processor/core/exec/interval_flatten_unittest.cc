@@ -77,11 +77,12 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   IntervalFlattenSpec spec;
   spec.lanes.ts_column = 0;
   spec.lanes.dur_column = 1;
-  spec.lanes.key_columns = {2};
+  spec.lanes.key_columns = test::InArena<uint32_t>({2});
   spec.lanes.group_column = 4;
-  spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
-                     {AggregateCall::Function::kSum, 3}};
-  IntervalFlatten op(spec);
+  spec.aggregates =
+      test::InArena<AggregateCall>({{AggregateCall::Function::kCountStar, 0},
+                                    {AggregateCall::Function::kSum, 3}});
+  IntervalFlatten op(test::TestArena(), spec);
   auto state = op.MakeState(test::TestContext());
   // Refill the same vectors for each input batch, published in a buffer each,
   // as a source refilling its storage would. Retained group keys must survive
@@ -156,8 +157,9 @@ TEST(IntervalFlattenTest, ErrorLeavesNoRowsForTheNextRun) {
   IntervalFlattenSpec spec;
   spec.lanes.ts_column = 0;
   spec.lanes.dur_column = 1;
-  spec.aggregates = {{AggregateCall::Function::kCountStar, 0}};
-  IntervalFlatten op(spec);
+  spec.aggregates =
+      test::InArena<AggregateCall>({{AggregateCall::Function::kCountStar, 0}});
+  IntervalFlatten op(test::TestArena(), spec);
   auto state = op.MakeState(test::TestContext());
   RowBatch in, out;
   auto fill = [&](const std::vector<int64_t>& ts,
@@ -196,8 +198,8 @@ TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {
     IntervalFlattenSpec spec;
     spec.lanes.ts_column = 0;
     spec.lanes.dur_column = 1;
-    spec.aggregates = std::move(aggregates);
-    IntervalFlatten op(spec);
+    spec.aggregates = test::InArena(aggregates);
+    IntervalFlatten op(test::TestArena(), spec);
     auto state = op.MakeState(test::TestContext());
     std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> rows;
     RowBatch in, out;
@@ -262,8 +264,9 @@ TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
   IntervalFlattenSpec spec;
   spec.lanes.ts_column = 0;
   spec.lanes.dur_column = 1;
-  spec.aggregates = {{AggregateCall::Function::kSum, 2}};
-  IntervalFlatten op(spec);
+  spec.aggregates =
+      test::InArena<AggregateCall>({{AggregateCall::Function::kSum, 2}});
+  IntervalFlatten op(test::TestArena(), spec);
   auto state = op.MakeState(test::TestContext());
   std::vector<std::optional<int64_t>> sums;
   auto collect = [&] {

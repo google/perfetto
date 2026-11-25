@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // Flattening intervals about five deep, counting and summing them. Compare
 // small and large inputs, including many small groups, to measure the cost of
@@ -65,16 +66,18 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     }
     batch.SetRowCount(count);
   }
+  core::Arena arena;
   IntervalFlattenSpec spec;
   spec.lanes.ts_column = 0;
   spec.lanes.dur_column = 1;
-  spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
-                     {AggregateCall::Function::kSum, 2}};
+  spec.aggregates =
+      arena.CopySpan<AggregateCall>({{AggregateCall::Function::kCountStar, 0},
+                                     {AggregateCall::Function::kSum, 2}});
   if (rows_per_group) {
-    spec.lanes.key_columns = {3};
+    spec.lanes.key_columns = arena.CopySpan<uint32_t>({3});
     spec.lanes.group_column = 3;
   }
-  IntervalFlatten op(spec);
+  IntervalFlatten op(arena, spec);
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch out;
   for (auto _ : state) {

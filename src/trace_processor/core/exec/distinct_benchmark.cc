@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/distinct.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // Drops duplicate rows for each kind of key. The number of distinct rows
 // ranges from a few to nearly one per row. Rows are either shuffled or
@@ -94,7 +95,8 @@ void BM_Distinct(benchmark::State& state) {
                                       ? std::vector<uint32_t>{0, 1}
                                       : std::vector<uint32_t>{0};
 
-  Distinct op(columns);
+  core::Arena arena;
+  Distinct op(arena.CopySpan<uint32_t>(columns));
   Context context;
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch out;

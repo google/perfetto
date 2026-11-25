@@ -21,11 +21,13 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -40,7 +42,7 @@ struct AggregateCall {
 };
 
 // Adds the columns `aggregates` read to `out`.
-inline void DescribeAggregateReads(const std::vector<AggregateCall>& aggregates,
+inline void DescribeAggregateReads(base::Span<const AggregateCall> aggregates,
                                    StepColumns* out) {
   for (const AggregateCall& call : aggregates) {
     if (call.function != AggregateCall::Function::kCountStar) {
@@ -125,8 +127,6 @@ struct GroupMerge {
 // a call costs once a batch rather than once a row.
 class AggregateFunction {
  public:
-  virtual ~AggregateFunction();
-
   // How many words of state each group keeps.
   virtual uint32_t state_words() const = 0;
   // Whether Update reads an input column (COUNT(*) doesn't).
@@ -168,10 +168,16 @@ class AggregateFunction {
                         uint32_t count,
                         int64_t* values,
                         BitVector* valid) const = 0;
+
+ protected:
+  // Made in the plan's Arena, which frees memory without calling destructors.
+  ~AggregateFunction() = default;
 };
 
-std::unique_ptr<AggregateFunction> MakeAggregateFunction(
-    AggregateCall::Function);
+// Makes the aggregate function of each of `calls`, in order, in `arena`.
+core::ArenaSpan<const AggregateFunction*> MakeAggregateFunctions(
+    core::Arena& arena,
+    base::Span<const AggregateCall> calls);
 
 // Writes `function`'s result for each of `groups` into a buffer from
 // `context` and returns it. Use ResultView to get a view of the buffer.

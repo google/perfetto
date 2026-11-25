@@ -49,8 +49,8 @@ Columns Aggregate(HashAggregateSpec spec,
                   std::vector<const RowBatch*> batches,
                   base::Status* status = nullptr) {
   test::BatchesSource source(std::move(batches));
-  test::AfterBreaker run(source, {},
-                         std::make_unique<HashAggregate>(std::move(spec)));
+  test::AfterBreaker run(
+      source, {}, std::make_unique<HashAggregate>(test::TestArena(), spec));
   Columns out;
   base::Status ended = run.Drain([&](const RowBatch& batch) {
     EXPECT_TRUE(out.empty());
@@ -85,9 +85,11 @@ TEST(HashAggregateTest, FoldsGroupsInTheOrderFirstSeen) {
         StorageType{Int64{}}, values.data(), &value_valid, at));
     in[i].SetRowCount(i == 0 ? 4 : 3);
   }
-  Columns out =
-      Aggregate(HashAggregateSpec{{0}, {{F::kCountStar, 0}, {F::kSum, 1}}},
-                {&in[0], &in[1]});
+  Columns out = Aggregate(
+      HashAggregateSpec{
+          test::InArena<uint32_t>({0}),
+          test::InArena<AggregateCall>({{F::kCountStar, 0}, {F::kSum, 1}})},
+      {&in[0], &in[1]});
   // Groups 3, 1, 2 and null. A sum of only nulls is null.
   EXPECT_THAT(out[0], ElementsAre(3, 1, 2, std::nullopt));
   EXPECT_THAT(out[1], ElementsAre(2, 2, 1, 2));
@@ -95,7 +97,8 @@ TEST(HashAggregateTest, FoldsGroupsInTheOrderFirstSeen) {
 }
 
 TEST(HashAggregateTest, NoKeysIsOneGroupEvenWithoutRows) {
-  HashAggregateSpec spec{{}, {{F::kCountStar, 0}, {F::kSum, 0}}};
+  HashAggregateSpec spec{
+      {}, test::InArena<AggregateCall>({{F::kCountStar, 0}, {F::kSum, 0}})};
   // With no rows, COUNT is 0 and SUM is null.
   Columns out = Aggregate(spec, {});
   EXPECT_THAT(out[0], ElementsAre(0));
@@ -125,13 +128,14 @@ TEST(HashAggregateTest, NoKeysFoldsEachBatchAtOnce) {
         ColumnView::Reference(StorageType{Int64{}}, values.data(), &valid, at));
     in[i].SetRowCount(i == 0 ? 4 : 3);
   }
-  Columns out = Aggregate(HashAggregateSpec{{},
-                                            {{F::kCountStar, 0},
-                                             {F::kCount, 0},
-                                             {F::kSum, 0},
-                                             {F::kMin, 0},
-                                             {F::kMax, 0}}},
-                          {&in[0], &in[1]});
+  Columns out = Aggregate(
+      HashAggregateSpec{{},
+                        test::InArena<AggregateCall>({{F::kCountStar, 0},
+                                                      {F::kCount, 0},
+                                                      {F::kSum, 0},
+                                                      {F::kMin, 0},
+                                                      {F::kMax, 0}})},
+      {&in[0], &in[1]});
   EXPECT_THAT(out[0], ElementsAre(7));
   EXPECT_THAT(out[1], ElementsAre(5));
   EXPECT_THAT(out[2], ElementsAre(-4));
@@ -150,7 +154,7 @@ TEST(HashAggregateTest, NoKeysSumFailsPastInt64) {
   in[1].AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, one.data()));
   in[1].SetRowCount(1);
-  HashAggregateSpec spec{{}, {{F::kSum, 0}}};
+  HashAggregateSpec spec{{}, test::InArena<AggregateCall>({{F::kSum, 0}})};
   base::Status status;
   Aggregate(spec, {&in[0]}, &status);
   EXPECT_TRUE(status.ok());

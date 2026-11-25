@@ -40,7 +40,9 @@ using ::testing::IsEmpty;
 
 // Runs batches of one Int64 column through a Distinct over it.
 struct Batches {
-  Batches() : op({0}), state(op.MakeState(test::TestContext())) {}
+  Batches()
+      : op(test::InArena<uint32_t>({0})),
+        state(op.MakeState(test::TestContext())) {}
 
   // The values kept from `values`, in order.
   std::vector<int64_t> Process(std::vector<int64_t> values) {
@@ -86,7 +88,7 @@ TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
       ColumnView::Reference(StorageType{String{}}, strings.data()));
   in.SetRowCount(5);
 
-  Distinct op({0, 1});
+  Distinct op(test::InArena<uint32_t>({0, 1}));
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -107,7 +109,7 @@ TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
       ColumnView::Reference(StorageType{Double{}}, values.data(), &valid));
   in.SetRowCount(5);
 
-  Distinct op({0});
+  Distinct op(test::InArena<uint32_t>({0}));
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -126,7 +128,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
   in.mutable_selection().Keep(
       base::Span<const uint32_t>(kept.data(), kept.data() + kept.size()));
 
-  Distinct op({0});
+  Distinct op(test::InArena<uint32_t>({0}));
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -145,7 +147,7 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
       ColumnView::Reference(StorageType{Double{}}, doubles.data()));
   of_doubles.SetRowCount(1);
 
-  Distinct op({0});
+  Distinct op(test::InArena<uint32_t>({0}));
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, of_ints, out, *state));

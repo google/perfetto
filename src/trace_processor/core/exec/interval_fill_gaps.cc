@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/interval_gaps.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -54,7 +55,7 @@ struct IntervalFillGaps::State : OperatorState {
                    spec.background,
                    IntervalInputName{kName, "the background"}),
         input(this, spec.input, IntervalInputName{kName, "the input"}),
-        keys(this, spec.input.key_columns) {}
+        keys(this, spec.input.key_columns.span()) {}
   ~State() override;
 
   Context* context;
@@ -99,34 +100,36 @@ struct IntervalFillGaps::State : OperatorState {
 
 IntervalFillGaps::State::~State() = default;
 
-IntervalFillGaps::IntervalFillGaps(IntervalFillGapsSpec spec)
-    : spec_(std::move(spec)) {
+IntervalFillGaps::IntervalFillGaps(core::Arena& arena,
+                                   IntervalFillGapsSpec spec)
+    : spec_(spec),
+      input_columns_(arena.NewSpan<uint32_t>(spec.outputs.size())),
+      filler_columns_(arena.NewSpan<FillerColumn>(spec.outputs.size())) {
   const auto& keys = spec_.input.key_columns;
   const auto& background_keys = spec_.background.lanes.key_columns;
   PERFETTO_CHECK(background_keys.empty() ||
                  background_keys.size() == keys.size());
   broadcast_ = !keys.empty() && background_keys.empty();
   shared_ = !keys.empty() && !broadcast_;
-  for (const IntervalFillGapsSpec::Output& output : spec_.outputs) {
-    input_columns_.push_back(output.input);
+  for (uint32_t i = 0; i < spec_.outputs.size(); ++i) {
+    const IntervalFillGapsSpec::Output& output = spec_.outputs[i];
+    input_columns_[i] = output.input;
     // ts and dur always come from the filler, not the background.
     auto key = std::find(keys.begin(), keys.end(), output.input);
     if (output.input == spec_.input.ts_column) {
-      filler_columns_.push_back({FillerSource::kTs, 0});
+      filler_columns_[i] = {FillerSource::kTs, 0};
     } else if (output.input == spec_.input.dur_column) {
-      filler_columns_.push_back({FillerSource::kDur, 0});
+      filler_columns_[i] = {FillerSource::kDur, 0};
     } else if (output.background != IntervalFillGapsSpec::Output::kNone) {
-      filler_columns_.push_back({FillerSource::kBackground, output.background});
+      filler_columns_[i] = {FillerSource::kBackground, output.background};
     } else if (broadcast_ && key != keys.end()) {
-      filler_columns_.push_back(
-          {FillerSource::kLaneKey, static_cast<uint32_t>(key - keys.begin())});
+      filler_columns_[i] = {FillerSource::kLaneKey,
+                            static_cast<uint32_t>(key - keys.begin())};
     } else {
-      filler_columns_.push_back({FillerSource::kNull, 0});
+      filler_columns_[i] = {FillerSource::kNull, 0};
     }
   }
 }
-
-IntervalFillGaps::~IntervalFillGaps() = default;
 
 std::unique_ptr<OperatorState> IntervalFillGaps::MakeState(
     Context& context) const {
@@ -237,7 +240,7 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
       s.shapes.push_back(ColumnShape::Of(in.column(output.input)));
     }
   }
-  out.Project(in, input_columns_);
+  out.Project(in, input_columns_.span());
   s.serving = !s.gaps.gaps().empty();
   return s.serving ? OpResult::kHaveMoreOutput : OpResult::kNeedMoreInput;
 }
@@ -291,7 +294,7 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
     s.keys.Gather(&s.gathered_keys, {rows, rows + count}, *s.context);
   }
 
-  for (size_t i = 0; i < spec_.outputs.size(); ++i) {
+  for (uint32_t i = 0; i < spec_.outputs.size(); ++i) {
     const FillerColumn& filler = filler_columns_[i];
     switch (filler.source) {
       case FillerSource::kTs:
@@ -307,9 +310,10 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
         if (!s.shapes.empty() &&
             !SameLogicalType(ColumnShape::Of(column), s.shapes[i])) {
           s.status = base::ErrStatus(
-              "%s: column '%s' holds a different type in the background than "
+              "%s: column '%.*s' holds a different type in the background than "
               "in the input",
-              kName, spec_.outputs[i].name.c_str());
+              kName, static_cast<int>(spec_.outputs[i].name.size()),
+              spec_.outputs[i].name.data());
           return OpResult::kError;
         }
         out.AddColumn(column, s.gathered.buffer(filler.index));

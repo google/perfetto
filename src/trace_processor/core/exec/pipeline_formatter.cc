@@ -112,7 +112,7 @@ std::string Unread(base::Span<const bool> unread) {
 std::string Lanes(const IntervalLaneSpec& lanes) {
   std::string out = Column(lanes.ts_column) + ", " + Column(lanes.dur_column);
   if (!lanes.key_columns.empty()) {
-    out += ", keys: " + Columns(lanes.key_columns) +
+    out += ", keys: " + Columns(lanes.key_columns.span()) +
            ", groups: " + Column(lanes.group_column);
   }
   return out;
@@ -127,7 +127,7 @@ std::string Keys(base::Span<const SortKey> keys) {
   return out;
 }
 
-std::string Aggregates(const std::vector<AggregateCall>& calls) {
+std::string Aggregates(base::Span<const AggregateCall> calls) {
   std::string out;
   for (const AggregateCall& call : calls) {
     std::string arg = Column(call.column);
@@ -286,7 +286,7 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<IntervalIntersect>()) {
     const auto& isect = static_cast<const IntervalIntersect&>(source);
     std::string out = "IntervalIntersect(";
-    for (size_t i = 0; i < isect.operands_.size(); ++i) {
+    for (uint32_t i = 0; i < isect.operands_.size(); ++i) {
       out += (i == 0 ? "" : "; ") + Lanes(isect.operands_[i].lanes);
     }
     return out + ")";
@@ -320,7 +320,8 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
   }
   if (transform.Is<Distinct>()) {
     return "Distinct(" +
-           Columns(static_cast<const Distinct&>(transform).columns_) + ")";
+           Columns(static_cast<const Distinct&>(transform).columns_.span()) +
+           ")";
   }
   if (transform.Is<Compute>()) {
     const auto& compute = static_cast<const Compute&>(transform);
@@ -361,13 +362,13 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     const auto& up = static_cast<const TreeAccumulateUp&>(transform);
     return "TreeAccumulateUp(" + Column(up.spec_.node_column) + ", " +
            Column(up.spec_.parent_column) + "; " +
-           Aggregates(up.spec_.aggregates) + ")";
+           Aggregates(up.spec_.aggregates.span()) + ")";
   }
   if (transform.Is<TreeAccumulateDown>()) {
     const auto& down = static_cast<const TreeAccumulateDown&>(transform);
     return "TreeAccumulateDown(" + Column(down.spec_.node_column) + ", " +
            Column(down.spec_.parent_column) + "; " +
-           Aggregates(down.spec_.aggregates) + ")";
+           Aggregates(down.spec_.aggregates.span()) + ")";
   }
   if (transform.Is<TreeKeyPaths>()) {
     const auto& paths = static_cast<const TreeKeyPaths&>(transform);
@@ -396,7 +397,7 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
         static_cast<const IntervalFlatten&>(op).spec_;
     std::string out = "IntervalFlatten(" + Lanes(spec.lanes);
     if (!spec.aggregates.empty()) {
-      out += "; " + Aggregates(spec.aggregates);
+      out += "; " + Aggregates(spec.aggregates.span());
     }
     return out + ")";
   }
@@ -446,8 +447,8 @@ std::string PipelineFormatter::BreakerString(const Breaker& breaker) {
   if (breaker.Is<HashAggregate>()) {
     const HashAggregateSpec& spec =
         static_cast<const HashAggregate&>(breaker).spec_;
-    return "HashAggregate(keys: " + Columns(spec.key_columns) + "; " +
-           Aggregates(spec.aggregates) + ")";
+    return "HashAggregate(keys: " + Columns(spec.key_columns.span()) + "; " +
+           Aggregates(spec.aggregates.span()) + ")";
   }
   if (breaker.Is<TreeChildFirst>()) {
     const auto& order = static_cast<const TreeChildFirst&>(breaker);

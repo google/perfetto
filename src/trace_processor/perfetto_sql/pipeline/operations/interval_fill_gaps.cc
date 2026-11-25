@@ -33,6 +33,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_fill_gaps.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -231,24 +232,28 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   spec.input.forever = true;
   spec.background.lanes = background.QueryIntervalLanes(
       fill.background_ts_, fill.background_dur_, fill.background_keys_);
-  for (const Output& output : fill.outputs_) {
+  core::Arena& arena = c->arena();
+  std::vector<uint32_t> retained;
+  spec.outputs = arena.NewSpan<ex::IntervalFillGapsSpec::Output>(
+      static_cast<uint32_t>(fill.outputs_.size()));
+  for (uint32_t i = 0; i < fill.outputs_.size(); ++i) {
+    const Output& output = fill.outputs_[i];
     ex::IntervalFillGapsSpec::Output lowered;
     lowered.input = c->QueryPosition(output.input);
     if (output.background) {
       // Only the background columns fillers take are kept.
-      lowered.background =
-          static_cast<uint32_t>(spec.background.retained_columns.size());
-      spec.background.retained_columns.push_back(
-          background.QueryPosition(*output.background));
+      lowered.background = static_cast<uint32_t>(retained.size());
+      retained.push_back(background.QueryPosition(*output.background));
     }
     const auto& column = c->plan().columns()[output.column];
     lowered.fallback =
         column.type.storage().value_or(core::StorageType{core::Int64{}});
-    lowered.name = c->plan().names().text(column.name);
-    spec.outputs.push_back(std::move(lowered));
+    lowered.name = arena.CopyString(c->plan().names().text(column.name));
+    spec.outputs[i] = lowered;
   }
+  spec.background.retained_columns = arena.CopySpan<uint32_t>(retained);
   spec.background.pipeline = background.FinishSide();
-  c->AddOperator(std::make_unique<ex::IntervalFillGaps>(std::move(spec)));
+  c->AddOperator(std::make_unique<ex::IntervalFillGaps>(arena, spec));
 }
 
 const OperationRegistration& IntervalFillGaps::registration() const {

@@ -107,9 +107,11 @@ struct Operand {
   explicit Operand(const TableSource& table) : source(&table) {
     spec.lanes.ts_column = 0;
     spec.lanes.dur_column = 1;
+    std::vector<uint32_t> retained;
     for (uint32_t c = 0; c < table.columns(); ++c) {
-      spec.retained_columns.push_back(c);
+      retained.push_back(c);
     }
+    spec.retained_columns = test::InArena(retained);
   }
   const TableSource* source;
   CollectedInputSpec spec;
@@ -149,7 +151,7 @@ Table Intersect(std::vector<Operand> operands, base::Status* status) {
     specs.push_back(operand.spec);
     specs.back().pipeline = test::AddStream(pipelines, *operand.source);
   }
-  IntervalIntersect intersect(std::move(specs));
+  IntervalIntersect intersect(test::InArena(specs));
   Context context;
   context.SetPipelines(&pipelines);
   std::unique_ptr<OperatorState> state = intersect.MakeState(context);

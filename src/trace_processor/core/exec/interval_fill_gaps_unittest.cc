@@ -96,18 +96,19 @@ IntervalFillGapsSpec MakeSpec(uint32_t background, bool keyed) {
   spec.input.dur_column = 1;
   spec.input.forever = true;
   if (keyed) {
-    spec.input.key_columns = {2};
+    spec.input.key_columns = test::InArena<uint32_t>({2});
     spec.input.group_column = 4;
   }
   spec.background.pipeline = background;
   spec.background.lanes.ts_column = 0;
   spec.background.lanes.dur_column = 1;
-  spec.background.retained_columns = {2};
+  spec.background.retained_columns = test::InArena<uint32_t>({2});
   constexpr uint32_t kNone = IntervalFillGapsSpec::Output::kNone;
-  spec.outputs = {{0, kNone, StorageType{Int64{}}, "ts"},
-                  {1, kNone, StorageType{Int64{}}, "dur"},
-                  {2, kNone, StorageType{Int64{}}, "key"},
-                  {3, 0, StorageType{Int64{}}, "value"}};
+  spec.outputs = test::InArena<IntervalFillGapsSpec::Output>(
+      {{0, kNone, StorageType{Int64{}}, "ts"},
+       {1, kNone, StorageType{Int64{}}, "dur"},
+       {2, kNone, StorageType{Int64{}}, "key"},
+       {3, 0, StorageType{Int64{}}, "value"}});
   return spec;
 }
 
@@ -116,7 +117,8 @@ IntervalFillGapsSpec MakeSpec(uint32_t background, bool keyed) {
 class Fill {
  public:
   Fill(const Source& background, bool keyed)
-      : op_(MakeSpec(test::AddStream(pipelines_, background), keyed)) {
+      : op_(test::TestArena(),
+            MakeSpec(test::AddStream(pipelines_, background), keyed)) {
     context_.SetPipelines(&pipelines_);
   }
 

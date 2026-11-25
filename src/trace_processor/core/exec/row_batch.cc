@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -65,7 +66,7 @@ void RowBatch::CopyFrom(const RowBatch& other) {
 }
 
 void RowBatch::Project(const RowBatch& other,
-                       const std::vector<uint32_t>& columns) {
+                       base::Span<const uint32_t> columns) {
   Reset();
   for (uint32_t column : columns) {
     AddColumn(other.column(column), other.buffer(column));

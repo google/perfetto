@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -212,7 +213,9 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   PERFETTO_DCHECK(!c->has_source());
   PERFETTO_DCHECK(operands_.size() == node.children().size());
   // Each operand is read from its own side pipeline.
-  std::vector<ex::CollectedInputSpec> inputs;
+  core::Arena& arena = c->arena();
+  auto inputs = arena.NewSpan<ex::CollectedInputSpec>(
+      static_cast<uint32_t>(operands_.size()));
   for (uint32_t i = 0; i < operands_.size(); i++) {
     const Operand& operand = operands_[i];
     Lowering& side = c->AddSidePipeline();
@@ -220,13 +223,11 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     ex::CollectedInputSpec lowered;
     lowered.lanes =
         side.QueryIntervalLanes(operand.ts, operand.dur, operand.keys);
-    for (ColumnId id : operand.carried) {
-      lowered.retained_columns.push_back(side.QueryPosition(id));
-    }
+    lowered.retained_columns = side.QueryPositions(operand.carried);
     lowered.pipeline = side.FinishSide();
-    inputs.push_back(std::move(lowered));
+    inputs[i] = lowered;
   }
-  c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
+  c->SetSource(std::make_unique<ex::IntervalIntersect>(inputs));
 }
 
 const OperationRegistration& IntervalIntersect::registration() const {

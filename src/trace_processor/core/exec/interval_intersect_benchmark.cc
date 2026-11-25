@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // Intersecting two inputs of intervals keyed 64 ways, over 100K rows each, and
 // over four rows, as when a small input is run over and over.
@@ -85,21 +86,25 @@ class Intervals final : public Source {
 };
 
 // Streams `source` in, as lowering plans an operand.
-CollectedInputSpec Operand(Pipelines& pipelines, const Intervals& source) {
+CollectedInputSpec Operand(core::Arena& arena,
+                           Pipelines& pipelines,
+                           const Intervals& source) {
   CollectedInputSpec operand;
   operand.pipeline = test::AddStream(pipelines, source);
   operand.lanes.ts_column = 0;
   operand.lanes.dur_column = 1;
-  operand.lanes.key_columns = {2};
-  operand.retained_columns = {2};
+  operand.lanes.key_columns = arena.CopySpan<uint32_t>({2});
+  operand.retained_columns = arena.CopySpan<uint32_t>({2});
   return operand;
 }
 
 void Run(benchmark::State& state, uint32_t rows) {
   Intervals a(rows);
   Intervals b(rows);
+  core::Arena arena;
   Pipelines pipelines;
-  IntervalIntersect intersect({Operand(pipelines, a), Operand(pipelines, b)});
+  IntervalIntersect intersect(arena.CopySpan<CollectedInputSpec>(
+      {Operand(arena, pipelines, a), Operand(arena, pipelines, b)}));
   // Before every batch and state, which hold its buffers.
   Context context;
   context.SetPipelines(&pipelines);

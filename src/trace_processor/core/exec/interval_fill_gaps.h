@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -47,8 +48,8 @@ struct IntervalFillGapsSpec {
     uint32_t background = kNone;
     // Type of the null column used if no input batch was seen.
     StorageType fallback{Int64{}};
-    // Column name, used in error messages.
-    std::string name;
+    // The column's name for error messages, stored in the plan's Arena.
+    std::string_view name;
   };
 
   // The input. A dur of -1 lasts forever.
@@ -58,7 +59,7 @@ struct IntervalFillGapsSpec {
   // none or those matching the input's, in the same order.
   CollectedInputSpec background;
 
-  std::vector<Output> outputs;
+  core::ArenaSpan<Output> outputs;
 };
 
 // INTERVAL FILL GAPS. Outputs every input row unchanged. Also outputs a
@@ -76,7 +77,7 @@ struct IntervalFillGapsSpec {
 //
 // Background rows in the same lane may not overlap. Fillers never have zero
 // duration. Output rows are in no particular order.
-class IntervalFillGaps : public Operator {
+class IntervalFillGaps final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
@@ -88,8 +89,7 @@ class IntervalFillGaps : public Operator {
     out->added = static_cast<uint32_t>(spec_.outputs.size());
   }
 
-  explicit IntervalFillGaps(IntervalFillGapsSpec);
-  ~IntervalFillGaps() override;
+  IntervalFillGaps(core::Arena&, IntervalFillGapsSpec);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
@@ -132,8 +132,8 @@ class IntervalFillGaps : public Operator {
   bool shared_;
 
   // The input column of each output, and where fillers take it from.
-  std::vector<uint32_t> input_columns_;
-  std::vector<FillerColumn> filler_columns_;
+  core::ArenaSpan<uint32_t> input_columns_;
+  core::ArenaSpan<FillerColumn> filler_columns_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

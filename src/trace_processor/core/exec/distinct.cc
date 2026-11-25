@@ -27,15 +27,13 @@
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-Distinct::Distinct(std::vector<uint32_t> columns)
-    : columns_(std::move(columns)) {
+Distinct::Distinct(core::ArenaSpan<uint32_t> columns) : columns_(columns) {
   PERFETTO_CHECK(!columns_.empty() && columns_.size() <= kMaxColumns);
 }
-
-Distinct::~Distinct() = default;
 
 Distinct::State::~State() = default;
 
@@ -56,7 +54,7 @@ bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
   s.row_keys.resize(count);
   uint32_t next = s.keys.size();
   if (std::optional<uint32_t> bad =
-          s.keys.FindOrCreate(batch, columns_, s.row_keys.data())) {
+          s.keys.FindOrCreate(batch, columns_.span(), s.row_keys.data())) {
     s.status = base::ErrStatus(
         "DISTINCT: key %u must be a column holding one type", *bad + 1);
     return false;

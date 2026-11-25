@@ -99,7 +99,7 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
     firsts_.Keep({firsts, firsts + first_rows_.size()});
     first_lanes_.resize(first_rows_.size());
     if (std::optional<uint32_t> bad = shared->FindOrCreate(
-            in, firsts_, spec_->key_columns, first_lanes_.data())) {
+            in, firsts_, spec_->key_columns.span(), first_lanes_.data())) {
       return base::ErrStatus(
           "%s's PER column %u must hold one type, the same in every input",
           Prefix(name_).c_str(), *bad + 1);
@@ -145,7 +145,7 @@ base::Status CollectedLanes::Collect(PipelineUse& input,
       Add(number, Interval{static_cast<Ts>(start), static_cast<Ts>(end),
                            first_row + row});
     }
-    retained_.Project(*batch, input_->retained_columns);
+    retained_.Project(*batch, input_->retained_columns.span());
     RETURN_IF_ERROR(rows_.Append(retained_, context));
   }
   RETURN_IF_ERROR(input.status());
@@ -205,7 +205,7 @@ base::Status LaneKeys::Hold(const RowBatch& in, Context& context) {
     RETURN_IF_ERROR(rows_.Append(carried_, context));
   }
   first_ = rows_.size();
-  retained_.Project(in, *key_columns_);
+  retained_.Project(in, key_columns_);
   return rows_.Append(retained_, context);
 }
 

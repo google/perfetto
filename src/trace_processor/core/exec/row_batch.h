@@ -24,6 +24,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -96,7 +97,7 @@ class RowBatch {
   void CopyFrom(const RowBatch& other);
 
   // Points this batch at `columns` of `other`, in that order, and its rows.
-  void Project(const RowBatch& other, const std::vector<uint32_t>& columns);
+  void Project(const RowBatch& other, base::Span<const uint32_t> columns);
 
   // Adds `view`, which is onto `buffer`: one filled for this batch, or one
   // another batch is onto, null if that borrows its storage.

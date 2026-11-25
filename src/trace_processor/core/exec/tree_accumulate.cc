@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -42,12 +43,11 @@ namespace {
 // node seen.
 class AccumulateState : public OperatorState {
  public:
-  AccumulateState(
-      Context& c,
-      const std::vector<std::unique_ptr<AggregateFunction>>& functions)
+  AccumulateState(Context& c,
+                  core::ArenaSpan<const AggregateFunction*> functions)
       : context(&c) {
     seen.resize(functions.size());
-    for (const auto& function : functions) {
+    for (const AggregateFunction* function : functions) {
       stride += function->state_words();
     }
   }
@@ -100,25 +100,15 @@ const uint32_t* Flatten(const ColumnView& column,
   return out;
 }
 
-std::vector<std::unique_ptr<AggregateFunction>> MakeFunctions(
-    const TreeAccumulateSpec& spec) {
-  std::vector<std::unique_ptr<AggregateFunction>> functions;
-  for (const AggregateCall& call : spec.aggregates) {
-    functions.push_back(MakeAggregateFunction(call.function));
-  }
-  return functions;
-}
-
 // Folds a batch of rows along the tree, appending each aggregate's column:
 // up adds each node's state into its parent's, rows child first; down adds
 // each parent's state into its node's, rows parent first. Either way every
 // row's node is complete by the time the batch is done.
-bool Accumulate(
-    const TreeAccumulateSpec& spec,
-    const std::vector<std::unique_ptr<AggregateFunction>>& functions,
-    bool up,
-    RowBatch& batch,
-    AccumulateState& s) {
+bool Accumulate(const TreeAccumulateSpec& spec,
+                core::ArenaSpan<const AggregateFunction*> functions,
+                bool up,
+                RowBatch& batch,
+                AccumulateState& s) {
   const ColumnView& node_column = batch.column(spec.node_column);
   const ColumnView& parent_column = batch.column(spec.parent_column);
   // TreeNumberNodes produces these columns.
@@ -196,13 +186,14 @@ bool Accumulate(
 
 }  // namespace
 
-TreeAccumulateUp::TreeAccumulateUp(TreeAccumulateSpec spec)
-    : spec_(std::move(spec)), functions_(MakeFunctions(spec_)) {}
-TreeAccumulateUp::~TreeAccumulateUp() = default;
+TreeAccumulateUp::TreeAccumulateUp(core::Arena& arena, TreeAccumulateSpec spec)
+    : spec_(spec),
+      functions_(MakeAggregateFunctions(arena, spec.aggregates.span())) {}
 
-TreeAccumulateDown::TreeAccumulateDown(TreeAccumulateSpec spec)
-    : spec_(std::move(spec)), functions_(MakeFunctions(spec_)) {}
-TreeAccumulateDown::~TreeAccumulateDown() = default;
+TreeAccumulateDown::TreeAccumulateDown(core::Arena& arena,
+                                       TreeAccumulateSpec spec)
+    : spec_(spec),
+      functions_(MakeAggregateFunctions(arena, spec.aggregates.span())) {}
 
 std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState(
     Context& context) const {

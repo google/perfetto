@@ -31,6 +31,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -143,12 +144,10 @@ OutputProperties IntervalFlatten::Derive(DeriveContext& c) const {
 
 void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
-  ex::IntervalFlattenSpec spec;
-  spec.lanes = c->QueryIntervalLanes(ts_, dur_, keys_);
-  for (const Aggregate& agg : aggregates_) {
-    spec.aggregates.push_back(LowerAggregate(c, agg));
-  }
-  c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
+  core::Arena& arena = c->arena();
+  ex::IntervalFlattenSpec spec{c->QueryIntervalLanes(ts_, dur_, keys_),
+                               LowerAggregates(c, aggregates_)};
+  c->AddOperator(std::make_unique<ex::IntervalFlatten>(arena, spec));
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

@@ -335,9 +335,7 @@ core::exec::IntervalLaneSpec Lowering::QueryIntervalLanes(
   }
   spec.ts_column = QueryPosition(ts);
   spec.dur_column = QueryPosition(dur);
-  for (ColumnId key : keys) {
-    spec.key_columns.push_back(QueryPosition(key));
-  }
+  spec.key_columns = QueryPositions(keys);
   return spec;
 }
 
