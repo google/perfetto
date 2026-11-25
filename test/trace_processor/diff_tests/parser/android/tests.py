@@ -534,20 +534,20 @@ class AndroidParser(TestSuite):
           2000,1200,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
         """))
 
-  def test_android_process_state_start_ts_after_earliest_event_stat(self):
+  def test_android_process_state_invalid_start_ts_stat(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_start_ts.textproto'),
         query="""
         SELECT name, idx, severity, source, value
         FROM stats
-        WHERE name = 'android_process_state_start_ts_after_earliest_event';
+        WHERE name = 'android_process_state_invalid_start_ts';
         """,
         out=Csv("""
           "name","idx","severity","source","value"
-          "android_process_state_start_ts_after_earliest_event","[NULL]","notice","analysis",1
+          "android_process_state_invalid_start_ts","[NULL]","notice","analysis",3
         """))
 
-  def test_android_process_state_start_ts_after_earliest_event_log(self):
+  def test_android_process_state_invalid_start_ts_logs(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_start_ts.textproto'),
         query="""
@@ -555,18 +555,24 @@ class AndroidParser(TestSuite):
           l.ts,
           l.severity,
           l.name,
+          extract_arg(l.arg_set_id, 'reason') AS reason,
+          extract_arg(l.arg_set_id, 'source') AS source,
+          extract_arg(l.arg_set_id, 'field') AS field,
           extract_arg(l.arg_set_id, 'pid') AS pid,
           extract_arg(l.arg_set_id, 'upid') = p.upid AS upid_matches,
-          extract_arg(l.arg_set_id, 'state_start_ts') AS state_start_ts,
-          extract_arg(l.arg_set_id, 'earliest_event_ts') AS earliest_event_ts
+          extract_arg(l.arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(l.arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(l.arg_set_id, 'start_ts') AS start_ts
         FROM _trace_import_logs AS l
         JOIN process AS p ON p.pid = extract_arg(l.arg_set_id, 'pid')
-        WHERE l.name = 'android_process_state_start_ts_after_earliest_event'
+        WHERE l.name = 'android_process_state_invalid_start_ts'
         ORDER BY l.ts, pid;
         """,
         out=Csv("""
-          "ts","severity","name","pid","upid_matches","state_start_ts","earliest_event_ts"
-          2000,"notice","android_process_state_start_ts_after_earliest_event",600,1,2500,2000
+          "ts","severity","name","reason","source","field","pid","upid_matches","event_ts","start_ns","start_ts"
+          2000,"notice","android_process_state_invalid_start_ts","after_event","process_state_changed","prev_proc_state_start_ns",600,1,2000,2500,2500
+          10000,"notice","android_process_state_invalid_start_ts","negative","process_dump","proc_state_start_ns",800,1,10000,-5,"[NULL]"
+          10000,"notice","android_process_state_invalid_start_ts","after_event","process_dump","proc_state_start_ns",900,1,10000,12000,12000
         """))
 
   def test_android_process_state_start_ts_after_died_event(self):
@@ -606,17 +612,125 @@ class AndroidParser(TestSuite):
           (
             SELECT value
             FROM stats
-            WHERE name = 'android_process_state_start_ts_after_earliest_event'
+            WHERE name = 'android_process_state_invalid_start_ts'
           ) AS stat_value,
+          extract_arg(arg_set_id, 'reason') AS reason,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'field') AS field,
           extract_arg(arg_set_id, 'pid') AS pid,
-          extract_arg(arg_set_id, 'state_start_ts') AS log_state_start_ts,
-          extract_arg(arg_set_id, 'earliest_event_ts') AS log_earliest_event_ts
+          extract_arg(arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(arg_set_id, 'start_ts') AS start_ts
         FROM _trace_import_logs
-        WHERE name = 'android_process_state_start_ts_after_earliest_event';
+        WHERE name = 'android_process_state_invalid_start_ts';
         """,
         out=Csv("""
-          "state_start_ts","stat_value","pid","log_state_start_ts","log_earliest_event_ts"
-          "[NULL]",1,100,2500,2000
+          "state_start_ts","stat_value","reason","source","field","pid","event_ts","start_ns","start_ts"
+          "[NULL]",1,"after_event","process_state_died","prev_proc_state_start_ns",100,2000,2500,2500
+        """))
+
+  def test_android_freezer_start_times_invalid_stat_and_log(self):
+    # Exercises PID 1400 in freezer_start_times.textproto under a MONOTONIC
+    # trace clock: event_ts and start_ts are in trace time while start_ns stays
+    # CLOCK_BOOTTIME. PIDs 1100 and 1300 have 0 (unknown) and must not warn.
+    return DiffTestBlueprint(
+        trace=Path('freezer_start_times.textproto'),
+        query="""
+        SELECT
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          l.ts,
+          extract_arg(l.arg_set_id, 'reason') AS reason,
+          extract_arg(l.arg_set_id, 'source') AS source,
+          extract_arg(l.arg_set_id, 'field') AS field,
+          extract_arg(l.arg_set_id, 'pid') AS pid,
+          extract_arg(l.arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(l.arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(l.arg_set_id, 'start_ts') AS start_ts
+        FROM _trace_import_logs AS l
+        WHERE l.name = 'android_process_state_invalid_start_ts'
+        ORDER BY l.ts, pid;
+        """,
+        out=Csv("""
+          "stat_value","ts","reason","source","field","pid","event_ts","start_ns","start_ts"
+          1,5500000000,"after_event","freezer_event","unfrozen_start_ns",1400,5500000000,6000000001,5500000001
+        """))
+
+  def test_android_freezer_dump_and_event_invalid_start_ts(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+            processes { pid: 300 ppid: 1 cmdline: "proc300" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "unfreeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 100
+              uid: 10001
+              frozen_dur_ms: 1
+              frozen_start_ns: -10
+              unfreeze_reason: UFR_NONE
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 200
+              uid: 10002
+              unfrozen_dur_ms: 1
+              unfrozen_start_ns: -20
+              unfreeze_reason: UFR_NONE
+            }
+            record {
+              pid: 300
+              uid: 10003
+              frozen_dur_ms: 1
+              frozen_start_ns: 6000
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          extract_arg(l.arg_set_id, 'reason') AS reason,
+          extract_arg(l.arg_set_id, 'source') AS source,
+          extract_arg(l.arg_set_id, 'field') AS field,
+          extract_arg(l.arg_set_id, 'pid') AS pid,
+          extract_arg(l.arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(l.arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(l.arg_set_id, 'start_ts') AS start_ts,
+          f.unfrozen_start_ts,
+          f.frozen_start_ts
+        FROM _trace_import_logs AS l
+        JOIN process AS p ON p.pid = extract_arg(l.arg_set_id, 'pid')
+        JOIN __intrinsic_android_freezer_state AS f ON f.upid = p.upid
+        WHERE l.name = 'android_process_state_invalid_start_ts'
+        ORDER BY l.ts, pid;
+        """,
+        out=Csv("""
+          "stat_value","reason","source","field","pid","event_ts","start_ns","start_ts","unfrozen_start_ts","frozen_start_ts"
+          3,"negative","freezer_event","frozen_start_ns",100,2000,-10,"[NULL]","[NULL]","[NULL]"
+          3,"negative","freezer_dump","unfrozen_start_ns",200,5000,-20,"[NULL]","[NULL]","[NULL]"
+          3,"after_event","freezer_dump","frozen_start_ns",300,5000,6000,6000,"[NULL]","[NULL]"
         """))
 
   def test_android_process_state_start_ts_clock_conversion(self):

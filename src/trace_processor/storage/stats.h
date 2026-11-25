@@ -84,14 +84,13 @@ namespace perfetto::trace_processor::stats {
       "trace-start dump (DUMP_REASON_START). Counted at most once per pid "    \
       "per importer; see trace_import_logs for the source, pid, process_name " \
       "and start_seq_id."),                                                    \
-  F(android_process_state_start_ts_after_earliest_event, kSingle, kNotice, kAnalysis, Scope::kMachineAndTrace, \
-      "system_server reported a proc_state start time later than the "         \
-      "process's earliest state event (its first state change, or its "        \
-      "process_state_died event if it never changed state), i.e. after that "  \
-      "state ended, so it was ignored and the initial interval starts at the " \
-      "process start (clamped to the trace start) instead. See "               \
-      "trace_import_logs for the pid, upid, state_start_ts and "               \
-      "earliest_event_ts."),                                                   \
+  F(android_process_state_invalid_start_ts,                                    \
+                                          kSingle,  kNotice,   kAnalysis, Scope::kMachineAndTrace,      \
+      "system_server reported an invalid Android process-state or freezer "    \
+      "start time (negative CLOCK_BOOTTIME or later than the event or "        \
+      "snapshot reporting it), so it was ignored. See trace_import_logs for "  \
+      "the reason, source, field, pid, upid, event_ts, start_ns and "          \
+      "start_ts."),                                                            \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
