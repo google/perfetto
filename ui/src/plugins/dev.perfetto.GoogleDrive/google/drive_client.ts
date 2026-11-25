@@ -111,6 +111,11 @@ export type DriveCreatePermission =
       readonly allowFileDiscovery: boolean;
     };
 
+export interface DriveUpdatePermission {
+  readonly role?: string;
+  readonly allowFileDiscovery?: boolean;
+}
+
 // The resource key (from the "Open with" state payload) is required to access
 // some link-shared files the user has not opened before. Drive expects it in
 // the X-Goog-Drive-Resource-Keys header as "<fileId>/<resourceKey>".
@@ -639,8 +644,7 @@ export class DriveClient {
     }
   }
 
-  // Creates (or updates in place for domain/anyone) a permission on a Drive
-  // file. Never rejects.
+  // Creates a permission on a Drive file. Never rejects.
   async createPermission(
     oauthToken: string,
     fileId: string,
@@ -652,18 +656,58 @@ export class DriveClient {
         cause: 'Invalid Google Drive file ID',
       });
     }
+    return this.mutatePermission(
+      oauthToken,
+      'POST',
+      `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      permission,
+    );
+  }
+
+  // Updates an existing permission on a Drive file in place (e.g. toggling
+  // `allowFileDiscovery` in either direction). Never rejects.
+  async updatePermission(
+    oauthToken: string,
+    fileId: string,
+    permissionId: string,
+    permission: DriveUpdatePermission,
+  ): Promise<Result<void, DriveError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    if (permissionId === '') {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive permission ID',
+      });
+    }
+    return this.mutatePermission(
+      oauthToken,
+      'PATCH',
+      `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}`,
+      permission,
+    );
+  }
+
+  private async mutatePermission(
+    oauthToken: string,
+    method: 'POST' | 'PATCH',
+    endpoint: string,
+    body: DriveCreatePermission | DriveUpdatePermission,
+  ): Promise<Result<void, DriveError>> {
     try {
-      const url = new URL(
-        `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
-      );
+      const url = new URL(endpoint);
       url.searchParams.set('supportsAllDrives', 'true');
       const response = await fetch(url, {
-        method: 'POST',
+        method,
         headers: {
           'Authorization': `Bearer ${oauthToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(permission),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
         const responseText = await response.text().catch(() => '');

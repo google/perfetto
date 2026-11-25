@@ -361,6 +361,51 @@
     background-color: var(--pf-color-background);
   }
 
+  &__permissions-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid
+      color-mix(in srgb, var(--pf-color-primary) 35%, transparent);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-primary) 12%,
+      transparent
+    );
+  }
+
+  &__info-icon {
+    font-size: 16px;
+    color: var(--pf-color-primary);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  &__info-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__info-text {
+    margin: 0;
+    font-size: var(--pf-font-size-s);
+    line-height: 1.4;
+    color: var(--pf-color-text);
+  }
+
+  &__info-action {
+    background-color: var(--pf-color-background);
+  }
+
+  &__searchable-bug-text {
+    margin-top: 6px;
+  }
+
   &__actions-row {
     display: flex;
     align-items: center;

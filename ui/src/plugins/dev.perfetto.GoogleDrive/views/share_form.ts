@@ -108,6 +108,15 @@ export interface ShareFormAttrs {
   readonly onRefreshPermissions: () => void;
   // Enables search discovery on link-only domain/anyone permissions.
   readonly onMakeSearchable: () => void;
+  // True after Perfetto automatically enabled search discovery on a domain
+  // share when the Google Drive sharing dialog closed.
+  readonly autoMadeSearchable?: boolean;
+  // Dismisses the auto-made-searchable info callout.
+  readonly onDismissAutoMadeSearchable?: () => void;
+  // Reverts automatically made-searchable domain permissions back to link-only.
+  readonly onRevertAutoMadeSearchable?: () => void;
+  // When true, includes internal Googler bug links in permission callouts.
+  readonly googlerOnlyFeatures?: boolean;
 }
 
 // The body of the "Share to Google Drive" dialog. It holds no state of its
@@ -191,7 +200,7 @@ function renderUploaded(attrs: ShareFormAttrs, fileId: string): m.Children {
     renderPermissions(attrs),
     m('.pf-gdrive-share__actions-row', [
       m(Button, {
-        label: isPrivate ? 'Share…' : 'Edit sharing',
+        label: 'Manage access…',
         icon: 'share',
         title: 'Choose who can open this file in Google Drive',
         variant: isPrivate ? ButtonVariant.Filled : ButtonVariant.Outlined,
@@ -249,7 +258,9 @@ function permissionSecondaryText(
         : undefined;
     case 'domain':
     case 'anyone':
-      return perm.allowFileDiscovery ? 'Searchable' : 'With link only';
+      return perm.allowFileDiscovery
+        ? 'Can find in search results'
+        : 'Must have link to access';
   }
 }
 
@@ -270,6 +281,26 @@ function permissionRoleLabel(role: string): string {
     default:
       return role;
   }
+}
+
+function renderSearchableBugLink(googlerOnlyFeatures?: boolean): m.Children {
+  if (!googlerOnlyFeatures) return undefined;
+  return [
+    m(
+      '.pf-gdrive-share__searchable-bug-text',
+      'This is due to a limitation in OnePick. See ',
+      m(
+        Anchor,
+        {
+          href: 'https://b.corp.google.com/issues/589689655',
+          target: '_blank',
+          rel: 'noopener',
+        },
+        'b/589689655',
+      ),
+      '.',
+    ),
+  ];
 }
 
 function renderPermissionsWarning(attrs: ShareFormAttrs): m.Children {
@@ -311,14 +342,14 @@ function renderPermissionsWarning(attrs: ShareFormAttrs): m.Children {
           className: 'pf-gdrive-share__warning-icon',
         }),
         m('.pf-gdrive-share__warning-body', [
-          m(
-            'p.pf-gdrive-share__warning-text',
-            'Recipients may not be able to open this Perfetto link unless they open the file in Drive first or you make it searchable.',
-          ),
+          m('p.pf-gdrive-share__warning-text', [
+            'Make this file searchable within your organization so recipients can open your Perfetto link more easily.',
+            renderSearchableBugLink(attrs.googlerOnlyFeatures),
+          ]),
           m(Button, {
             className: 'pf-gdrive-share__warning-action',
             label: 'Make searchable',
-            icon: 'search',
+            icon: 'manage_search',
             variant: ButtonVariant.Outlined,
             loading: loadingPermissions,
             disabled: loadingPermissions,
@@ -340,12 +371,45 @@ function renderPermissionsWarning(attrs: ShareFormAttrs): m.Children {
         icon: 'warning',
         className: 'pf-gdrive-share__warning-icon',
       }),
-      m(
-        'p.pf-gdrive-share__warning-text',
-        'Recipients may not be able to open this Perfetto link unless they open the file in Drive first.',
-      ),
+      m('p.pf-gdrive-share__warning-text', [
+        'Recipients opening this Perfetto link may have to open the file in Google Drive first before Perfetto can load it.',
+        renderSearchableBugLink(attrs.googlerOnlyFeatures),
+      ]),
     ],
   );
+}
+
+function renderAutoMadeSearchableInfo(attrs: ShareFormAttrs): m.Children {
+  if (!attrs.autoMadeSearchable) return undefined;
+  const {loadingPermissions} = attrs.state;
+  return m('.pf-gdrive-share__permissions-info', [
+    m(Icon, {
+      icon: 'info',
+      className: 'pf-gdrive-share__info-icon',
+    }),
+    m('.pf-gdrive-share__info-body', [
+      m('p.pf-gdrive-share__info-text', [
+        'Perfetto made this file searchable within your organization so recipients can open your Perfetto link more easily.',
+        renderSearchableBugLink(attrs.googlerOnlyFeatures),
+      ]),
+      attrs.onRevertAutoMadeSearchable &&
+        m(Button, {
+          className: 'pf-gdrive-share__info-action',
+          label: 'Change back to link-only',
+          icon: 'undo',
+          variant: ButtonVariant.Outlined,
+          loading: loadingPermissions,
+          disabled: loadingPermissions,
+          onclick: () => attrs.onRevertAutoMadeSearchable?.(),
+        }),
+    ]),
+    m(Button, {
+      icon: 'close',
+      compact: true,
+      title: 'Dismiss',
+      onclick: () => attrs.onDismissAutoMadeSearchable?.(),
+    }),
+  ]);
 }
 
 function renderPermissionItem(perm: DriveFilePermission): m.Children {
@@ -386,7 +450,8 @@ function renderPermissions(attrs: ShareFormAttrs): m.Children {
         loading: loadingPermissions,
         disabled: loadingPermissions,
         rounded: true,
-        title: 'Refresh sharing permissions from Google Drive',
+        title: 'Refresh sharing permissions',
+        tooltip: 'Refresh sharing permissions',
         onclick: () => attrs.onRefreshPermissions(),
       }),
     ]),
@@ -440,6 +505,7 @@ function renderPermissions(attrs: ShareFormAttrs): m.Children {
             general.map(renderPermissionItem),
           ),
       renderPermissionsWarning(attrs),
+      renderAutoMadeSearchableInfo(attrs),
     ],
   ]);
 }

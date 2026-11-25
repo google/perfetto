@@ -38,6 +38,7 @@ import {
   openGDriveSharingDialog,
   pickUploadFolder,
   refreshGDrivePermissions,
+  setGDriveDomainsSearchable,
   uploadTraceToGDrive,
 } from './share_to_gdrive';
 import {GDRIVE_PLUGIN_ID, parseGDriveTraceArgs} from './trace_args';
@@ -225,15 +226,8 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
     // every render, and the upload's progress reports trigger a redraw.
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      text: () =>
-        isSavedToDrive(share) ? 'Saved to GDrive' : 'Share to GDrive',
-      icon: () => {
-        if (share.upload !== undefined) return 'add_to_drive';
-        if (isSavedToDrive(share)) return 'cloud_done';
-        // The last action in the share dialog failed.
-        if (share.error !== undefined) return 'error';
-        return 'add_to_drive';
-      },
+      text: 'Share to GDrive',
+      icon: 'add_to_drive',
       // Right after CoreCommands' "Share" (50) and before "Download" (51), so
       // the ways of sharing the trace sit together.
       sortOrder: 50.5,
@@ -262,13 +256,14 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
 
         // Each action runs outside of any DOM event handler once it awaits, so
         // redraw when it finishes to show the outcome.
-        const redrawAfter = (action: Promise<void>) => {
+        const redrawAfter = (action: Promise<unknown>) => {
           action.finally(() => trace.raf.scheduleFullRedraw());
         };
 
         // Scopes any Drive sharing-dialog close observer to this modal's
         // lifetime so closing the modal disconnects the MutationObserver.
         const dialogAbort = new AbortController();
+        let autoMadeSearchableDomains: ReadonlyArray<string> = [];
 
         const savePermissionsDomains = (
           perms: ReadonlyArray<DriveFilePermission>,
@@ -280,6 +275,12 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
         };
 
         const openShareDialog = async () => {
+          autoMadeSearchableDomains = [];
+          const previousDomains = Array.isArray(share.permissions)
+            ? new Set(
+                extractDomainShares(share.permissions).map((d) => d.domain),
+              )
+            : undefined;
           const opened = await openGDriveSharingDialog(
             oauth,
             drive,
@@ -293,14 +294,38 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
             share,
             savePermissionsDomains,
           );
-          // Immediately enable search discovery on any link-only
-          // domain share the user just added, so Google Picker
-          // can find the file for recipients. Best effort: fail
-          // silently if it doesn't succeed.
-          await makeGDrivePermissionsSearchable(oauth, drive, share, {
-            onPermissionsLoaded: savePermissionsDomains,
-            silent: true,
-          });
+          // Immediately enable search discovery only on link-only domain
+          // shares the user just added (not domains that were already on the
+          // file, e.g. if they explicitly turned search off). Best effort:
+          // fail silently if it doesn't succeed.
+          if (previousDomains !== undefined) {
+            autoMadeSearchableDomains = await makeGDrivePermissionsSearchable(
+              oauth,
+              drive,
+              share,
+              {
+                onPermissionsLoaded: savePermissionsDomains,
+                silent: true,
+                excludeDomains: previousDomains,
+              },
+            );
+          }
+        };
+
+        const revertAutoMadeSearchable = async () => {
+          const reverted = await setGDriveDomainsSearchable(
+            oauth,
+            drive,
+            share,
+            false,
+            {
+              onPermissionsLoaded: savePermissionsDomains,
+              onlyDomains: new Set(autoMadeSearchableDomains),
+            },
+          );
+          if (reverted.length > 0) {
+            autoMadeSearchableDomains = [];
+          }
         };
 
         if (
@@ -357,6 +382,13 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
                     onPermissionsLoaded: savePermissionsDomains,
                   }),
                 ),
+              autoMadeSearchable: autoMadeSearchableDomains.length > 0,
+              onDismissAutoMadeSearchable: () => {
+                autoMadeSearchableDomains = [];
+              },
+              onRevertAutoMadeSearchable: () =>
+                redrawAfter(revertAutoMadeSearchable()),
+              googlerOnlyFeatures: trace.policy.googlerOnlyFeatures,
             }),
         });
       },

@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ShareForm, type ShareState} from './share_form';
+import {ShareForm, type ShareFormAttrs, type ShareState} from './share_form';
 
 function renderForm(
   stateOverrides: Partial<ShareState> = {},
   onRefreshPermissions = vi.fn(),
   onMakeSearchable = vi.fn(),
+  extraAttrs: Partial<ShareFormAttrs> = {},
 ): HTMLElement {
   const container = document.createElement('div');
   const state: ShareState = {
@@ -47,6 +48,7 @@ function renderForm(
       onOpenSharingDialog: vi.fn(),
       onRefreshPermissions,
       onMakeSearchable,
+      ...extraAttrs,
     }),
   );
   return container;
@@ -93,10 +95,10 @@ describe('ShareForm', () => {
     expect(items[0]).toContain('alice@example.com');
     expect(items[0]).toContain('Owner');
     expect(items[1]).toContain('Google');
-    expect(items[1]).toContain('Searchable');
+    expect(items[1]).toContain('Can find in search results');
     expect(items[1]).toContain('Viewer');
     expect(items[2]).toContain('Anyone on the internet');
-    expect(items[2]).toContain('With link only');
+    expect(items[2]).toContain('Must have link to access');
 
     const refreshBtn = container.querySelector<HTMLButtonElement>(
       'button[title*="Refresh"]',
@@ -208,5 +210,52 @@ describe('ShareForm', () => {
     );
     expect(checkbox?.checked).toBe(true);
     expect(withDefaults.textContent).toContain('Also share with Google');
+  });
+
+  test('shows dismissible info callout when autoMadeSearchable is true', () => {
+    const onDismiss = vi.fn();
+    const onRevert = vi.fn();
+    const container = renderForm(
+      {fileId: 'file123', permissions: []},
+      vi.fn(),
+      vi.fn(),
+      {
+        autoMadeSearchable: true,
+        onDismissAutoMadeSearchable: onDismiss,
+        onRevertAutoMadeSearchable: onRevert,
+      },
+    );
+    const callout = container.querySelector(
+      '.pf-gdrive-share__permissions-info',
+    );
+    expect(callout).not.toBeNull();
+    expect(callout?.textContent).toContain('searchable');
+
+    const revertBtn = callout?.querySelector<HTMLButtonElement>(
+      '.pf-gdrive-share__info-action',
+    );
+    expect(revertBtn?.textContent).toContain('Change back to link-only');
+    revertBtn!.click();
+    expect(onRevert).toHaveBeenCalledTimes(1);
+
+    const dismissBtn = callout?.querySelector<HTMLButtonElement>(
+      'button[title="Dismiss"]',
+    );
+    expect(dismissBtn).not.toBeNull();
+    dismissBtn!.click();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(callout?.querySelector('a')).toBeNull();
+
+    const withBugLink = renderForm(
+      {fileId: 'file123', permissions: []},
+      vi.fn(),
+      vi.fn(),
+      {autoMadeSearchable: true, googlerOnlyFeatures: true},
+    );
+    const link = withBugLink.querySelector<HTMLAnchorElement>(
+      '.pf-gdrive-share__permissions-info a',
+    );
+    expect(link?.textContent).toBe('b/589689655');
+    expect(link?.href).toBe('https://b.corp.google.com/issues/589689655');
   });
 });

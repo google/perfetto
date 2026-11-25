@@ -298,38 +298,53 @@ export async function refreshGDrivePermissions(
   }
 }
 
-export interface MakeSearchableOptions {
+export interface SetDomainSearchableOptions {
   readonly onPermissionsLoaded?: (
     permissions: ReadonlyArray<DriveFilePermission>,
   ) => void;
   // When true, failures are ignored instead of recording `share.error`
   // (best-effort update after closing the sharing dialog).
   readonly silent?: boolean;
+  // Domains to leave untouched (e.g. domains that were already on the file
+  // before the user opened the sharing dialog).
+  readonly excludeDomains?: ReadonlySet<string>;
+  // When provided, only update permissions matching these domains.
+  readonly onlyDomains?: ReadonlySet<string>;
 }
 
-// Enables search discovery (allowFileDiscovery: true) on any existing
-// link-only domain permissions on the file, then refreshes permissions.
-// Deliberately skips `type: 'anyone'` so link-shared files are never turned
-// into publicly searchable web files.
-export async function makeGDrivePermissionsSearchable(
+// Sets search discovery (`allowFileDiscovery`) on matching domain permissions
+// on the file, then refreshes permissions. Deliberately skips `type: 'anyone'`
+// so link-shared files are never turned into publicly searchable web files.
+// Returns the list of domains that were updated.
+export async function setGDriveDomainsSearchable(
   oauth: GoogleOAuthClient,
   drive: DriveClient,
   share: ShareState,
-  options: MakeSearchableOptions = {},
-): Promise<void> {
-  const {onPermissionsLoaded, silent = false} = options;
+  allowFileDiscovery: boolean,
+  options: SetDomainSearchableOptions = {},
+): Promise<ReadonlyArray<string>> {
+  const {
+    onPermissionsLoaded,
+    silent = false,
+    excludeDomains,
+    onlyDomains,
+  } = options;
   const fileId = share.fileId;
-  if (fileId === undefined || fileId === '' || share.loadingPermissions) return;
-  const unsearchable =
+  if (fileId === undefined || fileId === '' || share.loadingPermissions) {
+    return [];
+  }
+  const targets =
     share.permissions !== undefined && share.permissions !== 'access_denied'
       ? share.permissions.filter(
           (p): p is DriveFilePermission & {readonly domain: string} =>
             p.type === 'domain' &&
             p.domain !== undefined &&
-            p.allowFileDiscovery !== true,
+            Boolean(p.allowFileDiscovery) !== allowFileDiscovery &&
+            !excludeDomains?.has(p.domain) &&
+            (onlyDomains === undefined || onlyDomains.has(p.domain)),
         )
       : [];
-  if (unsearchable.length === 0) return;
+  if (targets.length === 0) return [];
 
   share.loadingPermissions = true;
   if (!silent) {
@@ -342,31 +357,31 @@ export async function makeGDrivePermissionsSearchable(
       if (!silent) {
         share.error = {message: describeAuthFailure(auth.error), ...auth.error};
       }
-      return;
+      return [];
     }
 
-    let anyUpdated = false;
-    for (const perm of unsearchable) {
-      const res = await drive.createPermission(auth.value, fileId, {
-        type: 'domain',
-        domain: perm.domain,
+    const updatedDomains: string[] = [];
+    for (const perm of targets) {
+      const res = await drive.updatePermission(auth.value, fileId, perm.id, {
         role: perm.role,
-        allowFileDiscovery: true,
+        allowFileDiscovery,
       });
       if (!res.ok) {
         if (!silent) {
           share.error = {
-            message: "Couldn't make this trace searchable in Google Drive.",
+            message: allowFileDiscovery
+              ? "Couldn't make this trace searchable in Google Drive."
+              : "Couldn't change this trace back to link-only in Google Drive.",
             ...res.error,
           };
-          return;
+          return updatedDomains;
         }
         continue;
       }
-      anyUpdated = true;
+      updatedDomains.push(perm.domain);
     }
 
-    if (!anyUpdated) return;
+    if (updatedDomains.length === 0) return [];
 
     const updated = await drive.getPermissions(
       auth.value,
@@ -377,7 +392,17 @@ export async function makeGDrivePermissionsSearchable(
       share.permissions = updated.value;
       onPermissionsLoaded?.(updated.value);
     }
+    return updatedDomains;
   } finally {
     share.loadingPermissions = false;
   }
+}
+
+export function makeGDrivePermissionsSearchable(
+  oauth: GoogleOAuthClient,
+  drive: DriveClient,
+  share: ShareState,
+  options: SetDomainSearchableOptions = {},
+): Promise<ReadonlyArray<string>> {
+  return setGDriveDomainsSearchable(oauth, drive, share, true, options);
 }
