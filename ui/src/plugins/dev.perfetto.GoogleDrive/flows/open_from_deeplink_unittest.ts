@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {errResult, okResult, type Result} from '../../../base/result';
 import type {App} from '../../../public/app';
 import type {Setting} from '../../../public/settings';
