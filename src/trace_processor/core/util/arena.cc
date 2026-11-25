@@ -61,10 +61,11 @@ void* Arena::Allocate(size_t size, size_t align) {
 }
 
 std::string_view Arena::CopyString(std::string_view chars) {
-  auto* data = static_cast<char*>(Allocate(chars.size(), 1));
+  auto* data = static_cast<char*>(Allocate(chars.size() + 1, 1));
   if (!chars.empty()) {
     memcpy(data, chars.data(), chars.size());
   }
+  data[chars.size()] = '\0';
   return {data, chars.size()};
 }
 

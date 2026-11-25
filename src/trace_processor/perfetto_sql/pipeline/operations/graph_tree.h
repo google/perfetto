@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_GRAPH_TREE_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -34,7 +33,7 @@ class PlanNode;
 // `GRAPH BFS | DFS | DOMINATOR TREE NODES rel EDGES rel FROM rel`. A source:
 // the rows are the nodes reachable from the seeds, each with the id of its
 // parent in the tree. The children are the nodes, the edges and the seeds.
-class GraphTree : public PlanOperation {
+class GraphTree final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -54,7 +53,7 @@ class GraphTree : public PlanOperation {
   core::exec::GraphTreeSpec::Kind kind_ = core::exec::GraphTreeSpec::Kind::kBfs;
   ColumnId node_ = 0;
   // The node columns passed on to the rows out, in the nodes' order.
-  std::vector<ColumnId> carried_;
+  core::ArenaSpan<ColumnId> carried_;
   ColumnId source_ = 0;
   ColumnId target_ = 0;
   ColumnId seed_ = 0;

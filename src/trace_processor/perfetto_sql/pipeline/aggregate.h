@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -47,21 +48,21 @@ struct Aggregate {
 
 // Drops the aggregates whose outputs aren't `needed`, and marks the columns
 // the rest read.
-void PruneAggregates(std::vector<Aggregate>* aggregates,
+void PruneAggregates(core::ArenaSpan<Aggregate>* aggregates,
                      std::vector<bool>* needed);
 
 // What `aggregates` need of the rows they read.
-void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
+void AddAggregateNeeds(base::Span<const Aggregate> aggregates,
                        InputNeeds* needs);
 
 // Returns the executor's calls for `aggregates`, with each column at its
 // lowered position.
 core::ArenaSpan<core::exec::AggregateCall> LowerAggregates(
     Lowering* c,
-    const std::vector<Aggregate>& aggregates);
+    base::Span<const Aggregate> aggregates);
 
 // Writes or reads the aggregates.
-void SerializeAggregates(PlanCodec& c, std::vector<Aggregate>* aggregates);
+void SerializeAggregates(PlanCodec& c, core::ArenaSpan<Aggregate>* aggregates);
 
 }  // namespace perfetto::trace_processor::pipeline
 

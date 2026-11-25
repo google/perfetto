@@ -87,8 +87,14 @@ core::Op CoreComparison(Op op) {
   return core::Ge{};
 }
 
+// An expression as it is compiled, before it is copied into the plan.
+struct Draft {
+  std::vector<ex::ExprStep> nodes;
+  std::vector<Literal> literals;
+};
+
 // Appends a node and returns its index.
-uint32_t Push(Expr* e, ex::ExprStep node) {
+uint32_t Push(Draft* e, ex::ExprStep node) {
   e->nodes.push_back(node);
   return static_cast<uint32_t>(e->nodes.size() - 1);
 }
@@ -106,7 +112,7 @@ ex::ExprStep Node2(Op op, uint32_t a, uint32_t b) {
 // -----------------------------------------------------------------------------
 
 // Appends a constant holding `literal`.
-uint32_t PushConstant(Expr* e, Literal literal) {
+uint32_t PushConstant(Draft* e, Literal literal) {
   ex::ExprStep node;
   node.op = Op::kConstant;
   node.a = static_cast<uint32_t>(e->literals.size());
@@ -145,14 +151,14 @@ std::optional<Op> BinaryOp(SyntaqliteBinaryOp op) {
   }
 }
 
-base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e);
+base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Draft* e);
 
 // Appends the nodes of the coalesce, ifnull or iif at `at`.
 base::Status CompileFunction(Compiler* c,
                              uint32_t at,
                              const SyntaqliteFunctionCall& n,
                              uint32_t depth,
-                             Expr* e) {
+                             Draft* e) {
   std::string name = base::ToLower(SpanText(c->parser(), n.func_name));
   bool iif = name == "iif";
   bool ifnull = name == "ifnull";
@@ -194,7 +200,7 @@ base::Status CompileFunction(Compiler* c,
 }
 
 // Appends the nodes of the expression at `at`, its result last.
-base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Expr* e) {
+base::Status Compile(Compiler* c, uint32_t at, uint32_t depth, Draft* e) {
   if (depth > kMaxDepth) {
     return c->Unsupported(at, "an expression this deeply nested");
   }
@@ -633,7 +639,7 @@ class Typer {
       step.type = Type::kInt64;
       step.a = regs_[node.a];
       step.b = static_cast<uint32_t>(program_->patterns.size());
-      program_->patterns.push_back(expr_->literals[node.b].text);
+      program_->patterns.emplace_back(expr_->literals[node.b].text);
       *reg = Add(step);
     }
     return Kind::kInt64;
@@ -681,7 +687,11 @@ base::StatusOr<bool> CompileIsNull(Compiler* c,
 }
 
 base::Status CompileExpr(Compiler* c, uint32_t expr, Expr* out) {
-  return Compile(c, expr, 0, out);
+  Draft draft;
+  RETURN_IF_ERROR(Compile(c, expr, 0, &draft));
+  out->nodes = c->arena().CopySpan<ex::ExprStep>(draft.nodes);
+  out->literals = c->arena().CopySpan<Literal>(draft.literals);
+  return base::OkStatus();
 }
 
 base::StatusOr<PlanType> CheckExprType(const Compiler& c, const Expr& e) {
@@ -724,14 +734,14 @@ base::StatusOr<TypedExpr> TypeExpr(const OutputProperties& rows,
 
 void SerializeExpr(PlanCodec& c, Expr* e) {
   // A step has padding, so its fields are copied one at a time.
-  e->nodes.resize(c.Count(e->nodes.size()));
+  c.Resize(&e->nodes);
   for (ex::ExprStep& node : e->nodes) {
     c.Pod(&node.op);
     c.Pod(&node.a);
     c.Pod(&node.b);
     c.Pod(&node.c);
   }
-  e->literals.resize(c.Count(e->literals.size()));
+  c.Resize(&e->literals);
   for (Literal& literal : e->literals) {
     SerializeLiteral(c, &literal);
   }

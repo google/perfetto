@@ -29,13 +29,10 @@
 
 namespace perfetto::trace_processor::pipeline {
 
-void PruneAggregates(std::vector<Aggregate>* aggregates,
+void PruneAggregates(core::ArenaSpan<Aggregate>* aggregates,
                      std::vector<bool>* needed) {
-  aggregates->erase(std::remove_if(aggregates->begin(), aggregates->end(),
-                                   [&](const Aggregate& agg) {
-                                     return !(*needed)[agg.output];
-                                   }),
-                    aggregates->end());
+  aggregates->RemoveIf(
+      [&](const Aggregate& agg) { return !(*needed)[agg.output]; });
   for (const Aggregate& agg : *aggregates) {
     if (agg.reads_column()) {
       (*needed)[agg.column] = true;
@@ -43,7 +40,7 @@ void PruneAggregates(std::vector<Aggregate>* aggregates,
   }
 }
 
-void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
+void AddAggregateNeeds(base::Span<const Aggregate> aggregates,
                        InputNeeds* needs) {
   for (const Aggregate& agg : aggregates) {
     if (agg.reads_column()) {
@@ -54,11 +51,11 @@ void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
 
 core::ArenaSpan<core::exec::AggregateCall> LowerAggregates(
     Lowering* c,
-    const std::vector<Aggregate>& aggregates) {
+    base::Span<const Aggregate> aggregates) {
   auto calls = c->arena().NewSpan<core::exec::AggregateCall>(
       static_cast<uint32_t>(aggregates.size()));
   for (uint32_t i = 0; i < aggregates.size(); ++i) {
-    const Aggregate& agg = aggregates[i];
+    const Aggregate& agg = aggregates.b[i];
     core::exec::AggregateCall call;
     call.function = agg.function;
     if (agg.reads_column()) {
@@ -74,7 +71,7 @@ core::ArenaSpan<core::exec::AggregateCall> LowerAggregates(
   return calls;
 }
 
-void SerializeAggregates(PlanCodec& c, std::vector<Aggregate>* aggregates) {
+void SerializeAggregates(PlanCodec& c, core::ArenaSpan<Aggregate>* aggregates) {
   c.Vec(aggregates);
 }
 

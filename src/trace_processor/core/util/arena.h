@@ -140,7 +140,7 @@ class Arena {
     return CopySpan<T>({values.begin(), values.end()});
   }
 
-  // A copy of `chars`.
+  // A copy of `chars`, followed by a NUL so its data() is a C string.
   std::string_view CopyString(std::string_view chars);
 
   // Allocates `size` bytes aligned to `align`. Kept out of line, so each

@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -95,27 +94,27 @@ base::Status GraphTree::BuildPlan(Compiler* c, uint32_t node) {
   // The tree's parent_id is what a parent_id means after this, so a node
   // column of that name is not carried.
   NameId parent_name = c->Name("parent_id");
+  std::vector<ColumnId> carried;
   for (NamedColumn& column : nodes.columns) {
     if (c->Same(column.name, parent_name)) {
       continue;
     }
-    tree.carried_.push_back(column.id);
+    carried.push_back(column.id);
     c->Append(std::move(column), n->nodes);
   }
+  tree.carried_ = c->arena().CopySpan<ColumnId>(carried);
   if (std::optional<NameId> qualifier = Scan::SourceQualifier(
           c, *Node<SyntaqlitePerfettoPipeSource>(c->parser(), n->nodes))) {
     c->AddAlias(*qualifier, 0);
   }
   tree.parent_ = c->AddColumn(parent_name, core::Int64{});
   c->Append({parent_name, tree.parent_}, node);
-  c->AddNode(std::move(tree), {nodes.node, edges.node, seeds.node});
+  c->AddNode(tree, {nodes.node, edges.node, seeds.node});
   return base::OkStatus();
 }
 
 std::optional<uint32_t> GraphTree::Prune(std::vector<bool>* needed) {
-  carried_.erase(std::remove_if(carried_.begin(), carried_.end(),
-                                [&](ColumnId id) { return !(*needed)[id]; }),
-                 carried_.end());
+  carried_.RemoveIf([&](ColumnId id) { return !(*needed)[id]; });
   (*needed)[node_] = true;
   (*needed)[source_] = true;
   (*needed)[target_] = true;

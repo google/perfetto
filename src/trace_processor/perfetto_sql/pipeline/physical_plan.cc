@@ -329,7 +329,7 @@ void Lowering::Apply(const input_step::Convert& step) {
 core::exec::IntervalLaneSpec Lowering::QueryIntervalLanes(
     ColumnId ts,
     ColumnId dur,
-    const std::vector<ColumnId>& keys) const {
+    base::Span<const ColumnId> keys) const {
   core::exec::IntervalLaneSpec spec;
   if (!keys.empty()) {
     spec.group_column = QueryPosition(*rows_->GroupNumbersOf(keys));
@@ -371,6 +371,12 @@ std::optional<uint32_t> Lowering::TakeParam(const PlanNode& node,
   if (value.state == PlannedParam::State::kNone) {
     return std::nullopt;
   }
+  // Cursors cast the literals again, after the logical plan is gone.
+  for (Literal& literal : value.literals) {
+    if (literal.is_string()) {
+      literal.text = arena().CopyString(literal.text);
+    }
+  }
   PhysicalPlan& out = *plan_->out_;
   auto index = static_cast<uint32_t>(out.params_.size());
   out.params_.push_back(std::move(value.value));
@@ -391,7 +397,7 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
 }
 
 core::ArenaSpan<uint32_t> Lowering::QueryPositions(
-    const std::vector<ColumnId>& ids) const {
+    base::Span<const ColumnId> ids) const {
   auto positions = arena().NewSpan<uint32_t>(static_cast<uint32_t>(ids.size()));
   for (uint32_t i = 0; i < ids.size(); ++i) {
     positions[i] = QueryPosition(ids[i]);

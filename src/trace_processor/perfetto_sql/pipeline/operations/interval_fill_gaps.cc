@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -75,6 +74,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   };
   ASSIGN_OR_RETURN(fill.ts_, c->Resolve(ts_name, stage));
   ASSIGN_OR_RETURN(fill.dur_, c->Resolve(dur_name, stage));
+  std::vector<ColumnId> keys;
   std::vector<NameId> per;
   if (syntaqlite_node_is_present(n->per)) {
     const auto* list =
@@ -85,11 +85,10 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
           c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
       // A PER column listed again adds nothing to the grouping.
-      if (std::find(fill.keys_.begin(), fill.keys_.end(), key) !=
-          fill.keys_.end()) {
+      if (std::find(keys.begin(), keys.end(), key) != keys.end()) {
         continue;
       }
-      fill.keys_.push_back(key);
+      keys.push_back(key);
       per.push_back(name);
     }
   }
@@ -106,13 +105,13 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   }
   fill.background_ts_ = *ts;
   fill.background_dur_ = *dur;
+  std::vector<ColumnId> background_keys;
   for (NameId name : per) {
     if (std::optional<ColumnId> key = c->FindColumn(background.columns, name)) {
-      fill.background_keys_.push_back(*key);
+      background_keys.push_back(*key);
     }
   }
-  if (!fill.background_keys_.empty() &&
-      fill.background_keys_.size() != fill.keys_.size()) {
+  if (!background_keys.empty() && background_keys.size() != keys.size()) {
     return c->Expected(n->background,
                        "the background to have every PER column or none");
   }
@@ -123,6 +122,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   std::vector<Compiler::RowColumn> row;
   std::vector<std::pair<ColumnId, ColumnId>> replaced;
   std::vector<ColumnId> matched;
+  std::vector<Output> outputs;
   for (const Compiler::RowColumn& column : c->row()) {
     Output output;
     output.input = column.column.id;
@@ -143,7 +143,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
       matched.push_back(*output.background);
     }
     output.column = c->AddColumn(column.column.name, *type);
-    fill.outputs_.push_back(output);
+    outputs.push_back(output);
     replaced.emplace_back(column.column.id, output.column);
     Compiler::RowColumn out = column;
     out.column.id = output.column;
@@ -159,16 +159,16 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   // Aliases still refer to their columns.
   c->ReplaceRow(std::move(row));
   c->ReplaceAliasColumns(replaced);
-  c->AddNode(std::move(fill), {input, background.node});
+  fill.keys_ = c->arena().CopySpan<ColumnId>(keys);
+  fill.background_keys_ = c->arena().CopySpan<ColumnId>(background_keys);
+  fill.outputs_ = c->arena().CopySpan<Output>(outputs);
+  c->AddNode(fill, {input, background.node});
   return base::OkStatus();
 }
 
 std::optional<uint32_t> IntervalFillGaps::Prune(std::vector<bool>* needed) {
-  outputs_.erase(std::remove_if(outputs_.begin(), outputs_.end(),
-                                [&](const Output& output) {
-                                  return !(*needed)[output.column];
-                                }),
-                 outputs_.end());
+  outputs_.RemoveIf(
+      [&](const Output& output) { return !(*needed)[output.column]; });
   // ts, dur and the PER columns on both sides decide where the fillers go.
   for (ColumnId id : {ts_, dur_, background_ts_, background_dur_}) {
     (*needed)[id] = true;
@@ -189,9 +189,9 @@ std::optional<uint32_t> IntervalFillGaps::Prune(std::vector<bool>* needed) {
 }
 
 InputNeeds IntervalFillGaps::Needs(uint32_t input) const {
-  return input == 0 ? IntervalLaneNeeds(ts_, dur_, keys_)
+  return input == 0 ? IntervalLaneNeeds(ts_, dur_, keys_.span())
                     : IntervalLaneNeeds(background_ts_, background_dur_,
-                                        background_keys_);
+                                        background_keys_.span());
 }
 
 std::vector<std::vector<InputColumn>> IntervalFillGaps::CommonTypes() const {
@@ -204,7 +204,7 @@ std::vector<std::vector<InputColumn>> IntervalFillGaps::CommonTypes() const {
   }
   // PER columns are numbered in one table, so both sides need one type even
   // if they are not output.
-  for (size_t k = 0; k < background_keys_.size(); ++k) {
+  for (uint32_t k = 0; k < background_keys_.size(); ++k) {
     common.push_back({{0, keys_[k]}, {1, background_keys_[k]}});
   }
   return common;
@@ -228,10 +228,10 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   background.LowerInput(node, 1);
 
   ex::IntervalFillGapsSpec spec;
-  spec.input = c->QueryIntervalLanes(fill.ts_, fill.dur_, fill.keys_);
+  spec.input = c->QueryIntervalLanes(fill.ts_, fill.dur_, fill.keys_.span());
   spec.input.forever = true;
   spec.background.lanes = background.QueryIntervalLanes(
-      fill.background_ts_, fill.background_dur_, fill.background_keys_);
+      fill.background_ts_, fill.background_dur_, fill.background_keys_.span());
   core::Arena& arena = c->arena();
   std::vector<uint32_t> retained;
   spec.outputs = arena.NewSpan<ex::IntervalFillGapsSpec::Output>(
@@ -267,7 +267,7 @@ void IntervalFillGaps::Serialize(PlanCodec& c) {
   c.Pod(&background_ts_);
   c.Pod(&background_dur_);
   c.Vec(&background_keys_);
-  outputs_.resize(c.Count(outputs_.size()));
+  c.Resize(&outputs_);
   PERFETTO_NO_VECTORIZE_LOOP
   for (Output& output : outputs_) {
     c.Pod(&output.column);

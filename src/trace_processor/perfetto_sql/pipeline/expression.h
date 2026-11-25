@@ -25,6 +25,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
@@ -52,8 +53,8 @@ class PlanCodec;
 // differently: arithmetic on strings is an error, and an integer overflow
 // fails the query where SQLite would answer with a double.
 struct Expr {
-  std::vector<core::exec::ExprStep> nodes;
-  std::vector<Literal> literals;
+  core::ArenaSpan<core::exec::ExprStep> nodes;
+  core::ArenaSpan<Literal> literals;
 };
 
 // Whether the IS at AST node `expr` is IS NULL rather than IS NOT NULL.
@@ -62,7 +63,8 @@ base::StatusOr<bool> CompileIsNull(Compiler*,
                                    uint32_t expr,
                                    const SyntaqliteIsExpr& node);
 
-// Compiles the expression at AST node `expr` against the row in scope.
+// Compiles the expression at AST node `expr` against the row in scope, into
+// the plan's arena.
 base::Status CompileExpr(Compiler*, uint32_t expr, Expr* out);
 
 // The type of `expr`, checked as far as the column types known when the plan

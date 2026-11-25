@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/dataframe_windows.h"
@@ -100,14 +101,13 @@ struct OutputProperties {
                   const std::vector<SortKey>& sorted_by) const;
 
   // The longest prefix of a known sort order that uses only `allowed`.
-  std::vector<SortKey> SortedBy(const std::vector<ColumnId>& allowed) const;
+  std::vector<SortKey> SortedBy(base::Span<const ColumnId> allowed) const;
 
   // The direction the rows walk the tree of `node` and `parent` in, if known.
   std::optional<TreeDirection> TreeWalk(ColumnId node, ColumnId parent) const;
 
   // The column numbering the groups of `keys`, if the rows carry one.
-  std::optional<ColumnId> GroupNumbersOf(
-      const std::vector<ColumnId>& keys) const;
+  std::optional<ColumnId> GroupNumbersOf(base::Span<const ColumnId> keys) const;
 
   // Some rows were dropped by a step reading their order. Rows kept stay in
   // order, in batches which can be small, but a tree numbered before may now
@@ -307,7 +307,7 @@ class DeriveContext {
 // by `keys` with group numbers, and sorted by `ts` within each group.
 InputNeeds IntervalLaneNeeds(ColumnId ts,
                              ColumnId dur,
-                             const std::vector<ColumnId>& keys);
+                             base::Span<const ColumnId> keys);
 
 // A column of one of a node's inputs.
 struct InputColumn {

@@ -18,10 +18,10 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_JOIN_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
@@ -35,7 +35,7 @@ class PlanNode;
 // single column, and `rel`'s keys must be consecutive, as a table's ids are.
 //
 // The node has two children: the input, then a scan of `rel`.
-class Join : public PlanOperation {
+class Join final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -52,7 +52,7 @@ class Join : public PlanOperation {
   ColumnId probe_key_ = 0;
   ColumnId build_key_ = 0;
   // The columns of `rel` to output. They come after the input's columns.
-  std::vector<ColumnId> outputs_;
+  core::ArenaSpan<ColumnId> outputs_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

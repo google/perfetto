@@ -17,7 +17,6 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/distinct.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -39,22 +38,24 @@ const OperationRegistration Distinct::kRegistration{
 base::Status Distinct::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("DISTINCT");
   // Other columns have no single value per output row, so they are dropped.
-  Distinct distinct;
+  std::vector<ColumnId> columns;
   std::vector<Compiler::RowColumn> row;
   std::vector<std::pair<ColumnId, ColumnId>> kept;
   for (const Compiler::RowColumn& column : c->row()) {
     if (!column.qualified_only) {
-      distinct.columns_.push_back(column.column.id);
+      columns.push_back(column.column.id);
       row.push_back(column);
       kept.emplace_back(column.column.id, column.column.id);
     }
   }
-  if (distinct.columns_.size() > ex::Distinct::kMaxColumns) {
+  if (columns.size() > ex::Distinct::kMaxColumns) {
     return c->Unsupported(stage, "a row of more than 64 columns");
   }
   c->ReplaceRow(std::move(row));
   c->ReplaceAliasColumns(kept);
-  c->AddNode(std::move(distinct), {c->plan().root()});
+  Distinct distinct;
+  distinct.columns_ = c->arena().CopySpan<ColumnId>(columns);
+  c->AddNode(distinct, {c->plan().root()});
   return base::OkStatus();
 }
 
@@ -74,7 +75,8 @@ OutputProperties Distinct::Derive(DeriveContext& c) const {
 void Distinct::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
   // Rows kept stay in their input order, so any known arrangement survives.
-  c->AddOperator(c->arena().New<ex::Distinct>(c->QueryPositions(columns_)));
+  c->AddOperator(
+      c->arena().New<ex::Distinct>(c->QueryPositions(columns_.span())));
 }
 
 const OperationRegistration& Distinct::registration() const {

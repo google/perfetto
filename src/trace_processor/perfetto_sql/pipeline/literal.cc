@@ -66,7 +66,7 @@ struct LiteralFetcher : core::ValueFetcher {
   int64_t GetInt64Value(uint32_t) const { return literals[at].int_value; }
   double GetDoubleValue(uint32_t) const { return literals[at].double_value; }
   const char* GetStringValue(uint32_t) const {
-    return literals[at].text.c_str();
+    return literals[at].text.data();
   }
   bool IteratorInit(uint32_t) {
     at = 0;
@@ -133,7 +133,7 @@ base::StatusOr<Literal> CompileLiteral(Compiler* c, uint32_t expr) {
         return c->Unsupported(expr, "a negated string");
       }
       out.type = Literal::Type::kString;
-      out.text = StringLiteralText(text);
+      out.text = c->arena().CopyString(StringLiteralText(text));
       break;
     default:
       return c->Unsupported(expr, "a literal other than a number or string");

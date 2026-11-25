@@ -76,9 +76,10 @@ base::StatusOr<ColumnId> ResolveValue(Compiler* c,
 }
 
 // Adds the Compute for a stage's computed columns, if it has any.
-void AddCompute(Compiler* c, std::vector<Compute::Item> computed) {
+void AddCompute(Compiler* c, const std::vector<Compute::Item>& computed) {
   if (!computed.empty()) {
-    c->AddNode(Compute(std::move(computed)), {c->plan().root()});
+    c->AddNode(Compute(c->arena().CopySpan<Compute::Item>(computed)),
+               {c->plan().root()});
   }
 }
 

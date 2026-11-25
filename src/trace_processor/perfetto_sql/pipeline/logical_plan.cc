@@ -42,28 +42,6 @@ NameId NameTable::Intern(std::string_view text) {
   return id;
 }
 
-PlanNode::PlanNode(std::unique_ptr<PlanOperation> operation,
-                   std::vector<PlanNodeId> inputs)
-    : children_(std::move(inputs)), operation_(std::move(operation)) {}
-
-PlanNode::~PlanNode() = default;
-
-PlanNode::PlanNode(PlanNode&&) noexcept = default;
-PlanNode& PlanNode::operator=(PlanNode&&) noexcept = default;
-
-PlanNodeId LogicalPlan::AddNode(std::unique_ptr<PlanOperation> operation,
-                                std::initializer_list<PlanNodeId> children) {
-  return AddNode(std::move(operation), std::vector<PlanNodeId>(children));
-}
-
-PlanNodeId LogicalPlan::AddNode(std::unique_ptr<PlanOperation> operation,
-                                std::vector<PlanNodeId> children) {
-  auto id = static_cast<PlanNodeId>(nodes_.size());
-  nodes_.emplace_back(std::move(operation), std::move(children));
-  root_ = id;
-  return id;
-}
-
 void LogicalPlan::Bypass(PlanNodeId node) {
   PlanNodeId input = nodes_[node].children()[0];
   for (PlanNode& other : nodes_) {
@@ -77,8 +55,6 @@ void LogicalPlan::Bypass(PlanNodeId node) {
     root_ = input;
   }
 }
-
-PlanOperation::~PlanOperation() = default;
 
 void PlanOperation::MoveSqlSourcesToDataframeArgs(const NameTable&,
                                                   std::vector<std::string>*) {}

@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -207,10 +206,10 @@ base::StatusOr<SourceRelation> Scan::BuildRelation(Compiler* c,
       scan = Scan::BuildSqlScan(c, source, lineage);
     }
   }
-  RETURN_IF_ERROR(Scan::CheckSourceNames(c, scan.columns_, source));
+  RETURN_IF_ERROR(Scan::CheckSourceNames(c, scan.columns_.span(), source));
   SourceRelation relation;
-  relation.columns = scan.columns_;
-  relation.node = c->AddNode(std::move(scan));
+  relation.columns.assign(scan.columns_.begin(), scan.columns_.end());
+  relation.node = c->AddNode(scan);
   return relation;
 }
 
@@ -245,7 +244,7 @@ std::optional<NameId> Scan::SourceQualifier(
 }
 
 base::Status Scan::CheckSourceNames(Compiler* c,
-                                    const std::vector<NamedColumn>& columns,
+                                    base::Span<const NamedColumn> columns,
                                     uint32_t at) {
   for (size_t i = 0; i < columns.size(); ++i) {
     for (size_t j = 0; j < i; ++j) {
@@ -288,19 +287,25 @@ Bindings::Dataframe Scan::BindingFor(const dataframe::Dataframe& dataframe,
 
 PlanNodeId Scan::AddToPlan(LogicalPlan* plan,
                            const dataframe::Dataframe& dataframe,
-                           std::string name,
+                           std::string_view name,
                            const std::vector<uint32_t>& columns) {
+  core::Arena& arena = plan->arena();
+  auto count = static_cast<uint32_t>(columns.size());
   Scan scan;
+  scan.columns_ = arena.NewSpan<NamedColumn>(count);
   Scan::Dataframe source;
-  source.name = std::move(name);
-  for (uint32_t i : columns) {
-    NameId column_name = plan->names().Intern(dataframe.column_names()[i]);
-    scan.columns_.push_back(
-        {column_name, plan->AddColumn(column_name, ColumnType(dataframe, i))});
-    source.read.push_back({i, column_name});
+  source.name = arena.CopyString(name);
+  source.read = arena.NewSpan<ScanDataframeColumn>(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t index = columns[i];
+    NameId column_name = plan->names().Intern(dataframe.column_names()[index]);
+    scan.columns_[i] = {
+        column_name,
+        plan->AddColumn(column_name, ColumnType(dataframe, index))};
+    source.read[i] = {index, column_name};
   }
-  scan.source_ = std::move(source);
-  return plan->AddNode(std::move(scan));
+  scan.source_ = source;
+  return plan->AddNode(scan);
 }
 
 void Scan::Bind(BoundPlan* bound,
@@ -313,18 +318,24 @@ void Scan::Bind(BoundPlan* bound,
 
 Scan Scan::BuildDataframeScan(Compiler* c,
                               const dataframe::Dataframe& dataframe,
-                              std::string name,
+                              std::string_view name,
                               const std::vector<DataframeColumn>& columns) {
+  core::Arena& arena = c->arena();
+  auto count = static_cast<uint32_t>(columns.size());
   Scan scan;
+  scan.columns_ = arena.NewSpan<NamedColumn>(count);
   Scan::Dataframe source;
-  source.name = std::move(name);
-  for (const DataframeColumn& column : columns) {
-    Scan::AddScanColumn(c, &scan, column.name,
-                        ColumnType(dataframe, column.index));
-    source.read.push_back(
-        {column.index, c->Name(dataframe.column_names()[column.index])});
+  source.name = arena.CopyString(name);
+  source.read = arena.NewSpan<ScanDataframeColumn>(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    const DataframeColumn& column = columns[i];
+    scan.columns_[i] = {
+        column.name,
+        c->AddColumn(column.name, ColumnType(dataframe, column.index))};
+    source.read[i] = {column.index,
+                      c->Name(dataframe.column_names()[column.index])};
   }
-  scan.source_ = std::move(source);
+  scan.source_ = source;
   return scan;
 }
 
@@ -385,7 +396,10 @@ Scan Scan::BuildSqlScan(Compiler* c,
                         const analysis::RelationLineage& lineage) {
   Scan scan;
   // The relation as written, which the SQL building its dataframe reads.
-  scan.source_ = c->SourceForNode(from);
+  scan.source_ = c->arena().CopyString(c->SourceForNode(from).sql());
+  scan.columns_ = c->arena().NewSpan<NamedColumn>(
+      static_cast<uint32_t>(lineage.columns().size()));
+  uint32_t i = 0;
   for (const analysis::ColumnLineage& column : lineage.columns()) {
     PlanType type = PlanType::Unknown();
     if (std::optional<analysis::ColumnType> traced = column.type()) {
@@ -397,53 +411,33 @@ Scan Scan::BuildSqlScan(Compiler* c,
       }
       type = storage;
     }
-    Scan::AddScanColumn(c, &scan, c->Name(column.output_name), type);
+    NameId name = c->Name(column.output_name);
+    scan.columns_[i++] = {name, c->AddColumn(name, type)};
   }
   return scan;
 }
 
-void Scan::AddScanColumn(Compiler* c, Scan* scan, NameId name, PlanType type) {
-  scan->columns_.push_back({name, c->AddColumn(name, type)});
-}
-
 std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
-  auto& scan = *this;
-  std::vector<uint32_t> keep;
-  for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
-    if ((*needed)[scan.columns_[i].id]) {
-      keep.push_back(i);
+  auto* dataframe = std::get_if<Scan::Dataframe>(&source_);
+  uint32_t kept = 0;
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    if ((*needed)[columns_[i].id]) {
+      columns_[kept] = columns_[i];
+      if (dataframe) {
+        dataframe->read[kept] = dataframe->read[i];
+      }
+      ++kept;
     }
-  }
-  if (keep.size() == scan.columns_.size()) {
-    return std::nullopt;
   }
   // Always keep at least one column: a batch with no columns has no rows.
-  if (keep.empty()) {
-    keep.push_back(0);
+  if (kept == 0 && !columns_.empty()) {
+    kept = 1;
   }
-  std::vector<NamedColumn> kept_columns;
-  for (uint32_t i : keep) {
-    kept_columns.push_back(std::move(scan.columns_[i]));
+  columns_.Shrink(kept);
+  if (dataframe) {
+    dataframe->read.Shrink(kept);
   }
-  scan.columns_ = std::move(kept_columns);
-
-  switch (scan.source_.index()) {
-    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
-      auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
-      std::vector<ScanDataframeColumn> kept_read;
-      for (uint32_t i : keep) {
-        kept_read.push_back(dataframe.read[i]);
-      }
-      dataframe.read = std::move(kept_read);
-      return std::nullopt;
-    }
-    case base::variant_index<Scan::Source, SqlSource>():
-      // The SQL building a dataframe of the relation reads only the columns
-      // the scan keeps.
-      return std::nullopt;
-    default:
-      PERFETTO_FATAL("Unknown scan source");
-  }
+  return std::nullopt;
 }
 
 OutputProperties Scan::Derive(DeriveContext& c) const {
@@ -640,8 +634,9 @@ base::Status Scan::ResolveDataframes(const LogicalPlan&,
   }
   const dataframe::Dataframe* dataframe = catalog.FindDataframe(data->name);
   if (!dataframe) {
-    return base::ErrStatus("Pipeline: table '%s' no longer exists",
-                           data->name.c_str());
+    return base::ErrStatus("Pipeline: table '%.*s' no longer exists",
+                           static_cast<int>(data->name.size()),
+                           data->name.data());
   }
   // A plan written into SQL may be read after the table changed.
   if (key) {
@@ -658,8 +653,8 @@ base::Status Scan::ResolveDataframes(const LogicalPlan&,
     }
     if (!in_range || stamp.Stamp(*key) != data->stamp) {
       return base::ErrStatus(
-          "Pipeline: table '%s' has changed since the pipeline was written",
-          data->name.c_str());
+          "Pipeline: table '%.*s' has changed since the pipeline was written",
+          static_cast<int>(data->name.size()), data->name.data());
     }
   }
   bindings->dataframes[self] = BindingFor(*dataframe, *data);
@@ -719,7 +714,7 @@ void Scan::MoveSqlSourcesToDataframeArgs(const NameTable& table,
                                          std::vector<std::string>* sql_args) {
   auto& args = *sql_args;
   auto& scan = *this;
-  if (!std::holds_alternative<SqlSource>(scan.source_)) {
+  if (!std::holds_alternative<std::string_view>(scan.source_)) {
     return;
   }
   std::vector<std::string> names;
@@ -728,10 +723,10 @@ void Scan::MoveSqlSourcesToDataframeArgs(const NameTable& table,
     names.push_back(table.text(column.name));
     references.push_back(QuoteIdentifier(table.text(column.name)));
   }
-  const std::string& from = base::unchecked_get<SqlSource>(scan.source_).sql();
+  std::string_view from = base::unchecked_get<std::string_view>(scan.source_);
   args.push_back("SELECT " + std::string(kDataframeAggFunction) + "(" +
                  QuoteString(base::Join(names, ",")) + ", " +
-                 base::Join(references, ", ") + ") FROM " + from);
+                 base::Join(references, ", ") + ") FROM " + std::string(from));
   scan.source_ = Scan::DataframeArg{static_cast<uint32_t>(args.size() - 1)};
 }
 

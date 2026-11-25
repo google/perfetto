@@ -33,7 +33,7 @@ class PlanNode;
 // `|> INTERVAL FLATTEN [PER cols] AGGREGATE agg AS name, ...`. Cuts the rows
 // at every start and end into disjoint segments, each collapsed into one row:
 // its bounds, the keys, then one column per aggregate.
-class IntervalFlatten : public PlanOperation {
+class IntervalFlatten final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -54,8 +54,8 @@ class IntervalFlatten : public PlanOperation {
 
   ColumnId ts_ = 0;
   ColumnId dur_ = 0;
-  std::vector<ColumnId> keys_;
-  std::vector<Aggregate> aggregates_;
+  core::ArenaSpan<ColumnId> keys_;
+  core::ArenaSpan<Aggregate> aggregates_;
   ColumnId out_ts_ = 0;
   ColumnId out_dur_ = 0;
 };

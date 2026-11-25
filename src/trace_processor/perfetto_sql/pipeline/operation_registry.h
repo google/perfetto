@@ -18,11 +18,14 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATION_REGISTRY_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+
+namespace perfetto::trace_processor::core {
+class Arena;
+}  // namespace perfetto::trace_processor::core
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -37,14 +40,14 @@ struct LoweringContext;
 class OperationRegistration {
  public:
   using BuildPlanFn = base::Status (*)(Compiler*, uint32_t);
-  using MakeFn = std::unique_ptr<PlanOperation> (*)();
+  using MakeFn = PlanOperation* (*)(core::Arena*);
 
   class Encoding {
    public:
     constexpr Encoding(uint8_t tag, MakeFn make) : tag_(tag), make_(make) {}
 
-    // An empty operation of this kind, for a reader to fill in.
-    std::unique_ptr<PlanOperation> Make() const;
+    // An empty operation of this kind in `arena`, for a reader to fill in.
+    PlanOperation* Make(core::Arena* arena) const;
 
     uint8_t tag() const { return tag_; }
 

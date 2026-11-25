@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_LIMIT_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -35,7 +34,7 @@ class PlanNode;
 // `|> LIMIT count [OFFSET skipped]`. Skips `skipped` rows, then keeps up to
 // `count` rows, in the order they arrive. As in SQL, a negative count keeps
 // every row and a negative offset skips none.
-class Limit : public PlanOperation {
+class Limit final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 

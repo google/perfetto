@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_COMPUTE_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -34,7 +33,7 @@ namespace perfetto::trace_processor::pipeline {
 // Adds columns computed from the row: what SELECT, EXTEND and SET add for an
 // item which is more than a column. Those stages add it, so it has no syntax
 // of its own.
-class Compute : public PlanOperation {
+class Compute final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -44,7 +43,7 @@ class Compute : public PlanOperation {
   };
 
   Compute() = default;
-  explicit Compute(std::vector<Item> items) : items_(std::move(items)) {}
+  explicit Compute(core::ArenaSpan<Item> items) : items_(items) {}
 
  private:
   friend class LogicalPlanFormatter;
@@ -59,7 +58,7 @@ class Compute : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
-  std::vector<Item> items_;
+  core::ArenaSpan<Item> items_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

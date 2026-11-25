@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -43,10 +42,7 @@ base::Status Compute::BuildPlan(Compiler*, uint32_t) {
 }
 
 std::optional<uint32_t> Compute::Prune(std::vector<bool>* needed) {
-  items_.erase(
-      std::remove_if(items_.begin(), items_.end(),
-                     [&](const Item& item) { return !(*needed)[item.output]; }),
-      items_.end());
+  items_.RemoveIf([&](const Item& item) { return !(*needed)[item.output]; });
   if (items_.empty()) {
     return 0;
   }
@@ -86,7 +82,7 @@ const OperationRegistration& Compute::registration() const {
 }
 
 void Compute::Serialize(PlanCodec& c) {
-  items_.resize(c.Count(items_.size()));
+  c.Resize(&items_);
   for (Item& item : items_) {
     c.Pod(&item.output);
     SerializeExpr(c, &item.expr);

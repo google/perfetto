@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_DISTINCT_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_DISTINCT_H_
 
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -33,7 +32,7 @@ class PlanNode;
 
 // `|> DISTINCT`. Keeps one row of each set of rows equal in every column of
 // the row, in the order they are first seen.
-class Distinct : public PlanOperation {
+class Distinct final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -51,7 +50,7 @@ class Distinct : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
-  std::vector<ColumnId> columns_;
+  core::ArenaSpan<ColumnId> columns_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

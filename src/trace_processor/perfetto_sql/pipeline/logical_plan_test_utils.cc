@@ -166,7 +166,7 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
       return "#" + std::to_string(node.a);
     case Op::kConstant: {
       const Literal& l = e.literals[node.a];
-      return l.is_string()   ? "'" + l.text + "'"
+      return l.is_string()   ? "'" + std::string(l.text) + "'"
              : l.is_double() ? std::to_string(l.double_value)
                              : std::to_string(l.int_value);
     }
@@ -212,8 +212,8 @@ std::string LogicalPlanFormatter::ExprString(const Expr& e, uint32_t i) {
       return "iif(" + ExprString(e, node.a) + ", " + ExprString(e, node.b) +
              ", " + ExprString(e, node.c) + ")";
     case Op::kGlob:
-      return "(" + ExprString(e, node.a) + " GLOB '" + e.literals[node.b].text +
-             "')";
+      return "(" + ExprString(e, node.a) + " GLOB '" +
+             std::string(e.literals[node.b].text) + "')";
     case Op::kIsNull:
       return "(" + ExprString(e, node.a) + " IS NULL)";
     case Op::kIsNotNull:
@@ -231,10 +231,13 @@ std::string LogicalPlanFormatter::ScanString(const LogicalPlan& plan,
   std::string out = "Scan(";
   switch (scan.source_.index()) {
     case base::variant_index<Scan::Source, Scan::Dataframe>():
-      out += "table " + base::unchecked_get<Scan::Dataframe>(scan.source_).name;
+      out +=
+          "table " +
+          std::string(base::unchecked_get<Scan::Dataframe>(scan.source_).name);
       break;
-    case base::variant_index<Scan::Source, SqlSource>():
-      out += "sql " + base::unchecked_get<SqlSource>(scan.source_).sql();
+    case base::variant_index<Scan::Source, std::string_view>():
+      out += "sql " +
+             std::string(base::unchecked_get<std::string_view>(scan.source_));
       break;
     case base::variant_index<Scan::Source, Scan::DataframeArg>():
       out += "argument " +
@@ -245,7 +248,7 @@ std::string LogicalPlanFormatter::ScanString(const LogicalPlan& plan,
       PERFETTO_FATAL("Unknown scan source");
   }
   out += ") [";
-  for (size_t i = 0; i < scan.columns_.size(); ++i) {
+  for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
     if (i) {
       out += ", ";
     }
@@ -372,7 +375,7 @@ std::string LogicalPlanFormatter::IntervalFillGapsString(
 
 std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   std::string out = "OrderBy(";
-  for (size_t i = 0; i < order.keys_.size(); ++i) {
+  for (uint32_t i = 0; i < order.keys_.size(); ++i) {
     out += (i ? ", #" : "#") + std::to_string(order.keys_[i].column) +
            (order.keys_[i].descending ? " DESC" : "");
   }
@@ -381,7 +384,7 @@ std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
 
 std::string LogicalPlanFormatter::DistinctString(const Distinct& distinct) {
   std::string out = "Distinct(";
-  for (size_t i = 0; i < distinct.columns_.size(); ++i) {
+  for (uint32_t i = 0; i < distinct.columns_.size(); ++i) {
     out += (i ? ", #" : "#") + std::to_string(distinct.columns_[i]);
   }
   return out + ")";
@@ -394,14 +397,14 @@ std::string LogicalPlanFormatter::LimitString(const Limit& limit) {
 
 std::string LogicalPlanFormatter::WhereString(const Where& where) {
   std::string out = "Where(";
-  for (size_t i = 0; i < where.predicates_.size(); ++i) {
+  for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
     const WherePredicate& p = where.predicates_[i];
     out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op);
     std::vector<std::string> literals;
     for (uint32_t j = 0; j < p.literal_count; ++j) {
       const Literal& l = where.literals_[p.first_literal + j];
       literals.push_back(l.is_bound()    ? "?" + std::to_string(l.bound)
-                         : l.is_string() ? "'" + l.text + "'"
+                         : l.is_string() ? "'" + std::string(l.text) + "'"
                          : l.is_double() ? std::to_string(l.double_value)
                                          : std::to_string(l.int_value));
     }
@@ -468,7 +471,7 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<Compute>()) {
     std::string out = "Compute(";
     const auto& compute = node.Cast<Compute>();
-    for (size_t i = 0; i < compute.items_.size(); ++i) {
+    for (uint32_t i = 0; i < compute.items_.size(); ++i) {
       out +=
           (i ? ", " : "") +
           ExprString(

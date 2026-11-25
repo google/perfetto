@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_WHERE_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -65,15 +64,15 @@ inline constexpr bool kCopiedAsBytes<WherePredicate> = true;
 
 // `|> WHERE condition`. The condition must be a conjunction (AND) of
 // predicates (see WherePredicate); anything else is unsupported.
-class Where : public PlanOperation {
+class Where final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
   // Adds a WHERE testing `predicates`, which compare with `literals`, above
   // the root of `plan`.
   static void AddToPlan(LogicalPlan* plan,
-                        std::vector<WherePredicate> predicates,
-                        std::vector<Literal> literals);
+                        const std::vector<WherePredicate>& predicates,
+                        const std::vector<Literal>& literals);
 
  private:
   // Test-only formatting; keep payload details out of the public interface.
@@ -97,8 +96,8 @@ class Where : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
-  std::vector<WherePredicate> predicates_;
-  std::vector<Literal> literals_;
+  core::ArenaSpan<WherePredicate> predicates_;
+  core::ArenaSpan<Literal> literals_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

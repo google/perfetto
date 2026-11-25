@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -83,6 +82,8 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
 
   c->Append({ts_name, isect.ts_}, node);
   c->Append({dur_name, isect.dur_}, node);
+  core::Arena& arena = c->arena();
+  isect.operands_ = arena.NewSpan<Operand>(count);
   std::vector<PlanNodeId> children;
   for (uint32_t i = 0; i < count; i++) {
     uint32_t source_id = syntaqlite_list_child_id(list, i);
@@ -104,16 +105,14 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       return c->Expected(source_id, c->Text(*alias) + " to have a " +
                                         (ts ? "dur" : "ts") + " column");
     }
-    IntervalIntersect::Operand operand;
-    operand.ts = *ts;
-    operand.dur = *dur;
+    std::vector<ColumnId> keys;
     for (const auto& [name, col_id] : per_columns) {
       std::optional<ColumnId> key = c->FindColumn(relation.columns, name);
       if (!key) {
         return c->Expected(col_id, c->Text(*alias) + " to have a " +
                                        c->Text(name) + " column");
       }
-      operand.keys.push_back(*key);
+      keys.push_back(*key);
     }
     // Every operand column is carried, reachable through the operand's alias
     // and, for most, by its bare name too. The region's ts and dur are what
@@ -121,20 +120,26 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     // alias. A PER column holds the same value in every operand, so only the
     // first operand's is found by its bare name.
     Compiler::Alias operand_alias{*alias, {}};
-    for (const NamedColumn& column : relation.columns) {
-      bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
-                              column.id) != operand.keys.end();
+    Operand& operand = isect.operands_[i];
+    operand.ts = *ts;
+    operand.dur = *dur;
+    operand.keys = arena.CopySpan<ColumnId>(keys);
+    operand.carried =
+        arena.NewSpan<ColumnId>(static_cast<uint32_t>(relation.columns.size()));
+    for (uint32_t j = 0; j < relation.columns.size(); ++j) {
+      const NamedColumn& column = relation.columns[j];
+      bool is_key =
+          std::find(keys.begin(), keys.end(), column.id) != keys.end();
       bool is_bound = column.id == operand.ts || column.id == operand.dur;
       c->Append(column, source_id,
                 /*qualified_only=*/is_bound || (is_key && i != 0));
       operand_alias.columns.push_back(c->row().back());
-      operand.carried.push_back(column.id);
+      operand.carried[j] = column.id;
     }
     c->AddAlias(std::move(operand_alias));
     children.push_back(relation.node);
-    isect.operands_.push_back(std::move(operand));
   }
-  c->AddNode(std::move(isect), std::move(children));
+  c->AddNode(isect, children);
   return base::OkStatus();
 }
 
@@ -143,10 +148,7 @@ std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
   // reads each operand's bounds and partition columns to find the regions.
   auto& isect = *this;
   for (IntervalIntersect::Operand& operand : isect.operands_) {
-    auto& carried = operand.carried;
-    carried.erase(std::remove_if(carried.begin(), carried.end(),
-                                 [&](ColumnId id) { return !(*needed)[id]; }),
-                  carried.end());
+    operand.carried.RemoveIf([&](ColumnId id) { return !(*needed)[id]; });
   }
   for (const IntervalIntersect::Operand& operand : isect.operands_) {
     (*needed)[operand.ts] = true;
@@ -160,15 +162,15 @@ std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
 
 InputNeeds IntervalIntersect::Needs(uint32_t input) const {
   const Operand& operand = operands_[input];
-  return IntervalLaneNeeds(operand.ts, operand.dur, operand.keys);
+  return IntervalLaneNeeds(operand.ts, operand.dur, operand.keys.span());
 }
 
 std::vector<std::vector<InputColumn>> IntervalIntersect::CommonTypes() const {
   // Keys are compared across operands, so each key must have the same type in
   // all of them.
   std::vector<std::vector<InputColumn>> common;
-  size_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
-  for (size_t k = 0; k < key_count; ++k) {
+  uint32_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
+  for (uint32_t k = 0; k < key_count; ++k) {
     std::vector<InputColumn> same;
     for (uint32_t i = 0; i < operands_.size(); ++i) {
       same.push_back({i, operands_[i].keys[k]});
@@ -191,9 +193,9 @@ OutputProperties IntervalIntersect::Derive(DeriveContext& c) const {
   }
   // The output is grouped by the keys, if every key is carried to the output by
   // some operand.
-  size_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
+  uint32_t key_count = operands_.empty() ? 0 : operands_[0].keys.size();
   std::vector<ColumnId> carried_keys;
-  for (size_t k = 0; k < key_count; ++k) {
+  for (uint32_t k = 0; k < key_count; ++k) {
     for (const Operand& operand : operands_) {
       const auto& carried = operand.carried;
       if (std::find(carried.begin(), carried.end(), operand.keys[k]) !=
@@ -237,7 +239,7 @@ const OperationRegistration& IntervalIntersect::registration() const {
 void IntervalIntersect::Serialize(PlanCodec& c) {
   c.Pod(&ts_);
   c.Pod(&dur_);
-  operands_.resize(c.Count(operands_.size()));
+  c.Resize(&operands_);
   PERFETTO_NO_VECTORIZE_LOOP
   for (Operand& operand : operands_) {
     c.Pod(&operand.ts);
