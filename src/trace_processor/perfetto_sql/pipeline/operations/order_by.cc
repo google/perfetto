@@ -17,7 +17,6 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -39,10 +38,10 @@ constexpr OperationRegistration OrderBy::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY, &BuildPlan,
     OperationRegistration::Encoding{4, &MakeOperation<OrderBy>}};
 
-void OrderBy::AddToPlan(LogicalPlan* plan, std::vector<SortKey> keys) {
+void OrderBy::AddToPlan(LogicalPlan* plan, const std::vector<SortKey>& keys) {
   OrderBy order;
-  order.keys_ = std::move(keys);
-  plan->AddNode(std::move(order), {plan->root()});
+  order.keys_ = plan->arena().CopySpan<SortKey>(keys);
+  plan->AddNode(order, {plan->root()});
 }
 
 base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
@@ -51,16 +50,18 @@ base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
   const auto* terms =
       Node<SyntaqlitePerfettoPipeOrderTermList>(c->parser(), n->terms);
 
-  OrderBy order;
+  std::vector<SortKey> keys;
   for (uint32_t i = 0; i < syntaqlite_list_count(terms); ++i) {
     uint32_t term_id = syntaqlite_list_child_id(terms, i);
     const auto* term =
         Node<SyntaqlitePerfettoPipeOrderTerm>(c->parser(), term_id);
     ASSIGN_OR_RETURN(ColumnId id, c->ResolveColumnExpr(term->expr));
-    order.keys_.push_back({id, term->sort_order == SYNTAQLITE_SORT_ORDER_DESC});
+    keys.push_back({id, term->sort_order == SYNTAQLITE_SORT_ORDER_DESC});
   }
-  PERFETTO_DCHECK(!order.keys_.empty());
-  c->AddNode(std::move(order), {c->plan().root()});
+  PERFETTO_DCHECK(!keys.empty());
+  OrderBy order;
+  order.keys_ = c->arena().CopySpan<SortKey>(keys);
+  c->AddNode(order, {c->plan().root()});
   return base::OkStatus();
 }
 
@@ -73,7 +74,8 @@ std::optional<uint32_t> OrderBy::Prune(std::vector<bool>* needed) {
 
 InputNeeds OrderBy::Needs(uint32_t) const {
   InputNeeds needs;
-  needs.arranged = OutputProperties::Arrangement{{}, keys_};
+  needs.arranged =
+      OutputProperties::Arrangement{{}, {keys_.begin(), keys_.end()}};
   return needs;
 }
 

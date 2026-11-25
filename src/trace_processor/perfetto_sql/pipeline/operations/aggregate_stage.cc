@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -46,7 +45,7 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AGGREGATE");
   const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
 
-  AggregateStage aggregate;
+  std::vector<ColumnId> group_by;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->group_by)) {
     const auto* list =
@@ -65,14 +64,14 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
         name = c->Name(item->alias);
       }
       // Groups once by each column, but outputs one column per item listed.
-      if (std::find(aggregate.keys_.begin(), aggregate.keys_.end(), key) ==
-          aggregate.keys_.end()) {
-        aggregate.keys_.push_back(key);
+      if (std::find(group_by.begin(), group_by.end(), key) == group_by.end()) {
+        group_by.push_back(key);
       }
       keys.push_back({NamedColumn{name, key}, item_id});
     }
   }
 
+  std::vector<Aggregate> resolved_aggregates;
   std::vector<std::pair<NamedColumn, uint32_t>> aggregates;
   const auto* list =
       Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
@@ -82,7 +81,7 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
     ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
     NameId name = c->Name(agg->name);
     resolved.output = c->AddColumn(name, core::Int64{});
-    aggregate.aggregates_.push_back(resolved);
+    resolved_aggregates.push_back(resolved);
     aggregates.push_back({NamedColumn{name, resolved.output}, agg_id});
   }
 
@@ -95,7 +94,10 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   for (auto& [column, node] : aggregates) {
     c->Append(std::move(column), node);
   }
-  c->AddNode(std::move(aggregate), {c->plan().root()});
+  AggregateStage aggregate;
+  aggregate.keys_ = c->arena().CopySpan<ColumnId>(group_by);
+  aggregate.aggregates_ = c->arena().CopySpan<Aggregate>(resolved_aggregates);
+  c->AddNode(aggregate, {c->plan().root()});
   return base::OkStatus();
 }
 
@@ -125,7 +127,7 @@ OutputProperties AggregateStage::Derive(DeriveContext& c) const {
   for (const Aggregate& agg : aggregates_) {
     out.columns.push_back(c.ColumnOf(agg.output));
   }
-  std::vector<SortKey> sorted = c.input(0).SortedBy(keys_);
+  std::vector<SortKey> sorted = c.input(0).SortedBy(keys_.span());
   if (!sorted.empty()) {
     out.arrangements.push_back({{}, std::move(sorted)});
   }
@@ -136,7 +138,7 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
   core::Arena& arena = c->arena();
   c->AddOperator(arena.New<ex::HashAggregate>(
-      arena, ex::HashAggregateSpec{c->QueryPositions(keys_),
+      arena, ex::HashAggregateSpec{c->QueryPositions(keys_.span()),
                                    LowerAggregates(c, aggregates_)}));
 }
 

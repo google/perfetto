@@ -157,7 +157,7 @@ TestCatalog::BuildSqlSources(SqliteConnection* connection,
       continue;
     }
     const auto& scan = node.Cast<Scan>();
-    if (!std::holds_alternative<SqlSource>(scan.source_)) {
+    if (!std::holds_alternative<std::string_view>(scan.source_)) {
       continue;
     }
     std::vector<std::string> names;
@@ -169,7 +169,7 @@ TestCatalog::BuildSqlSources(SqliteConnection* connection,
     }
     auto statement = connection->PrepareStatement(SqlSource::FromExecuteQuery(
         "SELECT " + base::Join(references, ", ") + " FROM " +
-        base::unchecked_get<SqlSource>(scan.source_).sql()));
+        std::string(base::unchecked_get<std::string_view>(scan.source_))));
     statement.Step();
     RETURN_IF_ERROR(statement.status());
     ASSIGN_OR_RETURN(dataframe::RuntimeDataframeBuilder builder,

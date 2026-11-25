@@ -65,8 +65,8 @@ constexpr const OperationRegistration* kOperations[] = {
 
 }  // namespace
 
-std::unique_ptr<PlanOperation> OperationRegistration::Encoding::Make() const {
-  return make_();
+PlanOperation* OperationRegistration::Encoding::Make(core::Arena* arena) const {
+  return make_(arena);
 }
 
 const OperationRegistration* FindOperationByTag(uint8_t tag) {

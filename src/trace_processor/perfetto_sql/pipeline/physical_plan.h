@@ -325,14 +325,14 @@ class Lowering {
   core::exec::IntervalLaneSpec QueryIntervalLanes(
       ColumnId ts,
       ColumnId dur,
-      const std::vector<ColumnId>& keys) const;
+      base::Span<const ColumnId> keys) const;
 
   // The batch position of a column.
   uint32_t QueryPosition(ColumnId id) const;
 
   // Returns the batch positions of `ids`, stored in arena().
   core::ArenaSpan<uint32_t> QueryPositions(
-      const std::vector<ColumnId>& ids) const;
+      base::Span<const ColumnId> ids) const;
 
   // Returns the executor's sort keys for `keys`, stored in arena().
   core::ArenaSpan<core::exec::SortKey> QuerySortKeys(

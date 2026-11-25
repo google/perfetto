@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -54,6 +53,7 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   ASSIGN_OR_RETURN(acc.node_column_, c->Resolve(c->Name("id"), stage));
   ASSIGN_OR_RETURN(acc.parent_column_, c->Resolve(c->Name("parent_id"), stage));
 
+  std::vector<Aggregate> aggregates;
   std::vector<std::pair<NamedColumn, uint32_t>> output;
   const auto* list =
       Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
@@ -64,7 +64,7 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
     ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
     NameId name = c->Name(agg->name);
     aggregate.output = c->AddColumn(name, core::Int64{});
-    acc.aggregates_.push_back(aggregate);
+    aggregates.push_back(aggregate);
     output.push_back({NamedColumn{name, aggregate.output}, agg_id});
   }
   // All expressions see the input scope. Add this stage's columns only after
@@ -72,7 +72,8 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   for (auto& [column, node] : output) {
     c->Append(std::move(column), node);
   }
-  c->AddNode(std::move(acc), {c->plan().root()});
+  acc.aggregates_ = c->arena().CopySpan<Aggregate>(aggregates);
+  c->AddNode(acc, {c->plan().root()});
   return base::OkStatus();
 }
 

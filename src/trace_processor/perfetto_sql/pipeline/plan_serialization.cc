@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -70,9 +69,22 @@ PERFETTO_NO_INLINE uint32_t PlanCodec::Count(size_t size) {
   return count;
 }
 
-void PlanCodec::Str(std::string* value) {
-  value->resize(Count(value->size()));
-  Bytes(value->data(), value->size());
+void PlanCodec::BorrowStr(std::string_view* value) {
+  uint32_t size = Count(value->size());
+  if (out_) {
+    out_->append(*value);
+    return;
+  }
+  PERFETTO_DCHECK(size <= in_.size());
+  *value = in_.substr(0, size);
+  in_.remove_prefix(size);
+}
+
+void PlanCodec::Str(std::string_view* value) {
+  BorrowStr(value);
+  if (reading()) {
+    *value = plan_->arena().CopyString(*value);
+  }
 }
 
 namespace {
@@ -84,8 +96,11 @@ void SerializeContents(PlanCodec& c) {
   uint32_t names = c.Count(plan.names().size());
   PERFETTO_NO_VECTORIZE_LOOP
   for (NameId i = 0; i < names; ++i) {
-    std::string text = c.reading() ? std::string() : plan.names().text(i);
-    c.Str(&text);
+    std::string_view text;
+    if (!c.reading()) {
+      text = plan.names().text(i);
+    }
+    c.BorrowStr(&text);
     if (c.reading()) {
       plan.names().Intern(text);
     }
@@ -95,7 +110,7 @@ void SerializeContents(PlanCodec& c) {
   PERFETTO_NO_VECTORIZE_LOOP
   for (PlanNodeId i = 0; i < nodes; ++i) {
     uint8_t tag = 0;
-    std::vector<PlanNodeId> children;
+    core::ArenaSpan<PlanNodeId> children;
     if (!c.reading()) {
       tag = plan.nodes()[i].operation().registration().encoding()->tag();
       children = plan.nodes()[i].children();
@@ -103,8 +118,8 @@ void SerializeContents(PlanCodec& c) {
     c.Pod(&tag);
     c.Vec(&children);
     if (c.reading()) {
-      plan.AddNode(FindOperationByTag(tag)->encoding()->Make(),
-                   std::move(children));
+      plan.AddNode(FindOperationByTag(tag)->encoding()->Make(&plan.arena()),
+                   children);
     }
     plan.nodes()[i].operation().Serialize(c);
   }

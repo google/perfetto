@@ -17,7 +17,6 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -26,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/regex.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -54,7 +54,7 @@ static constexpr char kOperators[] =
 // The value `p` compares with, if whoever runs the plan gives it: an external
 // literal or a bound param.
 const Literal* GivenOf(const WherePredicate& p,
-                       const std::vector<Literal>& literals) {
+                       base::Span<const Literal> literals) {
   if (p.literal_count != 1 || !literals[p.first_literal].is_given()) {
     return nullptr;
   }
@@ -66,7 +66,7 @@ const Literal* GivenOf(const WherePredicate& p,
 // GLOB, REGEXP and IS [NOT] NULL do not compare values, and a given value
 // has none yet.
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
-                                           const std::vector<Literal>& literals,
+                                           base::Span<const Literal> literals,
                                            core::StorageType type) {
   if (GivenOf(p, literals)) {
     return std::nullopt;
@@ -247,7 +247,7 @@ class Parser {
 // whatever is given.
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
-    const std::vector<Literal>& literals) {
+    base::Span<const Literal> literals) {
   if (p.op.IsAnyOf<core::NullOp>()) {
     return std::nullopt;
   }
@@ -273,7 +273,7 @@ std::optional<core::StorageType> TypeForLiterals(
 // The value `p` tests a column of storage `type` with: its literals, cast now
 // unless they are a bound param.
 PlannedParam PlanValue(const WherePredicate& p,
-                       const std::vector<Literal>& literals,
+                       base::Span<const Literal> literals,
                        core::StorageType type,
                        const StringPool& pool) {
   PlannedParam value;
@@ -301,20 +301,24 @@ constexpr OperationRegistration Where::kRegistration{
 base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("WHERE");
   const auto* n = Node<SyntaqlitePerfettoPipeWhere>(c->parser(), stage);
-  Where where;
-  Parser parser(c, &where.predicates_, &where.literals_);
+  std::vector<WherePredicate> predicates;
+  std::vector<Literal> literals;
+  Parser parser(c, &predicates, &literals);
   RETURN_IF_ERROR(parser.Condition(n->condition));
-  c->AddNode(std::move(where), {c->plan().root()});
+  Where where;
+  where.predicates_ = c->arena().CopySpan<WherePredicate>(predicates);
+  where.literals_ = c->arena().CopySpan<Literal>(literals);
+  c->AddNode(where, {c->plan().root()});
   return base::OkStatus();
 }
 
 void Where::AddToPlan(LogicalPlan* plan,
-                      std::vector<WherePredicate> predicates,
-                      std::vector<Literal> literals) {
+                      const std::vector<WherePredicate>& predicates,
+                      const std::vector<Literal>& literals) {
   Where where;
-  where.predicates_ = std::move(predicates);
-  where.literals_ = std::move(literals);
-  plan->AddNode(std::move(where), {plan->root()});
+  where.predicates_ = plan->arena().CopySpan<WherePredicate>(predicates);
+  where.literals_ = plan->arena().CopySpan<Literal>(literals);
+  plan->AddNode(where, {plan->root()});
 }
 
 std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
@@ -331,7 +335,7 @@ InputNeeds Where::Needs(uint32_t) const {
   InputNeeds needs;
   for (const WherePredicate& p : predicates_) {
     if (std::optional<core::StorageType> wanted =
-            TypeForLiterals(p, literals_)) {
+            TypeForLiterals(p, literals_.span())) {
       needs.types_first.push_back(
           {p.column, *wanted, !p.op.IsAnyOf<core::OnlyStringOp>()});
     }
@@ -356,7 +360,7 @@ OutputProperties Where::Derive(DeriveContext& c) const {
     }
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
     if (!type) {
-      if (!GivenOf(p, literals_)) {
+      if (!GivenOf(p, literals_.span())) {
         continue;
       }
       // A column holding no values matches no comparison, whatever is given.
@@ -370,11 +374,11 @@ OutputProperties Where::Derive(DeriveContext& c) const {
       continue;
     }
     if (std::optional<std::string> mismatch =
-            LiteralMismatch(p, literals_, *type)) {
+            LiteralMismatch(p, literals_.span(), *type)) {
       c.Fail(base::ErrStatus("WHERE: expected %s", mismatch->c_str()));
       return out;
     }
-    values[i] = PlanValue(p, literals_, *type, *c.context().pool);
+    values[i] = PlanValue(p, literals_.span(), *type, *c.context().pool);
   }
   return out;
 }
@@ -404,10 +408,10 @@ void Where::Rewrite(BoundPlan* bound,
         bound->planned[scan_id].output.TypeOf(p.column).storage();
     if (!type || p.op.IsAnyOf<core::NullOp>() ||
         (p.op.IsAnyOf<core::OnlyStringOp>() && !type->Is<core::String>()) ||
-        LiteralMismatch(p, where.literals_, *type)) {
+        LiteralMismatch(p, where.literals_.span(), *type)) {
       continue;
     }
-    values[i] = PlanValue(p, where.literals_, *type, *context.pool);
+    values[i] = PlanValue(p, where.literals_.span(), *type, *context.pool);
     predicate_indices.push_back(i);
     conditions.push_back({p.column, p.op,
                           values[i].state == PlannedParam::State::kConstant
@@ -426,25 +430,27 @@ void Where::Rewrite(BoundPlan* bound,
   search.kind = searched->kind;
   search.index = searched->index;
   search.sorted = searched->sorted;
+  search.predicates = plan.arena().NewSpan<WherePredicate>(
+      static_cast<uint32_t>(searched->answered.size()));
   std::vector<PlannedParam>& scan_values = bound->planned[scan_id].params;
   std::vector<bool> moved(where.predicates_.size(), false);
-  for (uint32_t j : searched->answered) {
-    uint32_t i = predicate_indices[j];
+  for (uint32_t k = 0; k < searched->answered.size(); ++k) {
+    uint32_t i = predicate_indices[searched->answered[k]];
     moved[i] = true;
-    search.predicates.push_back(where.predicates_[i]);
+    search.predicates[k] = where.predicates_[i];
     scan_values.push_back(std::move(values[i]));
   }
-  scan.SetSearch(std::move(search));
+  scan.SetSearch(search);
   PlanNodeInputs(bound, scan_id, context);
-  std::vector<WherePredicate> kept;
+  uint32_t kept = 0;
   std::vector<PlannedParam> kept_values;
   for (uint32_t i = 0; i < where.predicates_.size(); ++i) {
     if (!moved[i]) {
-      kept.push_back(where.predicates_[i]);
+      where.predicates_[kept++] = where.predicates_[i];
       kept_values.push_back(std::move(values[i]));
     }
   }
-  where.predicates_ = std::move(kept);
+  where.predicates_.Shrink(kept);
   bound->planned[self].params = std::move(kept_values);
   if (where.predicates_.empty()) {
     plan.Bypass(self);
@@ -473,7 +479,7 @@ const OperationRegistration& Where::registration() const {
 
 void Where::Serialize(PlanCodec& c) {
   c.Vec(&predicates_);
-  literals_.resize(c.Count(literals_.size()));
+  c.Resize(&literals_);
   for (Literal& literal : literals_) {
     SerializeLiteral(c, &literal);
   }

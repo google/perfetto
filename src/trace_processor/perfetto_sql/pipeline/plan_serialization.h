@@ -31,6 +31,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
@@ -103,9 +104,34 @@ class PlanCodec {
     values->resize(Count(values->size()));
     Bytes(values->data(), values->size() * sizeof(T));
   }
+  template <typename T>
+  void Vec(core::ArenaSpan<T>* values) {
+    static_assert(kCopiedAsBytes<T>);
+    uint32_t size = Count(values->size());
+    if (reading()) {
+      *values = plan_->arena().NewSpan<T>(size);
+    }
+    Bytes(values->begin(), size * sizeof(T));
+  }
+  // Sizes a list whose values are written one at a time. When reading, it makes
+  // as many empty values as were written, for the reader to fill in.
+  template <typename T>
+  void Resize(core::ArenaSpan<T>* values) {
+    uint32_t size = Count(values->size());
+    if (reading()) {
+      *values = plan_->arena().NewSpan<T>(size);
+      for (T& value : *values) {
+        new (&value) T();
+      }
+    }
+  }
   // The size of a list: `size` when writing, the size written when reading.
   uint32_t Count(size_t size);
-  void Str(std::string* value);
+  // When reading, the string is made in the plan's arena.
+  void Str(std::string_view* value);
+  // When reading, borrows directly from the input buffer without copying into
+  // the plan's arena.
+  void BorrowStr(std::string_view* value);
 
  private:
   // Appends `size` bytes from `data` or reads them into it.

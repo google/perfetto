@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -53,6 +52,7 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   ASSIGN_OR_RETURN(flatten.ts_, c->Resolve(ts, stage));
   ASSIGN_OR_RETURN(flatten.dur_, c->Resolve(dur, stage));
 
+  std::vector<ColumnId> group_by;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->per)) {
     const auto* per =
@@ -63,14 +63,14 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
           c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
       // Groups once by each column, but outputs one column per item listed.
-      if (std::find(flatten.keys_.begin(), flatten.keys_.end(), key) ==
-          flatten.keys_.end()) {
-        flatten.keys_.push_back(key);
+      if (std::find(group_by.begin(), group_by.end(), key) == group_by.end()) {
+        group_by.push_back(key);
       }
       keys.push_back({NamedColumn{name, key}, col_id});
     }
   }
 
+  std::vector<Aggregate> resolved_aggregates;
   std::vector<std::pair<NamedColumn, uint32_t>> aggregates;
   const auto* list =
       Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
@@ -80,7 +80,7 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
     ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
     NameId name = c->Name(agg->name);
     aggregate.output = c->AddColumn(name, core::Int64{});
-    flatten.aggregates_.push_back(aggregate);
+    resolved_aggregates.push_back(aggregate);
     aggregates.push_back({NamedColumn{name, aggregate.output}, agg_id});
   }
 
@@ -97,7 +97,9 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   for (auto& [column, node] : aggregates) {
     c->Append(std::move(column), node);
   }
-  c->AddNode(std::move(flatten), {c->plan().root()});
+  flatten.keys_ = c->arena().CopySpan<ColumnId>(group_by);
+  flatten.aggregates_ = c->arena().CopySpan<Aggregate>(resolved_aggregates);
+  c->AddNode(flatten, {c->plan().root()});
   return base::OkStatus();
 }
 
@@ -114,7 +116,7 @@ std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
 }
 
 InputNeeds IntervalFlatten::Needs(uint32_t) const {
-  InputNeeds needs = IntervalLaneNeeds(ts_, dur_, keys_);
+  InputNeeds needs = IntervalLaneNeeds(ts_, dur_, keys_.span());
   AddAggregateNeeds(aggregates_, &needs);
   needs.full_batches = true;
   return needs;
@@ -134,9 +136,10 @@ OutputProperties IntervalFlatten::Derive(DeriveContext& c) const {
   }
   OutputProperties::Column groups = c.NewColumn();
   out.columns.push_back(groups);
-  out.arrangements.push_back({keys_, {{out_ts_, false}}});
-  if (!keys_.empty()) {
-    out.group_numbers.push_back({keys_, groups.id});
+  std::vector<ColumnId> keys(keys_.begin(), keys_.end());
+  out.arrangements.push_back({keys, {{out_ts_, false}}});
+  if (!keys.empty()) {
+    out.group_numbers.push_back({std::move(keys), groups.id});
   }
   out.full_batches = false;
   return out;
@@ -145,7 +148,7 @@ OutputProperties IntervalFlatten::Derive(DeriveContext& c) const {
 void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
   core::Arena& arena = c->arena();
-  ex::IntervalFlattenSpec spec{c->QueryIntervalLanes(ts_, dur_, keys_),
+  ex::IntervalFlattenSpec spec{c->QueryIntervalLanes(ts_, dur_, keys_.span()),
                                LowerAggregates(c, aggregates_)};
   c->AddOperator(arena.New<ex::IntervalFlatten>(arena, spec));
 }

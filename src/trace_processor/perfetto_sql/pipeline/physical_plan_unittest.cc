@@ -630,7 +630,9 @@ TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
   const dataframe::Dataframe& df = *catalog_.FindDataframe("ix");
   LogicalPlan plan;
   PlanNodeId scan = Scan::AddToPlan(&plan, df, "ix", {0, 1, 2});
-  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  core::ArenaSpan<NamedColumn> scanned =
+      plan.nodes()[scan].Cast<Scan>().columns();
+  std::vector<NamedColumn> columns(scanned.begin(), scanned.end());
   WherePredicate k_eq;
   k_eq.column = columns[1].id;
   k_eq.literal_count = 1;
@@ -680,7 +682,9 @@ TEST_F(PhysicalPlanTest, WhereReadsStringsForABoundGlob) {
   const dataframe::Dataframe& df = *catalog_.FindDataframe("g");
   LogicalPlan plan;
   PlanNodeId scan = Scan::AddToPlan(&plan, df, "g", {0, 1});
-  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  core::ArenaSpan<NamedColumn> scanned =
+      plan.nodes()[scan].Cast<Scan>().columns();
+  std::vector<NamedColumn> columns(scanned.begin(), scanned.end());
   WherePredicate glob;
   glob.column = columns[1].id;
   glob.op = core::Glob{};
@@ -707,7 +711,9 @@ TEST_F(PhysicalPlanTest, WhereComparesWithExternalLiteralsSetOnce) {
   const dataframe::Dataframe& df = *catalog_.FindDataframe("ix");
   LogicalPlan plan;
   PlanNodeId scan = Scan::AddToPlan(&plan, df, "ix", {0, 1, 2});
-  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  core::ArenaSpan<NamedColumn> scanned =
+      plan.nodes()[scan].Cast<Scan>().columns();
+  std::vector<NamedColumn> columns(scanned.begin(), scanned.end());
   WherePredicate k_eq;
   k_eq.column = columns[1].id;
   k_eq.literal_count = 1;
@@ -776,7 +782,9 @@ TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
   ASSERT_TRUE(built.ok()) << built.status().c_message();
   LogicalPlan plan;
   PlanNodeId scan = Scan::AddToPlan(&plan, *built, "s", {0, 1});
-  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  core::ArenaSpan<NamedColumn> scanned =
+      plan.nodes()[scan].Cast<Scan>().columns();
+  std::vector<NamedColumn> columns(scanned.begin(), scanned.end());
   WherePredicate literal;
   literal.column = columns[1].id;
   literal.op = core::Glob{};
@@ -848,7 +856,9 @@ TEST_F(PhysicalPlanTest, SparseOutputsAreExpandedOnlyForACallerWhichNeedsIt) {
   for (Sparse sparse : {Sparse::kExpand, Sparse::kLend}) {
     LogicalPlan plan;
     PlanNodeId scan = Scan::AddToPlan(&plan, df, "t", {0, 1});
-    plan.output() = plan.nodes()[scan].Cast<Scan>().columns();
+    core::ArenaSpan<NamedColumn> columns =
+        plan.nodes()[scan].Cast<Scan>().columns();
+    plan.output().assign(columns.begin(), columns.end());
     BoundPlan bound(std::move(plan));
     Scan::Bind(&bound, scan, df);
     LoweringContext context{&pool_, sparse};
@@ -870,10 +880,10 @@ TEST_F(PhysicalPlanTest, SortServingInPlaceKeepsSparseColumns) {
   for (Sorted sorted : {Sorted::kCopied, Sorted::kInPlace}) {
     LogicalPlan plan;
     PlanNodeId scan = Scan::AddToPlan(&plan, df, "t", {0, 1});
-    std::vector<NamedColumn> columns =
+    core::ArenaSpan<NamedColumn> columns =
         plan.nodes()[scan].Cast<Scan>().columns();
     OrderBy::AddToPlan(&plan, {{columns[1].id, false}});
-    plan.output() = columns;
+    plan.output().assign(columns.begin(), columns.end());
     BoundPlan bound(std::move(plan));
     Scan::Bind(&bound, scan, df);
     LoweringContext context{&pool_, LoweringContext::SparseOutputs::kLend,

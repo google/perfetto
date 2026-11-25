@@ -27,7 +27,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -55,13 +57,10 @@ class PlanNode;
 // Operation interface
 // -----------------------------------------------------------------------------
 
-// One operation in a logical plan. Lowering builds the batch-processing
-// core::exec operators which execute it.
+// One operation in a logical plan, made in the plan's Arena. Lowering builds
+// the batch-processing core::exec operators which execute it.
 class PlanOperation {
  public:
-  PlanOperation() = default;
-  virtual ~PlanOperation();
-
   // Updates this payload and marks required input ColumnIds in needed.
   // Returns a child slot to replace this node, or nullopt to keep it. The
   // pruning driver traverses children after this call; implementations do not.
@@ -125,18 +124,18 @@ class PlanOperation {
   virtual const OperationRegistration& registration() const = 0;
 
  protected:
-  // Concrete payloads are copied when added to a plan; the interface itself
-  // is not a value.
+  PlanOperation() = default;
+  // Concrete payloads are copied into the arena; the interface is not a value.
   PlanOperation(const PlanOperation&) = default;
   PlanOperation& operator=(const PlanOperation&) = default;
-  PlanOperation(PlanOperation&&) noexcept = default;
-  PlanOperation& operator=(PlanOperation&&) noexcept = default;
+  // The plan's Arena frees it without calling its destructor.
+  ~PlanOperation() = default;
 };
 
 // An empty operation of kind T, for a registration to make.
 template <typename T>
-std::unique_ptr<PlanOperation> MakeOperation() {
-  return std::make_unique<T>();
+PlanOperation* MakeOperation(core::Arena* arena) {
+  return arena->New<T>();
 }
 
 // -----------------------------------------------------------------------------
@@ -147,14 +146,8 @@ std::unique_ptr<PlanOperation> MakeOperation() {
 // single-input stage reads one; an intersection reads one per operand.
 class PlanNode {
  public:
-  PlanNode(std::unique_ptr<PlanOperation> operation,
-           std::vector<PlanNodeId> children);
-
-  PlanNode(const PlanNode&) = delete;
-  PlanNode& operator=(const PlanNode&) = delete;
-  PlanNode(PlanNode&&) noexcept;
-  PlanNode& operator=(PlanNode&&) noexcept;
-  ~PlanNode();
+  PlanNode(PlanOperation* operation, core::ArenaSpan<PlanNodeId> children)
+      : children_(children), operation_(operation) {}
 
   template <typename T>
   bool Is() const {
@@ -173,18 +166,19 @@ class PlanNode {
     return static_cast<const T&>(*operation_);
   }
 
-  std::vector<PlanNodeId>& children() { return children_; }
-  const std::vector<PlanNodeId>& children() const { return children_; }
+  core::ArenaSpan<PlanNodeId> children() const { return children_; }
 
   PlanOperation& operation() { return *operation_; }
   const PlanOperation& operation() const { return *operation_; }
 
   // Swaps the operations of this node and `other`, each keeping its children.
-  void SwapOperation(PlanNode* other) { operation_.swap(other->operation_); }
+  void SwapOperation(PlanNode* other) {
+    std::swap(operation_, other->operation_);
+  }
 
  private:
-  std::vector<PlanNodeId> children_;
-  std::unique_ptr<PlanOperation> operation_;
+  core::ArenaSpan<PlanNodeId> children_;
+  PlanOperation* operation_;
 };
 
 // -----------------------------------------------------------------------------
@@ -195,15 +189,11 @@ class PlanNode {
 // name the values they consume and produce, independently of layout.
 //
 // The root is the last stage of the pipeline and the leaves are its sources.
+//
+// Its operations, and everything they hold, are made in its arena, which moves
+// with the plan.
 class LogicalPlan {
  public:
-  LogicalPlan() = default;
-  // Moved, never copied: a plan is built, then consumed whole.
-  LogicalPlan(const LogicalPlan&) = delete;
-  LogicalPlan& operator=(const LogicalPlan&) = delete;
-  LogicalPlan(LogicalPlan&&) noexcept = default;
-  LogicalPlan& operator=(LogicalPlan&&) noexcept = default;
-
   ColumnId AddColumn(NameId name, PlanType type) {
     auto id = static_cast<ColumnId>(columns_.size());
     columns_.push_back({name, type});
@@ -212,25 +202,29 @@ class LogicalPlan {
 
   // Adds a node reading `children` and makes it the root, which holds while a
   // plan is built bottom up: each node added is the topmost one so far.
-  template <typename T>
-  PlanNodeId AddNode(T operation,
-                     std::initializer_list<PlanNodeId> children = {}) {
-    std::unique_ptr<PlanOperation> op =
-        std::make_unique<T>(std::move(operation));
-    return AddNode(std::move(op), children);
+  template <typename T,
+            typename = std::enable_if_t<std::is_base_of_v<PlanOperation, T>>>
+  PlanNodeId AddNode(const T& operation,
+                     base::Span<const PlanNodeId> children = {}) {
+    return AddNode(static_cast<PlanOperation*>(arena_.New<T>(operation)),
+                   arena_.CopySpan<PlanNodeId>(children));
   }
-  template <typename T>
-  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children) {
-    std::unique_ptr<PlanOperation> op =
-        std::make_unique<T>(std::move(operation));
-    return AddNode(std::move(op), std::move(children));
+  template <typename T,
+            typename = std::enable_if_t<std::is_base_of_v<PlanOperation, T>>>
+  PlanNodeId AddNode(const T& operation,
+                     std::initializer_list<PlanNodeId> children) {
+    return AddNode(operation, base::Span<const PlanNodeId>(children.begin(),
+                                                           children.end()));
   }
-  // Out of line because every operation's BuildPlan calls it; inlining would
-  // copy it into each.
-  PlanNodeId AddNode(std::unique_ptr<PlanOperation> operation,
-                     std::initializer_list<PlanNodeId> children);
-  PlanNodeId AddNode(std::unique_ptr<PlanOperation> operation,
-                     std::vector<PlanNodeId> children);
+  PlanNodeId AddNode(PlanOperation* operation,
+                     core::ArenaSpan<PlanNodeId> children) {
+    auto id = static_cast<PlanNodeId>(nodes_.size());
+    nodes_.emplace_back(operation, children);
+    root_ = id;
+    return id;
+  }
+
+  core::Arena& arena() { return arena_; }
 
   std::vector<PlanColumn>& columns() { return columns_; }
   const std::vector<PlanColumn>& columns() const { return columns_; }
@@ -259,6 +253,7 @@ class LogicalPlan {
   }
 
  private:
+  core::Arena arena_;
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
   std::vector<PlanColumn> columns_;

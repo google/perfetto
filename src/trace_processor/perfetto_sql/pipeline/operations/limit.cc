@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -81,7 +80,7 @@ base::Status Limit::BuildPlan(Compiler* c, uint32_t stage) {
   if (syntaqlite_node_is_present(n->offset)) {
     ASSIGN_OR_RETURN(limit.offset_, ParseInteger(c, n->offset));
   }
-  c->AddNode(std::move(limit), {c->plan().root()});
+  c->AddNode(limit, {c->plan().root()});
   return base::OkStatus();
 }
 

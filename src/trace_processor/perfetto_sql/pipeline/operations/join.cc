@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -147,8 +146,10 @@ base::Status Join::BuildPlan(Compiler* c, uint32_t stage) {
         c->Name(Node<SyntaqlitePerfettoPipeName>(c->parser(), match)->name);
   }
   PlanNodeId input = c->plan().root();
+  std::vector<ColumnId> outputs;
   ASSIGN_OR_RETURN(SourceRelation relation,
-                   AppendRelation(c, n, using_name, &join.outputs_));
+                   AppendRelation(c, n, using_name, &outputs));
+  join.outputs_ = c->arena().CopySpan<ColumnId>(outputs);
   RETURN_IF_ERROR(ResolveKeys(c, relation, match, using_name, &join.probe_key_,
                               &join.build_key_));
   const PlanType& type = c->plan().columns()[join.probe_key_].type;
@@ -156,14 +157,12 @@ base::Status Join::BuildPlan(Compiler* c, uint32_t stage) {
                           type.Is<core::Int64>())) {
     return c->Expected(match, "an integer key");
   }
-  c->AddNode(std::move(join), {input, relation.node});
+  c->AddNode(join, {input, relation.node});
   return base::OkStatus();
 }
 
 std::optional<uint32_t> Join::Prune(std::vector<bool>* needed) {
-  outputs_.erase(std::remove_if(outputs_.begin(), outputs_.end(),
-                                [&](ColumnId c) { return !(*needed)[c]; }),
-                 outputs_.end());
+  outputs_.RemoveIf([&](ColumnId c) { return !(*needed)[c]; });
   (*needed)[probe_key_] = true;
   (*needed)[build_key_] = true;
   return std::nullopt;

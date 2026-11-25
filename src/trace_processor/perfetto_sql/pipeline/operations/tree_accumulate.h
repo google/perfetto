@@ -33,7 +33,7 @@ struct BoundPlan;
 
 // `|> TREE ACCUMULATE UP | DOWN agg AS name, ...`. Appends one column per
 // aggregate.
-class TreeAccumulate : public PlanOperation {
+class TreeAccumulate final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -67,7 +67,7 @@ class TreeAccumulate : public PlanOperation {
   // The logical id/parent_id columns describing the input tree.
   ColumnId node_column_ = 0;
   ColumnId parent_column_ = 0;
-  std::vector<Aggregate> aggregates_;
+  core::ArenaSpan<Aggregate> aggregates_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -49,6 +48,7 @@ base::Status TreeKeyPaths::BuildPlan(Compiler* c, uint32_t stage) {
   ASSIGN_OR_RETURN(paths.parent_column_,
                    c->Resolve(c->Name("parent_id"), stage));
 
+  std::vector<ColumnId> keys;
   const auto* list =
       Node<SyntaqlitePerfettoPipeColumnList>(c->parser(), n->columns);
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
@@ -60,9 +60,8 @@ base::Status TreeKeyPaths::BuildPlan(Compiler* c, uint32_t stage) {
     }
     ASSIGN_OR_RETURN(ColumnId key,
                      c->Resolve(qualifier, c->Name(item->name), item_id));
-    if (std::find(paths.keys_.begin(), paths.keys_.end(), key) ==
-        paths.keys_.end()) {
-      paths.keys_.push_back(key);
+    if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
+      keys.push_back(key);
     }
   }
 
@@ -72,7 +71,8 @@ base::Status TreeKeyPaths::BuildPlan(Compiler* c, uint32_t stage) {
   paths.parent_path_ = c->AddColumn(parent_path_name, core::Int64{});
   c->Append(NamedColumn{path_name, paths.path_}, stage);
   c->Append(NamedColumn{parent_path_name, paths.parent_path_}, stage);
-  c->AddNode(std::move(paths), {c->plan().root()});
+  paths.keys_ = c->arena().CopySpan<ColumnId>(keys);
+  c->AddNode(paths, {c->plan().root()});
   return base::OkStatus();
 }
 
@@ -109,7 +109,7 @@ void TreeKeyPaths::Lower(Lowering* c, const PlanNode& node) const {
   const OutputProperties::Tree& tree = *c->QueryRows().tree;
   ex::TreeKeyPathsSpec spec{c->QueryPosition(tree.node_number),
                             c->QueryPosition(tree.parent_number),
-                            c->QueryPositions(keys_)};
+                            c->QueryPositions(keys_.span())};
   c->AddOperator(c->arena().New<ex::TreeKeyPaths>(spec));
 }
 

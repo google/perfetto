@@ -33,7 +33,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace {
 
-bool Contains(const std::vector<ColumnId>& columns, ColumnId column) {
+bool Contains(base::Span<const ColumnId> columns, ColumnId column) {
   return std::find(columns.begin(), columns.end(), column) != columns.end();
 }
 
@@ -352,7 +352,7 @@ bool OutputProperties::IsArranged(const std::vector<ColumnId>& keys,
 }
 
 std::vector<SortKey> OutputProperties::SortedBy(
-    const std::vector<ColumnId>& allowed) const {
+    base::Span<const ColumnId> allowed) const {
   std::vector<SortKey> longest;
   for (const Arrangement& arrangement : arrangements) {
     if (!arrangement.grouped_by.empty()) {
@@ -396,7 +396,7 @@ const PlanType& OutputProperties::TypeOf(ColumnId column) const {
 }
 
 std::optional<ColumnId> OutputProperties::GroupNumbersOf(
-    const std::vector<ColumnId>& keys) const {
+    base::Span<const ColumnId> keys) const {
   for (const GroupNumbers& numbers : group_numbers) {
     if (std::is_permutation(numbers.keys.begin(), numbers.keys.end(),
                             keys.begin(), keys.end())) {
@@ -451,11 +451,12 @@ void DeriveContext::Fail(base::Status status) {
 
 InputNeeds IntervalLaneNeeds(ColumnId ts,
                              ColumnId dur,
-                             const std::vector<ColumnId>& keys) {
+                             base::Span<const ColumnId> keys) {
   InputNeeds needs;
   needs.types_first.push_back({ts, core::Int64{}, false});
   needs.types_first.push_back({dur, core::Int64{}, false});
-  needs.arranged = OutputProperties::Arrangement{keys, {{ts, false}}};
+  needs.arranged =
+      OutputProperties::Arrangement{{keys.begin(), keys.end()}, {{ts, false}}};
   needs.group_numbers = true;
   return needs;
 }

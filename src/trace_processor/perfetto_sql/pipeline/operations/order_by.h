@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_ORDER_BY_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -34,12 +33,12 @@ class PlanNode;
 
 // `|> ORDER BY column [ASC | DESC], ...`. Sorts the rows by the columns, the
 // first deciding and each later one breaking ties. The row is unchanged.
-class OrderBy : public PlanOperation {
+class OrderBy final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
   // Adds an ORDER BY of `keys` above the root of `plan`.
-  static void AddToPlan(LogicalPlan* plan, std::vector<SortKey> keys);
+  static void AddToPlan(LogicalPlan* plan, const std::vector<SortKey>& keys);
 
  private:
   // Test-only formatting; keep payload details out of the public interface.
@@ -56,7 +55,7 @@ class OrderBy : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
-  std::vector<SortKey> keys_;
+  core::ArenaSpan<SortKey> keys_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

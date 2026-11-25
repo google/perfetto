@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_KEY_PATHS_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -33,7 +32,7 @@ class PlanNode;
 
 // `|> TREE KEY PATHS BY col, ... AS (key, parent_key)`. Appends each node's
 // path key and its parent's.
-class TreeKeyPaths : public PlanOperation {
+class TreeKeyPaths final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -55,7 +54,7 @@ class TreeKeyPaths : public PlanOperation {
   // The logical id/parent_id columns describing the input tree.
   ColumnId node_column_ = 0;
   ColumnId parent_column_ = 0;
-  std::vector<ColumnId> keys_;
+  core::ArenaSpan<ColumnId> keys_;
   ColumnId path_ = 0;
   ColumnId parent_path_ = 0;
 };

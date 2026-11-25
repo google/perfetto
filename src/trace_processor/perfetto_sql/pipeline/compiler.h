@@ -29,6 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/pipeline/aggregate.h"
@@ -144,14 +145,18 @@ class Compiler {
 
   // Appends an operation and makes it the plan root; does not update scope.
   template <typename T>
-  PlanNodeId AddNode(T operation,
-                     std::initializer_list<PlanNodeId> children = {}) {
-    return plan_.AddNode(std::move(operation), children);
+  PlanNodeId AddNode(const T& operation,
+                     base::Span<const PlanNodeId> children = {}) {
+    return plan_.AddNode(operation, children);
   }
   template <typename T>
-  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children) {
-    return plan_.AddNode(std::move(operation), std::move(children));
+  PlanNodeId AddNode(const T& operation,
+                     std::initializer_list<PlanNodeId> children) {
+    return plan_.AddNode(operation, children);
   }
+
+  // The arena the plan's operations, and everything they hold, are made in.
+  core::Arena& arena() { return plan_.arena(); }
 
   // ---------------------------------------------------------------------------
   // Name resolution and expression checks

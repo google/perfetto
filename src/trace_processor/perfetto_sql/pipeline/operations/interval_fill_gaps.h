@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_INTERVAL_FILL_GAPS_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -35,7 +34,7 @@ class PlanNode;
 // cover. These rows take their values from `rel` by column name.
 //
 // The node has two children: the input, then a scan of the background.
-class IntervalFillGaps : public PlanOperation {
+class IntervalFillGaps final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -69,12 +68,12 @@ class IntervalFillGaps : public PlanOperation {
 
   ColumnId ts_ = 0;
   ColumnId dur_ = 0;
-  std::vector<ColumnId> keys_;
+  core::ArenaSpan<ColumnId> keys_;
   ColumnId background_ts_ = 0;
   ColumnId background_dur_ = 0;
   // The background columns matching keys_, in the same order, or empty.
-  std::vector<ColumnId> background_keys_;
-  std::vector<Output> outputs_;
+  core::ArenaSpan<ColumnId> background_keys_;
+  core::ArenaSpan<Output> outputs_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

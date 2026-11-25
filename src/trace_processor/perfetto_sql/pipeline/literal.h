@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LITERAL_H_
 
 #include <cstdint>
-#include <string>
+#include <string_view>
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -68,10 +68,12 @@ struct Literal {
   uint32_t bound = 0;
   int64_t int_value = 0;
   double double_value = 0;
-  std::string text;
+  // In the plan's arena, followed by a NUL.
+  std::string_view text;
 };
 
-// Reads the number, optionally negated, or string at `expr`.
+// Reads the number, optionally negated, or string at `expr`. A string is made
+// in the plan's arena.
 base::StatusOr<Literal> CompileLiteral(Compiler*, uint32_t expr);
 
 // Casts the `count` literals `op` compares with for a column of storage `type`,

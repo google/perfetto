@@ -31,7 +31,7 @@ class PlanNode;
 
 // `INTERVAL INTERSECTION OF (rel AS a, ...) [PER cols]`. A source: the rows
 // are the regions every operand covers, not the rows of any one of them.
-class IntervalIntersect : public PlanOperation {
+class IntervalIntersect final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -42,10 +42,10 @@ class IntervalIntersect : public PlanOperation {
     ColumnId ts = 0;
     ColumnId dur = 0;
     // One per PER column, in the order they were written.
-    std::vector<ColumnId> keys;
+    core::ArenaSpan<ColumnId> keys;
     // The columns passed on to the rows out, in the operand's order. The
     // rest are read only to find the regions.
-    std::vector<ColumnId> carried;
+    core::ArenaSpan<ColumnId> carried;
   };
 
   // Test-only formatting; keep payload details out of the public interface.
@@ -63,7 +63,7 @@ class IntervalIntersect : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
-  std::vector<Operand> operands_;
+  core::ArenaSpan<Operand> operands_;
   // The region's own bounds, which no operand owns.
   ColumnId ts_ = 0;
   ColumnId dur_ = 0;

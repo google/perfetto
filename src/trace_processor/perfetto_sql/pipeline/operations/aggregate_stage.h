@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_AGGREGATE_STAGE_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -35,7 +34,7 @@ class PlanNode;
 // row per group of rows with equal keys. Each output row has the keys, in
 // order, then one column per aggregate. Without GROUP BY, the whole input is
 // one group, and it outputs a row even if the input is empty.
-class AggregateStage : public PlanOperation {
+class AggregateStage final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -54,8 +53,8 @@ class AggregateStage : public PlanOperation {
 
   const OperationRegistration& registration() const override;
 
-  std::vector<ColumnId> keys_;
-  std::vector<Aggregate> aggregates_;
+  core::ArenaSpan<ColumnId> keys_;
+  core::ArenaSpan<Aggregate> aggregates_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

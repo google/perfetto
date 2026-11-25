@@ -18,21 +18,22 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_SCAN_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/param_value.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
-#include "src/trace_processor/sqlite/sql_source.h"
 
 struct SyntaqlitePerfettoPipeSource;
 
@@ -70,9 +71,9 @@ struct ScanDataframeColumn {
 // A dataframe read directly. Defined outside Scan because GCC only treats a
 // nested class's member initializers as parsed once the enclosing class is.
 struct ScanDataframe {
-  std::string name;
+  std::string_view name;
   // By scan column, the dataframe column it reads.
-  std::vector<ScanDataframeColumn> read;
+  core::ArenaSpan<ScanDataframeColumn> read;
   // The stamp of the table's name and the columns read, as SerializePlan
   // wrote it. Only a read plan has this.
   uint64_t stamp = 0;
@@ -105,11 +106,11 @@ struct ScanSearch {
   // sorted columns rather than equalities on the index.
   uint32_t sorted = 0;
   // The conditions searched, in the order they are searched.
-  std::vector<WherePredicate> predicates;
+  core::ArenaSpan<WherePredicate> predicates;
 };
 
 // Reads all rows of a source. Always the first operation.
-class Scan : public PlanOperation {
+class Scan final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
@@ -126,7 +127,7 @@ class Scan : public PlanOperation {
   // `name`, to `plan` as its root, its columns named as the dataframe's.
   static PlanNodeId AddToPlan(LogicalPlan* plan,
                               const dataframe::Dataframe& dataframe,
-                              std::string name,
+                              std::string_view name,
                               const std::vector<uint32_t>& columns);
 
   // Binds the scan `node` of `bound` to `dataframe`, as resolving its name
@@ -135,7 +136,7 @@ class Scan : public PlanOperation {
                    PlanNodeId node,
                    const dataframe::Dataframe& dataframe);
 
-  const std::vector<NamedColumn>& columns() const { return columns_; }
+  core::ArenaSpan<NamedColumn> columns() const { return columns_; }
 
   // A WHERE condition on one of the scan's columns, with its value cast for
   // the column's storage type, or null for a value each run binds.
@@ -163,7 +164,7 @@ class Scan : public PlanOperation {
                                        const Bindings::Dataframe& data) const;
 
   // Makes the scan answer `search` instead of reading every row.
-  void SetSearch(ScanSearch search) { search_ = std::move(search); }
+  void SetSearch(const ScanSearch& search) { search_ = search; }
   bool has_search() const { return search_.has_value(); }
 
  private:
@@ -172,7 +173,8 @@ class Scan : public PlanOperation {
   // Where a scan reads from: a dataframe, SQL, or a dataframe argument. SQL
   // sources become dataframe arguments when the plan is written into SQL, and
   // those are bound to dataframes when it is loaded.
-  using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
+  // SQL is the text of the relation, in the plan's arena.
+  using Source = std::variant<Dataframe, std::string_view, DataframeArg>;
   // A column a dataframe scan reads, and the name it is read as.
   struct DataframeColumn {
     NameId name;
@@ -214,13 +216,13 @@ class Scan : public PlanOperation {
   // Crossing from SQL into a pipeline needs proper names, as creating a
   // PERFETTO TABLE does.
   static base::Status CheckSourceNames(Compiler*,
-                                       const std::vector<NamedColumn>& columns,
+                                       base::Span<const NamedColumn> columns,
                                        uint32_t at);
   static Bindings::Dataframe BindingFor(const dataframe::Dataframe& dataframe,
                                         const ScanDataframe& data);
   static Scan BuildDataframeScan(Compiler*,
                                  const dataframe::Dataframe& dataframe,
-                                 std::string name,
+                                 std::string_view name,
                                  const std::vector<DataframeColumn>& columns);
   // The columns of a source read through SQLite.
   static base::StatusOr<perfetto_sql::analysis::RelationLineage> AnalyzeSource(
@@ -236,7 +238,6 @@ class Scan : public PlanOperation {
       Compiler*,
       uint32_t from,
       const perfetto_sql::analysis::RelationLineage& lineage);
-  static void AddScanColumn(Compiler*, Scan* scan, NameId name, PlanType type);
 
   // Sets a source answering `search_`.
   void LowerSearch(Lowering*,
@@ -251,7 +252,7 @@ class Scan : public PlanOperation {
   // The conditions the scan answers by searching, set on a bound plan.
   std::optional<ScanSearch> search_;
   // Bindings in source column order.
-  std::vector<NamedColumn> columns_;
+  core::ArenaSpan<NamedColumn> columns_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline
