@@ -132,6 +132,7 @@ source_set("test_utils") {
     "../../../../gn:default_deps",
     "../../../base",
     "../common",
+    "../dataframe",
     "../util",
   ]
 }

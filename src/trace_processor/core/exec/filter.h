@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -67,8 +68,7 @@ class Filter final : public Transform {
   };
 
   // `pool` holds the strings of the columns, and must outlive the filter.
-  Filter(std::vector<Condition> conditions, const StringPool* pool);
-  ~Filter() override;
+  Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
@@ -88,7 +88,7 @@ class Filter final : public Transform {
     CallScratch<std::array<uint64_t, kMaxBatchRows>> sparse_values;
   };
 
-  std::vector<Condition> conditions_;
+  core::ArenaSpan<Condition> conditions_;
   const StringPool* pool_;
 };
 

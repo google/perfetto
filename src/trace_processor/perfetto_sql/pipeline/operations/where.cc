@@ -453,8 +453,8 @@ void Where::Rewrite(BoundPlan* bound,
 
 void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
-  std::vector<ex::Filter::Condition> conditions;
-  conditions.reserve(predicates_.size());
+  auto conditions = c->arena().NewSpan<ex::Filter::Condition>(
+      static_cast<uint32_t>(predicates_.size()));
   for (uint32_t i = 0; i < predicates_.size(); ++i) {
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(predicates_[i].column);
@@ -462,10 +462,9 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     if (std::optional<uint32_t> value = c->TakeParam(node, i)) {
       condition.param = *value;
     }
-    conditions.push_back(condition);
+    conditions[i] = condition;
   }
-  c->AddOperator(
-      std::make_unique<ex::Filter>(std::move(conditions), c->context().pool));
+  c->AddOperator(std::make_unique<ex::Filter>(conditions, c->context().pool));
 }
 
 const OperationRegistration& Where::registration() const {

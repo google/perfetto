@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -27,6 +28,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -37,6 +39,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec::test {
@@ -46,6 +49,30 @@ namespace perfetto::trace_processor::core::exec::test {
 inline Context& TestContext() {
   static base::NoDestructor<Context> context;
   return context.ref();
+}
+
+// The arena tests make operators in. It is never freed and lives as long as the
+// test binary.
+inline core::Arena& TestArena() {
+  static base::NoDestructor<core::Arena> arena;
+  return arena.ref();
+}
+
+// Copies `values` into TestArena(), the way operators hold lists.
+template <typename T>
+core::ArenaSpan<T> InArena(const std::vector<T>& values) {
+  return TestArena().CopySpan<T>(values);
+}
+
+// Copies pointers to `columns` into TestArena(), the way scans read them. The
+// dataframe which owns the columns must outlive the scan.
+inline core::ArenaSpan<const dataframe::Column*> ColumnsInArena(
+    std::initializer_list<std::shared_ptr<const dataframe::Column>> columns) {
+  std::vector<const dataframe::Column*> pointers;
+  for (const auto& column : columns) {
+    pointers.push_back(column.get());
+  }
+  return InArena(pointers);
 }
 
 // Adds to `out` a copy of `values`, present where `validity` says if not
@@ -105,8 +132,8 @@ class ArraySource final : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  explicit ArraySource(std::vector<int64_t> values)
-      : values_(std::move(values)) {}
+  explicit ArraySource(const std::vector<int64_t>& values)
+      : values_(InArena(values)) {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
@@ -125,7 +152,7 @@ class ArraySource final : public Source {
     out.Reset();
     out.AddBorrowedColumn(ColumnView::Sequence(nullptr, s.emitted));
     out.AddBorrowedColumn(ColumnView::Reference(
-        StorageType{Int64{}}, values_.data(), nullptr, s.emitted));
+        StorageType{Int64{}}, values_.begin(), nullptr, s.emitted));
     out.SetRowCount(count);
     s.emitted += count;
     return true;
@@ -136,7 +163,7 @@ class ArraySource final : public Source {
     uint32_t emitted = 0;
   };
 
-  std::vector<int64_t> values_;
+  core::ArenaSpan<int64_t> values_;
 };
 
 // Runs `transform` on a copy of `in` made in `out`, as a pipeline hands each

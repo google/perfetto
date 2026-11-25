@@ -245,12 +245,13 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
   }
   df.Finalize();
 
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(
+      test::ColumnsInArena({df.shared_column(0), df.shared_column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   std::unique_ptr<OperatorState> scan_state =
       scan.MakeState(test::TestContext());
   // The scan lends the nullable parents sparse, so they are laid out first.
-  Expand expand({1});
+  Expand expand(test::InArena<uint32_t>({1}));
   std::unique_ptr<OperatorState> expand_state =
       expand.MakeState(test::TestContext());
   TreeNumberNodes op(0, 1);

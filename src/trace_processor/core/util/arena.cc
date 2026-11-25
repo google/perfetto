@@ -20,6 +20,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <string_view>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -56,6 +58,14 @@ void* Arena::Allocate(size_t size, size_t align) {
     return reinterpret_cast<void*>(at);
   }
   return AllocateBlock(size, align);
+}
+
+std::string_view Arena::CopyString(std::string_view chars) {
+  auto* data = static_cast<char*>(Allocate(chars.size(), 1));
+  if (!chars.empty()) {
+    memcpy(data, chars.data(), chars.size());
+  }
+  return {data, chars.size()};
 }
 
 void* Arena::AllocateBlock(size_t size, size_t align) {

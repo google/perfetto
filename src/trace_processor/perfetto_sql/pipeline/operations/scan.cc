@@ -52,6 +52,7 @@
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -478,7 +479,8 @@ void Scan::Lower(Lowering* c, const PlanNode& node) const {
     return;
   }
   c->SetSource(std::make_unique<ex::DataframeScan>(
-      data.columns, data.row_count, c->QueryScanDirection(node)));
+      c->KeepColumns(data.columns), data.row_count,
+      c->QueryScanDirection(node)));
   c->SetSparseColumns(SparseColumns(data));
 }
 
@@ -491,17 +493,19 @@ void Scan::LowerSearch(Lowering* c,
   }
   const StringPool* pool = c->context().pool;
   // The column each searched condition is on, and its value for this run.
-  std::vector<std::shared_ptr<const dataframe::Column>> columns;
+  std::vector<const dataframe::Column*> columns;
   std::vector<uint32_t> values;
   for (uint32_t i = 0; i < search_->predicates.size(); ++i) {
-    columns.push_back(data.columns[Position(search_->predicates[i].column)]);
+    columns.push_back(
+        data.columns[Position(search_->predicates[i].column)].get());
     values.push_back(*c->TakeParam(node, i));
   }
   // The searches of sorted columns come first: all of them for kSorted.
   uint32_t sorted = search_->kind == ScanSearch::Kind::kIndex
                         ? search_->sorted
                         : static_cast<uint32_t>(columns.size());
-  std::vector<ex::SortedScan::Search> searches;
+  core::Arena& arena = c->arena();
+  auto searches = arena.NewSpan<ex::SortedScan::Search>(sorted);
   for (uint32_t i = 0; i < sorted; ++i) {
     ex::SortedScan::Search search;
     search.column = columns[i];
@@ -521,25 +525,28 @@ void Scan::LowerSearch(Lowering* c,
       search.kind = ex::SortedScan::Search::Kind::kBinarySearch;
     }
     search.param = values[i];
-    searches.push_back(std::move(search));
+    searches[i] = search;
   }
   if (search_->kind == ScanSearch::Kind::kIndex) {
     // Rows are read in index order, so the table's order is lost.
     PERFETTO_DCHECK(c->QueryScanDirection(node) ==
                     ex::ReadDirection::kForwards);
-    std::vector<ex::IndexScan::Equality> equalities;
+    auto equalities = arena.NewSpan<ex::IndexScan::Equality>(
+        static_cast<uint32_t>(columns.size()) - sorted);
     for (uint32_t i = sorted; i < columns.size(); ++i) {
-      equalities.push_back({columns[i], values[i]});
+      equalities[i - sorted] = {columns[i], values[i]};
     }
-    c->SetSource(std::make_unique<ex::IndexScan>(
-        data.columns, data.indexes[search_->index], std::move(equalities),
-        std::move(searches), pool));
+    const core::dataframe::Index& index = data.indexes[search_->index];
+    c->KeepAlive(index.permutation_vector());
+    c->SetSource(
+        std::make_unique<ex::IndexScan>(arena, c->KeepColumns(data.columns),
+                                        index, equalities, searches, pool));
     // It copies the rows it reads, so lends no sparse column.
     return;
   }
-  c->SetSource(std::make_unique<ex::SortedScan>(data.columns, data.row_count,
-                                                std::move(searches), pool,
-                                                c->QueryScanDirection(node)));
+  c->SetSource(std::make_unique<ex::SortedScan>(
+      arena, c->KeepColumns(data.columns), data.row_count, searches, pool,
+      c->QueryScanDirection(node)));
   c->SetSparseColumns(SparseColumns(data));
 }
 

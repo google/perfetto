@@ -130,7 +130,7 @@ const uint32_t* DataframeWindows::PopcountOf(const dataframe::Column& column) {
 }
 
 void DataframeWindows::Init(
-    const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+    base::Span<const dataframe::Column* const> columns) {
   PERFETTO_DCHECK(lent_.empty());
   lent_.resize(columns.size());
   buffers_.resize(columns.size());
@@ -192,8 +192,7 @@ void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
   out.SetRowCount(count);
 }
 
-void RangeReader::Init(
-    const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+void RangeReader::Init(base::Span<const dataframe::Column* const> columns) {
   windows_.Init(columns);
   for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
     descending_[i] = kMaxBatchRows - 1 - i;

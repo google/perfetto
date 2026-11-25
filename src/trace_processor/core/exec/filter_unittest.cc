@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -95,7 +96,7 @@ std::vector<int64_t> KeptIn(const RowBatch& batch,
                             StorageType type,
                             std::vector<Value> list,
                             const StringPool& pool) {
-  Filter filter({{0, In{}, 0}}, &pool);
+  Filter filter(test::InArena<Filter::Condition>({{0, In{}, 0}}), &pool);
   Context context;
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
   List fetcher;
@@ -164,12 +165,13 @@ class FilterTest : public ::testing::Test {
     }
   }
 
-  static std::vector<Filter::Condition> Conditions(const std::vector<On>& on) {
+  static core::ArenaSpan<Filter::Condition> Conditions(
+      const std::vector<On>& on) {
     std::vector<Filter::Condition> conditions;
     for (const On& c : on) {
       conditions.push_back({c.column, c.op, c.index});
     }
-    return conditions;
+    return test::InArena(conditions);
   }
 
   // The values of `n` in the rows of `in` every condition keeps.
@@ -351,7 +353,7 @@ TEST_F(FilterTest, RunsAgainWithANewPattern) {
 // starts, and is compared as any Uint32 column is.
 TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   StringPool pool;
-  Filter filter({{0, Ge{}, 0}}, &pool);
+  Filter filter(test::InArena<Filter::Condition>({{0, Ge{}, 0}}), &pool);
   Context context;
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
   Values fetcher;
@@ -421,7 +423,7 @@ TEST(FilterNullTest, ReadsVariantColumns) {
                         Variant::Null()};
   int64_t numbers[] = {10, 20, 30, 40};
   auto kept = [&](Op op) {
-    Filter filter({{0, op}}, &pool);
+    Filter filter(test::InArena<Filter::Condition>({{0, op}}), &pool);
     Context context;
     std::unique_ptr<OperatorState> state = filter.MakeState(context);
     RowBatch batch;

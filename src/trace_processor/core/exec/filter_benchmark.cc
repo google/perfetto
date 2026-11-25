@@ -43,6 +43,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -128,8 +129,10 @@ void RunExecutor(benchmark::State& state,
                  const Value& value) {
   const Slices& s = GetSlices();
   const dataframe::Dataframe& df = s.df();
-  Filter filter({{1, op, 0}}, &s.pool());
-  DataframeScan scan({df.shared_column(kId), df.shared_column(column)},
+  core::Arena arena;
+  Filter filter(arena.CopySpan<Filter::Condition>({{1, op, 0}}), &s.pool());
+  DataframeScan scan(arena.CopySpan<const dataframe::Column*>(
+                         {&df.column(kId), &df.column(column)}),
                      df.row_count(), ReadDirection::kForwards);
   ParamCaster<OneValue> caster =
       GetParamCaster<OneValue>(df.column_type(column), op);

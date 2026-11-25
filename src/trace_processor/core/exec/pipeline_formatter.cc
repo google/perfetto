@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
@@ -89,7 +90,7 @@ std::string Column(uint32_t position) {
   return "#" + std::to_string(position);
 }
 
-std::string Columns(const std::vector<uint32_t>& positions) {
+std::string Columns(base::Span<const uint32_t> positions) {
   std::string out;
   for (uint32_t position : positions) {
     out += (out.empty() ? "" : ", ") + Column(position);
@@ -343,8 +344,8 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     return "Filter(" + out + ")";
   }
   if (transform.Is<Expand>()) {
-    return "Expand(" + Columns(static_cast<const Expand&>(transform).columns_) +
-           ")";
+    return "Expand(" +
+           Columns(static_cast<const Expand&>(transform).columns_.span()) + ")";
   }
   if (transform.Is<NullColumn>()) {
     const auto& null = static_cast<const NullColumn&>(transform);

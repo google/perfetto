@@ -40,6 +40,7 @@
 #include "src/trace_processor/core/exec/top_k.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
@@ -55,6 +56,10 @@ bool Holds(const LoweredStep& step) {
   return !std::holds_alternative<std::unique_ptr<ex::Transform>>(step);
 }
 
+bool Contains(const std::vector<uint32_t>& values, uint32_t target) {
+  return std::find(values.begin(), values.end(), target) != values.end();
+}
+
 // Puts an Expand in front of each step which needs a `sparse` column of the
 // source laid out, as late as it can be: a step reading the column but not
 // sparse, or any operator which does not keep sparse columns, as one holds or
@@ -64,51 +69,51 @@ bool Holds(const LoweredStep& step) {
 void PlaceExpands(std::vector<uint32_t> sparse,
                   const std::vector<uint32_t>* outputs,
                   LoweringContext::SparseOutputs mode,
+                  core::Arena& arena,
                   std::vector<LoweredStep>* steps) {
   if (sparse.empty()) {
     return;
   }
   std::vector<LoweredStep> placed;
-  for (LoweredStep& step : *steps) {
-    std::vector<uint32_t> expand;
-    ex::StepColumns columns;
-    Describe(step, &columns);
-    if (Holds(step) && !columns.keeps_sparse) {
-      expand = std::move(sparse);
-      sparse.clear();
-    } else {
-      for (auto it = sparse.begin(); it != sparse.end();) {
-        bool reads = std::find(columns.reads.begin(), columns.reads.end(),
-                               *it) != columns.reads.end();
-        bool lent =
-            std::find(columns.reads_sparse.begin(), columns.reads_sparse.end(),
-                      *it) != columns.reads_sparse.end();
-        if (reads && !lent) {
-          expand.push_back(*it);
-          it = sparse.erase(it);
-        } else {
-          ++it;
-        }
-      }
+  auto emit_expand = [&](const std::vector<uint32_t>& columns) {
+    if (!columns.empty()) {
+      placed.emplace_back(
+          std::make_unique<ex::Expand>(arena.CopySpan<uint32_t>(columns)));
     }
-    if (!expand.empty()) {
-      placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
+  };
+  for (LoweredStep& step : *steps) {
+    if (!sparse.empty()) {
+      ex::StepColumns columns;
+      Describe(step, &columns);
+      if (Holds(step) && !columns.keeps_sparse) {
+        emit_expand(sparse);
+        sparse.clear();
+      } else {
+        std::vector<uint32_t> expand;
+        std::vector<uint32_t> remaining;
+        for (uint32_t column : sparse) {
+          if (Contains(columns.reads, column) &&
+              !Contains(columns.reads_sparse, column)) {
+            expand.push_back(column);
+          } else {
+            remaining.push_back(column);
+          }
+        }
+        emit_expand(expand);
+        sparse = std::move(remaining);
+      }
     }
     placed.push_back(std::move(step));
   }
-  if (outputs && mode == LoweringContext::SparseOutputs::kLend) {
-    *steps = std::move(placed);
-    return;
-  }
-  std::vector<uint32_t> expand;
-  for (uint32_t column : sparse) {
-    if (!outputs ||
-        std::find(outputs->begin(), outputs->end(), column) != outputs->end()) {
-      expand.push_back(column);
+  if (!sparse.empty() &&
+      (!outputs || mode != LoweringContext::SparseOutputs::kLend)) {
+    std::vector<uint32_t> expand;
+    for (uint32_t column : sparse) {
+      if (!outputs || Contains(*outputs, column)) {
+        expand.push_back(column);
+      }
     }
-  }
-  if (!expand.empty()) {
-    placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
+    emit_expand(expand);
   }
   *steps = std::move(placed);
 }
@@ -407,6 +412,26 @@ const Bindings::Dataframe& Lowering::QueryDataframe(
   return *dataframe;
 }
 
+core::Arena& Lowering::arena() const {
+  return plan_->out_->arena_;
+}
+
+core::ArenaSpan<const core::dataframe::Column*> Lowering::KeepColumns(
+    const std::vector<std::shared_ptr<const core::dataframe::Column>>&
+        columns) {
+  auto kept = arena().NewSpan<const core::dataframe::Column*>(
+      static_cast<uint32_t>(columns.size()));
+  for (uint32_t i = 0; i < columns.size(); ++i) {
+    kept[i] = columns[i].get();
+    KeepAlive(columns[i]);
+  }
+  return kept;
+}
+
+void Lowering::KeepAlive(std::shared_ptr<const void> object) {
+  plan_->out_->kept_alive_.push_back(std::move(object));
+}
+
 Lowering::Built Lowering::Build(const std::vector<uint32_t>* outputs) {
   // Chosen first: a sort serving in place keeps sparse columns unexpanded.
   if (outputs && !operators_.empty() &&
@@ -417,7 +442,7 @@ Lowering::Built Lowering::Build(const std::vector<uint32_t>* outputs) {
     }
   }
   PlaceExpands(std::move(sparse_columns_), outputs, context().sparse_outputs,
-               &operators_);
+               arena(), &operators_);
   SetUnreadColumns(*source_columns_, outputs, &operators_);
   // Cut at each breaker, which the pipeline so far ends in.
   ex::Pipelines& pipelines = plan_->out_->pipelines_;

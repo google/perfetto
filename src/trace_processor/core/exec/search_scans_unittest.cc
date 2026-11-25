@@ -49,6 +49,8 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
+#include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -232,10 +234,12 @@ class SearchScansDiffTest : public ::testing::Test {
 
   std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan,
                                 ReadDirection direction) {
-    std::vector<std::shared_ptr<const dataframe::Column>> columns;
+    core::Arena& arena = test::TestArena();
+    std::vector<const dataframe::Column*> all;
     for (uint32_t i = 0; i < df_->column_names().size(); ++i) {
-      columns.push_back(df_->shared_column(i));
+      all.push_back(&df_->column(i));
     }
+    core::ArenaSpan<const dataframe::Column*> columns = test::InArena(all);
     ExecPlan out;
     out.casters.resize(plan.filter_value_count);
     std::vector<SortedScan::Search> searches;
@@ -275,7 +279,7 @@ class SearchScansDiffTest : public ::testing::Test {
         }
         if (kind) {
           searches.push_back(
-              {df_->shared_column(f->col), *kind, f->op, *f->value_index});
+              {&df_->column(f->col), *kind, f->op, *f->value_index});
         } else {
           conditions.push_back({f->col, f->op, f->value_index.value_or(0)});
         }
@@ -287,7 +291,7 @@ class SearchScansDiffTest : public ::testing::Test {
           }
           out.casters[*p.value_index] =
               GetParamCaster<Values>(ReadAs(p.storage), p.op);
-          equalities.push_back({df_->shared_column(p.col), *p.value_index});
+          equalities.push_back({&df_->column(p.col), *p.value_index});
         }
         index = &df_->indexes()[idx->index];
       } else if (std::holds_alternative<dataframe::logical::Empty>(op)) {
@@ -300,23 +304,21 @@ class SearchScansDiffTest : public ::testing::Test {
     uint32_t rows = empty ? 0 : df_->row_count();
     if (empty) {
       // Provably empty, whatever else the plan does.
-      out.scan =
-          std::make_unique<DataframeScan>(std::move(columns), 0, direction);
+      out.scan = std::make_unique<DataframeScan>(columns, 0u, direction);
     } else if (index) {
       if (direction == ReadDirection::kBackwards) {
         return std::nullopt;
       }
       // Searches of sorted columns cut the index's rows to their range.
-      out.scan = std::make_unique<IndexScan>(std::move(columns), *index,
-                                             std::move(equalities),
-                                             std::move(searches), &pool_);
+      out.scan = std::make_unique<IndexScan>(arena, columns, *index,
+                                             test::InArena(equalities),
+                                             test::InArena(searches), &pool_);
       ++index_scans_;
     } else if (searches.empty()) {
-      out.scan =
-          std::make_unique<DataframeScan>(std::move(columns), rows, direction);
+      out.scan = std::make_unique<DataframeScan>(columns, rows, direction);
     } else {
       out.scan = std::make_unique<SortedScan>(
-          std::move(columns), rows, std::move(searches), &pool_, direction);
+          arena, columns, rows, test::InArena(searches), &pool_, direction);
       ++sorted_scans_;
     }
     std::vector<Pipeline::Step> steps;
@@ -330,11 +332,11 @@ class SearchScansDiffTest : public ::testing::Test {
       }
     }
     if (!sparse.empty()) {
-      steps.emplace_back(std::make_unique<Expand>(std::move(sparse)));
+      steps.emplace_back(std::make_unique<Expand>(test::InArena(sparse)));
     }
     if (!conditions.empty()) {
       steps.emplace_back(
-          std::make_unique<Filter>(std::move(conditions), &pool_));
+          std::make_unique<Filter>(test::InArena(conditions), &pool_));
     }
     out.pipeline = std::make_unique<Pipeline>(*out.scan, std::move(steps));
     return out;

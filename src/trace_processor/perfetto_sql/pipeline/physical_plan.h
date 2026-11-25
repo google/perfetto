@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
@@ -35,6 +36,7 @@
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
@@ -93,6 +95,11 @@ class PhysicalPlan {
     core::Op op;
   };
 
+  // Holds the lists and strings the plan's operators read.
+  core::Arena arena_;
+  // What the operators read that does need destroying, such as the dataframe
+  // columns scans read. The plan holds it so the operators need no destructor.
+  std::vector<std::shared_ptr<const void>> kept_alive_;
   // Declared first so they are destroyed last: each input must outlive the
   // pipelines that read it, and a sink the source which serves it.
   core::exec::Pipelines pipelines_;
@@ -264,6 +271,19 @@ class Lowering {
   void AddOperator(std::unique_ptr<core::exec::Transform>);
   void AddOperator(std::unique_ptr<core::exec::Operator>);
   void AddOperator(std::unique_ptr<core::exec::Breaker>);
+
+  // Holds the lists and strings the plan's operators read. It is freed with
+  // the plan, without running destructors.
+  core::Arena& arena() const;
+
+  // Keeps `columns` alive as long as the plan, and returns plain pointers to
+  // them for an operator to read.
+  core::ArenaSpan<const core::dataframe::Column*> KeepColumns(
+      const std::vector<std::shared_ptr<const core::dataframe::Column>>&
+          columns);
+
+  // Keeps `object` alive as long as the plan.
+  void KeepAlive(std::shared_ptr<const void> object);
 
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();

@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -43,18 +44,18 @@ namespace perfetto::trace_processor::core::exec {
 // bounded amount for the rest. Nothing is materialised ahead of being asked
 // for, so a query which reads one batch and stops does one batch of work.
 //
-// The scan holds shared ownership of the columns rather than a pointer to the
-// dataframe, so it keeps working if the table is replaced. The dataframe must
-// have been finalized before its columns were captured.
-class DataframeScan : public Source {
+// The scan reads the columns directly rather than the dataframe, so it keeps
+// working if the table is replaced, as long as whoever built the scan keeps the
+// columns alive. The dataframe must be finalized before its columns are
+// captured.
+class DataframeScan final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  DataframeScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
+  DataframeScan(core::ArenaSpan<const dataframe::Column*> columns,
                 uint32_t row_count,
                 ReadDirection direction);
-  ~DataframeScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
@@ -68,7 +69,7 @@ class DataframeScan : public Source {
     RangeReader reader;
   };
 
-  std::vector<std::shared_ptr<const dataframe::Column>> columns_;
+  core::ArenaSpan<const dataframe::Column*> columns_;
   uint32_t row_count_;
   ReadDirection direction_;
 };

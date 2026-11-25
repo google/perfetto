@@ -20,7 +20,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <new>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -133,6 +135,13 @@ class Arena {
     }
     return span;
   }
+  template <typename T>
+  ArenaSpan<T> CopySpan(std::initializer_list<T> values) {
+    return CopySpan<T>({values.begin(), values.end()});
+  }
+
+  // A copy of `chars`.
+  std::string_view CopyString(std::string_view chars);
 
   // Allocates `size` bytes aligned to `align`. Kept out of line, so each
   // allocation is a call rather than inlined code.

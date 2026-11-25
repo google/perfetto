@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_key_paths.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // What each step costs run through a pipeline, as a plan runs it: over many
 // rows, where the step's own work dominates, and over one row, where what the
@@ -97,18 +98,20 @@ void Run(benchmark::State& state,
   // Before every batch and state, which hold its buffers.
   Context context;
   Pipelines pipelines;
+  core::Arena arena;
   auto rows = static_cast<uint32_t>(state.range(0));
   StringPool pool;
   dataframe::Dataframe df = BuildTree(rows, child_first, &pool);
-  DataframeScan scan({df.shared_column(kId), df.shared_column(kParent),
-                      df.shared_column(kValue), df.shared_column(kSmall)},
+  DataframeScan scan(arena.CopySpan<const dataframe::Column*>(
+                         {&df.column(kId), &df.column(kParent),
+                          &df.column(kValue), &df.column(kSmall)}),
                      df.row_count(), direction);
   // The scan lends parent_id sparse: lay it out before the steps, as lowering
   // would.
   std::vector<Pipeline::Step> steps = make();
   if (!steps.empty() || breaker) {
     steps.insert(steps.begin(),
-                 std::make_unique<Expand>(std::vector<uint32_t>{kParent}));
+                 std::make_unique<Expand>(arena.CopySpan<uint32_t>({kParent})));
   }
   auto first = std::make_unique<Pipeline>(scan, std::move(steps));
   std::unique_ptr<Source> pipeline;

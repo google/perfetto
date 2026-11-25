@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -108,28 +109,32 @@ void Run(benchmark::State& state,
 
 // Numbering alone, to compare the ordering against.
 void BM_TreeOrderNumberOnly(benchmark::State& state) {
+  core::Arena arena;
   StringPool pool;
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(
+      arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Expand>(std::vector<uint32_t>{1}));
+  ops.push_back(std::make_unique<Expand>(arena.CopySpan<uint32_t>({1})));
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   Pipeline pipeline(scan, std::move(ops));
   Run(state, pipeline, rows, nullptr);
 }
 
 void BM_TreeParentFirst(benchmark::State& state) {
+  core::Arena arena;
   StringPool pool;
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(
+      arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Expand>(std::vector<uint32_t>{1}));
+  ops.push_back(std::make_unique<Expand>(arena.CopySpan<uint32_t>({1})));
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
   Pipeline pipeline(scan, std::move(ops));
@@ -137,14 +142,16 @@ void BM_TreeParentFirst(benchmark::State& state) {
 }
 
 void BM_TreeChildFirst(benchmark::State& state) {
+  core::Arena arena;
   StringPool pool;
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(
+      arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Expand>(std::vector<uint32_t>{1}));
+  ops.push_back(std::make_unique<Expand>(arena.CopySpan<uint32_t>({1})));
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   // A plan ends the pipeline in the breaker, and serves it to the next.
   Pipelines pipelines;

@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/range.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -45,47 +46,48 @@ using filter::CastFilterValueResult;
 
 }  // namespace
 
-SortedSearches::SortedSearches(std::vector<Search> searches,
+SortedSearches::SortedSearches(core::Arena& arena,
+                               core::ArenaSpan<Search> searches,
                                const StringPool* pool)
-    : searches_(std::move(searches)), pool_(pool) {
-  for (const Search& s : searches_) {
+    : searches_(searches),
+      sorted_(arena.NewSpan<Sorted>(searches.size())),
+      pool_(pool) {
+  for (uint32_t i = 0; i < searches_.size(); ++i) {
+    const Search& s = searches_[i];
     std::optional<RangeOp> op = s.op.TryDowncast<RangeOp>();
     PERFETTO_CHECK(op);
     PERFETTO_CHECK(s.column->null_storage.nullability().Is<NonNull>());
     PERFETTO_CHECK(s.kind == Search::Kind::kBinarySearch || s.op.Is<Eq>());
     StorageType type = s.column->storage.type();
-    sorted_.push_back({{type, s.column->storage.untyped_data(), pool_},
-                       *op,
-                       type.Is<String>() && op->Is<Eq>()});
+    sorted_[i] = {{type, s.column->storage.untyped_data(), pool_},
+                  *op,
+                  type.Is<String>() && op->Is<Eq>()};
   }
   only_id_eq_ = searches_.size() == 1 &&
                 searches_[0].column->storage.type().Is<Id>() &&
                 searches_[0].op.Is<Eq>();
 }
 
-SortedSearches::~SortedSearches() = default;
-
 Range SortedSearches::Find(const Context& context, Range rows) const {
   return only_id_eq_ ? FindIdEq(context, rows) : FindAll(context, rows);
 }
 
-SortedScan::SortedScan(
-    std::vector<std::shared_ptr<const dataframe::Column>> columns,
-    uint32_t row_count,
-    std::vector<Search> searches,
-    const StringPool* pool,
-    ReadDirection direction)
-    : columns_(std::move(columns)),
+SortedScan::SortedScan(core::Arena& arena,
+                       core::ArenaSpan<const dataframe::Column*> columns,
+                       uint32_t row_count,
+                       core::ArenaSpan<Search> searches,
+                       const StringPool* pool,
+                       ReadDirection direction)
+    : columns_(columns),
       row_count_(row_count),
-      searches_(std::move(searches), pool),
+      searches_(arena, searches, pool),
       direction_(direction) {}
 
-SortedScan::~SortedScan() = default;
 SortedScan::State::~State() = default;
 
 std::unique_ptr<OperatorState> SortedScan::MakeState(Context& context) const {
   auto state = std::make_unique<State>();
-  state->reader.Init(columns_);
+  state->reader.Init(columns_.span());
   state->context = &context;
   return state;
 }

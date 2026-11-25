@@ -17,6 +17,8 @@
 #include "src/trace_processor/core/util/arena.h"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "test/gtest_and_gmock.h"
@@ -99,6 +101,18 @@ TEST(ArenaTest, RemoveIf) {
   span.RemoveIf([](uint32_t v) { return v % 2 == 0; });
   EXPECT_THAT(std::vector<uint32_t>(span.begin(), span.end()),
               testing::ElementsAre(1u, 3u, 5u));
+}
+
+TEST(ArenaTest, CopiesListsAndStrings) {
+  Arena arena;
+  ArenaSpan<uint32_t> list = arena.CopySpan<uint32_t>({4, 5, 6});
+  EXPECT_EQ(std::vector<uint32_t>(list.begin(), list.end()),
+            std::vector<uint32_t>({4, 5, 6}));
+  std::string text = "a string longer than any inline buffer";
+  std::string_view copy = arena.CopyString(text);
+  EXPECT_NE(copy.data(), text.data());
+  EXPECT_EQ(copy, text);
+  EXPECT_TRUE(arena.CopyString("").empty());
 }
 
 }  // namespace

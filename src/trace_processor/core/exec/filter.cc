@@ -43,6 +43,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/glob.h"
 
@@ -386,15 +387,14 @@ void ApplyCondition(const Op& op,
 
 }  // namespace
 
-Filter::Filter(std::vector<Condition> conditions, const StringPool* pool)
-    : conditions_(std::move(conditions)), pool_(pool) {
+Filter::Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool)
+    : conditions_(conditions), pool_(pool) {
   for (const Condition& c : conditions_) {
     PERFETTO_CHECK(c.op.IsAnyOf<NonStringOp>() || c.op.IsAnyOf<NullOp>() ||
                    c.op.Is<In>() || c.op.IsAnyOf<OnlyStringOp>());
   }
 }
 
-Filter::~Filter() = default;
 Filter::State::~State() = default;
 
 std::unique_ptr<OperatorState> Filter::MakeState(Context& context) const {

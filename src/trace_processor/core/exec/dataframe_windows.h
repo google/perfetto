@@ -52,7 +52,7 @@ class DataframeWindows {
 
   // Prepares windows onto `columns`. Called once, before any window is
   // filled.
-  void Init(const std::vector<std::shared_ptr<const dataframe::Column>>&);
+  void Init(base::Span<const dataframe::Column* const>);
 
   // Points `out` at rows [from, from + count), all kept.
   void Fill(uint32_t from, uint32_t count, RowBatch& out);
@@ -88,8 +88,7 @@ enum class ReadDirection : uint8_t {
 // which find the rows they read as a range.
 class RangeReader {
  public:
-  void Init(
-      const std::vector<std::shared_ptr<const dataframe::Column>>& columns);
+  void Init(base::Span<const dataframe::Column* const> columns);
 
   // Reads `range` in `direction`.
   void Start(Range range, ReadDirection direction) {
@@ -130,9 +129,8 @@ class RangeReader {
 class RowListReader {
  public:
   // `context` provides the buffers the rows are copied into.
-  void Init(
-      const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
-      Context* context) {
+  void Init(base::Span<const dataframe::Column* const> columns,
+            Context* context) {
     windows_.Init(columns);
     context_ = context;
   }
