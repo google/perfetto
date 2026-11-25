@@ -13,8 +13,24 @@
 # - PID 500: in dump only, with proc_state_start_ns (1500) inside the trace.
 # - PID 600: earliest delta at 2000 carries an invalid prev_proc_state_start_ns
 #            (2500) after the delta itself (synthetic: producers always write
-#            a start before the event). state_start_ts keeps the raw value, but
-#            the interval treats it as unknown and starts at trace start.
+#            a start before the event). state_start_ts is NULL and the interval
+#            starts at trace start.
+# - PID 700: earliest delta at 2000 with an explicit prev_proc_state_start_ns
+#            of 0, which means unknown. state_start_ts is NULL.
+# - PID 800: in dump only, with a negative proc_state_start_ns. state_start_ts
+#            is NULL.
+# - PID 900: in dump only, with proc_state_start_ns (12000) after the dump
+#            (10000). state_start_ts is NULL and the interval starts at trace
+#            start.
+# - PID 1000: starts inside the trace (process_start at 1500); in dump only,
+#             with proc_state_start_ns (1200) before the process start. The
+#             interval is clamped to the process start.
+# - PID 1100: starts inside the trace (process_start at 1500); earliest delta
+#             at 3000 with prev_proc_state_start_ns (2000) between the process
+#             start and the delta. The initial interval starts at 2000.
+# - PID 1200: process_start (2500) is after its first change (2000), with no
+#             prev_proc_state_start_ns. The initial interval never starts
+#             after the first change, so it is empty at 2000.
 
 packet {
   timestamp: 1000
@@ -25,6 +41,10 @@ packet {
     processes { pid: 400 ppid: 1 cmdline: "proc400" }
     processes { pid: 500 ppid: 1 cmdline: "proc500" }
     processes { pid: 600 ppid: 1 cmdline: "proc600" }
+    processes { pid: 700 ppid: 1 cmdline: "proc700" }
+    processes { pid: 800 ppid: 1 cmdline: "proc800" }
+    processes { pid: 900 ppid: 1 cmdline: "proc900" }
+    processes { pid: 1200 ppid: 1 cmdline: "proc1200" }
   }
 }
 packet {
@@ -146,6 +166,106 @@ packet {
     }
   }
 }
+# Track event for PID 700: state change at 2000 with an explicit
+# prev_proc_state_start_ns of 0.
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 700
+      uid: 10007
+      prev_proc_state: PROCESS_STATE_SERVICE
+      cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+      prev_proc_state_start_ns: 0
+      reason: 3
+      seq_id: 40
+    }
+  }
+}
+# PIDs 1000 and 1100 start at 1500.
+packet {
+  timestamp: 1500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10010
+      pid: 1000
+      process_name: "proc1000"
+    }
+  }
+}
+packet {
+  timestamp: 1500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10011
+      pid: 1100
+      process_name: "proc1100"
+    }
+  }
+}
+# Track event for PID 1100: state change at 3000.
+packet {
+  timestamp: 3000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 1100
+      uid: 10011
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+      prev_proc_state_start_ns: 2000
+      reason: 3
+      seq_id: 50
+    }
+  }
+}
+# Track event for PID 1200: state change at 2000, before its process_start.
+packet {
+  timestamp: 2000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 1200
+      uid: 10012
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+      reason: 3
+      seq_id: 60
+    }
+  }
+}
+packet {
+  timestamp: 2500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 1
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10012
+      pid: 1200
+      process_name: "proc1200"
+    }
+  }
+}
 # Trace-stop dump for process state.
 packet {
   timestamp: 10000
@@ -184,6 +304,24 @@ packet {
       uid: 10006
       proc_state: 1018
       proc_state_start_ns: 2000
+    }
+    record {
+      pid: 800
+      uid: 10008
+      proc_state: 1010
+      proc_state_start_ns: -5
+    }
+    record {
+      pid: 900
+      uid: 10009
+      proc_state: 1010
+      proc_state_start_ns: 12000
+    }
+    record {
+      pid: 1000
+      uid: 10010
+      proc_state: 1010
+      proc_state_start_ns: 1200
     }
   }
 }

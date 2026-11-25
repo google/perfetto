@@ -45,15 +45,21 @@ namespace fb = com::android::internal::pbzero;
 // Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
 // proc_state_start_ns) to trace time. Values <= 0 mean unknown. Also returns
 // std::nullopt if the conversion fails (the clock tracker records a stat in
-// that case).
+// that case) or if the start is after |event_ts|, the trace time of the event
+// reporting it, as a state can't start after it is reported.
 std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
-                                          int64_t boottime_ns) {
+                                          int64_t boottime_ns,
+                                          int64_t event_ts) {
   if (boottime_ns <= 0) {
     return std::nullopt;
   }
-  return clock_tracker->ToTraceTime(
+  std::optional<int64_t> start_ts = clock_tracker->ToTraceTime(
       ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
       boottime_ns);
+  if (start_ts && *start_ts > event_ts) {
+    return std::nullopt;
+  }
+  return start_ts;
 }
 }  // namespace
 
@@ -138,7 +144,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     }
     if (p.has_prev_proc_state_start_ns()) {
       prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                         p.prev_proc_state_start_ns());
+                                         p.prev_proc_state_start_ns(), ts);
     }
   }
 
@@ -222,7 +228,7 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
     if (rec.has_proc_state_start_ns()) {
       v.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                      rec.proc_state_start_ns());
+                                      rec.proc_state_start_ns(), ts);
     }
     process_dump_[v.upid] = v;
   }
@@ -312,8 +318,10 @@ void AndroidProcessStateTracker::ParseProcessGroupChange(
 // 2. Processes that changed state during the trace have their initial state
 //    recovered from the `prev_*` fields of their earliest delta in
 //    `earliest_prev_`.
-// The time the initial proc_state was entered (start_ts) always comes from the
-// same source as the proc_state itself.
+// When a process has a change event, the time the initial proc_state was
+// entered (start_ts) always comes from its earliest delta, even if the
+// proc_state itself falls back to the snapshot (the delta omits
+// prev_proc_state when it is PROCESS_STATE_UNSPECIFIED).
 std::map<UniquePid, AndroidProcessStateTracker::ProcessStateValues>
 AndroidProcessStateTracker::ComputeInitialProcessStates() const {
   std::map<UniquePid, ProcessStateValues> initial = process_dump_;
