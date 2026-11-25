@@ -18,6 +18,7 @@
 #define SRC_PROTOZERO_FILTERING_STRING_FILTER_H_
 
 #include <array>
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -139,7 +140,7 @@ class StringFilter {
   };
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;
-  void RecomputeActiveSemanticTypes();
+  void RecomputeDerivedState();
 
   // All rules, in the order they were added.
   std::vector<Rule> rules_;
@@ -148,6 +149,13 @@ class StringFilter {
   // Allows MaybeFilter() to skip MaybeFilterInternal() in O(1) when zero
   // configured rules cover a field's semantic type.
   SemanticTypeMask active_semantic_types_;
+
+  // Types with at least one rule which isn't an atrace rule with a non-empty
+  // prefix. These always run the full rule loop.
+  SemanticTypeMask types_without_prefilter_;
+
+  // First byte of every non-empty atrace prefix, used by PrefilterRejects().
+  std::bitset<256> prefilter_first_chars_;
 
   // Reusable buffer for regex match groups, avoiding heap allocations on each
   // filter call.
