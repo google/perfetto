@@ -65,6 +65,7 @@ function derivePolicy(isInternalUser: boolean): Policy {
     bugReportUrl: isInternalUser
       ? 'https://goto.google.com/perfetto-ui-bug'
       : 'https://github.com/google/perfetto/issues/new',
+    useAdvancedAnalytics: isInternalUser,
   };
 }
 
@@ -184,6 +185,7 @@ export class AppImpl implements App {
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
       this.embedder.analyticsId,
+      () => this.policy,
     );
     this.pages = new PageManagerImpl(this.analytics);
   }
