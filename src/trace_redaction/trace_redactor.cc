@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -46,6 +47,7 @@
 #include "src/trace_redaction/prune_perf_events.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/redact_process_events.h"
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/reduce_threads_in_process_trees.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/timeline_validation.h"
@@ -109,13 +111,13 @@ void AppendPacketToTrace(std::string_view packet, std::string* output_buffer) {
 
 }  // namespace
 
-TraceRedactorPass::TraceRedactorPass() = default;
+ConcreteRedactorPass::ConcreteRedactorPass() = default;
 
-TraceRedactorPass::~TraceRedactorPass() = default;
+ConcreteRedactorPass::~ConcreteRedactorPass() = default;
 
-base::Status TraceRedactorPass::Redact(std::string_view view,
-                                       Context* context,
-                                       std::string* output_buffer) const {
+base::Status ConcreteRedactorPass::Redact(std::string_view view,
+                                          Context* context,
+                                          std::string* output_buffer) const {
   RETURN_IF_ERROR(Collect(context, view));
   RETURN_IF_ERROR(Validate(*context));
   RETURN_IF_ERROR(Build(context));
@@ -125,8 +127,8 @@ base::Status TraceRedactorPass::Redact(std::string_view view,
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Collect(Context* context,
-                                        std::string_view view) const {
+base::Status ConcreteRedactorPass::Collect(Context* context,
+                                           std::string_view view) const {
   for (const auto& collector : collectors_) {
     RETURN_IF_ERROR(collector->Begin(context));
   }
@@ -149,23 +151,23 @@ base::Status TraceRedactorPass::Collect(Context* context,
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Validate(const Context& context) const {
+base::Status ConcreteRedactorPass::Validate(const Context& context) const {
   for (const auto& validator : validators_) {
     RETURN_IF_ERROR(validator->Validate(context));
   }
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Build(Context* context) const {
+base::Status ConcreteRedactorPass::Build(Context* context) const {
   for (const auto& builder : builders_) {
     RETURN_IF_ERROR(builder->Build(context));
   }
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Transform(const Context& context,
-                                          std::string_view view,
-                                          std::string* output_buffer) const {
+base::Status ConcreteRedactorPass::Transform(const Context& context,
+                                             std::string_view view,
+                                             std::string* output_buffer) const {
   const Trace::Decoder trace_decoder(
       reinterpret_cast<const uint8_t*>(view.data()), view.size());
   for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
@@ -194,8 +196,8 @@ base::Status TraceRedactorPass::Transform(const Context& context,
   return base::OkStatus();
 }
 
-base::Status TraceRedactorPass::Augment(const Context& context,
-                                        std::string* output_buffer) const {
+base::Status ConcreteRedactorPass::Augment(const Context& context,
+                                           std::string* output_buffer) const {
   std::string packet;
   for (const auto& augmenter : augmenters_) {
     // Keep augmenting until the augmenter returns an empty packet.
@@ -215,11 +217,18 @@ TraceRedactor::TraceRedactor() = default;
 
 TraceRedactor::~TraceRedactor() = default;
 
-TraceRedactorPass* TraceRedactor::add_pass() {
-  auto pass = std::make_unique<TraceRedactorPass>();
-  auto* ptr = pass.get();
+ConcreteRedactorPass* TraceRedactor::add_pass() {
+  RedactorPass pass;
+  pass.concrete_pass = std::make_unique<ConcreteRedactorPass>();
+  auto* ptr = pass.concrete_pass.get();
   passes_.push_back(std::move(pass));
   return ptr;
+}
+
+void TraceRedactor::add_pass(PassBuilder builder) {
+  RedactorPass pass;
+  pass.builder = std::move(builder);
+  passes_.push_back(std::move(pass));
 }
 
 base::Status TraceRedactor::Redact(std::string_view source_filename,
@@ -230,25 +239,58 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
   ASSIGN_OR_RETURN(trace_processor::TraceBlob blob,
                    LoadTrace(source_filename_str));
 
-  std::string buffer_a;
-  std::string buffer_b;
+  std::string output;
+  RETURN_IF_ERROR(RedactBuffer(
+      std::string_view(reinterpret_cast<const char*>(blob.data()), blob.size()),
+      &output, context));
 
-  std::string_view current_input(reinterpret_cast<const char*>(blob.data()),
-                                 blob.size());
-  std::string* current_output = &buffer_a;
+  return WriteTraceToFile(dest_filename_str, output);
+}
 
-  for (size_t i = 0; i < passes_.size(); ++i) {
+base::Status TraceRedactor::RedactBuffer(std::string_view input,
+                                         std::string* output,
+                                         Context* context) const {
+  PERFETTO_DCHECK(output);
+  output->clear();
+
+  // Double buffering: keep at most one buffer for reading and another one for
+  // writing, ping-ponging between `output` and `scratch`:
+  //   - Active pass 1 writes directly into `output` (`scratch` is never
+  //     allocated when dynamic Pass 2 is skipped).
+  //   - Active pass 2 reads `output`, writes into `scratch`, and swaps with
+  //     `output` in O(1) at the end.
+  std::string scratch;
+  std::string_view current_input = input;
+  std::string* last_written = nullptr;
+
+  for (const auto& redactor_pass : passes_) {
+    ConcreteRedactorPass dynamic_pass;
+    const ConcreteRedactorPass* pass = redactor_pass.concrete_pass.get();
+    if (!pass) {
+      redactor_pass.builder(*context, &dynamic_pass);
+      pass = &dynamic_pass;
+    }
+    if (pass->empty()) {
+      continue;
+    }
+
+    std::string* current_output = (last_written == output) ? &scratch : output;
     current_output->clear();
-    RETURN_IF_ERROR(passes_[i]->Redact(current_input, context, current_output));
+    // Redacted output is not expected to be larger than its input; reserving
+    // avoids reallocation spikes for large traces.
+    current_output->reserve(current_input.size());
+    RETURN_IF_ERROR(pass->Redact(current_input, context, current_output));
     current_input = *current_output;
-
-    // Double buffering, flip buffers for next pass to only keep at most
-    // one buffer for reading and another one for writting, ping-pong between
-    // buffer_a and buffer_b.
-    current_output = (current_output == &buffer_a) ? &buffer_b : &buffer_a;
+    last_written = current_output;
   }
 
-  return WriteTraceToFile(dest_filename_str, current_input);
+  if (PERFETTO_UNLIKELY(last_written == nullptr)) {
+    output->assign(input.data(), input.size());
+  } else if (last_written == &scratch) {
+    output->swap(scratch);
+  }
+
+  return base::OkStatus();
 }
 
 std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
@@ -268,10 +310,10 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
 
   // Add all collectors.
   pass1->emplace_collect<FindPackageUid>();
+  pass1->emplace_collect<CollectClocks>();
+  pass1->emplace_collect<CollectSystemInfo>();
   pass1->emplace_collect<CollectTimelineEvents>();
   pass1->emplace_collect<CollectFrameCookies>();
-  pass1->emplace_collect<CollectSystemInfo>();
-  pass1->emplace_collect<CollectClocks>();
 
   // Add all validators.
   pass1->emplace_validator<TimelineValidation>();
@@ -408,13 +450,20 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
 
   // Pass 2: Merge process trees into a single deduplicated process tree packet
   // appended at the end of the trace, and coalesce duplicated synthetic sched
-  // events.
-  TraceRedactorPass* pass2 = redactor->add_pass();
-  pass2->emplace_collect<CollectProcessTrees>();
-  pass2->emplace_validator<SyntheticProcessValidator>();
-  pass2->emplace_transform<ReduceProcessTrees>();
-  pass2->emplace_transform<MergeSyntheticSched>();
-  pass2->emplace_augment<AugmentProcessTrees>();
+  // events. Prepared dynamically after Pass 1 finishes based on `Context`; when
+  // neither is needed, `pass2` stays empty and `RedactBuffer` skips Pass 2
+  // altogether.
+  redactor->add_pass([](const Context& context, ConcreteRedactorPass* pass2) {
+    if (context.process_tree_packets > 1) {
+      pass2->emplace_collect<CollectProcessTrees>();
+      pass2->emplace_transform<ReduceProcessTrees>();
+      pass2->emplace_augment<AugmentProcessTrees>();
+    }
+    if (context.synthetic_process) {
+      pass2->emplace_validator<SyntheticProcessValidator>();
+      pass2->emplace_transform<MergeSyntheticSched>();
+    }
+  });
 
   return redactor;
 }

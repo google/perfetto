@@ -64,8 +64,7 @@ base::Status AddSythThreadsToProcessTrees::Transform(
   PERFETTO_DCHECK(packet);
 
   if (!context.synthetic_process) {
-    return base::ErrStatus(
-        "AddSythThreadsToProcessTrees: missing synthentic threads.");
+    return base::OkStatus();
   }
 
   const auto& synthetic_process = *context.synthetic_process;

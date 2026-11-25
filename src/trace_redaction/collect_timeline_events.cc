@@ -158,6 +158,7 @@ base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
   // The packet's timestamp based on the assumption that in order to be
   // collected, the processes and threads had to exist before "now".
   if (packet.has_process_tree()) {
+    context->process_tree_packets++;
     AppendEvents(packet.timestamp(),
                  ProcessTree::Decoder(packet.process_tree()),
                  context->normalize_uid, context->timeline.get());
