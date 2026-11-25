@@ -16,6 +16,7 @@ import {deferChunkedTask} from '../../../base/chunked_task';
 import {uuidv4} from '../../../base/uuid';
 import protos from '../../../protos';
 import type {App} from '../../../public/app';
+import type {Engine} from '../../../trace_processor/engine';
 import {NUM, NUM_NULL, STR} from '../../../trace_processor/query_result';
 import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
 import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
@@ -25,7 +26,14 @@ import type {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/trace
 import {isDebuggableAndroidBuild} from '../utils';
 import type {ConnectionResult} from '../views/connection';
 import {download} from '../../../base/download_utils';
+import {
+  beginPendingMemoryCapture,
+  failPendingMemoryCapture,
+  memoryLoadingHref,
+  updatePendingMemoryCapture,
+} from '../memory_explorer/loading_state';
 import {ProfileSession, type ProfileState} from './profile_session';
+import {MEMSCOPE_SQL_PACKAGE} from '../product_assets';
 
 export interface ProfileView {
   readonly pid: number;
@@ -36,8 +44,8 @@ export interface ProfileView {
   readonly startMs: number;
 }
 
-const SNAPSHOT_INTERVAL_MS = 3_000; // How over to take a snapshot of the runnign trace and extract data.
-const INITIAL_SNAPSHOT_INTERVAL_MS = 1_000; // Use a shorter interval for the first snapshot to get data on screen faster.
+const SNAPSHOT_INTERVAL_MS = 1_500; // How often to take a snapshot of the running trace and extract data.
+const INITIAL_SNAPSHOT_INTERVAL_MS = 800; // Use a shorter interval for the first snapshot to get data on screen faster.
 const POLLING_INTERVAL_MS = 1_000; // Recording config polling interval for system stats.
 const PROCESS_STATS_POLL_MS = 500; // 2x the default polling resolution for process memory counters.
 
@@ -186,22 +194,57 @@ export class LiveSession {
     this.profileImpl = {session, startMs: Date.now()};
   }
 
-  /** Stops the active profile and opens the trace in the main UI. */
+  /** Stops the active profile and opens the trace in Memory Explorer. */
   async stopAndOpenProfile(): Promise<void> {
     const profile = this.profileImpl?.session;
     if (!profile) return;
     const processName = profile.processName;
     const pid = profile.pid;
-    await profile.stop();
-    const traceData = profile.getTraceData();
-    this.profileImpl = undefined;
-    if (traceData) {
-      const fileName = `heap-${processName}-${pid}.perfetto-trace`;
-      this.app.openTraceFromBuffer({
+    const fileName = `heap-${processName}-${pid}.perfetto-trace`;
+
+    // Immediately create/navigate to the Memory Explorer dump page so stopping,
+    // downloading, and trace parsing progress happen there instead of on Live.
+    beginPendingMemoryCapture({
+      title: fileName,
+      fromLive: true,
+      processName,
+      pid,
+      deviceName: this.deviceName,
+      stage: 'stopping',
+      detail: `Flushing heapprofd & java_hprof buffers from ${this.deviceName}…`,
+    });
+    this.app.navigate(memoryLoadingHref(processName));
+
+    try {
+      await profile.stop();
+      const traceData = profile.getTraceData();
+      this.profileImpl = undefined;
+      if (
+        profile.state === 'error' ||
+        !traceData ||
+        traceData.byteLength === 0
+      ) {
+        failPendingMemoryCapture(
+          profile.error ?? 'Capture stopped without any trace data.',
+        );
+        this.app.raf.scheduleFullRedraw();
+        return;
+      }
+      updatePendingMemoryCapture({
+        stage: 'opening',
+        capturedBytes: traceData.byteLength,
+        detail: 'Starting Trace Processor…',
+      });
+      this.app.raf.scheduleFullRedraw();
+      await this.app.openTraceFromBuffer({
         buffer: traceData,
         title: fileName,
         fileName,
       });
+    } catch (e) {
+      this.profileImpl = undefined;
+      failPendingMemoryCapture(e instanceof Error ? e.message : String(e));
+      this.app.raf.scheduleFullRedraw();
     }
   }
 
@@ -307,6 +350,7 @@ export class LiveSession {
       });
       await engine.parse(cloneResult.value);
       await engine.notifyEof();
+      await engine.registerSqlPackages(MEMSCOPE_SQL_PACKAGE);
       const tParse = performance.now();
 
       const result = await extractSnapshotData(engine);
@@ -386,6 +430,12 @@ function createMonitoringConfig(
       },
       {
         config: {
+          name: 'android.gpu.memory',
+          targetBufferName: 'initial_stats',
+        },
+      },
+      {
+        config: {
           name: 'linux.process_stats',
           targetBufferName: 'polled_stats',
           processStatsConfig: {
@@ -416,11 +466,19 @@ function createMonitoringConfig(
               protos.MeminfoCounters.MEMINFO_INACTIVE_ANON,
               protos.MeminfoCounters.MEMINFO_ACTIVE_FILE,
               protos.MeminfoCounters.MEMINFO_INACTIVE_FILE,
+              protos.MeminfoCounters.MEMINFO_UNEVICTABLE,
               protos.MeminfoCounters.MEMINFO_ANON_PAGES,
               protos.MeminfoCounters.MEMINFO_SLAB,
+              protos.MeminfoCounters.MEMINFO_SLAB_RECLAIMABLE,
+              protos.MeminfoCounters.MEMINFO_SLAB_UNRECLAIMABLE,
               protos.MeminfoCounters.MEMINFO_KERNEL_STACK,
               protos.MeminfoCounters.MEMINFO_PAGE_TABLES,
+              protos.MeminfoCounters.MEMINFO_VMALLOC_USED,
+              protos.MeminfoCounters.MEMINFO_GPU,
               protos.MeminfoCounters.MEMINFO_ZRAM,
+              protos.MeminfoCounters.MEMINFO_MISC,
+              protos.MeminfoCounters.MEMINFO_ION_HEAP,
+              protos.MeminfoCounters.MEMINFO_ION_HEAP_POOL,
               protos.MeminfoCounters.MEMINFO_MAPPED,
               protos.MeminfoCounters.MEMINFO_DIRTY,
               protos.MeminfoCounters.MEMINFO_WRITEBACK,
@@ -445,6 +503,7 @@ function createMonitoringConfig(
           ftraceConfig: {
             ftraceEvents: [
               'dmabuf_heap/dma_heap_stat',
+              'gpu_mem/gpu_mem_total',
               'sched/sched_process_exit',
               'sched/sched_process_free',
               'task/task_newtask',
@@ -467,8 +526,9 @@ interface ExtractResult {
   extractMs: number;
 }
 
-async function extractSnapshotData(
-  engine: WasmEngineProxy,
+// Also used on loaded traces, to show the live views over a recording.
+export async function extractSnapshotData(
+  engine: Engine,
 ): Promise<ExtractResult> {
   const tQueryStart = performance.now();
   const [
@@ -481,14 +541,21 @@ async function extractSnapshotData(
     lmkResult,
     buildResult,
   ] = await Promise.all([
+    // Prefer the meminfo sampling range; traces without sys_stats fall back
+    // to the range of all counters.
     engine.query(`
+        WITH mem_total AS (
+          SELECT c.ts
+          FROM counter c
+          JOIN counter_track t ON c.track_id = t.id
+          WHERE t.name = 'MemTotal'
+        )
         SELECT
-          (SELECT start_ts FROM trace_bounds) as ts0,
-          MIN(c.ts) as min_ts,
-          MAX(c.ts) as max_ts
-        FROM counter c
-        JOIN counter_track t ON c.track_id = t.id
-        WHERE t.name = 'MemTotal'
+          (SELECT start_ts FROM trace_bounds) AS ts0,
+          COALESCE((SELECT MIN(ts) FROM mem_total), (SELECT MIN(ts) FROM counter))
+            AS min_ts,
+          COALESCE((SELECT MAX(ts) FROM mem_total), (SELECT MAX(ts) FROM counter))
+            AS max_ts
       `),
     engine.query(`
         SELECT id, name
@@ -583,10 +650,14 @@ async function extractSnapshotData(
   const task = await deferChunkedTask({priority: 'background'});
   const YIELD_CHECK_INTERVAL = 64; // Num loops before yield check
 
-  const boundsRow = ts0Result.firstRow({ts0: NUM, min_ts: NUM, max_ts: NUM});
-  const ts0 = boundsRow?.ts0 ?? 0;
-  const xMin = boundsRow !== undefined ? (boundsRow.min_ts - ts0) / 1e9 : 0;
-  const xMax = boundsRow !== undefined ? (boundsRow.max_ts - ts0) / 1e9 : 0;
+  const boundsRow = ts0Result.firstRow({
+    ts0: NUM,
+    min_ts: NUM_NULL,
+    max_ts: NUM_NULL,
+  });
+  const ts0 = boundsRow.ts0;
+  const xMin = ((boundsRow.min_ts ?? ts0) - ts0) / 1e9;
+  const xMax = ((boundsRow.max_ts ?? ts0) - ts0) / 1e9;
 
   // Build track id → counter name map for system counters.
   const sysTrackMap = new Map<number, string>();

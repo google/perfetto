@@ -1,0 +1,166 @@
+# Always-on live stream for Sysmon (~20 KB/s, bounded 60-75s rolling window).
+# Buffer 0 (DISCARD): one-time system info & initial process scan.
+# Buffer 1 (RING_BUFFER, 1.5 MB): 1 Hz whitelisted system counters + 0.5 Hz process stats + ODPM power.
+# Buffer 2 (RING_BUFFER, 512 KB): sparse event markers (LMKD, reclaim, thermal, DMA-BUF).
+buffers {
+  size_kb: 512
+  fill_policy: DISCARD
+}
+buffers {
+  size_kb: 2560
+  fill_policy: RING_BUFFER
+}
+buffers {
+  size_kb: 512
+  fill_policy: RING_BUFFER
+}
+
+data_sources {
+  config {
+    name: "linux.system_info"
+    target_buffer: 0
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: 0
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_process_age: true
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.sys_stats"
+    target_buffer: 1
+    sys_stats_config {
+      meminfo_period_ms: 1000
+      meminfo_counters: MEMINFO_MEM_TOTAL
+      meminfo_counters: MEMINFO_MEM_FREE
+      meminfo_counters: MEMINFO_MEM_AVAILABLE
+      meminfo_counters: MEMINFO_BUFFERS
+      meminfo_counters: MEMINFO_CACHED
+      meminfo_counters: MEMINFO_SWAP_CACHED
+      meminfo_counters: MEMINFO_ACTIVE_ANON
+      meminfo_counters: MEMINFO_INACTIVE_ANON
+      meminfo_counters: MEMINFO_ACTIVE_FILE
+      meminfo_counters: MEMINFO_INACTIVE_FILE
+      meminfo_counters: MEMINFO_SWAP_TOTAL
+      meminfo_counters: MEMINFO_SWAP_FREE
+      meminfo_counters: MEMINFO_DIRTY
+      meminfo_counters: MEMINFO_WRITEBACK
+      meminfo_counters: MEMINFO_ANON_PAGES
+      meminfo_counters: MEMINFO_SHMEM
+      meminfo_counters: MEMINFO_SLAB
+      meminfo_counters: MEMINFO_KERNEL_STACK
+      meminfo_counters: MEMINFO_PAGE_TABLES
+      meminfo_counters: MEMINFO_VMALLOC_USED
+      meminfo_counters: MEMINFO_GPU
+      meminfo_counters: MEMINFO_ZRAM
+      meminfo_counters: MEMINFO_ION_HEAP
+      meminfo_counters: MEMINFO_ION_HEAP_POOL
+      vmstat_period_ms: 1000
+      vmstat_counters: VMSTAT_PGPGIN
+      vmstat_counters: VMSTAT_PGPGOUT
+      vmstat_counters: VMSTAT_PSWPIN
+      vmstat_counters: VMSTAT_PSWPOUT
+      vmstat_counters: VMSTAT_PGFAULT
+      vmstat_counters: VMSTAT_PGMAJFAULT
+      vmstat_counters: VMSTAT_ALLOCSTALL
+      vmstat_counters: VMSTAT_ALLOCSTALL_NORMAL
+      vmstat_counters: VMSTAT_ALLOCSTALL_MOVABLE
+      vmstat_counters: VMSTAT_COMPACT_STALL
+      vmstat_counters: VMSTAT_PGSCAN_DIRECT
+      vmstat_counters: VMSTAT_PGSCAN_KSWAPD
+      vmstat_counters: VMSTAT_PGSTEAL_DIRECT
+      vmstat_counters: VMSTAT_PGSTEAL_KSWAPD
+      vmstat_counters: VMSTAT_WORKINGSET_REFAULT_FILE
+      vmstat_counters: VMSTAT_WORKINGSET_REFAULT_ANON
+      stat_period_ms: 1000
+      stat_counters: STAT_CPU_TIMES
+      stat_counters: STAT_IRQ_COUNTS
+      stat_counters: STAT_SOFTIRQ_COUNTS
+      cpufreq_period_ms: 1000
+      psi_period_ms: 1000
+      diskstat_period_ms: 1000
+      thermal_period_ms: 1000
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: 1
+    process_stats_config {
+      scan_all_processes_on_start: false
+      proc_stats_poll_ms: 2000
+      proc_stats_cache_ttl_ms: 2000
+      record_process_runtime: true
+      record_process_dmabuf_rss: true
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "android.power"
+    target_buffer: 1
+    android_power_config {
+      battery_poll_ms: 1000
+      battery_counters: BATTERY_COUNTER_CAPACITY_PERCENT
+      battery_counters: BATTERY_COUNTER_CURRENT
+      battery_counters: BATTERY_COUNTER_VOLTAGE
+      collect_power_rails: true
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.ftrace"
+    target_buffer: 2
+    ftrace_config {
+      ftrace_events: "lowmemorykiller/lowmemory_kill"
+      ftrace_events: "oom/mark_victim"
+      ftrace_events: "oom/oom_score_adj_update"
+      ftrace_events: "cgroup/cgroup_notify_frozen"
+      ftrace_events: "vmscan/mm_vmscan_direct_reclaim_begin"
+      ftrace_events: "vmscan/mm_vmscan_kswapd_wake"
+      ftrace_events: "dma_heap/dma_heap_stat"
+      ftrace_events: "gpu_mem/gpu_mem_total"
+      ftrace_events: "thermal/thermal_temperature"
+      ftrace_events: "thermal/cdev_update"
+      ftrace_events: "thermal_exynos/thermal_exynos_acpm_bulk"
+      ftrace_events: "thermal_exynos/thermal_exynos_acpm_high_overhead"
+      disable_generic_events: true
+      buffer_size_kb: 1024
+      drain_period_ms: 500
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "android.log"
+    target_buffer: 2
+    android_log_config {
+      log_ids: LID_EVENTS
+      log_ids: LID_DEFAULT
+      filter_tags: "wm_set_resumed_activity"
+      filter_tags: "am_proc_start"
+      filter_tags: "am_proc_died"
+      filter_tags: "am_kill"
+      filter_tags: "lowmemorykiller"
+    }
+  }
+}
+
+flush_period_ms: 5000
+incremental_state_config {
+  clear_period_ms: 15000
+}

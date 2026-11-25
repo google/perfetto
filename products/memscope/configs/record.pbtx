@@ -1,0 +1,76 @@
+# Memscope single-app recording config, shared by the CLI (`memscope record`)
+# and the UI's per-process profile. Both fill the {{PLACEHOLDERS}} and drop
+# the optional "# BEGIN <name>" ... "# END <name>" blocks they do not need:
+#   {{APP}}               process cmdline, e.g. com.example.app.
+#   {{DURATION_MS}}       recording length; 0 records until stopped.
+#   {{DUMP_PHASE_MS}}     delay before the first Java heap dump.
+#   {{DUMP_INTERVAL_MS}}  interval between Java heap dumps.
+#   java_hprof            Java heap dumps; dropped when none are wanted.
+#   java_hprof_continuous repeated dumps; dropped for a single dump.
+
+buffers { size_kb: 262144 fill_policy: DISCARD }
+buffers { size_kb: 8192 fill_policy: RING_BUFFER }
+duration_ms: {{DURATION_MS}}
+
+data_sources {
+  config {
+    name: "android.heapprofd"
+    target_buffer: 0
+    heapprofd_config {
+      process_cmdline: "{{APP}}"
+      sampling_interval_bytes: 4096
+      shmem_size_bytes: 8388608
+      block_client: true
+      continuous_dump_config {
+        dump_interval_ms: 5000
+      }
+    }
+  }
+}
+data_sources {
+  config {
+    name: "linux.process_stats"
+    target_buffer: 1
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_process_age: true
+      proc_stats_poll_ms: 250
+    }
+  }
+}
+data_sources {
+  config {
+    name: "android.packages_list"
+    target_buffer: 1
+  }
+}
+data_sources {
+  config {
+    name: "linux.ftrace"
+    target_buffer: 1
+    ftrace_config {
+      ftrace_events: "ftrace/print"
+      atrace_categories: "dalvik"
+      atrace_apps: "{{APP}}"
+    }
+  }
+}
+# BEGIN java_hprof
+data_sources {
+  config {
+    name: "android.java_hprof"
+    target_buffer: 0
+    java_hprof_config {
+      process_cmdline: "{{APP}}"
+      dump_smaps: true
+      smaps_config {}
+# BEGIN java_hprof_continuous
+      continuous_dump_config {
+        dump_phase_ms: {{DUMP_PHASE_MS}}
+        dump_interval_ms: {{DUMP_INTERVAL_MS}}
+      }
+# END java_hprof_continuous
+    }
+  }
+}
+# END java_hprof

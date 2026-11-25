@@ -20,6 +20,7 @@ import {Rect2D, type Size2D} from '../../base/geom';
 import {ensureExists} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
+import type {TimelineImpl} from '../../core/timeline';
 import type {TraceImpl} from '../../core/trace_impl';
 import {
   VirtualOverlayCanvas,
@@ -38,6 +39,13 @@ import {
 export interface TimelineHeaderAttrs {
   // The trace to use for timeline access et al.
   readonly trace: TraceImpl;
+
+  // The timeline to show and drive, by default the trace's main one.
+  readonly timeline?: TimelineImpl;
+
+  // Just the time axis and selection: no notes, toolbar or workspace
+  // switcher, for a timeline embedded in another page.
+  readonly compact?: boolean;
 
   // Called when the visible area of the timeline changes size. This is the area
   // to the right of the header is actually rendered on.
@@ -68,16 +76,20 @@ interface Panel {
 export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
   private readonly trash = new DisposableStack();
   private readonly trace: TraceImpl;
+  private readonly timeline: TimelineImpl;
   private readonly panels: ReadonlyArray<Panel>;
   private interactions?: ZonedInteractionHandler;
 
   constructor({attrs}: m.Vnode<TimelineHeaderAttrs>) {
     this.trace = attrs.trace;
+    this.timeline = attrs.timeline ?? attrs.trace.timeline;
     this.panels = [
-      new TimeAxisPanel(attrs.trace),
-      new TimeSelectionPanel(attrs.trace),
-      new NotesPanel(attrs.trace),
-      new TickmarkPanel(attrs.trace),
+      new TimeAxisPanel(attrs.trace, this.timeline),
+      new TimeSelectionPanel(attrs.trace, this.timeline),
+      ...(attrs.compact === true
+        ? []
+        : [new NotesPanel(attrs.trace, this.timeline)]),
+      new TickmarkPanel(attrs.trace, this.timeline),
     ];
   }
 
@@ -138,12 +150,12 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
 
     // Always grab the latest visible window and create a timescale
     // out of it.
-    const visibleWindow = this.trace.timeline.visibleWindow;
+    const visibleWindow = this.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, timelineRect);
 
     ensureExists(this.interactions).update([
-      shiftDragPanInteraction(this.trace, timelineRect, timescale),
-      wheelNavigationInteraction(this.trace, timelineRect, timescale),
+      shiftDragPanInteraction(this.timeline, timelineRect, timescale),
+      wheelNavigationInteraction(this.timeline, timelineRect, timescale),
       {
         // Allow making area selections (no tracks) by dragging on the header
         // timeline.
@@ -159,7 +171,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
               .pxSpanToHpTimeSpan(dragRect)
               .toTimeSpan()
               .clamp(this.trace.traceInfo.start, this.trace.traceInfo.end);
-            this.trace.timeline.selectedSpan = timeSpan;
+            this.timeline.selectedSpan = timeSpan;
           },
           onDragEnd: (e) => {
             const dragRect = Rect2D.fromPoints(e.dragStart, e.dragCurrent);
@@ -172,7 +184,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
               end: timeSpan.end,
               trackUris: [],
             });
-            this.trace.timeline.selectedSpan = undefined;
+            this.timeline.selectedSpan = undefined;
           },
         },
       },

@@ -72,6 +72,7 @@ export interface TrackNodeArgs {
   sortOrder: number;
   collapsed: boolean;
   isSummary: boolean;
+  heading: boolean;
   removable: boolean;
   subtitle: string;
   chips: ReadonlyArray<string>;
@@ -111,6 +112,11 @@ export class TrackNode {
   // vertical space.
   public isSummary: boolean;
 
+  // If true, this node is a section heading: a group drawn as a tinted band
+  // with a bold title, whose children sit at its own depth rather than
+  // indented under it. It shows no data of its own.
+  public heading: boolean;
+
   // If true, this node will be removable by the user. It will show a little
   // close button in the track shell which the user can press to remove the
   // track from the workspace.
@@ -142,6 +148,7 @@ export class TrackNode {
       sortOrder,
       collapsed = true,
       isSummary = false,
+      heading = false,
       removable = false,
       subtitle,
       chips,
@@ -154,6 +161,7 @@ export class TrackNode {
     this.name = name;
     this.sortOrder = sortOrder;
     this.isSummary = isSummary;
+    this.heading = heading;
     this._collapsed = collapsed;
     this.removable = removable;
     this.subtitle = subtitle;

@@ -226,21 +226,62 @@ function loadTraceFromUrl(url: string) {
     // traces from a local webserver and killing it immediately after having
     // seen the HTTP GET request. In those cases store the trace as a file, so
     // when users click on share we don't fail the re-fetch().
-    const fileName = url.split('/').pop() ?? 'local_trace.pftrace';
+    const fileName =
+      decodeURIComponent(url.split('/').pop()?.split('?')[0] ?? '') ||
+      'local_trace.pftrace';
+    const app = AppImpl.instance;
+    const token = app.beginExternalTraceLoad(fileName);
     const request = fetch(url)
-      .then((response) => {
+      .then(async (response) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        }
+        const total = Number(response.headers.get('content-length')) || 0;
+        if (response.body) {
+          const reader = response.body.getReader();
+          const chunks: Uint8Array<ArrayBuffer>[] = [];
+          let read = 0;
+          const t0 = performance.now();
+          for (;;) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            chunks.push(new Uint8Array(value));
+            read += value.byteLength;
+            const elapsed = Math.max((performance.now() - t0) / 1000, 0.001);
+            app.updateExternalTraceLoad(token, {
+              title: fileName,
+              phase: 'downloading',
+              status:
+                total > 0
+                  ? `Downloading trace ${Math.round((read / total) * 100)}%`
+                  : `Downloading trace ${(read / 1e6).toFixed(1)} MB`,
+              pct: total > 0 ? Math.round((read / total) * 25) : undefined,
+              bytesRead: read,
+              bytesTotal: total > 0 ? total : undefined,
+              mbPerSec: Math.ceil(read / elapsed / 1e6),
+            });
+          }
+          return new Blob(chunks);
         }
         return response.blob();
       })
       .catch((e) => {
+        app.endExternalTraceLoad(token);
         throw new Error(
           `Could not fetch the trace at ${url}: ${e} (ERR:trace_fetch)`,
         );
       })
-      .then((b) => AppImpl.instance.openTraceFromFile(new File([b], fileName)))
-      .catch((e) => reportError(e));
+      .then((b) => {
+        // Start openTrace before clearing external load so isLoadingTrace stays
+        // continuously true without a 1-frame flicker.
+        const openPromise = app.openTraceFromFile(new File([b], fileName));
+        app.endExternalTraceLoad(token);
+        return openPromise;
+      })
+      .catch((e) => {
+        app.endExternalTraceLoad(token);
+        reportError(e);
+      });
     taskTracker.trackPromise(request, 'Downloading local trace');
   } else {
     AppImpl.instance.openTraceFromUrl(url);

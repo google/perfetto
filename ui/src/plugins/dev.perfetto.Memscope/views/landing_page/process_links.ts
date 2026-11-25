@@ -37,11 +37,12 @@ export function findProcessTrack(
 }
 
 // "Show in timeline" deep-link: selects `trackNode` and switches to the
-// timeline. Disabled (greyed out) when there's no matching track.
+// focused process timeline (or full timeline when no callback is provided).
 export function showInTimelineLink(
   trace: Trace,
   uri: string | undefined,
   eventId: number,
+  onOpenTimeline?: () => void,
 ): m.Child {
   return m(
     Anchor,
@@ -54,7 +55,8 @@ export function showInTimelineLink(
           clearSearch: true,
           scrollToSelection: true,
         });
-        trace.navigate('#!/viewer');
+        if (onOpenTimeline !== undefined) onOpenTimeline();
+        else trace.navigate('#!/viewer');
       },
     },
     'Show in timeline',
@@ -69,6 +71,7 @@ export function showAreaInTimelineLink(
   uri: string | undefined,
   start: time | undefined,
   end: time | undefined,
+  onOpenTimeline?: () => void,
 ): m.Child {
   const disabled =
     uri === undefined || start === undefined || end === undefined;
@@ -85,7 +88,8 @@ export function showAreaInTimelineLink(
           {start, end, trackUris: [uri]},
           {clearSearch: true, scrollToSelection: true},
         );
-        trace.navigate('#!/viewer');
+        if (onOpenTimeline !== undefined) onOpenTimeline();
+        else trace.navigate('#!/viewer');
       },
     },
     'Show in timeline',

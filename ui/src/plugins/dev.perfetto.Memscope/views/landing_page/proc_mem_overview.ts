@@ -30,14 +30,19 @@ import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
 import {deltaColor, formatDelta} from './mem_format';
 import {type MemSelection, nearestByTs} from './selection';
+import type {HeapDumpLink} from './section_widgets';
 import {SmapsDetail} from './smaps_detail';
-import {SMAPS_CATEGORIES, SMAPS_CATEGORY_CASE_SQL} from './smaps_categories';
+import {SMAPS_CATEGORIES} from './smaps_categories';
 import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
 import {JavaSection} from './summary/java_section';
 import {MemoryMap} from './summary/memory_map';
 import {NativeSection} from './summary/native_section';
 import {TraceOverview} from './summary/trace_overview';
+import {
+  MemoryDomainGuide,
+  type MemoryTriageSummary,
+} from '../native/native_explainer';
 
 // Sample count and observed time span of one capture source (smaps / heapprofd)
 // for a process. spanS is undefined when there are fewer than two samples.
@@ -79,14 +84,11 @@ async function loadGrowthData(
     {ts: time; total: number; byCategory: Map<string, number>}
   >();
   const res = await trace.engine.query(`
-    SELECT
-      s.ts AS ts,
-      ${SMAPS_CATEGORY_CASE_SQL} AS category,
-      CAST(ifnull(SUM(s.rss_kb + s.swap_kb), 0) * 1024 AS INT) AS bytes
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid}
-    GROUP BY s.ts, category
-    ORDER BY s.ts ASC
+    INCLUDE PERFETTO MODULE memscope.smaps;
+    SELECT ts, category, rss_swap_bytes AS bytes
+    FROM memscope_smaps_category_breakdown
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = res.iter({ts: LONG, category: STR, bytes: NUM});
@@ -113,7 +115,15 @@ export interface ProcessMemDetailsAttrs {
   readonly trace: Trace;
   readonly upid: number;
   readonly tab: MemoryOverviewTab;
-  readonly onTabChange: (tab: MemoryOverviewTab) => void;
+  readonly heapDumpLink: HeapDumpLink;
+  readonly triage?: MemoryTriageSummary;
+  readonly renderAreasPanel?: (selTs?: time) => m.Children;
+  readonly onOpenNative?: () => void;
+  readonly onOpenJava?: () => void;
+  readonly onOpenSmaps?: () => void;
+  readonly onOpenTimeline?: () => void;
+  // Omit to hide the summary/smaps tab strip (the host renders its own).
+  readonly onTabChange?: (tab: MemoryOverviewTab) => void;
 }
 
 export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
@@ -155,6 +165,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       error !== undefined && m('p.pf-error', `Error: ${error}`),
       error === undefined && this.renderCaptureStrip(trace, capture),
       error === undefined &&
+        onTabChange !== undefined &&
         this.renderTabs(activeTab, smapsMissing, onTabChange),
       error === undefined &&
         m(
@@ -162,7 +173,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           {open: activeTab === 'summary'},
           // SubPage gives its direct children the cascading fade-up entrance
           // animation (.pf-memscope-subpage > *), matching the rest of the page.
-          m(SubPage, ...this.renderSummarySections(trace, upid, capture)),
+          m(SubPage, ...this.renderSummarySections(attrs, capture)),
         ),
       error === undefined &&
         m(
@@ -174,10 +185,19 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   }
 
   private renderSummarySections(
-    trace: Trace,
-    upid: number,
+    attrs: ProcessMemDetailsAttrs,
     capture?: CaptureInfo,
   ): m.Child[] {
+    const {
+      trace,
+      upid,
+      heapDumpLink,
+      triage,
+      onOpenNative,
+      onOpenJava,
+      onOpenSmaps,
+      onOpenTimeline,
+    } = attrs;
     // Keep the headline billboards pinned to the top. Once the lightweight
     // capture query completes, move empty detail sections below sections with
     // data while preserving the normal order within each group. Keys ensure
@@ -213,6 +233,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           upid,
           selTs: this.selection?.sel,
           baseTs: this.selection?.base,
+          onOpenTimeline,
         }),
       },
       {
@@ -221,8 +242,11 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'java',
           trace,
           upid,
+          heapDumpLink,
           selTs: this.selection?.sel,
           baseTs: this.selection?.base,
+          onOpenJava,
+          onOpenTimeline,
         }),
       },
       {
@@ -231,6 +255,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'bitmaps',
           trace,
           upid,
+          heapDumpLink,
           selTs: this.selection?.sel,
           baseTs: this.selection?.base,
         }),
@@ -243,12 +268,30 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           upid,
           selTs: this.selection?.sel,
           baseTs: this.selection?.base,
+          onOpenNative,
+          onOpenTimeline,
         }),
       },
     ];
     sections.sort((a, b) => Number(b.hasData) - Number(a.hasData));
     return [
       m(TraceOverview, {key: 'trace-overview', trace, upid}),
+      onOpenNative !== undefined &&
+        onOpenJava !== undefined &&
+        m(MemoryDomainGuide, {
+          key: 'domain-guide',
+          triage,
+          onOpenNative,
+          onOpenJava,
+          onOpenSmaps,
+          onOpenTimeline,
+        }),
+      attrs.renderAreasPanel !== undefined &&
+        m(
+          'div',
+          {key: 'memory-areas'},
+          attrs.renderAreasPanel(this.selection?.sel),
+        ),
       ...sections.map((section) => section.content),
     ];
   }

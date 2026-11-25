@@ -46,6 +46,35 @@
       background-color: var(--pf-color-track-summary-collapsed);
     }
 
+    // A section heading: a header across the full width, title and chips
+    // together on the left, ruled off from the tracks under it.
+    &--heading {
+      grid-template-areas: "indent shell shell";
+      background-color: var(--pf-color-background);
+
+      .pf-track__shell {
+        display: flex;
+        align-items: flex-end;
+        padding: 0 4px 3px;
+        border-bottom: 1px solid var(--pf-color-border);
+      }
+
+      .pf-track__menubar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding-top: 0;
+      }
+
+      .pf-track__title {
+        font-weight: 600;
+      }
+
+      .pf-track__chips {
+        margin-left: 4px;
+      }
+    }
+
     &--expanded--summary {
       position: sticky;
       top: calc(var(--sticky-top) * 1px);

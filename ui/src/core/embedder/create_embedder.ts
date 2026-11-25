@@ -15,13 +15,17 @@
 import type {Embedder} from './embedder';
 import {DefaultEmbedder} from './default_embedder';
 import {PerfettoUiEmbedder} from './perfetto_ui_embedder';
+import {productEmbedder} from './product_stub';
 
 /**
- * Returns the appropriate Embedder based on the current origin.
- * Uses PerfettoUiEmbedder when running on ui.perfetto.dev or localhost,
- * and DefaultEmbedder otherwise.
+ * Returns the product's Embedder when built with `ui/build --product`.
+ * Otherwise uses PerfettoUiEmbedder when running on ui.perfetto.dev or
+ * localhost, and DefaultEmbedder elsewhere.
  */
 export function createEmbedder(): Embedder {
+  if (productEmbedder !== undefined) {
+    return productEmbedder();
+  }
   const origin = self.location?.origin ?? '';
   if (
     origin.endsWith('.perfetto.dev') ||

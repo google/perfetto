@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "run_sql",
+      "kind": "sql_adhoc",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "Execute a read-only PerfettoSQL query against the active TraceProcessor engine (live stream, captured snapshot, or loaded trace) when the structured tools do not answer a specific follow-up question.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "description": "PerfettoSQL query to run. Keep results bounded with LIMIT."
+          },
+          "max_rows": {
+            "type": "number",
+            "description": "Maximum rows to return (default 50, max 200)."
+          }
+        },
+        "required": ["sql"]
+      }
+    },
+    {
+      "name": "note",
+      "kind": "note",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "Record a verified finding in the investigation log. Must cite one or more evidence_ids returned by earlier tool calls in this session.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Short 5-12 word finding title."
+          },
+          "summary": {
+            "type": "string",
+            "description": "Concise evidence-backed explanation."
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of evidence IDs (e.g. ['E1', 'E2']) backing this finding."
+          }
+        },
+        "required": ["title", "summary", "evidence_ids"]
+      }
+    },
+    {
+      "name": "device_status",
+      "kind": "device",
+      "modes": ["live", "snapshot"],
+      "description": "Return connected device status, active live streaming telemetry, and list of captured snapshots available in this session.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "take_snapshot",
+      "kind": "device",
+      "modes": ["live", "snapshot"],
+      "description": "Capture an instant 60-second snapshot of the connected device (cloning the full-detail ring buffer including scheduling, binder, and block I/O) and switch focus to the new snapshot.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Optional short label for this snapshot (e.g. 'baseline' or 'under-load')."
+          }
+        }
+      }
+    },
+    {
+      "name": "run_workload",
+      "kind": "device",
+      "modes": ["live", "snapshot"],
+      "description": "Run a curated reproducible system-wide workload on the connected device (or a custom shell command with user approval). Useful for reproducing memory pressure, storage contention, or CPU/thermal load before taking a snapshot.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "workload": {
+            "type": "string",
+            "enum": ["memory_pressure", "storage_storm", "cpu_thermal", "custom"],
+            "description": "Which workload to run."
+          },
+          "command": {
+            "type": "string",
+            "description": "Shell command when workload='custom'. Requires explicit user approval before running."
+          },
+          "duration_s": {
+            "type": "number",
+            "description": "Optional duration in seconds (default 8, max 30)."
+          },
+          "snapshot_after": {
+            "type": "boolean",
+            "description": "If true, automatically capture an instant snapshot when the workload finishes."
+          }
+        },
+        "required": ["workload"]
+      }
+    }
+  ]
+}

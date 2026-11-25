@@ -381,7 +381,11 @@ function onCssLoaded(app: AppImpl) {
   document.body.innerHTML = '';
 
   const pages = app.pages;
-  pages.registerPage({route: '/', render: () => m(HomePage)});
+  const renderHomePage = app.embedder.renderHomePage ?? (() => m(HomePage));
+  pages.registerPage({route: '/', render: () => renderHomePage()});
+  if (app.embedder.appTitle !== undefined) {
+    document.title = app.embedder.appTitle;
+  }
   const router = new Router();
   router.onRouteChanged = routeChange;
 
@@ -495,7 +499,13 @@ function onCssLoaded(app: AppImpl) {
   // Initialize plugins, now that we are ready to go.
   const pluginManager = app.plugins;
   corePlugins.forEach((p) => pluginManager.registerPlugin(p, true));
-  plugins.forEach((p) => pluginManager.registerPlugin(p, false));
+  const allowlist = app.embedder.pluginAllowlist;
+  plugins
+    .filter((p) => allowlist === undefined || allowlist.includes(p.id))
+    .forEach((p) => pluginManager.registerPlugin(p, false));
+  app.embedder.extraPlugins?.forEach((p) =>
+    pluginManager.registerPlugin(p, false),
+  );
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);

@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "product": "sysmon",
+  "tools": [
+    {
+      "name": "sysmon_pulse",
+      "kind": "sql_multi",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "Whole-device health pulse covering CPU busy/PSI, physical RAM & Memory PSI/LMKD, Storage throughput/IO PSI/D-state wait, Thermal/Power, plus top resource-consuming processes in one call.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "start_ts": { "type": "number", "description": "Optional window start timestamp in ns (defaults to current view/brush)." },
+          "end_ts": { "type": "number", "description": "Optional window end timestamp in ns (defaults to current view/brush)." }
+        }
+      },
+      "queries": {
+        "pulse": "INCLUDE PERFETTO MODULE sysmon.pulse; SELECT * FROM sysmon_pulse($start_ts, $end_ts);",
+        "top_processes": "INCLUDE PERFETTO MODULE sysmon.processes; SELECT * FROM sysmon_top_processes($start_ts, $end_ts, 10);"
+      }
+    },
+    {
+      "name": "sysmon_memory",
+      "kind": "sql_multi",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "Whole-system memory breakdown: MemTotal physical RAM ledger (Anon, File Cache, Kernel/Slab, DMA-BUF/GPU, ZRAM, Free), reclaim/PSI/swap/LMKD pressure, and top memory-holding processes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Max processes to return (default 12)." }
+        }
+      },
+      "queries": {
+        "ledger": "INCLUDE PERFETTO MODULE sysmon.memory; SELECT * FROM sysmon_memtotal_ledger($start_ts, $end_ts);",
+        "reclaim": "INCLUDE PERFETTO MODULE sysmon.memory; SELECT * FROM sysmon_reclaim_summary($start_ts, $end_ts);",
+        "lmkd_kills": "INCLUDE PERFETTO MODULE sysmon.memory; SELECT * FROM sysmon_lmkd_kills($start_ts, $end_ts);",
+        "top_processes": "INCLUDE PERFETTO MODULE sysmon.memory; SELECT * FROM sysmon_top_memory_processes($start_ts, $end_ts, coalesce($limit, 12));"
+      }
+    },
+    {
+      "name": "sysmon_cpu",
+      "kind": "sql_multi",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "Whole-system CPU utilization & frequency per core, thread time-in-state wait breakdown (Running, Runnable, Disk I/O Wait, Uninterruptible), and top threads.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Max threads to return (default 12)." }
+        }
+      },
+      "queries": {
+        "cores": "INCLUDE PERFETTO MODULE sysmon.cpu; SELECT * FROM sysmon_cpu_cores($start_ts, $end_ts);",
+        "waits": "INCLUDE PERFETTO MODULE sysmon.cpu; SELECT * FROM sysmon_wait_breakdown($start_ts, $end_ts);",
+        "top_threads": "INCLUDE PERFETTO MODULE sysmon.cpu; SELECT * FROM sysmon_top_cpu_threads($start_ts, $end_ts, coalesce($limit, 12));"
+      }
+    },
+    {
+      "name": "sysmon_cpu_wait_explainer",
+      "kind": "sql",
+      "modes": ["snapshot", "trace"],
+      "description": "Level-2 wait explainer: shows which threads waited most for a specific wait category ('runnable', 'io_wait', or 'uninterruptible'), their kernel blocked_function, and which threads woke them.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["runnable", "io_wait", "uninterruptible"],
+            "description": "Wait category to explain."
+          },
+          "limit": { "type": "number", "description": "Max rows (default 15)." }
+        },
+        "required": ["category"]
+      },
+      "sql": "INCLUDE PERFETTO MODULE sysmon.cpu; SELECT * FROM sysmon_wait_explainer($start_ts, $end_ts, $category, coalesce($limit, 15));"
+    },
+    {
+      "name": "sysmon_storage",
+      "kind": "sql_multi",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "System-wide storage summary (Read/Write MB & MB/s, IO PSI, D-state I/O wait, Dirty/Writeback, File vs Swap paging) and top I/O processes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Max processes (default 12)." }
+        }
+      },
+      "queries": {
+        "summary": "INCLUDE PERFETTO MODULE sysmon.storage; SELECT * FROM sysmon_storage_summary($start_ts, $end_ts);",
+        "top_processes": "INCLUDE PERFETTO MODULE sysmon.storage; SELECT * FROM sysmon_storage_processes($start_ts, $end_ts, coalesce($limit, 12));"
+      }
+    },
+    {
+      "name": "sysmon_thermal_power",
+      "kind": "sql_multi",
+      "modes": ["live", "snapshot", "trace"],
+      "description": "Thermal zone temperatures (min/avg/peak °C) and ODPM power rail draw (mW / mJ), when exposed by the device.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Max zones/rails (default 12)." }
+        }
+      },
+      "queries": {
+        "thermal_zones": "INCLUDE PERFETTO MODULE sysmon.thermal; SELECT * FROM sysmon_thermal_zones($start_ts, $end_ts, coalesce($limit, 12));",
+        "power_rails": "INCLUDE PERFETTO MODULE sysmon.thermal; SELECT * FROM sysmon_power_rails($start_ts, $end_ts, coalesce($limit, 12));"
+      }
+    }
+  ]
+}

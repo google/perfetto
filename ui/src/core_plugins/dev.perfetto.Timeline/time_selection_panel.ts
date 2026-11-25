@@ -19,6 +19,7 @@ import {assertUnreachable} from '../../base/assert';
 import {type time, Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {formatDuration} from '../../components/time_utils';
+import type {TimelineImpl} from '../../core/timeline';
 import type {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {
@@ -164,7 +165,10 @@ function drawMarker(ctx: CanvasRenderingContext2D, target: BBox, bounds: BBox) {
 export class TimeSelectionPanel {
   readonly height = 10;
 
-  constructor(private readonly trace: TraceImpl) {}
+  constructor(
+    private readonly trace: TraceImpl,
+    private readonly timeline: TimelineImpl = trace.timeline,
+  ) {}
 
   render(): m.Children {
     return m('', {style: {height: `${this.height}px`}});
@@ -181,7 +185,7 @@ export class TimeSelectionPanel {
   }
 
   private renderPanel(ctx: CanvasRenderingContext2D, size: Size2D): void {
-    const visibleWindow = this.trace.timeline.visibleWindow;
+    const visibleWindow = this.timeline.visibleWindow;
     const timescale = new TimeScale(visibleWindow, {
       left: 0,
       right: size.width,
@@ -190,7 +194,7 @@ export class TimeSelectionPanel {
     ctx.fillStyle = COLOR_BORDER;
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.getTimeAxisOrigin();
+      const offset = this.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
@@ -200,7 +204,7 @@ export class TimeSelectionPanel {
       }
     }
 
-    const localSpan = this.trace.timeline.selectedSpan;
+    const localSpan = this.timeline.selectedSpan;
     const selection = this.trace.selection.selection;
     if (localSpan !== undefined) {
       const start = Time.min(localSpan.start, localSpan.end);
@@ -225,12 +229,12 @@ export class TimeSelectionPanel {
       }
     }
 
-    if (this.trace.timeline.hoverCursorTimestamp !== undefined) {
+    if (this.timeline.hoverCursorTimestamp !== undefined) {
       this.renderHover(
         ctx,
         timescale,
         size,
-        this.trace.timeline.hoverCursorTimestamp,
+        this.timeline.hoverCursorTimestamp,
       );
     }
 
@@ -255,7 +259,7 @@ export class TimeSelectionPanel {
     const hoverVisible = bounds.x <= xPos && xPos <= bounds.x + bounds.width;
 
     if (hoverVisible) {
-      const domainTime = this.trace.timeline.toDomainTime(ts);
+      const domainTime = this.timeline.toDomainTime(ts);
       const label = this.stringifyTimestamp(domainTime);
       drawIBar(ctx, xPos, bounds, label);
       return;
@@ -348,7 +352,7 @@ export class TimeSelectionPanel {
   }
 
   private stringifyTimestamp(time: time): string {
-    const fmt = this.trace.timeline.timestampFormat;
+    const fmt = this.timeline.timestampFormat;
     switch (fmt) {
       case TimestampFormat.UTC:
       case TimestampFormat.CustomTimezone:

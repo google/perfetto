@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "product": "memscope",
+  "tools": [
+    {
+      "name": "memscope_overview",
+      "kind": "sql_multi",
+      "modes": ["trace", "snapshot"],
+      "description": "High-level summary of captured processes with Java heap dumps, smaps snapshots, or native heap profiles, plus RSS/smaps memory trends.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "queries": {
+        "processes": "INCLUDE PERFETTO MODULE memscope.processes; SELECT upid, pid, process_name, heap_dumps, smaps_snapshots, native_dumps, score FROM memscope_process_mem_stats ORDER BY score DESC LIMIT 15;",
+        "trends": "INCLUDE PERFETTO MODULE memscope.summary; INCLUDE PERFETTO MODULE memscope.processes; SELECT p.process_name, p.pid, t.snapshot_count, round(t.peak_bytes / 1048576.0, 2) AS peak_mib, round(t.delta_bytes / 1048576.0, 2) AS delta_mib, round(t.trend_bytes_per_hour / 1048576.0, 2) AS trend_mib_per_hr FROM memscope_process_memory_trend t JOIN memscope_process_mem_stats p USING (upid) ORDER BY t.peak_bytes DESC LIMIT 10;",
+        "java_dumps": "INCLUDE PERFETTO MODULE memscope.java; INCLUDE PERFETTO MODULE memscope.processes; SELECT p.process_name, p.pid, count(*) AS dump_count, round(max(d.reachable_heap_size) / 1048576.0, 2) AS max_reachable_mib, round(max(d.reachable_native_size) / 1048576.0, 2) AS max_native_reg_mib FROM memscope_java_dump d JOIN memscope_process_mem_stats p USING (upid) GROUP BY p.upid ORDER BY max_reachable_mib DESC LIMIT 10;"
+      }
+    },
+    {
+      "name": "memscope_smaps_breakdown",
+      "kind": "sql",
+      "modes": ["trace", "snapshot"],
+      "description": "Break down a process's latest smaps snapshot into Java, Native, Stack, Graphics, File, and Other categories (RSS, Anon, Swap in MiB).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "string",
+            "description": "Optional process name filter (substring match). Defaults to highest-scoring captured process."
+          }
+        }
+      },
+      "sql": "INCLUDE PERFETTO MODULE memscope.smaps; INCLUDE PERFETTO MODULE memscope.processes; WITH target AS (SELECT upid, process_name FROM memscope_process_mem_stats WHERE smaps_snapshots > 0 AND ($process IS NULL OR lower(process_name) LIKE '%' || lower($process) || '%') ORDER BY score DESC LIMIT 1), latest AS (SELECT b.upid, max(b.ts) AS ts FROM memscope_smaps_category_breakdown b JOIN target USING (upid) GROUP BY b.upid) SELECT t.process_name, b.category, round(b.rss_bytes / 1048576.0, 2) AS rss_mib, round(b.anon_bytes / 1048576.0, 2) AS anon_mib, round(b.swap_bytes / 1048576.0, 2) AS swap_mib, round(b.anon_swap_bytes / 1048576.0, 2) AS anon_swap_mib FROM memscope_smaps_category_breakdown b JOIN latest l ON b.upid = l.upid AND b.ts = l.ts JOIN target t ON b.upid = t.upid ORDER BY b.rss_swap_bytes DESC;"
+    },
+    {
+      "name": "memscope_java_top_classes",
+      "kind": "sql",
+      "modes": ["trace", "snapshot"],
+      "description": "Return top Java classes by dominated (retained) size, shallow size, and object count in the latest Java heap dump.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "string",
+            "description": "Optional process name filter."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max classes to return (default 15)."
+          }
+        }
+      },
+      "sql": "INCLUDE PERFETTO MODULE memscope.java; INCLUDE PERFETTO MODULE memscope.processes; WITH target AS (SELECT upid, process_name FROM memscope_process_mem_stats WHERE heap_dumps > 0 AND ($process IS NULL OR lower(process_name) LIKE '%' || lower($process) || '%') ORDER BY score DESC LIMIT 1), latest AS (SELECT upid, max(ts) AS ts FROM memscope_java_dump JOIN target USING (upid) GROUP BY upid) SELECT t.process_name, c.type_name, c.reachable_obj_count AS objects, round(c.reachable_size_bytes / 1048576.0, 2) AS shallow_mib, round(c.dominated_size_bytes / 1048576.0, 2) AS dominated_java_mib, round(c.dominated_native_size_bytes / 1048576.0, 2) AS dominated_native_mib, round((c.dominated_size_bytes + c.dominated_native_size_bytes) / 1048576.0, 2) AS total_retained_mib FROM memscope_java_top_class c JOIN latest l ON c.upid = l.upid AND c.ts = l.ts JOIN target t ON c.upid = t.upid ORDER BY (c.dominated_size_bytes + c.dominated_native_size_bytes) DESC LIMIT coalesce($limit, 15);"
+    },
+    {
+      "name": "memscope_java_growth",
+      "kind": "sql",
+      "modes": ["trace", "snapshot"],
+      "description": "Show Java classes that grew most between the first and last heap dump of a process (leak detection across multiple dumps).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": "string",
+            "description": "Optional process name filter."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max rows (default 15)."
+          }
+        }
+      },
+      "sql": "INCLUDE PERFETTO MODULE memscope.java; INCLUDE PERFETTO MODULE memscope.processes; WITH target AS (SELECT upid, process_name FROM memscope_process_mem_stats WHERE heap_dumps > 1 AND ($process IS NULL OR lower(process_name) LIKE '%' || lower($process) || '%') ORDER BY score DESC LIMIT 1) SELECT t.process_name, g.type_name, round(g.first_size_bytes / 1048576.0, 2) AS first_mib, round(g.last_size_bytes / 1048576.0, 2) AS last_mib, round(g.delta_size_bytes / 1048576.0, 2) AS delta_mib, g.delta_obj_count FROM memscope_java_class_growth g JOIN target t USING (upid) ORDER BY g.delta_size_bytes DESC LIMIT coalesce($limit, 15);"
+    }
+  ]
+}

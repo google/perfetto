@@ -15,21 +15,16 @@
 import './profile_page.scss';
 import m from 'mithril';
 import {
-  LineChartSvg,
-  type LineChartData,
-} from '../../../components/widgets/charts_svg/line_chart_svg';
+  LiveStripChart,
+  type StripSeries,
+} from '../../../components/widgets/charts/live_strip_chart';
+import type {LineChartData} from '../../../components/widgets/charts_svg/line_chart_svg';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {Billboard} from '../components/billboard';
 import {ProgressBar} from '../components/progress_bar';
-import {
-  billboardBytes,
-  chartXWindow,
-  formatRelativeXValue,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../utils';
+import {billboardBytes} from '../utils';
 import {formatBytesIec} from '../../../base/bytes_format';
 import {Icons} from '../../../base/semantic_icons';
 import {Stack} from '../../../widgets/stack';
@@ -41,6 +36,7 @@ export interface ProfilePageAttrs {
   readonly pid: number;
   readonly startMs: number;
   readonly chartData?: LineChartData;
+  readonly baseSec?: number;
   readonly baseline?: {anonSwap: number; file: number; dmabuf: number};
   readonly onStop: () => void;
   readonly onStopAndDownload: () => void;
@@ -220,22 +216,24 @@ function renderBreakdownChart(attrs: ProfilePageAttrs): m.Children {
   const body = chartData
     ? (() => {
         const {xMax} = xRange(chartData);
-        // Same fixed-width window as the dashboard charts: 60s ending at the
-        // latest sample, labels relative to it (0s on the right, -60s on the
-        // left).
-        const xWindow = chartXWindow(xMax ?? 0);
-        return m(LineChartSvg, {
-          data: {series: chartData.series},
-          height: 350,
-          showLegend: true,
-          showPoints: false,
+        const base = attrs.baseSec ?? 0;
+        const stripSeries: StripSeries[] = chartData.series
+          .filter((s) => s.points.length > 0)
+          .map((s) => ({
+            name: s.name,
+            color: s.color ?? '#2563eb',
+            points: s.points.map((p) => ({t: base + p.x, v: p.y})),
+          }));
+        return m(LiveStripChart, {
+          series: stripSeries,
+          latestSec: base + (xMax ?? 0),
+          windowSec: 60,
+          lagSec: 2.0,
+          isLive: attrs.state === 'recording',
           stacked: true,
-          gridLines: 'both',
-          xAxisMin: xWindow.min,
-          xAxisMax: xWindow.max,
-          formatXValue: formatRelativeXValue(xMax ?? 0),
-          formatYValue: (v: number) => formatBytesIec(v * 1024),
-          yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
+          height: 330,
+          formatY: (v: number) => formatBytesIec(v * 1024),
+          showLegend: true,
         });
       })()
     : m('.pf-memscope-placeholder', 'Waiting for data…');

@@ -38,13 +38,11 @@ import {emptyPanel, loadingPanel} from '../section_widgets';
 import {
   MEMMAP_GREY,
   SMAPS_CATEGORIES,
-  SMAPS_CATEGORY_CASE_SQL,
-  SMAPS_FILE_BUCKET_CASE_SQL,
   smapsCategoryColor,
 } from '../smaps_categories';
 
 // File-backed subcategories for the memory map's second level, in display
-// order. Keys match the buckets produced by SMAPS_FILE_BUCKET_CASE_SQL. All
+// order. Keys match the buckets produced by memscope_smaps_file_bucket(). All
 // share the file-backed colour; they're distinguished by label.
 const FILE_BUCKETS = [
   {key: 'so', label: 'Native libs (.so)', color: '#34a853'},
@@ -155,6 +153,7 @@ export interface MemoryMapAttrs {
   // The page-wide selection (by ts). Undefined → latest snapshot.
   readonly selTs?: time;
   readonly baseTs?: time;
+  readonly onOpenTimeline?: () => void;
 }
 
 export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
@@ -272,7 +271,12 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        controls: showInTimelineLink(trace, smapsTrackNode?.uri, snap.eventId),
+        controls: showInTimelineLink(
+          trace,
+          smapsTrackNode?.uri,
+          snap.eventId,
+          attrs.onOpenTimeline,
+        ),
       }),
       m(
         Panel.Body,
@@ -318,16 +322,16 @@ async function loadMemoryMapData(
   // Per-(snapshot, category) resident/swap/anon.
   const cats = new Map<bigint, Map<string, CategoryBytes>>();
   const catRes = await trace.engine.query(`
+    INCLUDE PERFETTO MODULE memscope.smaps;
     SELECT
-      s.ts AS ts,
-      ${SMAPS_CATEGORY_CASE_SQL} AS category,
-      CAST(ifnull(SUM(s.rss_kb), 0) * 1024 AS INT) AS rss,
-      CAST(ifnull(SUM(s.swap_kb), 0) * 1024 AS INT) AS swap,
-      CAST(ifnull(SUM(s.anonymous_kb), 0) * 1024 AS INT) AS anon
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid}
-    GROUP BY s.ts, category
-    ORDER BY s.ts ASC
+      ts,
+      category,
+      rss_bytes AS rss,
+      swap_bytes AS swap,
+      anon_bytes AS anon
+    FROM memscope_smaps_category_breakdown
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = catRes.iter({
@@ -351,14 +355,10 @@ async function loadMemoryMapData(
   // Per-(snapshot, file-bucket) resident+swap for file-backed mappings.
   const files = new Map<bigint, Map<string, number>>();
   const fileRes = await trace.engine.query(`
-    SELECT
-      s.ts AS ts,
-      ${SMAPS_FILE_BUCKET_CASE_SQL} AS bucket,
-      CAST(ifnull(SUM(s.rss_kb + s.swap_kb), 0) * 1024 AS INT) AS bytes
-    FROM profiler_smaps s
-    WHERE s.upid = ${upid} AND s.path GLOB '/*'
-    GROUP BY s.ts, bucket
-    ORDER BY s.ts ASC
+    SELECT ts, bucket, rss_swap_bytes AS bytes
+    FROM memscope_smaps_file_breakdown
+    WHERE upid = ${upid}
+    ORDER BY ts ASC
   `);
   for (
     const it = fileRes.iter({ts: LONG, bucket: STR, bytes: NUM});

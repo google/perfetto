@@ -13,7 +13,14 @@
 // limitations under the License.
 
 import {describe, expect, it} from 'vitest';
-import {stateToPath, stateToSubpage, subpageToState} from './nav_state';
+import {
+  type NavState,
+  memoryLocationToSubpage,
+  stateToPath,
+  stateToSubpage,
+  subpageToMemoryLocation,
+  subpageToState,
+} from './nav_state';
 
 describe('nav_state', () => {
   it('defaults to overview when defaultView is omitted or overview', () => {
@@ -70,5 +77,53 @@ describe('nav_state', () => {
     expect(stateToSubpage({view: 'overview', params: {}})).toBe('overview');
     expect(stateToPath({view: 'flamegraph', params: {}})).toBe('flamegraph');
     expect(stateToSubpage({view: 'flamegraph', params: {}})).toBe('flamegraph');
+  });
+
+  it('round-trips summary and smaps views', () => {
+    for (const view of ['summary', 'smaps'] as const) {
+      const state: NavState = {view, params: {}};
+      expect(subpageToState(stateToSubpage(state))).toEqual(state);
+    }
+  });
+
+  it('round-trips memory explorer locations', () => {
+    const navs: NavState[] = [
+      {view: 'summary', params: {}},
+      {view: 'smaps', params: {}},
+      {view: 'timeline', params: {}},
+      {view: 'native-overview', params: {}},
+      {view: 'file-backed', params: {}},
+      {view: 'graphics', params: {}},
+      {view: 'stacks', params: {}},
+      {view: 'other-mem', params: {}},
+      {view: 'overview', params: {}},
+      {view: 'objects', params: {cls: 'java.lang.String'}},
+      {view: 'object', params: {id: 0x1234}},
+      {view: 'bitmaps', params: {id: 0x10}},
+      {
+        view: 'flamegraph-objects',
+        params: {pathHashes: 'a,b', isDominator: true},
+      },
+    ];
+    for (const nav of navs) {
+      const sub = memoryLocationToSubpage({upid: 7, nav});
+      expect(sub.startsWith('7/')).toBe(true);
+      expect(subpageToMemoryLocation(sub)).toEqual({upid: 7, nav});
+      expect(subpageToMemoryLocation('/' + sub)).toEqual({upid: 7, nav});
+    }
+  });
+
+  it('defaults memory explorer locations to summary', () => {
+    expect(subpageToMemoryLocation(undefined)).toEqual({
+      upid: undefined,
+      nav: {view: 'summary', params: {}},
+    });
+    expect(subpageToMemoryLocation('3')).toEqual({
+      upid: 3,
+      nav: {view: 'summary', params: {}},
+    });
+    expect(memoryLocationToSubpage({nav: {view: 'smaps', params: {}}})).toBe(
+      '',
+    );
   });
 });

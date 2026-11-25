@@ -81,6 +81,9 @@ export interface TrackShellAttrs extends HTMLAttrs {
   // Style the component differently.
   readonly summary?: boolean;
 
+  // Style as a section heading: a full-width header with no track content.
+  readonly heading?: boolean;
+
   // Whether to highlight the track or not.
   readonly highlight?: boolean;
 
@@ -173,12 +176,13 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         {
           className: classNames(
             summary && 'pf-track__header--summary',
+            attrs.heading && 'pf-track__header--heading',
             expanded && 'pf-track__header--expanded',
             summary && expanded && 'pf-track__header--expanded--summary',
           ),
         },
         this.renderShell(attrs),
-        !lite && this.renderContent(attrs),
+        !lite && !attrs.heading && this.renderContent(attrs),
       ),
       hasChildren(vnode) && m('.pf-track__children', vnode.children),
     );

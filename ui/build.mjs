@@ -103,6 +103,7 @@ const cfg = {
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
   // out/xxx/    -> outDir         : Root build dir, for both ninja/wasm and UI.
+  //                                 Product builds take Wasm from out/ui.
   //   ui/       -> outUiDir       : UI dir. All outputs from this script.
   //    tsc/     -> outTscDir      : Transpiled .ts -> .js.
   //      gen/   -> outGenDir      : Auto-generated .ts/.js (e.g. protos).
@@ -110,6 +111,7 @@ const cfg = {
   //      v1.2/  -> outDistDir     : JS bundles and assets
   //    chrome_extension/          : Chrome extension.
   outDir: pjoin(ROOT_DIR, 'out/ui'),
+  wasmOutDir: '',
   version: '', // v1.2.3, derived from the CHANGELOG + git.
   outUiDir: '',
   outUiTestArtifactsDir: '',
@@ -136,6 +138,7 @@ const RULES = [
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
+  {r: /products\/[^/]+\/(sql|configs|tools)\/.+/, f: genProductsSql},
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
 ];
@@ -254,6 +257,10 @@ Env-var overrides:
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
+  parser.add_argument('--product', {
+    help: 'Build the standalone product in products/<id> ' +
+          '(default --out: out/<id>_ui)',
+  });
   parser.add_argument('--experimental-mithril-hmr', {
     action: 'store_true',
     help: 'Hot-swap edited Mithril component modules (remounting the tree) ' +
@@ -283,7 +290,16 @@ Env-var overrides:
   }
   const args = parser.parse_args([...syntheticArgv, ...process.argv.slice(2)]);
   const clean = !args.no_build;
-  cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
+  cfg.product = args.product ? checkProduct(args.product) : undefined;
+  const defaultOut = cfg.product
+    ? pjoin(ROOT_DIR, 'out', `${cfg.product}_ui`)
+    : cfg.outDir;
+  cfg.outDir = path.resolve(ensureDir(args.out || defaultOut));
+  // Products share the Wasm build with the default UI: it does not depend on
+  // the product, and building it from scratch takes minutes.
+  cfg.wasmOutDir = cfg.product
+    ? path.resolve(ensureDir(pjoin(ROOT_DIR, 'out/ui')))
+    : cfg.outDir;
   cfg.lockFile = pjoin(cfg.outDir, 'watch.lock');
 
   // Only create the build lock if we are actually going to build If --no-build
@@ -430,6 +446,7 @@ Env-var overrides:
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
     generateStdlibDocs();
+    scanProductsSql();
 
     const tsProjects = ['ui', 'ui/src/service_worker'];
     if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
@@ -523,6 +540,24 @@ function runTests() {
   }
 }
 
+// Returns the product id after checking products/<id>/ui/index.ts exists.
+function checkProduct(id) {
+  const entry = pjoin(ROOT_DIR, 'products', id, 'ui', 'index.ts');
+  if (!/^[a-z0-9-]+$/.test(id) || !fs.existsSync(entry)) {
+    throw new Error(`Unknown product '${id}': ${entry} not found`);
+  }
+  return id;
+}
+
+// Applies --title to index.html. A product sets its title at runtime.
+function patchTitle(html) {
+  if (!cfg.titleOverride) return html;
+  return html.replace(
+    /<title>[^<]*<\/title>/,
+    `<title>${cfg.titleOverride}</title>`,
+  );
+}
+
 function cpHtml(src, filename) {
   let html = fs.readFileSync(src).toString();
   // First copy the html as-is into the dist/v1.2.3/ directory. This is
@@ -537,14 +572,7 @@ function cpHtml(src, filename) {
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
 
-  // If --title was provided, patch the page title. Useful when running
-  // multiple dev server instances to distinguish browser tabs.
-  if (cfg.titleOverride) {
-    html = html.replace(
-      /<title>[^<]*<\/title>/,
-      `<title>${cfg.titleOverride}</title>`,
-    );
-  }
+  html = patchTitle(html);
 
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
 }
@@ -640,6 +668,79 @@ function compileProtos() {
   addTask(postProcessProtosDts, []);
 }
 
+// Product SQL packages (products/<p>/sql/<pkg>/**.sql) and configs
+// (products/<p>/configs/*) live outside ui/src, so they are bundled into
+// gen/products_sql.ts, which the UI imports.
+function scanProductsSql() {
+  const productsDir = pjoin(ROOT_DIR, 'products');
+  for (const product of fs.readdirSync(productsDir)) {
+    if (product === 'node_modules') continue;
+    for (const sub of ['sql', 'configs', 'tools']) {
+      const dir = pjoin(productsDir, product, sub);
+      if (fs.existsSync(dir)) scanDir(dir);
+    }
+  }
+  genProductsSql();
+}
+
+// addTask dedupes by function name, so this stays a single queued task.
+function genProductsSql() {
+  addTask(writeProductsSql);
+}
+
+function writeProductsSql() {
+  const productsDir = pjoin(ROOT_DIR, 'products');
+  const packages = [];
+  const configs = {};
+  const tools = {};
+  for (const product of fs.readdirSync(productsDir).sort()) {
+    if (product === 'node_modules') continue;
+    const sqlDir = pjoin(productsDir, product, 'sql');
+    if (fs.existsSync(sqlDir)) {
+      for (const pkg of fs.readdirSync(sqlDir).sort()) {
+        const pkgDir = pjoin(sqlDir, pkg);
+        if (!fs.statSync(pkgDir).isDirectory()) continue;
+        const modules = [];
+        walk(pkgDir, (f) => {
+          if (!f.endsWith('.sql')) return;
+          const rel = path.relative(pkgDir, f).replace(/\.sql$/, '');
+          const name = [pkg, ...rel.split(path.sep)].join('.');
+          modules.push({name, sql: fs.readFileSync(f, 'utf8')});
+        });
+        modules.sort((a, b) => a.name.localeCompare(b.name));
+        packages.push({name: pkg, modules});
+      }
+    }
+    const cfgDir = pjoin(productsDir, product, 'configs');
+    if (fs.existsSync(cfgDir)) {
+      for (const f of fs.readdirSync(cfgDir).sort()) {
+        if (f === 'BUILD.gn') continue;
+        configs[`${product}/${f}`] = fs.readFileSync(
+          pjoin(cfgDir, f),
+          'utf8',
+        );
+      }
+    }
+    const toolsDir = pjoin(productsDir, product, 'tools');
+    if (fs.existsSync(toolsDir)) {
+      for (const f of fs.readdirSync(toolsDir).sort()) {
+        if (!f.endsWith('.json')) continue;
+        tools[`${product}/${f}`] = JSON.parse(
+          fs.readFileSync(pjoin(toolsDir, f), 'utf8'),
+        );
+      }
+    }
+  }
+  const content =
+    '// Generated by ui/build.mjs from products/*/{sql,configs,tools}. Do not edit.\n' +
+    `export const PRODUCT_SQL_PACKAGES = ${JSON.stringify(packages, null, 2)};\n` +
+    `export const PRODUCT_CONFIGS: Record<string, string> = ${JSON.stringify(configs, null, 2)};\n` +
+    `export const PRODUCT_TOOLS: Record<string, unknown> = ${JSON.stringify(tools, null, 2)};\n`;
+  const dst = pjoin(cfg.outGenDir, 'products_sql.ts');
+  if (fs.existsSync(dst) && fs.readFileSync(dst, 'utf8') === content) return;
+  fs.writeFileSync(dst, content);
+}
+
 function generateStdlibDocs() {
   const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_metadata_json.py');
   addTask(exec, [cmd, ['--out', pjoin(cfg.outDistDir, 'stdlib_docs.json')]]);
@@ -669,6 +770,13 @@ function updateSymlinks() {
     pjoin(ROOT_DIR, 'ui/node_modules'),
     pjoin(cfg.outTscDir, 'node_modules'),
   );
+
+  // /products/node_modules -> /ui/node_modules, so product UI code outside
+  // ui/ resolves bare imports like 'mithril' (tsc, Vite and editors alike).
+  mklink(
+    pjoin(ROOT_DIR, 'ui/node_modules'),
+    pjoin(ROOT_DIR, 'products/node_modules'),
+  );
 }
 
 // Invokes ninja for building the {trace_processor, traceconv} Wasm modules.
@@ -681,17 +789,20 @@ function buildWasm(skipWasmBuild) {
       if (childProcess.spawnSync('which', ['ccache']).status === 0) {
         gnVars += ` cc_wrapper="ccache"`;
       }
-      const gnArgs = ['gen', `--args=${gnVars}`, cfg.outDir];
+      const gnArgs = ['gen', `--args=${gnVars}`, cfg.wasmOutDir];
       addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
     }
-    const ninjaArgs = ['-C', cfg.outDir];
+    const ninjaArgs = ['-C', cfg.wasmOutDir];
     ninjaArgs.push(...cfg.wasmModules.map((x) => `${x}_wasm`));
     addTask(exec, [pjoin(ROOT_DIR, 'tools/ninja'), ninjaArgs]);
   }
 
   for (const wasmMod of cfg.wasmModules) {
     const isMem64 = wasmMod.endsWith('_memory64');
-    const wasmOutDir = pjoin(cfg.outDir, isMem64 ? 'wasm_memory64' : 'wasm');
+    const wasmOutDir = pjoin(
+      cfg.wasmOutDir,
+      isMem64 ? 'wasm_memory64' : 'wasm',
+    );
     // The .wasm file goes directly into the dist dir (also .map in debug)
     for (const ext of ['.wasm'].concat(cfg.debug ? ['.wasm.map'] : [])) {
       const src = `${wasmOutDir}/${wasmMod}${ext}`;
@@ -828,6 +939,7 @@ function runVite() {
     NO_TREESHAKE: cfg.noTreeshake ? 'true' : '',
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
+    PERFETTO_PRODUCT: cfg.product ?? '',
   };
   const bundles = ['engine', 'service_worker', 'chrome_extension'];
   if (!cfg.useHmr) bundles.unshift('frontend');
@@ -883,6 +995,7 @@ function genServiceWorkerManifestJson() {
 async function startViteDevServer() {
   // vite.config.mjs reads these at import time; set before createServer().
   if (cfg.onlyWasmMemory64) process.env.IS_MEMORY64_ONLY = 'true';
+  if (cfg.product) process.env.PERFETTO_PRODUCT = cfg.product;
   if (cfg.noSourceMaps) process.env.NO_SOURCE_MAPS = 'true';
   if (cfg.noTreeshake) process.env.NO_TREESHAKE = 'true';
   if (cfg.minifyJs) process.env.MINIFY_JS = cfg.minifyJs;
@@ -943,13 +1056,7 @@ async function startViteDevServer() {
       /data-perfetto_version='[^']*'/,
       `data-perfetto_version='${versionMap}'`,
     );
-    if (cfg.titleOverride) {
-      html = html.replace(
-        /<title>[^<]*<\/title>/,
-        `<title>${cfg.titleOverride}</title>`,
-      );
-    }
-    return html;
+    return patchTitle(html);
   };
 
   // Serve /test/* from the repo (used by some e2e flows). Mirrors the

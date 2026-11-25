@@ -1,0 +1,122 @@
+# Session B silent flight-recorder superset for Sysmon instant snapshots.
+# Collects all Tier-1 counters plus compact_sched, binder, and block I/O into a
+# 64 MB on-device RING_BUFFER (~60s rolling history) cloned on Snapshot click.
+buffers {
+  size_kb: 65536
+  fill_policy: RING_BUFFER
+}
+
+data_sources {
+  config {
+    name: "linux.system_info"
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.sys_stats"
+    sys_stats_config {
+      meminfo_period_ms: 1000
+      vmstat_period_ms: 1000
+      stat_period_ms: 500
+      stat_counters: STAT_CPU_TIMES
+      stat_counters: STAT_IRQ_COUNTS
+      stat_counters: STAT_SOFTIRQ_COUNTS
+      cpufreq_period_ms: 500
+      cpuidle_period_ms: 1000
+      psi_period_ms: 500
+      diskstat_period_ms: 500
+      thermal_period_ms: 1000
+      gpufreq_period_ms: 1000
+      devfreq_period_ms: 1000
+      slab_period_ms: 2000
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+      record_thread_names: true
+      record_process_age: true
+      proc_stats_poll_ms: 1000
+      proc_stats_cache_ttl_ms: 1000
+      record_process_runtime: true
+      record_process_dmabuf_rss: true
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "android.power"
+    android_power_config {
+      battery_poll_ms: 1000
+      battery_counters: BATTERY_COUNTER_CAPACITY_PERCENT
+      battery_counters: BATTERY_COUNTER_CURRENT
+      battery_counters: BATTERY_COUNTER_VOLTAGE
+      collect_power_rails: true
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      compact_sched {
+        enabled: true
+      }
+      ftrace_events: "sched/sched_switch"
+      ftrace_events: "sched/sched_waking"
+      ftrace_events: "sched/sched_blocked_reason"
+      ftrace_events: "sched/sched_process_exit"
+      ftrace_events: "binder/binder_transaction"
+      ftrace_events: "binder/binder_transaction_received"
+      ftrace_events: "binder/binder_lock"
+      ftrace_events: "binder/binder_locked"
+      ftrace_events: "binder/binder_unlock"
+      ftrace_events: "block/block_rq_issue"
+      ftrace_events: "block/block_rq_complete"
+      ftrace_events: "lowmemorykiller/lowmemory_kill"
+      ftrace_events: "oom/mark_victim"
+      ftrace_events: "oom/oom_score_adj_update"
+      ftrace_events: "cgroup/cgroup_notify_frozen"
+      ftrace_events: "vmscan/mm_vmscan_direct_reclaim_begin"
+      ftrace_events: "vmscan/mm_vmscan_direct_reclaim_end"
+      ftrace_events: "vmscan/mm_vmscan_kswapd_wake"
+      ftrace_events: "vmscan/mm_vmscan_kswapd_sleep"
+      ftrace_events: "dma_heap/dma_heap_stat"
+      ftrace_events: "gpu_mem/gpu_mem_total"
+      ftrace_events: "thermal/thermal_temperature"
+      ftrace_events: "thermal/cdev_update"
+      ftrace_events: "thermal_exynos/thermal_exynos_acpm_bulk"
+      ftrace_events: "thermal_exynos/thermal_exynos_acpm_high_overhead"
+      symbolize_ksyms: true
+      buffer_size_kb: 4096
+      drain_period_ms: 250
+    }
+  }
+}
+
+data_sources {
+  config {
+    name: "android.log"
+    android_log_config {
+      log_ids: LID_EVENTS
+      log_ids: LID_DEFAULT
+      filter_tags: "wm_set_resumed_activity"
+      filter_tags: "am_proc_start"
+      filter_tags: "am_proc_died"
+      filter_tags: "am_kill"
+      filter_tags: "lowmemorykiller"
+    }
+  }
+}
+
+flush_period_ms: 10000
+incremental_state_config {
+  clear_period_ms: 15000
+}

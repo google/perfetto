@@ -37,6 +37,7 @@ import type {RequiredField} from '../../base/utils';
 import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
+import type {TimelineImpl} from '../../core/timeline';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {TrackWrapper} from '../../core/track_manager';
 import type {TrackRenderer, Track} from '../../public/track';
@@ -59,6 +60,7 @@ import type {Renderer} from '../../base/renderer';
 export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
 export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
+const HEADING_HEIGHT_PX = 30;
 
 function getTrackHeight(
   node: TrackNode,
@@ -76,6 +78,8 @@ function getTrackHeight(
 
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
+  // A heading stands a little taller than the tracks under it.
+  if (node.heading) return Math.max(TRACK_HEIGHT_MIN_PX, HEADING_HEIGHT_PX);
   if (node.isSummary && node.expanded) return TRACK_HEIGHT_MIN_PX;
 
   const trackHeight = track?.getHeight?.();
@@ -117,6 +121,7 @@ export class TrackView {
   readonly verticalBounds: VerticalBounds;
 
   private readonly trace: TraceImpl;
+  private readonly timeline: TimelineImpl;
   private readonly descriptor?: Track;
 
   constructor(
@@ -124,8 +129,11 @@ export class TrackView {
     node: TrackNode,
     top: number,
     showHeadless = false,
+    timeline: TimelineImpl = trace.timeline,
+    private readonly canPin = true,
   ) {
     this.trace = trace;
+    this.timeline = timeline;
     this.node = node;
 
     if (node.uri) {
@@ -165,7 +173,10 @@ export class TrackView {
           // Always-visible buttons last (pin button is visible when pinned)
           // We don't want summary tracks to be pinned as they rarely have
           // useful information.
-          !node.isSummary && this.renderPinButton(),
+          !node.isSummary &&
+            !node.heading &&
+            this.canPin &&
+            this.renderPinButton(),
           // Area seletion (when in area selection mode is always visible so put
           // it at the end)
           this.renderAreaSelectionCheckbox(),
@@ -203,6 +214,7 @@ export class TrackView {
         highlight: this.isHighlighted(),
         selected: this.isSelected(),
         summary: node.isSummary,
+        heading: node.heading,
         reorderable,
         depth: attrs.depth,
         stickyTop: attrs.stickyTop,
@@ -443,7 +455,7 @@ export class TrackView {
   }
 
   private getTimescaleForBounds(bounds: Bounds2D) {
-    const timeWindow = this.trace.timeline.visibleWindow;
+    const timeWindow = this.timeline.visibleWindow;
     return new TimeScale(timeWindow, {
       left: 0,
       right: bounds.right - bounds.left,

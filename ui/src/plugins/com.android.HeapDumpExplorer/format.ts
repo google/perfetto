@@ -12,12 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Byte formatting shared by the heap dump views and the Memory Explorer.
+
+import {formatBytesIec, type BytesFormatOptions} from '../../base/bytes_format';
+
+// Auto-scaled size, e.g. "1.5 MiB".
 export function fmtSize(n: number): string {
-  if (n === 0) return '0';
-  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GiB`;
-  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(1)} MiB`;
-  if (n >= 1024) return `${(n / 1024).toFixed(1)} KiB`;
-  return n.toLocaleString();
+  return formatBytesIec(n);
+}
+
+// Fixed-unit size (MiB unless overridden), so values in one table line up.
+export function formatBytes(
+  bytes: number,
+  options?: BytesFormatOptions,
+): string {
+  return formatBytesIec(bytes, {
+    ...options,
+    forceUnit: options?.forceUnit ?? 'MiB',
+  });
+}
+
+// Signed byte delta, e.g. "+1.20 MiB" / "-0.50 MiB" / "±0.00 MiB".
+export function formatDelta(
+  bytes: number,
+  options?: BytesFormatOptions,
+): string {
+  if (bytes === 0) return `±${formatBytes(0, options)}`;
+  const sign = bytes > 0 ? '+' : '-';
+  return `${sign}${formatBytes(Math.abs(bytes), options)}`;
+}
+
+// Red when a value grew, green when it shrank, default at zero.
+export function deltaColor(n: number): string | undefined {
+  if (n > 0) return 'var(--pf-color-danger)';
+  if (n < 0) return 'var(--pf-color-success)';
+  return undefined;
+}
+
+// Signed integer delta, e.g. "+1,024" / "-7".
+export function formatCountDelta(n: number): string {
+  return `${n > 0 ? '+' : ''}${n.toLocaleString()}`;
 }
 
 export function fmtHex(id: number): string {

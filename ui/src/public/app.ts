@@ -24,6 +24,7 @@ import type {RouteArgs} from './route_schema';
 import type {SettingsManager} from './settings';
 import type {SidePanelManager} from './side_panel';
 import type {SidebarManager} from './sidebar';
+import type {SqlPackage} from './extra_sql_packages';
 import type {TraceStream} from './stream';
 import type {TaskTracker} from './task_tracker';
 import type {Trace} from './trace';
@@ -36,6 +37,25 @@ export interface Route {
   subpage: string;
   fragment: string;
   args: RouteArgs;
+}
+
+export type TraceLoadPhase =
+  | 'downloading'
+  | 'initializing'
+  | 'parsing'
+  | 'indexing'
+  | 'plugins'
+  | 'finalizing';
+
+export interface TraceLoadProgress {
+  readonly title: string;
+  readonly phase: TraceLoadPhase;
+  readonly status: string;
+  // Overall progress percentage in [0, 100], or undefined when indeterminate.
+  readonly pct?: number;
+  readonly bytesRead?: number;
+  readonly bytesTotal?: number;
+  readonly mbPerSec?: number;
 }
 
 /**
@@ -65,6 +85,16 @@ export interface App {
   readonly trace?: Trace;
 
   /**
+   * True while a trace is being downloaded, parsed, or initialized.
+   */
+  readonly isLoadingTrace: boolean;
+
+  /**
+   * Structured progress of the in-flight trace load, if any.
+   */
+  readonly traceLoadProgress?: TraceLoadProgress;
+
+  /**
    * Used to schedule things.
    */
   readonly raf: Raf;
@@ -88,6 +118,10 @@ export interface App {
    */
   readonly policy: Policy;
 
+  // The standalone product this UI is running as (e.g. 'memscope'), or
+  // undefined for the general purpose Perfetto UI. See products/README.md.
+  readonly productId: string | undefined;
+
   /**
    * Navigate to a new page.
    */
@@ -97,6 +131,14 @@ export interface App {
    * Returns the route/page we're on.
    */
   getCurrentRoute(): Route;
+
+  /**
+   * Registers PerfettoSQL packages into the engine of every trace loaded
+   * after this call, so queries can `INCLUDE PERFETTO MODULE <pkg>.<module>`.
+   */
+  addSqlPackages(
+    args: ReadonlyArray<SqlPackage> | Promise<ReadonlyArray<SqlPackage>>,
+  ): void;
 
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;

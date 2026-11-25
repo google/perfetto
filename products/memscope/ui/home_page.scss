@@ -1,0 +1,82 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memscope-home {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 16px;
+  color: var(--pf-color-text);
+
+  &__hero {
+    text-align: center;
+    margin-bottom: 40px;
+    h1 {
+      font-size: 36px;
+      margin: 8px 0;
+    }
+  }
+
+  &__logo {
+    font-size: 56px;
+    color: var(--pf-color-primary);
+  }
+
+  &__tagline {
+    font-size: 17px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 20px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+    background: var(--pf-color-background-secondary);
+    h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+    p {
+      margin: 0;
+      flex: 1;
+    }
+  }
+
+  &__cli {
+    font-family: var(--pf-font-monospace, monospace);
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--pf-color-background);
+    border: 1px solid var(--pf-color-border-secondary);
+  }
+
+  &__current {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 24px;
+    padding: 12px 16px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+  }
+}
