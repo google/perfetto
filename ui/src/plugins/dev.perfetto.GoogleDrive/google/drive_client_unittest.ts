@@ -387,7 +387,9 @@ describe('DriveClient.openFile', () => {
 
   test("returns the file's contents as a TraceStream", async () => {
     fetchMock.mockResolvedValue(
-      new Response(new Uint8Array([1, 2, 3]), {headers: {'Content-Length': '3'}}),
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: {'Content-Length': '3'},
+      }),
     );
     const client = await createClient();
     const result = await client.openFile('token', 'file123');
