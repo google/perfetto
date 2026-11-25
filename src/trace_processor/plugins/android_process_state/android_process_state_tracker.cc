@@ -205,8 +205,9 @@ void AndroidProcessStateTracker::ParseProcessStateDied(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessStateDiedEvent::Decoder p(bytes);
-  // system_server emits this before cleaning up the process, so the pid still
-  // resolves to the dying process unless it was already reused.
+  // AndroidProcessStateDiedEvent carries no start_seq_id, so this assumes the
+  // pid is still live (not yet ended by e.g. sched_process_free) and has not
+  // already been reused for another process.
   std::optional<UniquePid> opt_upid =
       ResolveLiveProcess(ts, "process_state_died", p.pid());
   if (!opt_upid) {
@@ -318,13 +319,13 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
                                              rec.frozen_start_ns(), ts);
     }
     // An unfrozen process in the dump has unfrozen_dur_ms and, on newer
-    // producers, unfrozen_start_ns; a frozen one has the frozen_* fields
-    // instead. android.util.proto.ProtoOutputStream omits 0 values during
-    // serialization, so unfrozen_dur_ms is missing when the process was
+    // producers, a positive unfrozen_start_ns; a frozen one has the frozen_*
+    // fields instead. android.util.proto.ProtoOutputStream omits 0 values
+    // during serialization, so unfrozen_dur_ms is missing when the process was
     // unfrozen less than 1ms before the dump, and an unset unfreeze_reason on
     // an unfrozen process represents UFR_NONE (0). When the process is frozen,
     // unfreeze_reason is left as std::nullopt so the initial row has NULL.
-    if (rec.has_unfrozen_dur_ms() || rec.has_unfrozen_start_ns()) {
+    if (rec.has_unfrozen_dur_ms() || rec.unfrozen_start_ns() > 0) {
       v.unfreeze_reason =
           rec.has_unfreeze_reason()
               ? static_cast<int32_t>(rec.unfreeze_reason())

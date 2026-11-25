@@ -142,12 +142,14 @@ ANDROID_FREEZER_STATE_TABLE = Table(
                 'Trace time at which the process was last unfrozen, converted '
                 'from CLOCK_BOOTTIME unfrozen_start_ns. Set on freeze events '
                 'and on initial rows of processes unfrozen at trace stop. NULL '
-                'if unknown (not reported, 0 or not convertible).',
+                'if unknown (not reported, <= 0, not convertible, or after '
+                'the event or snapshot reporting it).',
             'frozen_start_ts':
                 'Trace time at which the process was last frozen, converted '
                 'from CLOCK_BOOTTIME frozen_start_ns. Set on unfreeze events '
                 'and on initial rows of processes frozen at trace stop. NULL '
-                'if unknown (not reported, 0 or not convertible).',
+                'if unknown (not reported, <= 0, not convertible, or after '
+                'the event or snapshot reporting it).',
             'is_initial':
                 '1 for synthesized initial state row, 0 for track event.',
         },
