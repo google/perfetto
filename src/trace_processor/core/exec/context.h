@@ -38,6 +38,31 @@ class Pipelines;
 class RowBatch;
 struct ParamValue;
 
+// Run memory of up to this many bytes is kept across runs, so a pipeline run
+// over and over on small inputs allocates nothing after its first run.
+// Anything larger is given back as soon as the run ends.
+inline constexpr uint64_t kRunKeptBytes = 64 * 1024;
+
+// Where a RunVector's values are (see run_vector.h).
+struct RunHeader {
+  void* data;
+  // 64-bit, so that a store to a value never aliases a nearby 32-bit member,
+  // which the compiler would otherwise have to reload.
+  uint64_t size;
+  uint64_t capacity;
+};
+
+// What ending its owner's run does to a RunVector.
+enum class RunKeep : uint8_t {
+  // Empties it, keeping its memory only if it is no bigger than kRunKeptBytes.
+  kSmall,
+  // Keeps its memory and size. For a hash table's slots, or for a list of
+  // RunVectors which are themselves kept for the next run.
+  kAll,
+  // Like kAll, but with every value zeroed.
+  kAllZeroed,
+};
+
 // What one execution of a plan shares while it runs: the storage for the
 // batches' own columns, the states of its steps and what they hold, and the
 // first error.
@@ -46,8 +71,11 @@ struct ParamValue;
 // values, and hands it to the batch. Once no batch holds the buffer, it can be
 // taken again (see BufferPool).
 //
-// The context makes every state (Make()) and frees it when the context is
-// destroyed. EndRun() restores a state to how it was made (see OperatorState).
+// States are plain data which the context makes (Make()) and frees along with
+// itself. Whatever a state holds beyond plain values also belongs to the
+// context: the blocks its RunVectors grow into, and the batches and buffers it
+// takes. EndRun() restores a state to how it was made and takes all of those
+// back (see OperatorState).
 //
 // Must outlive every batch holding one of its buffers.
 class Context {
@@ -122,6 +150,28 @@ class Context {
     return MakeState<T>(false, std::forward<Args>(args)...);
   }
 
+  // Makes `size` value-initialized Ts for `owner`. Like the state's own values,
+  // they are restored at the end of each run to how they were when the state
+  // was made. For what a state holds per column, aggregate or step of the plan.
+  template <typename T>
+  core::ArenaSpan<T> NewRunSpan(OperatorState& owner, uint32_t size) {
+    static_assert(std::is_trivially_copyable_v<T> &&
+                  std::is_trivially_destructible_v<T>);
+    if (size == 0) {
+      return {};
+    }
+    uint64_t bytes = uint64_t{sizeof(T)} * size;
+    PERFETTO_CHECK(bytes <= UINT32_MAX);
+    core::ArenaSpan<T> span(
+        static_cast<T*>(AllocateSpan(static_cast<size_t>(bytes), alignof(T))),
+        size);
+    AddRunBytes(owner, span.begin(), static_cast<uint32_t>(bytes));
+    for (T& value : span) {
+      new (&value) T();
+    }
+    return span;
+  }
+
   // Allocates `size` uninitialized Ts which live as long as the state. Ending a
   // run leaves them alone, so they suit values set when the state is made, or
   // scratch for one call.
@@ -153,19 +203,46 @@ class Context {
   // are what each of its runs restores.
   OperatorState* Made(OperatorState* state);
 
-  // Ends the run of `state`. Its values are restored to how they were made,
-  // unless it was made by MakeRewound(), and a HeldState ends the run of each
-  // of its members. This costs only a check when the state holds nothing for
-  // the run. Defined in operator.h.
+  // Ends the run of `state`. Its values, and those of its run spans, are
+  // restored to how they were made, unless it was made by MakeRewound(). Each
+  // of its RunVectors ends as its RunKeep says; memory which is not kept in
+  // place is saved for the state's next run if it is no bigger than
+  // kRunKeptBytes. Batches and buffers made with the state are emptied, and
+  // those it took are emptied and kept for it to take again. A HeldState ends
+  // the run of each of its members. This costs only a check when the state
+  // holds nothing for the run. Defined in operator.h.
   inline void EndRun(OperatorState& state);
 
   // Whether any state has something to end when its run ends. If none does,
   // ending runs can be skipped entirely.
   bool holding() const { return holding_ != 0; }
 
+  // Grows the block of RunVector `header`, owned by `owner` and holding values
+  // `width` bytes wide, to hold at least `min_capacity`. One function serves
+  // every RunVector type.
+  void GrowRun(OperatorState& owner,
+               RunHeader* header,
+               uint64_t min_capacity,
+               uint32_t width,
+               RunKeep keep);
+
   // Makes a batch which lives as long as the state. The context never empties
   // it; whoever holds it does.
   RowBatch* NewBatch();
+  // Makes a batch for `owner` which is emptied at the end of each of its runs.
+  RowBatch* NewBatch(OperatorState& owner);
+  // Takes a batch for one run of `owner`. It is emptied and given back when the
+  // run ends.
+  RowBatch* TakeBatch(OperatorState& owner);
+  // Makes `count` empty buffer handles which live as long as the state. Whoever
+  // holds them releases them.
+  ColumnBuffer* NewBuffers(uint32_t count);
+  // Makes `count` empty buffer handles for `owner`, released at the end of each
+  // of its runs.
+  ColumnBuffer* NewBuffers(OperatorState& owner, uint32_t count);
+  // Takes `count` empty buffer handles for one run of `owner`, released when
+  // the run ends.
+  ColumnBuffer* TakeBuffers(OperatorState& owner, uint32_t count);
 
  private:
   // A pipeline's states, made the first time it runs and kept for the next
@@ -223,6 +300,11 @@ class Context {
   void AddOwned(void* object, void (*destroy)(void*));
   // What EndRun() does for a state which holds something for the run.
   void EndHeldRun(OperatorState& state);
+  // What EndHeldRun() does for the blocks of RunVectors, and for those in
+  // lists kept whole.
+  static void EndBlocks(Held& held);
+  static void EndBatches(Held& held);
+  static void EndListedBlocks(Held& held, std::vector<uint8_t>* placed);
   // Whether `state` still needs ending at the end of each run, once this run
   // has ended.
   static bool Holds(const Held& held, OperatorState& state);
@@ -243,8 +325,10 @@ class Context {
   // How many states hold something (see OperatorState::holds_).
   uint32_t holding_ = 0;
 
-  // Batches which live as long as the context (see NewBatch()).
+  // Batches and buffers which live as long as the context (see NewBatch() and
+  // NewBuffers()).
   std::vector<std::unique_ptr<RowBatch>> batches_;
+  std::vector<std::unique_ptr<ColumnBuffer[]>> buffer_arrays_;
   std::vector<Owned> owned_;
 };
 

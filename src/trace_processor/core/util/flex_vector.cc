@@ -26,17 +26,20 @@
 
 namespace perfetto::trace_processor::core::internal {
 
+uint64_t GrownCapacity(uint64_t capacity, uint64_t min_capacity) {
+  using Bytes = FlexVector<uint8_t>;
+  auto grown = static_cast<uint64_t>(static_cast<double>(capacity) *
+                                     Bytes::kGrowthFactor);
+  return base::AlignUp(std::max(min_capacity, grown), Bytes::kCapacityMultiple);
+}
+
 GrownFlexVector GrowFlexVector(void* data,
                                uint64_t used_bytes,
                                uint64_t capacity,
                                uint64_t min_capacity,
                                size_t width,
                                size_t align) {
-  using Bytes = FlexVector<uint8_t>;
-  auto grown = static_cast<uint64_t>(static_cast<double>(capacity) *
-                                     Bytes::kGrowthFactor);
-  uint64_t target =
-      base::AlignUp(std::max(min_capacity, grown), Bytes::kCapacityMultiple);
+  uint64_t target = GrownCapacity(capacity, min_capacity);
   uint64_t bytes = target * width;
   size_t alignment = SlabAlignment(bytes, align);
   void* out = base::AlignedAlloc(alignment, bytes);

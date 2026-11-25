@@ -99,11 +99,6 @@ class HeldState : public OperatorState {
   std::unique_ptr<Registry> held_;
 };
 
-// Storage of up to this many bytes is kept across runs, so a pipeline run
-// over and over on small inputs allocates nothing after its first run.
-// Anything larger is given back as soon as the run ends.
-inline constexpr uint64_t kRunKeptBytes = 64 * 1024;
-
 template <typename T>
 void EndRunOf(FlexVector<T>* v) {
   if (v->capacity() * sizeof(T) > kRunKeptBytes) {
