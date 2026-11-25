@@ -113,11 +113,6 @@ class AndroidProcessStateTracker {
     ProcessStateValues values;
   };
 
-  // Records the pre-change state (prev_*) from the earliest delta track event
-  // seen for a process to establish its baseline at trace start.
-  void UpdateInitialStateFromDelta(int64_t ts,
-                                   const ProcessStateValues& prev_state);
-
   // Computes the initial baseline state for every process by starting from the
   // trace-stop dump snapshot and overlaying the pre-transition states from the
   // earliest observed deltas.

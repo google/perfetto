@@ -43,9 +43,9 @@ namespace {
 namespace fb = com::android::internal::pbzero;
 
 // Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
-// proc_state_start_ns, frozen_start_ns) to trace time. Values <= 0 mean
-// unknown. Also returns std::nullopt if the conversion fails (the clock tracker
-// records a stat in that case).
+// proc_state_start_ns) to trace time. Values <= 0 mean unknown. Also returns
+// std::nullopt if the conversion fails (the clock tracker records a stat in
+// that case).
 std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
                                           int64_t boottime_ns) {
   if (boottime_ns <= 0) {
@@ -86,20 +86,6 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
           context->storage->InternString("freeze_policy_flags")),
       unknown_process_logger_(context) {}
 
-// The track-event stream only emits delta transitions (prev -> cur). To
-// reconstruct each process's state at the start of the trace, we record the
-// `prev_*` values from its earliest observed delta event.
-void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
-    int64_t ts,
-    const ProcessStateValues& prev_state) {
-  EarliestDelta& earliest = earliest_prev_[prev_state.upid];
-  if (ts >= earliest.ts) {
-    return;
-  }
-  earliest.ts = ts;
-  earliest.values = prev_state;
-}
-
 std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
     int64_t ts,
     const char* source,
@@ -129,25 +115,32 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   UniquePid upid = *opt_upid;
 
-  ProcessStateValues prev;
-  prev.upid = upid;
-  if (p.has_prev_proc_state()) {
-    prev.proc_state = static_cast<int32_t>(p.prev_proc_state());
+  // The track-event stream only emits delta transitions (prev -> cur). To
+  // reconstruct each process's state at the start of the trace, record the
+  // `prev_*` values from its earliest observed delta event.
+  EarliestDelta& earliest = earliest_prev_[upid];
+  if (ts < earliest.ts) {
+    earliest.ts = ts;
+    ProcessStateValues& prev = earliest.values;
+    prev = ProcessStateValues();
+    prev.upid = upid;
+    if (p.has_prev_proc_state()) {
+      prev.proc_state = static_cast<int32_t>(p.prev_proc_state());
+    }
+    if (p.has_prev_oom_score()) {
+      prev.oom_score = p.prev_oom_score();
+    }
+    if (p.has_prev_capability_flags()) {
+      prev.capability_flags = p.prev_capability_flags();
+    }
+    if (p.has_prev_process_group()) {
+      prev.process_group = static_cast<int32_t>(p.prev_process_group());
+    }
+    if (p.has_prev_proc_state_start_ns()) {
+      prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                         p.prev_proc_state_start_ns());
+    }
   }
-  if (p.has_prev_oom_score()) {
-    prev.oom_score = p.prev_oom_score();
-  }
-  if (p.has_prev_capability_flags()) {
-    prev.capability_flags = p.prev_capability_flags();
-  }
-  if (p.has_prev_process_group()) {
-    prev.process_group = static_cast<int32_t>(p.prev_process_group());
-  }
-  if (p.has_prev_proc_state_start_ns()) {
-    prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                       p.prev_proc_state_start_ns());
-  }
-  UpdateInitialStateFromDelta(ts, prev);
 
   // Insert the change row.
   tables::AndroidProcessStateTable::Row row;
