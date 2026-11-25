@@ -333,7 +333,7 @@ function getOpenerArgs(
   pluginId: string,
 ): {[key: string]: unknown} | undefined {
   const traceSource = trace.traceInfo.source;
-  if (traceSource.type !== 'ARRAY_BUFFER') {
+  if (traceSource.type !== 'ARRAY_BUFFER' && traceSource.type !== 'STREAM') {
     return undefined;
   }
   const pluginArgs = traceSource.pluginArgs;

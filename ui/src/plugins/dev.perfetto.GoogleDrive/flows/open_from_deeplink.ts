@@ -26,6 +26,7 @@ import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
 import {gdriveTraceArgs} from '../trace_args';
+import {makeGDriveTraceFileGetter} from './trace_file_getter';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -72,11 +73,12 @@ export async function openFileFromDeeplink(
   // browser's cache rather than from Drive.
   removeStateParamFromUrl();
 
-  // Attempt to download the file and look up its name in parallel.
+  // Attempt to open the file and look up its name in parallel.
   const [fileMetaResult, initialDownloadResult] = await Promise.all([
     drive.getMeta(oauthToken, fileId, resourceKey),
     drive.openFile(oauthToken, fileId, resourceKey),
   ]);
+
   let fileName = fileMetaResult.ok ? fileMetaResult.value.name : undefined;
   // Remember the file's resource key, for links to it. The deep link carries
   // it when Drive's "Open with" made it; otherwise Drive reports it.
@@ -111,7 +113,7 @@ export async function openFileFromDeeplink(
     fileName = picked.value.name;
     knownResourceKey ??= picked.value.resourceKey;
 
-    // Try the download again.
+    // Try opening the file again.
     fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey);
   }
 
@@ -122,15 +124,16 @@ export async function openFileFromDeeplink(
 
   fileName ??= 'Google Drive file';
 
-  app.openTraceFromBuffer({
-    buffer: fileDownloadResult.value,
+  app.openTraceFromStream(fileDownloadResult.value, {
     title: fileName,
-    fileName: fileName,
-    // ACL-protected Drive traces must not be re-uploaded to the public
-    // perfetto-ui-data GCS bucket via permalinks or crash reports.
-    shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(fileId, knownResourceKey),
+    getTraceFile: makeGDriveTraceFileGetter(
+      oauth,
+      drive,
+      fileId,
+      knownResourceKey,
+    ),
   });
 }
 

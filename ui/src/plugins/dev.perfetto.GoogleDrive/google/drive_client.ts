@@ -17,6 +17,7 @@ import {assertExists, assertNonEmpty} from '../../../base/assert';
 import {defer} from '../../../base/deferred';
 import {loadScript} from '../../../base/dom_utils';
 import {errResult, okResult, type Result} from '../../../base/result';
+import type {TraceChunk, TraceStream} from '../../../public/stream';
 import {loadGapiModules} from './gapi';
 
 // The Google API loader script, loaded once by DriveClient.create().
@@ -311,6 +312,85 @@ function postWithProgress(
   return deferred;
 }
 
+const STREAM_CHUNK_SIZE = 32 * 1024 * 1024;
+
+// Streams a fetch Response body into TraceProcessor in chunks of up to 32 MB
+// (matching TraceHttpStream), avoiding buffering the entire trace in JS memory.
+class ResponseTraceStream implements TraceStream {
+  private readonly bytesTotal: number;
+  private readonly reader?: ReadableStreamDefaultReader<Uint8Array>;
+  private bytesRead = 0;
+  private done = false;
+
+  constructor(private readonly response: Response) {
+    const contentLength = Number(response.headers.get('Content-Length') ?? 0);
+    this.bytesTotal =
+      Number.isFinite(contentLength) && contentLength > 0 ? contentLength : 0;
+    this.reader = response.body?.getReader();
+  }
+
+  async readChunk(): Promise<TraceChunk> {
+    if (this.reader === undefined) {
+      if (this.done) {
+        return {
+          data: new Uint8Array(),
+          eof: true,
+          bytesRead: this.bytesRead,
+          bytesTotal: this.bytesTotal,
+        };
+      }
+      this.done = true;
+      const buf = await this.response.arrayBuffer();
+      const data = new Uint8Array(buf);
+      this.bytesRead = data.byteLength;
+      return {
+        data,
+        eof: true,
+        bytesRead: this.bytesRead,
+        bytesTotal: this.bytesTotal || data.byteLength,
+      };
+    }
+
+    let eof = false;
+    let chunkBytes = 0;
+    const chunks: Uint8Array[] = [];
+
+    while (!eof && chunkBytes < STREAM_CHUNK_SIZE) {
+      const res = await this.reader.read();
+      if (res.value !== undefined) {
+        chunks.push(res.value);
+        chunkBytes += res.value.byteLength;
+      }
+      eof = res.done;
+    }
+
+    let data: Uint8Array;
+    if (chunks.length === 0) {
+      data = new Uint8Array();
+    } else if (chunks.length === 1) {
+      data = chunks[0]!;
+    } else {
+      data = new Uint8Array(chunkBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+    }
+
+    this.bytesRead += data.byteLength;
+    if (eof) {
+      this.reader.releaseLock();
+    }
+    return {
+      data,
+      eof,
+      bytesRead: this.bytesRead,
+      bytesTotal: this.bytesTotal,
+    };
+  }
+}
+
 // URL prefixes allowed for gapi.drive.share.ShareClient iframes (matching the
 // CSP frame-src allowlist in ui/src/frontend/index.ts). ShareClient does not
 // accept a container element and always mounts directly under document.body, so
@@ -557,21 +637,19 @@ export class DriveClient {
     return parseUploadedFile(responseText);
   }
 
-  // Downloads a file's contents. Never rejects.
+  // Opens a file's contents as a TraceStream. Never rejects.
   async openFile(
     oauthToken: string,
     fileId: string,
     resourceKey?: string,
-  ): Promise<Result<ArrayBuffer, DriveError>> {
-    // 'alt=media' asks for the file's contents rather than its metadata. The
-    // response is read straight into an ArrayBuffer, avoiding extra copies of
-    // large traces.
+  ): Promise<Result<TraceStream, DriveError>> {
+    // 'alt=media' asks for the file's contents rather than its metadata.
     return this.fetchFileResult(
       oauthToken,
       fileId,
       {alt: 'media'},
       resourceKey,
-      async (response) => okResult(await response.arrayBuffer()),
+      async (response) => okResult(new ResponseTraceStream(response)),
     );
   }
 

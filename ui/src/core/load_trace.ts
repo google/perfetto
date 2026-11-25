@@ -215,11 +215,13 @@ async function loadTraceIntoEngine(
   // a trace (because it was passed as a cmdline argument to
   // trace_processor_shell). In this case we don't want the UI to load any
   // file/stream and we just want to jump to the loading phase.
+  let streamBytesRead: number | undefined;
   if (traceStream !== undefined) {
     const tStart = performance.now();
     for (;;) {
       const res = await traceStream.readChunk();
       await engine.parse(res.data);
+      streamBytesRead = res.bytesRead;
       const elapsed = (performance.now() - tStart) / 1000;
       let status = 'Loading trace ';
       if (res.bytesTotal > 0) {
@@ -253,7 +255,12 @@ async function loadTraceIntoEngine(
     await engine.registerSqlPackages(p);
   }
 
-  const traceDetails = await getTraceInfo(engine, app, traceSource);
+  const traceDetails = await getTraceInfo(
+    engine,
+    app,
+    traceSource,
+    streamBytesRead,
+  );
   const trace = new TraceImpl(app, engine, traceDetails);
   app.setActiveTrace(trace);
 
@@ -539,6 +546,7 @@ async function getTraceInfo(
   engine: Engine,
   app: AppImpl,
   traceSource: TraceSource,
+  streamBytesRead?: number,
 ): Promise<TraceInfoImpl> {
   const traceTime = await getTraceTimeBounds(engine);
 
@@ -609,6 +617,7 @@ async function getTraceInfo(
     case 'URL':
       traceUrl = traceSource.url;
       traceTitle = traceUrl.split('/').pop()!;
+      fileSizeBytes = streamBytesRead;
       break;
     case 'ARRAY_BUFFER':
       traceTitle = traceSource.title;
@@ -617,6 +626,7 @@ async function getTraceInfo(
       break;
     case 'STREAM':
       traceTitle = traceSource.title ?? '';
+      fileSizeBytes = streamBytesRead;
       break;
     case 'HTTP_RPC':
       traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
@@ -673,7 +683,9 @@ async function getTraceInfo(
     traceSource.type === 'FILE' ||
     traceSource.type === 'URL' ||
     traceSource.type === 'MULTIPLE_FILES' ||
-    (traceSource.type === 'ARRAY_BUFFER' && traceSource.downloadable !== false);
+    (traceSource.type === 'ARRAY_BUFFER' &&
+      traceSource.downloadable !== false) ||
+    (traceSource.type === 'STREAM' && traceSource.getTraceFile !== undefined);
 
   return {
     ...traceTime,
