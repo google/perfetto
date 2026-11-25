@@ -173,6 +173,11 @@ base::Status CollectTimelineEvents::Begin(Context* context) const {
 
 base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
                                             Context* context) const {
+  if (timeline_writer_uid_.has_value() &&
+      !IsWrittenBy(packet, *timeline_writer_uid_)) {
+    return base::OkStatus();
+  }
+
   if (backdate_first_open_) {
     RecordProcessStarts(packet, &context->timeline_backdating);
   }

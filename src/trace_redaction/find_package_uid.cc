@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_redaction/find_package_uid.h"
+
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -50,13 +52,18 @@ base::Status FindPackageUid::Collect(
     return base::OkStatus();
   }
 
+  if (attribution_writer_uid_.has_value() &&
+      !IsWrittenBy(packet, *attribution_writer_uid_)) {
+    return base::OkStatus();
+  }
+
   protos::pbzero::PackagesList::Decoder packages_list_decoder(
       packet.packages_list());
 
   for (auto package = packages_list_decoder.packages(); package; ++package) {
     protos::pbzero::PackagesList::PackageInfo::Decoder info(*package);
 
-    if (!info.has_name() || !info.has_uid()) {
+    if (PERFETTO_UNLIKELY(!info.has_name() || !info.has_uid())) {
       continue;
     }
 
@@ -79,7 +86,7 @@ base::Status FindPackageUid::Collect(
     // is set to true so ProcessTree UIDs are normalized to match).
     //
     // Verify that the PackagesList entry is already normalized as expected.
-    if (NormalizeUid(info.uid()) != info.uid()) {
+    if (PERFETTO_UNLIKELY(NormalizeUid(info.uid()) != info.uid())) {
       return base::ErrStatus(
           "FindPackageUid: package list uid is not normalized.");
     }

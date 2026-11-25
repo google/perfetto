@@ -37,6 +37,10 @@ base::Status CollectSystemInfo::Begin(Context* context) const {
 base::Status CollectSystemInfo::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
+  if (GetWriterType(packet) != WriterType::kSystem) {
+    return base::OkStatus();
+  }
+
   auto* system_info = &context->system_info.value();
 
   PERFETTO_DCHECK(system_info);  // See Begin()

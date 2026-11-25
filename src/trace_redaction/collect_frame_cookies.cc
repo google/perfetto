@@ -85,6 +85,10 @@ base::Status CollectFrameCookies::Begin(Context* context) const {
 base::Status CollectFrameCookies::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
+  if (GetWriterType(packet) != WriterType::kSystem) {
+    return base::OkStatus();
+  }
+
   // A frame cookie needs a time and pid for a timeline query. Ignore packets
   // without a timestamp.
   if (!packet.has_timestamp()) {

@@ -60,6 +60,7 @@ std::string CreateExpectedSurfaceFrameStart(uint64_t ts,
                                             int32_t pid,
                                             int64_t cookie) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(1000);
   packet->set_timestamp(ts);
   auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
       kFrameTimelineEventFieldNumber);
@@ -75,6 +76,7 @@ std::string CreateActualSurfaceFrameStart(uint64_t ts,
                                           int32_t pid,
                                           int64_t cookie) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(1000);
   packet->set_timestamp(ts);
   auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
       kFrameTimelineEventFieldNumber);
@@ -90,6 +92,7 @@ std::string CreateExpectedDisplayFrameStart(uint64_t ts,
                                             int32_t pid,
                                             int64_t cookie) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(1000);
   packet->set_timestamp(ts);
   auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
       kFrameTimelineEventFieldNumber);
@@ -105,6 +108,7 @@ std::string CreateActualDisplayFrameStart(uint64_t ts,
                                           int32_t pid,
                                           int64_t cookie) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(1000);
   packet->set_timestamp(ts);
   auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
       kFrameTimelineEventFieldNumber);
@@ -118,6 +122,7 @@ std::string CreateActualDisplayFrameStart(uint64_t ts,
 
 std::string CreateFrameEnd(uint64_t ts, int64_t cookie) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(1000);
   packet->set_timestamp(ts);
   auto* event = packet->BeginNestedMessage<FrameTimelineEvent>(
       kFrameTimelineEventFieldNumber);

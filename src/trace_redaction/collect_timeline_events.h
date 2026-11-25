@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_REDACTION_COLLECT_TIMELINE_EVENTS_H_
 #define SRC_TRACE_REDACTION_COLLECT_TIMELINE_EVENTS_H_
 
+#include <cstdint>
+#include <optional>
+
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -27,6 +30,11 @@ namespace perfetto::trace_redaction {
 // packets and stores them in a timeline.
 class CollectTimelineEvents : public CollectPrimitive {
  public:
+  // When set, only packets whose trusted_uid equals `uid` contribute to the
+  // timeline (e.g. Context::kTracedProbesUid, so packets written by apps can
+  // never change which pids belong to the target).
+  void set_timeline_writer_uid(int32_t uid) { timeline_writer_uid_ = uid; }
+
   // When true, the first open event of every pid is moved back to the
   // process's start time (ProcessTree.Process.process_start_from_boot) or to
   // 0 if unknown. See ProcessThreadTimeline::BackdateFirstOpenEvents().
@@ -42,6 +50,7 @@ class CollectTimelineEvents : public CollectPrimitive {
   base::Status End(Context* context) const override;
 
  private:
+  std::optional<int32_t> timeline_writer_uid_;
   bool backdate_first_open_ = false;
 };
 

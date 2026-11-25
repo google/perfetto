@@ -96,6 +96,12 @@ inline bool IsShellPacketField(uint32_t field_id) {
   return false;
 }
 
+// Returns true if the packet's trusted_uid (stamped by traced) equals `uid`.
+inline bool IsWrittenBy(const protos::pbzero::TracePacket::Decoder& packet,
+                        int32_t uid) {
+  return packet.has_trusted_uid() && packet.trusted_uid() == uid;
+}
+
 // Classifies a packet by who wrote it, using the trusted_uid stamped by traced.
 enum class WriterType {
   // trusted_uid <= Context::kMaxTrustedUid.
@@ -205,6 +211,10 @@ class Context {
   // event. In production we only expect to see system uids. 9999 is the
   // last allowed uid (allow all uids less than or equal to 9999).
   static constexpr int32_t kMaxTrustedUid = 9999;
+
+  // The uid of traced_probes (AID_NOBODY), the producer that writes the
+  // package list, process trees and process stats.
+  static constexpr int32_t kTracedProbesUid = 9999;
 
   // The package that should not be redacted. This must be populated before
   // running any primitives.
@@ -484,7 +494,8 @@ class Context {
   };
   TimelineBackdating timeline_backdating;
 
-  // Transform-phase counters (`mutable` on Context because
+  // Transform-phase counters updated directly by FilterUntrustedAppPackets and
+  // PruneMissingUidPackets (`mutable` on Context because
   // TransformPrimitive::Transform takes `const Context&`).
   struct Stats {
     uint32_t untrusted_app_packets_dropped = 0;
