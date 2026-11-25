@@ -81,10 +81,6 @@ const OperationRegistration& Distinct::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> Distinct::Clone() const {
-  return std::make_unique<Distinct>(*this);
-}
-
 void Distinct::Serialize(PlanCodec& c) {
   c.Vec(&columns_);
 }

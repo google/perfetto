@@ -80,7 +80,6 @@ class Where : public PlanOperation {
   friend class LogicalPlanFormatter;
 
   // PlanOperation implementation. Dispatch goes through the base interface.
-  std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   // Moves the conditions a scan directly below can answer into it, so it finds
   // the rows by searching its dataframe instead of testing every row. A WHERE

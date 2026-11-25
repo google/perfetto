@@ -62,10 +62,6 @@ class PlanOperation {
   PlanOperation() = default;
   virtual ~PlanOperation();
 
-  // Copies mutable payload state so pruning or binding a copied plan cannot
-  // modify its original. Immutable dataframe columns may remain shared.
-  virtual std::unique_ptr<PlanOperation> Clone() const = 0;
-
   // Updates this payload and marks required input ColumnIds in needed.
   // Returns a child slot to replace this node, or nullopt to keep it. The
   // pruning driver traverses children after this call; implementations do not.
@@ -129,7 +125,8 @@ class PlanOperation {
   virtual const OperationRegistration& registration() const = 0;
 
  protected:
-  // Concrete payloads are copied by Clone; the interface itself is not a value.
+  // Concrete payloads are copied when added to a plan; the interface itself
+  // is not a value.
   PlanOperation(const PlanOperation&) = default;
   PlanOperation& operator=(const PlanOperation&) = default;
   PlanOperation(PlanOperation&&) noexcept = default;
@@ -153,9 +150,8 @@ class PlanNode {
   PlanNode(std::unique_ptr<PlanOperation> operation,
            std::vector<PlanNodeId> children);
 
-  // Plans have value semantics: each copy owns independent mutable payloads.
-  PlanNode(const PlanNode&);
-  PlanNode& operator=(const PlanNode&);
+  PlanNode(const PlanNode&) = delete;
+  PlanNode& operator=(const PlanNode&) = delete;
   PlanNode(PlanNode&&) noexcept;
   PlanNode& operator=(PlanNode&&) noexcept;
   ~PlanNode();
@@ -201,6 +197,13 @@ class PlanNode {
 // The root is the last stage of the pipeline and the leaves are its sources.
 class LogicalPlan {
  public:
+  LogicalPlan() = default;
+  // Moved, never copied: a plan is built, then consumed whole.
+  LogicalPlan(const LogicalPlan&) = delete;
+  LogicalPlan& operator=(const LogicalPlan&) = delete;
+  LogicalPlan(LogicalPlan&&) noexcept = default;
+  LogicalPlan& operator=(LogicalPlan&&) noexcept = default;
+
   ColumnId AddColumn(NameId name, PlanType type) {
     auto id = static_cast<ColumnId>(columns_.size());
     columns_.push_back({name, type});

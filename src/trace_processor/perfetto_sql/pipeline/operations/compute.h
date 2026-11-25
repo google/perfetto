@@ -49,7 +49,6 @@ class Compute : public PlanOperation {
  private:
   friend class LogicalPlanFormatter;
 
-  std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   bool IsRowWise() const override { return true; }
   OutputProperties Derive(DeriveContext&) const override;

@@ -38,19 +38,19 @@ PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
   return out;
 }
 
-base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan,
+base::StatusOr<std::string> SelectPipelineSql(LogicalPlan plan,
                                               const PlanKey& key) {
   if (plan.output().size() > kMaxPipelineColumns) {
     return base::ErrStatus("A pipeline can output at most %u columns, not %zu",
                            kMaxPipelineColumns, plan.output().size());
   }
-  PlanWithDataframeArgs moved = MoveSqlSourcesToDataframeArgs(plan);
   std::vector<std::string> columns;
   for (uint32_t i = 0; i < plan.output().size(); ++i) {
     columns.push_back(
         "c" + std::to_string(i) + " AS " +
         QuoteIdentifier(plan.names().text(plan.output()[i].name)));
   }
+  PlanWithDataframeArgs moved = MoveSqlSourcesToDataframeArgs(std::move(plan));
   std::string arguments =
       "X'" + base::ToHex(SerializePlan(std::move(moved.plan), key)) + "'";
   if (!moved.args.empty()) {

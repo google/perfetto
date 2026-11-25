@@ -85,10 +85,6 @@ const OperationRegistration& Compute::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> Compute::Clone() const {
-  return std::make_unique<Compute>(*this);
-}
-
 void Compute::Serialize(PlanCodec& c) {
   items_.resize(c.Count(items_.size()));
   for (Item& item : items_) {

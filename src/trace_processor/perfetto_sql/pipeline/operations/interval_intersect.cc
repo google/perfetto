@@ -234,10 +234,6 @@ const OperationRegistration& IntervalIntersect::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> IntervalIntersect::Clone() const {
-  return std::make_unique<IntervalIntersect>(*this);
-}
-
 void IntervalIntersect::Serialize(PlanCodec& c) {
   c.Pod(&ts_);
   c.Pod(&dur_);

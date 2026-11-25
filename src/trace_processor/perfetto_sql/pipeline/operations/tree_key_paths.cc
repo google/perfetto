@@ -117,10 +117,6 @@ const OperationRegistration& TreeKeyPaths::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> TreeKeyPaths::Clone() const {
-  return std::make_unique<TreeKeyPaths>(*this);
-}
-
 void TreeKeyPaths::Serialize(PlanCodec& c) {
   c.Pod(&node_column_);
   c.Pod(&parent_column_);

@@ -144,10 +144,6 @@ const OperationRegistration& AggregateStage::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> AggregateStage::Clone() const {
-  return std::make_unique<AggregateStage>(*this);
-}
-
 // Replaces `available` with the output columns.
 void AggregateStage::Serialize(PlanCodec& c) {
   c.Vec(&keys_);

@@ -58,7 +58,7 @@ PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
 // serialized into the SQL, stamped with `key`, and each relation it reads from
 // SQL is built into a dataframe where that SQL runs, so it sees whatever is in
 // scope there.
-base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan,
+base::StatusOr<std::string> SelectPipelineSql(LogicalPlan plan,
                                               const PlanKey& key);
 
 // -----------------------------------------------------------------------------

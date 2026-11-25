@@ -42,7 +42,6 @@ class TreeAccumulate : public PlanOperation {
   friend class LogicalPlanFormatter;
 
   // PlanOperation implementation. Dispatch goes through the base interface.
-  std::unique_ptr<PlanOperation> Clone() const override;
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   // Runs two independent folds over one tree in the order its rows already walk
   // it, so only one of them reorders the rows: a fold directly on a fold in the

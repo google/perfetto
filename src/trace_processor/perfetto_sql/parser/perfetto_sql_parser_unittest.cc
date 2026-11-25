@@ -82,7 +82,7 @@ class PerfettoSqlParserTest : public ::testing::Test {
     parser.Reset(std::move(sql));
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
-      results.push_back(parser.statement());
+      results.push_back(parser.TakeStatement());
     }
     if (!parser.status().ok()) {
       return parser.status();
@@ -176,62 +176,65 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false,
-                               FunctionPrototype{"foo", {}},
-                               CreateFn::Returns{
-                                   false,
-                                   sql_argument::Type::kLong,
-                                   {},
-                               },
-                               FindSubstr(res, "select 1"),
-                               "",
-                               std::nullopt,
-                           }));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(testing::VariantWith<CreateFn>(CreateFn{
+                  false,
+                  FunctionPrototype{"foo", {}},
+                  CreateFn::Returns{
+                      false,
+                      sql_argument::Type::kLong,
+                      {},
+                  },
+                  FindSubstr(res, "select 1"),
+                  "",
+                  std::nullopt,
+              })));
 
   res = SqlSource::FromExecuteQuery(
       "create perfetto function bar(x INT, y LONG) returns STRING as "
       "select 'foo'");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false,
-                               FunctionPrototype{
-                                   "bar",
-                                   {
-                                       {"$x", sql_argument::Type::kLong},
-                                       {"$y", sql_argument::Type::kLong},
-                                   },
-                               },
-                               CreateFn::Returns{
-                                   false,
-                                   sql_argument::Type::kString,
-                                   {},
-                               },
-                               FindSubstr(res, "select 'foo'"),
-                               "",
-                               std::nullopt,
-                           }));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(testing::VariantWith<CreateFn>(CreateFn{
+                  false,
+                  FunctionPrototype{
+                      "bar",
+                      {
+                          {"$x", sql_argument::Type::kLong},
+                          {"$y", sql_argument::Type::kLong},
+                      },
+                  },
+                  CreateFn::Returns{
+                      false,
+                      sql_argument::Type::kString,
+                      {},
+                  },
+                  FindSubstr(res, "select 'foo'"),
+                  "",
+                  std::nullopt,
+              })));
 
   res = SqlSource::FromExecuteQuery(
       "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As "
       "select 'foo'");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false,
-                               FunctionPrototype{
-                                   "bar",
-                                   {
-                                       {"$x", sql_argument::Type::kLong},
-                                       {"$y", sql_argument::Type::kLong},
-                                   },
-                               },
-                               CreateFn::Returns{
-                                   false,
-                                   sql_argument::Type::kString,
-                                   {},
-                               },
-                               FindSubstr(res, "select 'foo'"),
-                               "",
-                               std::nullopt,
-                           }));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(testing::VariantWith<CreateFn>(CreateFn{
+                  false,
+                  FunctionPrototype{
+                      "bar",
+                      {
+                          {"$x", sql_argument::Type::kLong},
+                          {"$y", sql_argument::Type::kLong},
+                      },
+                  },
+                  CreateFn::Returns{
+                      false,
+                      sql_argument::Type::kString,
+                      {},
+                  },
+                  FindSubstr(res, "select 'foo'"),
+                  "",
+                  std::nullopt,
+              })));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionVariadicWithOtherArgs) {
@@ -474,7 +477,8 @@ TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
       "b) |> SELECT ts, dur, b.utid"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto sql = pipeline::SelectPipelineSql(
-      std::get<Pipeline>(parser.statement()).plan, pipeline::PlanKey(0, 0));
+      std::move(std::get<Pipeline>(parser.TakeStatement()).plan),
+      pipeline::PlanKey(0, 0));
   ASSERT_TRUE(sql.ok()) << sql.status().message();
   EXPECT_THAT(
       *sql,
@@ -727,28 +731,33 @@ TEST_F(PerfettoSqlParserTest, PipelinePermissionChangesWithTheSource) {
 // The new keywords are not reserved and `|` `>` in an expression is still
 // bitwise OR then a comparison.
 TEST_F(PerfettoSqlParserTest, PipelineSyntaxDoesNotLeakIntoSql) {
-  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
-                "SELECT tree, accumulate, up, down FROM t")),
-            std::vector<Statement>{Statement(SqliteSql{})});
-  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
-                "SELECT * FROM a JOIN b ON a.x | b.y > 3")),
-            std::vector<Statement>{Statement(SqliteSql{})});
-  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
-                "SELECT (interval / 1e9), (interval) FROM t")),
-            std::vector<Statement>{Statement(SqliteSql{})});
-  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
-                "SELECT (graph), nodes, edges, bfs, dfs, dominator FROM t")),
-            std::vector<Statement>{Statement(SqliteSql{})});
-  ASSERT_EQ(*Parse(SqlSource::FromExecuteQuery(
-                "SELECT merge, overlapping, consecutive, intervals, events, "
-                "stop, keeping, last, open, closing, at FROM t")),
-            std::vector<Statement>{Statement(SqliteSql{})});
-  ASSERT_EQ(
+  ASSERT_THAT(
+      *Parse(SqlSource::FromExecuteQuery(
+          "SELECT tree, accumulate, up, down FROM t")),
+      testing::ElementsAre(testing::VariantWith<SqliteSql>(SqliteSql{})));
+  ASSERT_THAT(
+      *Parse(SqlSource::FromExecuteQuery(
+          "SELECT * FROM a JOIN b ON a.x | b.y > 3")),
+      testing::ElementsAre(testing::VariantWith<SqliteSql>(SqliteSql{})));
+  ASSERT_THAT(
+      *Parse(SqlSource::FromExecuteQuery(
+          "SELECT (interval / 1e9), (interval) FROM t")),
+      testing::ElementsAre(testing::VariantWith<SqliteSql>(SqliteSql{})));
+  ASSERT_THAT(
+      *Parse(SqlSource::FromExecuteQuery(
+          "SELECT (graph), nodes, edges, bfs, dfs, dominator FROM t")),
+      testing::ElementsAre(testing::VariantWith<SqliteSql>(SqliteSql{})));
+  ASSERT_THAT(
+      *Parse(SqlSource::FromExecuteQuery(
+          "SELECT merge, overlapping, consecutive, intervals, events, "
+          "stop, keeping, last, open, closing, at FROM t")),
+      testing::ElementsAre(testing::VariantWith<SqliteSql>(SqliteSql{})));
+  ASSERT_THAT(
       *Parse(SqlSource::FromExecuteQuery(
           "SELECT paths, siblings, parent, indirect, invert, expand, charge, "
           "leaf, root, find, nearest, ancestor, descendant, self, "
           "contract, absorb, prune, reparent FROM t")),
-      std::vector<Statement>{Statement(SqliteSql{})});
+      testing::ElementsAre(testing::VariantWith<SqliteSql>(SqliteSql{})));
 }
 
 TEST_F(PerfettoSqlParserTest, TreeFindOnlyTakesLeft) {

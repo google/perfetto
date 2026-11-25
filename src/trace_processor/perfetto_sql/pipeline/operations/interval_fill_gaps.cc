@@ -260,10 +260,6 @@ const OperationRegistration& IntervalFillGaps::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> IntervalFillGaps::Clone() const {
-  return std::make_unique<IntervalFillGaps>(*this);
-}
-
 void IntervalFillGaps::Serialize(PlanCodec& c) {
   c.Pod(&ts_);
   c.Pod(&dur_);

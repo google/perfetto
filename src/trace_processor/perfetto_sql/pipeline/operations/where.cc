@@ -471,10 +471,6 @@ const OperationRegistration& Where::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> Where::Clone() const {
-  return std::make_unique<Where>(*this);
-}
-
 void Where::Serialize(PlanCodec& c) {
   c.Vec(&predicates_);
   literals_.resize(c.Count(literals_.size()));

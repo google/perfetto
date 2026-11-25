@@ -486,7 +486,7 @@ class PerfettoSqlConnection {
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
 
   base::StatusOr<SqliteConnection::PreparedStatement> PreparePipeline(
-      const pipeline::LogicalPlan&,
+      pipeline::LogicalPlan,
       const SqlSource&);
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
