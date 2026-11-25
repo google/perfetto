@@ -180,3 +180,64 @@ A `task_rename` should be redacted when `event.pid` does not belong to that
 target package (`context.package_uid`). Since the pid's naming information will
 be removed everywhere, and naming information is effectively metadata, the whole
 event can be dropped without effecting the integrity of the trace.
+
+## Java Heap Dump Redaction
+
+### Background
+
+`trace_redactor <input> <output> <package> [--uid <target uid>]` handles Java
+heap dump traces (ART `HeapGraph`, e.g. collected on OOM with a device-wide
+`android.java_hprof.oom` config), system traces, and combined traces through a
+single unified pipeline (`TraceRedactor::CreateInstance`). Heap dump traces
+contain the package list, process tree and process stats of every app, and
+possibly heap dumps of several apps; only the target package's data is kept.
+
+### Trust model
+
+Packets are classified by the `trusted_uid` stamped by traced:
+
+- __System__ (`trusted_uid <= 9999`): only traced_probes (9999) is trusted for
+  attribution (package uid, pid to uid).
+- __App__ (`trusted_uid > 9999`): heap dumps are written by the app itself, and
+  `app_packet_mask` restricts target-app packets to heap dump payloads only.
+- __Missing uid__: e.g. a deobfuscation mapping appended after collection.
+
+Heap dump primitives in Pass 1 (see `trace_redactor.cc`):
+
+1. `FilterUntrustedAppPackets`: drop packets written by other apps.
+2. `PruneMissingUidPackets` (configured with `AllowTargetDeobfuscationMapping`):
+   drop uid-less packets unless an allowlisted `PacketFilter` accepts them.
+3. `PruneHeapDumps`: keep `heap_graph` / `art_process_metadata` only from the
+   target's uid and only for complete dumps (last packet on the sequence has
+   `continued == false`). Non-target heap dumps (including from system-uid
+   processes) and incomplete dumps are removed.
+4. `BroadphasePacketFilter`: data-type allow-list (`packet_mask` for system
+   packets, `app_packet_mask` for target-app packets).
+5. `ScrubTrigger`, `ScrubServiceEvent`, `PrunePackageList`,
+   `ScrubProcessStats`, `ReduceThreadsInProcessTrees`: remove other apps'
+   rows and names.
+6. `PruneShellPackets`: remove shell packets, i.e. packets left with only
+   trusted uid/pid, sequence id and timestamp (+ clock id). Packets carrying
+   incremental state, data loss markers or machine ids are kept.
+
+Pass 2 is prepared dynamically after Pass 1 finishes: process-tree merging runs
+only when Pass 1 observed more than one `ProcessTree` packet, and synthetic
+sched merging runs only when Pass 1 observed ftrace CPUs. For heap dump traces
+with no ftrace and at most one `ProcessTree`, Pass 2 stays empty and is skipped
+with zero extra buffer allocation or copy.
+
+### Timing
+
+In heap dump traces the process stats (and the dump) are recorded before the
+only process snapshot, and there is no ftrace. `CollectTimelineEvents`
+back-dates the first open event of every pid to its
+`process_start_from_boot` (or 0 when unknown and no ftrace is present) so
+process stats can still be attributed. Heap dumps themselves are attributed by
+`trusted_uid`, not by the timeline.
+
+### Input requirements
+
+The input must be uncompressed (decompress with `traceconv decompress_packets`
+first). Truncated traces are rejected. A trace without a complete heap dump of
+the target is not rejected: incomplete dumps are dropped, and the summary log
+reports `complete_dumps_kept=0` plus a warning.

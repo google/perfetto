@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/fuzzer.gni")
 import("../../gn/test.gni")
 
 # The main entry point for external processes. This is separate from
@@ -224,6 +225,15 @@ perfetto_unittest_source_set("unittests") {
     "../base",
     "../base:test_support",
     "../trace_processor/util:blob",
+  ]
+}
+
+perfetto_fuzzer_test("trace_redactor_fuzzer") {
+  sources = [ "trace_redactor_fuzzer.cc" ]
+  deps = [
+    ":trace_redaction",
+    "../../gn:default_deps",
+    "../base",
   ]
 }
 
