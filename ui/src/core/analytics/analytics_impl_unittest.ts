@@ -143,6 +143,62 @@ describe('AnalyticsImpl', () => {
     });
   });
 
+  describe('initialize', () => {
+    beforeEach(() => {
+      gtagGlobals.dataLayer = [];
+    });
+
+    test('should send perfetto_env with every event', async () => {
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
+      await analytics.initialize();
+      // Tests run on localhost.
+      expect(gaConfig()?.perfetto_env).toBe('localhost');
+    });
+
+    test('should send a visit_id with every event', async () => {
+      const analytics = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
+      await analytics.initialize();
+      expect(gaConfig()?.visit_id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      );
+    });
+
+    test('should give each visit a different visit_id', async () => {
+      const first = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
+      await first.initialize();
+      const firstVisitId = gaConfig()?.visit_id;
+
+      gtagGlobals.dataLayer = [];
+      const second = initAnalytics(
+        false,
+        false,
+        true,
+        'G-TEST',
+        () => POLICY_OFF,
+      );
+      await second.initialize();
+      expect(gaConfig()?.visit_id).not.toBe(firstVisitId);
+    });
+  });
+
   describe('logEvent', () => {
     beforeEach(() => {
       gtagGlobals.dataLayer = [];
