@@ -27,7 +27,9 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_redaction/frame_cookie.h"
 #include "src/trace_redaction/process_thread_timeline.h"
@@ -43,6 +45,28 @@ namespace perfetto::trace_redaction {
 constexpr uint64_t kAndroidPerUserRange = 100000;
 constexpr uint64_t NormalizeUid(uint64_t uid) {
   return uid % kAndroidPerUserRange;
+}
+
+// TracePacket fields that only describe the packet itself: who wrote it and
+// when. None of them changes how other packets are decoded or adds to the trace
+// (no incremental state, no data loss markers, no machine routing). A packet
+// with only these fields is a "shell" and can be removed from any trace (see
+// PruneShellPackets).
+inline constexpr uint32_t kShellPacketFields[] = {
+    protos::pbzero::TracePacket::kTrustedUidFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPidFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
+    protos::pbzero::TracePacket::kTimestampFieldNumber,
+    protos::pbzero::TracePacket::kTimestampClockIdFieldNumber,
+};
+
+inline bool IsShellPacketField(uint32_t field_id) {
+  for (uint32_t id : kShellPacketFields) {
+    if (id == field_id) {
+      return true;
+    }
+  }
+  return false;
 }
 
 class SystemInfo {
@@ -210,6 +234,21 @@ class Context {
   // explicit `--uid` was provided), full per-user UIDs are preserved in the
   // timeline for strict multi-user isolation.
   bool normalize_uid = false;
+
+  // Returns true if `uid` (e.g. a packet's trusted_uid) belongs to the target
+  // package: a normalized comparison when `normalize_uid` is true, an exact one
+  // otherwise. This is the same rule the timeline applies (it stores
+  // normalized uids when `normalize_uid` is true). Not for PackagesList uids,
+  // which never carry a user id (PrunePackageList always normalizes).
+  bool IsTargetUid(int32_t uid) const {
+    PERFETTO_DCHECK(package_uid.has_value());
+    if (PERFETTO_UNLIKELY(uid < 0)) {
+      return false;
+    }
+    auto u = static_cast<uint64_t>(uid);
+    return normalize_uid ? NormalizeUid(u) == NormalizeUid(*package_uid)
+                         : u == *package_uid;
+  }
 
   // The timestamp when tracing started, collected from TracingServiceEvent.
   // This is used to avoid merging events across the start of tracing, which
