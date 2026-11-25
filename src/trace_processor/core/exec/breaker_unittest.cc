@@ -186,10 +186,6 @@ class Total final : public Sink {
     RunValue<int64_t> value{this, 0};
   };
 
-  void DescribeColumns(StepColumns* out) const override {
-    out->keeps = StepColumns::Keeps::kNone;
-    out->reads = {1};
-  }
   std::unique_ptr<OperatorState> MakeSinkState(Context&) const override {
     return std::make_unique<Sum>();
   }

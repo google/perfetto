@@ -23,8 +23,21 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/variant.h"
 
 namespace perfetto::trace_processor::core::exec {
+
+void RowBatch::AddNullColumnLike(const ColumnShape* like,
+                                 StorageType fallback,
+                                 Context& context) {
+  if (like && like->kind == ColumnView::Kind::kVariant) {
+    // Zeroed, the null buffer's values are null Variants.
+    const ColumnBuffer& nulls = context.NullBuffer();
+    AddColumn(ColumnView::Variants(nulls.chunk().Values<Variant>()), nulls);
+    return;
+  }
+  AddNullColumn(like ? like->type : fallback, context);
+}
 
 RowBatch& RowBatch::operator=(RowBatch&& other) noexcept {
   if (this == &other) {

@@ -99,5 +99,47 @@ void BM_Connection_Pipeline_Scan(benchmark::State& state) {
 }
 BENCHMARK(BM_Connection_Pipeline_Scan);
 
+// Joins 1M slices to 64K threads by utid, matching pipitdb's first join
+// benchmark. The args pick the query:
+//   0: a pipeline JOIN.
+//   1: the same join in plain SQLite, for comparison.
+//   2, 3: scanning each side alone, to show the join's own cost.
+//   4: a pipeline JOIN where about 1 slice in 10 has no matching thread.
+// Each query sums a joined column, so it doesn't pay to return 1M rows.
+void BM_Connection_JoinSlicesThreads(benchmark::State& state) {
+  StringPool pool;
+  auto conn = PerfettoSqlConnection::CreateConnectionToNewDatabase(
+      &pool, /*enable_extra_checks=*/false);
+  auto setup = conn->Execute(SqlSource::FromExecuteQuery(R"(
+    PERFETTO PRAGMA pipelines = 1;
+    CREATE PERFETTO TABLE threads AS
+    WITH RECURSIVE numbers(n) AS (
+      SELECT 0 UNION ALL SELECT n + 1 FROM numbers WHERE n < 65535
+    )
+    SELECT n AS utid, n * 3 AS tid FROM numbers;
+    CREATE PERFETTO TABLE slices AS
+    WITH RECURSIVE numbers(n) AS (
+      SELECT 0 UNION ALL SELECT n + 1 FROM numbers WHERE n < 1048575
+    )
+    SELECT n AS id, (n * 7919) % 65536 AS utid FROM numbers;
+    CREATE PERFETTO TABLE strays AS
+    SELECT id, (id * 7919) % 72817 AS utid FROM slices
+  )"));
+  PERFETTO_CHECK(setup.ok());
+  const char* queries[] = {
+      "FROM slices |> JOIN threads USING (utid) |> AGGREGATE SUM(tid) AS total",
+      "SELECT SUM(tid) AS total FROM slices JOIN threads USING (utid)",
+      "FROM slices |> AGGREGATE SUM(utid) AS total",
+      "FROM threads |> AGGREGATE SUM(tid) AS total",
+      "FROM strays |> JOIN threads USING (utid) |> AGGREGATE SUM(tid) AS t"};
+  const char* query = queries[state.range(0)];
+  for (auto _ : state) {
+    auto res = conn->Execute(SqlSource::FromExecuteQuery(query));
+    PERFETTO_CHECK(res.ok());
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * 1048576);
+}
+BENCHMARK(BM_Connection_JoinSlicesThreads)->DenseRange(0, 4);
+
 }  // namespace
 }  // namespace perfetto::trace_processor

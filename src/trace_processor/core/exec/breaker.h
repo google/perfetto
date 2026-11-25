@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BREAKER_H_
 
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -43,12 +44,19 @@ class Breaker : public Sink {
 
   ~Breaker() override;
 
+  // Which of its input's columns it reads and keeps (see StepColumns).
+  virtual void DescribeColumns(StepColumns* out) const = 0;
+
+  // Same as Operator::SetUnreadColumns().
+  virtual void SetUnreadColumns(std::vector<bool>) {}
+
   // As Source::InPlace(), for the batches Serve() outputs.
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
     return nullptr;
   }
 
   // Sink.
+  bool IsBreaker() const final { return true; }
   std::unique_ptr<OperatorState> MakeSinkState(Context&) const final;
   base::Status ConsumeBatch(const RowBatch& in,
                             OperatorState& state) const final;

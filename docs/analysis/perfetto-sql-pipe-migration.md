@@ -81,6 +81,7 @@ Pipelines do not do everything SQL does yet. Split the work like this:
 | Task | Where to do it today |
 | :--- | :--- |
 | Filtering by comparing columns with numbers, joined by `AND` | `\|> WHERE dur > 0 AND depth = 0` |
+| A `JOIN` on a table's id, such as `USING (utid)` | `\|> JOIN thread USING (utid)` |
 | Any other filter, `JOIN`s, window functions and computed expressions | In the `FROM (SELECT ...)` subquery, or in SQL over the table the pipeline saves. |
 | Intersecting intervals across two or more tables | `INTERVAL INTERSECTION OF (...) [PER ...]` |
 | Counting or summing concurrent activity in one set of intervals | `\|> INTERVAL FLATTEN [PER ...] AGGREGATE ...`; see the [example](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten). |

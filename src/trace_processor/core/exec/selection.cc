@@ -83,6 +83,28 @@ void Selection::Reorder(base::Span<const uint32_t> rows) {
   prefix_ = prefix;
 }
 
+void Selection::KeepMatching(const uint32_t* values,
+                             uint32_t value,
+                             bool equal) {
+  uint32_t n = 0;
+  if (prefix_) {
+    for (uint32_t i = 0; i < size_; ++i) {
+      indices_[n] = static_cast<uint16_t>(i);
+      n += (values[i] == value) == equal;
+    }
+    // The kept rows are increasing. If the last is n - 1, they must be exactly
+    // rows 0 to n - 1, which is still a prefix.
+    prefix_ = n == 0 || indices_[n - 1] == n - 1;
+  } else {
+    for (uint32_t i = 0; i < size_; ++i) {
+      uint16_t row = indices_[i];
+      indices_[n] = row;
+      n += (values[row] == value) == equal;
+    }
+  }
+  size_ = n;
+}
+
 void Selection::KeepRange(uint32_t first, uint32_t count) {
   PERFETTO_DCHECK(first + count <= size_);
   if (first != 0) {
