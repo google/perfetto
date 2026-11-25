@@ -57,6 +57,7 @@ import type {OmniboxModeDescriptor} from '../public/omnibox';
 import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
 import type {Route} from '../public/app';
+import {PluginLoadReporter} from './analytics/plugin_load_reporter';
 import type {Policy} from '../public/policy';
 
 /**
@@ -73,6 +74,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly tabs = new TabManagerImpl();
   readonly timeline: TimelineImpl;
   readonly traceInfo: TraceInfoImpl;
+  readonly pluginLoads: PluginLoadReporter;
   readonly tracks = new TrackManagerImpl();
   readonly workspaces = new WorkspaceManagerImpl();
   readonly notes = new NoteManagerImpl();
@@ -103,6 +105,11 @@ export class TraceImpl implements Trace, Disposable {
     this.engine = engine;
     this.trash.use(engine);
     this.traceInfo = traceInfo;
+
+    this.pluginLoads = new PluginLoadReporter(
+      traceInfo.traceLoadId,
+      app.analytics,
+    );
 
     this.timeline = new TimelineImpl(
       traceInfo,
