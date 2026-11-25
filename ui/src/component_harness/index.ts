@@ -55,6 +55,9 @@ function main() {
   }
 
   const fixture = fixtureName === null ? undefined : fixtures.get(fixtureName);
+  if (fixtureName !== null && fixture === undefined) {
+    harnessWindow.__harnessError = `Unknown fixture: '${fixtureName}'`;
+  }
   const component =
     typeof fixture === 'function' ? fixture(args as FixtureArgs) : undefined;
   const tree = buildTree(Array.from(fixtures.keys()));

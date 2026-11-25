@@ -42,6 +42,24 @@ function trimLongString(s: string, length = 100): string {
   return s.substring(0, start) + middle + s.slice(-end);
 }
 
+// Returns the [folder, filename] tuple to pass to toHaveScreenshot(). Combined
+// with snapshotPathTemplate in playwright.config.ts, screenshots are stored at
+// <file>/<test or step title>/<name>. Playwright doesn't sanitize array names,
+// so this sanitizes the folder the same way Playwright sanitizes {testName}.
+export function formatScreenshotName(
+  name: string,
+  stepTitle?: string,
+): string[] {
+  const titlePath = test.info().titlePath.slice(1);
+  if (stepTitle !== undefined) {
+    titlePath[titlePath.length - 1] = stepTitle;
+  }
+  const folder = sanitizeForFilePath(trimLongString(titlePath.join(' ')));
+  const ext = path.extname(name);
+  const base = name.substring(0, name.length - ext.length);
+  return [folder, sanitizeForFilePath(base) + ext];
+}
+
 export class PerfettoTestHelper {
   private cachedSidebarSize?: Size2D;
   private currentStepTitle?: string;
@@ -71,14 +89,7 @@ export class PerfettoTestHelper {
   // {testName}. Every screenshot must use this, otherwise it ends up directly
   // under <file>/.
   screenshotName(name: string): string[] {
-    const titlePath = test.info().titlePath.slice(1);
-    if (this.currentStepTitle !== undefined) {
-      titlePath[titlePath.length - 1] = this.currentStepTitle;
-    }
-    const folder = sanitizeForFilePath(trimLongString(titlePath.join(' ')));
-    const ext = path.extname(name);
-    const base = name.substring(0, name.length - ext.length);
-    return [folder, sanitizeForFilePath(base) + ext];
+    return formatScreenshotName(name, this.currentStepTitle);
   }
 
   resetFocus(): Promise<void> {
