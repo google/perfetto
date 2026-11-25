@@ -52,6 +52,7 @@ TEST(TimeTest, Conversions) {
 }
 
 TEST(TimeTest, GetTime) {
+  WaitUntilTimeInitialized();
   const auto start_time = GetWallTimeNs();
   const auto start_cputime = GetThreadCPUTimeNs();
 

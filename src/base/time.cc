@@ -175,6 +175,24 @@ void InitializeTime() {
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
 }
 
+void WaitUntilTimeInitialized() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
+  // TSCTicksPerSecond() requires at least 50 ms between its first and
+  // subsequent calls to calibrate the TSC frequency. Bound the wait so a
+  // broken/non-advancing TSC or QPC cannot hang forever.
+  if (TSCTicksPerSecond() != 0)
+    return;
+  constexpr int kMaxRetries = 20;
+  constexpr unsigned kRetrySleepUs = 10 * 1000;
+  for (int i = 0; i < kMaxRetries; ++i) {
+    SleepMicroseconds(kRetrySleepUs);
+    if (TSCTicksPerSecond() != 0)
+      return;
+  }
+  PERFETTO_DLOG("Timed out waiting for TSC calibration.");
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
+}
+
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 void SleepMicroseconds(unsigned interval_us) {
@@ -182,6 +200,8 @@ void SleepMicroseconds(unsigned interval_us) {
 }
 
 void InitializeTime() {}
+
+void WaitUntilTimeInitialized() {}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 

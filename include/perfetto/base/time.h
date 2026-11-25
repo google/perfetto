@@ -58,7 +58,17 @@ inline TimeNanos FromPosixTimespec(const struct timespec& ts) {
 }
 
 void SleepMicroseconds(unsigned interval_us);
+
+// Starts non-blocking calibration of GetThreadCPUTimeNs() on Windows x86/x64.
+// Until calibration completes (~50 ms after the first call),
+// GetThreadCPUTimeNs() returns 0.
 void InitializeTime();
+
+// Blocks until GetThreadCPUTimeNs() calibration is complete. No-op if already
+// calibrated or on platforms that do not require calibration. Callers (e.g.
+// unit tests) that immediately measure thread CPU time deltas should call this
+// before taking a baseline reading.
+void WaitUntilTimeInitialized();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 

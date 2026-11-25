@@ -153,6 +153,7 @@ TYPED_TEST(TaskRunnerTest, PostDelayedTask) {
 // When the only pending task is more than INT_MAX ms away, the runner must
 // sleep until it, not busy-poll with a 0 ms timeout.
 TYPED_TEST(TaskRunnerTest, FarFutureDelayedTaskDoesNotSpin) {
+  WaitUntilTimeInitialized();
   auto& task_runner = this->task_runner;
   task_runner.PostDelayedTask([] {}, std::numeric_limits<uint32_t>::max());
   std::thread quitter([&task_runner] {
