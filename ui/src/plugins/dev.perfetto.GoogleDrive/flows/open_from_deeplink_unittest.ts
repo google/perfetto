@@ -491,7 +491,10 @@ describe('openFileFromDeeplink', () => {
         expect(prompt).toBeDefined();
         const container = document.createElement('div');
         const content = prompt!.content;
-        m.render(container, typeof content === 'function' ? content() : content);
+        m.render(
+          container,
+          typeof content === 'function' ? content() : content,
+        );
         return container;
       };
 
