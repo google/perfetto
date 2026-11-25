@@ -207,6 +207,89 @@ class Freezer(TestSuite):
         "UNFROZEN",6499500000,500000,3
         """))
 
+  def test_android_freezer_intervals_snapshot_death(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event { type: TYPE_INSTANT name: "begin" }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+              uid: 10002
+              start_seq_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 100
+              uid: 10001
+              frozen_dur_ms: 3000
+              frozen_start_ns: 2000
+            }
+            record {
+              pid: 200
+              uid: 10002
+              frozen_dur_ms: 2000
+              frozen_start_ns: 3000
+            }
+          }
+        }
+        packet {
+          timestamp: 6000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 100
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          timestamp: 6500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+              uid: 10002
+              start_seq_id: 2
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT ts, dur, pid, state
+        FROM _android_freezer_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state"
+        2000,4000,100,"FROZEN"
+        4000,2500,200,"FROZEN"
+        """))
+
   def test_android_freezer_concurrency(self):
     return DiffTestBlueprint(
         trace=Path('freezer_intervals.textproto'),

@@ -4,7 +4,9 @@
 # *_start_ns values are BOOTTIME, so both are converted to trace time; times
 # below are BOOTTIME. The trace starts at 1s.
 # Synthetic cases, which real producers don't emit, are marked as such.
-# - PID 600: unfreeze at 5s with frozen_start_ns = 3.5s.
+# - PID 600: unfreeze at 5s with frozen_start_ns = 3.5s and a shorter
+#            frozen_dur_ms (500ms, e.g. 1s suspend while frozen): the leading
+#            interval must start at frozen_start_ts (3s) rather than dur (4s).
 # - PID 700: freeze at 6s with unfrozen_start_ns = 4.5s.
 # - PID 1100: freeze at 6s with unfrozen_start_ns = 0 (unknown), so the leading
 #             span falls back to unfrozen_dur_ms (2s). Synthetic: producers
@@ -78,7 +80,7 @@ packet {
     [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
       pid: 600
       uid: 10006
-      frozen_dur_ms: 1500
+      frozen_dur_ms: 500
       frozen_start_ns: 3500000000
       unfreeze_reason: UFR_ACTIVITY
     }
