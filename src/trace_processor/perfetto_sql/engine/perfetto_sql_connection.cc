@@ -19,6 +19,7 @@
 #include <sqlite3.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
@@ -90,6 +91,15 @@
 //   the vendored syntaqlite parser.
 namespace perfetto::trace_processor {
 namespace {
+
+// How often, in SQLite virtual machine steps, a running statement checks the
+// interrupt flag: about every 0.1-1 ms on most queries.
+constexpr int kInterruptCheckSteps = 10000;
+
+int CheckInterruptFlag(void* ctx) {
+  auto* flag = static_cast<std::atomic<bool>*>(ctx);
+  return flag->load(std::memory_order_relaxed) ? 1 : 0;
+}
 
 void IncrementCountForStmt(const SqliteConnection::PreparedStatement& p_stmt,
                            PerfettoSqlConnection::ExecutionStats* res) {
@@ -384,6 +394,10 @@ PerfettoSqlConnection::PerfettoSqlConnection(
   connection_->SetRollbackCallback(
       [](void* ctx) { static_cast<PerfettoSqlConnection*>(ctx)->OnRollback(); },
       this);
+
+  // Lets Interrupt() stop statements which start after it was called.
+  connection_->SetProgressCallback(kInterruptCheckSteps, &CheckInterruptFlag,
+                                   &interrupted_);
 
   {
     auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>(
@@ -926,6 +940,18 @@ const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
     std::string_view name) const {
   auto* state = dataframe_context_->GetStateByName(name);
   return state ? state->dataframe : nullptr;
+}
+
+void PerfettoSqlConnection::Interrupt() {
+  // The flag stops statements which start later. Interrupting the SQLite
+  // connection stops the ones running now, at once, and is all that works in
+  // builds without progress callbacks.
+  interrupted_.store(true, std::memory_order_relaxed);
+  connection_->Interrupt();
+}
+
+void PerfettoSqlConnection::ClearInterrupt() {
+  interrupted_.store(false, std::memory_order_relaxed);
 }
 
 base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
