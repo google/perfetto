@@ -39,12 +39,14 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/drop_empty_ftrace_events.h"
 #include "src/trace_redaction/filter_untrusted_app_packets.h"
+#include "src/trace_redaction/filtering.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/merge_process_tree.h"
 #include "src/trace_redaction/merge_synthetic_sched.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/package_validation.h"
 #include "src/trace_redaction/populate_allow_lists.h"
+#include "src/trace_redaction/prune_missing_uid_packets.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/prune_perf_events.h"
 #include "src/trace_redaction/prune_shell_packets.h"
@@ -329,9 +331,11 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   pass1->emplace_build<ReduceFrameCookies>();
   pass1->emplace_build<BuildSyntheticThreads>();
 
-  // Writer gate first: cheap whole-packet decision that discards other apps'
-  // (potentially multi-MB) packets before anything inspects their payloads.
+  // Writer gates first: cheap whole-packet decisions that discard other apps'
+  // (potentially multi-MB) packets and unexpected uid-less packets before
+  // anything inspects their payloads.
   pass1->emplace_transform<FilterUntrustedAppPackets>();
+  pass1->emplace_transform<PruneMissingUidPackets>();
 
   {
     // In order for BroadphasePacketFilter to work, something needs to populate
