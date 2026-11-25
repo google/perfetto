@@ -119,7 +119,8 @@ Paths KeyPaths(const std::vector<int64_t>& parents,
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
-  ops.push_back(std::make_unique<TreeKeyPaths>(TreeKeyPathsSpec{3, 4, {2}}));
+  ops.push_back(std::make_unique<TreeKeyPaths>(
+      TreeKeyPathsSpec{3, 4, test::InArena<uint32_t>({2})}));
   Pipeline pipeline(source, std::move(ops));
 
   std::unique_ptr<OperatorState> state =

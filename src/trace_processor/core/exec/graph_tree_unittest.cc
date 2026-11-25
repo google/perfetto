@@ -152,7 +152,7 @@ class GraphTreeTest : public ::testing::Test {
     spec.kind = kind;
     spec.nodes = test::AddStream(*planned.pipelines, *nodes_);
     spec.node_column = 0;
-    spec.retained_columns = {0, 1};
+    spec.retained_columns = test::InArena<uint32_t>({0, 1});
     spec.edges = test::AddStream(*planned.pipelines, *edges_);
     spec.source_column = 0;
     spec.target_column = 1;
@@ -160,7 +160,7 @@ class GraphTreeTest : public ::testing::Test {
     spec.seed_column = 0;
     planned.context = std::make_unique<Context>();
     planned.context->SetPipelines(planned.pipelines.get());
-    planned.tree = std::make_unique<GraphTree>(std::move(spec));
+    planned.tree = std::make_unique<GraphTree>(spec);
     return planned;
   }
 

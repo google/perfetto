@@ -24,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -32,7 +33,7 @@ namespace perfetto::trace_processor::core::exec {
 struct TreeKeyPathsSpec {
   uint32_t node_column = 0;
   uint32_t parent_column = 1;
-  std::vector<uint32_t> key_columns;
+  core::ArenaSpan<uint32_t> key_columns;
 };
 
 // Numbers each node by its root-to-node path of the key columns: two nodes get
@@ -46,14 +47,13 @@ class TreeKeyPaths final : public Transform {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override {
-    out->reads = spec_.key_columns;
+    out->reads.assign(spec_.key_columns.begin(), spec_.key_columns.end());
     out->reads.push_back(spec_.node_column);
     out->reads.push_back(spec_.parent_column);
     out->added = 2;
   }
 
   explicit TreeKeyPaths(TreeKeyPathsSpec);
-  ~TreeKeyPaths() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;

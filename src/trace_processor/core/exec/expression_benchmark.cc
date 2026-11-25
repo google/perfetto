@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -105,7 +106,8 @@ void RunBinary(benchmark::State& state,
   std::vector<ExprProgram> programs;
   programs.push_back(std::move(program));
   StringPool pool;
-  Compute compute(std::move(programs), &pool);
+  core::Arena arena;
+  Compute compute(arena, programs, &pool);
 
   Context context;
   auto op_state = compute.MakeState(context);
@@ -198,7 +200,8 @@ void RunProgram(benchmark::State& state, ExprProgram program, bool nulls) {
 
   std::vector<ExprProgram> programs;
   programs.push_back(std::move(program));
-  Compute compute(std::move(programs), &strings->pool);
+  core::Arena arena;
+  Compute compute(arena, programs, &strings->pool);
   Context context;
   auto op_state = compute.MakeState(context);
   RowBatch out;
@@ -334,7 +337,8 @@ void BM_ExprGlobNoRepeats(benchmark::State& state) {
   p.patterns.push_back("*$Stub");
   std::vector<ExprProgram> programs;
   programs.push_back(std::move(p));
-  Compute compute(std::move(programs), &pool);
+  core::Arena arena;
+  Compute compute(arena, programs, &pool);
   Context context;
   for (auto _ : state) {
     auto op_state = compute.MakeState(context);

@@ -30,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -40,6 +41,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/glob.h"
 
@@ -341,8 +343,9 @@ StorageType StorageFor(ExprType type) {
 
 // A kGlob step's pattern, and what it found of the strings seen so far.
 struct GlobPattern {
-  explicit GlobPattern(const std::string& pattern)
-      : matcher(util::GlobMatcher::FromPattern(base::StringView(pattern))) {}
+  explicit GlobPattern(std::string_view pattern)
+      : matcher(util::GlobMatcher::FromPattern(
+            base::StringView(pattern.data(), pattern.size()))) {}
 
   util::GlobMatcher matcher;
   base::FlatHashMap<uint32_t, bool> results;
@@ -352,13 +355,13 @@ struct GlobPattern {
 // Runs one program over batches, keeping a register per step.
 class Evaluator {
  public:
-  Evaluator(const ExprProgram& program,
+  Evaluator(const Compute::Program& program,
             Context& context,
             const StringPool* pool)
       : program_(&program), context_(&context), pool_(pool) {
     regs_.resize(program.steps.size());
     globs_.reserve(program.patterns.size());
-    for (const std::string& pattern : program.patterns) {
+    for (std::string_view pattern : program.patterns) {
       globs_.push_back(std::make_unique<GlobPattern>(pattern));
     }
     constants_.resize(program.steps.size());
@@ -727,7 +730,7 @@ class Evaluator {
         return true;
       case Op::kConstant:
       case Op::kNull:
-        out = constants_[static_cast<size_t>(&step - program_->steps.data())];
+        out = constants_[static_cast<size_t>(&step - program_->steps.begin())];
         return true;
       case Op::kToDouble: {
         const Register& a = regs_[step.a];
@@ -770,7 +773,7 @@ class Evaluator {
     PERFETTO_FATAL("For GCC");
   }
 
-  const ExprProgram* program_;
+  const Compute::Program* program_;
   Context* context_;
   const StringPool* pool_;
   // By pattern of the program. Behind pointers so nothing moves them.
@@ -792,7 +795,7 @@ ComputeState::~ComputeState() = default;
 }  // namespace
 
 void Compute::DescribeColumns(StepColumns* out) const {
-  for (const ExprProgram& program : programs_) {
+  for (const Program& program : programs_) {
     for (const ExprStep& step : program.steps) {
       if (step.op == ExprStep::Op::kColumn) {
         out->reads.push_back(step.a);
@@ -802,14 +805,26 @@ void Compute::DescribeColumns(StepColumns* out) const {
   out->added = static_cast<uint32_t>(programs_.size());
 }
 
-Compute::Compute(std::vector<ExprProgram> programs, const StringPool* pool)
-    : programs_(std::move(programs)), pool_(pool) {}
-Compute::~Compute() = default;
+Compute::Compute(core::Arena& arena,
+                 base::Span<const ExprProgram> programs,
+                 const StringPool* pool)
+    : programs_(arena.NewSpan<Program>(static_cast<uint32_t>(programs.size()))),
+      pool_(pool) {
+  for (uint32_t i = 0; i < programs_.size(); ++i) {
+    const ExprProgram& program = programs[i];
+    programs_[i].steps = arena.CopySpan<ExprStep>(program.steps);
+    programs_[i].patterns = arena.NewSpan<std::string_view>(
+        static_cast<uint32_t>(program.patterns.size()));
+    for (uint32_t p = 0; p < program.patterns.size(); ++p) {
+      programs_[i].patterns[p] = arena.CopyString(program.patterns[p]);
+    }
+  }
+}
 
 std::unique_ptr<OperatorState> Compute::MakeState(Context& context) const {
   auto state = std::make_unique<ComputeState>();
   state->evaluators.reserve(programs_.size());
-  for (const ExprProgram& program : programs_) {
+  for (const Program& program : programs_) {
     state->evaluators.emplace_back(program, context, pool_);
   }
   return state;

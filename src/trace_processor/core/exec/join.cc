@@ -219,7 +219,7 @@ struct Join::State : OperatorState {
 
 Join::State::~State() = default;
 
-Join::Join(JoinSpec spec) : spec_(std::move(spec)) {}
+Join::Join(JoinSpec spec) : spec_(spec) {}
 
 Join::~Join() = default;
 

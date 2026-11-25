@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -70,7 +69,7 @@ struct JoinSpec {
   uint32_t probe_key;
   // Which of the plan's pipelines ends in the JoinBuild.
   uint32_t build;
-  std::vector<Output> outputs;
+  core::ArenaSpan<Output> outputs;
 };
 
 // Joins each input row to the build row with the same key (see JoinBuild) and

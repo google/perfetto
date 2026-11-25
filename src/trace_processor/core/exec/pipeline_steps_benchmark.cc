@@ -215,11 +215,11 @@ BENCHMARK(BM_StepsTreeAccumulateUp)->Apply(Sizes);
 void BM_StepsTreeKeyPaths(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [](core::Arena&) {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
         steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeKeyPaths>(
-            TreeKeyPathsSpec{kNode, kParentNode, {kValue}}));
+        steps.push_back(std::make_unique<TreeKeyPaths>(TreeKeyPathsSpec{
+            kNode, kParentNode, arena.CopySpan<uint32_t>({kValue})}));
         return steps;
       },
       nullptr);

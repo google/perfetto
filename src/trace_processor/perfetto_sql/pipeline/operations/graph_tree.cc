@@ -169,9 +169,7 @@ void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   ex::GraphTreeSpec spec;
   spec.kind = kind_;
   spec.node_column = nodes.QueryPosition(node_);
-  for (ColumnId id : carried_) {
-    spec.retained_columns.push_back(nodes.QueryPosition(id));
-  }
+  spec.retained_columns = nodes.QueryPositions(carried_);
   spec.nodes = nodes.FinishSide();
   spec.source_column = edges.QueryPosition(source_);
   spec.target_column = edges.QueryPosition(target_);
@@ -179,7 +177,7 @@ void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   spec.seed_column = seeds.QueryPosition(seed_);
   spec.seeds = seeds.FinishSide();
 
-  c->SetSource(std::make_unique<ex::GraphTree>(std::move(spec)));
+  c->SetSource(std::make_unique<ex::GraphTree>(spec));
 }
 
 const OperationRegistration& GraphTree::registration() const {

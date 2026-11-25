@@ -64,8 +64,7 @@ KeyPathsState::~KeyPathsState() = default;
 
 }  // namespace
 
-TreeKeyPaths::TreeKeyPaths(TreeKeyPathsSpec spec) : spec_(std::move(spec)) {}
-TreeKeyPaths::~TreeKeyPaths() = default;
+TreeKeyPaths::TreeKeyPaths(TreeKeyPathsSpec spec) : spec_(spec) {}
 
 std::unique_ptr<OperatorState> TreeKeyPaths::MakeState(Context& context) const {
   return std::make_unique<KeyPathsState>(context);
@@ -82,7 +81,7 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
 
   s.row_values.resize(count);
   if (std::optional<uint32_t> bad = s.values.FindOrCreate(
-          batch, spec_.key_columns, s.row_values.data())) {
+          batch, spec_.key_columns.span(), s.row_values.data())) {
     s.status = base::ErrStatus(
         "TREE KEY PATHS: key %u must be a column holding one type", *bad + 1);
     return false;

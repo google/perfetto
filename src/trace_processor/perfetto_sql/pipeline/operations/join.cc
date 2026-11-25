@@ -200,9 +200,10 @@ void Join::Lower(Lowering* c, const PlanNode& node) const {
   core::ArenaSpan<bool> unread = build.arena().NewSpan<bool>(
       static_cast<uint32_t>(build.QueryRows().columns.size()));
   std::fill(unread.begin(), unread.end(), true);
-  // Sized up front: resize() would instantiate its own growth code.
-  std::vector<ex::JoinSpec::Output> outputs(outputs_.size());
-  for (size_t i = 0; i < outputs_.size(); ++i) {
+  core::ArenaSpan<ex::JoinSpec::Output> outputs =
+      c->arena().NewSpan<ex::JoinSpec::Output>(
+          static_cast<uint32_t>(outputs_.size()));
+  for (uint32_t i = 0; i < outputs_.size(); ++i) {
     uint32_t position = build.QueryPosition(outputs_[i]);
     unread[position] = false;
     const PlanType& type = build.QueryRows().columns[position].type;
@@ -213,8 +214,8 @@ void Join::Lower(Lowering* c, const PlanNode& node) const {
       build.FinishSide(std::make_unique<ex::JoinBuild>(key, unread));
   ex::JoinSpec spec{
       left_ ? ex::JoinSpec::Kind::kLeft : ex::JoinSpec::Kind::kInner,
-      c->QueryPosition(probe_key_), build_pipeline, std::move(outputs)};
-  c->AddOperator(std::make_unique<ex::Join>(std::move(spec)));
+      c->QueryPosition(probe_key_), build_pipeline, outputs};
+  c->AddOperator(std::make_unique<ex::Join>(spec));
 }
 
 void Join::Serialize(PlanCodec& c) {

@@ -124,7 +124,7 @@ class ExpressionTest : public ::testing::Test {
   std::vector<std::optional<T>> Run(ExprProgram program) {
     std::vector<ExprProgram> programs;
     programs.push_back(std::move(program));
-    Compute compute(std::move(programs), &pool_);
+    Compute compute(test::TestArena(), programs, &pool_);
     auto state = compute.MakeState(test::TestContext());
     RowBatch out;
     EXPECT_TRUE(test::ProcessCopy(compute, batch_, out, *state));
@@ -165,7 +165,7 @@ TEST_F(ExpressionTest, OverflowFails) {
   b.Binary(Op::kMul, b.Column(1), b.Int(std::numeric_limits<int64_t>::max()));
   std::vector<ExprProgram> programs;
   programs.push_back(b.Take());
-  Compute compute(std::move(programs), &pool_);
+  Compute compute(test::TestArena(), programs, &pool_);
   auto state = compute.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(compute, batch_, out, *state));

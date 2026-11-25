@@ -322,7 +322,8 @@ void Lowering::Apply(const input_step::Convert& step) {
   PERFETTO_DCHECK(target.Is<core::String>() == step.type.Is<core::String>());
   AddOperator(std::make_unique<ex::AssertType>(
       position, target,
-      plan().names().text(plan().columns()[step.column].name)));
+      arena().CopyString(
+          plan().names().text(plan().columns()[step.column].name))));
 }
 
 core::exec::IntervalLaneSpec Lowering::QueryIntervalLanes(
