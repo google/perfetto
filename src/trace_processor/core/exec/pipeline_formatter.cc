@@ -99,10 +99,10 @@ std::string Columns(base::Span<const uint32_t> positions) {
 }
 
 // The columns a step holding rows does not hold, if any.
-std::string Unread(const std::vector<bool>& unread) {
+std::string Unread(base::Span<const bool> unread) {
   std::vector<uint32_t> positions;
   for (uint32_t c = 0; c < unread.size(); ++c) {
-    if (unread[c]) {
+    if (unread.b[c]) {
       positions.push_back(c);
     }
   }
@@ -118,7 +118,7 @@ std::string Lanes(const IntervalLaneSpec& lanes) {
   return out;
 }
 
-std::string Keys(const std::vector<SortKey>& keys) {
+std::string Keys(base::Span<const SortKey> keys) {
   std::string out;
   for (const SortKey& key : keys) {
     out += (out.empty() ? "" : ", ") + Column(key.column) +
@@ -427,19 +427,19 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
 std::string PipelineFormatter::BreakerString(const Breaker& breaker) {
   if (breaker.Is<Sort>()) {
     const auto& sort = static_cast<const Sort&>(breaker);
-    return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
+    return "Sort(" + Keys(sort.spec_.keys.span()) + Unread(sort.unread_) + ")";
   }
   if (breaker.Is<TopK>()) {
     const auto& top = static_cast<const TopK&>(breaker);
-    return "TopK(" + Keys(top.spec_.keys) + "; " +
+    return "TopK(" + Keys(top.spec_.keys.span()) + "; " +
            std::to_string(top.spec_.count) + Unread(top.unread_) + ")";
   }
   if (breaker.Is<GroupedSort>()) {
     const auto& sort = static_cast<const GroupedSort&>(breaker);
     const GroupedSortSpec& spec = sort.spec_;
-    std::string out = "GroupedSort(" + Columns(spec.groups);
+    std::string out = "GroupedSort(" + Columns(spec.groups.span());
     if (!spec.keys.empty()) {
-      out += "; " + Keys(spec.keys);
+      out += "; " + Keys(spec.keys.span());
     }
     return out + Unread(sort.unread_) + ")";
   }

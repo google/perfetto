@@ -31,13 +31,12 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-GroupedSort::GroupedSort(GroupedSortSpec spec) : spec_(std::move(spec)) {}
-GroupedSort::~GroupedSort() = default;
+GroupedSort::GroupedSort(GroupedSortSpec spec) : spec_(spec) {}
 GroupedSort::State::~State() = default;
 
 std::unique_ptr<Breaker::State> GroupedSort::CreateState() const {
   auto state = std::make_unique<State>();
-  state->rows.SetUnread(unread_);
+  state->rows.SetUnread(unread_.span());
   return state;
 }
 
@@ -49,14 +48,15 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
   }
   uint64_t at = s.groups.size();
   s.groups.resize(at + count);
-  if (std::optional<uint32_t> bad =
-          s.group_table.FindOrCreate(in, spec_.groups, s.groups.data() + at)) {
+  if (std::optional<uint32_t> bad = s.group_table.FindOrCreate(
+          in, spec_.groups.span(), s.groups.data() + at)) {
     s.groups.resize(at);
     s.status = base::ErrStatus(
         "GROUPED SORT: group %u must be a column holding one type", *bad + 1);
     return false;
   }
-  base::Status status = s.rows.Append(in, spec_.keys, nullptr, *s.context);
+  base::Status status =
+      s.rows.Append(in, spec_.keys.span(), nullptr, *s.context);
   if (!status.ok()) {
     s.status = base::ErrStatus("GROUPED SORT: %s", status.c_message());
     return false;

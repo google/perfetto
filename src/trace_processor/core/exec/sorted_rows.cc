@@ -113,14 +113,14 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
 }
 
 base::Status SortedRows::Append(const RowBatch& in,
-                                const std::vector<SortKey>& keys,
+                                base::Span<const SortKey> keys,
                                 const StringPool* pool,
                                 Context& context) {
   return Store(in, keys, pool, context, nullptr);
 }
 
 base::Status SortedRows::AppendLaidOut(const RowBatch& in,
-                                       const std::vector<SortKey>& keys,
+                                       base::Span<const SortKey> keys,
                                        const StringPool* pool,
                                        Context& context,
                                        const uint8_t* laid_out) {
@@ -128,7 +128,7 @@ base::Status SortedRows::AppendLaidOut(const RowBatch& in,
 }
 
 base::Status SortedRows::Store(const RowBatch& in,
-                               const std::vector<SortKey>& keys,
+                               base::Span<const SortKey> keys,
                                const StringPool* pool,
                                Context& context,
                                const uint8_t* laid_out) {
@@ -154,7 +154,7 @@ base::Status SortedRows::Store(const RowBatch& in,
 }
 
 base::Status SortedRows::CheckKeys(const RowBatch& in,
-                                   const std::vector<SortKey>& keys,
+                                   base::Span<const SortKey> keys,
                                    const StringPool* pool) {
   bool first = types_.empty() && !keys.empty();
   for (uint32_t k = 0; k < keys.size(); ++k) {
@@ -184,7 +184,7 @@ base::Status SortedRows::CheckKeys(const RowBatch& in,
 }
 
 void SortedRows::LayOutKeys(const RowBatch& in,
-                            const std::vector<SortKey>& keys,
+                            base::Span<const SortKey> keys,
                             uint8_t* rows) const {
   for (uint32_t k = 0; k < keys.size(); ++k) {
     const ColumnView& column = in.column(keys[k].column);

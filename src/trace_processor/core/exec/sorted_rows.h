@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/string_ranks.h"
@@ -54,13 +55,13 @@ class SortedRows {
   // its type changes. Rows packed are copied into buffers from `context` (see
   // RowStore).
   base::Status Append(const RowBatch& in,
-                      const std::vector<SortKey>& keys,
+                      base::Span<const SortKey> keys,
                       const StringPool* pool,
                       Context& context);
   // As Append(), with the rows' keys at `laid_out` as LayOutKeys() lays them
   // out, which saves doing so again.
   base::Status AppendLaidOut(const RowBatch& in,
-                             const std::vector<SortKey>& keys,
+                             base::Span<const SortKey> keys,
                              const StringPool* pool,
                              Context& context,
                              const uint8_t* laid_out);
@@ -69,12 +70,12 @@ class SortedRows {
   // Checks the keys of `in` as Append() does. The first call fixes their
   // types and layout.
   base::Status CheckKeys(const RowBatch& in,
-                         const std::vector<SortKey>& keys,
+                         base::Span<const SortKey> keys,
                          const StringPool* pool);
   // Lays out at `rows` the keys of each row `in` keeps, except string keys,
   // which are laid out only by Sort(). The keys must have been checked.
   void LayOutKeys(const RowBatch& in,
-                  const std::vector<SortKey>& keys,
+                  base::Span<const SortKey> keys,
                   uint8_t* rows) const;
 
   // How keys are laid out, once checked.
@@ -113,9 +114,7 @@ class SortedRows {
   void EndRun();
 
   // Which columns are not held (see RowStore::SetUnread).
-  void SetUnread(std::vector<bool> unread) {
-    rows_.SetUnread(std::move(unread));
-  }
+  void SetUnread(base::Span<const bool> unread) { rows_.SetUnread(unread); }
 
  private:
   struct KeyType {
@@ -134,7 +133,7 @@ class SortedRows {
 
   // Append() and AppendLaidOut(): `laid_out` is null for Append().
   base::Status Store(const RowBatch& in,
-                     const std::vector<SortKey>& keys,
+                     base::Span<const SortKey> keys,
                      const StringPool* pool,
                      Context& context,
                      const uint8_t* laid_out);

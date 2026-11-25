@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -39,7 +40,7 @@ class JoinBuild final : public Sink {
 
   // `key` is the column holding the Int64 join keys. `unread[c]` is true for
   // each column the join doesn't output; those columns aren't stored.
-  JoinBuild(uint32_t key, std::vector<bool> unread);
+  JoinBuild(uint32_t key, core::ArenaSpan<bool> unread);
   ~JoinBuild() override;
 
   std::unique_ptr<OperatorState> MakeSinkState(Context&) const override;
@@ -52,7 +53,7 @@ class JoinBuild final : public Sink {
   struct Built;
 
   uint32_t key_;
-  std::vector<bool> unread_;
+  core::ArenaSpan<bool> unread_;
 };
 
 struct JoinSpec {

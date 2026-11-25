@@ -37,16 +37,15 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-TopK::TopK(TopKSpec spec) : spec_(std::move(spec)) {}
-TopK::~TopK() = default;
+TopK::TopK(TopKSpec spec) : spec_(spec) {}
 TopK::State::~State() = default;
 
 std::unique_ptr<Breaker::State> TopK::CreateState() const {
   auto state = std::make_unique<State>();
   state->rows = std::make_unique<SortedRows>();
   state->spare = std::make_unique<SortedRows>();
-  state->rows->SetUnread(unread_);
-  state->spare->SetUnread(unread_);
+  state->rows->SetUnread(unread_.span());
+  state->spare->SetUnread(unread_.span());
   return state;
 }
 
@@ -56,7 +55,7 @@ bool TopK::Consume(const RowBatch& in, Breaker::State& state) const {
     return true;
   }
   // Keys are checked even when no row is output.
-  base::Status status = s.rows->CheckKeys(in, spec_.keys, spec_.pool);
+  base::Status status = s.rows->CheckKeys(in, spec_.keys.span(), spec_.pool);
   if (status.ok() && spec_.count > 0) {
     status = Add(in, s);
   }
@@ -70,13 +69,14 @@ bool TopK::Consume(const RowBatch& in, Breaker::State& state) const {
 base::Status TopK::Add(const RowBatch& in, State& s) const {
   if (s.has_cutoff) {
     const RowBatch& passed = BeforeCutoff(in, s);
-    base::Status status = s.rows->AppendLaidOut(passed, spec_.keys, spec_.pool,
-                                                *s.context, s.keys.data());
+    base::Status status = s.rows->AppendLaidOut(
+        passed, spec_.keys.span(), spec_.pool, *s.context, s.keys.data());
     // Not to keep the batch's buffers until the next one.
     s.passed.Reset();
     RETURN_IF_ERROR(status);
   } else {
-    RETURN_IF_ERROR(s.rows->Append(in, spec_.keys, spec_.pool, *s.context));
+    RETURN_IF_ERROR(
+        s.rows->Append(in, spec_.keys.span(), spec_.pool, *s.context));
   }
   if (s.rows->size() >=
       uint64_t{spec_.count} + std::max(spec_.count, kMaxBatchRows)) {
@@ -89,7 +89,7 @@ const RowBatch& TopK::BeforeCutoff(const RowBatch& in, State& s) const {
   uint32_t stride = s.rows->layout().stride();
   s.keys.resize(uint64_t{in.size()} * stride);
   uint8_t* keys = s.keys.data();
-  s.rows->LayOutKeys(in, spec_.keys, keys);
+  s.rows->LayOutKeys(in, spec_.keys.span(), keys);
   s.strings.clear();
   for (uint32_t k = 0; k < spec_.keys.size(); ++k) {
     if (s.rows->is_string(k)) {
@@ -157,7 +157,8 @@ base::Status TopK::Prune(State& s) const {
   RowBatch first;
   for (uint32_t at = 0; at < spec_.count;) {
     at += rows.GatherInPlace(&first, at, *s.context);
-    RETURN_IF_ERROR(s.spare->Append(first, spec_.keys, spec_.pool, *s.context));
+    RETURN_IF_ERROR(
+        s.spare->Append(first, spec_.keys.span(), spec_.pool, *s.context));
   }
   rows.Clear();
   s.rows.swap(s.spare);

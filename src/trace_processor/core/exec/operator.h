@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -312,7 +313,7 @@ class Operator {
   // Tells an operator which holds rows which columns of its input no later
   // step reads, by column, so it need not hold them. Called by the planner
   // before the plan runs; an operator holding nothing ignores it.
-  virtual void SetUnreadColumns(std::vector<bool>) {}
+  virtual void SetUnreadColumns(core::ArenaSpan<bool>) {}
 
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();

@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -36,10 +37,10 @@ struct GroupedSortSpec {
   // The columns to group by, as in GROUP BY. Nulls are equal to each other.
   // Each column must be Uint32, Int32, Int64, Double or String. There must
   // be at least one.
-  std::vector<uint32_t> groups;
+  core::ArenaSpan<uint32_t> groups;
   // The keys to sort each group by. With no keys, each group keeps the input
   // order of its rows. The planner relies on this.
-  std::vector<SortKey> keys;
+  core::ArenaSpan<SortKey> keys;
 };
 
 // Groups rows by the group columns and stably sorts each group by the keys.
@@ -51,24 +52,23 @@ struct GroupedSortSpec {
 // Group numbers come from a hash table. A counting sort by group number then
 // brings each group's rows together. Rows are copied once, in the final
 // order.
-class GroupedSort : public Breaker {
+class GroupedSort final : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override {
-    out->reads = spec_.groups;
+    out->reads.assign(spec_.groups.begin(), spec_.groups.end());
     for (const SortKey& key : spec_.keys) {
       out->reads.push_back(key.column);
     }
     // Each row's group number.
     out->added = 1;
   }
-  void SetUnreadColumns(std::vector<bool> unread) override {
-    unread_ = std::move(unread);
+  void SetUnreadColumns(core::ArenaSpan<bool> unread) override {
+    unread_ = unread;
   }
 
   explicit GroupedSort(GroupedSortSpec);
-  ~GroupedSort() override;
 
  private:
   friend class PipelineFormatter;
@@ -99,7 +99,7 @@ class GroupedSort : public Breaker {
 
   GroupedSortSpec spec_;
   // Input columns no later step reads (see Operator::SetUnreadColumns).
-  std::vector<bool> unread_;
+  core::ArenaSpan<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

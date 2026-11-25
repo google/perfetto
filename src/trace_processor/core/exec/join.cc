@@ -152,8 +152,8 @@ struct JoinBuild::Built : OperatorState {
 
 JoinBuild::Built::~Built() = default;
 
-JoinBuild::JoinBuild(uint32_t key, std::vector<bool> unread)
-    : key_(key), unread_(std::move(unread)) {}
+JoinBuild::JoinBuild(uint32_t key, core::ArenaSpan<bool> unread)
+    : key_(key), unread_(unread) {}
 
 JoinBuild::~JoinBuild() = default;
 
@@ -161,7 +161,7 @@ std::unique_ptr<OperatorState> JoinBuild::MakeSinkState(
     Context& context) const {
   auto built = std::make_unique<Built>();
   built->context = &context;
-  built->rows.SetUnread(unread_);
+  built->rows.SetUnread(unread_.span());
   return built;
 }
 

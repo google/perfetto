@@ -29,6 +29,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/join.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -196,7 +197,9 @@ void Join::Lower(Lowering* c, const PlanNode& node) const {
   build.LowerInput(node, 1);
   uint32_t key = build.QueryPosition(build_key_);
   // The build side stores only the columns the join outputs.
-  std::vector<bool> unread(build.QueryRows().columns.size(), true);
+  core::ArenaSpan<bool> unread = build.arena().NewSpan<bool>(
+      static_cast<uint32_t>(build.QueryRows().columns.size()));
+  std::fill(unread.begin(), unread.end(), true);
   // Sized up front: resize() would instantiate its own growth code.
   std::vector<ex::JoinSpec::Output> outputs(outputs_.size());
   for (size_t i = 0; i < outputs_.size(); ++i) {
@@ -207,7 +210,7 @@ void Join::Lower(Lowering* c, const PlanNode& node) const {
                   type.storage().value_or(core::StorageType{core::Int64{}})};
   }
   uint32_t build_pipeline =
-      build.FinishSide(std::make_unique<ex::JoinBuild>(key, std::move(unread)));
+      build.FinishSide(std::make_unique<ex::JoinBuild>(key, unread));
   ex::JoinSpec spec{
       left_ ? ex::JoinSpec::Kind::kLeft : ex::JoinSpec::Kind::kInner,
       c->QueryPosition(probe_key_), build_pipeline, std::move(outputs)};

@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -48,19 +49,18 @@ namespace perfetto::trace_processor::core::exec {
 //
 // The input columns are node numbers, which TreeNumberNodes produces. No
 // column is added.
-class TreeChildFirst : public Breaker {
+class TreeChildFirst final : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override {
     out->reads = {node_column_, parent_column_};
   }
-  void SetUnreadColumns(std::vector<bool> unread) override {
-    unread_ = std::move(unread);
+  void SetUnreadColumns(core::ArenaSpan<bool> unread) override {
+    unread_ = unread;
   }
 
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
-  ~TreeChildFirst() override;
 
  private:
   friend class PipelineFormatter;
@@ -98,7 +98,7 @@ class TreeChildFirst : public Breaker {
   uint32_t node_column_;
   uint32_t parent_column_;
   // Input columns no later step reads (see Operator::SetUnreadColumns).
-  std::vector<bool> unread_;
+  core::ArenaSpan<bool> unread_;
 };
 
 // TREE ORDER PARENT FIRST: puts tree rows into an order where every parent
@@ -115,19 +115,18 @@ class TreeChildFirst : public Breaker {
 // The order is parent first and nothing more: not a pre-order, so a fold
 // down keeps a value per node rather than a path. The input columns are node
 // numbers, which TreeNumberNodes produces. No column is added.
-class TreeParentFirst : public Operator {
+class TreeParentFirst final : public Operator {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override {
     out->reads = {node_column_, parent_column_};
   }
-  void SetUnreadColumns(std::vector<bool> unread) override {
-    unread_ = std::move(unread);
+  void SetUnreadColumns(core::ArenaSpan<bool> unread) override {
+    unread_ = unread;
   }
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
-  ~TreeParentFirst() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
@@ -202,7 +201,7 @@ class TreeParentFirst : public Operator {
   uint32_t node_column_;
   uint32_t parent_column_;
   // Input columns no later step reads (see Operator::SetUnreadColumns).
-  std::vector<bool> unread_;
+  core::ArenaSpan<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

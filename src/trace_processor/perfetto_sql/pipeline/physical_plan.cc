@@ -124,6 +124,7 @@ void PlaceExpands(std::vector<uint32_t> sparse,
 // null if any may be.
 void SetUnreadColumns(uint32_t source_columns,
                       const std::vector<uint32_t>* outputs,
+                      core::Arena& arena,
                       std::vector<LoweredStep>* steps) {
   // By step, how it uses columns, and how many its input has.
   std::vector<ex::StepColumns> columns(steps->size());
@@ -156,15 +157,14 @@ void SetUnreadColumns(uint32_t source_columns,
       read[column] = true;
     }
     if (Holds(held) && keeps_all) {
-      std::vector<bool> unread(widths[i]);
+      core::ArenaSpan<bool> unread = arena.NewSpan<bool>(widths[i]);
       for (uint32_t c = 0; c < widths[i]; ++c) {
         unread[c] = !read[c];
       }
       if (auto* op = std::get_if<std::unique_ptr<ex::Operator>>(&held)) {
-        (*op)->SetUnreadColumns(std::move(unread));
+        (*op)->SetUnreadColumns(unread);
       } else {
-        std::get<std::unique_ptr<ex::Breaker>>(held)->SetUnreadColumns(
-            std::move(unread));
+        std::get<std::unique_ptr<ex::Breaker>>(held)->SetUnreadColumns(unread);
       }
     }
     for (uint32_t column : step.reads) {
@@ -253,35 +253,36 @@ std::optional<uint32_t> Lowering::QuerySortKeep() const {
       .keep;
 }
 
-void Lowering::Apply(const input_step::Sort& step) {
-  std::vector<ex::SortKey> keys;
-  for (const SortKey& key : step.keys) {
-    keys.push_back({QueryPosition(key.column), key.descending});
+core::ArenaSpan<ex::SortKey> Lowering::QuerySortKeys(
+    const std::vector<SortKey>& keys) const {
+  auto lowered =
+      arena().NewSpan<ex::SortKey>(static_cast<uint32_t>(keys.size()));
+  for (uint32_t i = 0; i < keys.size(); ++i) {
+    lowered[i] = {QueryPosition(keys[i].column), keys[i].descending};
   }
+  return lowered;
+}
+
+void Lowering::Apply(const input_step::Sort& step) {
+  core::ArenaSpan<ex::SortKey> keys = QuerySortKeys(step.keys);
   if (step.combine_first) {
     AddOperator(std::make_unique<ex::CombineBatches>());
   }
   if (step.keep) {
     AddOperator(std::make_unique<ex::TopK>(
-        ex::TopKSpec{std::move(keys), context().pool, *step.keep}));
+        ex::TopKSpec{keys, context().pool, *step.keep}));
     return;
   }
-  AddOperator(std::make_unique<ex::Sort>(
-      ex::SortSpec{std::move(keys), context().pool}));
+  AddOperator(std::make_unique<ex::Sort>(ex::SortSpec{keys, context().pool}));
 }
 
 void Lowering::Apply(const input_step::Group& step) {
-  ex::GroupedSortSpec spec;
-  for (ColumnId key : step.keys) {
-    spec.groups.push_back(QueryPosition(key));
-  }
-  for (const SortKey& key : step.sorted_by) {
-    spec.keys.push_back({QueryPosition(key.column), key.descending});
-  }
+  ex::GroupedSortSpec spec{QueryPositions(step.keys),
+                           QuerySortKeys(step.sorted_by)};
   if (step.combine_first) {
     AddOperator(std::make_unique<ex::CombineBatches>());
   }
-  AddOperator(std::make_unique<ex::GroupedSort>(std::move(spec)));
+  AddOperator(std::make_unique<ex::GroupedSort>(spec));
 }
 
 void Lowering::Apply(const input_step::NumberTree& step) {
@@ -400,6 +401,15 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
   return *position;
 }
 
+core::ArenaSpan<uint32_t> Lowering::QueryPositions(
+    const std::vector<ColumnId>& ids) const {
+  auto positions = arena().NewSpan<uint32_t>(static_cast<uint32_t>(ids.size()));
+  for (uint32_t i = 0; i < ids.size(); ++i) {
+    positions[i] = QueryPosition(ids[i]);
+  }
+  return positions;
+}
+
 const LogicalPlan& Lowering::plan() const {
   return plan_->plan();
 }
@@ -443,7 +453,7 @@ Lowering::Built Lowering::Build(const std::vector<uint32_t>* outputs) {
   }
   PlaceExpands(std::move(sparse_columns_), outputs, context().sparse_outputs,
                arena(), &operators_);
-  SetUnreadColumns(*source_columns_, outputs, &operators_);
+  SetUnreadColumns(*source_columns_, outputs, arena(), &operators_);
   // Cut at each breaker, which the pipeline so far ends in.
   ex::Pipelines& pipelines = plan_->out_->pipelines_;
   std::unique_ptr<ex::Source> input = std::move(input_);

@@ -352,7 +352,8 @@ TEST(RowStoreTest, DoesNotHoldColumnsNeverReadBack) {
     kept[i] = i;
   }
   RowStore store;
-  store.SetUnread({false, true});
+  bool unread_columns[] = {false, true};
+  store.SetUnread(unread_columns);
   const ColumnChunk* unread;
   {
     ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));

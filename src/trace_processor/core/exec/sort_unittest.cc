@@ -72,15 +72,20 @@ std::vector<std::pair<uint32_t, std::optional<int64_t>>> CursorRows(
 
 std::unique_ptr<Sort> SortInPlace(std::vector<SortSpec::Key> keys,
                                   std::vector<bool> unread) {
-  auto sort = std::make_unique<Sort>(SortSpec{std::move(keys)});
-  sort->SetUnreadColumns(std::move(unread));
+  auto sort = std::make_unique<Sort>(SortSpec{test::InArena(keys)});
+  auto span =
+      test::TestArena().NewSpan<bool>(static_cast<uint32_t>(unread.size()));
+  for (uint32_t i = 0; i < unread.size(); ++i) {
+    span[i] = unread[i];
+  }
+  sort->SetUnreadColumns(span);
   sort->ServeInPlace();
   return sort;
 }
 
 std::unique_ptr<Sort> SortBy(std::vector<SortSpec::Key> keys,
                              const StringPool* pool = nullptr) {
-  return std::make_unique<Sort>(SortSpec{std::move(keys), pool});
+  return std::make_unique<Sort>(SortSpec{test::InArena(keys), pool});
 }
 
 // Runs `sort` over `in`, reading each batch it outputs with `read`.

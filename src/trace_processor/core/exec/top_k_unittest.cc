@@ -58,7 +58,7 @@ std::vector<uint32_t> FirstSorted(const Source& source,
                                   std::vector<SortKey> keys,
                                   uint32_t count) {
   std::vector<uint32_t> ids =
-      RunOn(source, std::make_unique<Sort>(SortSpec{std::move(keys)}));
+      RunOn(source, std::make_unique<Sort>(SortSpec{test::InArena(keys)}));
   ids.resize(std::min<size_t>(count, ids.size()));
   return ids;
 }
@@ -73,8 +73,9 @@ TEST(TopKTest, OutputsTheFirstRowsAsSortOrdersThem) {
   test::ArraySource source(values);
   for (uint32_t count : {0u, 1u, 3u, kMaxBatchRows + 5, kRows, kRows + 10}) {
     for (bool descending : {false, true}) {
-      EXPECT_EQ(RunOn(source, std::make_unique<TopK>(
-                                  TopKSpec{{{1, descending}}, nullptr, count})),
+      EXPECT_EQ(RunOn(source, std::make_unique<TopK>(TopKSpec{
+                                  test::InArena<SortKey>({{1, descending}}),
+                                  nullptr, count})),
                 FirstSorted(source, {{1, descending}}, count))
           << "count " << count << " descending " << descending;
     }
@@ -90,9 +91,10 @@ TEST(TopKTest, OutputsTheFirstRowsOfADescendingInput) {
     values[i] = kRows - i;
   }
   test::ArraySource source(values);
-  EXPECT_EQ(RunOn(source,
-                  std::make_unique<TopK>(TopKSpec{{{1, false}}, nullptr, 10})),
-            FirstSorted(source, {{1, false}}, 10));
+  EXPECT_EQ(
+      RunOn(source, std::make_unique<TopK>(TopKSpec{
+                        test::InArena<SortKey>({{1, false}}), nullptr, 10})),
+      FirstSorted(source, {{1, false}}, 10));
 }
 
 struct Column {
@@ -167,12 +169,13 @@ TEST(TopKTest, OutputsTheFirstStrings) {
       {StorageType{String{}}, strings.data(), &valid}};
   for (uint32_t count : {1u, 10u, 40u}) {
     for (bool descending : {false, true}) {
-      auto sort = std::make_unique<Sort>(SortSpec{{{1, descending}}, &pool});
+      auto sort = std::make_unique<Sort>(
+          SortSpec{test::InArena<SortKey>({{1, descending}}), &pool});
       std::vector<uint32_t> expected =
           RunBatches(std::move(sort), kRows, columns);
       expected.resize(count);
-      auto top =
-          std::make_unique<TopK>(TopKSpec{{{1, descending}}, &pool, count});
+      auto top = std::make_unique<TopK>(
+          TopKSpec{test::InArena<SortKey>({{1, descending}}), &pool, count});
       EXPECT_EQ(RunBatches(std::move(top), kRows, columns), expected)
           << "count " << count << " descending " << descending;
     }
@@ -198,11 +201,12 @@ TEST(TopKTest, OutputsTheFirstRowsByStringAndNumberKeys) {
                                               {{1, true}, {2, false}}};
   for (const std::vector<SortKey>& keys : orders) {
     for (uint32_t count : {1u, 50u, 3000u}) {
-      auto sort = std::make_unique<Sort>(SortSpec{keys, &pool});
+      auto sort = std::make_unique<Sort>(SortSpec{test::InArena(keys), &pool});
       std::vector<uint32_t> expected =
           RunBatches(std::move(sort), kRows, columns);
       expected.resize(count);
-      auto top = std::make_unique<TopK>(TopKSpec{keys, &pool, count});
+      auto top =
+          std::make_unique<TopK>(TopKSpec{test::InArena(keys), &pool, count});
       EXPECT_EQ(RunBatches(std::move(top), kRows, columns), expected)
           << "count " << count << " first key " << keys[0].column;
     }
@@ -219,11 +223,14 @@ TEST(TopKTest, PrunesRowsWithAColumnNotHeld) {
   }
   std::vector<Column> columns = {{StorageType{Int64{}}, keys.data()},
                                  {StorageType{Int64{}}, keys.data()}};
-  auto sort = std::make_unique<Sort>(SortSpec{{{1, false}}});
+  auto sort =
+      std::make_unique<Sort>(SortSpec{test::InArena<SortKey>({{1, false}})});
   std::vector<uint32_t> expected = RunBatches(std::move(sort), kRows, columns);
   expected.resize(5);
-  auto top = std::make_unique<TopK>(TopKSpec{{{1, false}}, nullptr, 5});
-  top->SetUnreadColumns({false, false, true});
+  auto top = std::make_unique<TopK>(
+      TopKSpec{test::InArena<SortKey>({{1, false}}), nullptr, 5});
+  bool unread[] = {false, false, true};
+  top->SetUnreadColumns(test::TestArena().CopySpan<bool>(unread));
   EXPECT_EQ(RunBatches(std::move(top), kRows, columns), expected);
 }
 
@@ -232,7 +239,8 @@ TEST(TopKTest, ChecksTheKeysWhenOutputtingNoRows) {
   StringPool pool;
   std::vector<StringPool::Id> strings(4, pool.InternString("a"));
   // Without a pool, a string key cannot be sorted by.
-  auto top = std::make_unique<TopK>(TopKSpec{{{1, false}}, nullptr, 0});
+  auto top = std::make_unique<TopK>(
+      TopKSpec{test::InArena<SortKey>({{1, false}}), nullptr, 0});
   std::vector<uint32_t> ids;
   EXPECT_FALSE(RunBatchesInto(std::move(top), 4,
                               {{StorageType{String{}}, strings.data()}}, &ids));

@@ -26,19 +26,19 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-Sort::Sort(SortSpec spec) : spec_(std::move(spec)) {}
-Sort::~Sort() = default;
+Sort::Sort(SortSpec spec) : spec_(spec) {}
 Sort::State::~State() = default;
 
 std::unique_ptr<Breaker::State> Sort::CreateState() const {
   auto state = std::make_unique<State>();
-  state->rows.SetUnread(unread_);
+  state->rows.SetUnread(unread_.span());
   return state;
 }
 
 bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
-  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool, *s.context);
+  base::Status status =
+      s.rows.Append(in, spec_.keys.span(), spec_.pool, *s.context);
   if (!status.ok()) {
     s.status = base::ErrStatus("SORT: %s", status.c_message());
     return false;

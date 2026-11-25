@@ -61,7 +61,7 @@ Output Drain(const Source& source, std::unique_ptr<GroupedSort> grouped_sort) {
 std::unique_ptr<GroupedSort> GroupOn(uint32_t column,
                                      std::vector<SortKey> keys = {}) {
   return std::make_unique<GroupedSort>(
-      GroupedSortSpec{{column}, std::move(keys)});
+      GroupedSortSpec{test::InArena<uint32_t>({column}), test::InArena(keys)});
 }
 
 // Groups come out in the order they are first seen. Rows within a group keep

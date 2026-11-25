@@ -29,12 +29,13 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 struct TopKSpec {
-  std::vector<SortKey> keys;
+  core::ArenaSpan<SortKey> keys;
   // Holds the strings of the string keys, as for SortSpec.
   const StringPool* pool = nullptr;
   // How many rows to output.
@@ -49,7 +50,7 @@ struct TopKSpec {
 // order to rows held afresh. The last of those becomes the cutoff: from then
 // on, rows which do not come before it are dropped as they arrive, so on most
 // inputs pruning soon becomes rare.
-class TopK : public Breaker {
+class TopK final : public Breaker {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
@@ -59,12 +60,11 @@ class TopK : public Breaker {
       out->held_reads.push_back(key.column);
     }
   }
-  void SetUnreadColumns(std::vector<bool> unread) override {
-    unread_ = std::move(unread);
+  void SetUnreadColumns(core::ArenaSpan<bool> unread) override {
+    unread_ = unread;
   }
 
   explicit TopK(TopKSpec);
-  ~TopK() override;
 
  private:
   friend class PipelineFormatter;
@@ -106,7 +106,7 @@ class TopK : public Breaker {
 
   TopKSpec spec_;
   // Input columns no later step reads (see Operator::SetUnreadColumns).
-  std::vector<bool> unread_;
+  core::ArenaSpan<bool> unread_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -41,6 +41,10 @@
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/output_properties.h"
 
+namespace perfetto::trace_processor::core::exec {
+struct SortKey;
+}  // namespace perfetto::trace_processor::core::exec
+
 namespace perfetto::trace_processor::pipeline {
 
 // -----------------------------------------------------------------------------
@@ -329,6 +333,14 @@ class Lowering {
 
   // The batch position of a column.
   uint32_t QueryPosition(ColumnId id) const;
+
+  // Returns the batch positions of `ids`, stored in arena().
+  core::ArenaSpan<uint32_t> QueryPositions(
+      const std::vector<ColumnId>& ids) const;
+
+  // Returns the executor's sort keys for `keys`, stored in arena().
+  core::ArenaSpan<core::exec::SortKey> QuerySortKeys(
+      const std::vector<SortKey>& keys) const;
 
   // ---------------------------------------------------------------------------
   // Accessors

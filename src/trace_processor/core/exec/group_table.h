@@ -21,6 +21,7 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -44,13 +45,13 @@ class GroupTable {
   // index in `columns` of the bad column. A column is bad if it cannot be a
   // key, or if its kind changed since an earlier batch.
   std::optional<uint32_t> FindOrCreate(const RowBatch& batch,
-                                       const std::vector<uint32_t>& columns,
+                                       base::Span<const uint32_t> columns,
                                        uint32_t* groups);
   // As above, for the rows of `batch` which `rows` keeps rather than those
   // its own selection does.
   std::optional<uint32_t> FindOrCreate(const RowBatch& batch,
                                        const Selection& rows,
-                                       const std::vector<uint32_t>& columns,
+                                       base::Span<const uint32_t> columns,
                                        uint32_t* groups);
 
   uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }

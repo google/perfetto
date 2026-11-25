@@ -113,7 +113,9 @@ class RowStore {
   // By column of the batches appended, whether it is never read back: such
   // a column is not held, and reads back as nulls of its type. Variant
   // columns are always held. Applies from the next Append() after a Clear().
-  void SetUnread(std::vector<bool> unread) { unread_ = std::move(unread); }
+  void SetUnread(base::Span<const bool> unread) {
+    unread_.assign(unread.begin(), unread.end());
+  }
 
  private:
   static constexpr uint32_t kNotHeld = std::numeric_limits<uint32_t>::max();
