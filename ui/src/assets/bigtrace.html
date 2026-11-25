@@ -104,7 +104,9 @@ Technical Information:
 
       const versionStr = document.body.dataset['perfetto_version'] || '{}';
       const versionMap = JSON.parse(versionStr);
-      const channel = localStorage.getItem('perfettoUiChannel') || 'stable';
+      // The release channel picked in BigTrace's menu, see
+      // bigtrace/settings/release_channel.ts.
+      const channel = localStorage.getItem('bigtraceUiChannel') || 'stable';
 
       // The '.' below is a fallback for the case of opening a pinned version
       // (e.g., ui.perfetto.dev/v1.2.3./). In that case, the index.html has no

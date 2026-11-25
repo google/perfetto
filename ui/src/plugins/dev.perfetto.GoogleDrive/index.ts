@@ -64,6 +64,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
     fileName: '',
     location: 'root',
     fileId: undefined,
+    resourceKey: undefined,
     upload: undefined,
     error: undefined,
   };
@@ -160,7 +161,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
     const share = this.share;
     share.fileName = trace.traceInfo.traceTitle;
     // If the trace was opened from Drive, it is already there.
-    share.fileId = parseGDriveTraceArgs(args);
+    const driveFile = parseGDriveTraceArgs(args);
+    share.fileId = driveFile?.fileId;
+    share.resourceKey = driveFile?.resourceKey;
 
     // Stop an upload that is still running when the trace is closed. Nothing
     // could show or cancel it any more, and it would keep the trace's contents
@@ -181,7 +184,9 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
         if (share.error !== undefined) return 'error';
         return 'add_to_drive';
       },
-      sortOrder: 10,
+      // Right after CoreCommands' "Share" (50) and before "Download" (51), so
+      // the ways of sharing the trace sit together.
+      sortOrder: 50.5,
       // While uploading, the badge shows how far the upload has got.
       badge: () => {
         const upload = share.upload;

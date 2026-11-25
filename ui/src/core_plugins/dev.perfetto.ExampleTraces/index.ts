@@ -24,7 +24,11 @@ const EXAMPLE_CHROME_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/chrome_example_wikipedia.perfetto_trace.gz';
 
 function openTraceUrl(app: App, url: string): void {
-  app.analytics.logEvent('Trace Actions', 'Open example trace');
+  app.analytics.logEvent({
+    kind: 'action',
+    category: 'Trace Actions',
+    action: 'Open example trace',
+  });
   AppImpl.instance.openTraceFromUrl(url);
 }
 

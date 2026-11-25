@@ -57,6 +57,7 @@ import type {OmniboxModeDescriptor} from '../public/omnibox';
 import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
 import type {Route} from '../public/app';
+import type {Policy} from '../public/policy';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -353,8 +354,8 @@ export class TraceImpl implements Trace, Disposable {
     return this.settingsProxy;
   }
 
-  get isInternalUser(): boolean {
-    return this.app.isInternalUser;
+  get policy(): Policy {
+    return this.app.policy;
   }
 
   get perfDebugging() {

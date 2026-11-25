@@ -33,13 +33,17 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -52,6 +56,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace {
 
 using core::exec::ColumnView;
+using core::exec::ParamValue;
 using core::exec::RowCursor;
 using core::exec::Variant;
 using testing::ElementsAre;
@@ -169,8 +174,7 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     Rows out;
     RowCursor cursor(plan.source());
-    for (bool row = cursor.Open(plan.filter_values()); row;
-         row = cursor.Next()) {
+    for (bool row = cursor.Open(plan.params()); row; row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
     if (!cursor.status().ok()) {
@@ -314,8 +318,7 @@ TEST_F(PhysicalPlanTest, ScansBackwardsToSortTheOtherWay) {
   }
   std::vector<int64_t> values;
   RowCursor cursor((*lowered)->source());
-  for (bool row = cursor.Open((*lowered)->filter_values()); row;
-       row = cursor.Next()) {
+  for (bool row = cursor.Open((*lowered)->params()); row; row = cursor.Next()) {
     values.push_back(*IntAt(cursor, n));
   }
   ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
@@ -437,8 +440,7 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
   uint32_t cpu_column = (*plan)->columns()[0].index;
   std::vector<int64_t> values;
   RowCursor cursor((*plan)->source());
-  for (bool row = cursor.Open((*plan)->filter_values()); row;
-       row = cursor.Next()) {
+  for (bool row = cursor.Open((*plan)->params()); row; row = cursor.Next()) {
     values.push_back(*IntAt(cursor, cpu_column));
   }
   ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
@@ -458,8 +460,7 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
     uint32_t id_column = (*plan)->columns()[0].index;
     std::vector<int64_t> out;
     RowCursor cursor((*plan)->source());
-    for (bool row = cursor.Open((*plan)->filter_values()); row;
-         row = cursor.Next()) {
+    for (bool row = cursor.Open((*plan)->params()); row; row = cursor.Next()) {
       out.push_back(*IntAt(cursor, id_column));
     }
     PERFETTO_CHECK(cursor.status().ok());
@@ -559,6 +560,48 @@ TEST_F(PhysicalPlanTest, WhereSearchesAroundAConditionItCannotAnswer) {
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 1), Pair(2, 9), Pair(4, 9)));
 }
 
+// A sorted column's range cuts the rows an index finds, whether the index's
+// key is covered or not.
+TEST_F(PhysicalPlanTest, WhereCutsAnIndexToASortedRange) {
+  for (const char* table : {"whole", "part"}) {
+    catalog_.AddTable(table, {"id", "k", "v"},
+                      {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  }
+  catalog_.AddIndex("whole", {1});
+  catalog_.AddIndex("part", {1, 2});
+  for (const char* table : {"whole", "part"}) {
+    auto plan = Plan(std::string("FROM ") + table +
+                     " |> WHERE id >= 2 AND k = 7 |> SELECT id, v");
+    ASSERT_TRUE(plan.ok()) << plan.status().message();
+    EXPECT_EQ(PhysicalPlanToString(**plan), "main: IndexScan");
+    auto rows = Run(**plan, "v");
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, ElementsAre(Pair(2, 9), Pair(4, 9))) << table;
+  }
+}
+
+// An equality on a sorted column with no duplicates leaves at most one row, so
+// no index is searched for the rest.
+TEST_F(PhysicalPlanTest, WhereSearchesAUniqueSortedColumnOverAnIndex) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  for (int64_t id : {1, 2}) {
+    auto plan = Plan("FROM ix |> WHERE id = " + std::to_string(id) +
+                     " AND k = 7 |> SELECT id, v");
+    ASSERT_TRUE(plan.ok()) << plan.status().message();
+    EXPECT_EQ(PhysicalPlanToString(**plan),
+              "main: SortedScan | Filter(#1 = ?1)");
+    auto rows = Run(**plan, "v");
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    if (id == 2) {
+      EXPECT_THAT(*rows, ElementsAre(Pair(2, 9)));
+    } else {
+      EXPECT_THAT(*rows, ElementsAre());
+    }
+  }
+}
+
 // A column of only nulls needs no check, however many types it is made to hold.
 TEST_F(PhysicalPlanTest, AllNullColumnConvertedTwiceStaysNull) {
   Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, k)");
@@ -583,6 +626,98 @@ TEST_F(PhysicalPlanTest, WhereNoRowCanMatchReadsNothing) {
   auto rows = Run(**plan, "v");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre());
+}
+
+struct Args : core::ValueFetcher {
+  using Type = int;
+  static constexpr Type kInt64 = 0;
+  static constexpr Type kDouble = 1;
+  static constexpr Type kString = 2;
+  static constexpr Type kNull = 3;
+  int64_t GetInt64Value(uint32_t i) const { return values[i]; }
+  double GetDoubleValue(uint32_t) const { PERFETTO_FATAL("Not a double"); }
+  const char* GetStringValue(uint32_t) const { PERFETTO_FATAL("Not a string"); }
+  Type GetValueType(uint32_t) const { return kInt64; }
+  bool IteratorInit(uint32_t) { PERFETTO_FATAL("Not a list"); }
+  bool IteratorNext(uint32_t) { PERFETTO_FATAL("Not a list"); }
+  std::vector<int64_t> values;
+};
+
+// One plan runs with each set of bound values, alongside a literal.
+TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  catalog_.AddIndex("ix", {1});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("ix");
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, df, "ix", {0, 1, 2});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate k_eq;
+  k_eq.column = columns[1].id;
+  k_eq.literal_count = 1;
+  WherePredicate v_gt;
+  v_gt.column = columns[2].id;
+  v_gt.op = core::Gt{};
+  v_gt.first_literal = 1;
+  v_gt.literal_count = 1;
+  WherePredicate id_ne;
+  id_ne.column = columns[0].id;
+  id_ne.op = core::Ne{};
+  id_ne.first_literal = 2;
+  id_ne.literal_count = 1;
+  Literal four;
+  four.int_value = 4;
+  Where::AddToPlan(&plan, {k_eq, v_gt, id_ne},
+                   {Literal::Bound(0), Literal::Bound(1), four});
+  plan.output() = columns;
+  BoundPlan bound(std::move(plan));
+  Scan::Bind(&bound, scan, df);
+  ASSERT_TRUE(RunBoundPasses(&bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&bound, {&pool_});
+  ASSERT_TRUE(bound.status.ok()) << bound.status.message();
+  EXPECT_EQ(PhysicalPlanToString(*physical),
+            "main: IndexScan | Filter(#2 > ?1, #0 != ?2)");
+
+  RowCursor cursor(physical->source());
+  RunParams<Args> params(*physical);
+  auto ids = [&](int64_t k, int64_t v) {
+    Args args;
+    args.values = {k, v};
+    std::vector<int64_t> out;
+    for (bool row = cursor.Open(params.Bind(args)); row; row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, physical->columns()[0].index));
+    }
+    return out;
+  };
+  EXPECT_THAT(ids(7, 1), ElementsAre(2));
+  EXPECT_THAT(ids(5, 4), ElementsAre(1));
+  EXPECT_THAT(ids(6, 0), ElementsAre());
+}
+
+// GLOB matches only strings, so a bound pattern still has its column read as
+// strings. A bound comparison has no value yet to give a type.
+TEST_F(PhysicalPlanTest, WhereReadsStringsForABoundGlob) {
+  catalog_.AddTable("g", {"id", "k"}, {{0, 1}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("g");
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, df, "g", {0, 1});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate glob;
+  glob.column = columns[1].id;
+  glob.op = core::Glob{};
+  glob.literal_count = 1;
+  WherePredicate gt;
+  gt.column = columns[0].id;
+  gt.op = core::Gt{};
+  gt.first_literal = 1;
+  gt.literal_count = 1;
+  Where::AddToPlan(&plan, {glob, gt}, {Literal::Bound(0), Literal::Bound(1)});
+
+  InputNeeds needs = plan.nodes()[plan.root()].operation().Needs(0);
+  ASSERT_EQ(needs.types_first.size(), 1u);
+  EXPECT_EQ(needs.types_first[0].column, columns[1].id);
+  EXPECT_TRUE(needs.types_first[0].type.Is<core::String>());
+  EXPECT_FALSE(needs.types_first[0].if_unknown);
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,
@@ -797,6 +932,22 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
 // pipeline with its ids as Int64. The rows come out numbered and parent first,
 // so a fold down needs nothing more and a fold up only reverses them. Every
 // object's parent_id is junk which the tree's own replaces.
+TEST_F(PhysicalPlanTest, KeyPathsAfterAGraphTreeNeedsNoReordering) {
+  Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
+  Exec(
+      "INSERT INTO objects VALUES (4, 99, 40), (2, 99, 20), (3, 99, 30), "
+      "(1, 99, 10)");
+  Exec("CREATE TABLE refs(src INTEGER, dst INTEGER)");
+  Exec("INSERT INTO refs VALUES (3, 4), (1, 3), (2, 4), (1, 2)");
+  auto plan = Plan(
+      "GRAPH DOMINATOR TREE NODES objects EDGES refs FROM (SELECT 1 AS id) "
+      "|> TREE KEY PATHS BY self AS (key, parent_key)");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  std::string text = PhysicalPlanToString(**plan);
+  EXPECT_NE(text.find("TreeKeyPaths"), std::string::npos) << text;
+  EXPECT_EQ(text.find("TreeParentFirst"), std::string::npos) << text;
+}
+
 TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
   Exec("CREATE TABLE objects(id INTEGER, parent_id INTEGER, self INTEGER)");
   Exec(

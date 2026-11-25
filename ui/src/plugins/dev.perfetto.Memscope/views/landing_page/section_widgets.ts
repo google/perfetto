@@ -83,11 +83,15 @@ export function shortClassName(name: string): string {
 // Compact titled table used by the Java / bitmaps / native sections.
 export function topTable(opts: {
   title: string;
+  controls?: m.Children;
   cols: {label: string; num?: boolean}[];
   rows: m.Children[][];
 }): m.Child {
   return m('.pf-memscope-toptable', [
-    m('.pf-memscope-toptable__title', opts.title),
+    m('.pf-memscope-toptable__header', [
+      m('.pf-memscope-toptable__title', opts.title),
+      opts.controls,
+    ]),
     m(
       Table,
       {className: 'pf-memscope-table--flush'},

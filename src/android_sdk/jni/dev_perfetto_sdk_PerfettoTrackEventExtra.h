@@ -22,7 +22,9 @@
 namespace perfetto {
 namespace jni {
 
-int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env);
+// Returns false (after logging) if any registration failed.
+bool register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env);
+void unregister_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env);
 
 }  // namespace jni
 }  // namespace perfetto

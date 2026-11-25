@@ -24,6 +24,7 @@ import {Icon} from '../../../widgets/icon';
 import {Inline, Stack, StackAuto} from '../../../widgets/stack';
 import {TextInput} from '../../../widgets/text_input';
 import {renderErrorDetails} from '../dialogs';
+import {gdriveOpenLink} from '../google/drive_client';
 import './share_form.scss';
 
 // Everything the "Share to Google Drive" dialog shows for a trace.
@@ -39,6 +40,9 @@ export interface ShareState {
   // The Drive file ID, once the trace is in Drive: either because it was
   // uploaded, or because it was opened from Drive in the first place.
   fileId: string | undefined;
+  // The file's resource key, if it has one and it's known. Links to the file
+  // include it, so people without direct access to the file can open it.
+  resourceKey: string | undefined;
   // The upload in progress, if there is one.
   upload: UploadState | undefined;
   // What went wrong with the last action, if anything. Cleared when the next
@@ -119,7 +123,11 @@ function renderUploaded(attrs: ShareFormAttrs, fileId: string): m.Children {
       m(CopyToClipboardButton, {
         label: 'Copy link',
         title: 'Copy a link that opens this trace from Google Drive',
-        textToCopy: `${window.location.origin}/?state=${encodeURIComponent(JSON.stringify({ids: [fileId]}))}`,
+        textToCopy: gdriveOpenLink(
+          window.location.origin,
+          fileId,
+          attrs.state.resourceKey,
+        ),
         variant: ButtonVariant.Filled,
         intent: Intent.Primary,
       }),

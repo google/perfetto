@@ -43,8 +43,8 @@ class AndroidProcessStateModule : public ProtoImporterModule {
 };
 
 // Receives the per-process AndroidProcessStateChangedEvent,
-// AndroidProcessStateDiedEvent and AndroidFreezerEvent deltas (TrackEvent
-// extension fields).
+// AndroidProcessStateDiedEvent and AndroidFreezerEvent deltas, and the
+// AndroidProcessGroupChangedEvent events (TrackEvent extension fields).
 class AndroidProcessStateExtensionParser : public TrackEventExtensionParser {
  public:
   AndroidProcessStateExtensionParser(TrackEventExtensionParserContext* context,

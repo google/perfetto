@@ -118,15 +118,30 @@ void StringFilter::AddRule(Policy policy,
   Rule new_rule{policy, std::move(re), std::move(atrace_payload_starts_with),
                 std::move(name), semantic_type_mask};
   // If name is non-empty, look for existing rule with same name and replace.
+  bool replaced = false;
   if (!new_rule.name.empty()) {
     for (Rule& existing : rules_) {
       if (existing.name == new_rule.name) {
         existing = std::move(new_rule);
-        return;
+        replaced = true;
+        break;
       }
     }
   }
-  rules_.push_back(std::move(new_rule));
+  if (!replaced) {
+    rules_.push_back(std::move(new_rule));
+  }
+  RecomputeActiveSemanticTypes();
+}
+
+void StringFilter::RecomputeActiveSemanticTypes() {
+  // AddRule() is a cold setup path: recomputing the union from |rules_| after
+  // every append or named replacement is simpler than tracking cleared bits and
+  // ensures |active_semantic_types_| and |rules_| cannot drift apart.
+  active_semantic_types_ = SemanticTypeMask();
+  for (const Rule& rule : rules_) {
+    active_semantic_types_ |= rule.semantic_type_mask;
+  }
 }
 
 bool StringFilter::MaybeFilterInternal(char* ptr,

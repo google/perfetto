@@ -68,18 +68,17 @@ WITH
       -- predate the trace, but the initial state is only known from its start.
       -- The initial proc_state may start later than this (state_start_ts).
       max(coalesce(fw.fw_start_ts, p.start_ts, trace_start()), trace_start()) AS start_ts,
-      p.end_ts AS death_ts
-    FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_state)
+      p.end_ts AS death_ts,
+      -- Time of the process's first change event, if any.
+      s.first_ts
+    FROM (
+      SELECT upid, min(iif(is_initial = 0, ts, NULL)) AS first_ts
+      FROM __intrinsic_android_process_state
+      GROUP BY
+        upid
+    ) AS s
     JOIN process AS p USING (upid)
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
-  ),
-  first_changes AS (
-    SELECT upid, min(ts) AS first_ts
-    FROM __intrinsic_android_process_state
-    WHERE
-      is_initial = 0
-    GROUP BY
-      upid
   ),
   states AS (
     SELECT
@@ -88,22 +87,15 @@ WITH
       s.upid,
       s.proc_state,
       s.reason,
-      f.first_ts,
+      p.first_ts,
       -- The initial row has no ts. It starts when the process entered the
       -- state (state_start_ts) when known, but, like every other initial
-      -- interval, not before the process start clamped to the trace start. A
-      -- state_start_ts after the process's first change event is invalid, so it
-      -- is treated as unknown.
-      max(
-        p.start_ts,
-        coalesce(
-          iif(s.state_start_ts > f.first_ts, NULL, s.state_start_ts),
-          p.start_ts
-        )
-      ) AS initial_start_ts
+      -- interval, not before the process start clamped to the trace start. The
+      -- parser drops a state_start_ts after the event reporting it, so it is
+      -- never after the process's first change event.
+      max(p.start_ts, coalesce(s.state_start_ts, p.start_ts)) AS initial_start_ts
     FROM __intrinsic_android_process_state AS s
     JOIN process_lifetimes AS p USING (upid)
-    LEFT JOIN first_changes AS f ON f.upid = s.upid AND s.is_initial = 1
   ),
   all_events AS (
     SELECT

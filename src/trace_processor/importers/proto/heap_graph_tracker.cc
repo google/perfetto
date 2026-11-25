@@ -818,19 +818,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   sequence_state.internal_vm_roots.clear();
   sequence_state.current_roots.emplace_back(std::move(internal_vm_roots));
 
-  for (const SourceRoot& root : sequence_state.current_roots) {
-    for (uint64_t obj_id : root.object_ids) {
-      auto* ptr = sequence_state.object_id_to_db_row.Find(obj_id);
-      // This can only happen for an invalid type string id, which is already
-      // reported as an error. Silently continue here.
-      if (!ptr)
-        continue;
-
-      ObjectTable::RowReference row_ref =
-          ptr->ToRowReference(storage_->mutable_heap_graph_object_table());
-      MarkRoot(row_ref, InternRootTypeString(root.root_type));
-    }
-  }
+  MarkReachableObjects(sequence_state);
 
   PopulateSuperClasses(sequence_state);
   PopulateNativeSize(sequence_state);
@@ -1051,34 +1039,48 @@ size_t HeapGraphTracker::RankRoot(StringId type) {
   return idx;
 }
 
-void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
-                                StringId type) {
-  // Already marked as a root
-  if (row_ref.root_type()) {
-    if (RankRoot(type) < RankRoot(*row_ref.root_type())) {
-      row_ref.set_root_type(type);
+void HeapGraphTracker::MarkReachableObjects(
+    const SequenceState& sequence_state) {
+  auto* object_table = storage_->mutable_heap_graph_object_table();
+  std::vector<ObjectTable::Id> queue;
+
+  // Seed all roots at distance 0 first so BFS assigns each reachable object
+  // its shortest distance from any root.
+  for (const SourceRoot& root : sequence_state.current_roots) {
+    StringId root_type = InternRootTypeString(root.root_type);
+    for (uint64_t obj_id : root.object_ids) {
+      auto* ptr = sequence_state.object_id_to_db_row.Find(obj_id);
+      // This can only happen for an invalid type string id, which is already
+      // reported as an error. Silently continue here.
+      if (!ptr)
+        continue;
+
+      ObjectTable::RowReference row_ref = ptr->ToRowReference(object_table);
+      if (row_ref.root_type()) {
+        if (RankRoot(root_type) < RankRoot(*row_ref.root_type())) {
+          row_ref.set_root_type(root_type);
+        }
+        continue;
+      }
+      row_ref.set_root_type(root_type);
+      row_ref.set_reachable(true);
+      row_ref.set_root_distance(0);
+      queue.push_back(row_ref.id());
     }
-    return;
   }
-  row_ref.set_root_type(type);
 
   std::vector<ObjectTable::Id> children;
-
-  // DFS to mark reachability for all children
-  std::vector<ObjectTable::RowReference> stack({row_ref});
-  while (!stack.empty()) {
-    ObjectTable::RowReference cur_node = stack.back();
-    stack.pop_back();
-
-    if (cur_node.reachable())
-      continue;
-    cur_node.set_reachable(true);
-
-    GetChildren(cur_node, children);
-    for (ObjectTable::Id child_node : children) {
-      auto child_ref =
-          (*storage_->mutable_heap_graph_object_table())[child_node];
-      stack.push_back(child_ref);
+  for (size_t head = 0; head < queue.size(); ++head) {
+    ObjectTable::RowReference cur_row = (*object_table)[queue[head]];
+    int32_t next_distance = cur_row.root_distance() + 1;
+    GetChildren(cur_row, children);
+    for (ObjectTable::Id child_id : children) {
+      ObjectTable::RowReference child_row = (*object_table)[child_id];
+      if (!child_row.reachable()) {
+        child_row.set_reachable(true);
+        child_row.set_root_distance(next_distance);
+        queue.push_back(child_id);
+      }
     }
   }
 }

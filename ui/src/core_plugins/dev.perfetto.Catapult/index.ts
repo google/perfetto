@@ -39,7 +39,11 @@ export default class implements PerfettoPlugin {
           const file = input.files?.[0];
           input.remove();
           if (!file) return;
-          app.analytics.logEvent('Trace Actions', 'Open trace in Legacy UI');
+          app.analytics.logEvent({
+            kind: 'action',
+            category: 'Trace Actions',
+            action: 'Open trace in Legacy UI',
+          });
           if (await isLegacyTrace(file)) {
             await openFileWithLegacyTraceViewer(file);
           } else {
@@ -68,10 +72,11 @@ export default class implements PerfettoPlugin {
           : 'Cannot download external trace';
       },
       action: async () => {
-        trace.analytics.logEvent(
-          'Trace Actions',
-          'Open current trace in legacy UI',
-        );
+        trace.analytics.logEvent({
+          kind: 'action',
+          category: 'Trace Actions',
+          action: 'Open current trace in legacy UI',
+        });
         const file = await trace.getTraceFile();
         await openInOldUIWithSizeCheck(file);
       },
