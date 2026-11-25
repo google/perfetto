@@ -153,7 +153,7 @@ class TreeParentFirst : public Operator {
       // Grows to at least `count` nodes, ahead of need.
       void Grow(uint32_t count);
       void Clear();
-      // Ends a run (see RunHeld).
+      // Ends a run (see Held).
       void EndRun();
     };
 
@@ -168,7 +168,7 @@ class TreeParentFirst : public Operator {
       uint32_t let_go = 0;
 
       void Clear();
-      // Ends a run (see RunHeld).
+      // Ends a run (see Held).
       void EndRun();
     };
 

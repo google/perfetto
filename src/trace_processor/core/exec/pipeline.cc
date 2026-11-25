@@ -166,8 +166,12 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(RowBatch&,
       TransformFailed(link, s);
       return nullptr;
     }
+    // A batch with no rows left has nothing for later transforms to do.
+    if (PERFETTO_UNLIKELY(!batch->size())) {
+      return NextSlow(s);
+    }
   }
-  return PERFETTO_LIKELY(batch->size()) ? batch : NextSlow(s);
+  return batch;
 }
 
 PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
@@ -202,6 +206,10 @@ PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::SegmentNext(uint32_t segment,
       if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
         TransformFailed(link, s);
         return nullptr;
+      }
+      // A batch with no rows left has nothing for later transforms to do.
+      if (PERFETTO_UNLIKELY(!batch->size())) {
+        break;
       }
     }
     if (PERFETTO_LIKELY(batch->size())) {
@@ -350,6 +358,16 @@ void Pipeline::StepFailed(base::Status status, State& state) {
 PERFETTO_NO_INLINE void Pipeline::TransformFailed(const State::Link& link,
                                                   State& state) {
   StepFailed(link.op->status(*link.state), state);
+}
+
+const RowsInPlace* Pipeline::InPlace(const OperatorState& state) const {
+  const Segment& last = segments_[last_segment_];
+  if (!last.start_op || last.first != last.end) {
+    return nullptr;
+  }
+  const auto& s = state.Cast<State>();
+  return last.start_op->InPlace(
+      *s.operators[static_cast<uint32_t>(last.start)]);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

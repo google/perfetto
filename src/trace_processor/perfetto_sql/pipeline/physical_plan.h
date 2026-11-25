@@ -105,7 +105,8 @@ class PhysicalPlan {
   const StringPool* pool_ = nullptr;
 };
 
-// A cursor's params for its runs of a plan. Constant params are cast once, and
+// A cursor's params for its runs of a plan. Constant params are cast once,
+// external literal `i` on SetLiterals() from value `i` of its `fetcher`, and
 // bound param `i` on each Bind() from value `i` of `fetcher`.
 template <typename Fetcher>
 class RunParams {
@@ -114,16 +115,33 @@ class RunParams {
       : pool_(plan.pool_), params_(plan.param_sources_.size()) {
     for (uint32_t i = 0; i < params_.size(); ++i) {
       const PhysicalPlan::ParamSource& s = plan.param_sources_[i];
-      if (s.state == PlannedParam::State::kBound) {
-        bindings_.push_back(
-            {s.op.Is<core::In>()
-                 ? core::exec::GetParamListCaster<Fetcher>(s.type)
-                 : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
-             s.literals[0].bound, i});
+      if (s.state == PlannedParam::State::kBound ||
+          s.state == PlannedParam::State::kExternal) {
+        Binding binding{s.op.Is<core::In>()
+                            ? core::exec::GetParamListCaster<Fetcher>(s.type)
+                            : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
+                        s.literals[0].bound, i, s.op.Is<core::Glob>()};
+        std::vector<Binding>& to =
+            s.state == PlannedParam::State::kBound ? bindings_ : literals_;
+        to.push_back(binding);
       } else if (!s.literals.empty()) {
         params_[i] = CastLiterals(s.op, s.literals.data(),
                                   static_cast<uint32_t>(s.literals.size()),
                                   s.type, *pool_);
+        if (s.op.Is<core::Glob>()) {
+          core::exec::AttachGlob(&params_[i]);
+        }
+      }
+    }
+  }
+
+  // Casts the external literals from `fetcher`. Called once per execution of
+  // the plan, before its first run.
+  void SetLiterals(Fetcher& fetcher) {
+    for (const Binding& b : literals_) {
+      b.cast(fetcher, b.value, *pool_, &params_[b.param]);
+      if (b.glob) {
+        core::exec::AttachGlob(&params_[b.param]);
       }
     }
   }
@@ -141,18 +159,40 @@ class RunParams {
     core::exec::ParamCaster<Fetcher> cast;
     uint32_t value;
     uint32_t param;
+    // A GLOB literal, matched once however many runs read it.
+    bool glob;
   };
   const StringPool* pool_;
   std::vector<core::exec::ParamValue> params_;
   std::vector<Binding> bindings_;
+  std::vector<Binding> literals_;
 };
 
 // What lowering needs from whoever runs the plan. Everything here must outlive
 // every run of the plan.
 struct LoweringContext {
+  // How the caller reads the plan's output columns which a scan lends sparse
+  // (see core::exec::ColumnView::Kind::kSparse).
+  enum class SparseOutputs : uint8_t {
+    // Expanded before the output, so the caller reads only flat columns.
+    kExpand,
+    // Left as lent, as the caller reads sparse columns.
+    kLend,
+  };
+
+  // How the caller reads the rows of a plan ending in a sort.
+  enum class SortedOutputs : uint8_t {
+    // Copied into batches in sorted order.
+    kCopied,
+    // Read where the sort holds them (see core::exec::Source::InPlace).
+    kInPlace,
+  };
+
   // Holds the strings of the columns read, and takes the strings of literals
   // which expressions output.
   StringPool* pool = nullptr;
+  SparseOutputs sparse_outputs = SparseOutputs::kExpand;
+  SortedOutputs sorted_outputs = SortedOutputs::kCopied;
 };
 
 // Builds executor nodes from a bound plan. Establishes tree numbering, row
@@ -209,6 +249,9 @@ class Lowering {
 
   // Sets the pipeline's input. It must not already be set.
   void SetSource(std::unique_ptr<core::exec::Source> source);
+  // The columns the source lends sparse (see ColumnView::Kind::kSparse),
+  // which Build() expands where they are first needed laid out.
+  void SetSparseColumns(std::vector<uint32_t> columns);
 
   // Adds an operator.
   void AddOperator(core::exec::Pipeline::Step);
@@ -301,6 +344,7 @@ class Lowering {
 
   // The pipeline's operators, in the order they run.
   std::vector<core::exec::Pipeline::Step> operators_;
+  std::vector<uint32_t> sparse_columns_;
 };
 
 // State shared by all pipelines while lowering a plan.

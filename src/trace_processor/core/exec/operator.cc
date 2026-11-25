@@ -24,7 +24,9 @@ void OperatorState::EndHeldRuns() {
   EndRuns(*held_);
 }
 
-RunHeld::~RunHeld() = default;
+void OperatorState::AddHeld(void* where, void (*end_run)(void*)) {
+  registry().held.push_back({where, end_run});
+}
 
 Operator::~Operator() = default;
 Source::~Source() = default;

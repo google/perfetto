@@ -320,6 +320,17 @@ a.pf-memscope-classname {
   }
 }
 
+.pf-memscope-stack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+
+  &__label {
+    color: var(--pf-color-text-muted);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Smaps Detail tab
 // ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@
 #include <string_view>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 
 namespace perfetto::trace_processor::util {
 
@@ -61,9 +62,7 @@ class FlatBufferScalarVec {
     if (PERFETTO_UNLIKELY(i >= size_)) {
       return T{};
     }
-    T v;
-    memcpy(&v, data_ + static_cast<uint64_t>(i) * sizeof(T), sizeof(T));
-    return v;
+    return base::LoadLE<T>(data_ + static_cast<uint64_t>(i) * sizeof(T));
   }
 
  private:
@@ -138,9 +137,7 @@ class FlatBufferReader {
     if (PERFETTO_UNLIKELY(!p)) {
       return default_val;
     }
-    T v;
-    memcpy(&v, p, sizeof(T));
-    return v;
+    return base::LoadLE<T>(p);
   }
 
   // Reads a string field (offset -> length-prefixed UTF-8). Empty view if

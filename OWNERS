@@ -7,6 +7,7 @@ primiano@google.com
 
 # Trace Processor, metrics, infra.
 lalitm@google.com
+vibhuagarwal@google.com
 
 # Ftrace interop, traced_probes, protozero, Android internals.
 # Callstack / memory profilers, traced_probes & Linux internals.
@@ -18,6 +19,7 @@ safayat@google.com
 
 # UI
 stevegolton@google.com
+shawseanyang@google.com
 
 # Most Android-related metrics.
 ilkos@google.com

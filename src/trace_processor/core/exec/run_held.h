@@ -116,16 +116,23 @@ class RunEach : public std::vector<T> {
   }
 };
 
-// A T held for one run.
+// A T held for one run. It registers itself with the state when made, so the
+// executor can end its run without the step's help: ending a run lets go of
+// what the run left, keeping only small allocations for the next run.
 template <typename T>
-class Held final : public T, public RunHeld {
+class Held final : public T {
  public:
   template <typename... Args>
   explicit Held(OperatorState* owner, Args&&... args)
-      : T(std::forward<Args>(args)...), RunHeld(owner) {}
+      : T(std::forward<Args>(args)...) {
+    owner->AddHeld(static_cast<T*>(this), &EndRun);
+  }
+  Held(const Held&) = delete;
+  Held& operator=(const Held&) = delete;
   using T::operator=;
 
-  void EndRun() override { EndRunOf(static_cast<T*>(this)); }
+ private:
+  static void EndRun(void* held) { EndRunOf(static_cast<T*>(held)); }
 };
 
 // A status is put back to ok by the state itself, with no call.

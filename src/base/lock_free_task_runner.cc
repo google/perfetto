@@ -28,6 +28,8 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
+#include <limits>
 #include <thread>
 
 #include "perfetto/base/bits.h"
@@ -360,7 +362,8 @@ int LockFreeTaskRunner::GetDelayMsToNextTask() const {
   if (deadline <= now) {
     return 0;
   }
-  return static_cast<int>((deadline - now).count());
+  return static_cast<int>(std::clamp<int64_t>((deadline - now).count(), 0,
+                                              std::numeric_limits<int>::max()));
 }
 
 LockFreeTaskRunner::Slab* LockFreeTaskRunner::AllocNewSlab() {

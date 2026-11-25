@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -29,6 +30,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -48,6 +50,65 @@ void Describe(const ex::Pipeline::Step& step, ex::StepColumns* out) {
   } else {
     std::get<std::unique_ptr<ex::Operator>>(step)->DescribeColumns(out);
   }
+}
+
+// Puts an Expand in front of each step which needs a `sparse` column of the
+// source laid out, as late as it can be: a step reading the column but not
+// sparse, or any operator which does not keep sparse columns, as one holds or
+// rebuilds its batches. The columns still sparse after the steps are expanded
+// for `outputs`, or all of them if it is null, unless `mode` is kLend and
+// `outputs` is known.
+void PlaceExpands(std::vector<uint32_t> sparse,
+                  const std::vector<uint32_t>* outputs,
+                  LoweringContext::SparseOutputs mode,
+                  std::vector<ex::Pipeline::Step>* steps) {
+  if (sparse.empty()) {
+    return;
+  }
+  std::vector<ex::Pipeline::Step> placed;
+  for (ex::Pipeline::Step& step : *steps) {
+    std::vector<uint32_t> expand;
+    ex::StepColumns columns;
+    Describe(step, &columns);
+    if (std::holds_alternative<std::unique_ptr<ex::Operator>>(step) &&
+        !columns.keeps_sparse) {
+      expand = std::move(sparse);
+      sparse.clear();
+    } else {
+      for (auto it = sparse.begin(); it != sparse.end();) {
+        bool reads = std::find(columns.reads.begin(), columns.reads.end(),
+                               *it) != columns.reads.end();
+        bool lent =
+            std::find(columns.reads_sparse.begin(), columns.reads_sparse.end(),
+                      *it) != columns.reads_sparse.end();
+        if (reads && !lent) {
+          expand.push_back(*it);
+          it = sparse.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+    if (!expand.empty()) {
+      placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
+    }
+    placed.push_back(std::move(step));
+  }
+  if (outputs && mode == LoweringContext::SparseOutputs::kLend) {
+    *steps = std::move(placed);
+    return;
+  }
+  std::vector<uint32_t> expand;
+  for (uint32_t column : sparse) {
+    if (!outputs ||
+        std::find(outputs->begin(), outputs->end(), column) != outputs->end()) {
+      expand.push_back(column);
+    }
+  }
+  if (!expand.empty()) {
+    placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
+  }
+  *steps = std::move(placed);
 }
 
 // Tells each operator which columns of its input no later step reads, so an
@@ -272,6 +333,10 @@ void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
   input_ = std::move(source);
 }
 
+void Lowering::SetSparseColumns(std::vector<uint32_t> columns) {
+  sparse_columns_ = std::move(columns);
+}
+
 void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
   operators_.push_back(std::move(operation));
 }
@@ -331,6 +396,16 @@ const Bindings::Dataframe& Lowering::QueryDataframe(
 
 std::unique_ptr<ex::Pipeline> Lowering::Build(
     const std::vector<uint32_t>* outputs) {
+  // Chosen first: a sort serving in place keeps sparse columns unexpanded.
+  if (outputs && !operators_.empty() &&
+      context().sorted_outputs == LoweringContext::SortedOutputs::kInPlace) {
+    auto* last = std::get_if<std::unique_ptr<ex::Operator>>(&operators_.back());
+    if (last && (*last)->Is<ex::Sort>()) {
+      static_cast<ex::Sort&>(**last).ServeInPlace();
+    }
+  }
+  PlaceExpands(std::move(sparse_columns_), outputs, context().sparse_outputs,
+               &operators_);
   SetUnreadColumns(*source_columns_, outputs, &operators_);
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }

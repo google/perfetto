@@ -23,12 +23,19 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
+#include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/expand.h"
+#include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -62,11 +69,27 @@ class DataframeScanTest : public ::testing::Test {
     return std::move(*df);
   }
 
+  // Lays out every sparse column of `batch`, as the Expand lowering puts after
+  // a scan would.
+  void ExpandSparse(RowBatch& batch) {
+    std::vector<uint32_t> sparse;
+    for (uint32_t c = 0; c < batch.column_count(); ++c) {
+      if (batch.column(c).kind() == ColumnView::Kind::kSparse) {
+        sparse.push_back(c);
+      }
+    }
+    Expand expand(std::move(sparse));
+    std::unique_ptr<OperatorState> state =
+        expand.MakeState(test::TestContext());
+    ASSERT_TRUE(expand.Process(batch, *state));
+  }
+
   std::vector<int64_t> Drain(const DataframeScan& scan, uint32_t column) {
     std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
     RowBatch batch;
     std::vector<int64_t> out;
     while (scan.GetData(batch, *state)) {
+      ExpandSparse(batch);
       std::vector<int64_t> values = test::ReadColumn<int64_t>(batch, column);
       out.insert(out.end(), values.begin(), values.end());
     }
@@ -120,7 +143,8 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
   std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
-  EXPECT_TRUE(batch.column(0).type().Is<Id>());
+  EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
+  EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_TRUE(batch.column(1).type().Is<Uint32>());
   EXPECT_TRUE(batch.column(2).type().Is<Int32>());
   EXPECT_TRUE(batch.column(3).type().Is<Int64>());
@@ -151,6 +175,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
       sparse_scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
+  EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSparse);
+  ExpandSparse(batch);
   EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(1u)));
@@ -169,13 +195,55 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   std::unique_ptr<OperatorState> dense_state =
       dense_scan.MakeState(test::TestContext());
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
-  EXPECT_TRUE(batch.column(0).type().Is<Id>());
+  EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
+  EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(2u)));
 }
 
-// Expanding a batch at a time means picking up in the packed values where the
-// previous batch left off, which every batch after the first depends on.
+// The rows an index finds are copied into one batch, however far apart they
+// are, with every column flat and its nulls kept.
+TEST_F(DataframeScanTest, IndexScanCopiesScatteredRowsIntoOneBatch) {
+  dataframe::AdhocDataframeBuilder builder({"k", "v"}, &pool_);
+  for (uint32_t i = 0; i <= 5000; ++i) {
+    EXPECT_TRUE(builder.PushNonNull(0, kBig + (i % 2500 == 0 ? 7 : 1)));
+    if (i == 2500) {
+      builder.PushNull(1);
+    } else {
+      EXPECT_TRUE(builder.PushNonNull(1, kBig + i));
+    }
+  }
+  auto built = std::move(builder).Build();
+  ASSERT_TRUE(built.ok()) << built.status().c_message();
+  uint32_t k = 0;
+  auto index = built->BuildIndex(&k, &k + 1);
+  ASSERT_TRUE(index.ok());
+  dataframe::Dataframe df = built->AddIndex(std::move(*index));
+  ASSERT_TRUE(df.column(1).null_storage.nullability().Is<SparseNull>() ||
+              df.column(1).null_storage.nullability().Is<DenseNull>());
+
+  IndexScan scan({df.shared_column(0), df.shared_column(1)}, df.indexes()[0],
+                 {{df.shared_column(0), 0}}, {}, &pool_);
+  Context context;
+  std::unique_ptr<OperatorState> state = scan.MakeState(context);
+  ParamValue param;
+  param.value = filter::CastFilterValueResult::Valid(kBig + 7);
+  context.SetParams(base::Span<const ParamValue>(&param, &param + 1));
+
+  RowBatch batch;
+  Restart(scan, *state);
+  ASSERT_TRUE(scan.GetData(batch, *state));
+  EXPECT_EQ(batch.column(1).kind(), ColumnView::Kind::kFlat);
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0),
+              ElementsAre(kBig + 7, kBig + 7, kBig + 7));
+  EXPECT_THAT(
+      test::ReadNullableColumn<int64_t>(batch, 1),
+      ElementsAre(Optional(kBig), Eq(std::nullopt), Optional(kBig + 5000)));
+  EXPECT_FALSE(scan.GetData(batch, *state));
+}
+
+// Expanding a batch at a time means finding where in the packed values the
+// batch starts, which every batch after the first depends on.
 TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
   std::vector<int64_t> values(kMaxBatchRows * 2 + 5);
   std::vector<bool> present(values.size());
@@ -206,9 +274,11 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   auto state = scan.MakeState(test::TestContext());
   RowBatch output, retained;
   ASSERT_TRUE(scan.GetData(output, *state));
+  ExpandSparse(output);
   auto expected = test::ReadNullableColumn<int64_t>(output, 0);
   retained.CopyFrom(output);
   ASSERT_TRUE(scan.GetData(output, *state));
+  ExpandSparse(output);
   EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
   output.Reset();
   state.reset();

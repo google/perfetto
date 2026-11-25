@@ -225,12 +225,15 @@ class Sum final : public AggregateFunction {
               GroupStates states,
               bool* overflow) const override {
     bool ovf = false;
-    for (uint32_t row = 0; row < in.rows; ++row) {
+    const int64_t* values = in.values;
+    const uint64_t* valids = in.valid;
+    uint32_t rows = in.rows;
+    for (uint32_t row = 0; row < rows; ++row) {
       // A null row's value is stored too: masking it out avoids a branch.
-      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
+      bool valid = !valids || ((valids[row / 64] >> (row % 64)) & 1);
       uint32_t group = groups[row];
       int64_t& total = states.words[group * states.stride];
-      ovf |= !base::CheckedAdd(total, in.values[row] & -int64_t{valid}, &total);
+      ovf |= !base::CheckedAdd(total, values[row] & -int64_t{valid}, &total);
       if (states.seen) {
         states.seen[group] |= valid;
       }
@@ -348,13 +351,17 @@ class Extreme final : public AggregateFunction {
               const uint32_t* groups,
               GroupStates states,
               bool*) const override {
-    for (uint32_t row = 0; row < in.rows; ++row) {
-      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
+    const int64_t* values = in.values;
+    const uint64_t* valids = in.valid;
+    uint32_t rows = in.rows;
+    uint64_t mask = mask_;
+    for (uint32_t row = 0; row < rows; ++row) {
+      bool valid = !valids || ((valids[row / 64] >> (row % 64)) & 1);
       uint32_t group = groups[row];
       auto& state =
           reinterpret_cast<uint64_t&>(states.words[group * states.stride]);
       uint64_t value =
-          (static_cast<uint64_t>(in.values[row]) ^ mask_) & -uint64_t{valid};
+          (static_cast<uint64_t>(values[row]) ^ mask) & -uint64_t{valid};
       state = std::max(state, value);
       if (states.seen) {
         states.seen[group] |= valid;
@@ -398,10 +405,11 @@ class Extreme final : public AggregateFunction {
                 uint32_t count,
                 int64_t* values,
                 BitVector* valid) const override {
+    uint64_t mask = mask_;
     for (uint32_t i = 0; i < count; ++i) {
       values[i] = static_cast<int64_t>(
           static_cast<uint64_t>(states.words[groups[i] * states.stride]) ^
-          mask_);
+          mask);
     }
     if (!states.seen) {
       valid->FillBits(0, count, true);

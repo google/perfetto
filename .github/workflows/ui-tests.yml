@@ -65,7 +65,7 @@ jobs:
       - name: Build Perfetto UI
         shell: bash
         run: |
-          ui/build --out out/ui
+          ui/build --out out/ui --enable-component-harness
 
       - name: Upload UI build to GCS
         shell: bash

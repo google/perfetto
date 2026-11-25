@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DATAFRAME_WINDOWS_H_
 
 #include <algorithm>
-#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -32,15 +32,17 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/range.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 // Points batches at windows of a dataframe's rows, for the sources which read
 // a dataframe.
 //
-// A column storing one value per row is lent where it lies, so moving the
-// window costs nothing. A column which does not is expanded a window at a
-// time into a buffer from the run's Context. A window may start at any row.
+// Every column is lent where it lies, so moving the window costs nothing. A
+// column storing values only for its non-null rows is lent as a sparse view
+// (see ColumnView::Kind::kSparse), which an Expand lays out later. A window
+// may start at any row.
 class DataframeWindows {
  public:
   DataframeWindows();
@@ -48,36 +50,31 @@ class DataframeWindows {
   DataframeWindows(const DataframeWindows&) = delete;
   DataframeWindows& operator=(const DataframeWindows&) = delete;
 
-  // Prepares windows onto `columns`, expanding into buffers from `context`.
-  // Called once, before any window is filled.
-  void Init(const std::vector<std::shared_ptr<const dataframe::Column>>&,
-            Context& context);
+  // Prepares windows onto `columns`. Called once, before any window is
+  // filled.
+  void Init(const std::vector<std::shared_ptr<const dataframe::Column>>&);
 
   // Points `out` at rows [from, from + count), all kept.
   void Fill(uint32_t from, uint32_t count, RowBatch& out);
 
-  // Points `out` at the rows `offsets` from `from`, which increase from 0.
-  // Only those rows are expanded.
-  void FillKept(uint32_t from,
-                base::Span<const uint32_t> offsets,
-                RowBatch& out);
-
-  // Fills one window of a column which does not store one value per row.
-  // Defined in the .cc: an implementation detail with no callers outside it.
-  class Expander;
+  // Fills `out` with copies of the values at `rows`, in buffers taken from
+  // `context`. A column with no storage of its own becomes stored Uint32s,
+  // and a sparse one a flat one.
+  void Gather(base::Span<const uint32_t> rows, Context& context, RowBatch& out);
 
  private:
-  struct Expanded {
-    uint32_t column;
-    std::unique_ptr<Expander> expander;
-  };
+  // The prefix popcount of a sparse `column`'s null bits: its own if it keeps
+  // one, else one built here and kept as long as the windows.
+  const uint32_t* PopcountOf(const dataframe::Column& column);
 
-  // By column, the view of the window last filled, and the buffer it is onto
-  // for an expanded column.
+  // By column, the view of the window last filled. The buffers are all empty,
+  // as every view is onto the dataframe's storage.
   std::vector<ColumnView> lent_;
   std::vector<ColumnBuffer> buffers_;
-  std::vector<Expanded> expanded_;
-  Context* context_ = nullptr;
+  // By column, the view and buffer of the values last gathered.
+  std::vector<ColumnView> gathered_;
+  std::vector<ColumnBuffer> gathered_buffers_;
+  std::vector<Slab<uint32_t>> popcounts_;
 };
 
 // Which way a range of a dataframe's rows is read.
@@ -92,8 +89,7 @@ enum class ReadDirection : uint8_t {
 class RangeReader {
  public:
   void Init(
-      const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
-      Context& context);
+      const std::vector<std::shared_ptr<const dataframe::Column>>& columns);
 
   // Reads `range` in `direction`.
   void Start(Range range, ReadDirection direction) {
@@ -133,10 +129,12 @@ class RangeReader {
 // selection keeping them, so nothing is copied.
 class RowListReader {
  public:
+  // `context` provides the buffers the rows are copied into.
   void Init(
       const std::vector<std::shared_ptr<const dataframe::Column>>& columns,
-      Context& context) {
-    windows_.Init(columns, context);
+      Context* context) {
+    windows_.Init(columns);
+    context_ = context;
   }
 
   // `rows` must outlive the read.
@@ -145,35 +143,24 @@ class RowListReader {
     end_ = rows.e;
   }
 
-  // False once all rows are read.
+  // Copies the next batch of rows into `out`. False once all rows are read.
   bool Read(RowBatch& out) {
     if (next_ == end_) {
       return false;
     }
-    uint32_t first = *next_++;
-    offsets_[0] = 0;
-    uint32_t count = 1;
-    for (; next_ != end_; ++next_) {
-      uint32_t offset = *next_ - first;
-      if (*next_ < first || offset >= kMaxBatchRows ||
-          offset <= offsets_[count - 1]) {
-        break;
-      }
-      offsets_[count++] = offset;
-    }
-    windows_.FillKept(
-        first,
-        base::Span<const uint32_t>(offsets_.data(), offsets_.data() + count),
-        out);
+    auto count =
+        static_cast<uint32_t>(std::min<ptrdiff_t>(kMaxBatchRows, end_ - next_));
+    windows_.Gather(base::Span<const uint32_t>(next_, next_ + count), *context_,
+                    out);
+    next_ += count;
     return true;
   }
 
  private:
   DataframeWindows windows_;
+  Context* context_ = nullptr;
   const uint32_t* next_ = nullptr;
   const uint32_t* end_ = nullptr;
-  // The current batch's rows, as offsets from its first.
-  std::array<uint32_t, kMaxBatchRows> offsets_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

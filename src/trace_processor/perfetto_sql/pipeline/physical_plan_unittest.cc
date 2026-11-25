@@ -34,6 +34,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -42,6 +43,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
@@ -77,7 +79,7 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
     return std::nullopt;
   }
   core::StorageType type = view.type();
-  if (type.Is<core::Id>() || type.Is<core::Uint32>()) {
+  if (type.Is<core::Uint32>()) {
     return cursor.Value<uint32_t>(column);
   }
   if (type.Is<core::Int32>()) {
@@ -228,7 +230,7 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
   // parent-first walk can output small batches, so they are combined before
   // the child-first walk.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "main: DataframeScan | Expand(#1) | TreeNumberNodes(#0, #1) | "
             "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateDown(#3, #4; SUM(#2)) | "
             "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
@@ -720,6 +722,195 @@ TEST_F(PhysicalPlanTest, WhereReadsStringsForABoundGlob) {
   EXPECT_FALSE(needs.types_first[0].if_unknown);
 }
 
+// An external literal is cast once, when the caller sets the plan's literals,
+// and keeps its value for every run; a bound param takes each run's.
+TEST_F(PhysicalPlanTest, WhereComparesWithExternalLiteralsSetOnce) {
+  catalog_.AddTable("ix", {"id", "k", "v"},
+                    {{0, 7, 1}, {1, 5, 9}, {2, 7, 9}, {3, 5, 4}, {4, 7, 9}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("ix");
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, df, "ix", {0, 1, 2});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate k_eq;
+  k_eq.column = columns[1].id;
+  k_eq.literal_count = 1;
+  WherePredicate v_gt;
+  v_gt.column = columns[2].id;
+  v_gt.op = core::Gt{};
+  v_gt.first_literal = 1;
+  v_gt.literal_count = 1;
+  Where::AddToPlan(&plan, {k_eq, v_gt},
+                   {Literal::External(0), Literal::Bound(1)});
+  plan.output() = columns;
+  BoundPlan bound(std::move(plan));
+  Scan::Bind(&bound, scan, df);
+  ASSERT_TRUE(RunBoundPasses(&bound, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&bound, {&pool_});
+  ASSERT_TRUE(bound.status.ok()) << bound.status.message();
+
+  RowCursor cursor(physical->source());
+  RunParams<Args> params(*physical);
+  Args literals;
+  literals.values = {7, 0};
+  params.SetLiterals(literals);
+  auto ids = [&](int64_t ignored_k, int64_t v) {
+    Args args;
+    args.values = {ignored_k, v};
+    std::vector<int64_t> out;
+    for (bool row = cursor.Open(params.Bind(args)); row; row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, physical->columns()[0].index));
+    }
+    return out;
+  };
+  EXPECT_THAT(ids(7, 1), ElementsAre(2, 4));
+  EXPECT_THAT(ids(5, 0), ElementsAre(0, 2, 4));
+  EXPECT_THAT(ids(5, 9), ElementsAre());
+}
+
+// Strings, as SQLite passes a GLOB's pattern.
+struct StringArgs : core::ValueFetcher {
+  using Type = int;
+  static constexpr Type kInt64 = 0;
+  static constexpr Type kDouble = 1;
+  static constexpr Type kString = 2;
+  static constexpr Type kNull = 3;
+  int64_t GetInt64Value(uint32_t) const { PERFETTO_FATAL("Not an int"); }
+  double GetDoubleValue(uint32_t) const { PERFETTO_FATAL("Not a double"); }
+  const char* GetStringValue(uint32_t i) const { return values[i].c_str(); }
+  Type GetValueType(uint32_t) const { return kString; }
+  bool IteratorInit(uint32_t) { PERFETTO_FATAL("Not a list"); }
+  bool IteratorNext(uint32_t) { PERFETTO_FATAL("Not a list"); }
+  std::vector<std::string> values;
+};
+
+// A GLOB literal is compiled and matched once per execution, however many runs
+// read it; a bound GLOB is matched as each run gives it.
+TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
+  using ColumnType = dataframe::AdhocDataframeBuilder::ColumnType;
+  dataframe::AdhocDataframeBuilder::Options options;
+  options.types = {ColumnType::kInt64, ColumnType::kString};
+  dataframe::AdhocDataframeBuilder builder({"id", "name"}, &pool_, options);
+  int64_t id = 0;
+  for (const char* name : {"apple", "banana", "avocado", "cherry"}) {
+    ASSERT_TRUE(builder.PushNonNull(0, id++));
+    ASSERT_TRUE(builder.PushNonNull(1, pool_.InternString(name)));
+  }
+  auto built = std::move(builder).Build();
+  ASSERT_TRUE(built.ok()) << built.status().c_message();
+  LogicalPlan plan;
+  PlanNodeId scan = Scan::AddToPlan(&plan, *built, "s", {0, 1});
+  std::vector<NamedColumn> columns = plan.nodes()[scan].Cast<Scan>().columns();
+  WherePredicate literal;
+  literal.column = columns[1].id;
+  literal.op = core::Glob{};
+  literal.literal_count = 1;
+  WherePredicate bound;
+  bound.column = columns[1].id;
+  bound.op = core::Glob{};
+  bound.first_literal = 1;
+  bound.literal_count = 1;
+  Where::AddToPlan(&plan, {literal, bound},
+                   {Literal::External(0), Literal::Bound(1)});
+  plan.output() = columns;
+  BoundPlan bound_plan(std::move(plan));
+  Scan::Bind(&bound_plan, scan, *built);
+  ASSERT_TRUE(RunBoundPasses(&bound_plan, {&pool_}).ok());
+  std::unique_ptr<PhysicalPlan> physical = Lower(&bound_plan, {&pool_});
+  ASSERT_TRUE(bound_plan.status.ok()) << bound_plan.status.message();
+
+  RowCursor cursor(physical->source());
+  RunParams<StringArgs> params(*physical);
+  auto ids = [&](const std::string& run_pattern) {
+    StringArgs args;
+    args.values = {"", run_pattern};
+    base::Span<const core::exec::ParamValue> run = params.Bind(args);
+    EXPECT_NE(run[0].glob, nullptr);
+    EXPECT_EQ(run[1].glob, nullptr);
+    std::vector<int64_t> out;
+    for (bool row = cursor.Open(run); row; row = cursor.Next()) {
+      out.push_back(*IntAt(cursor, physical->columns()[0].index));
+    }
+    return out;
+  };
+  StringArgs literals;
+  literals.values = {"a*", ""};
+  params.SetLiterals(literals);
+  EXPECT_THAT(ids("*"), ElementsAre(0, 2));
+  EXPECT_THAT(ids("*o"), ElementsAre(2));
+  literals.values = {"[bc]*", ""};
+  params.SetLiterals(literals);
+  EXPECT_THAT(ids("*"), ElementsAre(1, 3));
+}
+
+// A filter reads a column a scan lends sparse, so it needs no Expand first.
+TEST_F(PhysicalPlanTest, WhereReadsASparseColumnWhereItLies) {
+  catalog_.AddTable(
+      "t", {"id", "v"},
+      {{0, 5}, {1, std::nullopt}, {2, 9}, {3, std::nullopt}, {4, 5}});
+  auto plan = Plan("FROM t |> WHERE v > 4 |> SELECT id, id AS w");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto rows = Run(**plan, "w");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 0), Pair(2, 2), Pair(4, 4)));
+
+  auto equal = Plan("FROM t |> WHERE v = 5 |> SELECT id, id AS w");
+  ASSERT_TRUE(equal.ok()) << equal.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**equal),
+            "main: DataframeScan | Filter(#1 = ?0)");
+  auto kept = Run(**equal, "w");
+  ASSERT_TRUE(kept.ok()) << kept.status().message();
+  EXPECT_THAT(*kept, ElementsAre(Pair(0, 0), Pair(4, 4)));
+}
+
+// A caller which reads sparse columns gets them as lent; any other gets them
+// expanded before the output.
+TEST_F(PhysicalPlanTest, SparseOutputsAreExpandedOnlyForACallerWhichNeedsIt) {
+  catalog_.AddTable("t", {"id", "v"}, {{0, 1}, {1, std::nullopt}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("t");
+  using Sparse = LoweringContext::SparseOutputs;
+  for (Sparse sparse : {Sparse::kExpand, Sparse::kLend}) {
+    LogicalPlan plan;
+    PlanNodeId scan = Scan::AddToPlan(&plan, df, "t", {0, 1});
+    plan.output() = plan.nodes()[scan].Cast<Scan>().columns();
+    BoundPlan bound(std::move(plan));
+    Scan::Bind(&bound, scan, df);
+    LoweringContext context{&pool_, sparse};
+    ASSERT_TRUE(RunBoundPasses(&bound, context).ok());
+    std::unique_ptr<PhysicalPlan> physical = Lower(&bound, context);
+    ASSERT_TRUE(bound.status.ok()) << bound.status.message();
+    EXPECT_EQ(PhysicalPlanToString(*physical),
+              sparse == Sparse::kExpand ? "main: DataframeScan | Expand(#1)"
+                                        : "main: DataframeScan");
+  }
+}
+
+// A final sort serving its rows in place holds sparse columns as they are
+// lent, sorting by one too; one copying its rows needs them expanded first.
+TEST_F(PhysicalPlanTest, SortServingInPlaceKeepsSparseColumns) {
+  catalog_.AddTable("t", {"id", "v"}, {{0, 1}, {1, std::nullopt}});
+  const dataframe::Dataframe& df = *catalog_.FindDataframe("t");
+  using Sorted = LoweringContext::SortedOutputs;
+  for (Sorted sorted : {Sorted::kCopied, Sorted::kInPlace}) {
+    LogicalPlan plan;
+    PlanNodeId scan = Scan::AddToPlan(&plan, df, "t", {0, 1});
+    std::vector<NamedColumn> columns =
+        plan.nodes()[scan].Cast<Scan>().columns();
+    OrderBy::AddToPlan(&plan, {{columns[1].id, false}});
+    plan.output() = columns;
+    BoundPlan bound(std::move(plan));
+    Scan::Bind(&bound, scan, df);
+    LoweringContext context{&pool_, LoweringContext::SparseOutputs::kLend,
+                            sorted};
+    ASSERT_TRUE(RunBoundPasses(&bound, context).ok());
+    std::unique_ptr<PhysicalPlan> physical = Lower(&bound, context);
+    ASSERT_TRUE(bound.status.ok()) << bound.status.message();
+    EXPECT_EQ(PhysicalPlanToString(*physical),
+              sorted == Sorted::kCopied
+                  ? "main: DataframeScan | Expand(#1) | Sort(#1)"
+                  : "main: DataframeScan | Sort(#1)");
+  }
+}
+
 // Each operand is grouped by its PER keys and sorted by ts within each group,
 // unless it already is.
 TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
@@ -731,15 +922,13 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
       "INTERVAL INTERSECTION OF (a AS p, b AS q) PER cpu "
       "|> SELECT ts, dur, p.cpu");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  // ts and dur are converted to Int64. So is cpu, because it has a different
-  // integer type in each dataframe.
+  // ts and dur are converted to Int64. cpu is not: b stores it as an id, but
+  // both are read as Uint32.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#2 to Int64) | "
-            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
-            "GroupedSort(#2; #0)\n"
-            "side: DataframeScan | AssertType(#2 to Int64) | "
-            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
-            "GroupedSort(#2; #0)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
 }
@@ -1042,7 +1231,7 @@ TEST_F(PhysicalPlanTest, IndependentFoldsKeepAChildFirstWalk) {
       "|> TREE ACCUMULATE UP COUNT(*) AS size");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "main: DataframeScan | Expand(#1) | TreeNumberNodes(#0, #1) | "
             "TreeChildFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateUp(#3, #4; SUM(#2)) | "
             "TreeAccumulateUp(#3, #4; COUNT(*)) | TreeParentFirst(#3, #4) | "

@@ -71,6 +71,7 @@ setup(
         'perfetto.trace_uri_resolver',
     ],
     package_data={
+        'perfetto': ['py.typed'],
         'perfetto.trace_processor': ['*.descriptor'],
     },
     include_package_data=True,
@@ -98,5 +99,6 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Typing :: Typed",
     ],
 )

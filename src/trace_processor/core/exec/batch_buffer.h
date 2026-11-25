@@ -44,7 +44,7 @@ class BatchBuffer {
       column.nullable = false;
     }
   }
-  // Ends a run (see RunHeld): the buffers go back to the pool.
+  // Ends a run (see Held): the buffers go back to the pool.
   void EndRun() { Clear(); }
 
  private:

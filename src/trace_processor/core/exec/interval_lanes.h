@@ -98,17 +98,22 @@ class LaneBatch {
   LaneBatch(const RowBatch& batch, const IntervalLaneSpec& spec)
       : ts_(batch, spec.ts_column),
         dur_(batch, spec.dur_column),
-        batch_(&batch),
-        group_column_(spec.group_column),
+        indices_(batch.selection().prefix() ? nullptr
+                                            : batch.selection().indices()),
         keyed_(!spec.key_columns.empty()),
-        forever_(spec.forever) {}
+        forever_(spec.forever) {
+    if (keyed_) {
+      group_ = batch.column(spec.group_column);
+    }
+  }
 
   // The lane of row `row`. Rows without keys are all in lane 0.
   PERFETTO_ALWAYS_INLINE uint32_t lane(uint32_t row) const {
     if (!keyed_) {
       return 0;
     }
-    return lanes_ ? lanes_[row] : batch_->Value<uint32_t>(group_column_, row);
+    return lanes_ ? lanes_[row]
+                  : group_.At<uint32_t>(indices_ ? indices_[row] : row);
   }
 
   // Reads row `row`'s interval [start, end). A row without a ts or dur is
@@ -134,17 +139,23 @@ class LaneBatch {
   }
 
   // Why a row of input `name` could not be read.
-  base::Status Error(Result, const IntervalInputName& name) const;
+  base::Status Error(Result result, const IntervalInputName& name) const {
+    return ErrorOf(result, forever_, name);
+  }
 
  private:
   friend class LaneReader;
 
+  // Static, so that callers' LaneBatch locals do not escape into it.
+  static base::Status ErrorOf(Result, bool forever, const IntervalInputName&);
+
   FlatColumnReader<int64_t> ts_;
   FlatColumnReader<int64_t> dur_;
-  const RowBatch* batch_;
+  const uint16_t* indices_;
+  // A copy, so that it is not reloaded for every row.
+  ColumnView group_;
   // The shared number of each row's lane, if a LaneReader numbered them.
   const uint32_t* lanes_ = nullptr;
-  uint32_t group_column_;
   bool keyed_;
   bool forever_;
 };
@@ -171,7 +182,7 @@ class LaneReader {
 
   // Forgets the last lane read, for a new run.
   void Reset() { last_group_ = kNoGroup; }
-  // Ends a run (see RunHeld).
+  // Ends a run (see Held).
   void EndRun() { Reset(); }
 
  private:
@@ -241,7 +252,7 @@ class CollectedLanes {
   const LaneReader& reader() const { return reader_; }
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:
@@ -295,7 +306,7 @@ class LaneKeys {
   void Gather(RowBatch* out, base::Span<const uint32_t> handles, Context&);
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:
@@ -318,7 +329,7 @@ class BoundsColumns {
   void AddTsTo(RowBatch* out) const;
   void AddDurTo(RowBatch* out) const;
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   int64_t* ts = nullptr;

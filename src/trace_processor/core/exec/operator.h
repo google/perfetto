@@ -28,7 +28,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 class Context;
-class RunHeld;
+struct RowsInPlace;
 
 // How a step uses the columns of the batches it is given: what every
 // Transform and Operator describes in DescribeColumns(), so the planner can
@@ -49,6 +49,12 @@ struct StepColumns {
   std::vector<uint32_t> reads;
   // Columns it reads back from rows it holds, so must hold even if unread.
   std::vector<uint32_t> held_reads;
+  // The columns of `reads` the step reads as a scan lends them, sparse (see
+  // ColumnView::Kind::kSparse), so that they need no Expand before it.
+  std::vector<uint32_t> reads_sparse;
+  // Whether an operator holds the columns a scan lends sparse as they are, so
+  // that only those it reads otherwise need an Expand before it.
+  bool keeps_sparse = false;
 };
 
 // The mutable state of one step (Source, Transform or Operator) for one run
@@ -96,7 +102,7 @@ class OperatorState {
     return static_cast<const T&>(*this);
   }
 
-  // Ends the run of everything the state holds (see RunHeld). Called by the
+  // Ends the run of everything the state holds (see Held). Called by the
   // executor, never by the step.
   void EndRun() {
     if (held_) {
@@ -110,12 +116,17 @@ class OperatorState {
 
  private:
   friend class Pipeline;
-  friend class RunHeld;
   template <typename T>
   friend class RunValue;
   template <typename T>
   friend class Held;
 
+  // Something held for a run which ends it with a call made for its type
+  // (see Held).
+  struct HeldObject {
+    void* where;
+    void (*end_run)(void*);
+  };
   // A plain value held for a run: where it is, and the bytes it starts each
   // run with. Put back with a store, so ending a run calls nothing for it.
   struct HeldValue {
@@ -126,7 +137,7 @@ class OperatorState {
   // Everything the state holds for a run. Behind a pointer, made on the
   // first registration, so a state holding nothing stays small.
   struct Registry {
-    std::vector<RunHeld*> held;
+    std::vector<HeldObject> held;
     std::vector<HeldValue> values;
     std::vector<base::Status*> statuses;
   };
@@ -138,27 +149,10 @@ class OperatorState {
     return *held_;
   }
   void EndHeldRuns();
+  void AddHeld(void* where, void (*end_run)(void*));
   static void EndRuns(const Registry& registry);
 
   std::unique_ptr<Registry> held_;
-};
-
-// Something a step's state holds for one run. It registers itself with the
-// state when made, so the executor can end its run without the step's help.
-class RunHeld {
- public:
-  RunHeld(const RunHeld&) = delete;
-  RunHeld& operator=(const RunHeld&) = delete;
-
-  // Lets go of what the run left, keeping only small allocations for the
-  // next run.
-  virtual void EndRun() = 0;
-
- protected:
-  explicit RunHeld(OperatorState* owner) {
-    owner->registry().held.push_back(this);
-  }
-  virtual ~RunHeld();
 };
 
 inline void OperatorState::EndRuns(const Registry& registry) {
@@ -180,8 +174,8 @@ inline void OperatorState::EndRuns(const Registry& registry) {
       *status = base::OkStatus();
     }
   }
-  for (RunHeld* held : registry.held) {
-    held->EndRun();
+  for (const HeldObject& held : registry.held) {
+    held.end_run(held.where);
   }
 }
 
@@ -218,6 +212,12 @@ class Source {
     return base::OkStatus();
   }
 
+  // Set when the batches served are read in place: each then holds only a
+  // row count, its rows being the next of these. Valid until the run ends.
+  virtual const RowsInPlace* InPlace(const OperatorState&) const {
+    return nullptr;
+  }
+
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
   virtual const void* type() const = 0;
@@ -232,7 +232,7 @@ class Source {
   Source() = default;
 };
 
-// Ends the run of `state` (see RunHeld) and starts `source` again from its
+// Ends the run of `state` (see Held) and starts `source` again from its
 // first batch. How every consumer restarts a source, so that nothing the last
 // run held survives into the next.
 inline void Restart(const Source& source, OperatorState& state) {
@@ -333,6 +333,11 @@ class Operator {
   // Why Execute() or Finish() returned kError.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
+  }
+
+  // As Source::InPlace(), for the batches Finish() outputs.
+  virtual const RowsInPlace* InPlace(const OperatorState&) const {
+    return nullptr;
   }
 
   // Identifies the concrete class. Each class has a `static constexpr char

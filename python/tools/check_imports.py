@@ -141,6 +141,14 @@ DEPS_ALLOWLIST = [
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
+
+    # Component harness (dev-only, never shipped). The harness mounts widgets
+    # in its own themed page; fixtures (*.fixture.ts, next to the component)
+    # use its registry; component tests (*.ctest.ts, next to the component)
+    # use its Playwright helper.
+    ('/component_harness/*', ['/widgets/*', '/frontend/theme_provider']),
+    ('*.fixture', '/component_harness/registry'),
+    ('*.ctest', '/component_harness/harness_test_helper'),
 ]
 
 

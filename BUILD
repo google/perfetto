@@ -2665,6 +2665,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/distinct.h",
         "src/trace_processor/core/exec/empty_source.cc",
         "src/trace_processor/core/exec/empty_source.h",
+        "src/trace_processor/core/exec/expand.cc",
+        "src/trace_processor/core/exec/expand.h",
         "src/trace_processor/core/exec/expression.cc",
         "src/trace_processor/core/exec/expression.h",
         "src/trace_processor/core/exec/filter.cc",
@@ -6308,6 +6310,9 @@ perfetto_cc_library(
         "src/trace_processor/util/symbolizer/local_symbolizer.h",
         "src/trace_processor/util/symbolizer/subprocess.h",
         "src/trace_processor/util/symbolizer/symbolizer.h",
+    ],
+    deps = [
+        ":src_trace_processor_util_build_id",
     ],
     linkstatic = True,
 )

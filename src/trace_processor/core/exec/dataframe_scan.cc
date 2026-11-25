@@ -40,10 +40,9 @@ DataframeScan::DataframeScan(
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
 
-std::unique_ptr<OperatorState> DataframeScan::MakeState(
-    Context& context) const {
+std::unique_ptr<OperatorState> DataframeScan::MakeState(Context&) const {
   auto state = std::make_unique<State>();
-  state->reader.Init(columns_, context);
+  state->reader.Init(columns_);
   state->reader.Start({0, row_count_}, direction_);
   return state;
 }
