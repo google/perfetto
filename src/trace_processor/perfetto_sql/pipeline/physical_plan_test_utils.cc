@@ -33,7 +33,8 @@ std::string PhysicalPlanToString(const PhysicalPlan& plan) {
   // A breaker's pipeline is shown where the next reads it.
   const core::exec::Pipelines& pipelines = plan.pipelines();
   for (uint32_t i = 0; i < pipelines.size(); ++i) {
-    if (pipelines[i].sink) {
+    const core::exec::Sink* sink = pipelines[i].sink.get();
+    if (sink && sink->IsBreaker()) {
       continue;
     }
     const auto& side =

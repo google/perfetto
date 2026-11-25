@@ -166,7 +166,7 @@ base::Status Scan::BuildPlan(Compiler* c, uint32_t from) {
     c->Append(std::move(column), from);
   }
   if (std::optional<NameId> qualifier = Scan::SourceQualifier(c, *n)) {
-    c->AddAlias({*qualifier, c->row()});
+    c->AddAlias(*qualifier, 0);
   }
   return base::OkStatus();
 }

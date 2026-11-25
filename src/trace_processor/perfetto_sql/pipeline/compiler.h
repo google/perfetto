@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -143,7 +144,12 @@ class Compiler {
 
   // Appends an operation and makes it the plan root; does not update scope.
   template <typename T>
-  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
+  PlanNodeId AddNode(T operation,
+                     std::initializer_list<PlanNodeId> children = {}) {
+    return plan_.AddNode(std::move(operation), children);
+  }
+  template <typename T>
+  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children) {
     return plan_.AddNode(std::move(operation), std::move(children));
   }
 
@@ -229,6 +235,9 @@ class Compiler {
 
   void ClearAliases();
   void AddAlias(Alias alias);
+  // Makes the row's columns from `first_column` onwards reachable as
+  // `name.column`.
+  void AddAlias(NameId name, size_t first_column);
 
   // Updates each alias to point at new columns, for a stage that replaces
   // every column. `replaced` holds (`from`, `to`) pairs. Columns with no

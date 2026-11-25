@@ -44,22 +44,6 @@ namespace {
 
 constexpr char kName[] = "INTERVAL FILL GAPS";
 
-// Adds a null column of the same kind and type as `like`, or of `fallback` if
-// `like` is null.
-void AddNulls(const ColumnShape* like,
-              StorageType fallback,
-              Context& context,
-              RowBatch* out) {
-  if (like && like->kind == ColumnView::Kind::kVariant) {
-    // Zeroed, the null buffer's values are null Variants.
-    const ColumnBuffer& nulls = context.NullBuffer();
-    out->AddColumn(ColumnView::Variants(nulls.chunk().Values<Variant>()),
-                   nulls);
-    return;
-  }
-  out->AddNullColumn(like ? like->type : fallback, context);
-}
-
 }  // namespace
 
 struct IntervalFillGaps::State : OperatorState {
@@ -336,8 +320,8 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
                       s.gathered_keys.buffer(filler.index));
         break;
       case FillerSource::kNull:
-        AddNulls(s.shapes.empty() ? nullptr : &s.shapes[i],
-                 spec_.outputs[i].fallback, *s.context, &out);
+        out.AddNullColumnLike(s.shapes.empty() ? nullptr : &s.shapes[i],
+                              spec_.outputs[i].fallback, *s.context);
         break;
     }
   }

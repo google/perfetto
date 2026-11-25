@@ -361,11 +361,10 @@ Lowering& Lowering::AddSidePipeline() {
   return *plan_->lowerings_.back();
 }
 
-uint32_t Lowering::FinishSide() {
+uint32_t Lowering::FinishSide(std::unique_ptr<ex::Sink> sink) {
   Built built = Build(nullptr);
-  ex::Pipelines& pipelines = plan_->out_->pipelines_;
-  return pipelines.Add(std::move(built.input), std::move(built.pipeline),
-                       nullptr);
+  return plan_->out_->pipelines_.Add(
+      std::move(built.input), std::move(built.pipeline), std::move(sink));
 }
 
 std::optional<uint32_t> Lowering::TakeParam(const PlanNode& node,

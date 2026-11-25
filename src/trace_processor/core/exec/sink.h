@@ -40,18 +40,15 @@ class Sink {
   Sink(const Sink&) = delete;
   Sink& operator=(const Sink&) = delete;
 
-  // How it uses its input's columns (see StepColumns).
-  virtual void DescribeColumns(StepColumns* out) const = 0;
-
-  // As Operator::SetUnreadColumns().
-  virtual void SetUnreadColumns(std::vector<bool>) {}
-
   virtual std::unique_ptr<OperatorState> MakeSinkState(Context&) const = 0;
   virtual base::Status ConsumeBatch(const RowBatch& in,
                                     OperatorState& state) const = 0;
 
   // Called once, after the last batch.
   virtual base::Status FinalizeSink(OperatorState& state) const = 0;
+
+  // Whether this sink is a Breaker whose output is served by the next pipeline.
+  virtual bool IsBreaker() const { return false; }
 
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
