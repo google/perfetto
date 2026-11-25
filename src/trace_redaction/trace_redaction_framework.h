@@ -19,6 +19,7 @@
 
 #include <bitset>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -49,7 +50,8 @@ constexpr uint64_t NormalizeUid(uint64_t uid) {
 
 // TracePacket fields outside of the "oneof data" field (timestamps, trusted
 // ids, sequence flags, interned data, ...). Keep in sync with
-// protos/perfetto/trace/trace_packet.proto.
+// protos/perfetto/trace/trace_packet.proto. Shared by the allow-lists and the
+// heap dump primitives so they cannot disagree.
 inline constexpr uint32_t kTracePacketNonDataFields[] = {
     protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber,
     protos::pbzero::TracePacket::kIncrementalStateClearedFieldNumber,
@@ -116,6 +118,41 @@ enum class WriterType {
 
 // GetWriterType() is defined after Context (it needs kMaxTrustedUid).
 
+// Identifies one Java heap dump. ART writes each dump (HeapGraph packets plus
+// its ArtProcessMetadata) from a single forked writer process, so one
+// (writer uid, trusted_packet_sequence_id) pair corresponds to one dump.
+struct HeapDumpKey {
+  // The packet's trusted_uid as stamped by traced (not normalized).
+  int32_t writer_uid = 0;
+  uint32_t sequence_id = 0;
+
+  // Returns the key of a packet with a trusted_uid, or nullopt otherwise.
+  static std::optional<HeapDumpKey> Of(
+      const protos::pbzero::TracePacket::Decoder& packet) {
+    if (PERFETTO_UNLIKELY(!packet.has_trusted_uid())) {
+      return std::nullopt;
+    }
+    HeapDumpKey key;
+    key.writer_uid = packet.trusted_uid();
+    key.sequence_id = packet.trusted_packet_sequence_id();
+    return key;
+  }
+
+  bool operator<(const HeapDumpKey& o) const {
+    return writer_uid != o.writer_uid ? writer_uid < o.writer_uid
+                                      : sequence_id < o.sequence_id;
+  }
+};
+
+// Per-dump bookkeeping collected by CollectHeapDumps.
+struct HeapDumpSequence {
+  uint32_t heap_graph_packets = 0;
+
+  // True when at least one heap_graph packet was seen on the sequence and the
+  // last one was not continued (`HeapGraph.continued == false`).
+  bool is_complete = false;
+};
+
 class SystemInfo {
  public:
   int32_t AllocateSynthThread() { return ++next_synth_thread_; }
@@ -150,7 +187,8 @@ class SystemInfo {
   //      system-wide limit on the total number of processes and
   //      threads.  The default value for this file, 32768, results
   //      in the same range of PIDs as on earlier kernels.  On
-  //      32-bit platforms, pid_max can be set to any value up to
+  //      32-bit platforms, 32768 is the maximum value for pid_max.
+  //      On 64-bit systems, pid_max can be set to any value up to
   //      2^22 (PID_MAX_LIMIT, approximately 4 million).
   //
   // SOURCE: https://man7.org/linux/man-pages/man5/proc.5.html
@@ -494,12 +532,25 @@ class Context {
   };
   TimelineBackdating timeline_backdating;
 
-  // Transform-phase counters updated directly by FilterUntrustedAppPackets and
-  // PruneMissingUidPackets (`mutable` on Context because
-  // TransformPrimitive::Transform takes `const Context&`).
+  // Heap dump redaction state (see CollectHeapDumps). Independent of the target
+  // package so it does not depend on the order of packets in the trace.
+  std::map<HeapDumpKey, HeapDumpSequence> heap_dump_sequences;
+
+  // Returns true if `key` is recorded in `heap_dump_sequences` as a complete
+  // heap dump.
+  bool IsHeapDumpComplete(const HeapDumpKey& key) const {
+    auto it = heap_dump_sequences.find(key);
+    return it != heap_dump_sequences.end() && it->second.is_complete;
+  }
+
+  // Transform-phase counters updated directly by FilterUntrustedAppPackets,
+  // PruneMissingUidPackets, AllowTargetDeobfuscationMapping and PruneHeapDumps
+  // (`mutable` on Context because TransformPrimitive::Transform takes
+  // `const Context&`).
   struct Stats {
     uint32_t untrusted_app_packets_dropped = 0;
     uint32_t missing_uid_packets_dropped = 0;
+    uint32_t deobfuscation_mappings_kept = 0;
   };
   mutable Stats stats;
 };

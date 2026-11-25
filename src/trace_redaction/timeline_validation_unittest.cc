@@ -62,4 +62,17 @@ TEST(TimelineValidationTest, NonEmptyTimelineReturnsOk) {
   ASSERT_OK(status);
 }
 
+TEST(TimelineValidationTest, EmptyTimelineAllowedWhenHeapDumpPresent) {
+  TimelineValidation validator;
+
+  Context null_context;
+  null_context.heap_dump_sequences[{10146, 1}] = HeapDumpSequence{1, true};
+  ASSERT_FALSE(validator.Validate(null_context).ok());
+
+  Context empty_context;
+  empty_context.timeline = std::make_unique<ProcessThreadTimeline>();
+  empty_context.heap_dump_sequences[{10146, 1}] = HeapDumpSequence{1, true};
+  ASSERT_OK(validator.Validate(empty_context));
+}
+
 }  // namespace perfetto::trace_redaction

@@ -35,17 +35,20 @@
 #include "src/trace_redaction/broadphase_packet_filter.h"
 #include "src/trace_redaction/collect_clocks.h"
 #include "src/trace_redaction/collect_frame_cookies.h"
+#include "src/trace_redaction/collect_heap_dumps.h"
 #include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/drop_empty_ftrace_events.h"
 #include "src/trace_redaction/filter_untrusted_app_packets.h"
 #include "src/trace_redaction/filtering.h"
 #include "src/trace_redaction/find_package_uid.h"
+#include "src/trace_redaction/heap_dump_util.h"
 #include "src/trace_redaction/merge_process_tree.h"
 #include "src/trace_redaction/merge_synthetic_sched.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/package_validation.h"
 #include "src/trace_redaction/populate_allow_lists.h"
+#include "src/trace_redaction/prune_heap_dumps.h"
 #include "src/trace_redaction/prune_missing_uid_packets.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/prune_perf_events.h"
@@ -263,7 +266,7 @@ base::Status TraceRedactor::RedactBuffer(std::string_view input,
   // Double buffering: keep at most one buffer for reading and another one for
   // writing, ping-ponging between `output` and `scratch`:
   //   - Active pass 1 writes directly into `output` (`scratch` is never
-  //     allocated when dynamic Pass 2 is skipped).
+  //     allocated when dynamic Pass 2 is skipped, e.g. heap dump traces).
   //   - Active pass 2 reads `output`, writes into `scratch`, and swaps with
   //     `output` in O(1) at the end.
   std::string scratch;
@@ -328,6 +331,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
     timeline->set_backdate_first_open(true);
   }
   pass1->emplace_collect<CollectFrameCookies>();
+  pass1->emplace_collect<CollectHeapDumps>();
 
   // Add all validators.
   pass1->emplace_validator<PackageValidation>();
@@ -341,7 +345,11 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // (potentially multi-MB) packets and unexpected uid-less packets before
   // anything inspects their payloads.
   pass1->emplace_transform<FilterUntrustedAppPackets>();
-  pass1->emplace_transform<PruneMissingUidPackets>();
+  // DeobfuscationMappings are currently the only packets allowed without a
+  // trusted_uid; any new uid-less packet type can be added to this allowlist.
+  pass1->emplace_transform<PruneMissingUidPackets>()
+      ->emplace_allow<AllowTargetDeobfuscationMapping>();
+  pass1->emplace_transform<PruneHeapDumps>();
 
   {
     // In order for BroadphasePacketFilter to work, something needs to populate
@@ -477,8 +485,8 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // Pass 2: Merge process trees into a single deduplicated process tree packet
   // appended at the end of the trace, and coalesce duplicated synthetic sched
   // events. Prepared dynamically after Pass 1 finishes based on `Context`; when
-  // neither is needed, `pass2` stays empty and `RedactBuffer` skips Pass 2
-  // altogether.
+  // neither is needed (e.g. heap dump traces), `pass2` stays empty and
+  // `RedactBuffer` skips Pass 2 altogether.
   redactor->add_pass([](const Context& context, ConcreteRedactorPass* pass2) {
     if (context.process_tree_packets > 1) {
       pass2->emplace_collect<CollectProcessTrees>();

@@ -21,6 +21,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/heap_dump_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "src/trace_redaction/trace_redactor_options.h"
@@ -58,7 +59,33 @@ static base::Status Main(std::string_view input,
     context.normalize_uid = true;
   }
 
-  return redactor->Redact(input, output, &context);
+  base::Status status = redactor->Redact(input, output, &context);
+
+  const bool has_heap_dump_activity =
+      !context.heap_dump_sequences.empty() ||
+      context.stats.deobfuscation_mappings_kept > 0;
+  if (status.ok() && has_heap_dump_activity) {
+    HeapDumpRedactionSummary summary = SummarizeHeapDumpRedaction(context);
+    PERFETTO_LOG(
+        "Heap dump redaction: complete_dumps_kept=%u "
+        "incomplete_dumps_dropped=%u heap_graph_packets_kept=%u "
+        "heap_graph_packets_dropped=%u untrusted_app_packets_dropped=%u "
+        "missing_uid_packets_dropped=%u deobfuscation_mappings_kept=%u",
+        summary.complete_dumps_kept, summary.incomplete_dumps_dropped,
+        summary.heap_graph_packets_kept, summary.heap_graph_packets_dropped,
+        summary.untrusted_app_packets_dropped,
+        summary.missing_uid_packets_dropped,
+        summary.deobfuscation_mappings_kept);
+    if (!context.heap_dump_sequences.empty() &&
+        summary.complete_dumps_kept == 0) {
+      PERFETTO_ELOG(
+          "Warning: no complete heap dump for %.*s; the output has no heap "
+          "data.",
+          static_cast<int>(package_name.size()), package_name.data());
+    }
+  }
+
+  return status;
 }
 
 static void PrintUsage(const char* bin_name) {
