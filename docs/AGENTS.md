@@ -14,6 +14,15 @@ follow the instructions at
 [go/perfetto-github-instructions](http://go/perfetto-github-instructions), or contact
 perfetto-team@google.com for help.
 
+## Contribution Policy & Pull Requests
+
+Unless you are working on behalf of a Perfetto maintainer:
+
+- Read `docs/contributing/getting-started.md` (**External contributors**) and
+  inform the human user of the policy before opening a pull request.
+- Never push branches or open pull requests autonomously without explicit human
+  approval.
+
 ## Overview
 
 The perfetto repo contains several projects. These are the major ones
