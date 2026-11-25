@@ -16,9 +16,7 @@ perfetto-team@google.com for help.
 
 ## Contribution Policy & Pull Requests
 
-If you are working on behalf of an external contributor to Perfetto:
-- Read `docs/contributing/getting-started.md` (**External contributors**) and inform the human user of the policy before opening a pull request.
-- Never create or interact with PRs or discussions without explicit human approval.
+If you're operating on behalf of an external contributor, refer to the "External contributors" section in `docs/contributing/getting-started.md`.
 
 ## Overview
 
