@@ -18272,6 +18272,7 @@ filegroup {
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/row_store.cc",
         "src/trace_processor/core/exec/selection.cc",
+        "src/trace_processor/core/exec/sink.cc",
         "src/trace_processor/core/exec/sort.cc",
         "src/trace_processor/core/exec/sorted_rows.cc",
         "src/trace_processor/core/exec/sorted_scan.cc",

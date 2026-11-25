@@ -45,6 +45,7 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/sort.h"
 
@@ -93,7 +94,8 @@ class IntersectState : public OperatorState {
  public:
   ~IntersectState() override;
 
-  std::vector<std::unique_ptr<OperatorState>> operand_states;
+  // Each operand, streamed in through the run's Context.
+  std::vector<std::unique_ptr<PipelineUse>> operand_inputs;
   // What the bounds of the regions served are written in, which no operand
   // owns.
   Context* context = nullptr;
@@ -234,7 +236,8 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
   state->gathered.resize(count);
   state->scratch.gather_rows.resize(count);
   for (const CollectedInputSpec& operand : operands_) {
-    state->operand_states.push_back(operand.source->MakeState(context));
+    state->operand_inputs.push_back(
+        std::make_unique<PipelineUse>(state.get(), operand.pipeline));
   }
   return state;
 }
@@ -243,12 +246,7 @@ base::Status IntervalIntersect::status(const OperatorState& state) const {
   return state.Cast<const IntersectState>().status;
 }
 
-void IntervalIntersect::Rewind(OperatorState& state) const {
-  IntersectState& s = state.Cast<IntersectState>();
-  for (uint32_t i = 0; i < operands_.size(); ++i) {
-    Restart(*operands_[i].source, *s.operand_states[i]);
-  }
-}
+void IntervalIntersect::Rewind(OperatorState&) const {}
 
 bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
   IntersectState& s = state.Cast<IntersectState>();
@@ -262,7 +260,7 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
                            ? std::numeric_limits<uint32_t>::max()
                            : s.group_table.size();
-      s.status = s.lanes[i]->Collect(*s.operand_states[i], *s.context,
+      s.status = s.lanes[i]->Collect(*s.operand_inputs[i], *s.context,
                                      &s.group_table, limit);
       if (!s.status.ok()) {
         return false;

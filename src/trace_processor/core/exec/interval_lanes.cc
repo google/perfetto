@@ -119,16 +119,15 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
   return base::OkStatus();
 }
 
-base::Status CollectedLanes::Collect(OperatorState& state,
+base::Status CollectedLanes::Collect(PipelineUse& input,
                                      Context& context,
                                      GroupTable* shared,
                                      uint32_t limit) {
-  const Source& source = *input_->source;
-  while (source.GetData(batch_, state)) {
-    RETURN_IF_ERROR(reader_.Start(batch_, shared));
+  while (RowBatch* batch = input.Next(context)) {
+    RETURN_IF_ERROR(reader_.Start(*batch, shared));
     LaneBatch lanes = reader_.batch();
     uint32_t first_row = rows_.size();
-    uint32_t n = batch_.size();
+    uint32_t n = batch->size();
     for (uint32_t row = 0; row < n; ++row) {
       int64_t start;
       int64_t end;
@@ -146,10 +145,10 @@ base::Status CollectedLanes::Collect(OperatorState& state,
       Add(number, Interval{static_cast<Ts>(start), static_cast<Ts>(end),
                            first_row + row});
     }
-    retained_.Project(batch_, input_->retained_columns);
+    retained_.Project(*batch, input_->retained_columns);
     RETURN_IF_ERROR(rows_.Append(retained_, context));
   }
-  RETURN_IF_ERROR(source.status(state));
+  RETURN_IF_ERROR(input.status());
   by_number_.clear();
   by_number_.reserve(ranges_.size());
   for (uint32_t i = 0; i < ranges_.size(); ++i) {

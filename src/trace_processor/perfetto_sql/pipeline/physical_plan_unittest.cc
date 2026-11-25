@@ -175,7 +175,7 @@ class PhysicalPlanTest : public ::testing::Test {
       }
     }
     Rows out;
-    RowCursor cursor(plan.source());
+    RowCursor cursor(plan.source(), plan.pipelines());
     for (bool row = cursor.Open(plan.params()); row; row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
@@ -234,7 +234,7 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
             "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateDown(#3, #4; SUM(#2)) | "
             "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
-            "TreeChildFirst(#3, #4) | "
+            "TreeChildFirst(#3, #4) / Served | "
             "TreeAccumulateUp(#3, #4; SUM(#6))");
   auto rows = Run(**plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -254,13 +254,13 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
   // Rows sorted by (cpu, ts) are also sorted by cpu. A sort that nothing
   // depends on yet is dropped when the rows are sorted again.
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY cpu"),
-            "main: DataframeScan | Sort(#2, #0)");
+            "main: DataframeScan | Sort(#2, #0) / Served");
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY ts"),
-            "main: DataframeScan | Sort(#0)");
+            "main: DataframeScan | Sort(#0) / Served");
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu |> INTERVAL FLATTEN PER cpu "
                  "AGGREGATE COUNT(*) AS n"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served | "
             "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
 
   // The scan outputs rows sorted by ts. Grouping is stable, so grouping by
@@ -270,19 +270,19 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
   EXPECT_EQ(plan("FROM by_ts |> INTERVAL FLATTEN PER cpu "
                  "AGGREGATE COUNT(*) AS n"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2) / Served | "
             "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
 
   // Groups are output in the order first seen, so if the input is sorted by
   // the key, the groups are too.
-  EXPECT_EQ(
-      plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
-           "cpu |> ORDER BY cpu"),
-      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #0; COUNT(*))");
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
+                 "cpu |> ORDER BY cpu"),
+            "main: DataframeScan | Sort(#0) / Served | HashAggregate(keys: #0; "
+            "COUNT(*)) / Served");
   EXPECT_EQ(plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
                  "cpu |> ORDER BY cpu"),
-            "main: DataframeScan | Sort(#0; drops #0) | "
-            "HashAggregate(keys: #1; COUNT(*)) | Sort(#0)");
+            "main: DataframeScan | Sort(#0; drops #0) / Served | "
+            "HashAggregate(keys: #1; COUNT(*)) / Served | Sort(#0) / Served");
 }
 
 // Rows a scan keeps sorted by a column are read backwards to sort them the
@@ -306,9 +306,10 @@ TEST_F(PhysicalPlanTest, ScansBackwardsToSortTheOtherWay) {
             "main: SortedScan(backwards)");
   // A LIMIT keeps the first rows, which reading backwards would change.
   EXPECT_EQ(plan("FROM t |> LIMIT 2 |> ORDER BY ts DESC"),
-            "main: DataframeScan | Limit(2) | CombineBatches | Sort(#0 desc)");
+            "main: DataframeScan | Limit(2) | CombineBatches | Sort(#0 desc) / "
+            "Served");
   EXPECT_EQ(plan("FROM t |> ORDER BY ts DESC, n"),
-            "main: DataframeScan | Sort(#0 desc, #1)");
+            "main: DataframeScan | Sort(#0 desc, #1) / Served");
 
   auto lowered = Plan("FROM t |> ORDER BY ts DESC");
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();
@@ -319,7 +320,7 @@ TEST_F(PhysicalPlanTest, ScansBackwardsToSortTheOtherWay) {
     }
   }
   std::vector<int64_t> values;
-  RowCursor cursor((*lowered)->source());
+  RowCursor cursor((*lowered)->source(), (*lowered)->pipelines());
   for (bool row = cursor.Open((*lowered)->params()); row; row = cursor.Next()) {
     values.push_back(*IntAt(cursor, n));
   }
@@ -337,13 +338,14 @@ TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
     EXPECT_TRUE(lowered.ok()) << lowered.status().message();
     return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
   };
-  EXPECT_EQ(plan("FROM t |> ORDER BY n"), "main: DataframeScan | Sort(#2)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY n"),
+            "main: DataframeScan | Sort(#2) / Served");
   EXPECT_EQ(plan("FROM t |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS c "
                  "|> ORDER BY c"),
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | Sort(#0) | "
+            "AssertType(#1 to Int64) | Sort(#0) / Served | "
             "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | "
-            "Sort(#2; drops #3)");
+            "Sort(#2; drops #3) / Served");
 }
 
 // A step which holds rows holds only the columns read after it: the others
@@ -354,7 +356,7 @@ TEST_F(PhysicalPlanTest, ReordersHoldOnlyColumnsReadAfterThem) {
   auto plan = Plan("FROM t |> ORDER BY n |> SELECT id, ts");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "main: DataframeScan | Sort(#2; drops #2)");
+            "main: DataframeScan | Sort(#2; drops #2) / Served");
   auto rows = Run(**plan, "ts");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(1, 50), Pair(2, 60), Pair(3, 70)));
@@ -373,13 +375,14 @@ TEST_F(PhysicalPlanTest, ALimitKeepsOnlyTheRowsItReadsFromASort) {
     return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
   };
   EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1"),
-            "main: DataframeScan | TopK(#1; 3) | Limit(2 offset 1)");
+            "main: DataframeScan | TopK(#1; 3) / Served | Limit(2 offset 1)");
   EXPECT_EQ(plan("FROM t |> ORDER BY n |> LIMIT 2"),
-            "main: DataframeScan | TopK(#1; 2)");
+            "main: DataframeScan | TopK(#1; 2) / Served");
   EXPECT_EQ(plan("FROM t |> ORDER BY n |> EXTEND n + 1 AS m |> LIMIT 2"),
-            "main: DataframeScan | TopK(#1; 2) | Compute((#1 + 1))");
-  EXPECT_EQ(plan("FROM t |> ORDER BY n |> WHERE id > 1 |> LIMIT 2"),
-            "main: DataframeScan | Sort(#1) | Filter(#0 > ?0) | Limit(2)");
+            "main: DataframeScan | TopK(#1; 2) / Served | Compute((#1 + 1))");
+  EXPECT_EQ(
+      plan("FROM t |> ORDER BY n |> WHERE id > 1 |> LIMIT 2"),
+      "main: DataframeScan | Sort(#1) / Served | Filter(#0 > ?0) | Limit(2)");
 
   auto lowered = Plan("FROM t |> ORDER BY n |> LIMIT 2 OFFSET 1");
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();
@@ -405,9 +408,9 @@ TEST_F(PhysicalPlanTest, ATopKHoldsItsKeys) {
     return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
   };
   EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id"),
-            "main: DataframeScan | Sort(#1; drops #1)");
+            "main: DataframeScan | Sort(#1; drops #1) / Served");
   EXPECT_EQ(plan("FROM t |> ORDER BY n |> SELECT id |> LIMIT 2"),
-            "main: DataframeScan | TopK(#1; 2)");
+            "main: DataframeScan | TopK(#1; 2) / Served");
 }
 
 // DISTINCT compares only the columns of the row at that stage: `id`, dropped
@@ -420,7 +423,7 @@ TEST_F(PhysicalPlanTest, DistinctComparesTheRowAtItsStage) {
 
   uint32_t cpu_column = (*plan)->columns()[0].index;
   std::vector<int64_t> values;
-  RowCursor cursor((*plan)->source());
+  RowCursor cursor((*plan)->source(), (*plan)->pipelines());
   for (bool row = cursor.Open(); row; row = cursor.Next()) {
     values.push_back(*IntAt(cursor, cpu_column));
   }
@@ -441,7 +444,7 @@ TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryComparison) {
 
   uint32_t cpu_column = (*plan)->columns()[0].index;
   std::vector<int64_t> values;
-  RowCursor cursor((*plan)->source());
+  RowCursor cursor((*plan)->source(), (*plan)->pipelines());
   for (bool row = cursor.Open((*plan)->params()); row; row = cursor.Next()) {
     values.push_back(*IntAt(cursor, cpu_column));
   }
@@ -461,7 +464,7 @@ TEST_F(PhysicalPlanTest, WhereComparesStringsListsAndNulls) {
     PERFETTO_CHECK(plan.ok());
     uint32_t id_column = (*plan)->columns()[0].index;
     std::vector<int64_t> out;
-    RowCursor cursor((*plan)->source());
+    RowCursor cursor((*plan)->source(), (*plan)->pipelines());
     for (bool row = cursor.Open((*plan)->params()); row; row = cursor.Next()) {
       out.push_back(*IntAt(cursor, id_column));
     }
@@ -680,7 +683,7 @@ TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
   EXPECT_EQ(PhysicalPlanToString(*physical),
             "main: IndexScan | Filter(#2 > ?1, #0 != ?2)");
 
-  RowCursor cursor(physical->source());
+  RowCursor cursor(physical->source(), physical->pipelines());
   RunParams<Args> params(*physical);
   auto ids = [&](int64_t k, int64_t v) {
     Args args;
@@ -748,7 +751,7 @@ TEST_F(PhysicalPlanTest, WhereComparesWithExternalLiteralsSetOnce) {
   std::unique_ptr<PhysicalPlan> physical = Lower(&bound, {&pool_});
   ASSERT_TRUE(bound.status.ok()) << bound.status.message();
 
-  RowCursor cursor(physical->source());
+  RowCursor cursor(physical->source(), physical->pipelines());
   RunParams<Args> params(*physical);
   Args literals;
   literals.values = {7, 0};
@@ -818,7 +821,7 @@ TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
   std::unique_ptr<PhysicalPlan> physical = Lower(&bound_plan, {&pool_});
   ASSERT_TRUE(bound_plan.status.ok()) << bound_plan.status.message();
 
-  RowCursor cursor(physical->source());
+  RowCursor cursor(physical->source(), physical->pipelines());
   RunParams<StringArgs> params(*physical);
   auto ids = [&](const std::string& run_pattern) {
     StringArgs args;
@@ -906,8 +909,8 @@ TEST_F(PhysicalPlanTest, SortServingInPlaceKeepsSparseColumns) {
     ASSERT_TRUE(bound.status.ok()) << bound.status.message();
     EXPECT_EQ(PhysicalPlanToString(*physical),
               sorted == Sorted::kCopied
-                  ? "main: DataframeScan | Expand(#1) | Sort(#1)"
-                  : "main: DataframeScan | Sort(#1)");
+                  ? "main: DataframeScan | Expand(#1) | Sort(#1) / Served"
+                  : "main: DataframeScan | Sort(#1) / Served");
   }
 }
 
@@ -926,9 +929,9 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
   // both are read as Uint32.
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served\n"
             "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
 }
@@ -945,9 +948,9 @@ TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served\n"
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served | "
             "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
             "background: #0, #1, keys: #2, groups: #3)");
 }
@@ -975,9 +978,9 @@ TEST_F(PhysicalPlanTest, ASubpipelineBackgroundIsASidePipeline) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "side: SortedScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served\n"
             "main: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) / Served | "
             "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
             "background: #0, #1, keys: #2, groups: #4)");
 }
@@ -994,13 +997,14 @@ TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
 
   const core::exec::Source& source = (*plan)->source();
   core::exec::Context context;
+  context.SetPipelines(&(*plan)->pipelines());
   auto state = source.MakeState(context);
   core::exec::RowBatch batch;
   ASSERT_TRUE(source.GetData(batch, *state));
   // The region's ts and dur, and q.y.
   EXPECT_EQ(batch.column_count(), 3u);
 
-  RowCursor cursor(source);
+  RowCursor cursor(source, (*plan)->pipelines());
   ASSERT_TRUE(cursor.Open());
   std::vector<std::optional<int64_t>> row;
   for (const PhysicalPlan::Column& column : (*plan)->columns()) {
@@ -1149,15 +1153,16 @@ TEST_F(PhysicalPlanTest, FoldsAfterAGraphTreeReuseItsNumbering) {
       "|> TREE ACCUMULATE DOWN COUNT(*) AS depth "
       "|> TREE ACCUMULATE UP SUM(self) AS retained");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#0 to Int64)\n"
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64)\n"
-            "side: DataframeScan | AssertType(#0 to Int64)\n"
-            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
-            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
-            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
-            "TreeAccumulateUp(#3, #4; SUM(#1))");
+  EXPECT_EQ(
+      PhysicalPlanToString(**plan),
+      "side: DataframeScan | AssertType(#0 to Int64)\n"
+      "side: DataframeScan | AssertType(#0 to Int64) | "
+      "AssertType(#1 to Int64)\n"
+      "side: DataframeScan | AssertType(#0 to Int64)\n"
+      "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
+      "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
+      "COUNT(*)) | TreeChildFirst(#3, #4) / Served | AssertType(#1 to Int64) | "
+      "TreeAccumulateUp(#3, #4; SUM(#1))");
   auto depth = Run(**plan, "depth");
   ASSERT_TRUE(depth.ok()) << depth.status().message();
   EXPECT_THAT(*depth,
@@ -1182,15 +1187,16 @@ TEST_F(PhysicalPlanTest, IndependentFoldsRunDownFirst) {
       "|> TREE ACCUMULATE UP SUM(self) AS retained "
       "|> TREE ACCUMULATE DOWN COUNT(*) AS depth");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#0 to Int64)\n"
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64)\n"
-            "side: DataframeScan | AssertType(#0 to Int64)\n"
-            "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
-            "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
-            "COUNT(*)) | TreeChildFirst(#3, #4) | AssertType(#1 to Int64) | "
-            "TreeAccumulateUp(#3, #4; SUM(#1))");
+  EXPECT_EQ(
+      PhysicalPlanToString(**plan),
+      "side: DataframeScan | AssertType(#0 to Int64)\n"
+      "side: DataframeScan | AssertType(#0 to Int64) | "
+      "AssertType(#1 to Int64)\n"
+      "side: DataframeScan | AssertType(#0 to Int64)\n"
+      "main: GraphTree(DOMINATOR; nodes: #0 keeping #0, #1; "
+      "edges: #0 -> #1; seeds: #0) | TreeAccumulateDown(#3, #4; "
+      "COUNT(*)) | TreeChildFirst(#3, #4) / Served | AssertType(#1 to Int64) | "
+      "TreeAccumulateUp(#3, #4; SUM(#1))");
   auto depth = Run(**plan, "depth");
   ASSERT_TRUE(depth.ok()) << depth.status().message();
   EXPECT_THAT(*depth,
@@ -1232,7 +1238,7 @@ TEST_F(PhysicalPlanTest, IndependentFoldsKeepAChildFirstWalk) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "main: DataframeScan | Expand(#1) | TreeNumberNodes(#0, #1) | "
-            "TreeChildFirst(#3, #4) | AssertType(#2 to Int64) | "
+            "TreeChildFirst(#3, #4) / Served | AssertType(#2 to Int64) | "
             "TreeAccumulateUp(#3, #4; SUM(#2)) | "
             "TreeAccumulateUp(#3, #4; COUNT(*)) | TreeParentFirst(#3, #4) | "
             "TreeAccumulateDown(#3, #4; SUM(#5))");

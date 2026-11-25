@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
 
 // The input stage shared by the interval operators. Each reads one or more
 // interval inputs: rows with a ts and dur, grouped into lanes by PER columns
@@ -71,11 +72,12 @@ inline void DescribeLaneReads(const IntervalLaneSpec& lanes, StepColumns* out) {
   }
 }
 
-// An interval input read whole from its own source, keeping
-// `retained_columns` of each row, in this order. Any other column is read
-// only for the intervals and is never buffered.
+// An interval input read whole, keeping `retained_columns` of each row, in
+// this order. Any other column is read only for the intervals and is never
+// buffered.
 struct CollectedInputSpec {
-  const Source* source = nullptr;
+  // The plan pipeline streaming it in (see Pipelines).
+  uint32_t pipeline = 0;
   IntervalLaneSpec lanes;
   std::vector<uint32_t> retained_columns;
 };
@@ -220,14 +222,14 @@ class CollectedLanes {
   CollectedLanes(const CollectedInputSpec& input, IntervalInputName name)
       : input_(&input), reader_(input.lanes, name) {}
 
-  // Reads every batch of the input's source. Lanes are numbered in `shared`
-  // if given, as LaneReader::Start() does, and by group number otherwise.
-  // Lanes numbered at or above `limit` are dropped. The rows are held in
-  // buffers from `context` where they are packed (see RowStore).
-  base::Status Collect(OperatorState& state,
+  // Reads every batch `input` streams in. Lanes are numbered in `shared` if
+  // given, as LaneReader::Start() does, and by group number otherwise. Lanes
+  // numbered at or above `limit` are dropped. The rows are held in buffers
+  // from `context` where they are packed (see RowStore).
+  base::Status Collect(PipelineUse& input,
                        Context& context,
                        GroupTable* shared,
-                       uint32_t limit = std::numeric_limits<uint32_t>::max());
+                       uint32_t limit);
 
   uint32_t size() const { return static_cast<uint32_t>(ranges_.size()); }
   Lane lane(uint32_t i) const {
@@ -273,8 +275,7 @@ class CollectedLanes {
   std::vector<std::pair<uint32_t, uint32_t>> by_number_;
   RowStore rows_;
 
-  // Scratch: the current batch, and the part of it kept.
-  RowBatch batch_;
+  // Scratch: the part of a batch kept.
   RowBatch retained_;
 };
 

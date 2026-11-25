@@ -40,24 +40,18 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-std::vector<uint32_t> Ids(const Source& source) {
-  std::unique_ptr<OperatorState> state = source.MakeState(test::TestContext());
-  RowBatch batch;
+// The ids `breaker` outputs of `source`, run as a plan runs it.
+std::vector<uint32_t> RunOn(const Source& source,
+                            std::unique_ptr<Breaker> breaker) {
+  test::AfterBreaker run(source, {}, std::move(breaker));
   std::vector<uint32_t> ids;
-  while (source.GetData(batch, *state)) {
+  base::Status status = run.Drain([&](const RowBatch& batch) {
     for (uint32_t id : test::ReadColumn<uint32_t>(batch, 0)) {
       ids.push_back(id);
     }
-  }
-  EXPECT_TRUE(source.status(*state).ok());
+  });
+  EXPECT_TRUE(status.ok()) << status.message();
   return ids;
-}
-
-std::vector<uint32_t> RunOn(const Source& source,
-                            std::unique_ptr<Operator> op) {
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::move(op));
-  return Ids(Pipeline(source, std::move(ops)));
 }
 
 std::vector<uint32_t> FirstSorted(const Source& source,
@@ -107,39 +101,40 @@ struct Column {
   const BitVector* validity = nullptr;
 };
 
-// Adds to `ids` the ids `op` outputs from `rows` rows of an id column then
-// `columns`. Returns whether it succeeded.
-bool RunBatchesInto(Operator& op,
+// Adds to `ids` the ids `breaker` outputs from `rows` rows of an id column
+// then `columns`. Returns whether it succeeded.
+bool RunBatchesInto(std::unique_ptr<Breaker> breaker,
                     uint32_t rows,
                     const std::vector<Column>& columns,
                     std::vector<uint32_t>* ids) {
-  auto state = op.MakeState(test::TestContext());
-  RowBatch out;
-  for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
-    RowBatch in;
-    in.AddBorrowedColumn(ColumnView::Sequence(nullptr, at));
+  std::vector<RowBatch> batches((rows + kMaxBatchRows - 1) / kMaxBatchRows);
+  std::vector<const RowBatch*> in;
+  for (uint32_t at = 0, i = 0; at < rows; at += kMaxBatchRows, ++i) {
+    RowBatch& batch = batches[i];
+    batch.AddBorrowedColumn(ColumnView::Sequence(nullptr, at));
     for (const Column& column : columns) {
-      in.AddBorrowedColumn(
+      batch.AddBorrowedColumn(
           ColumnView::Reference(column.type, column.data, column.validity, at));
     }
-    in.SetRowCount(std::min(kMaxBatchRows, rows - at));
-    if (op.Execute(in, out, *state) != OpResult::kNeedMoreInput) {
-      break;
-    }
+    batch.SetRowCount(std::min(kMaxBatchRows, rows - at));
+    in.push_back(&batch);
   }
-  while (op.Finish(out, *state) == OpResult::kHaveMoreOutput) {
-    for (uint32_t id : test::ReadColumn<uint32_t>(out, 0)) {
-      ids->push_back(id);
-    }
-  }
-  return op.status(*state).ok();
+  test::BatchesSource source(std::move(in));
+  test::AfterBreaker run(source, {}, std::move(breaker));
+  return run
+      .Drain([&](const RowBatch& batch) {
+        for (uint32_t id : test::ReadColumn<uint32_t>(batch, 0)) {
+          ids->push_back(id);
+        }
+      })
+      .ok();
 }
 
-std::vector<uint32_t> RunBatches(Operator& op,
+std::vector<uint32_t> RunBatches(std::unique_ptr<Breaker> breaker,
                                  uint32_t rows,
                                  const std::vector<Column>& columns) {
   std::vector<uint32_t> ids;
-  EXPECT_TRUE(RunBatchesInto(op, rows, columns, &ids));
+  EXPECT_TRUE(RunBatchesInto(std::move(breaker), rows, columns, &ids));
   return ids;
 }
 
@@ -172,11 +167,13 @@ TEST(TopKTest, OutputsTheFirstStrings) {
       {StorageType{String{}}, strings.data(), &valid}};
   for (uint32_t count : {1u, 10u, 40u}) {
     for (bool descending : {false, true}) {
-      Sort sort(SortSpec{{{1, descending}}, &pool});
-      std::vector<uint32_t> expected = RunBatches(sort, kRows, columns);
+      auto sort = std::make_unique<Sort>(SortSpec{{{1, descending}}, &pool});
+      std::vector<uint32_t> expected =
+          RunBatches(std::move(sort), kRows, columns);
       expected.resize(count);
-      TopK top(TopKSpec{{{1, descending}}, &pool, count});
-      EXPECT_EQ(RunBatches(top, kRows, columns), expected)
+      auto top =
+          std::make_unique<TopK>(TopKSpec{{{1, descending}}, &pool, count});
+      EXPECT_EQ(RunBatches(std::move(top), kRows, columns), expected)
           << "count " << count << " descending " << descending;
     }
   }
@@ -201,11 +198,12 @@ TEST(TopKTest, OutputsTheFirstRowsByStringAndNumberKeys) {
                                               {{1, true}, {2, false}}};
   for (const std::vector<SortKey>& keys : orders) {
     for (uint32_t count : {1u, 50u, 3000u}) {
-      Sort sort(SortSpec{keys, &pool});
-      std::vector<uint32_t> expected = RunBatches(sort, kRows, columns);
+      auto sort = std::make_unique<Sort>(SortSpec{keys, &pool});
+      std::vector<uint32_t> expected =
+          RunBatches(std::move(sort), kRows, columns);
       expected.resize(count);
-      TopK top(TopKSpec{keys, &pool, count});
-      EXPECT_EQ(RunBatches(top, kRows, columns), expected)
+      auto top = std::make_unique<TopK>(TopKSpec{keys, &pool, count});
+      EXPECT_EQ(RunBatches(std::move(top), kRows, columns), expected)
           << "count " << count << " first key " << keys[0].column;
     }
   }
@@ -221,12 +219,12 @@ TEST(TopKTest, PrunesRowsWithAColumnNotHeld) {
   }
   std::vector<Column> columns = {{StorageType{Int64{}}, keys.data()},
                                  {StorageType{Int64{}}, keys.data()}};
-  Sort sort(SortSpec{{{1, false}}});
-  std::vector<uint32_t> expected = RunBatches(sort, kRows, columns);
+  auto sort = std::make_unique<Sort>(SortSpec{{{1, false}}});
+  std::vector<uint32_t> expected = RunBatches(std::move(sort), kRows, columns);
   expected.resize(5);
-  TopK top(TopKSpec{{{1, false}}, nullptr, 5});
-  top.SetUnreadColumns({false, false, true});
-  EXPECT_EQ(RunBatches(top, kRows, columns), expected);
+  auto top = std::make_unique<TopK>(TopKSpec{{{1, false}}, nullptr, 5});
+  top->SetUnreadColumns({false, false, true});
+  EXPECT_EQ(RunBatches(std::move(top), kRows, columns), expected);
 }
 
 // No row is output, but a key which cannot be sorted by is still an error.
@@ -234,10 +232,10 @@ TEST(TopKTest, ChecksTheKeysWhenOutputtingNoRows) {
   StringPool pool;
   std::vector<StringPool::Id> strings(4, pool.InternString("a"));
   // Without a pool, a string key cannot be sorted by.
-  TopK top(TopKSpec{{{1, false}}, nullptr, 0});
+  auto top = std::make_unique<TopK>(TopKSpec{{{1, false}}, nullptr, 0});
   std::vector<uint32_t> ids;
-  EXPECT_FALSE(
-      RunBatchesInto(top, 4, {{StorageType{String{}}, strings.data()}}, &ids));
+  EXPECT_FALSE(RunBatchesInto(std::move(top), 4,
+                              {{StorageType{String{}}, strings.data()}}, &ids));
 }
 
 }  // namespace

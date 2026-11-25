@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 // GROUP BY one Int64 key with one to four aggregates. Most queries use one to
@@ -85,20 +86,12 @@ void Run(benchmark::State& state,
     }
     batch.SetRowCount(kMaxBatchRows);
   }
-  HashAggregate op(HashAggregateSpec{
-      keyed ? std::vector<uint32_t>{0} : std::vector<uint32_t>{},
-      std::move(calls)});
-  Context context;
-  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
-  RowBatch out;
+  test::BreakerRun run(
+      batches, std::make_unique<HashAggregate>(HashAggregateSpec{
+                   keyed ? std::vector<uint32_t>{0} : std::vector<uint32_t>{},
+                   std::move(calls)}));
   for (auto _ : state) {
-    for (const RowBatch& batch : batches) {
-      op.Execute(batch, out, *op_state);
-    }
-    while (op.Finish(out, *op_state) == OpResult::kHaveMoreOutput) {
-      benchmark::DoNotOptimize(out.size());
-    }
-    op_state->EndRun();
+    benchmark::DoNotOptimize(run.Run());
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

@@ -247,7 +247,7 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
     lowered.name = c->plan().names().text(column.name);
     spec.outputs.push_back(std::move(lowered));
   }
-  spec.background.source = background.FinishSide();
+  spec.background.pipeline = background.FinishSide();
   c->AddOperator(std::make_unique<ex::IntervalFillGaps>(std::move(spec)));
 }
 

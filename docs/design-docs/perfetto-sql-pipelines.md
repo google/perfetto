@@ -54,9 +54,24 @@ here. Lowering an input runs its steps, so lowering makes no decisions and
 cannot fail. A sort nothing read is removed from the plan when a later one
 replaces it.
 
-An operator with more than one input, such as `INTERVAL INTERSECTION OF`, reads
-each extra input through a side pipeline (`AddSidePipeline`) lowered the same
-way.
+### Pipelines and sinks
+
+A `PhysicalPlan` is its main pipeline plus its other `Pipelines`, which its
+steps read only through the run's `Context`. There are two kinds:
+
+- A breaker, such as a sort or an aggregation, holds every row of its input
+  before it outputs any. It is the sink of the pipeline before it: `Context`
+  builds it the first time the source of the pipeline after it, `Served`, asks
+  for it in a run. Lowering keeps breakers among a pipeline's steps, so column
+  pruning and expansion see the whole chain, and cuts the pipeline at each one
+  when it builds it. This follows pipitdb's sinks, which follow DuckDB's.
+- An operator with more than one input, such as `INTERVAL INTERSECTION OF`,
+  reads each extra input through a side pipeline (`AddSidePipeline`) lowered
+  the same way. It streams the side pipeline's batches in through `Context`,
+  which starts and ends its run with the operator's.
+
+A step reads either kind through a `PipelineUse`, so what runs and when is
+decided by `Context` alone.
 
 ### Batches
 

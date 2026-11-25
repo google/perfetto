@@ -33,18 +33,19 @@ struct GraphTreeSpec {
 
   // The nodes: one row each, with a distinct Int64 id. The retained columns
   // are what each node's row out carries.
-  const Source* nodes = nullptr;
+  // The plan pipeline streaming them in (see Pipelines).
+  uint32_t nodes = 0;
   uint32_t node_column = 0;
   std::vector<uint32_t> retained_columns;
 
   // The edges, from the node in `source_column` to the node in
   // `target_column`, both Int64.
-  const Source* edges = nullptr;
+  uint32_t edges = 0;
   uint32_t source_column = 0;
   uint32_t target_column = 0;
 
   // The nodes the tree grows from, by Int64 id.
-  const Source* seeds = nullptr;
+  uint32_t seeds = 0;
   uint32_t seed_column = 0;
 };
 
@@ -75,7 +76,6 @@ class GraphTree : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  // Each input's source must outlive this.
   explicit GraphTree(GraphTreeSpec);
   ~GraphTree() override;
 

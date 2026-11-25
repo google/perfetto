@@ -116,6 +116,7 @@ class OperatorState {
 
  private:
   friend class Pipeline;
+  friend class PipelineUse;
   template <typename T>
   friend class RunValue;
   template <typename T>

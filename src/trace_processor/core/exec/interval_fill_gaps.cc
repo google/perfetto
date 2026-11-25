@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/interval_gaps.h"
 
@@ -64,6 +65,7 @@ void AddNulls(const ColumnShape* like,
 struct IntervalFillGaps::State : OperatorState {
   State(const IntervalFillGapsSpec& spec, Context& c)
       : context(&c),
+        background_input(this, spec.background.pipeline),
         background(this,
                    spec.background,
                    IntervalInputName{kName, "the background"}),
@@ -72,7 +74,8 @@ struct IntervalFillGaps::State : OperatorState {
   ~State() override;
 
   Context* context;
-  std::unique_ptr<OperatorState> background_state;
+  // The background, streamed in through the run's Context.
+  PipelineUse background_input;
 
   Held<base::Status> status{this};
   // Numbers lanes by key on both sides, if both have PER columns.
@@ -143,9 +146,7 @@ IntervalFillGaps::~IntervalFillGaps() = default;
 
 std::unique_ptr<OperatorState> IntervalFillGaps::MakeState(
     Context& context) const {
-  auto state = std::make_unique<State>(spec_, context);
-  state->background_state = spec_.background.source->MakeState(context);
-  return state;
+  return std::make_unique<State>(spec_, context);
 }
 
 base::Status IntervalFillGaps::status(const OperatorState& state) const {
@@ -154,7 +155,6 @@ base::Status IntervalFillGaps::status(const OperatorState& state) const {
 
 bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
   if (!s.background_read) {
-    Restart(*spec_.background.source, *s.background_state);
     s.status = ReadBackground(s);
     s.background_read = true;
   }
@@ -162,8 +162,9 @@ bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
 }
 
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
-  RETURN_IF_ERROR(s.background.Collect(*s.background_state, *s.context,
-                                       shared_ ? &s.lanes : nullptr));
+  RETURN_IF_ERROR(s.background.Collect(s.background_input, *s.context,
+                                       shared_ ? &s.lanes : nullptr,
+                                       std::numeric_limits<uint32_t>::max()));
   for (uint32_t i = 0; i < s.background.size(); ++i) {
     // Intervals are sorted by start, so only the previous one with width can
     // overlap. Zero-width intervals cover nothing.

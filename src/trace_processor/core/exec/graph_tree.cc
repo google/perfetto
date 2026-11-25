@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/util/graph.h"
 
@@ -123,16 +124,22 @@ struct GraphTree::State : OperatorState {
     void EndRun() { static_cast<util::GraphTree&>(*this) = {}; }
   };
 
-  std::unique_ptr<OperatorState> nodes_state;
-  std::unique_ptr<OperatorState> edges_state;
-  std::unique_ptr<OperatorState> seeds_state;
-  Context* context = nullptr;
+  State(Context& c, const GraphTreeSpec& spec)
+      : context(&c),
+        nodes(this, spec.nodes),
+        edges(this, spec.edges),
+        seeds(this, spec.seeds) {}
+
+  Context* context;
+  // The inputs, streamed in through the run's Context.
+  PipelineUse nodes;
+  PipelineUse edges;
+  PipelineUse seeds;
 
   Held<base::Status> status{this};
 
-  // The inputs, read in full: what each batch is read into, and the retained
-  // columns of every node row, in the order they arrived.
-  Held<RowBatch> batch{this};
+  // The inputs, read in full: the retained columns of every node row, in the
+  // order they arrived.
   Held<RowBatch> retained{this};
   Held<RowStore> rows{this};
   // Nodes are numbered in the order they arrived, so a node's number is also
@@ -158,20 +165,10 @@ GraphTree::GraphTree(GraphTreeSpec spec) : spec_(std::move(spec)) {}
 GraphTree::~GraphTree() = default;
 
 std::unique_ptr<OperatorState> GraphTree::MakeState(Context& context) const {
-  auto state = std::make_unique<State>();
-  state->context = &context;
-  state->nodes_state = spec_.nodes->MakeState(context);
-  state->edges_state = spec_.edges->MakeState(context);
-  state->seeds_state = spec_.seeds->MakeState(context);
-  return state;
+  return std::make_unique<State>(context, spec_);
 }
 
-void GraphTree::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
-  Restart(*spec_.nodes, *s.nodes_state);
-  Restart(*spec_.edges, *s.edges_state);
-  Restart(*spec_.seeds, *s.seeds_state);
-}
+void GraphTree::Rewind(OperatorState&) const {}
 
 base::Status GraphTree::status(const OperatorState& state) const {
   return state.Cast<const State>().status;
@@ -180,9 +177,9 @@ base::Status GraphTree::status(const OperatorState& state) const {
 base::Status GraphTree::Build(State& s) const {
   const char* name = Name(spec_.kind);
 
-  while (spec_.nodes->GetData(s.batch, *s.nodes_state)) {
-    FlatColumnReader<int64_t> ids(s.batch, spec_.node_column);
-    uint32_t n = s.batch.size();
+  while (RowBatch* batch = s.nodes.Next(*s.context)) {
+    FlatColumnReader<int64_t> ids(*batch, spec_.node_column);
+    uint32_t n = batch->size();
     size_t first = s.id_of_node.size();
     s.id_of_node.resize(first + n);
     int64_t* out = s.id_of_node.data() + first;
@@ -191,10 +188,10 @@ base::Status GraphTree::Build(State& s) const {
         return base::ErrStatus("%s: a node has no id", name);
       }
     }
-    s.retained.Project(s.batch, spec_.retained_columns);
+    s.retained.Project(*batch, spec_.retained_columns);
     RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
   }
-  RETURN_IF_ERROR(spec_.nodes->status(*s.nodes_state));
+  RETURN_IF_ERROR(s.nodes.status());
 
   auto node_count = static_cast<uint32_t>(s.id_of_node.size());
   NodeIndex index;
@@ -203,9 +200,9 @@ base::Status GraphTree::Build(State& s) const {
   }
 
   std::vector<uint32_t> seeds;
-  while (spec_.seeds->GetData(s.batch, *s.seeds_state)) {
-    FlatColumnReader<int64_t> ids(s.batch, spec_.seed_column);
-    uint32_t n = s.batch.size();
+  while (RowBatch* batch = s.seeds.Next(*s.context)) {
+    FlatColumnReader<int64_t> ids(*batch, spec_.seed_column);
+    uint32_t n = batch->size();
     // Not push_back: a call in the loop would reload the index every row.
     size_t found = seeds.size();
     seeds.resize(found + n);
@@ -221,7 +218,7 @@ base::Status GraphTree::Build(State& s) const {
     }
     seeds.resize(found);
   }
-  RETURN_IF_ERROR(spec_.seeds->status(*s.seeds_state));
+  RETURN_IF_ERROR(s.seeds.status());
 
   // A dominator tree has one root, so it grows from an extra node with an
   // edge to every seed.
@@ -229,10 +226,10 @@ base::Status GraphTree::Build(State& s) const {
   uint32_t graph_nodes = node_count + (dominator ? 1 : 0);
   std::vector<uint32_t> sources;
   std::vector<uint32_t> targets;
-  while (spec_.edges->GetData(s.batch, *s.edges_state)) {
-    FlatColumnReader<int64_t> from(s.batch, spec_.source_column);
-    FlatColumnReader<int64_t> to(s.batch, spec_.target_column);
-    uint32_t n = s.batch.size();
+  while (RowBatch* batch = s.edges.Next(*s.context)) {
+    FlatColumnReader<int64_t> from(*batch, spec_.source_column);
+    FlatColumnReader<int64_t> to(*batch, spec_.target_column);
+    uint32_t n = batch->size();
     size_t found = sources.size();
     sources.resize(found + n);
     targets.resize(found + n);
@@ -254,7 +251,7 @@ base::Status GraphTree::Build(State& s) const {
     sources.resize(found);
     targets.resize(found);
   }
-  RETURN_IF_ERROR(spec_.edges->status(*s.edges_state));
+  RETURN_IF_ERROR(s.edges.status());
   if (dominator) {
     for (uint32_t seed : seeds) {
       sources.push_back(node_count);

@@ -2706,6 +2706,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/run_held.h",
         "src/trace_processor/core/exec/selection.cc",
         "src/trace_processor/core/exec/selection.h",
+        "src/trace_processor/core/exec/sink.cc",
+        "src/trace_processor/core/exec/sink.h",
         "src/trace_processor/core/exec/sort.cc",
         "src/trace_processor/core/exec/sort.h",
         "src/trace_processor/core/exec/sorted_rows.cc",
