@@ -41,10 +41,6 @@ OperatorState* Distinct::NewState(Context& context) const {
   return context.Make<State>();
 }
 
-base::Status Distinct::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
-}
-
 bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
   uint32_t count = batch.size();
@@ -55,8 +51,8 @@ bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
   uint32_t next = s.keys.size();
   if (std::optional<uint32_t> bad =
           s.keys.FindOrCreate(batch, columns_.span(), s.row_keys.data())) {
-    s.status = base::ErrStatus(
-        "DISTINCT: key %u must be a column holding one type", *bad + 1);
+    s.context().Fail(base::ErrStatus(
+        "DISTINCT: key %u must be a column holding one type", *bad + 1));
     return false;
   }
   if (s.keys.size() == next + count) {

@@ -122,7 +122,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   auto& s = static_cast<State&>(state);
   out.Reset();
   s.segments = 0;
-  if (!s.status.ok()) {
+  if (s.context->failed()) {
     return OpResult::kError;
   }
   LaneBatch lanes(in, spec_.lanes);
@@ -130,12 +130,15 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   // keys in place until all rows have been consumed.
   if (!s.input_pending) {
     if (keyed_) {
-      s.status = s.keys.Hold(in, *s.context);
+      base::Status status = s.keys.Hold(in, *s.context);
+      if (!status.ok()) {
+        s.context->Fail(std::move(status));
+      }
       s.key_row = LaneKeys::kCarried;
     }
     s.input_pending = true;
   }
-  if (!s.status.ok()) {
+  if (s.context->failed()) {
     return OpResult::kError;
   }
   uint32_t rows = in.size();
@@ -149,7 +152,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
       if (result == LaneBatch::Result::kSkip) {
         continue;
       }
-      s.status = lanes.Error(result, {"INTERVAL FLATTEN", "the input"});
+      s.context->Fail(lanes.Error(result, {"INTERVAL FLATTEN", "the input"}));
       return OpResult::kError;
     }
     uint32_t group = lanes.lane(row);
@@ -351,7 +354,7 @@ bool IntervalFlatten::Apply(State& s, const RowBatch* in) const {
   s.rows.clear();
   s.row_slots.clear();
   if (overflow) {
-    s.status = base::ErrStatus("INTERVAL FLATTEN: integer overflow");
+    s.context->Fail(base::ErrStatus("INTERVAL FLATTEN: integer overflow"));
     return false;
   }
   return true;
@@ -452,7 +455,7 @@ OpResult IntervalFlatten::Finish(RowBatch& out, OperatorState& state) const {
   auto& s = static_cast<State&>(state);
   out.Reset();
   s.segments = 0;
-  if (s.status.ok() && s.in_group &&
+  if (!s.context->failed() && s.in_group &&
       Advance(s, std::numeric_limits<int64_t>::max())) {
     s.in_group = false;
   }
@@ -465,7 +468,7 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
                                 State& s,
                                 OpResult result,
                                 const RowBatch* in) const {
-  if (!s.status.ok() || !Apply(s, in)) {
+  if (s.context->failed() || !Apply(s, in)) {
     return OpResult::kError;
   }
   uint32_t count = s.segments;
@@ -492,10 +495,6 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
                 std::move(s.group_buffer));
   out.SetRowCount(count);
   return result;
-}
-
-base::Status IntervalFlatten::status(const OperatorState& state) const {
-  return static_cast<const State&>(state).status;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

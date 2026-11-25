@@ -26,7 +26,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -108,7 +107,7 @@ Context::Slot& Context::Start(uint32_t id) {
   return slot;
 }
 
-base::StatusOr<OperatorState*> Context::BuildSink(uint32_t id) {
+OperatorState* Context::BuildSink(uint32_t id) {
   if (slots_[id].built) {
     return slots_[id].state;
   }
@@ -116,22 +115,25 @@ base::StatusOr<OperatorState*> Context::BuildSink(uint32_t id) {
   const Pipelines::Entry& entry = (*pipelines_)[id];
   const Pipeline& pipeline = *entry.pipeline;
   const Sink& sink = *entry.sink;
-  base::Status status;
+  bool ok = true;
   while (RowBatch* batch = pipeline.Next(*slot.pipeline)) {
-    status = sink.ConsumeBatch(*batch, *slot.state);
-    if (!status.ok()) {
+    if (!sink.ConsumeBatch(*batch, *slot.state)) {
+      ok = false;
       break;
     }
   }
-  if (status.ok()) {
-    status = pipeline.status(*slot.pipeline);
+  if (ok && failed()) {
+    ok = false;
   }
-  if (status.ok()) {
-    status = sink.FinalizeSink(*slot.state);
+  if (ok && !sink.FinalizeSink(*slot.state)) {
+    ok = false;
   }
-  if (!status.ok()) {
+  if (!ok) {
+    if (!failed()) {
+      Fail(base::ErrStatus("sink failed without saying why"));
+    }
     EndPipelineRun(id);
-    return status;
+    return nullptr;
   }
   slot.built = true;
   return slot.state;
@@ -148,15 +150,6 @@ RowBatch* Context::NextBatch(uint32_t id) {
   Slot& slot = slots_[id].running ? slots_[id] : Start(id);
   const Pipelines::Entry& entry = (*pipelines_)[id];
   return entry.pipeline->Next(*slot.pipeline);
-}
-
-base::Status Context::PipelineStatus(uint32_t id) const {
-  const Slot& slot = slots_[id];
-  if (!slot.pipeline) {
-    return base::OkStatus();
-  }
-  const Pipelines::Entry& entry = (*pipelines_)[id];
-  return entry.pipeline->status(*slot.pipeline);
 }
 
 void Context::EndPipelineRun(uint32_t id) {

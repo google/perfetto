@@ -135,10 +135,10 @@ Table Collect(const IntervalIntersect& intersect,
     }
   }
   if (status) {
-    *status = intersect.status(state);
+    *status = state.context().error();
   } else {
-    EXPECT_TRUE(intersect.status(state).ok())
-        << intersect.status(state).message();
+    EXPECT_TRUE(state.context().error().ok())
+        << state.context().error().message();
   }
   std::sort(rows.begin(), rows.end());
   return rows;

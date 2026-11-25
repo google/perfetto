@@ -40,7 +40,7 @@ bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
   base::Status status =
       s.rows.Append(in, spec_.keys.span(), spec_.pool, *s.context);
   if (!status.ok()) {
-    s.status = base::ErrStatus("SORT: %s", status.c_message());
+    s.context->Fail(base::ErrStatus("SORT: %s", status.c_message()));
     return false;
   }
   return true;

@@ -85,7 +85,6 @@ class HeldState : public OperatorState {
   struct Registry {
     std::vector<HeldObject> held;
     std::vector<HeldValue> values;
-    std::vector<base::Status*> statuses;
   };
 
   Registry& registry() {
@@ -192,18 +191,6 @@ class Held final : public T {
 
  private:
   static void EndRun(void* held) { EndRunOf(static_cast<T*>(held)); }
-};
-
-// A status is put back to ok by the state itself, with no call.
-template <>
-class Held<base::Status> final : public base::Status {
- public:
-  explicit Held(HeldState* owner) {
-    owner->registry().statuses.push_back(this);
-  }
-  Held(const Held&) = delete;
-  Held& operator=(const Held&) = delete;
-  using base::Status::operator=;
 };
 
 // Storage a step uses within one call only, kept between calls for its

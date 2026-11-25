@@ -46,6 +46,7 @@ struct Asserted {
         values(std::move(cells)) {
     input.AddBorrowedColumn(ColumnView::Variants(values.data()));
     test::Window(&input, 0, static_cast<uint32_t>(values.size()));
+    state->context().ClearError();
   }
 
   // Converts a fresh batch of the values, as a pipeline hands each one over.
@@ -53,7 +54,7 @@ struct Asserted {
     batch.CopyFrom(input);
     return op.Process(batch, *state);
   }
-  base::Status status() const { return op.status(*state); }
+  const base::Status& status() const { return state->context().error(); }
 
   template <typename T>
   std::vector<T> Read() {
@@ -124,12 +125,14 @@ TEST(AssertTypeTest, AValueTheTypeCannotHoldIsReported) {
             "an integer"},
        }) {
     AssertType op(0, c.type, "a");
+    test::TestContext().ClearError();
     OperatorState* state = op.MakeState(test::TestContext());
     RowBatch batch;
     batch.AddBorrowedColumn(ColumnView::Reference(c.stored, c.value));
     batch.SetRowCount(1);
     EXPECT_FALSE(op.Process(batch, *state));
-    EXPECT_THAT(op.status(*state).message(), testing::HasSubstr(c.message));
+    EXPECT_THAT(state->context().error().message(),
+                testing::HasSubstr(c.message));
   }
 }
 

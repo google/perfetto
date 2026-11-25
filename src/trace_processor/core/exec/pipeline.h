@@ -21,7 +21,6 @@
 #include <variant>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -57,7 +56,6 @@ class Pipeline final : public Source {
   void EndRun(OperatorState& state) const;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
-  base::Status status(const OperatorState& state) const override;
   // The last step's rows in place, if it is an operator serving them so.
   const RowsInPlace* InPlace(const OperatorState& state) const override;
 
@@ -94,8 +92,6 @@ class Pipeline final : public Source {
     static constexpr uint8_t kNextSlow = kStopped | kFailed;
     // Reasons to take the source's segment off its fast path.
     static constexpr uint8_t kAttention = kStopped | kFailed | kSourceDone;
-    // An operator may hold rows between batches.
-    static constexpr uint8_t kHolds = kSegmented;
 
     struct Link {
       const Transform* op;
@@ -171,8 +167,7 @@ class Pipeline final : public Source {
   void EndRunsUpTo(uint32_t segment, State&) const;
   // Called when a step fails. Stops the run and makes sure the Context records
   // why.
-  static void StepFailed(base::Status status, State&);
-  static void TransformFailed(const State::Link& link, State&);
+  static void StepFailed(State&);
 
   // The plan.
   const Source& source_;

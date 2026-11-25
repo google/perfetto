@@ -238,7 +238,7 @@ class Trailer final : public Operator {
   OpResult Finish(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
     if (first_ < 0) {
-      s.status = base::ErrStatus("trailer broke");
+      s.context().Fail(base::ErrStatus("trailer broke"));
       return OpResult::kError;
     }
     out.Reset();
@@ -250,15 +250,11 @@ class Trailer final : public Operator {
     return ++s.let_go == count_ ? OpResult::kNeedMoreInput
                                 : OpResult::kHaveMoreOutput;
   }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().status;
-  }
 
  private:
   struct State : HeldState {
     ~State() override;
     RunValue<uint32_t> let_go{this};
-    Held<base::Status> status{this};
   };
 
   int64_t first_;

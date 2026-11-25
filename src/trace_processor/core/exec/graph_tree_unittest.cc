@@ -185,9 +185,10 @@ class GraphTreeTest : public ::testing::Test {
       }
     }
     if (status) {
-      *status = tree.status(state);
+      *status = state.context().error();
     } else {
-      EXPECT_TRUE(tree.status(state).ok()) << tree.status(state).message();
+      EXPECT_TRUE(state.context().error().ok())
+          << state.context().error().message();
     }
     return rows;
   }

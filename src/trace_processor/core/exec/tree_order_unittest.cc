@@ -135,7 +135,7 @@ class Execution {
   RowBatch* Next() {
     return source_.GetData(batch_, *state_) ? &batch_ : nullptr;
   }
-  base::Status status() const { return source_.status(*state_); }
+  base::Status status() const { return state_->context().error(); }
   void Rewind() { Restart(source_, *state_); }
 
  private:

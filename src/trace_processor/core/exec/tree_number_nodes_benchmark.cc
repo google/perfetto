@@ -87,7 +87,7 @@ void RunTreeNumberNodes(benchmark::State& state,
     while (scan.GetData(in, *scan_state)) {
       out.CopyFrom(in);
       if (!op.Process(out, *op_state)) {
-        state.SkipWithError(op.status(*op_state).c_message());
+        state.SkipWithError(op_state->context().error().c_message());
         return;
       }
       benchmark::DoNotOptimize(out.column(3).data());

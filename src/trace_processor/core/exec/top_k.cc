@@ -60,7 +60,7 @@ bool TopK::Consume(const RowBatch& in, Breaker::State& state) const {
     status = Add(in, s);
   }
   if (!status.ok()) {
-    s.status = base::ErrStatus("SORT: %s", status.c_message());
+    s.context->Fail(base::ErrStatus("SORT: %s", status.c_message()));
     return false;
   }
   return true;

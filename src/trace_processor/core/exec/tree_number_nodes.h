@@ -61,7 +61,6 @@ class TreeNumberNodes final : public Transform {
 
   OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
   // Whether every id seen so far was already its own node number.
   bool IsDenseForTesting(const OperatorState&) const;
@@ -91,8 +90,6 @@ class TreeNumberNodes final : public Transform {
     ~State() override;
     // What the numbers are written in.
     Context* context;
-
-    Held<base::Status> status{this};
 
     // The number of each id seen.
     // While the ids arriving are 0, 1, 2, ... they are already node numbers,

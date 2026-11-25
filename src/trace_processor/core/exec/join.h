@@ -18,9 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_JOIN_H_
 
 #include <cstdint>
-#include <memory>
 
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/sink.h"
@@ -41,9 +39,8 @@ class JoinBuild final : public Sink {
   // each column the join doesn't output; those columns aren't stored.
   JoinBuild(uint32_t key, core::ArenaSpan<bool> unread);
 
-  base::Status ConsumeBatch(const RowBatch& in,
-                            OperatorState& state) const override;
-  base::Status FinalizeSink(OperatorState& state) const override;
+  bool ConsumeBatch(const RowBatch& in, OperatorState& state) const override;
+  bool FinalizeSink(OperatorState& state) const override;
 
  private:
   friend class Join;
@@ -88,7 +85,6 @@ class Join final : public Operator {
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
-  base::Status status(const OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;

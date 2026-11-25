@@ -57,7 +57,6 @@ class TreeKeyPaths final : public Transform {
 
   OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;

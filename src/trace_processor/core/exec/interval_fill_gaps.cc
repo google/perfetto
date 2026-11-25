@@ -62,7 +62,6 @@ struct IntervalFillGaps::State : HeldState {
   // The background, streamed in through the run's Context.
   PipelineUse background_input;
 
-  Held<base::Status> status{this};
   // Numbers lanes by key on both sides, if both have PER columns.
   Held<GroupTable> lanes{this};
 
@@ -135,16 +134,15 @@ OperatorState* IntervalFillGaps::NewState(Context& context) const {
   return context.Make<State>(spec_, context);
 }
 
-base::Status IntervalFillGaps::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
-}
-
 bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
   if (!s.background_read) {
-    s.status = ReadBackground(s);
+    base::Status status = ReadBackground(s);
+    if (!status.ok()) {
+      s.context->Fail(std::move(status));
+    }
     s.background_read = true;
   }
-  return s.status.ok();
+  return !s.context->failed();
 }
 
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
@@ -230,8 +228,9 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
   if (!EnsureBackgroundRead(s)) {
     return OpResult::kError;
   }
-  s.status = Cover(in, s);
-  if (!s.status.ok()) {
+  base::Status status = Cover(in, s);
+  if (!status.ok()) {
+    s.context->Fail(std::move(status));
     return OpResult::kError;
   }
   if (s.shapes.empty()) {
@@ -308,11 +307,11 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
         // differ between the input and the background.
         if (!s.shapes.empty() &&
             !SameLogicalType(ColumnShape::Of(column), s.shapes[i])) {
-          s.status = base::ErrStatus(
+          s.context->Fail(base::ErrStatus(
               "%s: column '%.*s' holds a different type in the background than "
               "in the input",
               kName, static_cast<int>(spec_.outputs[i].name.size()),
-              spec_.outputs[i].name.data());
+              spec_.outputs[i].name.data()));
           return OpResult::kError;
         }
         out.AddColumn(column, s.gathered.buffer(filler.index));

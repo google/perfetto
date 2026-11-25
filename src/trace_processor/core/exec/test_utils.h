@@ -60,8 +60,10 @@ inline Context& TestContext() {
   return context.ref();
 }
 
-// Ends the run of `state`, as a consumer restarting it does (see Restart()).
+// Ends the run of `state` and clears any failure, as a consumer restarting it
+// does (see Restart()).
 inline void EndRun(OperatorState& state) {
+  state.context().ClearError();
   state.context().EndRun(state);
 }
 
@@ -219,6 +221,7 @@ class FailingSource final : public Source {
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
     if (s.emitted) {
+      s.context().Fail(base::ErrStatus("input broke"));
       return false;
     }
     out.Reset();
@@ -227,10 +230,6 @@ class FailingSource final : public Source {
     out.SetRowCount(2);
     s.emitted = true;
     return true;
-  }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().emitted ? base::ErrStatus("input broke")
-                                             : base::OkStatus();
   }
 
  private:
@@ -322,7 +321,7 @@ class AfterBreaker {
     while (pipeline_->GetData(batch, *state_)) {
       read(batch);
     }
-    return pipeline_->status(*state_);
+    return context_.error();
   }
 
  private:

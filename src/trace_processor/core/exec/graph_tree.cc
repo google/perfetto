@@ -136,8 +136,6 @@ struct GraphTree::State : HeldState {
   PipelineUse edges;
   PipelineUse seeds;
 
-  Held<base::Status> status{this};
-
   // The inputs, read in full: the retained columns of every node row, in the
   // order they arrived.
   Held<RowBatch> retained{this};
@@ -168,10 +166,6 @@ OperatorState* GraphTree::NewState(Context& context) const {
 
 void GraphTree::Rewind(OperatorState&) const {}
 
-base::Status GraphTree::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
-}
-
 base::Status GraphTree::Build(State& s) const {
   const char* name = Name(spec_.kind);
 
@@ -189,7 +183,9 @@ base::Status GraphTree::Build(State& s) const {
     s.retained.Project(*batch, spec_.retained_columns.span());
     RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
   }
-  RETURN_IF_ERROR(s.nodes.status());
+  if (s.context->failed()) {
+    return s.context->error();
+  }
 
   auto node_count = static_cast<uint32_t>(s.id_of_node.size());
   NodeIndex index;
@@ -216,7 +212,9 @@ base::Status GraphTree::Build(State& s) const {
     }
     seeds.resize(found);
   }
-  RETURN_IF_ERROR(s.seeds.status());
+  if (s.context->failed()) {
+    return s.context->error();
+  }
 
   // A dominator tree has one root, so it grows from an extra node with an
   // edge to every seed.
@@ -249,7 +247,9 @@ base::Status GraphTree::Build(State& s) const {
     sources.resize(found);
     targets.resize(found);
   }
-  RETURN_IF_ERROR(s.edges.status());
+  if (s.context->failed()) {
+    return s.context->error();
+  }
   if (dominator) {
     for (uint32_t seed : seeds) {
       sources.push_back(node_count);
@@ -288,8 +288,9 @@ base::Status GraphTree::Build(State& s) const {
 bool GraphTree::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   if (!s.computed) {
-    s.status = Build(s);
-    if (!s.status.ok()) {
+    base::Status status = Build(s);
+    if (!status.ok()) {
+      s.context->Fail(std::move(status));
       return false;
     }
     s.computed = true;

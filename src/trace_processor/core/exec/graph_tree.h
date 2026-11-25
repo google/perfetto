@@ -82,7 +82,6 @@ class GraphTree final : public Source {
   OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;

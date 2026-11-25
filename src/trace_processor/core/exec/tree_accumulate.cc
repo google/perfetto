@@ -58,8 +58,6 @@ class AccumulateState : public HeldState {
   // Words of state per node.
   uint32_t stride = 0;
 
-  Held<base::Status> status{this};
-
   // The aggregates' state of every node seen.
   // By node, `stride` words apart: each aggregate's state in turn.
   Held<FlexVector<int64_t>> states{this};
@@ -178,7 +176,7 @@ bool Accumulate(const TreeAccumulateSpec& spec,
         std::move(buffer));
   }
   if (overflow) {
-    s.status = base::ErrStatus("TREE ACCUMULATE: integer overflow");
+    s.context->Fail(base::ErrStatus("TREE ACCUMULATE: integer overflow"));
     return false;
   }
   return true;
@@ -200,13 +198,6 @@ OperatorState* TreeAccumulateUp::NewState(Context& context) const {
 }
 OperatorState* TreeAccumulateDown::NewState(Context& context) const {
   return context.Make<AccumulateState>(context, functions_);
-}
-
-base::Status TreeAccumulateUp::status(const OperatorState& state) const {
-  return state.Cast<const AccumulateState>().status;
-}
-base::Status TreeAccumulateDown::status(const OperatorState& state) const {
-  return state.Cast<const AccumulateState>().status;
 }
 
 bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {

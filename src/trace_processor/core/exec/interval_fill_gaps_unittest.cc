@@ -184,14 +184,14 @@ std::vector<Row> RunFill(
     OpResult result;
     do {
       result = op.Execute(in, out, state);
-      EXPECT_NE(result, OpResult::kError) << op.status(state).message();
+      EXPECT_NE(result, OpResult::kError) << state.context().error().message();
       collect();
     } while (result == OpResult::kHaveMoreOutput);
   }
   OpResult result;
   do {
     result = op.Finish(out, state);
-    EXPECT_NE(result, OpResult::kError) << op.status(state).message();
+    EXPECT_NE(result, OpResult::kError) << state.context().error().message();
     collect();
   } while (result == OpResult::kHaveMoreOutput);
   std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {

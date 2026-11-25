@@ -54,7 +54,6 @@ class Distinct final : public Transform {
 
   OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
@@ -62,8 +61,6 @@ class Distinct final : public Transform {
   struct State : HeldState {
     State() = default;
     ~State() override;
-
-    Held<base::Status> status{this};
 
     // Every key seen so far, numbered in the order first seen.
     Held<GroupTable> keys{this};

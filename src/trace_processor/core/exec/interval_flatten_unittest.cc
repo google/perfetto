@@ -132,7 +132,8 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
       do {
         ASSERT_LT(calls++, expected.size());
         result = op.Execute(in, out, *state);
-        ASSERT_NE(result, OpResult::kError) << op.status(*state).message();
+        ASSERT_NE(result, OpResult::kError)
+            << state->context().error().message();
         if (out.size())
           collect();
       } while (result == OpResult::kHaveMoreOutput);
@@ -143,7 +144,7 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
     do {
       ASSERT_LT(calls++, expected.size());
       result = op.Finish(out, *state);
-      ASSERT_NE(result, OpResult::kError) << op.status(*state).message();
+      ASSERT_NE(result, OpResult::kError) << state->context().error().message();
       if (out.size())
         collect();
     } while (result == OpResult::kHaveMoreOutput);
@@ -276,12 +277,12 @@ TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
   OpResult result;
   do {
     result = op.Execute(in, out, *state);
-    ASSERT_NE(result, OpResult::kError) << op.status(*state).message();
+    ASSERT_NE(result, OpResult::kError) << state->context().error().message();
     collect();
   } while (result == OpResult::kHaveMoreOutput);
   do {
     result = op.Finish(out, *state);
-    ASSERT_NE(result, OpResult::kError) << op.status(*state).message();
+    ASSERT_NE(result, OpResult::kError) << state->context().error().message();
     collect();
   } while (result == OpResult::kHaveMoreOutput);
   ASSERT_EQ(sums.size(), 3 * kPairs);

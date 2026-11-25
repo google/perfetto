@@ -19,7 +19,6 @@
 
 #include <memory>
 
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
@@ -39,7 +38,6 @@ class Breaker : public Sink {
 
     // What the columns served are filled in.
     Context* context = nullptr;
-    Held<base::Status> status{this};
   };
 
   // Which of its input's columns it reads and keeps (see StepColumns).
@@ -55,9 +53,8 @@ class Breaker : public Sink {
 
   // Sink.
   bool IsBreaker() const final { return true; }
-  base::Status ConsumeBatch(const RowBatch& in,
-                            OperatorState& state) const final;
-  base::Status FinalizeSink(OperatorState& state) const final;
+  bool ConsumeBatch(const RowBatch& in, OperatorState& state) const final;
+  bool FinalizeSink(OperatorState& state) const final;
 
  protected:
   Breaker() = default;
@@ -72,7 +69,7 @@ class Breaker : public Sink {
   friend class Served;
 
   // Each batch of the input goes into Consume(), then Finalize() runs once.
-  // Both return false on failure, having set the status.
+  // Both return false on failure, after reporting why (see Context::Fail()).
   virtual bool Consume(const RowBatch& in, State& state) const = 0;
   virtual bool Finalize(State& state) const = 0;
 

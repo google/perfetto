@@ -144,8 +144,8 @@ Paths KeyPaths(const std::vector<int64_t>& parents,
       }
     }
   }
-  EXPECT_TRUE(pipeline.status(*state).ok())
-      << pipeline.status(*state).message();
+  EXPECT_TRUE(state->context().error().ok())
+      << state->context().error().message();
   return result;
 }
 

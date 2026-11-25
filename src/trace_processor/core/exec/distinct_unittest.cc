@@ -52,7 +52,7 @@ struct Batches {
         ColumnView::Reference(StorageType{Int64{}}, batches.back().data()));
     in.SetRowCount(static_cast<uint32_t>(batches.back().size()));
     EXPECT_TRUE(test::ProcessCopy(op, in, out, *state))
-        << op.status(*state).message();
+        << state->context().error().message();
     return test::ReadColumn<int64_t>(out, 0);
   }
 
@@ -152,12 +152,12 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, of_ints, out, *state));
   EXPECT_FALSE(test::ProcessCopy(op, of_doubles, out, *state));
-  EXPECT_THAT(op.status(*state).message(),
+  EXPECT_THAT(state->context().error().message(),
               HasSubstr("DISTINCT: key 1 must be a column holding one type"));
 
   // A new run starts with nothing seen.
   test::EndRun(*state);
-  EXPECT_TRUE(op.status(*state).ok());
+  EXPECT_TRUE(state->context().error().ok());
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 0u);

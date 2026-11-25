@@ -68,20 +68,20 @@ const char* Name(StorageType type) {
 }
 
 // Errors, built out of line so the loops which find them stay small.
-PERFETTO_NO_INLINE bool NotExact(std::string_view name, base::Status* status) {
-  *status = base::ErrStatus(
+PERFETTO_NO_INLINE bool NotExact(std::string_view name, Context* context) {
+  context->Fail(base::ErrStatus(
       "column '%.*s' holds an integer which a float cannot represent exactly",
-      static_cast<int>(name.size()), name.data());
+      static_cast<int>(name.size()), name.data()));
   return false;
 }
 PERFETTO_NO_INLINE bool WrongType(std::string_view name,
                                   const char* verb,
                                   const char* is,
                                   StorageType want,
-                                  base::Status* status) {
-  *status = base::ErrStatus("column '%.*s' %s %s, not %s",
-                            static_cast<int>(name.size()), name.data(), verb,
-                            is, Name(want));
+                                  Context* context) {
+  context->Fail(base::ErrStatus("column '%.*s' %s %s, not %s",
+                                static_cast<int>(name.size()), name.data(),
+                                verb, is, Name(want)));
   return false;
 }
 
@@ -186,10 +186,6 @@ OperatorState* AssertType::NewState(Context& context) const {
   return context.Make<State>(context);
 }
 
-base::Status AssertType::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
-}
-
 bool AssertType::Widen(const ColumnView& column,
                        const Selection& selection,
                        ColumnChunk& chunk,
@@ -222,7 +218,7 @@ bool AssertType::Widen(const ColumnView& column,
   }
   if (from.Is<Int64>()) {
     auto exact = [&](int64_t value, double* out) {
-      return ExactDouble(value, out) || NotExact(name_, &state.status);
+      return ExactDouble(value, out) || NotExact(name_, state.context);
     };
     return WidenAs<int64_t>(column, selection, exact, chunk.Values<double>(),
                             &chunk.validity);
@@ -245,7 +241,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
     bool widen = column.type().IsAnyOf<IntegerType>() &&
                  (type_.Is<Int64>() || type_.Is<Double>());
     if (!widen) {
-      return WrongType(name_, "is", Name(column.type()), type_, &s.status);
+      return WrongType(name_, "is", Name(column.type()), type_, s.context);
     }
     if (!Widen(column, batch.selection(), chunk, s)) {
       return false;
@@ -259,7 +255,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   }
 
   auto mismatch = [&](const Variant& cell) {
-    return WrongType(name_, "holds", Name(cell.type), type_, &s.status);
+    return WrongType(name_, "holds", Name(cell.type), type_, s.context);
   };
   const Selection& selection = batch.selection();
   bool ok;
@@ -288,7 +284,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
               return mismatch(cell);
             }
             return ExactDouble(cell.AsInt64(), out) ||
-                   NotExact(name_, &s.status);
+                   NotExact(name_, s.context);
           },
           chunk.Values<double>(), &chunk.validity);
       break;

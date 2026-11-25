@@ -51,14 +51,14 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
   if (std::optional<uint32_t> bad = s.group_table.FindOrCreate(
           in, spec_.groups.span(), s.groups.data() + at)) {
     s.groups.resize(at);
-    s.status = base::ErrStatus(
-        "GROUPED SORT: group %u must be a column holding one type", *bad + 1);
+    s.context->Fail(base::ErrStatus(
+        "GROUPED SORT: group %u must be a column holding one type", *bad + 1));
     return false;
   }
   base::Status status =
       s.rows.Append(in, spec_.keys.span(), nullptr, *s.context);
   if (!status.ok()) {
-    s.status = base::ErrStatus("GROUPED SORT: %s", status.c_message());
+    s.context->Fail(base::ErrStatus("GROUPED SORT: %s", status.c_message()));
     return false;
   }
   return true;

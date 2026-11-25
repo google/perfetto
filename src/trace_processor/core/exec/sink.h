@@ -18,11 +18,8 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_SINK_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -43,11 +40,12 @@ class Sink {
   OperatorState* MakeSinkState(Context& context) const {
     return context.Made(NewSinkState(context));
   }
-  virtual base::Status ConsumeBatch(const RowBatch& in,
-                                    OperatorState& state) const = 0;
+  // Returns false on failure, after reporting why with Context::Fail().
+  virtual bool ConsumeBatch(const RowBatch& in, OperatorState& state) const = 0;
 
-  // Called once, after the last batch.
-  virtual base::Status FinalizeSink(OperatorState& state) const;
+  // Called once, after the last batch. Returns false on failure, after
+  // reporting why with Context::Fail().
+  virtual bool FinalizeSink(OperatorState& state) const;
 
   // Whether this sink is a Breaker whose output is served by the next pipeline.
   virtual bool IsBreaker() const { return false; }
@@ -106,16 +104,16 @@ class PipelineUse final {
   PipelineUse(const PipelineUse&) = delete;
   PipelineUse& operator=(const PipelineUse&) = delete;
 
-  // What the pipeline's sink built, built first if it is not yet.
-  base::StatusOr<OperatorState*> Built(Context& context);
+  // What the pipeline's sink built, built first if it is not yet, or null on
+  // failure (see Context::error()).
+  OperatorState* Built(Context& context);
 
   // What the pipeline's sink built, or null if it is not built.
   OperatorState* IfBuilt() const;
 
-  // The pipeline's next batch, or null at its end or on failure, which
-  // status() then says.
+  // The pipeline's next batch, or null at its end or on failure (see
+  // Context::error()).
   RowBatch* Next(Context& context);
-  base::Status status() const;
 
   void EndRun();
 
@@ -138,7 +136,6 @@ class Served final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState&) const override {}
-  base::Status status(const OperatorState& state) const override;
   const RowsInPlace* InPlace(const OperatorState& state) const override;
 
   uint32_t id() const { return id_; }

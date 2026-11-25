@@ -173,7 +173,7 @@ struct Scanned {
 TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
   Numbered<int64_t> run(StorageType{Int64{}}, {1, 1}, {0, 0}, {false, false});
   EXPECT_FALSE(run.Process());
-  EXPECT_THAT(run.op.status(*run.state).message(),
+  EXPECT_THAT(run.state->context().error().message(),
               testing::HasSubstr("same id"));
 
   // A repeated id in a later batch is detected even when ids so far were
@@ -181,7 +181,7 @@ TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
   Scanned scanned({0, 0}, {false, true});
   ASSERT_TRUE(scanned.Process(0, 2));
   EXPECT_FALSE(scanned.Process(1, 1));
-  EXPECT_THAT(scanned.op.status(*scanned.state).message(),
+  EXPECT_THAT(scanned.state->context().error().message(),
               testing::HasSubstr("same id"));
 }
 

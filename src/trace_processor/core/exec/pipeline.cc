@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <utility>
 #include <variant>
 
 #include "perfetto/base/compiler.h"
@@ -156,7 +155,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
   }
   for (const State::Link& link : s.output_links) {
     if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
-      TransformFailed(link, s);
+      StepFailed(s);
       return nullptr;
     }
     // A batch with no rows left has nothing for later transforms to do.
@@ -196,7 +195,7 @@ PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::SegmentNext(uint32_t segment,
     }
     for (const State::Link& link : links) {
       if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
-        TransformFailed(link, s);
+        StepFailed(s);
         return nullptr;
       }
       // A batch with no rows left has nothing for later transforms to do.
@@ -265,7 +264,7 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
                           ? op.Execute(*start.current, *start.out, op_state)
                           : op.Finish(*start.out, op_state);
     if (result == OpResult::kError) {
-      StepFailed(op.status(op_state), s);
+      StepFailed(s);
       return nullptr;
     }
     start.continuation = has_input && result == OpResult::kHaveMoreOutput;
@@ -310,15 +309,8 @@ PERFETTO_NO_INLINE void Pipeline::Stop(State& state) const {
 
 PERFETTO_NO_INLINE void Pipeline::SourceDone(State& s) const {
   s.flags |= State::kSourceDone;
-  // Read the source's status now, because ending its run resets it.
-  Context& context = s.context();
-  if (!context.failed()) {
-    base::Status status = source_.status(*s.source_state);
-    if (!status.ok()) {
-      context.Fail(std::move(status));
-    }
-  }
-  if (context.failed()) {
+  // If the source failed, it has already said why.
+  if (s.context().failed()) {
     s.flags |= State::kFailed;
   }
   EndUpTo(0, s);
@@ -335,23 +327,12 @@ PERFETTO_NO_INLINE void Pipeline::EndRunsUpTo(uint32_t segment,
   s.ended_segments = segment + 1;
 }
 
-base::Status Pipeline::status(const OperatorState& state) const {
-  return state.context().error();
-}
-
-void Pipeline::StepFailed(base::Status status, State& state) {
+PERFETTO_NO_INLINE void Pipeline::StepFailed(State& state) {
   Context& context = state.context();
   if (!context.failed()) {
-    context.Fail(status.ok()
-                     ? base::ErrStatus("operator failed without saying why")
-                     : std::move(status));
+    context.Fail(base::ErrStatus("operator failed without saying why"));
   }
   state.flags |= State::kFailed;
-}
-
-PERFETTO_NO_INLINE void Pipeline::TransformFailed(const State::Link& link,
-                                                  State& state) {
-  StepFailed(link.op->status(*link.state), state);
 }
 
 const RowsInPlace* Pipeline::InPlace(const OperatorState& state) const {
@@ -366,5 +347,4 @@ const RowsInPlace* Pipeline::InPlace(const OperatorState& state) const {
   return last.start_op->InPlace(
       *s.operators[static_cast<uint32_t>(last.start)]);
 }
-
 }  // namespace perfetto::trace_processor::core::exec

@@ -17,11 +17,7 @@
 #include "src/trace_processor/core/exec/sink.h"
 
 #include <cstdint>
-#include <memory>
-#include <utility>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -31,8 +27,8 @@
 namespace perfetto::trace_processor::core::exec {
 
 // Defined out of line so that Sink's vtable is emitted in one object file.
-base::Status Sink::FinalizeSink(OperatorState&) const {
-  return base::OkStatus();
+bool Sink::FinalizeSink(OperatorState&) const {
+  return true;
 }
 
 Pipelines::Pipelines() = default;
@@ -48,7 +44,7 @@ PipelineUse::PipelineUse(HeldState* owner, uint32_t id) : id_(id) {
   owner->AddHeld(this, &EndRun);
 }
 
-base::StatusOr<OperatorState*> PipelineUse::Built(Context& context) {
+OperatorState* PipelineUse::Built(Context& context) {
   context_ = &context;
   return context.BuildSink(id_);
 }
@@ -60,10 +56,6 @@ RowBatch* PipelineUse::Next(Context& context) {
 
 OperatorState* PipelineUse::IfBuilt() const {
   return context_ ? context_->IfBuilt(id_) : nullptr;
-}
-
-base::Status PipelineUse::status() const {
-  return context_ ? context_->PipelineStatus(id_) : base::OkStatus();
 }
 
 void PipelineUse::EndRun() {
@@ -80,7 +72,6 @@ struct Served::State : HeldState {
   Context* context;
   PipelineUse use;
   RunValue<bool> done{this, false};
-  Held<base::Status> status{this};
 };
 
 Served::State::~State() = default;
@@ -99,26 +90,19 @@ bool Served::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
   // Built the first time, and then only looked up.
-  base::StatusOr<OperatorState*> sink = s.use.Built(*s.context);
-  if (!sink.ok()) {
-    s.status = sink.status();
+  OperatorState* sink = s.use.Built(*s.context);
+  if (!sink) {
     s.done = true;
     return false;
   }
-  auto& built = (*sink)->Cast<Breaker::State>();
+  auto& built = sink->Cast<Breaker::State>();
   if (breaker_.Serve(out, built)) {
     return true;
   }
   // Served whole: what the breaker holds goes now, not when the run ends.
-  base::Status status = built.status;
   s.done = true;
   s.use.EndRun();
-  s.status = std::move(status);
   return false;
-}
-
-base::Status Served::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
 }
 
 const RowsInPlace* Served::InPlace(const OperatorState& state) const {

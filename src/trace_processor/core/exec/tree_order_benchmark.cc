@@ -99,8 +99,8 @@ void Run(benchmark::State& state,
     while (source.GetData(out, *run)) {
       benchmark::DoNotOptimize(out.column(2).data());
     }
-    if (!source.status(*run).ok()) {
-      state.SkipWithError(source.status(*run).c_message());
+    if (!run->context().error().ok()) {
+      state.SkipWithError(run->context().error().c_message());
       return;
     }
   }

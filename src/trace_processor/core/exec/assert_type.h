@@ -55,7 +55,6 @@ class AssertType final : public Transform {
 
   OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
@@ -65,7 +64,6 @@ class AssertType final : public Transform {
     ~State() override;
     // What the converted column is written in.
     Context* context;
-    Held<base::Status> status{this};
   };
 
   bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;

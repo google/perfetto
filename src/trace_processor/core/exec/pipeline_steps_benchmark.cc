@@ -129,8 +129,8 @@ void Run(benchmark::State& state,
       benchmark::DoNotOptimize(batch->size());
     }
   }
-  if (!pipeline->status(*run).ok()) {
-    state.SkipWithError(pipeline->status(*run).c_message());
+  if (!run->context().error().ok()) {
+    state.SkipWithError(run->context().error().c_message());
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

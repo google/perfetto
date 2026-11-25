@@ -18,7 +18,6 @@
 
 #include <cstring>
 
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -40,11 +39,6 @@ void HeldState::EndHeldRuns() {
         break;
     }
   }
-  for (base::Status* status : registry.statuses) {
-    if (!status->ok()) {
-      *status = base::OkStatus();
-    }
-  }
   for (const HeldObject& held : registry.held) {
     held.end_run(held.where);
   }
@@ -64,15 +58,6 @@ OperatorState* Transform::NewState(Context& context) const {
 }
 OperatorState* Operator::NewState(Context& context) const {
   return context.Make<EmptyState>();
-}
-base::Status Source::status(const OperatorState&) const {
-  return base::OkStatus();
-}
-base::Status Transform::status(const OperatorState&) const {
-  return base::OkStatus();
-}
-base::Status Operator::status(const OperatorState&) const {
-  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::core::exec

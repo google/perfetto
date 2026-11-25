@@ -26,7 +26,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/util/arena.h"
@@ -80,18 +79,17 @@ class Context {
   void SetPipelines(const Pipelines* pipelines);
 
   // What pipeline `id`'s sink built: built by running the pipeline to its end
-  // the first time it is asked for in a run. When to build is decided here
-  // alone, so an executor could build sinks first instead.
-  base::StatusOr<OperatorState*> BuildSink(uint32_t id);
+  // the first time it is asked for in a run, or null on failure (see error()).
+  // When to build is decided here alone, so an executor could build sinks first
+  // instead.
+  OperatorState* BuildSink(uint32_t id);
 
   // What pipeline `id`'s sink built, or null if it is not built in this run.
   OperatorState* IfBuilt(uint32_t id) const;
 
   // The next batch of pipeline `id`, streamed, started the first time it is
-  // asked for in a run. Null at its end or on failure, which
-  // PipelineStatus() then says.
+  // asked for in a run. Null at its end or on failure (see error()).
   RowBatch* NextBatch(uint32_t id);
-  base::Status PipelineStatus(uint32_t id) const;
 
   // Ends the run of pipeline `id` and of what its sink built (see Held),
   // so the next asks for them afresh.

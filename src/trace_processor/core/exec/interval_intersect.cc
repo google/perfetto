@@ -101,8 +101,6 @@ class IntersectState : public HeldState {
   // owns.
   Context* context = nullptr;
 
-  Held<base::Status> status{this};
-
   // The operands' intervals, read in full.
   // Shared by all operands, so a key has the same number in each of them.
   // This only works if their key types match.
@@ -241,10 +239,6 @@ OperatorState* IntervalIntersect::NewState(Context& context) const {
   return state;
 }
 
-base::Status IntervalIntersect::status(const OperatorState& state) const {
-  return state.Cast<const IntersectState>().status;
-}
-
 void IntervalIntersect::Rewind(OperatorState&) const {}
 
 bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
@@ -259,9 +253,10 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
                            ? std::numeric_limits<uint32_t>::max()
                            : s.group_table.size();
-      s.status = s.lanes[i]->Collect(*s.operand_inputs[i], *s.context,
-                                     &s.group_table, limit);
-      if (!s.status.ok()) {
+      base::Status status = s.lanes[i]->Collect(
+          *s.operand_inputs[i], *s.context, &s.group_table, limit);
+      if (!status.ok()) {
+        s.context->Fail(std::move(status));
         return false;
       }
     }

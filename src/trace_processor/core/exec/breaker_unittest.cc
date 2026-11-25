@@ -71,7 +71,7 @@ class Reverse final : public Breaker {
     for (uint32_t row = 0; row < in.size(); ++row) {
       int64_t value = in.Value<int64_t>(column_, row);
       if (value < 0) {
-        s.status = base::ErrStatus("negative value");
+        s.context->Fail(base::ErrStatus("negative value"));
         return false;
       }
       s.values.push_back(value);
@@ -186,17 +186,16 @@ class Total final : public Sink {
     RunValue<int64_t> value{this, 0};
   };
 
-  base::Status ConsumeBatch(const RowBatch& in,
-                            OperatorState& state) const override {
+  bool ConsumeBatch(const RowBatch& in, OperatorState& state) const override {
     Sum& sum = state.Cast<Sum>();
     for (uint32_t row = 0; row < in.size(); ++row) {
       sum.value += in.Value<int64_t>(1, row);
     }
-    return base::OkStatus();
+    return true;
   }
-  base::Status FinalizeSink(OperatorState&) const override {
+  bool FinalizeSink(OperatorState&) const override {
     ++*builds_;
-    return base::OkStatus();
+    return true;
   }
 
  private:
@@ -222,26 +221,21 @@ class WithTotal final : public Transform {
     ~State() override;
     Context* context;
     PipelineUse use;
-    base::Status status;
   };
 
   void DescribeColumns(StepColumns* out) const override { out->reads = {1}; }
   bool Process(RowBatch& batch, OperatorState& state) const override {
     State& s = state.Cast<State>();
-    base::StatusOr<OperatorState*> built = s.use.Built(*s.context);
-    if (!built.ok()) {
-      s.status = built.status();
+    OperatorState* built = s.use.Built(*s.context);
+    if (!built) {
       return false;
     }
     ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
     int64_t* values = buffer.chunk().Values<int64_t>();
-    std::fill_n(values, kMaxBatchRows, *(*built)->Cast<Total::Sum>().value);
+    std::fill_n(values, kMaxBatchRows, *built->Cast<Total::Sum>().value);
     batch.SetColumn(1, ColumnView::Reference(StorageType{Int64{}}, values),
                     std::move(buffer));
     return true;
-  }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().status;
   }
 
  private:

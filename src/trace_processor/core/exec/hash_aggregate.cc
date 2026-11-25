@@ -128,8 +128,8 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     row_groups = s.row_groups.data();
     if (std::optional<uint32_t> bad =
             s.groups.FindOrCreate(in, spec_.key_columns.span(), row_groups)) {
-      s.status = base::ErrStatus(
-          "AGGREGATE: key %u must be a column holding one type", *bad + 1);
+      s.context->Fail(base::ErrStatus(
+          "AGGREGATE: key %u must be a column holding one type", *bad + 1));
       return false;
     }
     if (s.key_types.empty()) {
@@ -161,7 +161,7 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     }
   }
   if (overflow) {
-    s.status = base::ErrStatus("AGGREGATE: integer overflow");
+    s.context->Fail(base::ErrStatus("AGGREGATE: integer overflow"));
     return false;
   }
 

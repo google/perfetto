@@ -210,7 +210,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
     while (pipeline.GetData(batch, *state)) {
       read(batch);
     }
-    status = pipeline.status(*state);
+    status = state->context().error();
   }
   EXPECT_TRUE(status.ok()) << status.message();
   return result;
@@ -260,7 +260,7 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
   OperatorState* down_state = down.MakeState(test::TestContext());
   RowBatch in = Batch(down_nodes, down_parents, values);
   EXPECT_FALSE(test::ProcessCopy(down, in, out, *down_state));
-  EXPECT_THAT(down.status(*down_state).message(),
+  EXPECT_THAT(down_state->context().error().message(),
               testing::HasSubstr("overflow"));
 
   TreeAccumulateUp up(test::TestArena(),
@@ -268,11 +268,12 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
   OperatorState* up_state = up.MakeState(test::TestContext());
   in = Batch(up_nodes, up_parents, values);
   EXPECT_FALSE(test::ProcessCopy(up, in, out, *up_state));
-  EXPECT_THAT(up.status(*up_state).message(), testing::HasSubstr("overflow"));
+  EXPECT_THAT(up_state->context().error().message(),
+              testing::HasSubstr("overflow"));
   values[0] = 1;
   test::EndRun(*up_state);
   EXPECT_TRUE(test::ProcessCopy(up, in, out, *up_state));
-  EXPECT_TRUE(up.status(*up_state).ok());
+  EXPECT_TRUE(up_state->context().error().ok());
 }
 
 TEST(TreeAccumulateTest, NullsAreSkipped) {

@@ -80,9 +80,7 @@ class RowCursor {
   bool eof() const { return index_ == size_; }
 
   // Why the run stopped early, or ok.
-  base::Status status() const {
-    return context_.failed() ? context_.error() : source_.status(*state_);
-  }
+  const base::Status& status() const { return context_.error(); }
 
   // The value of `column` at the current row.
   template <typename T>

@@ -385,14 +385,14 @@ class Evaluator {
     }
   }
 
-  // Computes every step for `batch`. False if the program failed, with
-  // `status` saying why.
-  bool Run(const RowBatch& batch, base::Status* status) {
+  // Computes every step for `batch`. Returns false if the program failed, after
+  // reporting why to the Context.
+  bool Run(const RowBatch& batch) {
     rows_ = batch.row_count();
     for (uint32_t i = 0; i < program_->steps.size(); ++i) {
       regs_[i] = Register();
       if (!RunStep(program_->steps[i], batch, regs_[i])) {
-        *status = base::ErrStatus("integer overflow");
+        context_->Fail(base::ErrStatus("integer overflow"));
         return false;
       }
     }
@@ -788,7 +788,6 @@ class Evaluator {
 struct ComputeState : HeldState {
   ~ComputeState() override;
   Held<RunEach<Evaluator>> evaluators{this};
-  Held<base::Status> status{this};
 };
 ComputeState::~ComputeState() = default;
 
@@ -833,7 +832,7 @@ OperatorState* Compute::NewState(Context& context) const {
 bool Compute::Process(RowBatch& batch, OperatorState& state) const {
   auto& s = state.Cast<ComputeState>();
   for (auto& evaluator : s.evaluators) {
-    if (!evaluator.Run(batch, &s.status)) {
+    if (!evaluator.Run(batch)) {
       return false;
     }
   }
@@ -846,10 +845,6 @@ bool Compute::Process(RowBatch& batch, OperatorState& state) const {
         result.buffer);
   }
   return true;
-}
-
-base::Status Compute::status(const OperatorState& state) const {
-  return state.Cast<ComputeState>().status;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

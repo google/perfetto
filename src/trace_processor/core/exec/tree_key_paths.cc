@@ -47,8 +47,6 @@ class KeyPathsState : public HeldState {
 
   Context* context;
 
-  Held<base::Status> status{this};
-
   // Numbers the distinct values of the key columns.
   Held<GroupTable> values{this};
   // Numbers paths, by their parent's path and their number in `values`.
@@ -70,10 +68,6 @@ OperatorState* TreeKeyPaths::NewState(Context& context) const {
   return context.Make<KeyPathsState>(context);
 }
 
-base::Status TreeKeyPaths::status(const OperatorState& state) const {
-  return state.Cast<const KeyPathsState>().status;
-}
-
 bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
   auto& s = state.Cast<KeyPathsState>();
   const Selection& selection = batch.selection();
@@ -82,8 +76,8 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
   s.row_values.resize(count);
   if (std::optional<uint32_t> bad = s.values.FindOrCreate(
           batch, spec_.key_columns.span(), s.row_values.data())) {
-    s.status = base::ErrStatus(
-        "TREE KEY PATHS: key %u must be a column holding one type", *bad + 1);
+    s.context->Fail(base::ErrStatus(
+        "TREE KEY PATHS: key %u must be a column holding one type", *bad + 1));
     return false;
   }
 

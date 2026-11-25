@@ -133,7 +133,6 @@ class TreeParentFirst final : public Operator {
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
-  base::Status status(const OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
@@ -173,8 +172,6 @@ class TreeParentFirst final : public Operator {
 
     // What rows let go are gathered into.
     Context* context = nullptr;
-
-    Held<base::Status> status{this};
 
     // The nodes, and the rows waiting on them.
     Held<Nodes> nodes{this};

@@ -67,7 +67,6 @@ class IntervalFlatten final : public Operator {
   OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
@@ -105,8 +104,6 @@ class IntervalFlatten final : public Operator {
     Context* context = nullptr;
     // Words of state a group.
     uint32_t stride = 0;
-
-    Held<base::Status> status{this};
 
     // Where the input is up to.
     // The first unconsumed row when Execute yields a full output batch.

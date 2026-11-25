@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/arena.h"
@@ -75,7 +74,8 @@ struct StepColumns {
 //     the same way for every state (Context::EndRun()). A step never clears its
 //     own state; a source only resets its read position in Rewind(). A rewound
 //     state behaves exactly like a new one.
-//  5. A step which fails returns failure, and its status() says why.
+//  5. A step which fails reports why with Context::Fail(), then returns
+//     failure.
 //  6. A batch a step outputs never points into its state: its columns are in
 //     buffers from the run's Context, or borrow storage which outlives the
 //     run (see RowBatch). So a state's run can end while batches it output
@@ -158,15 +158,11 @@ class Source {
   // Restarts from the first batch.
   virtual void Rewind(OperatorState& state) const = 0;
 
-  // After GetData() returns false, distinguishes exhaustion from failure.
-  virtual base::Status status(const OperatorState&) const;
-
   // Set when the batches served are read in place: each then holds only a
   // row count, its rows being the next of these. Valid until the run ends.
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
     return nullptr;
   }
-
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
   virtual const void* type() const = 0;
@@ -211,11 +207,8 @@ class Transform {
     return context.Made(NewState(context));
   }
 
-  // False on failure, with status() saying why.
+  // Returns false on failure, after reporting why with Context::Fail().
   virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
-
-  // Why Process() returned false.
-  virtual base::Status status(const OperatorState&) const;
 
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
@@ -246,7 +239,7 @@ enum class OpResult : uint8_t {
   // `out` holds the last of the operator's output. It takes no more input,
   // Finish() is not called, and the steps before it are not pulled again.
   kFinished,
-  // The operator failed; status() says why.
+  // The operator failed, and reported why with Context::Fail().
   kError,
 };
 
@@ -287,14 +280,10 @@ class Operator {
     return OpResult::kNeedMoreInput;
   }
 
-  // Why Execute() or Finish() returned kError.
-  virtual base::Status status(const OperatorState&) const;
-
   // As Source::InPlace(), for the batches Finish() outputs.
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
     return nullptr;
   }
-
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
   virtual const void* type() const = 0;

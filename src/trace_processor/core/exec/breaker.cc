@@ -18,7 +18,6 @@
 
 #include <memory>
 
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -32,21 +31,14 @@ OperatorState* Breaker::NewSinkState(Context& context) const {
   return state;
 }
 
-base::Status Breaker::ConsumeBatch(const RowBatch& in,
-                                   OperatorState& state) const {
+bool Breaker::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
   auto& s = state.Cast<State>();
-  if (s.status.ok() && Consume(in, s)) {
-    return base::OkStatus();
-  }
-  return s.status;
+  return !s.context->failed() && Consume(in, s);
 }
 
-base::Status Breaker::FinalizeSink(OperatorState& state) const {
+bool Breaker::FinalizeSink(OperatorState& state) const {
   auto& s = state.Cast<State>();
-  if (Finalize(s)) {
-    return base::OkStatus();
-  }
-  return s.status;
+  return !s.context->failed() && Finalize(s);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

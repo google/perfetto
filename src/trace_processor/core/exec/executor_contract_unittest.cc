@@ -242,6 +242,9 @@ class ContractSource final : public Source {
     out.Reset();
     if (s.next == chunks_.size()) {
       s.failed = fail_;
+      if (fail_) {
+        s.context().Fail(base::ErrStatus("source failed"));
+      }
       return false;
     }
     const auto& values = chunks_[s.next++];
@@ -249,10 +252,6 @@ class ContractSource final : public Source {
         ColumnView::Reference(StorageType{Int64{}}, values.data()));
     out.SetRowCount(static_cast<uint32_t>(values.size()));
     return true;
-  }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().failed ? base::ErrStatus("source failed")
-                                            : base::OkStatus();
   }
   mutable uint32_t pulls = 0;
 
@@ -418,7 +417,7 @@ TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
   ASSERT_TRUE(pipeline.GetData(out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3, 4, 5));
   EXPECT_FALSE(pipeline.GetData(out, *state));
-  EXPECT_TRUE(pipeline.status(*state).ok());
+  EXPECT_TRUE(state->context().error().ok());
 }
 
 }  // namespace
