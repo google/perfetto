@@ -139,7 +139,7 @@ class StringFilter {
   };
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;
-  void RecomputeActiveSemanticTypes();
+  void RecomputeRuleMasks();
 
   // All rules, in the order they were added.
   std::vector<Rule> rules_;
@@ -148,6 +148,12 @@ class StringFilter {
   // Allows MaybeFilter() to skip MaybeFilterInternal() in O(1) when zero
   // configured rules cover a field's semantic type.
   SemanticTypeMask active_semantic_types_;
+
+  // Semantic types covered by any non-atrace rule or empty atrace prefix.
+  SemanticTypeMask non_atrace_or_empty_prefix_types_;
+
+  // 256-bit lookup table of initial bytes across bounded atrace prefixes.
+  std::array<uint64_t, 4> atrace_first_char_mask_ = {};
 
   // Reusable buffer for regex match groups, avoiding heap allocations on each
   // filter call.

@@ -131,16 +131,29 @@ void StringFilter::AddRule(Policy policy,
   if (!replaced) {
     rules_.push_back(std::move(new_rule));
   }
-  RecomputeActiveSemanticTypes();
+  RecomputeRuleMasks();
 }
 
-void StringFilter::RecomputeActiveSemanticTypes() {
-  // AddRule() is a cold setup path: recomputing the union from |rules_| after
-  // every append or named replacement is simpler than tracking cleared bits and
-  // ensures |active_semantic_types_| and |rules_| cannot drift apart.
+void StringFilter::RecomputeRuleMasks() {
+  // AddRule() is a cold setup path: recomputing derived masks from |rules_|
+  // after every append or named replacement keeps them in sync without
+  // tracking cleared bits.
   active_semantic_types_ = SemanticTypeMask();
+  non_atrace_or_empty_prefix_types_ = SemanticTypeMask();
+  atrace_first_char_mask_ = {};
   for (const Rule& rule : rules_) {
     active_semantic_types_ |= rule.semantic_type_mask;
+    bool is_bounded_atrace =
+        (rule.policy == Policy::kAtraceMatchBreak ||
+         rule.policy == Policy::kAtraceMatchRedactGroups ||
+         rule.policy == Policy::kAtraceRepeatedSearchRedactGroups) &&
+        !rule.atrace_payload_starts_with.empty();
+    if (is_bounded_atrace) {
+      uint8_t ch = static_cast<uint8_t>(rule.atrace_payload_starts_with[0]);
+      atrace_first_char_mask_[ch >> 6] |= (uint64_t(1) << (ch & 63));
+    } else {
+      non_atrace_or_empty_prefix_types_ |= rule.semantic_type_mask;
+    }
   }
 }
 
@@ -149,6 +162,23 @@ bool StringFilter::MaybeFilterInternal(char* ptr,
                                        uint32_t semantic_type) const {
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
+
+  // Fast path: when all rules covering |semantic_type| are bounded atrace
+  // prefix rules, locate the payload once and reject unmatched initial bytes.
+  if (PERFETTO_LIKELY(
+          !non_atrace_or_empty_prefix_types_.IsSet(semantic_type))) {
+    atrace_payload_ptr = FindAtracePayloadPtr(ptr, ptr + len);
+    if (!atrace_payload_ptr || atrace_payload_ptr >= ptr + len) {
+      return false;
+    }
+    uint8_t first_ch = static_cast<uint8_t>(*atrace_payload_ptr);
+    if ((atrace_first_char_mask_[first_ch >> 6] &
+         (uint64_t(1) << (first_ch & 63))) == 0) {
+      return false;
+    }
+    atrace_find_tried = true;
+  }
+
   std::string_view input(ptr, len);
 
   for (const Rule& rule : rules_) {
