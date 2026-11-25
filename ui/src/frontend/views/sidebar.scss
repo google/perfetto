@@ -391,6 +391,7 @@ li.pf-sidebar__item {
 .pf-sidebar__legal {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 5px 8px;
   border-top: 1px solid var(--pf-sidebar-border);
@@ -398,6 +399,12 @@ li.pf-sidebar__item {
   font-size: var(--pf-font-size-s);
   color: var(--pf-sidebar-on-surface-muted);
   flex-shrink: 0;
+
+  &-links {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
   a {
     color: inherit;

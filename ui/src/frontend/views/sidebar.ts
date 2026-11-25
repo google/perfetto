@@ -129,25 +129,27 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
     return m(
       '.pf-sidebar__legal',
       m('span', 'by Google'),
-      m('span.pf-sidebar__legal-sep', '·'),
       m(
-        'a',
-        {
-          href: 'https://policies.google.com/privacy',
-          target: '_blank',
-          rel: 'noopener',
-        },
-        'Privacy',
-      ),
-      m('span.pf-sidebar__legal-sep', '·'),
-      m(
-        'a',
-        {
-          href: 'https://policies.google.com/terms',
-          target: '_blank',
-          rel: 'noopener',
-        },
-        'Terms',
+        '.pf-sidebar__legal-links',
+        m(
+          'a',
+          {
+            href: 'https://policies.google.com/privacy',
+            target: '_blank',
+            rel: 'noopener',
+          },
+          'Privacy',
+        ),
+        m('span.pf-sidebar__legal-sep', '·'),
+        m(
+          'a',
+          {
+            href: 'https://policies.google.com/terms',
+            target: '_blank',
+            rel: 'noopener',
+          },
+          'Terms',
+        ),
       ),
     );
   }
