@@ -263,6 +263,7 @@ export class AppImpl implements App {
       stream,
       title: opts?.title,
       pluginArgs: opts?.pluginArgs,
+      getTraceFile: opts?.getTraceFile,
       serializedAppState,
     });
   }

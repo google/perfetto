@@ -249,6 +249,8 @@ export class TraceImpl implements Trace, Disposable {
         // Re-materialize the merged TAR (manifest + traces) from the retained
         // file list; reopening it reproduces the merge.
         return await tarFileListToBlob(src.files);
+      } else if (src.type === 'STREAM' && src.getTraceFile !== undefined) {
+        return await src.getTraceFile();
       }
     }
     // Not available in HTTP+RPC mode. Rather than propagating an undefined,

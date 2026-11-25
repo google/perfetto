@@ -95,6 +95,7 @@ describe('openFileFromSidebar', () => {
       title: 'my.pftrace',
       // Records which Drive file the trace is, for "Share to GDrive".
       pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE.id}},
+      getTraceFile: expect.any(Function),
     });
     expectNoAlerts();
   });

@@ -26,6 +26,7 @@ import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
 import {gdriveTraceArgs} from '../trace_args';
+import {makeGDriveTraceFileGetter} from './trace_file_getter';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -127,6 +128,12 @@ export async function openFileFromDeeplink(
     title: fileName,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(fileId, knownResourceKey),
+    getTraceFile: makeGDriveTraceFileGetter(
+      oauth,
+      drive,
+      fileId,
+      knownResourceKey,
+    ),
   });
 }
 

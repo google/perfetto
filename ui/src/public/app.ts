@@ -45,6 +45,9 @@ export interface Route {
 export interface OpenTraceStreamOpts {
   readonly title?: string;
   readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+  // Optional on-demand fetcher for trace.getTraceFile() (enables Download and
+  // other features that need the raw trace Blob without buffering the stream).
+  readonly getTraceFile?: () => Promise<Blob>;
 }
 
 export interface App {

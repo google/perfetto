@@ -239,12 +239,12 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
         return `${Math.floor((100 * upload.uploadedBytes) / upload.totalBytes)}%`;
       },
       // Disabled under the same conditions as "Open from GDrive", and for
-      // traces whose contents cannot be read back to upload (for example, one
-      // loaded over HTTP+RPC).
+      // traces that aren't already in Drive whose contents cannot be read back
+      // to upload (for example, one loaded over HTTP+RPC).
       disabled: () => {
         const reason = GoogleDrivePlugin.unavailableReason();
         if (reason !== false) return reason;
-        if (!trace.traceInfo.downloadable) {
+        if (!isSavedToDrive(share) && !trace.traceInfo.downloadable) {
           return 'This trace cannot be uploaded, as its contents are not available.';
         }
         return false;

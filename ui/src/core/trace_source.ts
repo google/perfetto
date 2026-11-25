@@ -49,6 +49,7 @@ export interface TraceStreamSource {
   readonly stream: TraceStream;
   readonly title?: string;
   readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+  readonly getTraceFile?: () => Promise<Blob>;
 }
 
 export interface TraceHttpRpcSource {

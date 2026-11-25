@@ -21,6 +21,7 @@ import {
 import type {DriveClient} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
 import {gdriveTraceArgs} from '../trace_args';
+import {makeGDriveTraceFileGetter} from './trace_file_getter';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -68,5 +69,11 @@ export async function openFileFromSidebar(
     title: filename,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(file.id, file.resourceKey),
+    getTraceFile: makeGDriveTraceFileGetter(
+      oauth,
+      drive,
+      file.id,
+      file.resourceKey,
+    ),
   });
 }
