@@ -47,11 +47,38 @@ constexpr uint64_t NormalizeUid(uint64_t uid) {
   return uid % kAndroidPerUserRange;
 }
 
+// TracePacket fields outside of the "oneof data" field (timestamps, trusted
+// ids, sequence flags, interned data, ...). Keep in sync with
+// protos/perfetto/trace/trace_packet.proto.
+inline constexpr uint32_t kTracePacketNonDataFields[] = {
+    protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber,
+    protos::pbzero::TracePacket::kIncrementalStateClearedFieldNumber,
+    protos::pbzero::TracePacket::kInternedDataFieldNumber,
+    protos::pbzero::TracePacket::kMachineIdFieldNumber,
+    protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber,
+    protos::pbzero::TracePacket::kSequenceFlagsFieldNumber,
+    protos::pbzero::TracePacket::kTimestampClockIdFieldNumber,
+    protos::pbzero::TracePacket::kTimestampFieldNumber,
+    protos::pbzero::TracePacket::kTracePacketDefaultsFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPidFieldNumber,
+    protos::pbzero::TracePacket::kTrustedUidFieldNumber,
+};
+
+inline bool IsTracePacketNonDataField(uint32_t field_id) {
+  for (uint32_t id : kTracePacketNonDataFields) {
+    if (id == field_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // TracePacket fields that only describe the packet itself: who wrote it and
-// when. None of them changes how other packets are decoded or adds to the trace
-// (no incremental state, no data loss markers, no machine routing). A packet
-// with only these fields is a "shell" and can be removed from any trace (see
-// PruneShellPackets).
+// when. Unlike the rest of kTracePacketNonDataFields, none of them changes how
+// other packets are decoded or adds to the trace (no incremental state, no data
+// loss markers, no machine routing). A packet with only these fields is a
+// "shell" and can be removed from any trace (see PruneShellPackets).
 inline constexpr uint32_t kShellPacketFields[] = {
     protos::pbzero::TracePacket::kTrustedUidFieldNumber,
     protos::pbzero::TracePacket::kTrustedPidFieldNumber,
@@ -304,6 +331,11 @@ class Context {
   // TracePacket has kForTestingFieldNumber which is set to 900.
   using TracePacketMask = std::bitset<1024>;
   TracePacketMask packet_mask;
+
+  // Subset of `packet_mask` allowed on packets written by app UIDs
+  // (`WriterType::kApp`), preventing a target app from injecting spoofed system
+  // payloads (e.g. ftrace_events or process_tree).
+  TracePacketMask app_packet_mask;
 
   // Ftrace packets contain a "one of" entry called "event". Within the scope of
   // a ftrace event, the event can be considered the payload and other other
