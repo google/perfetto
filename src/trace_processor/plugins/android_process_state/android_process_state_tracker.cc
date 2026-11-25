@@ -93,7 +93,7 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
-std::optional<int64_t> AndroidProcessStateTracker::ConvertStartNsToTraceTime(
+std::optional<int64_t> AndroidProcessStateTracker::StartNsToTraceTime(
     int64_t event_ts,
     const char* source,
     const char* field,
@@ -178,9 +178,8 @@ void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
     prev.process_group = static_cast<int32_t>(event.prev_process_group());
   }
   if (event.has_prev_proc_state_start_ns()) {
-    prev.start_ts =
-        ConvertStartNsToTraceTime(ts, source, "prev_proc_state_start_ns", upid,
-                                  event.prev_proc_state_start_ns());
+    prev.start_ts = StartNsToTraceTime(ts, source, "prev_proc_state_start_ns",
+                                       upid, event.prev_proc_state_start_ns());
   }
 }
 
@@ -296,9 +295,8 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
     if (rec.has_proc_state_start_ns()) {
-      v.start_ts =
-          ConvertStartNsToTraceTime(ts, "process_dump", "proc_state_start_ns",
-                                    v.upid, rec.proc_state_start_ns());
+      v.start_ts = StartNsToTraceTime(ts, "process_dump", "proc_state_start_ns",
+                                      v.upid, rec.proc_state_start_ns());
     }
     process_dump_[v.upid] = v;
   }
@@ -326,13 +324,13 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   // unfrozen_start_ns, an unfreeze frozen_start_ns), so 0 means unknown.
   if (evt.has_unfrozen_start_ns()) {
     row.unfrozen_start_ts =
-        ConvertStartNsToTraceTime(ts, "freezer_event", "unfrozen_start_ns",
-                                  *opt_upid, evt.unfrozen_start_ns());
+        StartNsToTraceTime(ts, "freezer_event", "unfrozen_start_ns", *opt_upid,
+                           evt.unfrozen_start_ns());
   }
   if (evt.has_frozen_start_ns()) {
     row.frozen_start_ts =
-        ConvertStartNsToTraceTime(ts, "freezer_event", "frozen_start_ns",
-                                  *opt_upid, evt.frozen_start_ns());
+        StartNsToTraceTime(ts, "freezer_event", "frozen_start_ns", *opt_upid,
+                           evt.frozen_start_ns());
   }
   if (evt.has_unfreeze_reason()) {
     row.unfreeze_reason =
@@ -358,11 +356,11 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
     v.upid = *opt_upid;
     if (rec.has_unfrozen_start_ns()) {
       v.unfrozen_start_ts =
-          ConvertStartNsToTraceTime(ts, "freezer_dump", "unfrozen_start_ns",
-                                    v.upid, rec.unfrozen_start_ns());
+          StartNsToTraceTime(ts, "freezer_dump", "unfrozen_start_ns", v.upid,
+                             rec.unfrozen_start_ns());
     }
     if (rec.has_frozen_start_ns()) {
-      v.frozen_start_ts = ConvertStartNsToTraceTime(
+      v.frozen_start_ts = StartNsToTraceTime(
           ts, "freezer_dump", "frozen_start_ns", v.upid, rec.frozen_start_ns());
     }
     // An unfrozen process in the dump has unfrozen_dur_ms and, on newer

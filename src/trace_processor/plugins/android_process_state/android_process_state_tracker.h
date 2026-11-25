@@ -115,7 +115,8 @@ class AndroidProcessStateTracker {
   // reconstruct each process's state at the start of the trace, records the
   // prev_* fields shared by AndroidProcessStateChangedEvent and
   // AndroidProcessStateDiedEvent from the earliest such event of |upid|, at
-  // |ts|. Later events return before reading them. Defined in the .cc file,
+  // |ts|. Later events return before reading or validating them. Defined in
+  // the .cc file,
   // the only place it is instantiated.
   template <typename Decoder>
   void UpdateInitialStateFromDelta(int64_t ts,
@@ -129,11 +130,11 @@ class AndroidProcessStateTracker {
   // records a stat), |boottime_ns| is negative, or the converted time is after
   // |event_ts|. The last two cases are invalid and recorded via
   // RecordInvalidStartTs().
-  std::optional<int64_t> ConvertStartNsToTraceTime(int64_t event_ts,
-                                                   const char* source,
-                                                   const char* field,
-                                                   UniquePid upid,
-                                                   int64_t boottime_ns);
+  std::optional<int64_t> StartNsToTraceTime(int64_t event_ts,
+                                            const char* source,
+                                            const char* field,
+                                            UniquePid upid,
+                                            int64_t boottime_ns);
 
   // Records the android_process_state_invalid_start_ts stat and an import log
   // with details of a dropped negative or post-event start time.

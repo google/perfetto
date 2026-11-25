@@ -733,6 +733,78 @@ class AndroidParser(TestSuite):
           3,"after_event","freezer_dump","frozen_start_ns",300,5000,6000,6000,"[NULL]","[NULL]"
         """))
 
+  def test_android_process_state_delta_negative_and_non_earliest(self):
+    # Negative prev_proc_state_start_ns on a process's earliest delta is
+    # dropped and logged; a non-earliest delta skips prev_* decoding entirely.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_SERVICE
+              prev_proc_state_start_ns: -5
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_SERVICE
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_proc_state_start_ns: 9999
+              reason: 3
+              seq_id: 2
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (
+            SELECT state_start_ts
+            FROM __intrinsic_android_process_state
+            WHERE is_initial = 1
+          ) AS state_start_ts,
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          extract_arg(arg_set_id, 'reason') AS reason,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'field') AS field,
+          extract_arg(arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(arg_set_id, 'start_ts') AS start_ts
+        FROM _trace_import_logs
+        WHERE name = 'android_process_state_invalid_start_ts';
+        """,
+        out=Csv("""
+          "state_start_ts","stat_value","reason","source","field","event_ts","start_ns","start_ts"
+          "[NULL]",1,"negative","process_state_changed","prev_proc_state_start_ns",2000,-5,"[NULL]"
+        """))
+
   def test_android_process_state_start_ts_clock_conversion(self):
     # The trace clock is MONOTONIC, which is BOOTTIME - 9000. Packets are
     # timestamped in BOOTTIME, like the proc_state_start_ns /
