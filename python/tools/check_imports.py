@@ -147,6 +147,7 @@ DEPS_ALLOWLIST = [
     # use its registry; component tests (*.ctest.ts, next to the component)
     # use its Playwright helper.
     ('/component_harness/*', ['/widgets/*', '/frontend/theme_provider']),
+    ('/component_harness/harness_test_helper', '/test/screenshot_name'),
     ('*.fixture', '/component_harness/registry'),
     ('*.ctest', '/component_harness/harness_test_helper'),
 ]

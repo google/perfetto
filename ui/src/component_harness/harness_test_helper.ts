@@ -21,7 +21,7 @@ import {
   type Page,
   type PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test';
-import {formatScreenshotName} from '../test/perfetto_ui_test_helper';
+import {formatScreenshotName} from '../test/screenshot_name';
 import type {HarnessWindow} from './registry';
 
 export interface MountOptions {
