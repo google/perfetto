@@ -194,6 +194,16 @@ extern "C" void __msan_unpoison(void const volatile*, size_t);
 #define PERFETTO_NO_VECTORIZE_LOOP
 #endif
 
+// Put before a loop to keep a single copy of its vector body when clang
+// vectorizes it. By default clang also interleaves and unrolls the loop,
+// which adds code for little extra speed.
+#if defined(__clang__)
+#define PERFETTO_VECTORIZE_LOOP_ONCE \
+  _Pragma("clang loop interleave_count(1) unroll(disable)")
+#else
+#define PERFETTO_VECTORIZE_LOOP_ONCE
+#endif
+
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
 #define PERFETTO_FALLTHROUGH [[fallthrough]]
 

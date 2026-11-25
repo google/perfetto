@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
@@ -127,6 +128,8 @@ void RowStore::Hold(const RowBatch& in) {
   if (!held_) {
     nullable_.clear();
     nullable_.push_back_multiple(false, in.column_count());
+    sequence_.clear();
+    sequence_.push_back_multiple(false, in.column_count());
     sources_.resize(in.column_count());
   }
   if (held_ == batches_.size()) {
@@ -145,6 +148,9 @@ void RowStore::Hold(const RowBatch& in) {
     sources_[c].push_back(GatherSource::Of(column));
     if (column.validity()) {
       nullable_[c] = true;
+    }
+    if (column.kind() == ColumnView::Kind::kSequence) {
+      sequence_[c] = true;
     }
   }
   if (dense_ == held_rows_ && held_rows_ == (held_ << kPlaceRowBits) &&
@@ -184,6 +190,7 @@ void RowStore::Clear() {
     sources.clear();
   }
   nullable_.clear();
+  sequence_.clear();
   packing_.Clear();
   packed_ = false;
   holds_sparse_ = false;
@@ -202,6 +209,7 @@ void RowStore::EndRun() {
   EndRunOf(&ends_);
   EndRunOf(&places_);
   EndRunOf(&nullable_);
+  EndRunOf(&sequence_);
   for (FlexVector<GatherSource>& sources : sources_) {
     EndRunOf(&sources);
   }
@@ -296,6 +304,7 @@ uint32_t RowStore::Gather(RowBatch* out,
   if (kept && !kept->prefix()) {
     kept_rows = kept->indices();
   } else {
+    PERFETTO_VECTORIZE_LOOP_ONCE
     for (uint32_t i = 0; i < kept_count; ++i) {
       prefix_rows[i] = static_cast<uint16_t>(i);
     }
@@ -322,7 +331,7 @@ uint32_t RowStore::Gather(RowBatch* out,
     ColumnBuffer buffer = context.TakeBuffer(ValueWidth(like));
     ColumnChunk& chunk = buffer.chunk();
     chunk.Gather(like, sources_[stored].data(), places, kept_rows, kept_count,
-                 count, nullable_[stored]);
+                 count, nullable_[stored], sequence_[stored]);
     out->AddColumn(chunk.View(like, nullable_[stored]), std::move(buffer));
   }
   out->SetRowCount(count);
