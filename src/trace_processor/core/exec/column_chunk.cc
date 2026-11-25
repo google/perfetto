@@ -98,7 +98,9 @@ void WriteValidity(Valid valid,
 // `sources` to row r of `dest`. Each value is `kWidth` bytes. This is a
 // function rather than a lambda: through a closure, the compiler would assume
 // the bytes written could alias the arguments and reload them every row.
-template <uint32_t kWidth>
+// Sequences are only checked for when `kSequence` is set, so gathering any
+// other column has no per-row branch for them.
+template <uint32_t kWidth, bool kSequence>
 void GatherValues(const GatherSource* sources,
                   const uint32_t* places,
                   const uint16_t* kept,
@@ -109,10 +111,9 @@ void GatherValues(const GatherSource* sources,
     uint32_t place = places[r];
     const GatherSource& source = sources[place >> kPlaceRowBits];
     uint32_t index = source.start + (place & kPlaceRowMask);
-    if constexpr (kWidth == sizeof(uint32_t)) {
-      // A sequence has no storage: its value is where it would be stored.
-      // Only Id columns are sequences.
-      if (PERFETTO_UNLIKELY(!source.data)) {
+    if constexpr (kSequence) {
+      // A sequence stores no values: a row's value is its index.
+      if (!source.data) {
         memcpy(dest + r * kWidth, &index, kWidth);
         continue;
       }
@@ -175,12 +176,20 @@ void ColumnChunk::Gather(const ColumnView& like,
                          const uint16_t* kept,
                          uint32_t kept_count,
                          uint32_t count,
-                         bool nullable) {
+                         bool nullable,
+                         bool sequence) {
   PERFETTO_DCHECK(uint64_t{ValueWidth(like)} * kMaxBatchRows <= storage.size());
-  DispatchOnWidth(like, [&](auto width) {
-    GatherValues<decltype(width)::value>(sources, places, kept, kept_count,
+  if (sequence) {
+    // Only Id columns are sequences, and they're 32-bit.
+    PERFETTO_DCHECK(ValueWidth(like) == sizeof(uint32_t));
+    GatherValues<sizeof(uint32_t), true>(sources, places, kept, kept_count,
                                          Values<uint8_t>());
-  });
+  } else {
+    DispatchOnWidth(like, [&](auto width) {
+      GatherValues<decltype(width)::value, false>(
+          sources, places, kept, kept_count, Values<uint8_t>());
+    });
+  }
 
   SizeValidity();
   if (!nullable) {

@@ -60,6 +60,7 @@ PERFETTO_NO_INLINE bool Pair(const T* keys,
                              uint64_t count,
                              uint32_t* paired) {
   uint32_t missing = 0;
+  PERFETTO_VECTORIZE_LOOP_ONCE
   for (uint32_t row = 0; row < rows; ++row) {
     uint64_t above =
         static_cast<uint64_t>(static_cast<int64_t>(keys[row])) - first;
@@ -94,6 +95,7 @@ bool PairKey(const RowBatch& in,
   if (key.kind() == ColumnView::Kind::kSequence) {
     uint32_t start = key.start();
     uint32_t missed = 0;
+    PERFETTO_VECTORIZE_LOOP_ONCE
     for (uint32_t row = 0; row < rows; ++row) {
       uint64_t above = uint64_t{start + row} - first;
       bool found = above < count;
