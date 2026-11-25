@@ -16,6 +16,7 @@
 
 #include "src/trace_redaction/collect_system_info.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
@@ -122,6 +123,27 @@ TEST_F(CollectSystemInfoTest, IgnoresAppPackets) {
   BuildSyntheticThreads build;
   ASSERT_OK(build.Build(&context_));
   ASSERT_EQ(context_.synthetic_process, nullptr);
+}
+
+TEST_F(CollectSystemInfoTest, RejectsOutOfRangeCpu) {
+  packet_.mutable_ftrace_events()->set_cpu(SystemInfo::kMaxCpus);
+  EXPECT_FALSE(Collect().ok());
+}
+
+TEST_F(CollectSystemInfoTest, RejectsWrongWireTypeCpuWithoutCrashing) {
+  // Encode field 1 (FtraceEventBundle::kCpuFieldNumber) with wire type 2
+  // (length-delimited) instead of kVarInt.
+  constexpr char kWrongWireTypeCpu[] = "\x0a\x01x";
+  protozero::HeapBuffered<protos::pbzero::TracePacket> raw;
+  raw->set_trusted_uid(Context::kTracedProbesUid);
+  raw->AppendBytes(protos::pbzero::TracePacket::kFtraceEventsFieldNumber,
+                   kWrongWireTypeCpu, sizeof(kWrongWireTypeCpu) - 1);
+  auto malformed = raw.SerializeAsString();
+  protos::pbzero::TracePacket::Decoder decoder(malformed);
+
+  CollectSystemInfo collect;
+  ASSERT_OK(collect.Begin(&context_));
+  EXPECT_FALSE(collect.Collect(decoder, &context_).ok());
 }
 
 }  // namespace perfetto::trace_redaction

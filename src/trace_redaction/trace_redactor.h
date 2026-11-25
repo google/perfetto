@@ -86,6 +86,12 @@ class ConcreteRedactorPass {
            transformers_.empty() && augmenters_.empty();
   }
 
+  // When true, Collect fails if the trace buffer has trailing bytes that do
+  // not decode as packets (i.e. the trace is truncated or corrupt).
+  void set_reject_trailing_bytes(bool reject) {
+    reject_trailing_bytes_ = reject;
+  }
+
   // Executes the pass: Collect -> Validate -> Build -> Transform -> Augment.
   // Transformed and augmented packets are appended to `output_buffer`.
   base::Status Redact(std::string_view view,
@@ -154,6 +160,8 @@ class ConcreteRedactorPass {
   std::vector<std::unique_ptr<BuildPrimitive>> builders_;
   std::vector<std::unique_ptr<TransformPrimitive>> transformers_;
   std::vector<std::unique_ptr<AugmentPrimitive>> augmenters_;
+
+  bool reject_trailing_bytes_ = false;
 };
 
 // Orchestrates multi-pass trace redaction by executing one or more

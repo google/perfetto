@@ -62,20 +62,14 @@ base::Status CollectSystemInfo::Collect(
 
 base::Status CollectSystemInfo::OnFtraceEvents(protozero::ConstBytes bytes,
                                                Context* context) const {
-  protozero::ProtoDecoder decoder(bytes);
-
-  auto cpu =
-      decoder.FindField(protos::pbzero::FtraceEventBundle::kCpuFieldNumber);
-
-  if (!cpu.valid()) {
+  protos::pbzero::FtraceEventBundle::Decoder bundle(bytes);
+  if (!bundle.has_cpu() || bundle.cpu() >= SystemInfo::kMaxCpus) {
     return base::ErrStatus(
-        "BuildSyntheticThreads: missing FtraceEventBundle::kCpu.");
+        "BuildSyntheticThreads: missing or out-of-range "
+        "FtraceEventBundle::kCpu.");
   }
 
-  if (cpu.valid()) {
-    context->system_info->ReserveCpu(cpu.as_uint32());
-  }
-
+  context->system_info->ReserveCpu(bundle.cpu());
   return base::OkStatus();
 }
 

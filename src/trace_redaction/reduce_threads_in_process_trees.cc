@@ -101,6 +101,11 @@ base::Status ReduceThreadsInProcessTrees::Transform(const Context& context,
   // This has been verified by the verify primitive.
   auto timestamp =
       decoder.FindField(protos::pbzero::TracePacket::kTimestampFieldNumber);
+  if (!timestamp.valid() ||
+      timestamp.type() != protozero::proto_utils::ProtoWireType::kVarInt) {
+    return base::ErrStatus(
+        "RedactProcessTrees: missing TracePacket::kTimestamp.");
+  }
 
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 

@@ -18,6 +18,7 @@
 
 #include <string>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -54,7 +55,11 @@ base::Status ScrubProcessStats::Transform(const Context& context,
   // timestamp is located at the trace packet.
   auto time_field = packet_decoder.FindField(
       protos::pbzero::TracePacket::kTimestampFieldNumber);
-  PERFETTO_DCHECK(time_field.valid());
+  if (PERFETTO_UNLIKELY(!time_field.valid() ||
+                        time_field.type() !=
+                            protozero::proto_utils::ProtoWireType::kVarInt)) {
+    return base::ErrStatus("ScrubProcessStats: missing timestamp.");
+  }
 
   auto ts = time_field.as_uint64();
 
@@ -100,13 +105,13 @@ base::Status ScrubProcessStats::OnProcess(
   PERFETTO_DCHECK(field.id() ==
                   protos::pbzero::ProcessStats::kProcessesFieldNumber);
 
-  protozero::ProtoDecoder decoder(field.as_bytes());
-  auto pid =
-      decoder.FindField(protos::pbzero::ProcessStats::Process::kPidFieldNumber);
-  PERFETTO_DCHECK(pid.valid());
+  protos::pbzero::ProcessStats::Process::Decoder proc(field.as_bytes());
+  if (PERFETTO_UNLIKELY(!proc.has_pid())) {
+    return base::ErrStatus("ScrubProcessStats: process with no pid.");
+  }
 
   PERFETTO_DCHECK(filter_);
-  if (filter_->Includes(context, ts, pid.as_int32())) {
+  if (filter_->Includes(context, ts, proc.pid())) {
     proto_util::AppendField(field, message);
   }
 
