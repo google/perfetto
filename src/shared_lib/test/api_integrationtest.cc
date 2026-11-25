@@ -148,6 +148,13 @@ class MockDs2Callbacks : testing::Mock {
                void* user_arg,
                void* inst_ctx,
                struct PerfettoDsOnFlushArgs* args));
+  MOCK_METHOD(void,
+              WillClearIncrementalState,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx,
+               struct PerfettoDsWillClearIncrementalStateArgs* args));
   MOCK_METHOD(void*,
               OnCreateTls,
               (struct PerfettoDsImpl*,
@@ -905,6 +912,14 @@ class SharedLibDataSourceTest : public testing::Test {
           return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
+    params.will_clear_incremental_state_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           void* user_arg, void* inst_ctx,
+           struct PerfettoDsWillClearIncrementalStateArgs* args) {
+          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+          thiz->ds2_callbacks_.WillClearIncrementalState(
+              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
+        };
     params.on_create_tls_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
@@ -1495,6 +1510,45 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
   TracingSession tracing_session_1 =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
+}
+
+TEST_F(SharedLibDataSourceTest, WillClearIncrementalStateCallback) {
+  void* const kInstCtx = reinterpret_cast<void*>(0x444);
+  WaitableEvent clear_notification;
+
+  EXPECT_CALL(ds2_callbacks_, OnSetup(data_source_2.impl, _, _, _,
+                                      kDataSource2UserArg, nullptr))
+      .WillOnce(Return(kInstCtx));
+  EXPECT_CALL(ds2_callbacks_,
+              WillClearIncrementalState(data_source_2.impl, _,
+                                        kDataSource2UserArg, kInstCtx, nullptr))
+      .WillRepeatedly([&clear_notification](
+                          struct PerfettoDsImpl*, PerfettoDsInstanceIndex,
+                          void*, void*,
+                          struct PerfettoDsWillClearIncrementalStateArgs*) {
+        PERFETTO_DS_TRACE(data_source_2, ctx) {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+          perfetto_protos_TracePacket_set_timestamp(&trace_packet.msg, 42);
+          PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+        }
+        clear_notification.Notify();
+      });
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  ASSERT_TRUE(clear_notification.WaitForNotification());
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(perfetto_protos_Trace_packet_field_number,
+                       MsgField(Contains(PbField(
+                           perfetto_protos_TracePacket_timestamp_field_number,
+                           VarIntField(42)))))));
 }
 
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
