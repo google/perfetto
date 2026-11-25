@@ -110,6 +110,37 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
+template <typename Decoder>
+void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
+    int64_t ts,
+    UniquePid upid,
+    const Decoder& event) {
+  EarliestDelta& earliest = earliest_prev_[upid];
+  if (ts >= earliest.ts) {
+    return;
+  }
+  earliest.ts = ts;
+  ProcessStateValues& prev = earliest.values;
+  prev = ProcessStateValues();
+  prev.upid = upid;
+  if (event.has_prev_proc_state()) {
+    prev.proc_state = static_cast<int32_t>(event.prev_proc_state());
+  }
+  if (event.has_prev_oom_score()) {
+    prev.oom_score = event.prev_oom_score();
+  }
+  if (event.has_prev_capability_flags()) {
+    prev.capability_flags = event.prev_capability_flags();
+  }
+  if (event.has_prev_process_group()) {
+    prev.process_group = static_cast<int32_t>(event.prev_process_group());
+  }
+  if (event.has_prev_proc_state_start_ns()) {
+    prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                       event.prev_proc_state_start_ns(), ts);
+  }
+}
+
 void AndroidProcessStateTracker::ParseProcessStateChange(
     int64_t ts,
     protozero::ConstBytes bytes) {
@@ -121,32 +152,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   UniquePid upid = *opt_upid;
 
-  // The track-event stream only emits delta transitions (prev -> cur). To
-  // reconstruct each process's state at the start of the trace, record the
-  // `prev_*` values from its earliest observed delta event.
-  EarliestDelta& earliest = earliest_prev_[upid];
-  if (ts < earliest.ts) {
-    earliest.ts = ts;
-    ProcessStateValues& prev = earliest.values;
-    prev = ProcessStateValues();
-    prev.upid = upid;
-    if (p.has_prev_proc_state()) {
-      prev.proc_state = static_cast<int32_t>(p.prev_proc_state());
-    }
-    if (p.has_prev_oom_score()) {
-      prev.oom_score = p.prev_oom_score();
-    }
-    if (p.has_prev_capability_flags()) {
-      prev.capability_flags = p.prev_capability_flags();
-    }
-    if (p.has_prev_process_group()) {
-      prev.process_group = static_cast<int32_t>(p.prev_process_group());
-    }
-    if (p.has_prev_proc_state_start_ns()) {
-      prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                         p.prev_proc_state_start_ns(), ts);
-    }
-  }
+  UpdateInitialStateFromDelta(ts, upid, p);
 
   // Insert the change row.
   tables::AndroidProcessStateTable::Row row;

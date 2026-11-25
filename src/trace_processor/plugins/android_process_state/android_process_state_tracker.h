@@ -106,6 +106,17 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> unfreeze_reason;
   };
 
+  // The track-event stream only emits delta transitions (prev -> cur). To
+  // reconstruct each process's state at the start of the trace, records the
+  // prev_* fields of the earliest AndroidProcessStateChangedEvent of |upid|,
+  // at |ts|. Later events return before reading them. Templated on the decoder
+  // to keep the proto headers out of this header; defined in the .cc file, the
+  // only place it is instantiated.
+  template <typename Decoder>
+  void UpdateInitialStateFromDelta(int64_t ts,
+                                   UniquePid upid,
+                                   const Decoder& event);
+
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.
   struct EarliestDelta {
