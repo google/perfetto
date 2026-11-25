@@ -19,7 +19,7 @@ import {
   alertDownloadFailed,
   alertPickerFailed,
 } from '../dialogs';
-import type {DriveClient} from '../google/drive_client';
+import type {DriveClient, GDriveOpenFileRequest} from '../google/drive_client';
 import {parseGDriveStateParam} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
 import {promptModal} from '../../../widgets/modal';
@@ -46,7 +46,24 @@ export async function openFileFromDeeplink(
     // Failed to parse state parameter; ignore.
     return;
   }
-  const {fileId, resourceKey} = parsed.value;
+
+  await openFileById(app, oauth, drive, parsed.value, hideAuthDialogSetting, {
+    onAuthenticated: removeStateParamFromUrl,
+  });
+}
+
+// Opens a specific Google Drive file given its file ID and optional resource
+// key. Authorizes access via the Drive picker if the app does not yet have
+// permission to read the file.
+export async function openFileById(
+  app: App,
+  oauth: GoogleOAuthClient,
+  drive: DriveClient,
+  file: GDriveOpenFileRequest,
+  hideAuthDialogSetting: Setting<boolean>,
+  opts?: {onAuthenticated?: () => void},
+) {
+  const {fileId, resourceKey} = file;
 
   // Authenticate with the oauth client and obtain an access token. Nothing was
   // clicked to get here, so the browser may block Google's popup. If it does,
@@ -67,11 +84,7 @@ export async function openFileFromDeeplink(
   }
   const oauthToken = auth.value;
 
-  // We are committed to opening this file now, so consume the 'state' query
-  // param. The router will append ?local_cache_key=xxx to the hash once the
-  // trace finishes loading, so that a reload reopens the trace from the
-  // browser's cache rather than from Drive.
-  removeStateParamFromUrl();
+  opts?.onAuthenticated?.();
 
   // Attempt to open the file and look up its name in parallel.
   const [fileMetaResult, initialDownloadResult] = await Promise.all([

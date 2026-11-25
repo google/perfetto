@@ -9,23 +9,25 @@ menu.
 
 ## Flows
 
-### Sidebar flow (openFileFromSidebar)
+### Sidebar flow (openFileFromSidebar / openFileById)
 
 ```mermaid
 graph TD
     A[Click Open from GDrive] --> B{Flow already running}
     B -->|Yes| C[Do nothing]
-    B -->|No| D[Authenticate]
-    D --> E{Got token}
-    E -->|No| F[Alert connect failed]
-    E -->|Yes| G[Show file picker]
-    G --> H{Picker result}
-    H -->|Cancelled| I[Do nothing]
-    H -->|Error| J[Alert picker failed]
-    H -->|Picked| K[Download file]
-    K --> L{Download ok}
-    L -->|No| M[Alert download failed]
-    L -->|Yes| N[Open trace]
+    B -->|No| D[Show Open from Google Drive dialog]
+    D -->|Browse Google Drive| E[Authenticate]
+    D -->|Paste Drive link and click Open| F[openFileById: same auth, download, and authorize flow as deep link]
+    E --> G{Got token}
+    G -->|No| H[Alert connect failed]
+    G -->|Yes| I[Show file picker]
+    I --> J{Picker result}
+    J -->|Cancelled| K[Do nothing]
+    J -->|Error| L[Alert picker failed]
+    J -->|Picked| M[Download file with omnibox progress]
+    M --> N{Download ok}
+    N -->|No| O[Alert download failed]
+    N -->|Yes| P[Open trace]
 ```
 
 ### Deep link flow (openFileFromDeeplink)
@@ -48,16 +50,18 @@ graph TD
     M --> N
     N -->|No| O[Alert connect failed]
     N -->|Yes| P[Remove state param from URL]
-    P --> Q[Fetch metadata and download file in parallel]
+    P --> Q[Fetch metadata and download file with omnibox progress]
     Q --> R{Access denied}
-    R -->|Yes| S[Prompt Authorize access to file]
-    S --> T{User pressed Authorize}
+    R -->|Yes| S{HideAuthDialog setting}
+    S -->|No| S1[Prompt Authorize access to file with Drive link]
+    S1 --> T{User pressed Authorize}
     T -->|No| U[Do nothing]
     T -->|Yes| V[Show picker for this file]
+    S -->|Yes| V
     V --> W{Picker result}
     W -->|Cancelled| X[Do nothing]
     W -->|Error| Y[Alert picker failed]
-    W -->|Picked| Z[Download file again]
+    W -->|Picked| Z[Download file again with omnibox progress]
     R -->|No| AA{Download ok}
     Z --> AA
     AA -->|No| AB[Alert download failed]
@@ -318,12 +322,18 @@ for access to any files.
 
 ### Sidebar flow
 
-1. Click "Open from GDrive" in the sidebar.
-2. Complete the Google popup if it asks.
-3. Pick a trace in the picker. It should open, titled with the file's name.
-4. Cancel the picker instead of picking: nothing should happen.
-5. Clicking the button again while a flow is still running (e.g. while the
-   picker is open) should do nothing.
+1. Click "Open from GDrive" in the sidebar. The "Open from Google Drive"
+   dialog should appear with two options: browsing Drive or pasting a Drive
+   link.
+2. Click "Browse Google Drive", complete the Google popup if it asks, and pick
+   a trace in the picker. While downloading, progress should be shown in the
+   omnibox, and the trace should open titled with the file's name.
+3. Cancel the picker instead of picking: nothing should happen.
+4. Reopen the dialog, paste a Google Drive file link (or `?resourcekey=` link)
+   into the link field, and click "Open". It should follow the same download
+   and authorization flow as a deep link.
+5. Clicking the sidebar button again while a flow is still running (e.g. while
+   the picker is open) should do nothing.
 
 ### Token reuse within a session
 

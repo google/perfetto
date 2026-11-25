@@ -15,7 +15,9 @@
 import {
   DriveClient,
   gdriveOpenLink,
+  gdriveViewLink,
   isValidDriveId,
+  parseGDriveLink,
   parseGDriveStateParam,
 } from './drive_client';
 
@@ -347,6 +349,77 @@ describe('gdriveOpenLink', () => {
     expect(gdriveOpenLink('https://ui.perfetto.dev', 'file_123')).toBe(
       'https://ui.perfetto.dev/?state=' +
         encodeURIComponent(JSON.stringify({ids: ['file_123']})),
+    );
+  });
+});
+
+describe('parseGDriveLink', () => {
+  test.each([
+    [
+      'standard view link',
+      'https://drive.google.com/file/d/file_123/view?usp=sharing',
+      {fileId: 'file_123', resourceKey: undefined},
+    ],
+    [
+      'view link with resourcekey',
+      'https://drive.google.com/file/d/file_123/view?resourcekey=0-key_9&usp=sharing',
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+    [
+      'account-indexed /u/0/ link',
+      'https://drive.google.com/u/0/file/d/file_123/view?resourcekey=0-key_9',
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+    [
+      'docs.google.com file link',
+      'https://docs.google.com/file/d/file_123/view',
+      {fileId: 'file_123', resourceKey: undefined},
+    ],
+    [
+      'open?id= link',
+      'https://drive.google.com/open?id=file_123&resourcekey=0-key_9',
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+    [
+      'uc?id= link',
+      'https://drive.google.com/uc?id=file_123&export=download',
+      {fileId: 'file_123', resourceKey: undefined},
+    ],
+    [
+      'Perfetto Google Drive deep link',
+      gdriveOpenLink('https://ui.perfetto.dev', 'file_123', '0-key_9'),
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+  ])('parses %s', (_name, link, expected) => {
+    expect(parseGDriveLink(`  ${link}  `)).toEqual({ok: true, value: expected});
+  });
+
+  test.each([
+    ['empty string', ''],
+    ['not a URL', 'not a url'],
+    ['non-Drive host', 'https://example.com/file/d/file_123/view'],
+    ['Drive folder link', 'https://drive.google.com/drive/folders/folder_123'],
+    ['missing id param', 'https://drive.google.com/open?foo=bar'],
+    ['invalid file ID', 'https://drive.google.com/open?id=bad/id'],
+    [
+      'invalid resource key',
+      'https://drive.google.com/file/d/file_123/view?resourcekey=bad/key',
+    ],
+  ])('rejects %s', (_name, input) => {
+    expect(parseGDriveLink(input).ok).toBe(false);
+  });
+});
+
+describe('gdriveViewLink', () => {
+  test('builds a Drive link from the file ID', () => {
+    expect(gdriveViewLink('file_123')).toBe(
+      'https://drive.google.com/file/d/file_123/view',
+    );
+  });
+
+  test('includes the resource key if given', () => {
+    expect(gdriveViewLink('file_123', '0-key_9')).toBe(
+      'https://drive.google.com/file/d/file_123/view?resourcekey=0-key_9',
     );
   });
 });

@@ -25,7 +25,11 @@ import {Inline, Stack, StackAuto} from '../../../widgets/stack';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {TextInput} from '../../../widgets/text_input';
 import {renderErrorDetails} from '../dialogs';
-import {type DriveFilePermission, gdriveOpenLink} from '../google/drive_client';
+import {
+  type DriveFilePermission,
+  gdriveOpenLink,
+  gdriveViewLink,
+} from '../google/drive_client';
 import './share_form.scss';
 
 // Everything the "Share to Google Drive" dialog shows for a trace.
@@ -189,7 +193,7 @@ function renderUploaded(attrs: ShareFormAttrs, fileId: string): m.Children {
         Anchor,
         {
           className: 'pf-gdrive-share__open-drive',
-          href: `https://docs.google.com/file/d/${fileId}/view`,
+          href: gdriveViewLink(fileId, attrs.state.resourceKey),
           target: '_blank',
           rel: 'noopener',
           icon: Icons.ExternalLink,
