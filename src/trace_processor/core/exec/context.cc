@@ -32,7 +32,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -66,8 +65,6 @@ struct Context::Held {
   // The state and its size.
   void* state;
   uint32_t size;
-  // Whether the state is a HeldState, whose members end their own runs.
-  bool members = false;
   // Whether a RunVector grew since the state's last run ended, and whether
   // the state has made or taken batches or buffers.
   bool grew = false;
@@ -260,10 +257,6 @@ void Context::AddState(OperatorState* state, uint32_t size, bool restored) {
   }
 }
 
-void Context::AddHeldState(OperatorState* state) {
-  held_[state->id_].members = true;
-}
-
 void* Context::AllocateSpan(size_t size, size_t align) {
   return states_.Allocate(size,
                           size >= kBlockAlignment ? kBlockAlignment : align);
@@ -285,7 +278,7 @@ OperatorState* Context::Made(OperatorState* state) {
     bytes.made = states_.Allocate(bytes.size, alignof(std::max_align_t));
     memcpy(bytes.made, bytes.where, bytes.size);
   }
-  SetHolds(*state, Holds(held, *state));
+  SetHolds(*state, Holds(held));
   return state;
 }
 
@@ -294,11 +287,10 @@ void Context::SetHolds(OperatorState& state, bool holds) {
   state.holds_ = holds;
 }
 
-bool Context::Holds(const Held& held, OperatorState& state) {
+bool Context::Holds(const Held& held) {
   return !held.bytes.empty() || !held.blocks.empty() ||
          !held.made_batches.empty() || !held.made_buffers.empty() ||
-         !held.pipelines.empty() ||
-         (held.members && static_cast<HeldState&>(state).holds());
+         !held.pipelines.empty();
 }
 
 namespace {
@@ -316,9 +308,6 @@ void Context::EndHeldRun(OperatorState& state) {
   for (uint32_t id : held.pipelines) {
     EndPipelineRun(id);
   }
-  if (held.members) {
-    static_cast<HeldState&>(state).EndRun();
-  }
   if (!held.blocks.empty()) {
     EndBlocks(held);
   }
@@ -328,7 +317,7 @@ void Context::EndHeldRun(OperatorState& state) {
   for (const Held::Bytes& bytes : held.bytes) {
     memcpy(bytes.where, bytes.made, bytes.size);
   }
-  SetHolds(state, Holds(held, state));
+  SetHolds(state, Holds(held));
 }
 
 void Context::EndBatches(Held& held) {

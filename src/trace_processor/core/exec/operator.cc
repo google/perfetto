@@ -16,37 +16,7 @@
 
 #include "src/trace_processor/core/exec/operator.h"
 
-#include <cstring>
-
-#include "src/trace_processor/core/exec/run_held.h"
-
 namespace perfetto::trace_processor::core::exec {
-
-HeldState::~HeldState() = default;
-
-void HeldState::EndHeldRuns() {
-  const Registry& registry = *held_;
-  for (const HeldValue& value : registry.values) {
-    switch (value.size) {
-      case 1:
-        memcpy(value.where, &value.initial, 1);
-        break;
-      case 4:
-        memcpy(value.where, &value.initial, 4);
-        break;
-      default:
-        memcpy(value.where, &value.initial, 8);
-        break;
-    }
-  }
-  for (const HeldObject& held : registry.held) {
-    held.end_run(held.where);
-  }
-}
-
-void HeldState::AddHeld(void* where, void (*end_run)(void*)) {
-  registry().held.push_back({where, end_run});
-}
 
 // Defined out of line so that each class's vtable is emitted in one object
 // file.

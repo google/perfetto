@@ -32,7 +32,6 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-class HeldState;
 class OperatorState;
 class Pipelines;
 class RowBatch;
@@ -212,9 +211,8 @@ class Context {
   // of its RunVectors ends as its RunKeep says; memory which is not kept in
   // place is saved for the state's next run if it is no bigger than
   // kRunKeptBytes. Batches and buffers made with the state are emptied, and
-  // those it took are emptied and kept for it to take again. A HeldState ends
-  // the run of each of its members. This costs only a check when the state
-  // holds nothing for the run. Defined in operator.h.
+  // those it took are emptied and kept for it to take again. This costs only a
+  // check when the state holds nothing for the run. Defined in operator.h.
   inline void EndRun(OperatorState& state);
 
   // Whether any state has something to end when its run ends. If none does,
@@ -274,29 +272,18 @@ class Context {
   template <typename T, typename... Args>
   T* MakeState(bool restored, Args&&... args) {
     static_assert(std::is_base_of_v<OperatorState, T>);
-    if constexpr (std::is_base_of_v<HeldState, T>) {
-      // Its members end their own runs, so the state is never restored. The
-      // context destroys it.
-      T* state = new T(std::forward<Args>(args)...);
-      AddOwned(state, &Delete<T>);
-      AddState(state, sizeof(T), false);
-      AddHeldState(state);
-      return state;
-    } else {
-      static_assert(std::is_trivially_destructible_v<T>,
-                    "a state is plain data, or a HeldState");
-      T* state = new (states_.Allocate(sizeof(T), alignof(T)))
-          T(std::forward<Args>(args)...);
-      AddState(state, sizeof(T), restored);
-      return state;
-    }
+    static_assert(std::is_trivially_destructible_v<T>,
+                  "a state is plain data: what it holds is the context's");
+    T* state = new (states_.Allocate(sizeof(T), alignof(T)))
+        T(std::forward<Args>(args)...);
+    AddState(state, sizeof(T), restored);
+    return state;
   }
 
   // Starts a run of pipeline `id`.
   Slot& Start(uint32_t id);
 
   void AddState(OperatorState* state, uint32_t size, bool restored);
-  void AddHeldState(OperatorState* state);
   // Memory for a span made with a state. A span of at least a cache line is
   // aligned to whole cache lines, as the vectors these spans replace were.
   void* AllocateSpan(size_t size, size_t align);
@@ -309,9 +296,9 @@ class Context {
   static void EndBlocks(Held& held);
   static void EndBatches(Held& held);
   static void EndListedBlocks(Held& held, std::vector<uint8_t>* placed);
-  // Whether `state` still needs ending at the end of each run, once this run
+  // Whether `held` still needs ending at the end of each run, once this run
   // has ended.
-  static bool Holds(const Held& held, OperatorState& state);
+  static bool Holds(const Held& held);
   void SetHolds(OperatorState& state, bool holds);
 
   // Declared before everything holding its buffers, so it outlives them.
