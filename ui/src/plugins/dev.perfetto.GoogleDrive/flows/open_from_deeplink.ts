@@ -19,6 +19,7 @@ import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
+  renderSearchableBugLink,
 } from '../dialogs';
 import type {
   DriveClient,
@@ -134,6 +135,7 @@ export async function openFileById(
       const retryChoice = await fileNotShownInPickerPrompt(
         fileId,
         knownResourceKey,
+        app.policy.googlerOnlyFeatures,
       );
       if (retryChoice !== 'retry') return;
     }
@@ -225,6 +227,7 @@ async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
 async function fileNotShownInPickerPrompt(
   fileId: string,
   resourceKey?: string,
+  googlerOnlyFeatures?: boolean,
 ) {
   return await promptModal({
     key: 'GoogleDrivePickerCancelled',
@@ -248,6 +251,7 @@ async function fileNotShownInPickerPrompt(
         ),
         ' first, then click Try Again.',
       ]),
+      renderSearchableBugLink(googlerOnlyFeatures),
     ],
     buttons: [
       {text: 'Try Again', value: 'retry', primary: true},
