@@ -1270,3 +1270,49 @@ describe('DriveClient.createPermission', () => {
     });
   });
 });
+
+describe('DriveClient.updatePermission', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({id: 'p1'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('patches permission payload with supportsAllDrives=true', async () => {
+    const client = await createClient();
+    const payload = {role: 'reader', allowFileDiscovery: false};
+    const result = await client.updatePermission(
+      'secret-token',
+      'file123',
+      'perm456',
+      payload,
+    );
+
+    expect(result).toEqual({ok: true});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(request.method).toBe('PATCH');
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions/perm456');
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(await request.json()).toEqual(payload);
+  });
+
+  test('rejects empty permissionId without touching the network', async () => {
+    const client = await createClient();
+    const result = await client.updatePermission('token', 'file123', '', {
+      allowFileDiscovery: false,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
