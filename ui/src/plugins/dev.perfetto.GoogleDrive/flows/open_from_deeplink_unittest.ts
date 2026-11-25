@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {errResult, okResult, type Result} from '../../../base/result';
 import type {App} from '../../../public/app';
 import type {Setting} from '../../../public/settings';
@@ -32,7 +33,8 @@ import type {AuthError, GoogleOAuthClient} from '../google/oauth_client';
 import {openFileFromDeeplink} from './open_from_deeplink';
 
 // The alerts are replaced wholesale: the flow only decides which one to show.
-vi.mock('../dialogs', () => ({
+vi.mock('../dialogs', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   alertConnectFailed: vi.fn(),
   alertPickerFailed: vi.fn(),
   alertDownloadFailed: vi.fn(),
@@ -77,6 +79,7 @@ interface Outcomes {
   readonly prompts?: Readonly<Record<string, string>>;
   // The user's "don't show this again" setting for the authorize prompt.
   readonly hideAuthDialog?: boolean;
+  readonly googlerOnlyFeatures?: boolean;
 }
 
 // Returns a function that hands out `answers` in order, repeating the last.
@@ -109,7 +112,10 @@ function setup(outcomes: Outcomes = {}) {
 
   const run = (state = STATE) =>
     openFileFromDeeplink(
-      {openTraceFromStream} as unknown as App,
+      {
+        openTraceFromStream,
+        policy: {googlerOnlyFeatures: outcomes.googlerOnlyFeatures ?? false},
+      } as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {getMeta, openFile, requestFileAccess} as unknown as DriveClient,
       state,
@@ -423,7 +429,7 @@ describe('openFileFromDeeplink', () => {
       expect(t.openTraceFromStream).toHaveBeenCalled();
     });
 
-    test('stops silently if the picker is cancelled', async () => {
+    test('shows a recovery prompt with Google Drive link if the picker is cancelled', async () => {
       const t = setup({
         downloads: [ACCESS_DENIED],
         picked: errResult({type: 'cancelled'}),
@@ -431,9 +437,77 @@ describe('openFileFromDeeplink', () => {
       });
       await t.run();
 
+      expect(promptsShown()).toEqual(['GoogleDrivePickerCancelled']);
+      const cancelPrompt = vi
+        .mocked(promptModal)
+        .mock.calls.find(
+          ([args]) => args.key === 'GoogleDrivePickerCancelled',
+        )?.[0];
+      const container = document.createElement('div');
+      const content = cancelPrompt!.content;
+      m.render(container, typeof content === 'function' ? content() : content);
+      const link = container.querySelector('a');
+      expect(link?.getAttribute('href')).toBe(
+        `https://drive.google.com/file/d/${FILE_ID}/view?resourcekey=${RESOURCE_KEY}`,
+      );
       expect(t.openFile).toHaveBeenCalledTimes(1);
       expect(t.openTraceFromStream).not.toHaveBeenCalled();
       expectNoAlerts();
+    });
+
+    test('retries the picker when the user clicks Try Again after cancelling', async () => {
+      const t = setup({
+        downloads: [ACCESS_DENIED, okResult(STREAM)],
+        prompts: {GoogleDrivePickerCancelled: 'retry'},
+        hideAuthDialog: true,
+      });
+      t.requestFileAccess
+        .mockResolvedValueOnce(errResult({type: 'cancelled'}))
+        .mockResolvedValueOnce(okResult(PICKED_FILE));
+
+      await t.run();
+
+      expect(t.requestFileAccess).toHaveBeenCalledTimes(2);
+      expect(t.openTraceFromStream).toHaveBeenCalledTimes(1);
+      expectNoAlerts();
+    });
+
+    test('includes b/589689655 link in picker-cancelled prompt only when googlerOnlyFeatures is true', async () => {
+      const renderCancelledPrompt = async (googlerOnlyFeatures: boolean) => {
+        vi.mocked(promptModal).mockClear();
+        const t = setup({
+          downloads: [ACCESS_DENIED],
+          picked: errResult({type: 'cancelled'}),
+          prompts: {GoogleDrivePickerCancelled: 'cancel'},
+          hideAuthDialog: true,
+          googlerOnlyFeatures,
+        });
+        await t.run();
+        const prompt = vi
+          .mocked(promptModal)
+          .mock.calls.find(
+            ([args]) => args.key === 'GoogleDrivePickerCancelled',
+          )?.[0];
+        expect(prompt).toBeDefined();
+        const container = document.createElement('div');
+        const content = prompt!.content;
+        m.render(
+          container,
+          typeof content === 'function' ? content() : content,
+        );
+        return container;
+      };
+
+      const withoutBug = await renderCancelledPrompt(false);
+      expect(withoutBug.textContent).not.toContain('b/589689655');
+
+      const withBug = await renderCancelledPrompt(true);
+      const bugLink = Array.from(withBug.querySelectorAll('a')).find(
+        (a) => a.textContent === 'b/589689655',
+      );
+      expect(bugLink?.getAttribute('href')).toBe(
+        'https://b.corp.google.com/issues/589689655',
+      );
     });
 
     test('reports a picker failure and stops', async () => {

@@ -24,7 +24,7 @@ import {Icon} from '../../../widgets/icon';
 import {Inline, Stack, StackAuto} from '../../../widgets/stack';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {TextInput} from '../../../widgets/text_input';
-import {renderErrorDetails} from '../dialogs';
+import {renderErrorDetails, renderSearchableBugLink} from '../dialogs';
 import {
   type DriveFilePermission,
   gdriveOpenLink,
@@ -287,26 +287,6 @@ function permissionRoleLabel(role: string): string {
   }
 }
 
-function renderSearchableBugLink(googlerOnlyFeatures?: boolean): m.Children {
-  if (!googlerOnlyFeatures) return undefined;
-  return [
-    m(
-      '.pf-gdrive-share__searchable-bug-text',
-      'This is due to a limitation in OnePick. See ',
-      m(
-        Anchor,
-        {
-          href: 'https://b.corp.google.com/issues/589689655',
-          target: '_blank',
-          rel: 'noopener',
-        },
-        'b/589689655',
-      ),
-      '.',
-    ),
-  ];
-}
-
 function renderPermissionsWarning(attrs: ShareFormAttrs): m.Children {
   const {permissions, loadingPermissions} = attrs.state;
   if (
@@ -348,7 +328,10 @@ function renderPermissionsWarning(attrs: ShareFormAttrs): m.Children {
         m('.pf-gdrive-share__warning-body', [
           m('p.pf-gdrive-share__warning-text', [
             'Make this file searchable within your organization so recipients can open your Perfetto link more easily.',
-            renderSearchableBugLink(attrs.googlerOnlyFeatures),
+            renderSearchableBugLink(
+              attrs.googlerOnlyFeatures,
+              'pf-gdrive-share__searchable-bug-text',
+            ),
           ]),
           m(Button, {
             className: 'pf-gdrive-share__warning-action',
@@ -377,7 +360,10 @@ function renderPermissionsWarning(attrs: ShareFormAttrs): m.Children {
       }),
       m('p.pf-gdrive-share__warning-text', [
         'Recipients opening this Perfetto link may have to open the file in Google Drive first before Perfetto can load it.',
-        renderSearchableBugLink(attrs.googlerOnlyFeatures),
+        renderSearchableBugLink(
+          attrs.googlerOnlyFeatures,
+          'pf-gdrive-share__searchable-bug-text',
+        ),
       ]),
     ],
   );
@@ -394,7 +380,10 @@ function renderAutoMadeSearchableInfo(attrs: ShareFormAttrs): m.Children {
     m('.pf-gdrive-share__info-body', [
       m('p.pf-gdrive-share__info-text', [
         'Perfetto made this file searchable within your organization so recipients can open your Perfetto link more easily.',
-        renderSearchableBugLink(attrs.googlerOnlyFeatures),
+        renderSearchableBugLink(
+          attrs.googlerOnlyFeatures,
+          'pf-gdrive-share__searchable-bug-text',
+        ),
       ]),
       attrs.onRevertAutoMadeSearchable &&
         m(Button, {

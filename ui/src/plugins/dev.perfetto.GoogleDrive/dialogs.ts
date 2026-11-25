@@ -16,6 +16,7 @@ import m from 'mithril';
 import {getErrorMessage} from '../../base/errors';
 import type {DriveError, PickerError} from './google/drive_client';
 import type {AuthError} from './google/oauth_client';
+import {Anchor} from '../../widgets/anchor';
 import {alertModal} from '../../widgets/modal';
 
 // The alerts shared by the flows that open a trace from Google Drive. Each
@@ -110,4 +111,27 @@ export function describeAuthFailure(auth: AuthError): string {
     case 'error':
       return `Connecting to Google Drive failed: ${getErrorMessage(auth.cause)}`;
   }
+}
+
+// Renders a Googler-only note linking to the OnePick limitation bug.
+export function renderSearchableBugLink(
+  googlerOnlyFeatures?: boolean,
+  className?: string,
+): m.Children {
+  if (!googlerOnlyFeatures) return undefined;
+  return m(
+    'div',
+    {className},
+    'This is due to a limitation in OnePick. See ',
+    m(
+      Anchor,
+      {
+        href: 'https://b.corp.google.com/issues/589689655',
+        target: '_blank',
+        rel: 'noopener',
+      },
+      'b/589689655',
+    ),
+    '.',
+  );
 }
