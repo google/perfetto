@@ -159,6 +159,7 @@ export async function openGDriveSharingDialog(
   oauth: GoogleOAuthClient,
   drive: DriveClient,
   share: ShareState,
+  signal?: AbortSignal,
 ): Promise<void> {
   const fileId = share.fileId;
   if (fileId === undefined || fileId === '') return;
@@ -174,7 +175,7 @@ export async function openGDriveSharingDialog(
   }
 
   // Show Drive's own sharing dialog.
-  const result = await drive.openSharingDialog(auth.value, fileId);
+  const result = await drive.openSharingDialog(auth.value, fileId, {signal});
   if (!result.ok) {
     share.error = {
       message: "Couldn't open the Google Drive sharing dialog.",

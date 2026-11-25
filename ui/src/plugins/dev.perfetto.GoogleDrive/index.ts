@@ -216,6 +216,10 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           action.finally(() => trace.raf.scheduleFullRedraw());
         };
 
+        // Scopes any Drive sharing-dialog close observer to this modal's
+        // lifetime so closing the modal disconnects the MutationObserver.
+        const dialogAbort = new AbortController();
+
         // This button opens a modal dialog which displays the state of the file
         // in google drive allowing the user to upload it and optionally share
         // it. The dialog renders this.share, and keeps no state of its own.
@@ -223,6 +227,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           key: 'GDriveUpload',
           title: 'Share to Google Drive',
           icon: 'cloud_upload',
+          onClose: () => dialogAbort.abort(),
           content: () =>
             m(ShareForm, {
               state: share,
@@ -235,7 +240,14 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
               onPickFolder: () =>
                 redrawAfter(pickUploadFolder(oauth, drive, share)),
               onOpenSharingDialog: () =>
-                redrawAfter(openGDriveSharingDialog(oauth, drive, share)),
+                redrawAfter(
+                  openGDriveSharingDialog(
+                    oauth,
+                    drive,
+                    share,
+                    dialogAbort.signal,
+                  ),
+                ),
             }),
         });
       },
