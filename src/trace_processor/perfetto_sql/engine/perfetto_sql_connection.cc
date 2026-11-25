@@ -734,8 +734,8 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "QUERY_PREPARE");
       if (pipeline_plan) {
-        ASSIGN_OR_RETURN(next_stmt,
-                         PreparePipeline(*pipeline_plan, *source_to_prepare));
+        ASSIGN_OR_RETURN(next_stmt, PreparePipeline(std::move(*pipeline_plan),
+                                                    *source_to_prepare));
       } else {
         auto stmt_result =
             connection_->PrepareStatement(std::move(*source_to_prepare));
@@ -1011,9 +1011,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  const auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
+  auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
   base::StatusOr<SqliteConnection::PreparedStatement> stmt_or =
-      logical ? PreparePipeline(*logical, statement_sql)
+      logical ? PreparePipeline(std::move(*logical), statement_sql)
               : connection_->PrepareStatement(
                     std::move(std::get<SqlSource>(create_table.body)));
   ASSIGN_OR_RETURN(auto stmt, std::move(stmt_or));
@@ -1081,9 +1081,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 }
 
 base::StatusOr<SqliteConnection::PreparedStatement>
-PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
+PerfettoSqlConnection::PreparePipeline(pipeline::LogicalPlan plan,
                                        const SqlSource& source) {
-  auto sql = pipeline::SelectPipelineSql(plan, plan_key_);
+  auto sql = pipeline::SelectPipelineSql(std::move(plan), plan_key_);
   if (!sql.ok()) {
     return source.AddTraceback(0, sql.status());
   }

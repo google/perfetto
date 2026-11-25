@@ -629,10 +629,6 @@ const OperationRegistration& Scan::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> Scan::Clone() const {
-  return std::make_unique<Scan>(*this);
-}
-
 base::Status Scan::ResolveDataframes(const LogicalPlan&,
                                      PlanNodeId self,
                                      const Catalog& catalog,

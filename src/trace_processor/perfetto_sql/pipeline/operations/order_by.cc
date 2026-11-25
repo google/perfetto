@@ -89,10 +89,6 @@ const OperationRegistration& OrderBy::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> OrderBy::Clone() const {
-  return std::make_unique<OrderBy>(*this);
-}
-
 void OrderBy::Serialize(PlanCodec& c) {
   c.Vec(&keys_);
 }

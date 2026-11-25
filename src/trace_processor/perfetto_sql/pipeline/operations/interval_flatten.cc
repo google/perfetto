@@ -154,10 +154,6 @@ const OperationRegistration& IntervalFlatten::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> IntervalFlatten::Clone() const {
-  return std::make_unique<IntervalFlatten>(*this);
-}
-
 void IntervalFlatten::Serialize(PlanCodec& c) {
   c.Pod(&ts_);
   c.Pod(&dur_);

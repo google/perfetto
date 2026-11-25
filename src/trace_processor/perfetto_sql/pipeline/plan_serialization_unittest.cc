@@ -182,16 +182,15 @@ TEST_F(PlanSerializationTest, UnstampedPlansAreRefused) {
 }
 
 TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreNotWritten) {
-  LogicalPlan plan = Compile("FROM df |> SELECT id");
-  ASSERT_EQ(plan.output().size(), 1u);
+  LogicalPlan at_limit = Compile("FROM df |> SELECT id");
+  ASSERT_EQ(at_limit.output().size(), 1u);
+  NamedColumn id = at_limit.output()[0];
+  at_limit.output().assign(kMaxPipelineColumns, id);
+  EXPECT_TRUE(SelectPipelineSql(std::move(at_limit), key_).ok());
 
-  LogicalPlan at_limit = plan;
-  at_limit.output().assign(kMaxPipelineColumns, plan.output()[0]);
-  EXPECT_TRUE(SelectPipelineSql(at_limit, key_).ok());
-
-  LogicalPlan over_limit = plan;
-  over_limit.output().assign(kMaxPipelineColumns + 1, plan.output()[0]);
-  EXPECT_FALSE(SelectPipelineSql(over_limit, key_).ok());
+  LogicalPlan over_limit = Compile("FROM df |> SELECT id");
+  over_limit.output().assign(kMaxPipelineColumns + 1, id);
+  EXPECT_FALSE(SelectPipelineSql(std::move(over_limit), key_).ok());
 }
 
 // A lookup checks no two operations share the tag it finds.

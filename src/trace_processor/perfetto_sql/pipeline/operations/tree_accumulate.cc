@@ -166,10 +166,6 @@ const OperationRegistration& TreeAccumulate::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> TreeAccumulate::Clone() const {
-  return std::make_unique<TreeAccumulate>(*this);
-}
-
 void TreeAccumulate::Serialize(PlanCodec& c) {
   c.Pod(&direction_);
   c.Pod(&node_column_);

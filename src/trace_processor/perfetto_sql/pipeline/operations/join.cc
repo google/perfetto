@@ -229,8 +229,4 @@ const OperationRegistration& Join::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> Join::Clone() const {
-  return std::make_unique<Join>(*this);
-}
-
 }  // namespace perfetto::trace_processor::pipeline

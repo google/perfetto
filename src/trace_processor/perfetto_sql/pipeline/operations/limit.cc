@@ -119,10 +119,6 @@ const OperationRegistration& Limit::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> Limit::Clone() const {
-  return std::make_unique<Limit>(*this);
-}
-
 void Limit::Serialize(PlanCodec& c) {
   c.Pod(&count_);
   c.Pod(&offset_);

@@ -184,10 +184,6 @@ const OperationRegistration& GraphTree::registration() const {
   return kRegistration;
 }
 
-std::unique_ptr<PlanOperation> GraphTree::Clone() const {
-  return std::make_unique<GraphTree>(*this);
-}
-
 void GraphTree::Serialize(PlanCodec& c) {
   c.Pod(&kind_);
   c.Pod(&node_);

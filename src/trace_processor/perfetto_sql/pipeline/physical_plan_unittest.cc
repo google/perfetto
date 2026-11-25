@@ -192,32 +192,6 @@ class PhysicalPlanTest : public ::testing::Test {
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
-// Optimizing a copy must not change the results of the original plan.
-TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
-  CreateDataframeTree();
-  auto original = Compile(
-      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
-  ASSERT_TRUE(original.ok()) << original.status().message();
-
-  LogicalPlan copy = *original;
-  copy.output().resize(1);
-  PruneColumns(copy);
-
-  // Copy assignment must also preserve independent operation payloads.
-  copy = *original;
-  copy.output().resize(1);
-  PruneColumns(copy);
-
-  auto bound = ResolveCompiledPlan(*original, catalog_);
-  ASSERT_TRUE(bound.ok()) << bound.status().message();
-  ASSERT_TRUE(RunBoundPasses(&*bound, {&pool_}).ok());
-  std::unique_ptr<PhysicalPlan> physical = Lower(&*bound, {&pool_});
-  auto rows = Run(*physical, "total");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows,
-              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-}
-
 TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
   CreateTree();
   auto plan = Plan(
@@ -1022,7 +996,8 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
       "FROM tree |> TREE ACCUMULATE DOWN SUM(self) AS path "
       "|> TREE ACCUMULATE UP SUM(path) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
-  auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
+  auto logical = std::move(
+      std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
   ColumnId total = logical.output().back().id;
   ColumnId id = logical.output().front().id;
   // Project and alias the same value twice, independently of the source names.
@@ -1080,7 +1055,8 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   parser.Reset(SqlSource::FromExecuteQuery(
       "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
-  auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
+  auto logical = std::move(
+      std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
   // Neither the original input name nor its value is exposed in the result.
   logical.output() = {
       {logical.names().Intern("id"), logical.output().front().id},
@@ -1109,7 +1085,8 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   auto moved = MoveSqlSourcesToDataframeArgs(std::move(*plan));
   EXPECT_TRUE(moved.args.empty());
   PlanKey key(0, 0);
-  auto read = DeserializePlan(SerializePlan(moved.plan, key), key, catalog_);
+  auto read =
+      DeserializePlan(SerializePlan(std::move(moved.plan), key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
   ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
   std::unique_ptr<PhysicalPlan> lowered = Lower(&*read, {&pool_});

@@ -48,17 +48,6 @@ PlanNode::PlanNode(std::unique_ptr<PlanOperation> operation,
 
 PlanNode::~PlanNode() = default;
 
-PlanNode::PlanNode(const PlanNode& other)
-    : children_(other.children()), operation_(other.operation_->Clone()) {}
-
-PlanNode& PlanNode::operator=(const PlanNode& other) {
-  if (this != &other) {
-    children_ = other.children();
-    operation_ = other.operation_->Clone();
-  }
-  return *this;
-}
-
 PlanNode::PlanNode(PlanNode&&) noexcept = default;
 PlanNode& PlanNode::operator=(PlanNode&&) noexcept = default;
 
