@@ -1105,6 +1105,75 @@ describe('DriveClient.openSharingDialog', () => {
     dialogEl!.setAttribute('aria-hidden', 'true');
     expect(await promise).toEqual({ok: true});
   });
+
+  test('resolves and tears down observer when signal aborts', async () => {
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              // Simulate heuristic miss: no iframe ever appears.
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    const controller = new AbortController();
+    let settled = false;
+    const promise = client
+      .openSharingDialog('token', 'file123', {signal: controller.signal})
+      .then((res) => {
+        settled = true;
+        return res;
+      });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort();
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('supersedes previous observer when called again', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = document.createElement('div');
+              dialogEl.appendChild(document.createElement('iframe'));
+              document.body.appendChild(dialogEl);
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let firstSettled = false;
+    const first = client.openSharingDialog('token', 'file123').then((res) => {
+      firstSettled = true;
+      return res;
+    });
+
+    await Promise.resolve();
+    expect(firstSettled).toBe(false);
+
+    // Calling again tears down and resolves the first observer.
+    const second = client.openSharingDialog('token', 'file123');
+    expect(await first).toEqual({ok: true});
+
+    await Promise.resolve();
+    dialogEl!.remove();
+    expect(await second).toEqual({ok: true});
+  });
 });
 
 describe('DriveClient.createPermission', () => {
