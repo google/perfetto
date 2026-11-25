@@ -53,22 +53,27 @@ void KeysOf(const ColumnView& column,
             const Selection& selection,
             Variant* keys) {
   const T* data = static_cast<const T*>(column.data()) + column.start();
+  uint32_t count = selection.size();
   if (selection.prefix()) {
-    for (uint32_t i = 0; i < selection.size(); ++i) {
+    for (uint32_t i = 0; i < count; ++i) {
       keys[i] = AsKey(data[i]);
     }
     return;
   }
-  for (uint32_t i = 0; i < selection.size(); ++i) {
-    keys[i] = AsKey(data[selection[i]]);
+  const uint16_t* indices = selection.indices();
+  for (uint32_t i = 0; i < count; ++i) {
+    keys[i] = AsKey(data[indices[i]]);
   }
 }
 
 void SequenceKeys(const ColumnView& column,
                   const Selection& selection,
                   Variant* keys) {
-  for (uint32_t i = 0; i < selection.size(); ++i) {
-    keys[i] = Variant::Int64(column.Index(selection[i]));
+  uint32_t start = column.start();
+  uint32_t count = selection.size();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  for (uint32_t i = 0; i < count; ++i) {
+    keys[i] = Variant::Int64(start + (indices ? indices[i] : i));
   }
 }
 
@@ -80,10 +85,13 @@ base::Status ReadKeys(const ColumnView& column,
                       FlexVector<Variant>* out) {
   Variant* keys = out->data();
   uint32_t count = selection.size();
+  // Locals: the keys written could otherwise alias them.
+  uint32_t start = column.start();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
   if (column.kind() == ColumnView::Kind::kVariant) {
-    const auto* cells = static_cast<const Variant*>(column.data());
+    const auto* cells = static_cast<const Variant*>(column.data()) + start;
     for (uint32_t i = 0; i < count; ++i) {
-      const Variant& cell = cells[column.Index(selection[i])];
+      const Variant& cell = cells[indices ? indices[i] : i];
       if (cell.type == Variant::Type::kDouble) {
         return base::ErrStatus("TREE NUMBER NODES: an id cannot be a float");
       }
@@ -116,7 +124,7 @@ base::Status ReadKeys(const ColumnView& column,
   // A column can carry a validity bitvector without any row being null, so
   // check whether a row is actually null rather than whether it could be.
   for (uint32_t i = 0; i < count; ++i) {
-    if (validity->is_set(column.Index(selection[i]))) {
+    if (validity->is_set(start + (indices ? indices[i] : i))) {
       continue;
     }
     if (!nullable) {
@@ -143,8 +151,10 @@ bool ParentsInOrder(const ColumnView& ids,
   }
   const auto* data = static_cast<const uint32_t*>(parents.data());
   const BitVector* validity = parents.validity();
-  for (uint32_t i = 0; i < selection.size(); ++i) {
-    uint32_t index = parents.Index(i);
+  uint32_t first = parents.start();
+  uint32_t count = selection.size();
+  for (uint32_t i = 0; i < count; ++i) {
+    uint32_t index = first + i;
     if (validity && !validity->is_set(index)) {
       out[i] = kNoNode;
     } else if (data[index] <= start + i) {
@@ -201,7 +211,7 @@ uint32_t TreeNumberNodes::Number(State& s, const Variant& id) const {
     }
     // Not dense after all, so record the numbering identity had implied.
     s.dense = false;
-    for (uint32_t n = 0; n < s.numbered; ++n) {
+    for (uint32_t n = 0, numbered = s.numbered; n < numbered; ++n) {
       s.numbers.Insert(Key{static_cast<int64_t>(n), false}, n);
     }
   }
@@ -252,8 +262,14 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
     s.status = status;
     return false;
   }
+  // Locals: Number() and the numbers written could otherwise change them.
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  const Variant* ids = s.ids.data();
+  const Variant* parents = s.parents.data();
+  uint32_t* nodes = output.nodes;
+  uint32_t* parent_nodes = output.parent_nodes;
   for (uint32_t i = 0; i < count; ++i) {
-    uint32_t node = Number(s, s.ids[i]);
+    uint32_t node = Number(s, ids[i]);
     if (!s.status.ok()) {
       return false;
     }
@@ -267,13 +283,13 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
     }
     s.has_row.set(node);
     // Written at the batch's rows, as every column of it is.
-    uint32_t row = selection[i];
-    output.nodes[row] = node;
-    if (s.parents[i].type == Variant::Type::kNull) {
-      output.parent_nodes[row] = kNoNode;
+    uint32_t row = indices ? indices[i] : i;
+    nodes[row] = node;
+    if (parents[i].type == Variant::Type::kNull) {
+      parent_nodes[row] = kNoNode;
       continue;
     }
-    output.parent_nodes[row] = Number(s, s.parents[i]);
+    parent_nodes[row] = Number(s, parents[i]);
     if (!s.status.ok()) {
       return false;
     }
