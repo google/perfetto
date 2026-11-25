@@ -18,21 +18,45 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PIPELINE_SQL_H_
 
 #include <cstdint>
+#include <functional>
 #include <string>
-#include <vector>
 
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
-#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
+#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+
+struct SyntaqliteParser;
 
 namespace perfetto::trace_processor::pipeline {
 
 // -----------------------------------------------------------------------------
-// SQL integration
+// PipeSQL compilation entry point
 // -----------------------------------------------------------------------------
 
-// The table function which runs a serialized plan. It outputs at most
+// Maps a syntaqlite AST node ID to its SqlSource span for compiler
+// diagnostics.
+using NodeSourceFn = std::function<SqlSource(uint32_t node)>;
+
+// Compiles a parsed PipeSQL pipeline AST node into a PreparedStatement via
+// `pipeline::Builder`, resolving sources and column names against `catalog`.
+// Runs while the parse tree is alive so unsupported queries fail at parse time.
+//
+// `pipeline` is a SYNTAQLITE_NODE_PERFETTO_PIPELINE node ID.
+base::StatusOr<PreparedStatement> Compile(SyntaqliteParser* parser,
+                                          uint32_t pipeline,
+                                          const NodeSourceFn& source,
+                                          const Catalog& catalog);
+
+// -----------------------------------------------------------------------------
+// SQLite intrinsic function names
+// -----------------------------------------------------------------------------
+
+// Maximum number of output columns supported by the `__intrinsic_pipeline`
+// SQLite table function.
+inline constexpr uint32_t kMaxPipelineColumns = 256;
+
+// The table function which runs a serialized statement. It outputs at most
 // kMaxPipelineColumns columns.
 inline constexpr char kPipelineFunction[] = "__intrinsic_pipeline";
 
@@ -44,22 +68,6 @@ inline constexpr char kDataframeAggFunction[] = "__intrinsic_dataframe_agg";
 // argument the table function takes them in:
 // `__intrinsic_dataframes((SELECT ...), (SELECT ...))`.
 inline constexpr char kDataframesFunction[] = "__intrinsic_dataframes";
-
-// A plan whose SQL sources have been moved out into dataframe arguments: the
-// plan reads its i-th SQL source as dataframe argument i, and `args[i]` is the
-// SQL building it.
-struct PlanWithDataframeArgs {
-  LogicalPlan plan;
-  std::vector<std::string> args;
-};
-PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
-
-// SQL reading `plan`'s output under its own column names. The plan is
-// serialized into the SQL, stamped with `key`, and each relation it reads from
-// SQL is built into a dataframe where that SQL runs, so it sees whatever is in
-// scope there.
-base::StatusOr<std::string> SelectPipelineSql(LogicalPlan plan,
-                                              const PlanKey& key);
 
 // -----------------------------------------------------------------------------
 // SQL quoting

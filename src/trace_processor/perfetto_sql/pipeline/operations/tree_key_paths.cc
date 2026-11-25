@@ -43,9 +43,8 @@ base::Status TreeKeyPaths::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("TREE KEY PATHS");
   const auto* n = Node<SyntaqlitePerfettoTreeKeyPaths>(c->parser(), stage);
 
-  TreeKeyPaths paths;
-  ASSIGN_OR_RETURN(paths.node_column_, c->Resolve(c->Name("id"), stage));
-  ASSIGN_OR_RETURN(paths.parent_column_,
+  ASSIGN_OR_RETURN(ColumnId node_column, c->Resolve(c->Name("id"), stage));
+  ASSIGN_OR_RETURN(ColumnId parent_column,
                    c->Resolve(c->Name("parent_id"), stage));
 
   std::vector<ColumnId> keys;
@@ -67,12 +66,11 @@ base::Status TreeKeyPaths::BuildPlan(Compiler* c, uint32_t stage) {
 
   NameId path_name = c->Name(n->key_name);
   NameId parent_path_name = c->Name(n->parent_key_name);
-  paths.path_ = c->AddColumn(path_name, core::Int64{});
-  paths.parent_path_ = c->AddColumn(parent_path_name, core::Int64{});
-  c->Append(NamedColumn{path_name, paths.path_}, stage);
-  c->Append(NamedColumn{parent_path_name, paths.parent_path_}, stage);
-  paths.keys_ = c->arena().CopySpan<ColumnId>(keys);
-  c->AddNode(paths, {c->plan().root()});
+  auto built = c->builder().TreeKeyPaths(c->root(), node_column, parent_column,
+                                         keys, path_name, parent_path_name);
+  c->SetRoot(built.relation);
+  c->Append(NamedColumn{path_name, built.path}, stage);
+  c->Append(NamedColumn{parent_path_name, built.parent_path}, stage);
   return base::OkStatus();
 }
 

@@ -116,7 +116,9 @@ base::StatusOr<Literal> CompileLiteral(Compiler* c, uint32_t expr) {
         return c->Unsupported(expr, "a number which does not fit an integer");
       }
       out.type = Literal::Type::kInt64;
-      out.int_value = negate ? -*value : *value;
+      out.int_value =
+          negate ? static_cast<int64_t>(0ull - static_cast<uint64_t>(*value))
+                 : *value;
       break;
     }
     case SYNTAQLITE_LITERAL_TYPE_FLOAT: {
@@ -132,8 +134,7 @@ base::StatusOr<Literal> CompileLiteral(Compiler* c, uint32_t expr) {
       if (negate) {
         return c->Unsupported(expr, "a negated string");
       }
-      out.type = Literal::Type::kString;
-      out.text = c->arena().CopyString(StringLiteralText(text));
+      out = c->builder().StringLiteral(StringLiteralText(text));
       break;
     default:
       return c->Unsupported(expr, "a literal other than a number or string");

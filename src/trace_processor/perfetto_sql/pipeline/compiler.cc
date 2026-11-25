@@ -32,9 +32,9 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -151,10 +151,6 @@ void Compiler::ReplaceAliasColumns(
     }
     alias.columns = std::move(columns);
   }
-}
-
-ColumnId Compiler::AddColumn(NameId name, PlanType type) {
-  return plan_.AddColumn(name, type);
 }
 
 base::Status Compiler::BuildOperation(uint32_t stage) {
@@ -420,7 +416,7 @@ base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
   }
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
   ASSIGN_OR_RETURN(aggregate.column, ResolveColumnExpr(arg_id));
-  const auto& type = plan_.columns()[aggregate.column].type;
+  PlanType type = ColumnType(aggregate.column);
   if (type.storage() && !(type.Is<core::Uint32>() || type.Is<core::Int32>() ||
                           type.Is<core::Int64>())) {
     return Expected(arg_id, "an integer column");
@@ -458,30 +454,30 @@ std::vector<NamedColumn> Compiler::VisibleColumns() const {
   return columns;
 }
 
-LogicalPlan Compiler::Finish() {
-  plan_.output() = VisibleColumns();
-  return std::move(plan_);
+PreparedStatement Compiler::Finish() {
+  std::vector<NamedColumn> visible = VisibleColumns();
+  return builder_.Finish(root_, visible);
 }
 
-base::StatusOr<std::vector<NamedColumn>> Compiler::CompileSubpipeline(
+base::StatusOr<Builder::ScanResult> Compiler::CompileSubpipeline(
     uint32_t pipeline) {
   Scope outer = std::exchange(scope_, Scope{});
+  Builder::Relation outer_root = root_;
   base::Status status = CompilePipeline(pipeline);
-  std::vector<NamedColumn> columns = VisibleColumns();
+  Builder::ScanResult out{root_, VisibleColumns()};
   scope_ = std::move(outer);
+  root_ = outer_root;
   RETURN_IF_ERROR(status);
-  return columns;
+  return out;
 }
 
-base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
-                                    uint32_t pipeline,
-                                    const NodeSourceFn& source,
-                                    const Catalog& catalog) {
+base::StatusOr<PreparedStatement> Compile(SyntaqliteParser* p,
+                                          uint32_t pipeline,
+                                          const NodeSourceFn& source,
+                                          const Catalog& catalog) {
   Compiler compiler(p, source, catalog);
   RETURN_IF_ERROR(compiler.CompilePipeline(pipeline));
-  LogicalPlan plan = compiler.Finish();
-  PruneColumns(plan);
-  return plan;
+  return compiler.Finish();
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -46,15 +46,16 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("TREE ACCUMULATE");
   const auto* n = Node<SyntaqlitePerfettoTreeAccumulate>(c->parser(), stage);
 
-  TreeAccumulate acc;
-  acc.direction_ = n->direction == SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN
-                       ? TreeDirection::kDown
-                       : TreeDirection::kUp;
-  ASSIGN_OR_RETURN(acc.node_column_, c->Resolve(c->Name("id"), stage));
-  ASSIGN_OR_RETURN(acc.parent_column_, c->Resolve(c->Name("parent_id"), stage));
+  TreeDirection direction =
+      n->direction == SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN
+          ? TreeDirection::kDown
+          : TreeDirection::kUp;
+  ASSIGN_OR_RETURN(ColumnId node_column, c->Resolve(c->Name("id"), stage));
+  ASSIGN_OR_RETURN(ColumnId parent_column,
+                   c->Resolve(c->Name("parent_id"), stage));
 
-  std::vector<Aggregate> aggregates;
-  std::vector<std::pair<NamedColumn, uint32_t>> output;
+  std::vector<Builder::AggregateItem> agg_items;
+  std::vector<uint32_t> agg_nodes;
   const auto* list =
       Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
   uint32_t count = syntaqlite_list_count(list);
@@ -62,18 +63,18 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
-    NameId name = c->Name(agg->name);
-    aggregate.output = c->AddColumn(name, core::Int64{});
-    aggregates.push_back(aggregate);
-    output.push_back({NamedColumn{name, aggregate.output}, agg_id});
+    agg_items.push_back(
+        {c->Name(agg->name), aggregate.function, aggregate.column});
+    agg_nodes.push_back(agg_id);
   }
+  auto built = c->builder().TreeAccumulate(c->root(), direction, node_column,
+                                           parent_column, agg_items);
+  c->SetRoot(built.relation);
   // All expressions see the input scope. Add this stage's columns only after
   // resolving every aggregate; duplicate names are ambiguous on lookup.
-  for (auto& [column, node] : output) {
-    c->Append(std::move(column), node);
+  for (size_t i = 0; i < agg_items.size(); ++i) {
+    c->Append(NamedColumn{agg_items[i].name, built.columns[i]}, agg_nodes[i]);
   }
-  acc.aggregates_ = c->arena().CopySpan<Aggregate>(aggregates);
-  c->AddNode(acc, {c->plan().root()});
   return base::OkStatus();
 }
 

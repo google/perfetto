@@ -30,9 +30,8 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_test_utils.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -124,7 +123,7 @@ class PerfettoSqlParserTest : public ::testing::Test {
     PERFETTO_CHECK(parsed.size() == 1);
     const auto* pipeline = std::get_if<Pipeline>(&parsed[0]);
     PERFETTO_CHECK(pipeline);
-    return pipeline::LogicalPlanToString(pipeline->plan);
+    return pipeline::PreparedStatementToString(pipeline->statement);
   }
 
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
@@ -476,9 +475,8 @@ TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
       "INTERVAL INTERSECTION OF (sql_spans AS a, (SELECT * FROM sql_spans) AS "
       "b) |> SELECT ts, dur, b.utid"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
-  auto sql = pipeline::SelectPipelineSql(
-      std::move(std::get<Pipeline>(parser.TakeStatement()).plan),
-      pipeline::PlanKey(0, 0));
+  auto sql = std::move(std::get<Pipeline>(parser.TakeStatement()).statement)
+                 .ToSqliteSql(pipeline::PlanKey(0, 0));
   ASSERT_TRUE(sql.ok()) << sql.status().message();
   EXPECT_THAT(
       *sql,
@@ -905,7 +903,7 @@ TEST_F(PerfettoSqlParserTest, PipelineOnlyAsAStatementTableBodyOrSource) {
   ASSERT_EQ(parsed->size(), 1u);
   const auto* table = std::get_if<CreateTable>(&(*parsed)[0]);
   ASSERT_NE(table, nullptr);
-  EXPECT_TRUE(std::holds_alternative<pipeline::LogicalPlan>(table->body));
+  EXPECT_TRUE(std::holds_alternative<pipeline::PreparedStatement>(table->body));
 }
 
 TEST_F(PerfettoSqlParserTest, Subpipelines) {

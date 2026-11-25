@@ -73,7 +73,7 @@ std::vector<std::vector<InputColumn>> PlanOperation::CommonTypes() const {
 
 base::Status PlanOperation::ResolveDataframes(const LogicalPlan&,
                                               PlanNodeId,
-                                              const Catalog&,
+                                              const Catalog*,
                                               const PlanKey*,
                                               Bindings*) const {
   return base::OkStatus();
@@ -82,7 +82,7 @@ base::Status PlanOperation::ResolveDataframes(const LogicalPlan&,
 base::Status PlanOperation::BindDataframeArgs(
     const LogicalPlan&,
     PlanNodeId,
-    const std::vector<const core::dataframe::Dataframe*>&,
+    base::Span<const core::dataframe::Dataframe* const>,
     StringPool*,
     Bindings*) const {
   return base::OkStatus();

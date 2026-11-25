@@ -29,9 +29,9 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/expression.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/compute.h"
 
 namespace perfetto::trace_processor::pipeline::projection {
 namespace {
@@ -41,12 +41,9 @@ namespace {
 // to a Compute.
 
 // The columns a SELECT or EXTEND list produces, resolved against the row
-// before the stage. Computed ones are added to `computed`.
-base::StatusOr<std::vector<Compiler::RowColumn>> ResolveItems(
-    Compiler*,
-    uint32_t list_id,
-    bool allow_unqualified_star,
-    std::vector<Compute::Item>* computed);
+// before the stage. Emits a Compute node if any item is not a bare column.
+base::StatusOr<std::vector<Compiler::RowColumn>>
+ResolveItems(Compiler*, uint32_t list_id, bool allow_unqualified_star);
 base::StatusOr<std::vector<Compiler::RowColumn>>
 ExpandStar(Compiler*, uint32_t star_id, bool allow_unqualified_star);
 
@@ -55,42 +52,33 @@ bool IsColumn(Compiler* c, uint32_t expr) {
          SYNTAQLITE_NODE_COLUMN_REF;
 }
 
-// The column an item's expression names, or else a new column it computes,
-// named `name`, added to `computed`.
-base::StatusOr<ColumnId> ResolveValue(Compiler* c,
-                                      uint32_t expr,
-                                      NameId name,
-                                      std::vector<Compute::Item>* computed) {
+// Resolves `expr`: returns an existing column ID, or appends a Compute item to
+// `pending` and returns std::nullopt.
+base::StatusOr<std::optional<ColumnId>> ResolveValue(
+    Compiler* c,
+    uint32_t expr,
+    NameId name,
+    std::vector<Builder::ComputeItem>* pending) {
   if (IsColumn(c, expr)) {
-    return c->ResolveColumnExpr(expr);
+    ASSIGN_OR_RETURN(ColumnId id, c->ResolveColumnExpr(expr));
+    return std::optional<ColumnId>(id);
   }
   Expr e;
   RETURN_IF_ERROR(CompileExpr(c, expr, &e));
-  base::StatusOr<PlanType> type = CheckExprType(*c, e);
+  base::StatusOr<PlanType> type = c->builder().CheckExprType(e);
   if (!type.ok()) {
     return c->Expected(expr, type.status().message());
   }
-  ColumnId id = c->AddColumn(name, *type);
-  computed->push_back({id, std::move(e)});
-  return id;
-}
-
-// Adds the Compute for a stage's computed columns, if it has any.
-void AddCompute(Compiler* c, const std::vector<Compute::Item>& computed) {
-  if (!computed.empty()) {
-    c->AddNode(Compute(c->arena().CopySpan<Compute::Item>(computed)),
-               {c->plan().root()});
-  }
+  pending->push_back({name, *type, e});
+  return std::optional<ColumnId>(std::nullopt);
 }
 
 // Replaces the row. What it leaves is a new table: no alias reaches into it.
 base::Status BuildSelectPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("SELECT");
   const auto* n = Node<SyntaqlitePerfettoPipeSelect>(c->parser(), stage);
-  std::vector<Compute::Item> computed;
   ASSIGN_OR_RETURN(std::vector<Compiler::RowColumn> row,
-                   ResolveItems(c, n->columns, true, &computed));
-  AddCompute(c, std::move(computed));
+                   ResolveItems(c, n->columns, true));
   c->ReplaceRow(std::move(row));
   c->ClearAliases();
   return base::OkStatus();
@@ -101,10 +89,8 @@ base::Status BuildSelectPlan(Compiler* c, uint32_t stage) {
 base::Status BuildExtendPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("EXTEND");
   const auto* n = Node<SyntaqlitePerfettoPipeExtend>(c->parser(), stage);
-  std::vector<Compute::Item> computed;
   ASSIGN_OR_RETURN(std::vector<Compiler::RowColumn> columns,
-                   ResolveItems(c, n->columns, false, &computed));
-  AddCompute(c, std::move(computed));
+                   ResolveItems(c, n->columns, false));
   c->ExtendRow(std::move(columns));
   return base::OkStatus();
 }
@@ -176,11 +162,11 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
   std::vector<NameId> seen;
   struct Assignment {
     size_t at;
-    ColumnId value;
+    std::optional<ColumnId> value;
     uint32_t node;
   };
   std::vector<Assignment> assignments;
-  std::vector<Compute::Item> computed;
+  std::vector<Builder::ComputeItem> pending;
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t item_id = syntaqlite_list_child_id(list, i);
     const auto* item =
@@ -188,13 +174,21 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
     NameId name = c->Name(item->name);
     RETURN_IF_ERROR(c->CheckListedOnce(seen, name, item_id));
     ASSIGN_OR_RETURN(size_t at, c->FindInRow(name, item_id));
-    ASSIGN_OR_RETURN(ColumnId id,
-                     ResolveValue(c, item->value, name, &computed));
+    ASSIGN_OR_RETURN(std::optional<ColumnId> id,
+                     ResolveValue(c, item->value, name, &pending));
     assignments.push_back({at, id, item_id});
   }
-  AddCompute(c, std::move(computed));
+  std::vector<ColumnId> computed;
+  if (!pending.empty()) {
+    auto built = c->builder().Compute(c->root(), std::move(pending));
+    c->SetRoot(built.relation);
+    computed = std::move(built.columns);
+  }
+  size_t next_computed = 0;
   for (const Assignment& assignment : assignments) {
-    c->SetColumnValue(assignment.at, assignment.value, assignment.node);
+    ColumnId value =
+        assignment.value ? *assignment.value : computed[next_computed++];
+    c->SetColumnValue(assignment.at, value, assignment.node);
   }
   return base::OkStatus();
 }
@@ -216,14 +210,13 @@ base::Status BuildAsPlan(Compiler* c, uint32_t stage) {
   return base::OkStatus();
 }
 
-base::StatusOr<std::vector<Compiler::RowColumn>> ResolveItems(
-    Compiler* c,
-    uint32_t list_id,
-    bool allow_unqualified_star,
-    std::vector<Compute::Item>* computed) {
+base::StatusOr<std::vector<Compiler::RowColumn>>
+ResolveItems(Compiler* c, uint32_t list_id, bool allow_unqualified_star) {
   const auto* list =
       Node<SyntaqlitePerfettoPipeSelectItemList>(c->parser(), list_id);
   std::vector<Compiler::RowColumn> columns;
+  std::vector<Builder::ComputeItem> pending;
+  std::vector<size_t> computed_slots;
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t item_id = syntaqlite_list_child_id(list, i);
     if (Node<SyntaqliteNode>(c->parser(), item_id)->tag ==
@@ -245,8 +238,19 @@ base::StatusOr<std::vector<Compiler::RowColumn>> ResolveItems(
       return c->Expected(item->expr,
                          "a name for the computed column, as in `x + 1 AS y`");
     }
-    ASSIGN_OR_RETURN(ColumnId id, ResolveValue(c, item->expr, name, computed));
-    columns.push_back({{name, id}, c->operation(), item_id});
+    ASSIGN_OR_RETURN(std::optional<ColumnId> id,
+                     ResolveValue(c, item->expr, name, &pending));
+    if (!id) {
+      computed_slots.push_back(columns.size());
+    }
+    columns.push_back({{name, id.value_or(0)}, c->operation(), item_id});
+  }
+  if (!pending.empty()) {
+    auto built = c->builder().Compute(c->root(), std::move(pending));
+    c->SetRoot(built.relation);
+    for (size_t i = 0; i < computed_slots.size(); ++i) {
+      columns[computed_slots[i]].column.id = built.columns[i];
+    }
   }
   return columns;
 }

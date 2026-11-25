@@ -29,7 +29,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -83,13 +83,13 @@ class PerfettoSqlParser {
     bool replace;
     std::string name;
     std::vector<sql_argument::ArgumentDefinition> schema;
-    using Body = std::variant<SqlSource, pipeline::LogicalPlan>;
+    using Body = std::variant<SqlSource, pipeline::PreparedStatement>;
     Body body;
   };
   // Indicates that the specified SQL was a pipeline: FROM followed by `|>`
   // stages.
   struct Pipeline {
-    pipeline::LogicalPlan plan;
+    pipeline::PreparedStatement statement;
   };
   // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
   // with the following parameters.

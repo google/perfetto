@@ -37,8 +37,8 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -391,7 +391,7 @@ base::Status CheckPipelinePositions(SyntaqliteParser* p,
   return base::OkStatus();
 }
 
-base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
+base::StatusOr<pipeline::PreparedStatement> CompilePipeline(
     SyntaqliteParser* p,
     const RewriteTree& rb,
     const pipeline::Catalog* catalog,
@@ -614,9 +614,9 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
     case SYNTAQLITE_NODE_PERFETTO_PRAGMA_STMT:
       return ParsePragma(p, node->perfetto_pragma_stmt);
     case SYNTAQLITE_NODE_PERFETTO_PIPELINE: {
-      ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
+      ASSIGN_OR_RETURN(pipeline::PreparedStatement pipeline_stmt,
                        CompilePipeline(p, rb, catalog, root));
-      return Statement(PerfettoSqlParser::Pipeline{std::move(plan)});
+      return Statement(PerfettoSqlParser::Pipeline{std::move(pipeline_stmt)});
     }
     case SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT:
       return Statement(PerfettoSqlParser::DropIndex{

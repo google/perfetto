@@ -33,30 +33,16 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/pipeline/aggregate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
 struct SyntaqliteParser;
 
 namespace perfetto::trace_processor::pipeline {
-
-// -----------------------------------------------------------------------------
-// Compilation entry point
-// -----------------------------------------------------------------------------
-
-// Source text of a parse tree node, for error tracebacks.
-using NodeSourceFn = std::function<SqlSource(uint32_t node)>;
-
-// Compiles a parsed pipeline into a logical plan, resolving the source and
-// column names against `catalog` and checking types where known. Runs while
-// the parse tree is alive so unsupported queries fail at parse time.
-//
-// `pipeline` is the SYNTAQLITE_NODE_PERFETTO_PIPELINE node.
-base::StatusOr<LogicalPlan> Compile(SyntaqliteParser*,
-                                    uint32_t pipeline,
-                                    const NodeSourceFn&,
-                                    const Catalog&);
 
 // -----------------------------------------------------------------------------
 // AST helpers
@@ -127,49 +113,33 @@ class Compiler {
   // Compiles the pipeline at `pipeline`: its source and each of its stages.
   base::Status CompilePipeline(uint32_t pipeline);
 
-  // Sets the output to the current row and transfers the completed plan.
-  LogicalPlan Finish();
+  // Sets the output to the current row and builds the PreparedStatement.
+  PreparedStatement Finish();
 
-  // Compiles the pipeline at `pipeline` into this plan in a scope of its own,
-  // so its aliases do not leak out. Returns the columns a bare name finds in
-  // its result; its root is the plan's root.
-  base::StatusOr<std::vector<NamedColumn>> CompileSubpipeline(
-      uint32_t pipeline);
+  // Compiles `pipeline` in its own scope, returning its relation and visible
+  // columns without modifying the outer relation or aliases.
+  base::StatusOr<Builder::ScanResult> CompileSubpipeline(uint32_t pipeline);
 
   // ---------------------------------------------------------------------------
-  // Logical plan construction
+  // Builder access
   // ---------------------------------------------------------------------------
 
-  // Allocates a logical value without making a name visible in the row.
-  ColumnId AddColumn(NameId name, PlanType type);
-
-  // Appends an operation and makes it the plan root; does not update scope.
-  template <typename T>
-  PlanNodeId AddNode(const T& operation,
-                     base::Span<const PlanNodeId> children = {}) {
-    return plan_.AddNode(operation, children);
-  }
-  template <typename T>
-  PlanNodeId AddNode(const T& operation,
-                     std::initializer_list<PlanNodeId> children) {
-    return plan_.AddNode(operation, children);
-  }
-
-  // The arena the plan's operations, and everything they hold, are made in.
-  core::Arena& arena() { return plan_.arena(); }
+  Builder& builder() { return builder_; }
+  const Builder& builder() const { return builder_; }
+  Builder::Relation root() const { return root_; }
+  void SetRoot(Builder::Relation root) { root_ = root; }
 
   // ---------------------------------------------------------------------------
   // Name resolution and expression checks
   // ---------------------------------------------------------------------------
 
-  // Names are interned in the plan, so that the row, aliases and plan can
-  // all refer to them by id: comparing two is comparing integers.
-  NameId Name(std::string_view text) { return plan_.names().Intern(text); }
+  // Names are interned in the builder, so that the row and aliases can refer
+  // to them by id: comparing two is comparing integers.
+  NameId Name(std::string_view text) { return builder_.InternName(text); }
   NameId Name(SyntaqliteTextSpan span) { return Name(SpanText(p_, span)); }
-  const std::string& Text(NameId name) const {
-    return plan_.names().text(name);
-  }
-  bool Same(NameId a, NameId b) const { return plan_.names().Same(a, b); }
+  const std::string& Text(NameId name) const { return builder_.NameText(name); }
+  bool Same(NameId a, NameId b) const { return builder_.SameName(a, b); }
+  PlanType ColumnType(ColumnId col) const { return builder_.ColumnType(col); }
   // The column in `columns` named `name`, or nullopt if there is none.
   std::optional<ColumnId> FindColumn(const std::vector<NamedColumn>& columns,
                                      NameId name) const;
@@ -259,7 +229,6 @@ class Compiler {
 
   SyntaqliteParser* parser() const { return p_; }
   const Catalog& catalog() const { return catalog_; }
-  const LogicalPlan& plan() const { return plan_; }
   const std::vector<RowColumn>& row() const { return scope_.row; }
   const char* operation() const { return scope_.operation; }
 
@@ -292,8 +261,9 @@ class Compiler {
   const NodeSourceFn& source_;
   const Catalog& catalog_;
 
-  // The plan under construction and the names visible at its current root.
-  LogicalPlan plan_;
+  // The statement under construction and the names visible at its current root.
+  Builder builder_;
+  Builder::Relation root_;
   Scope scope_;
 };
 

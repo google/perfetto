@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
@@ -44,8 +45,9 @@
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/iterator.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
@@ -56,11 +58,6 @@
 #include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto::trace_processor {
-
-namespace pipeline {
-class LogicalPlan;
-class PhysicalPlan;
-}  // namespace pipeline
 
 class ConnectionCatalog;
 
@@ -180,11 +177,11 @@ class PerfettoSqlConnection {
   base::StatusOr<SqliteConnection::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
 
-  // Loads a plan written by pipeline::SerializePlan, ready to run, reading
-  // `args` as its dataframe arguments. The plan keeps what it reads of them.
-  base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>> LoadPipeline(
+  // Loads a serialized pipeline statement and executes it into a RowIterator,
+  // binding `args` as its positional dataframe arguments.
+  base::StatusOr<pipeline::RowIterator> LoadPipeline(
       std::string_view serialized,
-      const std::vector<const dataframe::Dataframe*>& args);
+      base::Span<const dataframe::Dataframe* const> args);
 
   // Registers a virtual table module with the given name.
   //
@@ -486,7 +483,7 @@ class PerfettoSqlConnection {
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
 
   base::StatusOr<SqliteConnection::PreparedStatement> PreparePipeline(
-      pipeline::LogicalPlan,
+      pipeline::PreparedStatement,
       const SqlSource&);
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);

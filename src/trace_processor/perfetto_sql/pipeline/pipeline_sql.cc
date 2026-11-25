@@ -26,20 +26,13 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
-  PlanWithDataframeArgs out;
-  for (PlanNode& node : plan.nodes()) {
-    node.operation().MoveSqlSourcesToDataframeArgs(plan.names(), &out.args);
-  }
-  out.plan = std::move(plan);
-  return out;
-}
-
-base::StatusOr<std::string> SelectPipelineSql(LogicalPlan plan,
-                                              const PlanKey& key) {
+base::StatusOr<std::string> PreparedStatement::ToSqliteSql(
+    const PlanKey& key) && {
+  LogicalPlan plan = std::move(*plan_);
   if (plan.output().size() > kMaxPipelineColumns) {
     return base::ErrStatus("A pipeline can output at most %u columns, not %zu",
                            kMaxPipelineColumns, plan.output().size());
@@ -52,7 +45,7 @@ base::StatusOr<std::string> SelectPipelineSql(LogicalPlan plan,
   }
   PlanWithDataframeArgs moved = MoveSqlSourcesToDataframeArgs(std::move(plan));
   std::string arguments =
-      "X'" + base::ToHex(SerializePlan(std::move(moved.plan), key)) + "'";
+      "X'" + base::ToHex(SerializePlan(moved.plan, &key)) + "'";
   if (!moved.args.empty()) {
     std::vector<std::string> dataframes;
     for (const std::string& arg : moved.args) {

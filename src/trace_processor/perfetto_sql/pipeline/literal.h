@@ -35,13 +35,34 @@ class Compiler;
 class PlanCodec;
 
 // A value written in a query: a number or a string; an external literal, a
-// value fixed for a whole execution of the plan which its caller gives; or a
-// bound param, which stands for one of the values a run binds.
+// value fixed for a whole execution of the statement which its caller gives; or
+// a bound param, which stands for one of the values a run binds.
 struct Literal {
   enum class Type : uint8_t { kInt64, kDouble, kString, kExternal, kBound };
 
-  // Value `index` of those the caller gives when it sets the plan's literals
-  // (see RunParams::SetLiterals).
+  static Literal Int64(int64_t value) {
+    Literal literal;
+    literal.type = Type::kInt64;
+    literal.int_value = value;
+    return literal;
+  }
+
+  static Literal Double(double value) {
+    Literal literal;
+    literal.type = Type::kDouble;
+    literal.double_value = value;
+    return literal;
+  }
+
+  static Literal String(std::string_view value) {
+    Literal literal;
+    literal.type = Type::kString;
+    literal.text = value;
+    return literal;
+  }
+
+  // Value `index` of those the caller gives when it sets the statement's
+  // external literals (see ParamBindings::SetExternalLiterals).
   static Literal External(uint32_t index) {
     Literal literal;
     literal.type = Type::kExternal;
@@ -49,6 +70,7 @@ struct Literal {
     return literal;
   }
 
+  // Value `index` of those bound per execution run (see ParamBindings::Bind).
   static Literal Bound(uint32_t index) {
     Literal literal;
     literal.type = Type::kBound;

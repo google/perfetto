@@ -48,7 +48,7 @@ namespace {
 
 // Finds the column `name` of the relation read from `source`.
 base::StatusOr<ColumnId> FindColumn(Compiler* c,
-                                    const SourceRelation& relation,
+                                    const Builder::ScanResult& relation,
                                     uint32_t source,
                                     const char* what,
                                     const char* name) {
@@ -65,31 +65,33 @@ base::StatusOr<ColumnId> FindColumn(Compiler* c,
 
 base::Status GraphTree::BuildPlan(Compiler* c, uint32_t node) {
   const auto* n = Node<SyntaqlitePerfettoGraphTree>(c->parser(), node);
-  GraphTree tree;
+  Kind kind = Kind::kBfs;
   switch (n->kind) {
     case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_BFS:
       c->SetOperation("GRAPH BFS TREE");
-      tree.kind_ = Kind::kBfs;
+      kind = Kind::kBfs;
       break;
     case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DFS:
       c->SetOperation("GRAPH DFS TREE");
-      tree.kind_ = Kind::kDfs;
+      kind = Kind::kDfs;
       break;
     case SYNTAQLITE_PERFETTO_GRAPH_TREE_KIND_DOMINATOR:
       c->SetOperation("GRAPH DOMINATOR TREE");
-      tree.kind_ = Kind::kDominator;
+      kind = Kind::kDominator;
       break;
   }
 
-  ASSIGN_OR_RETURN(SourceRelation nodes, Scan::BuildRelation(c, n->nodes));
-  ASSIGN_OR_RETURN(tree.node_, FindColumn(c, nodes, n->nodes, "NODES", "id"));
-  ASSIGN_OR_RETURN(SourceRelation edges, Scan::BuildRelation(c, n->edges));
-  ASSIGN_OR_RETURN(tree.source_,
+  ASSIGN_OR_RETURN(Builder::ScanResult nodes, Scan::BuildRelation(c, n->nodes));
+  ASSIGN_OR_RETURN(ColumnId node_col,
+                   FindColumn(c, nodes, n->nodes, "NODES", "id"));
+  ASSIGN_OR_RETURN(Builder::ScanResult edges, Scan::BuildRelation(c, n->edges));
+  ASSIGN_OR_RETURN(ColumnId source_col,
                    FindColumn(c, edges, n->edges, "EDGES", "src"));
-  ASSIGN_OR_RETURN(tree.target_,
+  ASSIGN_OR_RETURN(ColumnId target_col,
                    FindColumn(c, edges, n->edges, "EDGES", "dst"));
-  ASSIGN_OR_RETURN(SourceRelation seeds, Scan::BuildRelation(c, n->seeds));
-  ASSIGN_OR_RETURN(tree.seed_, FindColumn(c, seeds, n->seeds, "FROM", "id"));
+  ASSIGN_OR_RETURN(Builder::ScanResult seeds, Scan::BuildRelation(c, n->seeds));
+  ASSIGN_OR_RETURN(ColumnId seed_col,
+                   FindColumn(c, seeds, n->seeds, "FROM", "id"));
 
   // The tree's parent_id is what a parent_id means after this, so a node
   // column of that name is not carried.
@@ -102,14 +104,15 @@ base::Status GraphTree::BuildPlan(Compiler* c, uint32_t node) {
     carried.push_back(column.id);
     c->Append(std::move(column), n->nodes);
   }
-  tree.carried_ = c->arena().CopySpan<ColumnId>(carried);
   if (std::optional<NameId> qualifier = Scan::SourceQualifier(
           c, *Node<SyntaqlitePerfettoPipeSource>(c->parser(), n->nodes))) {
     c->AddAlias(*qualifier, 0);
   }
-  tree.parent_ = c->AddColumn(parent_name, core::Int64{});
-  c->Append({parent_name, tree.parent_}, node);
-  c->AddNode(tree, {nodes.node, edges.node, seeds.node});
+  auto built = c->builder().GraphTree(kind, nodes.relation, node_col, carried,
+                                      edges.relation, source_col, target_col,
+                                      seeds.relation, seed_col);
+  c->SetRoot(built.relation);
+  c->Append({parent_name, built.parent}, node);
   return base::OkStatus();
 }
 

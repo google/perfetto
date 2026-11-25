@@ -37,7 +37,7 @@ namespace {
 // Binds each dataframe scan to the dataframe now registered under its name,
 // which must still have every column the plan reads, with the same type.
 base::Status ResolveDataframes(BoundPlan* bound,
-                               const Catalog& catalog,
+                               const Catalog* catalog,
                                const PlanKey* key) {
   const LogicalPlan& plan = bound->plan;
   for (uint32_t i = 0; i < plan.nodes().size(); ++i) {
@@ -131,37 +131,39 @@ void SerializeContents(PlanCodec& c) {
 
 }  // namespace
 
-std::string SerializePlan(LogicalPlan plan, const PlanKey& key) {
-  std::string out;
-  PlanCodec c(&plan, &key, &out);
-  SerializeContents(c);
-  uint64_t stamp = key.Stamp(PlanKey::Use::kPlan, out);
-  c.Pod(&stamp);
+PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
+  PlanWithDataframeArgs out;
+  for (PlanNode& node : plan.nodes()) {
+    node.operation().MoveSqlSourcesToDataframeArgs(plan.names(), &out.args);
+  }
+  out.plan = std::move(plan);
   return out;
 }
 
-base::Status BindDataframeArgs(
-    BoundPlan* bound,
-    const std::vector<const dataframe::Dataframe*>& args,
-    StringPool* pool) {
-  const LogicalPlan& plan = bound->plan;
-  for (uint32_t i = 0; i < plan.nodes().size(); ++i) {
-    RETURN_IF_ERROR(plan.nodes()[i].operation().BindDataframeArgs(
-        plan, i, args, pool, &bound->bindings));
+std::string SerializePlan(const LogicalPlan& plan, const PlanKey* key) {
+  std::string out;
+  PlanCodec c(&plan, key, &out);
+  SerializeContents(c);
+  if (key) {
+    uint64_t stamp = key->Stamp(PlanKey::Use::kPlan, out);
+    c.Pod(&stamp);
   }
-  return base::OkStatus();
+  return out;
 }
 
-base::StatusOr<BoundPlan> ResolveCompiledPlan(LogicalPlan plan,
-                                              const Catalog& catalog) {
-  BoundPlan bound(std::move(plan));
-  RETURN_IF_ERROR(ResolveDataframes(&bound, catalog, nullptr));
-  return std::move(bound);
+LogicalPlan DeserializePlanUnstamped(std::string_view bytes) {
+  LogicalPlan plan;
+  PlanCodec c(&plan, nullptr, bytes);
+  SerializeContents(c);
+  return plan;
 }
 
-base::StatusOr<BoundPlan> DeserializePlan(std::string_view bytes,
-                                          const PlanKey& key,
-                                          const Catalog& catalog) {
+LogicalPlan ClonePlan(const LogicalPlan& plan) {
+  return DeserializePlanUnstamped(SerializePlan(plan));
+}
+
+base::StatusOr<LogicalPlan> DeserializePlanBytes(std::string_view bytes,
+                                                 const PlanKey& key) {
   // Bytes in SQL could be anything: only those this process stamped are read.
   uint64_t stamp = 0;
   bool stamped = bytes.size() > sizeof(stamp);
@@ -175,8 +177,46 @@ base::StatusOr<BoundPlan> DeserializePlan(std::string_view bytes,
   LogicalPlan plan;
   PlanCodec c(&plan, &key, bytes);
   SerializeContents(c);
+  return plan;
+}
+
+base::Status BindDataframeArgs(
+    BoundPlan* bound,
+    base::Span<const dataframe::Dataframe* const> args,
+    StringPool* pool) {
+  const LogicalPlan& plan = bound->plan;
+  for (uint32_t i = 0; i < plan.nodes().size(); ++i) {
+    RETURN_IF_ERROR(plan.nodes()[i].operation().BindDataframeArgs(
+        plan, i, args, pool, &bound->bindings));
+  }
+  return base::OkStatus();
+}
+
+base::StatusOr<BoundPlan> BindPlan(
+    LogicalPlan plan,
+    const Catalog* catalog,
+    const PlanKey* key,
+    base::Span<const dataframe::Dataframe* const> args,
+    StringPool* pool) {
   BoundPlan bound(std::move(plan));
-  RETURN_IF_ERROR(ResolveDataframes(&bound, catalog, &key));
+  RETURN_IF_ERROR(ResolveDataframes(&bound, catalog, key));
+  RETURN_IF_ERROR(BindDataframeArgs(&bound, args, pool));
+  return std::move(bound);
+}
+
+base::StatusOr<BoundPlan> ResolveCompiledPlan(LogicalPlan plan,
+                                              const Catalog& catalog) {
+  BoundPlan bound(std::move(plan));
+  RETURN_IF_ERROR(ResolveDataframes(&bound, &catalog, nullptr));
+  return std::move(bound);
+}
+
+base::StatusOr<BoundPlan> DeserializePlan(std::string_view bytes,
+                                          const PlanKey& key,
+                                          const Catalog& catalog) {
+  ASSIGN_OR_RETURN(LogicalPlan plan, DeserializePlanBytes(bytes, key));
+  BoundPlan bound(std::move(plan));
+  RETURN_IF_ERROR(ResolveDataframes(&bound, &catalog, &key));
   return std::move(bound);
 }
 

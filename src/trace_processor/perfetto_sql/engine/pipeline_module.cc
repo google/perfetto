@@ -18,7 +18,7 @@
 
 #include <sqlite3.h>
 
-#include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -27,21 +27,15 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
-#include "src/trace_processor/core/exec/column_view.h"
-#include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/perfetto_sql/engine/column_results.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
-#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/iterator.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -49,8 +43,6 @@
 
 namespace perfetto::trace_processor {
 namespace {
-
-using core::exec::ColumnView;
 
 // The pointer types of what __intrinsic_dataframe_agg and
 // __intrinsic_dataframes give.
@@ -60,13 +52,13 @@ constexpr char kDataframesPointerType[] = "PIPELINE_DATAFRAMES";
 // Shared, so a cursor keeps the dataframes it loaded alive.
 using SharedDataframe = std::shared_ptr<const dataframe::Dataframe>;
 
-// What __intrinsic_dataframes gives: the dataframes, in the order the plan
+// What __intrinsic_dataframes gives: the dataframes, in the order the statement
 // numbers them, null for a relation with no rows.
 struct DataframeList {
   std::vector<SharedDataframe> dataframes;
 };
 
-// The table function's arguments: the plan, then the list of dataframes it
+// The table function's arguments: the statement, then the list of dataframes it
 // reads. They come before the outputs: SQLite only says which of a table's
 // first 63 columns a query reads, and those are best spent on the outputs.
 constexpr int kPlanColumn = 0;
@@ -75,6 +67,18 @@ constexpr int kFirstOutputColumn = 2;
 
 // idxNum: whether dataframes are given.
 constexpr int kHasDataframes = 1;
+
+struct SqliteCellCallback {
+  void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
+  void OnCell(double v) const { sqlite::result::Double(ctx, v); }
+  void OnCell(NullTermStringView v) const {
+    sqlite::result::StaticTerminatedString(ctx, v.data(), v.size());
+  }
+  void OnCell(std::nullptr_t) const { sqlite::result::Null(ctx); }
+  void OnCell(uint32_t v) const { sqlite::result::Long(ctx, v); }
+  void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
+  sqlite3_context* ctx;
+};
 
 std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
@@ -85,30 +89,15 @@ std::string Schema() {
   return "CREATE TABLE x(" + base::Join(columns, ", ") + ")";
 }
 
-void ResultNull(sqlite3_context* ctx,
-                StringPool*,
-                const ColumnView&,
-                uint32_t) {
-  sqlite::result::Null(ctx);
-}
-
-void ResultNoColumn(sqlite3_context* ctx,
-                    StringPool*,
-                    const ColumnView&,
-                    uint32_t) {
-  sqlite::utils::SetError(ctx, "__intrinsic_pipeline: no such column");
-}
-
 // Surfaces the executor's error, if any, once rows stop.
 int CheckStatus(PipelineModule::Cursor* cursor) {
-  // status() walks every node so only check it once rows stop.
-  base::Status status = cursor->rows->status();
+  const base::Status& status = cursor->rows->status();
   return status.ok() ? SQLITE_OK
                      : sqlite::utils::SetError(cursor->pVtab, status);
 }
 
-// The slow path of Filter: loads the plan in `value`, reading `args`, into
-// `c`.
+// The slow path of Filter: loads the statement in `argv[0]`, reading `args`,
+// into `c`.
 PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
                             int idx_num,
                             sqlite3_value** argv) {
@@ -116,8 +105,8 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
     return sqlite::utils::SetError(c->pVtab,
                                    "__intrinsic_pipeline: expected a plan");
   }
-  // Only alive while Load runs: once bound, the plan shares ownership of each
-  // column it reads, so nothing needs to keep the dataframes alive.
+  // Only alive while Load runs: once bound, the iterator shares ownership of
+  // each column it reads, so nothing needs to keep the dataframes alive.
   std::vector<const dataframe::Dataframe*> inputs;
   if (idx_num & kHasDataframes) {
     const auto* list =
@@ -131,29 +120,14 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
     }
   }
   PipelineModule::Context* context = PipelineModule::GetVtab(c->pVtab)->context;
-  auto plan = context->connection->LoadPipeline(
+  auto rows = context->connection->LoadPipeline(
       std::string_view(static_cast<const char*>(sqlite3_value_blob(argv[0])),
                        static_cast<size_t>(sqlite3_value_bytes(argv[0]))),
       inputs);
-  if (!plan.ok()) {
-    return sqlite::utils::SetError(c->pVtab, plan.status());
+  if (!rows.ok()) {
+    return sqlite::utils::SetError(c->pVtab, rows.status());
   }
-  c->plan = std::move(*plan);
-  c->pool = context->pool;
-  c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source(),
-                                                    c->plan->pipelines());
-  // One reader per declared column, so Column only indexes: arguments read as
-  // null, and columns past the plan's outputs fail.
-  using Reader = PipelineModule::Cursor::ColumnReader;
-  c->columns.assign(kFirstOutputColumn + pipeline::kMaxPipelineColumns,
-                    Reader{Reader::kNoView, &ResultNoColumn});
-  for (int i = 0; i < kFirstOutputColumn; ++i) {
-    c->columns[static_cast<uint32_t>(i)] = Reader{Reader::kNoView, &ResultNull};
-  }
-  const auto& columns = c->plan->columns();
-  for (uint32_t i = 0; i < columns.size(); ++i) {
-    c->columns[kFirstOutputColumn + i] = Reader{columns[i].index, nullptr};
-  }
+  c->rows.emplace(std::move(*rows));
   return SQLITE_OK;
 }
 
@@ -296,24 +270,26 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
                            int,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
-  // The plan and its dataframes are the same on every filter, so it is loaded
+  // The statement and its dataframes are the same on every filter, so load
   // once per cursor.
-  if (PERFETTO_UNLIKELY(!c->plan)) {
+  if (PERFETTO_UNLIKELY(!c->rows)) {
     if (int rc = Load(c, idx_num, argv); rc != SQLITE_OK) {
       return rc;
     }
   }
-  c->eof = !c->rows->Open(c->plan->params());
-  if (c->eof)
+  c->eof = !c->rows->Open();
+  if (c->eof) {
     return CheckStatus(c);
+  }
   return SQLITE_OK;
 }
 
 int PipelineModule::Next(sqlite3_vtab_cursor* cursor) {
   Cursor* c = GetCursor(cursor);
   c->eof = !c->rows->Next();
-  if (c->eof)
+  if (c->eof) {
     return CheckStatus(c);
+  }
   return SQLITE_OK;
 }
 
@@ -325,20 +301,18 @@ int PipelineModule::Column(sqlite3_vtab_cursor* cursor,
                            sqlite3_context* ctx,
                            int n) {
   Cursor* c = GetCursor(cursor);
-  auto& column = c->columns[static_cast<uint32_t>(n)];
-  if (PERFETTO_UNLIKELY(column.index == Cursor::ColumnReader::kNoView)) {
-    column.result(ctx, c->pool, c->no_view, 0);
+  // Unsigned subtraction catches both hidden columns (n < kFirstOutputColumn)
+  // and out-of-range output columns in a single branch on the hot path.
+  auto out_col = static_cast<uint32_t>(n - kFirstOutputColumn);
+  if (PERFETTO_UNLIKELY(out_col >= c->rows->column_count())) {
+    if (n < kFirstOutputColumn) {
+      sqlite::result::Null(ctx);
+    } else {
+      sqlite::utils::SetError(ctx, "__intrinsic_pipeline: no such column");
+    }
     return SQLITE_OK;
   }
-  // Chosen again only when the column's view changes kind or type.
-  const ColumnView& view = c->rows->batch().column(column.index);
-  if (PERFETTO_UNLIKELY(!column.result || view.kind() != column.kind ||
-                        view.type().index() != column.type)) {
-    column.result = ColumnResultFor(view);
-    column.kind = view.kind();
-    column.type = view.type().index();
-  }
-  column.result(ctx, c->pool, view, c->rows->batch_row());
+  c->rows->Cell(out_col, SqliteCellCallback{ctx});
   return SQLITE_OK;
 }
 

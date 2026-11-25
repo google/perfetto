@@ -42,6 +42,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -136,6 +137,11 @@ class TestCatalog : public Catalog {
   // Materializes SQL inputs for execution tests, in dataframe argument order.
   static base::StatusOr<std::vector<std::unique_ptr<dataframe::Dataframe>>>
   BuildSqlSources(SqliteConnection*, StringPool*, const LogicalPlan&);
+
+  // Test-only access to the internal LogicalPlan for internal pipeline tests.
+  static LogicalPlan ExtractPlan(PreparedStatement stmt) {
+    return std::move(*stmt.plan_);
+  }
 
  private:
   StringPool* pool_;

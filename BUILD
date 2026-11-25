@@ -3958,7 +3958,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_engine_engine",
     srcs = [
-        "src/trace_processor/perfetto_sql/engine/column_results.h",
         "src/trace_processor/perfetto_sql/engine/connection_catalog.cc",
         "src/trace_processor/perfetto_sql/engine/connection_catalog.h",
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
@@ -4057,6 +4056,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_pipeline_pipeline",
     srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/builder.cc",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.cc",
     ],
 )
@@ -4067,6 +4067,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/pipeline/aggregate.cc",
         "src/trace_processor/perfetto_sql/pipeline/aggregate.h",
+        "src/trace_processor/perfetto_sql/pipeline/builder.h",
         "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
         "src/trace_processor/perfetto_sql/pipeline/catalog.h",
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
@@ -4075,6 +4076,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
         "src/trace_processor/perfetto_sql/pipeline/expression.cc",
         "src/trace_processor/perfetto_sql/pipeline/expression.h",
+        "src/trace_processor/perfetto_sql/pipeline/iterator.cc",
+        "src/trace_processor/perfetto_sql/pipeline/iterator.h",
         "src/trace_processor/perfetto_sql/pipeline/literal.cc",
         "src/trace_processor/perfetto_sql/pipeline/literal.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
@@ -4091,6 +4094,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
         "src/trace_processor/perfetto_sql/pipeline/plan_types.h",
+        "src/trace_processor/perfetto_sql/pipeline/prepared_statement.cc",
+        "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h",
     ],
 )
 

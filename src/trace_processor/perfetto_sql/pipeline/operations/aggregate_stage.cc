@@ -45,7 +45,7 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AGGREGATE");
   const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
 
-  std::vector<ColumnId> group_by;
+  std::vector<ColumnId> group_keys;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->group_by)) {
     const auto* list =
@@ -64,26 +64,29 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
         name = c->Name(item->alias);
       }
       // Groups once by each column, but outputs one column per item listed.
-      if (std::find(group_by.begin(), group_by.end(), key) == group_by.end()) {
-        group_by.push_back(key);
+      if (std::find(group_keys.begin(), group_keys.end(), key) ==
+          group_keys.end()) {
+        group_keys.push_back(key);
       }
       keys.push_back({NamedColumn{name, key}, item_id});
     }
   }
 
-  std::vector<Aggregate> resolved_aggregates;
-  std::vector<std::pair<NamedColumn, uint32_t>> aggregates;
+  std::vector<Builder::AggregateItem> agg_items;
+  std::vector<uint32_t> agg_nodes;
   const auto* list =
       Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
-    NameId name = c->Name(agg->name);
-    resolved.output = c->AddColumn(name, core::Int64{});
-    resolved_aggregates.push_back(resolved);
-    aggregates.push_back({NamedColumn{name, resolved.output}, agg_id});
+    agg_items.push_back(
+        {c->Name(agg->name), resolved.function, resolved.column});
+    agg_nodes.push_back(agg_id);
   }
+
+  auto built = c->builder().Aggregate(c->root(), group_keys, agg_items);
+  c->SetRoot(built.relation);
 
   // Only the keys and aggregates are visible after this stage.
   c->ReplaceRow({});
@@ -91,13 +94,9 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   for (auto& [column, node] : keys) {
     c->Append(std::move(column), node);
   }
-  for (auto& [column, node] : aggregates) {
-    c->Append(std::move(column), node);
+  for (size_t i = 0; i < agg_items.size(); ++i) {
+    c->Append(NamedColumn{agg_items[i].name, built.columns[i]}, agg_nodes[i]);
   }
-  AggregateStage aggregate;
-  aggregate.keys_ = c->arena().CopySpan<ColumnId>(group_by);
-  aggregate.aggregates_ = c->arena().CopySpan<Aggregate>(resolved_aggregates);
-  c->AddNode(aggregate, {c->plan().root()});
   return base::OkStatus();
 }
 

@@ -66,14 +66,13 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("INTERVAL FILL GAPS");
   const auto* n = Node<SyntaqlitePerfettoIntervalFillGaps>(c->parser(), stage);
 
-  IntervalFillGaps fill;
   NameId ts_name = c->Name("ts");
   NameId dur_name = c->Name("dur");
   auto is_bounds = [&](NameId name) {
     return c->Same(name, ts_name) || c->Same(name, dur_name);
   };
-  ASSIGN_OR_RETURN(fill.ts_, c->Resolve(ts_name, stage));
-  ASSIGN_OR_RETURN(fill.dur_, c->Resolve(dur_name, stage));
+  ASSIGN_OR_RETURN(ColumnId ts_col, c->Resolve(ts_name, stage));
+  ASSIGN_OR_RETURN(ColumnId dur_col, c->Resolve(dur_name, stage));
   std::vector<ColumnId> keys;
   std::vector<NameId> per;
   if (syntaqlite_node_is_present(n->per)) {
@@ -94,60 +93,53 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   }
 
   // The input is the plan so far. The background is added as a new scan.
-  PlanNodeId input = c->plan().root();
-  ASSIGN_OR_RETURN(SourceRelation background,
+  Builder::Relation input = c->root();
+  ASSIGN_OR_RETURN(Builder::ScanResult background,
                    Scan::BuildRelation(c, n->background));
-  std::optional<ColumnId> ts = c->FindColumn(background.columns, ts_name);
-  std::optional<ColumnId> dur = c->FindColumn(background.columns, dur_name);
-  if (!ts || !dur) {
+  std::optional<ColumnId> bg_ts = c->FindColumn(background.columns, ts_name);
+  std::optional<ColumnId> bg_dur = c->FindColumn(background.columns, dur_name);
+  if (!bg_ts || !bg_dur) {
     return c->Expected(n->background, std::string("the background to have a ") +
-                                          (ts ? "dur" : "ts") + " column");
+                                          (bg_ts ? "dur" : "ts") + " column");
   }
-  fill.background_ts_ = *ts;
-  fill.background_dur_ = *dur;
-  std::vector<ColumnId> background_keys;
+  std::vector<ColumnId> bg_keys;
   for (NameId name : per) {
     if (std::optional<ColumnId> key = c->FindColumn(background.columns, name)) {
-      background_keys.push_back(*key);
+      bg_keys.push_back(*key);
     }
   }
-  if (!background_keys.empty() && background_keys.size() != keys.size()) {
+  if (!bg_keys.empty() && bg_keys.size() != keys.size()) {
     return c->Expected(n->background,
                        "the background to have every PER column or none");
   }
 
   // Fillers take each column from the background column with the same name.
   // Columns only reachable through an alias are not matched.
-  const auto& types = c->plan().columns();
-  std::vector<Compiler::RowColumn> row;
-  std::vector<std::pair<ColumnId, ColumnId>> replaced;
+  std::vector<Builder::FillGapsOutput> outputs;
   std::vector<ColumnId> matched;
-  std::vector<Output> outputs;
   for (const Compiler::RowColumn& column : c->row()) {
-    Output output;
-    output.input = column.column.id;
-    bool bounds = column.column.id == fill.ts_ || column.column.id == fill.dur_;
+    ColumnId input_id = column.column.id;
+    bool bounds = input_id == ts_col || input_id == dur_col;
+    std::optional<ColumnId> bg_id;
     if (!column.qualified_only && !bounds && !is_bounds(column.column.name)) {
-      output.background = c->FindColumn(background.columns, column.column.name);
+      bg_id = c->FindColumn(background.columns, column.column.name);
     }
-    std::optional<PlanType> type = OutputType(
-        types[output.input].type,
-        output.background ? &types[*output.background].type : nullptr, bounds);
+    PlanType bg_type;
+    if (bg_id) {
+      bg_type = c->ColumnType(*bg_id);
+    }
+    std::optional<PlanType> type =
+        OutputType(c->ColumnType(input_id), bg_id ? &bg_type : nullptr, bounds);
     if (!type) {
       return c->Expected(n->background,
                          "the background's '" + c->Text(column.column.name) +
                              "' to hold the same kind of values as the "
                              "input's");
     }
-    if (output.background) {
-      matched.push_back(*output.background);
+    if (bg_id) {
+      matched.push_back(*bg_id);
     }
-    output.column = c->AddColumn(column.column.name, *type);
-    outputs.push_back(output);
-    replaced.emplace_back(column.column.id, output.column);
-    Compiler::RowColumn out = column;
-    out.column.id = output.column;
-    row.push_back(std::move(out));
+    outputs.push_back({column.column.name, *type, input_id, bg_id});
   }
   for (const NamedColumn& column : background.columns) {
     if (!is_bounds(column.name) &&
@@ -156,13 +148,23 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
                                             c->Text(column.name) + "'");
     }
   }
+  auto built = c->builder().IntervalFillGaps(input, ts_col, dur_col, keys,
+                                             background.relation, *bg_ts,
+                                             *bg_dur, bg_keys, outputs);
+  c->SetRoot(built.relation);
+
+  std::vector<Compiler::RowColumn> row;
+  std::vector<std::pair<ColumnId, ColumnId>> replaced;
+  row.reserve(c->row().size());
+  for (size_t i = 0; i < c->row().size(); ++i) {
+    Compiler::RowColumn out = c->row()[i];
+    replaced.emplace_back(out.column.id, built.columns[i]);
+    out.column.id = built.columns[i];
+    row.push_back(std::move(out));
+  }
   // Aliases still refer to their columns.
   c->ReplaceRow(std::move(row));
   c->ReplaceAliasColumns(replaced);
-  fill.keys_ = c->arena().CopySpan<ColumnId>(keys);
-  fill.background_keys_ = c->arena().CopySpan<ColumnId>(background_keys);
-  fill.outputs_ = c->arena().CopySpan<Output>(outputs);
-  c->AddNode(fill, {input, background.node});
   return base::OkStatus();
 }
 

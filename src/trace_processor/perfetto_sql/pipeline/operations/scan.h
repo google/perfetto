@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/util/arena.h"
+#include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
@@ -54,12 +55,6 @@ namespace perfetto::trace_processor::pipeline {
 class Lowering;
 class PlanNode;
 
-// A relation a source reads: the plan node producing it and its columns.
-struct SourceRelation {
-  PlanNodeId node = 0;
-  std::vector<NamedColumn> columns;
-};
-
 // A dataframe column a scan reads.
 struct ScanDataframeColumn {
   uint32_t index = 0;
@@ -79,10 +74,17 @@ struct ScanDataframe {
   uint64_t stamp = 0;
 };
 
-// The dataframe the plan is passed as its `index`-th argument when it runs.
-// SQLite builds it from a relation the plan read from SQL.
+// A dataframe passed positionally as `args[index]` when the statement runs.
+//
+// Used in two ways:
+// - PipeSQL SQL subqueries hoisted into `__intrinsic_dataframe_agg`: `read` is
+//   empty, so columns are matched by name at bind time.
+// - Programmatic `Builder::Scan` statements: `read` stores each scanned
+//   column's index in the source dataframe so binding is O(1) and supports
+//   hidden columns and secondary indexes.
 struct ScanDataframeArg {
   uint32_t index = 0;
+  core::ArenaSpan<uint32_t> read;
 };
 
 // The conditions of a WHERE directly on a scan which the scan answers by
@@ -115,8 +117,8 @@ class Scan final : public PlanOperation {
   static const OperationRegistration kRegistration;
 
   // Builds the plan for what a source reads: a dataframe or SQL.
-  static base::StatusOr<SourceRelation> BuildRelation(Compiler*,
-                                                      uint32_t source);
+  static base::StatusOr<Builder::ScanResult> BuildRelation(Compiler*,
+                                                           uint32_t source);
 
   // The name a source's columns can be qualified with, if it has one.
   static std::optional<NameId> SourceQualifier(
@@ -175,12 +177,8 @@ class Scan final : public PlanOperation {
   // those are bound to dataframes when it is loaded.
   // SQL is the text of the relation, in the plan's arena.
   using Source = std::variant<Dataframe, std::string_view, DataframeArg>;
-  // A column a dataframe scan reads, and the name it is read as.
-  struct DataframeColumn {
-    NameId name;
-    uint32_t index;
-  };
 
+  friend class Builder;
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
   // Materializes SQL sources for execution tests without exposing the payload.
@@ -195,15 +193,14 @@ class Scan final : public PlanOperation {
   void Serialize(PlanCodec&) override;
   base::Status ResolveDataframes(const LogicalPlan&,
                                  PlanNodeId self,
-                                 const Catalog&,
+                                 const Catalog* catalog,
                                  const PlanKey* key,
                                  Bindings*) const override;
-  base::Status BindDataframeArgs(
-      const LogicalPlan&,
-      PlanNodeId self,
-      const std::vector<const dataframe::Dataframe*>&,
-      StringPool*,
-      Bindings*) const override;
+  base::Status BindDataframeArgs(const LogicalPlan&,
+                                 PlanNodeId self,
+                                 base::Span<const dataframe::Dataframe* const>,
+                                 StringPool*,
+                                 Bindings*) const override;
 
   static base::Status BuildPlan(Compiler*, uint32_t);
 
@@ -220,10 +217,8 @@ class Scan final : public PlanOperation {
                                        uint32_t at);
   static Bindings::Dataframe BindingFor(const dataframe::Dataframe& dataframe,
                                         const ScanDataframe& data);
-  static Scan BuildDataframeScan(Compiler*,
-                                 const dataframe::Dataframe& dataframe,
-                                 std::string_view name,
-                                 const std::vector<DataframeColumn>& columns);
+  static PlanType ColumnTypeFor(const dataframe::Dataframe& dataframe,
+                                uint32_t index);
   // The columns of a source read through SQLite.
   static base::StatusOr<perfetto_sql::analysis::RelationLineage> AnalyzeSource(
       Compiler*,
@@ -233,11 +228,7 @@ class Scan final : public PlanOperation {
   static const dataframe::Dataframe* FindRenamedDataframe(
       Compiler*,
       const perfetto_sql::analysis::RelationLineage& lineage,
-      std::vector<DataframeColumn>* columns);
-  static Scan BuildSqlScan(
-      Compiler*,
-      uint32_t from,
-      const perfetto_sql::analysis::RelationLineage& lineage);
+      std::vector<Builder::TableColumn>* columns);
 
   // Sets a source answering `search_`.
   void LowerSearch(Lowering*,

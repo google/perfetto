@@ -79,10 +79,11 @@ class PlanOperation {
   //
   // Resolves named dataframes against the catalog. A plan read back is
   // checked against the stamp `key` gave each when it was written; a plan
-  // compiled in this process passes no key.
+  // compiled in this process passes no key. `catalog` may be null if the plan
+  // does not scan any catalog-named dataframes.
   virtual base::Status ResolveDataframes(const LogicalPlan&,
                                          PlanNodeId self,
-                                         const Catalog&,
+                                         const Catalog* catalog,
                                          const PlanKey* key,
                                          Bindings* bindings) const;
 
@@ -90,7 +91,7 @@ class PlanOperation {
   virtual base::Status BindDataframeArgs(
       const LogicalPlan&,
       PlanNodeId self,
-      const std::vector<const core::dataframe::Dataframe*>&,
+      base::Span<const core::dataframe::Dataframe* const>,
       StringPool*,
       Bindings* bindings) const;
 
@@ -272,6 +273,9 @@ struct Bindings {
   struct Dataframe {
     // By scan column, the dataframe column it reads.
     std::vector<std::shared_ptr<const core::dataframe::Column>> columns;
+    // By scan column, its index in the source dataframe (used to match
+    // dataframe indexes during search planning).
+    std::vector<uint32_t> column_indices;
     uint32_t row_count = 0;
     // The dataframe's indexes on columns the scan reads.
     std::vector<core::dataframe::Index> indexes;

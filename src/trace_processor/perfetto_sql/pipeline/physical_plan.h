@@ -47,6 +47,13 @@ struct SortKey;
 
 namespace perfetto::trace_processor::pipeline {
 
+class PhysicalPlan;
+
+namespace internal {
+struct ParamBindingLayout;
+ParamBindingLayout DescribeParams(const PhysicalPlan&);
+}  // namespace internal
+
 // -----------------------------------------------------------------------------
 // Execution plan
 // -----------------------------------------------------------------------------
@@ -86,11 +93,14 @@ class PhysicalPlan {
   // plan with bound params is run with RunParams instead.
   const std::vector<core::exec::ParamValue>& params() const { return params_; }
 
+  // The StringPool used to intern/read string columns of this plan.
+  const StringPool* pool() const { return pool_; }
+
  private:
   friend class Lowering;
   friend class PlanLowering;
-  template <typename Fetcher>
-  friend class RunParams;
+  friend internal::ParamBindingLayout internal::DescribeParams(
+      const PhysicalPlan&);
 
   struct ParamSource {
     PlannedParam::State state;
@@ -111,69 +121,6 @@ class PhysicalPlan {
   // By param.
   std::vector<ParamSource> param_sources_;
   const StringPool* pool_ = nullptr;
-};
-
-// A cursor's params for its runs of a plan. Constant params are cast once,
-// external literal `i` on SetLiterals() from value `i` of its `fetcher`, and
-// bound param `i` on each Bind() from value `i` of `fetcher`.
-template <typename Fetcher>
-class RunParams {
- public:
-  explicit RunParams(const PhysicalPlan& plan)
-      : pool_(plan.pool_), params_(plan.param_sources_.size()) {
-    for (uint32_t i = 0; i < params_.size(); ++i) {
-      const PhysicalPlan::ParamSource& s = plan.param_sources_[i];
-      if (s.state == PlannedParam::State::kBound ||
-          s.state == PlannedParam::State::kExternal) {
-        Binding binding{s.op.Is<core::In>()
-                            ? core::exec::GetParamListCaster<Fetcher>(s.type)
-                            : core::exec::GetParamCaster<Fetcher>(s.type, s.op),
-                        s.literals[0].bound, i, s.op.Is<core::Glob>()};
-        std::vector<Binding>& to =
-            s.state == PlannedParam::State::kBound ? bindings_ : literals_;
-        to.push_back(binding);
-      } else if (!s.literals.empty()) {
-        params_[i] = CastLiterals(s.op, s.literals.data(),
-                                  static_cast<uint32_t>(s.literals.size()),
-                                  s.type, *pool_);
-        if (s.op.Is<core::Glob>()) {
-          core::exec::AttachGlob(&params_[i]);
-        }
-      }
-    }
-  }
-
-  // Casts the external literals from `fetcher`. Called once per execution of
-  // the plan, before its first run.
-  void SetLiterals(Fetcher& fetcher) {
-    for (const Binding& b : literals_) {
-      b.cast(fetcher, b.value, *pool_, &params_[b.param]);
-      if (b.glob) {
-        core::exec::AttachGlob(&params_[b.param]);
-      }
-    }
-  }
-
-  // Casts the bound params from `fetcher`, and returns the run's params.
-  base::Span<const core::exec::ParamValue> Bind(Fetcher& fetcher) {
-    for (const Binding& b : bindings_) {
-      b.cast(fetcher, b.value, *pool_, &params_[b.param]);
-    }
-    return params_;
-  }
-
- private:
-  struct Binding {
-    core::exec::ParamCaster<Fetcher> cast;
-    uint32_t value;
-    uint32_t param;
-    // A GLOB literal, matched once however many runs read it.
-    bool glob;
-  };
-  const StringPool* pool_;
-  std::vector<core::exec::ParamValue> params_;
-  std::vector<Binding> bindings_;
-  std::vector<Binding> literals_;
 };
 
 // What lowering needs from whoever runs the plan. Everything here must outlive

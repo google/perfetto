@@ -46,6 +46,7 @@ class Compute final : public PlanOperation {
   explicit Compute(core::ArenaSpan<Item> items) : items_(items) {}
 
  private:
+  friend class Builder;
   friend class LogicalPlanFormatter;
 
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;

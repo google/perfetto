@@ -75,12 +75,12 @@ constexpr OperationRegistration Limit::kRegistration{
 base::Status Limit::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("LIMIT");
   const auto* n = Node<SyntaqlitePerfettoPipeLimit>(c->parser(), stage);
-  Limit limit;
-  ASSIGN_OR_RETURN(limit.count_, ParseInteger(c, n->count));
+  ASSIGN_OR_RETURN(int64_t count, ParseInteger(c, n->count));
+  int64_t offset = 0;
   if (syntaqlite_node_is_present(n->offset)) {
-    ASSIGN_OR_RETURN(limit.offset_, ParseInteger(c, n->offset));
+    ASSIGN_OR_RETURN(offset, ParseInteger(c, n->offset));
   }
-  c->AddNode(limit, {c->plan().root()});
+  c->SetRoot(c->builder().Limit(c->root(), count, offset));
   return base::OkStatus();
 }
 

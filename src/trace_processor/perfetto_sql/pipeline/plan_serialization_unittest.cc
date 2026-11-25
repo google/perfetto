@@ -29,6 +29,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -72,8 +73,9 @@ class PlanSerializationTest : public ::testing::Test {
     PerfettoSqlParser parser(macros_, catalog_, /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     PERFETTO_CHECK(parser.Next());
-    LogicalPlan plan = std::move(
-        std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+    LogicalPlan plan = TestCatalog::ExtractPlan(
+        std::move(std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement())
+                      .statement));
     auto dataframes =
         TestCatalog::BuildSqlSources(connection_.get(), &pool_, plan);
     PERFETTO_CHECK(dataframes.ok());
@@ -82,7 +84,7 @@ class PlanSerializationTest : public ::testing::Test {
   }
 
   std::string Serialize(const std::string& sql) {
-    return SerializePlan(Compile(sql), key_);
+    return SerializePlan(Compile(sql), &key_);
   }
 
   base::StatusOr<BoundPlan> Deserialize(const std::string& bytes) {
@@ -131,9 +133,8 @@ TEST_F(PlanSerializationTest, PlansRoundTrip) {
   for (const char* sql : kPipelines) {
     auto read = Deserialize(Serialize(sql));
     ASSERT_TRUE(read.ok()) << sql << ": " << read.status().message();
-    ASSERT_TRUE(
-        BindDataframeArgs(&*read, DataframeArgs(dataframes_), &pool_).ok())
-        << sql;
+    auto args = DataframeArgs(dataframes_);
+    ASSERT_TRUE(BindDataframeArgs(&*read, args, &pool_).ok()) << sql;
     ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
     EXPECT_TRUE(Lower(&*read, {&pool_})) << sql;
   }
@@ -182,15 +183,18 @@ TEST_F(PlanSerializationTest, UnstampedPlansAreRefused) {
 }
 
 TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreNotWritten) {
-  LogicalPlan at_limit = Compile("FROM df |> SELECT id");
-  ASSERT_EQ(at_limit.output().size(), 1u);
-  NamedColumn id = at_limit.output()[0];
-  at_limit.output().assign(kMaxPipelineColumns, id);
-  EXPECT_TRUE(SelectPipelineSql(std::move(at_limit), key_).ok());
+  const dataframe::Dataframe* df = catalog_.FindDataframe("df");
+  ASSERT_NE(df, nullptr);
+  auto make_stmt = [&](uint32_t output_count) {
+    Builder b;
+    std::vector<uint32_t> cols = {0};
+    auto scanned = b.Scan(*df, cols);
+    std::vector<ColumnId> outputs(output_count, scanned.columns[0].id);
+    return b.Finish(scanned.relation, outputs);
+  };
 
-  LogicalPlan over_limit = Compile("FROM df |> SELECT id");
-  over_limit.output().assign(kMaxPipelineColumns + 1, id);
-  EXPECT_FALSE(SelectPipelineSql(std::move(over_limit), key_).ok());
+  EXPECT_TRUE(make_stmt(kMaxPipelineColumns).ToSqliteSql(key_).ok());
+  EXPECT_FALSE(make_stmt(kMaxPipelineColumns + 1).ToSqliteSql(key_).ok());
 }
 
 // A lookup checks no two operations share the tag it finds.

@@ -49,17 +49,19 @@ using JoinNode = SyntaqlitePerfettoPipeJoin;
 // Adds the right side's columns to the row, under the right side's alias.
 // With USING, the right side's copy of the column is only reachable through
 // the alias, so the bare name keeps referring to the input's column.
-base::StatusOr<SourceRelation> AppendRelation(Compiler* c,
-                                              const JoinNode& n,
-                                              std::optional<NameId> using_name,
-                                              std::vector<ColumnId>* outputs) {
+base::StatusOr<Builder::ScanResult> AppendRelation(
+    Compiler* c,
+    const JoinNode& n,
+    std::optional<NameId> using_name,
+    std::vector<ColumnId>* outputs) {
   const auto* source =
       Node<SyntaqlitePerfettoPipeSource>(c->parser(), n.operand);
   std::optional<NameId> alias = Scan::SourceQualifier(c, *source);
   if (alias && c->FindAlias(*alias)) {
     return c->Expected(n.operand, "a different alias for each relation");
   }
-  ASSIGN_OR_RETURN(SourceRelation relation, Scan::BuildRelation(c, n.operand));
+  ASSIGN_OR_RETURN(Builder::ScanResult relation,
+                   Scan::BuildRelation(c, n.operand));
   // Sized up front: push_back() would inline its growth code here.
   size_t first = c->row().size();
   outputs->resize(relation.columns.size());
@@ -86,7 +88,7 @@ bool HasColumn(const std::vector<NamedColumn>& columns, ColumnId id) {
 
 // Finds the probe and build keys from `ON a = b` or `USING (col)`.
 base::Status ResolveKeys(Compiler* c,
-                         const SourceRelation& relation,
+                         const Builder::ScanResult& relation,
                          uint32_t match,
                          std::optional<NameId> using_name,
                          ColumnId* probe_key,
@@ -128,9 +130,8 @@ base::Status Join::BuildPlan(Compiler* c, uint32_t stage) {
   if (!has_on && !has_using) {
     return c->Expected(stage, "ON or USING to say which rows match");
   }
-  Join join;
-  join.left_ = n.join_type == SYNTAQLITE_JOIN_TYPE_LEFT;
-  if (!join.left_ && n.join_type != SYNTAQLITE_JOIN_TYPE_INNER) {
+  bool left = n.join_type == SYNTAQLITE_JOIN_TYPE_LEFT;
+  if (!left && n.join_type != SYNTAQLITE_JOIN_TYPE_INNER) {
     return c->Unsupported(stage, "a JOIN other than an INNER or LEFT one");
   }
   uint32_t match = n.on_expr;
@@ -145,19 +146,23 @@ base::Status Join::BuildPlan(Compiler* c, uint32_t stage) {
     using_name =
         c->Name(Node<SyntaqlitePerfettoPipeName>(c->parser(), match)->name);
   }
-  PlanNodeId input = c->plan().root();
+  Builder::Relation input = c->root();
   std::vector<ColumnId> outputs;
-  ASSIGN_OR_RETURN(SourceRelation relation,
+  ASSIGN_OR_RETURN(Builder::ScanResult relation,
                    AppendRelation(c, n, using_name, &outputs));
-  join.outputs_ = c->arena().CopySpan<ColumnId>(outputs);
-  RETURN_IF_ERROR(ResolveKeys(c, relation, match, using_name, &join.probe_key_,
-                              &join.build_key_));
-  const PlanType& type = c->plan().columns()[join.probe_key_].type;
+  ColumnId probe_key = 0;
+  ColumnId build_key = 0;
+  RETURN_IF_ERROR(
+      ResolveKeys(c, relation, match, using_name, &probe_key, &build_key));
+  PlanType type = c->ColumnType(probe_key);
   if (type.storage() && !(type.Is<core::Uint32>() || type.Is<core::Int32>() ||
                           type.Is<core::Int64>())) {
     return c->Expected(match, "an integer key");
   }
-  c->AddNode(join, {input, relation.node});
+  c->SetRoot(c->builder().Join(
+      input, relation.relation,
+      left ? ex::JoinSpec::Kind::kLeft : ex::JoinSpec::Kind::kInner, probe_key,
+      build_key, outputs));
   return base::OkStatus();
 }
 

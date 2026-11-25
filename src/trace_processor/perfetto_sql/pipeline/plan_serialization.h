@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -38,16 +39,34 @@
 
 namespace perfetto::trace_processor::pipeline {
 
+// A plan whose SQL sources have been moved out into dataframe arguments: the
+// plan reads its i-th SQL source as dataframe argument i, and `args[i]` is the
+// SQL building it.
+struct PlanWithDataframeArgs {
+  LogicalPlan plan;
+  std::vector<std::string> args;
+};
+PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
+
 // -----------------------------------------------------------------------------
-// Plan serialization API
+// Internal plan serialization and binding API
 // -----------------------------------------------------------------------------
 
-// The most columns a pipeline can output.
-inline constexpr uint32_t kMaxPipelineColumns = 256;
+// Writes an optimized plan as bytes. When `key` is non-null, appends an HMAC
+// stamp so untrusted carriers (such as SQL) can authenticate it.
+std::string SerializePlan(const LogicalPlan& plan,
+                          const PlanKey* key = nullptr);
 
-// Writes an optimized plan as bytes, stamped with `key`, so that SQL can carry
-// it and run it later without compiling the pipeline again.
-std::string SerializePlan(LogicalPlan, const PlanKey& key);
+// Rebuilds a plan written by SerializePlan(plan, nullptr).
+LogicalPlan DeserializePlanUnstamped(std::string_view bytes);
+
+// Rebuilds a plan written by SerializePlan(plan, &key), verifying the stamp
+// without resolving its catalog dataframes yet.
+base::StatusOr<LogicalPlan> DeserializePlanBytes(std::string_view bytes,
+                                                 const PlanKey& key);
+
+// Clones an arena-owned LogicalPlan by round-tripping through PlanCodec.
+LogicalPlan ClonePlan(const LogicalPlan& plan);
 
 // Rebuilds a plan written by SerializePlan, binding the dataframes it names
 // to those in `catalog` now. Anyone can write bytes into SQL, so bytes without
@@ -68,7 +87,17 @@ base::StatusOr<BoundPlan> ResolveCompiledPlan(LogicalPlan, const Catalog&);
 // the plan reads from it.
 base::Status BindDataframeArgs(
     BoundPlan* bound,
-    const std::vector<const dataframe::Dataframe*>& args,
+    base::Span<const dataframe::Dataframe* const> args,
+    StringPool* pool);
+
+// Unified internal binding entry point: resolves any catalog-named scans
+// against `catalog` (checking table stamps against `key` when non-null) and
+// attaches any positional dataframe arguments from `args`.
+base::StatusOr<BoundPlan> BindPlan(
+    LogicalPlan plan,
+    const Catalog* catalog,
+    const PlanKey* key,
+    base::Span<const dataframe::Dataframe* const> args,
     StringPool* pool);
 
 // -----------------------------------------------------------------------------
@@ -82,14 +111,15 @@ base::Status BindDataframeArgs(
 // order: a plan is only read by the process which wrote it.
 class PlanCodec {
  public:
-  // Writes into `out`.
-  PlanCodec(LogicalPlan* plan, const PlanKey* key, std::string* out)
-      : plan_(plan), key_(key), out_(out) {}
+  // Writes into `out` without mutating `plan`.
+  PlanCodec(const LogicalPlan* plan, const PlanKey* key, std::string* out)
+      : plan_(const_cast<LogicalPlan*>(plan)), key_(key), out_(out) {}
   // Reads `in`, which SerializePlan wrote.
   PlanCodec(LogicalPlan* plan, const PlanKey* key, std::string_view in)
       : plan_(plan), key_(key), in_(in) {}
 
   bool reading() const { return !out_; }
+  bool has_key() const { return key_ != nullptr; }
   LogicalPlan& plan() { return *plan_; }
   const PlanKey& key() const { return *key_; }
 

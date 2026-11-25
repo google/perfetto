@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan_test_utils.h"
 
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -515,6 +517,10 @@ std::string LogicalPlanFormatter::Format(const LogicalPlan& plan) {
 
 std::string LogicalPlanToString(const LogicalPlan& plan) {
   return LogicalPlanFormatter::Format(plan);
+}
+
+std::string PreparedStatementToString(const PreparedStatement& stmt) {
+  return LogicalPlanFormatter::Format(*stmt.plan_);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -36,6 +36,7 @@ class IntervalIntersect final : public PlanOperation {
   static const OperationRegistration kRegistration;
 
  private:
+  friend class Builder;
   // The columns read from one operand, which is a child of the node. Operands
   // are in child order, so `operands[i]` describes `children[i]`.
   struct Operand {

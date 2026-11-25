@@ -59,9 +59,7 @@ base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
     keys.push_back({id, term->sort_order == SYNTAQLITE_SORT_ORDER_DESC});
   }
   PERFETTO_DCHECK(!keys.empty());
-  OrderBy order;
-  order.keys_ = c->arena().CopySpan<SortKey>(keys);
-  c->AddNode(order, {c->plan().root()});
+  c->SetRoot(c->builder().OrderBy(c->root(), std::move(keys)));
   return base::OkStatus();
 }
 

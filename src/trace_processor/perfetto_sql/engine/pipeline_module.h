@@ -19,20 +19,11 @@
 
 #include <sqlite3.h>
 
-#include <cstdint>
-#include <limits>
-#include <memory>
 #include <optional>
-#include <string>
-#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
-#include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/perfetto_sql/engine/column_results.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/iterator.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
@@ -68,45 +59,29 @@ struct DataframesFunction : sqlite::Function<DataframesFunction> {
   static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
 };
 
-// Runs a pipeline from its plan, serialized into the SQL which reads it:
-// `__intrinsic_pipeline(X'...')`. The plan is all a pipeline needs, so the SQL
-// can be stored, in a view say, and run later. Pipelines output into fixed
+// Runs a pipeline from its serialized statement embedded in SQL:
+// `__intrinsic_pipeline(X'...')`. The statement is all a pipeline needs, so the
+// SQL can be stored, in a view say, and run later. Pipelines output into fixed
 // columns `c0`, `c1`, ..., which the SQL reading them renames.
 //
 // The relations a pipeline reads from SQL are passed as a list of dataframes
-// after the plan: `__intrinsic_pipeline(X'...', __intrinsic_dataframes((SELECT
-// __intrinsic_dataframe_agg(...) FROM ...), ...))`.
+// after the statement: `__intrinsic_pipeline(X'...',
+// __intrinsic_dataframes((SELECT __intrinsic_dataframe_agg(...) FROM ...),
+// ...))`.
 struct PipelineModule : sqlite::Module<PipelineModule> {
   static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
 
   struct Context {
-    StringPool* pool = nullptr;
-    // Loads the plans this module runs.
+    // Loads the statements this module runs.
     PerfettoSqlConnection* connection = nullptr;
   };
   struct Vtab : sqlite::Module<PipelineModule>::Vtab {
     Context* context = nullptr;
   };
   struct Cursor : sqlite::Module<PipelineModule>::Cursor {
-    struct ColumnReader {
-      static constexpr uint32_t kNoView = std::numeric_limits<uint32_t>::max();
-      // In the plan's batches, or kNoView for a column the plan does not
-      // output.
-      uint32_t index = kNoView;
-      ColumnResultFn result = nullptr;
-      // The view `result` was chosen for.
-      core::exec::ColumnView::Kind kind{};
-      uint32_t type = 0;
-    };
-    std::unique_ptr<pipeline::PhysicalPlan> plan;
-    StringPool* pool = nullptr;
-    std::unique_ptr<core::exec::RowCursor> rows;
-    // By declared column.
-    std::vector<ColumnReader> columns;
-    // What readers of columns with no view are given.
-    core::exec::ColumnView no_view;
+    std::optional<pipeline::RowIterator> rows;
     bool eof = true;
   };
 

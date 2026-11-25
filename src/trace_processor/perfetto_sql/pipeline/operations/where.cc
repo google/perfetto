@@ -61,22 +61,22 @@ const Literal* GivenOf(const WherePredicate& p,
   return &literals[p.first_literal];
 }
 
-// What `p` should compare with to suit a column of storage `type`, if a literal
-// of it is a string where the column holds numbers, or the other way around.
-// GLOB, REGEXP and IS [NOT] NULL do not compare values, and a given value
-// has none yet.
-std::optional<std::string> LiteralMismatch(const WherePredicate& p,
+// What comparing `literals` by `op` should compare with to suit a column of
+// storage `type`, if a literal is a string where the column holds numbers, or
+// the other way around. GLOB, REGEXP and IS [NOT] NULL do not compare values,
+// and a given value has none yet.
+std::optional<std::string> LiteralMismatch(core::Op op,
                                            base::Span<const Literal> literals,
                                            core::StorageType type) {
-  if (GivenOf(p, literals)) {
+  if (literals.size() == 1 && literals[0].is_given()) {
     return std::nullopt;
   }
-  if (p.op.IsAnyOf<core::NullOp>() || p.op.IsAnyOf<core::OnlyStringOp>()) {
+  if (op.IsAnyOf<core::NullOp>() || op.IsAnyOf<core::OnlyStringOp>()) {
     return std::nullopt;
   }
   bool string_column = type.Is<core::String>();
-  for (uint32_t i = 0; i < p.literal_count; ++i) {
-    if (string_column != literals[p.first_literal + i].is_string()) {
+  for (const Literal& literal : literals) {
+    if (string_column != literal.is_string()) {
       return std::string(string_column ? "a string to compare with a string "
                                          "column, but got a number"
                                        : "a number to compare with a numeric "
@@ -86,14 +86,22 @@ std::optional<std::string> LiteralMismatch(const WherePredicate& p,
   return std::nullopt;
 }
 
-// Parses a WHERE condition into the predicates, literals and strings of a
-// Where.
+std::optional<std::string> LiteralMismatch(const WherePredicate& p,
+                                           base::Span<const Literal> literals,
+                                           core::StorageType type) {
+  return LiteralMismatch(
+      p.op,
+      base::Span<const Literal>(
+          literals.data() + p.first_literal,
+          literals.data() + p.first_literal + p.literal_count),
+      type);
+}
+
+// Parses a WHERE condition into a list of Builder::WhereConditions.
 class Parser {
  public:
-  Parser(Compiler* c,
-         std::vector<WherePredicate>* predicates,
-         std::vector<Literal>* literals)
-      : c_(c), predicates_(predicates), literals_(literals) {}
+  Parser(Compiler* c, std::vector<Builder::WhereCondition>* conditions)
+      : c_(c), conditions_(conditions) {}
 
   base::Status Condition(uint32_t expr) {
     const auto* node = Node<SyntaqliteNode>(c_->parser(), expr);
@@ -125,7 +133,7 @@ class Parser {
       return c_->Unsupported(expr, kOperators);
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
-    return Add(expr, column, *op, {node.right});
+    return Add(expr, column, *op, {&node.right, &node.right + 1});
   }
 
   base::Status Like(uint32_t expr, const SyntaqliteLikeExpr& node) {
@@ -144,8 +152,8 @@ class Parser {
                              op.Is<core::Glob>() ? "NOT GLOB" : "NOT REGEXP");
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    RETURN_IF_ERROR(Add(expr, column, op, {node.pattern}));
-    const Literal& pattern = literals_->back();
+    RETURN_IF_ERROR(Add(expr, column, op, {&node.pattern, &node.pattern + 1}));
+    const Literal& pattern = conditions_->back().values.back();
     if (op.Is<core::Regex>() && pattern.is_string()) {
       // As the SQL function is, a pattern which does not compile is an error.
       base::StatusOr<base::Regex> regex = base::Regex::Create(pattern.text);
@@ -168,9 +176,8 @@ class Parser {
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
     const SyntaqliteExprList& list = source->expr_list;
-    return Add(
-        expr, column, core::In{},
-        std::vector<uint32_t>(list.children, list.children + list.count));
+    return Add(expr, column, core::In{},
+               {list.children, list.children + list.count});
   }
 
   base::Status Is(uint32_t expr, const SyntaqliteIsExpr& node) {
@@ -185,32 +192,30 @@ class Parser {
       return c_->Unsupported(expr, "NOT BETWEEN");
     }
     ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    RETURN_IF_ERROR(Add(expr, column, core::Ge{}, {node.low}));
-    return Add(expr, column, core::Le{}, {node.high});
+    RETURN_IF_ERROR(Add(expr, column, core::Ge{}, {&node.low, &node.low + 1}));
+    return Add(expr, column, core::Le{}, {&node.high, &node.high + 1});
   }
 
   base::Status Add(uint32_t at,
                    ColumnId column,
                    core::Op op,
-                   const std::vector<uint32_t>& exprs) {
-    WherePredicate predicate;
-    predicate.column = column;
-    predicate.op = op;
-    predicate.first_literal = static_cast<uint32_t>(literals_->size());
-    predicate.literal_count = static_cast<uint32_t>(exprs.size());
+                   base::Span<const uint32_t> exprs) {
+    Builder::WhereCondition cond;
+    cond.column = column;
+    cond.op = op;
+    cond.values.reserve(exprs.size());
     for (uint32_t expr : exprs) {
       ASSIGN_OR_RETURN(Literal literal, CompileLiteral(c_, expr));
-      literals_->push_back(std::move(literal));
+      cond.values.push_back(literal);
     }
     if (std::optional<core::StorageType> type =
-            c_->plan().columns()[column].type.storage()) {
-      std::optional<std::string> mismatch =
-          LiteralMismatch(predicate, *literals_, *type);
-      if (mismatch) {
+            c_->ColumnType(column).storage()) {
+      if (std::optional<std::string> mismatch =
+              LiteralMismatch(op, cond.values, *type)) {
         return c_->Expected(at, *mismatch);
       }
     }
-    predicates_->push_back(predicate);
+    conditions_->push_back(std::move(cond));
     return base::OkStatus();
   }
 
@@ -236,8 +241,7 @@ class Parser {
   }
 
   Compiler* c_;
-  std::vector<WherePredicate>* predicates_;
-  std::vector<Literal>* literals_;
+  std::vector<Builder::WhereCondition>* conditions_;
 };
 
 // The type a column of no known type is converted to, for Filter to read it:
@@ -301,14 +305,10 @@ constexpr OperationRegistration Where::kRegistration{
 base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("WHERE");
   const auto* n = Node<SyntaqlitePerfettoPipeWhere>(c->parser(), stage);
-  std::vector<WherePredicate> predicates;
-  std::vector<Literal> literals;
-  Parser parser(c, &predicates, &literals);
+  std::vector<Builder::WhereCondition> conditions;
+  Parser parser(c, &conditions);
   RETURN_IF_ERROR(parser.Condition(n->condition));
-  Where where;
-  where.predicates_ = c->arena().CopySpan<WherePredicate>(predicates);
-  where.literals_ = c->arena().CopySpan<Literal>(literals);
-  c->AddNode(where, {c->plan().root()});
+  c->SetRoot(c->builder().Where(c->root(), std::move(conditions)));
   return base::OkStatus();
 }
 

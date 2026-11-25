@@ -19,10 +19,12 @@
 
 #include <string>
 
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
 
 namespace perfetto::trace_processor::pipeline {
+class LogicalPlan;
 std::string LogicalPlanToString(const LogicalPlan&);
+std::string PreparedStatementToString(const PreparedStatement&);
 }  // namespace perfetto::trace_processor::pipeline
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_TEST_UTILS_H_

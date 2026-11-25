@@ -39,6 +39,7 @@ class IntervalFillGaps final : public PlanOperation {
   static const OperationRegistration kRegistration;
 
  private:
+  friend class Builder;
   // An output column. Fillers always use their own ts and dur.
   struct Output {
     ColumnId column = 0;

@@ -72,19 +72,16 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
     }
   }
 
-  IntervalIntersect isect;
-  // The region's bounds are the operation's own, so they are named before an
-  // operand can bind anything.
   NameId ts_name = c->Name("ts");
   NameId dur_name = c->Name("dur");
-  isect.ts_ = c->AddColumn(ts_name, core::Int64{});
-  isect.dur_ = c->AddColumn(dur_name, core::Int64{});
 
-  c->Append({ts_name, isect.ts_}, node);
-  c->Append({dur_name, isect.dur_}, node);
-  core::Arena& arena = c->arena();
-  isect.operands_ = arena.NewSpan<Operand>(count);
-  std::vector<PlanNodeId> children;
+  std::vector<Builder::IntervalOperand> operands;
+  struct OperandScope {
+    NameId alias;
+    uint32_t source_id;
+    std::vector<NamedColumn> columns;
+  };
+  std::vector<OperandScope> scopes;
   for (uint32_t i = 0; i < count; i++) {
     uint32_t source_id = syntaqlite_list_child_id(list, i);
     const auto* source =
@@ -94,10 +91,12 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       return c->Expected(source_id,
                          "an alias for the relation, as in `(...) AS x`");
     }
-    if (c->FindAlias(*alias)) {
+    if (std::any_of(scopes.begin(), scopes.end(), [&](const OperandScope& s) {
+          return c->Same(s.alias, *alias);
+        })) {
       return c->Expected(source_id, "a different alias for each relation");
     }
-    ASSIGN_OR_RETURN(SourceRelation relation,
+    ASSIGN_OR_RETURN(Builder::ScanResult relation,
                      Scan::BuildRelation(c, source_id));
     std::optional<ColumnId> ts = c->FindColumn(relation.columns, ts_name);
     std::optional<ColumnId> dur = c->FindColumn(relation.columns, dur_name);
@@ -105,41 +104,48 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       return c->Expected(source_id, c->Text(*alias) + " to have a " +
                                         (ts ? "dur" : "ts") + " column");
     }
-    std::vector<ColumnId> keys;
+    Builder::IntervalOperand operand;
+    operand.relation = relation.relation;
+    operand.ts = *ts;
+    operand.dur = *dur;
     for (const auto& [name, col_id] : per_columns) {
       std::optional<ColumnId> key = c->FindColumn(relation.columns, name);
       if (!key) {
         return c->Expected(col_id, c->Text(*alias) + " to have a " +
                                        c->Text(name) + " column");
       }
-      keys.push_back(*key);
+      operand.keys.push_back(*key);
     }
-    // Every operand column is carried, reachable through the operand's alias
-    // and, for most, by its bare name too. The region's ts and dur are what
-    // a bare ts and dur mean, so an operand's own are found only through its
-    // alias. A PER column holds the same value in every operand, so only the
-    // first operand's is found by its bare name.
-    Compiler::Alias operand_alias{*alias, {}};
-    Operand& operand = isect.operands_[i];
-    operand.ts = *ts;
-    operand.dur = *dur;
-    operand.keys = arena.CopySpan<ColumnId>(keys);
-    operand.carried =
-        arena.NewSpan<ColumnId>(static_cast<uint32_t>(relation.columns.size()));
-    for (uint32_t j = 0; j < relation.columns.size(); ++j) {
-      const NamedColumn& column = relation.columns[j];
-      bool is_key =
-          std::find(keys.begin(), keys.end(), column.id) != keys.end();
-      bool is_bound = column.id == operand.ts || column.id == operand.dur;
-      c->Append(column, source_id,
-                /*qualified_only=*/is_bound || (is_key && i != 0));
-      operand_alias.columns.push_back(c->row().back());
-      operand.carried[j] = column.id;
+    operand.carried.reserve(relation.columns.size());
+    for (const NamedColumn& column : relation.columns) {
+      operand.carried.push_back(column.id);
     }
-    c->AddAlias(std::move(operand_alias));
-    children.push_back(relation.node);
+    operands.push_back(std::move(operand));
+    scopes.push_back({*alias, source_id, std::move(relation.columns)});
   }
-  c->AddNode(isect, children);
+
+  auto built = c->builder().IntervalIntersect(operands);
+  c->SetRoot(built.relation);
+  c->Append({ts_name, built.ts}, node);
+  c->Append({dur_name, built.dur}, node);
+  // Every operand column is carried, reachable through the operand's alias
+  // and, for most, by its bare name too. The region's ts and dur are what
+  // a bare ts and dur mean, so an operand's own are found only through its
+  // alias. A PER column holds the same value in every operand, so only the
+  // first operand's is found by its bare name.
+  for (uint32_t i = 0; i < scopes.size(); ++i) {
+    const OperandScope& s = scopes[i];
+    const Builder::IntervalOperand& op = operands[i];
+    size_t first = c->row().size();
+    for (const NamedColumn& column : s.columns) {
+      bool is_key =
+          std::find(op.keys.begin(), op.keys.end(), column.id) != op.keys.end();
+      bool is_bound = column.id == op.ts || column.id == op.dur;
+      c->Append(column, s.source_id,
+                /*qualified_only=*/is_bound || (is_key && i != 0));
+    }
+    c->AddAlias(s.alias, first);
+  }
   return base::OkStatus();
 }
 

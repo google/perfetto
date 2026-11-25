@@ -41,6 +41,7 @@ class OrderBy final : public PlanOperation {
   static void AddToPlan(LogicalPlan* plan, const std::vector<SortKey>& keys);
 
  private:
+  friend class Builder;
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
 

@@ -37,6 +37,7 @@ class TreeKeyPaths final : public PlanOperation {
   static const OperationRegistration kRegistration;
 
  private:
+  friend class Builder;
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
 

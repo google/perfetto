@@ -46,13 +46,12 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("INTERVAL FLATTEN");
   const auto* n = Node<SyntaqlitePerfettoIntervalFlatten>(c->parser(), stage);
 
-  IntervalFlatten flatten;
   NameId ts = c->Name("ts");
   NameId dur = c->Name("dur");
-  ASSIGN_OR_RETURN(flatten.ts_, c->Resolve(ts, stage));
-  ASSIGN_OR_RETURN(flatten.dur_, c->Resolve(dur, stage));
+  ASSIGN_OR_RETURN(ColumnId ts_col, c->Resolve(ts, stage));
+  ASSIGN_OR_RETURN(ColumnId dur_col, c->Resolve(dur, stage));
 
-  std::vector<ColumnId> group_by;
+  std::vector<ColumnId> per_keys;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->per)) {
     const auto* per =
@@ -63,43 +62,42 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
           c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
       // Groups once by each column, but outputs one column per item listed.
-      if (std::find(group_by.begin(), group_by.end(), key) == group_by.end()) {
-        group_by.push_back(key);
+      if (std::find(per_keys.begin(), per_keys.end(), key) == per_keys.end()) {
+        per_keys.push_back(key);
       }
       keys.push_back({NamedColumn{name, key}, col_id});
     }
   }
 
-  std::vector<Aggregate> resolved_aggregates;
-  std::vector<std::pair<NamedColumn, uint32_t>> aggregates;
+  std::vector<Builder::AggregateItem> agg_items;
+  std::vector<uint32_t> agg_nodes;
   const auto* list =
       Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
-    NameId name = c->Name(agg->name);
-    aggregate.output = c->AddColumn(name, core::Int64{});
-    resolved_aggregates.push_back(aggregate);
-    aggregates.push_back({NamedColumn{name, aggregate.output}, agg_id});
+    agg_items.push_back(
+        {c->Name(agg->name), aggregate.function, aggregate.column});
+    agg_nodes.push_back(agg_id);
   }
 
+  auto built = c->builder().IntervalFlatten(c->root(), ts_col, dur_col,
+                                            per_keys, agg_items);
+  c->SetRoot(built.relation);
+
   // The rows collapse, so the row is only what each segment holds.
-  flatten.out_ts_ = c->AddColumn(ts, core::Int64{});
-  flatten.out_dur_ = c->AddColumn(dur, core::Int64{});
   c->ReplaceRow({});
   c->ClearAliases();
-  c->Append({ts, flatten.out_ts_}, stage);
-  c->Append({dur, flatten.out_dur_}, stage);
+  c->Append({ts, built.ts}, stage);
+  c->Append({dur, built.dur}, stage);
   for (auto& [column, node] : keys) {
     c->Append(std::move(column), node);
   }
-  for (auto& [column, node] : aggregates) {
-    c->Append(std::move(column), node);
+  for (size_t i = 0; i < agg_items.size(); ++i) {
+    c->Append(NamedColumn{agg_items[i].name, built.aggregates[i]},
+              agg_nodes[i]);
   }
-  flatten.keys_ = c->arena().CopySpan<ColumnId>(group_by);
-  flatten.aggregates_ = c->arena().CopySpan<Aggregate>(resolved_aggregates);
-  c->AddNode(flatten, {c->plan().root()});
   return base::OkStatus();
 }
 

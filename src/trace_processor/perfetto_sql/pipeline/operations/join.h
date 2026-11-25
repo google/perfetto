@@ -40,6 +40,8 @@ class Join final : public PlanOperation {
   static const OperationRegistration kRegistration;
 
  private:
+  friend class Builder;
+
   std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
   InputNeeds Needs(uint32_t input) const override;
   OutputProperties Derive(DeriveContext&) const override;

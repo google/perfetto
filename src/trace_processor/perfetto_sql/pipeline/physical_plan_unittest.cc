@@ -41,6 +41,7 @@
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
+#include "src/trace_processor/perfetto_sql/pipeline/iterator.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
@@ -130,8 +131,9 @@ class PhysicalPlanTest : public ::testing::Test {
     }
     PERFETTO_CHECK(std::holds_alternative<PerfettoSqlParser::Pipeline>(
         parser.statement()));
-    return std::move(
-        std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+    return TestCatalog::ExtractPlan(
+        std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement())
+            .statement);
   }
 
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
@@ -149,8 +151,8 @@ class PhysicalPlanTest : public ::testing::Test {
         BoundPlan bound,
         ResolveCompiledPlan(MoveSqlSourcesToDataframeArgs(std::move(plan)).plan,
                             catalog_));
-    RETURN_IF_ERROR(
-        BindDataframeArgs(&bound, DataframeArgs(dataframes), &pool_));
+    auto args = DataframeArgs(dataframes);
+    RETURN_IF_ERROR(BindDataframeArgs(&bound, args, &pool_));
     RETURN_IF_ERROR(RunBoundPasses(&bound, {&pool_}));
     return Lower(&bound, {&pool_});
   }
@@ -660,12 +662,13 @@ TEST_F(PhysicalPlanTest, WhereComparesWithParametersEachRunBinds) {
             "main: IndexScan | Filter(#2 > ?1, #0 != ?2)");
 
   RowCursor cursor(physical->source(), physical->pipelines());
-  RunParams<Args> params(*physical);
+  ParamBindings<Args> params(*physical);
   auto ids = [&](int64_t k, int64_t v) {
     Args args;
     args.values = {k, v};
     std::vector<int64_t> out;
-    for (bool row = cursor.Open(params.Bind(args)); row; row = cursor.Next()) {
+    for (bool row = cursor.Open(params.BindSpan(args)); row;
+         row = cursor.Next()) {
       out.push_back(*IntAt(cursor, physical->columns()[0].index));
     }
     return out;
@@ -732,15 +735,16 @@ TEST_F(PhysicalPlanTest, WhereComparesWithExternalLiteralsSetOnce) {
   ASSERT_TRUE(bound.status.ok()) << bound.status.message();
 
   RowCursor cursor(physical->source(), physical->pipelines());
-  RunParams<Args> params(*physical);
+  ParamBindings<Args> params(*physical);
   Args literals;
   literals.values = {7, 0};
-  params.SetLiterals(literals);
+  params.SetExternalLiterals(literals);
   auto ids = [&](int64_t ignored_k, int64_t v) {
     Args args;
     args.values = {ignored_k, v};
     std::vector<int64_t> out;
-    for (bool row = cursor.Open(params.Bind(args)); row; row = cursor.Next()) {
+    for (bool row = cursor.Open(params.BindSpan(args)); row;
+         row = cursor.Next()) {
       out.push_back(*IntAt(cursor, physical->columns()[0].index));
     }
     return out;
@@ -804,11 +808,11 @@ TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
   ASSERT_TRUE(bound_plan.status.ok()) << bound_plan.status.message();
 
   RowCursor cursor(physical->source(), physical->pipelines());
-  RunParams<StringArgs> params(*physical);
+  ParamBindings<StringArgs> params(*physical);
   auto ids = [&](const std::string& run_pattern) {
     StringArgs args;
     args.values = {"", run_pattern};
-    base::Span<const core::exec::ParamValue> run = params.Bind(args);
+    base::Span<const core::exec::ParamValue> run = params.BindSpan(args);
     EXPECT_NE(run[0].glob(), nullptr);
     EXPECT_EQ(run[1].glob(), nullptr);
     std::vector<int64_t> out;
@@ -819,11 +823,11 @@ TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
   };
   StringArgs literals;
   literals.values = {"a*", ""};
-  params.SetLiterals(literals);
+  params.SetExternalLiterals(literals);
   EXPECT_THAT(ids("*"), ElementsAre(0, 2));
   EXPECT_THAT(ids("*o"), ElementsAre(2));
   literals.values = {"[bc]*", ""};
-  params.SetLiterals(literals);
+  params.SetExternalLiterals(literals);
   EXPECT_THAT(ids("*"), ElementsAre(1, 3));
 }
 
@@ -1006,8 +1010,8 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
       "FROM tree |> TREE ACCUMULATE DOWN SUM(self) AS path "
       "|> TREE ACCUMULATE UP SUM(path) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
-  auto logical = std::move(
-      std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+  auto logical = TestCatalog::ExtractPlan(std::move(
+      std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).statement));
   ColumnId total = logical.output().back().id;
   ColumnId id = logical.output().front().id;
   // Project and alias the same value twice, independently of the source names.
@@ -1065,8 +1069,8 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   parser.Reset(SqlSource::FromExecuteQuery(
       "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
-  auto logical = std::move(
-      std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+  auto logical = TestCatalog::ExtractPlan(std::move(
+      std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).statement));
   // Neither the original input name nor its value is exposed in the result.
   logical.output() = {
       {logical.names().Intern("id"), logical.output().front().id},
@@ -1095,8 +1099,7 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   auto moved = MoveSqlSourcesToDataframeArgs(std::move(*plan));
   EXPECT_TRUE(moved.args.empty());
   PlanKey key(0, 0);
-  auto read =
-      DeserializePlan(SerializePlan(std::move(moved.plan), key), key, catalog_);
+  auto read = DeserializePlan(SerializePlan(moved.plan, &key), key, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
   ASSERT_TRUE(RunBoundPasses(&*read, {&pool_}).ok());
   std::unique_ptr<PhysicalPlan> lowered = Lower(&*read, {&pool_});

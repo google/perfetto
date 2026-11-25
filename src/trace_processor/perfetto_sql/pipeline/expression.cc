@@ -689,13 +689,12 @@ base::StatusOr<bool> CompileIsNull(Compiler* c,
 base::Status CompileExpr(Compiler* c, uint32_t expr, Expr* out) {
   Draft draft;
   RETURN_IF_ERROR(Compile(c, expr, 0, &draft));
-  out->nodes = c->arena().CopySpan<ex::ExprStep>(draft.nodes);
-  out->literals = c->arena().CopySpan<Literal>(draft.literals);
+  *out = c->builder().MakeExpr(draft.nodes, draft.literals);
   return base::OkStatus();
 }
 
-base::StatusOr<PlanType> CheckExprType(const Compiler& c, const Expr& e) {
-  ASSIGN_OR_RETURN(Kind kind, Typer(c.plan()).Run(e));
+base::StatusOr<PlanType> CheckExprType(const LogicalPlan& plan, const Expr& e) {
+  ASSIGN_OR_RETURN(Kind kind, Typer(plan).Run(e));
   if (kind == Kind::kUnknown) {
     return PlanType::Unknown();
   }

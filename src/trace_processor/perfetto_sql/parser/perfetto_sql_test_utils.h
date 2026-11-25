@@ -71,15 +71,16 @@ inline bool operator==(const PerfettoSqlParser::CreateTable& a,
   if (const auto* sql = std::get_if<SqlSource>(&a.body)) {
     return *sql == std::get<SqlSource>(b.body);
   }
-  return pipeline::LogicalPlanToString(
-             std::get<pipeline::LogicalPlan>(a.body)) ==
-         pipeline::LogicalPlanToString(std::get<pipeline::LogicalPlan>(b.body));
+  return pipeline::PreparedStatementToString(
+             std::get<pipeline::PreparedStatement>(a.body)) ==
+         pipeline::PreparedStatementToString(
+             std::get<pipeline::PreparedStatement>(b.body));
 }
 
 inline bool operator==(const PerfettoSqlParser::Pipeline& a,
                        const PerfettoSqlParser::Pipeline& b) {
-  return pipeline::LogicalPlanToString(a.plan) ==
-         pipeline::LogicalPlanToString(b.plan);
+  return pipeline::PreparedStatementToString(a.statement) ==
+         pipeline::PreparedStatementToString(b.statement);
 }
 
 inline bool operator==(const PerfettoSqlParser::CreateView& a,
@@ -152,12 +153,14 @@ inline std::ostream& operator<<(std::ostream& stream,
     return stream << "CreateTable(name=" << testing::PrintToString(tab->name)
                   << ", body="
                   << (sql ? testing::PrintToString(*sql)
-                          : pipeline::LogicalPlanToString(
-                                std::get<pipeline::LogicalPlan>(tab->body)))
+                          : pipeline::PreparedStatementToString(
+                                std::get<pipeline::PreparedStatement>(
+                                    tab->body)))
                   << ")";
   }
   if (const auto* pipe = std::get_if<PerfettoSqlParser::Pipeline>(&line)) {
-    return stream << "Pipeline(" << pipeline::LogicalPlanToString(pipe->plan)
+    return stream << "Pipeline("
+                  << pipeline::PreparedStatementToString(pipe->statement)
                   << ")";
   }
   if (const auto* pragma = std::get_if<PerfettoSqlParser::Pragma>(&line)) {

@@ -22,12 +22,13 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+
+struct SyntaqliteIsExpr;
 
 namespace perfetto::trace_processor {
 class StringPool;
@@ -36,6 +37,7 @@ class StringPool;
 namespace perfetto::trace_processor::pipeline {
 
 class Compiler;
+class LogicalPlan;
 struct OutputProperties;
 class PlanCodec;
 
@@ -67,10 +69,10 @@ base::StatusOr<bool> CompileIsNull(Compiler*,
 // the plan's arena.
 base::Status CompileExpr(Compiler*, uint32_t expr, Expr* out);
 
-// The type of `expr`, checked as far as the column types known when the plan
-// is built allow. Unknown if it reads a column of unknown type. A failure
-// names what was expected, for Compiler::Expected.
-base::StatusOr<PlanType> CheckExprType(const Compiler&, const Expr&);
+// The type of `expr`, checked as far as the column types known in `plan`
+// allow. Unknown if it reads a column of unknown type. A failure names what
+// was expected.
+base::StatusOr<PlanType> CheckExprType(const LogicalPlan& plan, const Expr&);
 
 // Marks the columns `expr` reads.
 void MarkExprColumns(const Expr&, std::vector<bool>* needed);
