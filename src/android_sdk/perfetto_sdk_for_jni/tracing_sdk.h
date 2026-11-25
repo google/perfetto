@@ -326,6 +326,7 @@ class ProtoField {
     str_ = val;
     return str_.c_str();
   }
+
   uint8_t* set_bytes(uint32_t id, size_t len) {
     bytes_.reset(len > 0 ? new uint8_t[len] : nullptr);
     auto& field_bytes = arg_.field_bytes;
@@ -335,6 +336,7 @@ class ProtoField {
     field_bytes.len = len;
     return bytes_.get();
   }
+
   void release_bytes() {
     bytes_.reset();
     if (arg_.field_bytes.header.type == PERFETTO_TE_HL_PROTO_TYPE_BYTES) {
@@ -342,6 +344,7 @@ class ProtoField {
       arg_.field_bytes.len = 0;
     }
   }
+
   PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
 
  private:
