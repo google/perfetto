@@ -15,12 +15,10 @@
  */
 
 #include "src/trace_processor/core/exec/tree_key_paths.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <map>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -53,7 +51,7 @@ class KeyedRows final : public Source {
         chunk_rows_(chunk_rows) {}
 
   OperatorState* NewState(Context& context) const override {
-    auto* state = context.Make<State>();
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -63,50 +61,47 @@ class KeyedRows final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
+    std::vector<int64_t> ids;
+    std::vector<int64_t> parents;
+    std::vector<int64_t> keys;
+    BitVector validity;
     auto total = static_cast<uint32_t>(parents_.size());
     if (s.offset == total) {
       return false;
     }
     uint32_t count = std::min(chunk_rows_, total - s.offset);
-    s.ids.resize(count);
-    s.parents.resize(count);
-    s.keys.resize(count);
-    s.validity = BitVector::CreateWithSize(count);
+    ids.resize(count);
+    parents.resize(count);
+    keys.resize(count);
+    validity = BitVector::CreateWithSize(count);
     for (uint32_t i = 0; i < count; ++i) {
       uint32_t row = s.offset + i;
-      s.ids[i] = row;
-      s.keys[i] = keys_[row];
-      s.parents[i] = std::max<int64_t>(parents_[row], 0);
+      ids[i] = row;
+      keys[i] = keys_[row];
+      parents[i] = std::max<int64_t>(parents_[row], 0);
       if (parents_[row] >= 0) {
-        s.validity.set(i);
+        validity.set(i);
       }
     }
     out.Reset();
-    test::AddCopy(*s.context, s.ids, nullptr, &out);
-    test::AddCopy(*s.context, s.parents, &s.validity, &out);
-    test::AddCopy(*s.context, s.keys, nullptr, &out);
+    test::AddCopy(*s.context, ids, nullptr, &out);
+    test::AddCopy(*s.context, parents, &validity, &out);
+    test::AddCopy(*s.context, keys, nullptr, &out);
     out.SetRowCount(count);
     s.offset += count;
     return true;
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     Context* context = nullptr;
     uint32_t offset = 0;
-    std::vector<int64_t> ids;
-    std::vector<int64_t> parents;
-    std::vector<int64_t> keys;
-    BitVector validity;
   };
 
   std::vector<int64_t> parents_;
   std::vector<int64_t> keys_;
   uint32_t chunk_rows_;
 };
-
-KeyedRows::State::~State() = default;
 
 struct Paths {
   std::vector<int64_t> keys;

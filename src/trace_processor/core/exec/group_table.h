@@ -19,13 +19,13 @@
 
 #include <cstdint>
 #include <optional>
-#include <vector>
 
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -38,6 +38,9 @@ namespace perfetto::trace_processor::core::exec {
 // compared by their bits, with 0.0 and -0.0 equal, and strings by their
 // interned id. Nulls are equal to each other and to nothing else. A column
 // must hold the same kind of key in every batch.
+//
+// Plain data, held for one run of the state `owner` which contains it (see
+// RunVector).
 class GroupTable {
  public:
   // Writes the group number of each row of `batch` to `groups`, with
@@ -46,18 +49,18 @@ class GroupTable {
   // key, or if its kind changed since an earlier batch.
   std::optional<uint32_t> FindOrCreate(const RowBatch& batch,
                                        base::Span<const uint32_t> columns,
-                                       uint32_t* groups);
+                                       uint32_t* groups,
+                                       OperatorState& owner);
   // As above, for the rows of `batch` which `rows` keeps rather than those
   // its own selection does.
   std::optional<uint32_t> FindOrCreate(const RowBatch& batch,
                                        const Selection& rows,
                                        base::Span<const uint32_t> columns,
-                                       uint32_t* groups);
+                                       uint32_t* groups,
+                                       OperatorState& owner);
 
-  uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }
+  uint32_t size() const { return hashes_.size(); }
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see Held).
-  void EndRun();
 
   // Reserves `words` zeroed words after each group's keys for the caller to
   // store per-group data. Must be called before the first batch.
@@ -92,7 +95,12 @@ class GroupTable {
  private:
   enum class Kind : uint8_t { kInteger, kDouble, kString };
 
-  // Reads key column `k` into `keys_[k]` and sets its null bits in `nulls_`.
+  // Key column `k` of the current batch.
+  int64_t* keys(uint32_t k) const {
+    return keys_.data() + uint64_t{k} * kMaxBatchRows;
+  }
+
+  // Reads key column `k` into keys(k) and sets its null bits in `nulls_`.
   std::optional<Kind> Load(const ColumnView& column,
                            const Selection& selection,
                            uint32_t k,
@@ -106,32 +114,34 @@ class GroupTable {
   bool Equal(const int64_t* stored_base, uint32_t group, uint32_t row) const;
   // Puts `group` in the first free slot at or after its hash's slot.
   void Place(uint32_t group);
-  void Grow(uint32_t groups);
+  void Grow(uint32_t groups, OperatorState& owner);
 
   // The hash table. An empty slot is 0. A used slot holds the top 16 bits of
   // the group's hash and the group number plus one.
-  FlexVector<uint64_t> slots_;
+  RunVector<uint64_t> slots_;
 
   // The hash of each group.
-  FlexVector<uint64_t> hashes_;
+  RunVector<uint64_t> hashes_;
 
   // Each group's null bits, then its keys, then its payload. Each group takes
   // `stride_` words. Keeping them together means comparing a group reads one
   // cache line.
-  FlexVector<int64_t> group_rows_;
+  RunVector<int64_t> group_rows_;
   uint32_t stride_ = 0;
 
   // The number of payload words per group.
   uint32_t payload_words_ = 0;
 
   // The kind of each key column.
-  std::vector<Kind> kinds_;
+  RunVector<Kind> kinds_;
 
-  // The current batch's keys, one vector per column.
-  std::vector<FlexVector<int64_t>> keys_;
+  // The current batch's keys, kMaxBatchRows per column, and the number of key
+  // columns.
+  RunVector<int64_t> keys_;
+  uint32_t key_count_ = 0;
 
   // The current batch's null bits, one word per row.
-  FlexVector<uint64_t> nulls_;
+  RunVector<uint64_t> nulls_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

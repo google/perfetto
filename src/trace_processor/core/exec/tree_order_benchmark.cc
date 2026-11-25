@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>

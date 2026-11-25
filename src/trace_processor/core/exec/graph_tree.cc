@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -36,7 +35,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/util/graph.h"
@@ -65,7 +64,7 @@ class NodeIndex {
  public:
   // Numbers each of `ids` by its place. Returns an id which appears twice, if
   // any.
-  std::optional<int64_t> Build(const std::vector<int64_t>& ids) {
+  std::optional<int64_t> Build(base::Span<const int64_t> ids) {
     if (ids.empty()) {
       return std::nullopt;
     }
@@ -116,21 +115,7 @@ class NodeIndex {
 
 }  // namespace
 
-struct GraphTree::State : HeldState {
-  ~State() override;
-
-  struct Tree : util::GraphTree {
-    using util::GraphTree::operator=;
-    void EndRun() { static_cast<util::GraphTree&>(*this) = {}; }
-  };
-
-  State(Context& c, const GraphTreeSpec& spec)
-      : context(&c),
-        nodes(this, spec.nodes),
-        edges(this, spec.edges),
-        seeds(this, spec.seeds) {}
-
-  Context* context;
+struct GraphTree::State : OperatorState {
   // The inputs, streamed in through the run's Context.
   PipelineUse nodes;
   PipelineUse edges;
@@ -138,63 +123,71 @@ struct GraphTree::State : HeldState {
 
   // The inputs, read in full: the retained columns of every node row, in the
   // order they arrived.
-  Held<RowBatch> retained{this};
-  Held<RowStore> rows{this};
+  RowBatch* retained = nullptr;
+  RowStore rows;
   // Nodes are numbered in the order they arrived, so a node's number is also
   // its row in `rows`.
-  Held<std::vector<int64_t>> id_of_node{this};
+  RunVector<int64_t> id_of_node;
 
-  // The tree, computed once.
-  RunValue<bool> computed{this, false};
-  Held<Tree> tree{this};
-  // By node, its row's place in the output.
-  Held<std::vector<uint32_t>> position{this};
+  // The tree, computed once: the nodes in it, parents first, and by node, its
+  // parent (see util::GraphTree) and its row's place in the output.
+  bool computed = false;
+  RunVector<uint32_t> order;
+  RunVector<uint32_t> parent;
+  RunVector<uint32_t> position;
 
   // The rows served.
-  RunValue<uint32_t> served{this};
-  Held<RowBatch> gathered{this};
-  CallScratch<std::vector<uint32_t>> gather_rows;
+  uint32_t served = 0;
+  RowBatch* gathered = nullptr;
+  // Scratch for one call.
+  core::ArenaSpan<uint32_t> gather_rows;
 };
-
-GraphTree::State::~State() = default;
 
 GraphTree::GraphTree(GraphTreeSpec spec) : spec_(spec) {}
 
 OperatorState* GraphTree::NewState(Context& context) const {
-  return context.Make<State>(context, spec_);
+  auto* state = context.Make<State>();
+  state->nodes = PipelineUse(*state, spec_.nodes);
+  state->edges = PipelineUse(*state, spec_.edges);
+  state->seeds = PipelineUse(*state, spec_.seeds);
+  state->retained = context.NewBatch(*state);
+  state->gathered = context.NewBatch(*state);
+  state->gather_rows = context.NewSpan<uint32_t>(kMaxBatchRows);
+  return state;
 }
 
 void GraphTree::Rewind(OperatorState&) const {}
 
 base::Status GraphTree::Build(State& s) const {
   const char* name = Name(spec_.kind);
+  Context& context = s.context();
 
-  while (RowBatch* batch = s.nodes.Next(*s.context)) {
+  while (RowBatch* batch = s.nodes.Next(context)) {
     FlatColumnReader<int64_t> ids(*batch, spec_.node_column);
     uint32_t n = batch->size();
-    size_t first = s.id_of_node.size();
-    s.id_of_node.resize(first + n);
+    uint32_t first = s.id_of_node.size();
+    s.id_of_node.resize(s, uint64_t{first} + n);
     int64_t* out = s.id_of_node.data() + first;
     for (uint32_t row = 0; row < n; ++row) {
       if (!ids.Read(row, &out[row])) {
         return base::ErrStatus("%s: a node has no id", name);
       }
     }
-    s.retained.Project(*batch, spec_.retained_columns.span());
-    RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
+    s.retained->Project(*batch, spec_.retained_columns.span());
+    RETURN_IF_ERROR(s.rows.Append(*s.retained, s));
   }
-  if (s.context->failed()) {
-    return s.context->error();
+  if (context.failed()) {
+    return context.error();
   }
 
-  auto node_count = static_cast<uint32_t>(s.id_of_node.size());
+  uint32_t node_count = s.id_of_node.size();
   NodeIndex index;
-  if (std::optional<int64_t> twice = index.Build(s.id_of_node)) {
+  if (std::optional<int64_t> twice = index.Build(s.id_of_node.span())) {
     return base::ErrStatus("%s: two nodes have the id %" PRId64, name, *twice);
   }
 
   std::vector<uint32_t> seeds;
-  while (RowBatch* batch = s.seeds.Next(*s.context)) {
+  while (RowBatch* batch = s.seeds.Next(context)) {
     FlatColumnReader<int64_t> ids(*batch, spec_.seed_column);
     uint32_t n = batch->size();
     // Not push_back: a call in the loop would reload the index every row.
@@ -212,8 +205,8 @@ base::Status GraphTree::Build(State& s) const {
     }
     seeds.resize(found);
   }
-  if (s.context->failed()) {
-    return s.context->error();
+  if (context.failed()) {
+    return context.error();
   }
 
   // A dominator tree has one root, so it grows from an extra node with an
@@ -222,7 +215,7 @@ base::Status GraphTree::Build(State& s) const {
   uint32_t graph_nodes = node_count + (dominator ? 1 : 0);
   std::vector<uint32_t> sources;
   std::vector<uint32_t> targets;
-  while (RowBatch* batch = s.edges.Next(*s.context)) {
+  while (RowBatch* batch = s.edges.Next(context)) {
     FlatColumnReader<int64_t> from(*batch, spec_.source_column);
     FlatColumnReader<int64_t> to(*batch, spec_.target_column);
     uint32_t n = batch->size();
@@ -247,8 +240,8 @@ base::Status GraphTree::Build(State& s) const {
     sources.resize(found);
     targets.resize(found);
   }
-  if (s.context->failed()) {
-    return s.context->error();
+  if (context.failed()) {
+    return context.error();
   }
   if (dominator) {
     for (uint32_t seed : seeds) {
@@ -259,28 +252,33 @@ base::Status GraphTree::Build(State& s) const {
 
   util::Digraph graph = util::Digraph::FromEdges(graph_nodes, sources, targets);
 
+  util::GraphTree tree;
   switch (spec_.kind) {
     case GraphTreeSpec::Kind::kBfs:
-      s.tree = util::BreadthFirstSearch(graph, seeds);
+      tree = util::BreadthFirstSearch(graph, seeds);
       break;
     case GraphTreeSpec::Kind::kDfs:
-      s.tree = util::DepthFirstSearch(graph, seeds);
+      tree = util::DepthFirstSearch(graph, seeds);
       break;
     case GraphTreeSpec::Kind::kDominator:
-      s.tree = util::DominatorTree(graph, node_count);
-      s.tree.order.erase(s.tree.order.begin());
-      s.tree.parent.pop_back();
-      for (uint32_t node : s.tree.order) {
-        if (s.tree.parent[node] == node_count) {
-          s.tree.parent[node] = kNoParent;
+      tree = util::DominatorTree(graph, node_count);
+      tree.order.erase(tree.order.begin());
+      tree.parent.pop_back();
+      for (uint32_t node : tree.order) {
+        if (tree.parent[node] == node_count) {
+          tree.parent[node] = kNoParent;
         }
       }
       break;
   }
 
-  s.position.assign(node_count, kNoNode);
-  for (uint32_t i = 0; i < s.tree.order.size(); ++i) {
-    s.position[s.tree.order[i]] = i;
+  s.order.resize(s, tree.order.size());
+  std::copy(tree.order.begin(), tree.order.end(), s.order.begin());
+  s.parent.resize(s, tree.parent.size());
+  std::copy(tree.parent.begin(), tree.parent.end(), s.parent.begin());
+  s.position.assign(s, node_count, kNoNode);
+  for (uint32_t i = 0; i < s.order.size(); ++i) {
+    s.position[s.order[i]] = i;
   }
   return base::OkStatus();
 }
@@ -290,32 +288,32 @@ bool GraphTree::GetData(RowBatch& out, OperatorState& state) const {
   if (!s.computed) {
     base::Status status = Build(s);
     if (!status.ok()) {
-      s.context->Fail(std::move(status));
+      s.context().Fail(std::move(status));
       return false;
     }
     s.computed = true;
   }
 
-  auto total = static_cast<uint32_t>(s.tree.order.size());
+  uint32_t total = s.order.size();
   uint32_t count = std::min(total - s.served, kMaxBatchRows);
   out.Reset();
   if (count == 0) {
     return false;
   }
 
-  ColumnBuffer parent_ids = s.context->TakeBuffer(sizeof(int64_t));
-  ColumnBuffer numbers = s.context->TakeBuffer(sizeof(uint32_t));
-  ColumnBuffer parent_numbers = s.context->TakeBuffer(sizeof(uint32_t));
+  Context& context = s.context();
+  ColumnBuffer parent_ids = context.TakeBuffer(sizeof(int64_t));
+  ColumnBuffer numbers = context.TakeBuffer(sizeof(uint32_t));
+  ColumnBuffer parent_numbers = context.TakeBuffer(sizeof(uint32_t));
   ColumnChunk& parent_id_chunk = parent_ids.chunk();
   auto* parent_id = parent_id_chunk.Values<int64_t>();
   parent_id_chunk.validity.resize(kMaxBatchRows);
   auto* number = numbers.chunk().Values<uint32_t>();
   auto* parent_number = parent_numbers.chunk().Values<uint32_t>();
-  s.gather_rows.resize(count);
   uint32_t served = s.served;
   for (uint32_t i = 0; i < count; ++i) {
-    uint32_t node = s.tree.order[served + i];
-    uint32_t parent = s.tree.parent[node];
+    uint32_t node = s.order[served + i];
+    uint32_t parent = s.parent[node];
     s.gather_rows[i] = node;
     number[i] = served + i;
     bool root = parent == kNoParent;
@@ -325,10 +323,11 @@ bool GraphTree::GetData(RowBatch& out, OperatorState& state) const {
   }
   s.served += count;
 
-  const uint32_t* rows = s.gather_rows.data();
-  s.rows.Gather(&s.gathered, {rows, rows + count}, *s.context);
-  for (uint32_t c = 0; c < s.gathered.column_count(); ++c) {
-    out.AddColumn(s.gathered.column(c), s.gathered.buffer(c));
+  const uint32_t* rows = s.gather_rows.begin();
+  RowBatch& gathered = *s.gathered;
+  s.rows.Gather(&gathered, {rows, rows + count}, s);
+  for (uint32_t c = 0; c < gathered.column_count(); ++c) {
+    out.AddColumn(gathered.column(c), gathered.buffer(c));
   }
   out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, parent_id,
                                       &parent_id_chunk.validity),

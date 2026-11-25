@@ -17,12 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
 
-#include <vector>
+#include <cstdint>
 
-#include "perfetto/base/status.h"
-#include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
+#include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -30,33 +31,30 @@ namespace perfetto::trace_processor::core::exec {
 // one buffer per column. Copying preserves duplicates, nulls and
 // floating-point bits. String IDs refer to the process-lifetime pool; string
 // payloads are not copied.
+//
+// Plain data, held for one run of the state `owner` which contains it. Its
+// buffers are taken for that run (see Context::TakeBuffers()).
 class BatchBuffer {
  public:
   uint32_t size() const { return size_; }
-  // Copies the rows `in` keeps, into buffers taken from `context`.
-  void Append(const RowBatch& in, Context& context);
+  // Copies the rows `in` keeps into buffers taken from the Context of `owner`.
+  void Append(const RowBatch& in, OperatorState& owner);
   // Fills `out` with the rows combined, and empties the buffer.
   void Take(RowBatch& out);
-  void Clear() {
-    size_ = 0;
-    for (auto& column : columns_) {
-      column.packed = ColumnBuffer();
-      column.nullable = false;
-    }
-  }
-  // Ends a run (see Held): the buffers go back to the pool.
-  void EndRun() { Clear(); }
+  // Releases the combined rows.
+  void Clear();
 
  private:
   struct Column {
-    // The rows combined so far.
-    ColumnBuffer packed;
     // The first batch's view, saying what the column holds.
     ColumnView view;
-    bool nullable = false;
+    bool nullable;
   };
   uint32_t size_ = 0;
-  std::vector<Column> columns_;
+  RunVector<Column> columns_;
+  // By column, the rows combined so far, and how many slots `packed_` holds.
+  ColumnBuffer* packed_ = nullptr;
+  uint32_t packed_capacity_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

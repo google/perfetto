@@ -33,6 +33,9 @@ class StringRanks {
   // Sorts the string IDs added and assigns each its rank.
   void Rank(const StringPool& pool);
 
+  // Puts `count` string IDs in the order Rank() ranks them.
+  static void Sort(const StringPool& pool, StringPool::Id* ids, size_t count);
+
   // Compares two strings in the order Rank() puts them.
   static int Compare(const StringPool& pool,
                      StringPool::Id a,

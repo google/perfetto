@@ -22,8 +22,6 @@
 #include <limits>
 #include <optional>
 #include <string_view>
-#include <utility>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
@@ -36,6 +34,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/arena.h"
@@ -165,51 +164,59 @@ class LaneBatch {
 
 // Numbers the lanes of an interval input's batches in a GroupTable, which
 // several inputs can share so that they agree on each key's number.
+//
+// Plain data, made with the state `owner` which contains it (see
+// OperatorState).
 class LaneReader {
  public:
-  LaneReader(const IntervalLaneSpec& spec, IntervalInputName name)
-      : spec_(&spec), name_(name) {}
+  void Init(const IntervalLaneSpec& spec,
+            IntervalInputName name,
+            OperatorState& owner);
 
   // Reads `in`, numbering its lanes in `shared` if given, and by group number
   // otherwise.
-  base::Status Start(const RowBatch& in, GroupTable* shared);
+  base::Status Start(const RowBatch& in,
+                     GroupTable* shared,
+                     OperatorState& owner);
 
   // The batch Start() was last given.
   LaneBatch batch() const {
     LaneBatch batch(*batch_, *spec_);
-    batch.lanes_ = shared_ ? lanes_.data() : nullptr;
+    batch.lanes_ = shared_ ? lanes_ : nullptr;
     return batch;
   }
 
   const IntervalInputName& name() const { return name_; }
 
-  // Forgets the last lane read, for a new run.
+  // Forgets the last lane read.
   void Reset() { last_group_ = kNoGroup; }
-  // Ends a run (see Held).
-  void EndRun() { Reset(); }
 
  private:
-  const IntervalLaneSpec* spec_;
+  const IntervalLaneSpec* spec_ = nullptr;
   IntervalInputName name_;
 
   const RowBatch* batch_ = nullptr;
   bool shared_ = false;
-  std::vector<uint32_t> lanes_;
   // Group numbers count rows, so none is kNoGroup.
   static constexpr uint32_t kNoGroup = std::numeric_limits<uint32_t>::max();
   // The input's group number of the last row read, and its shared number.
   uint32_t last_group_ = kNoGroup;
   uint32_t last_lane_ = 0;
 
-  // Scratch: the first row of each group in the batch, and their numbers.
-  Selection firsts_;
-  std::vector<uint32_t> first_rows_;
-  std::vector<uint32_t> first_lanes_;
+  // Scratch: each row's lane, the first row of each group in the batch, and
+  // their numbers.
+  uint32_t* lanes_ = nullptr;
+  Selection* firsts_ = nullptr;
+  uint32_t* first_rows_ = nullptr;
+  uint32_t* first_lanes_ = nullptr;
 };
 
 // An interval input read whole: its intervals in one vector, grouped by lane
 // and sorted by start within each, and the rows they came from. Each
-// interval's id is its row in rows(). Kept across runs to reuse memory.
+// interval's id is its row in rows().
+//
+// Plain data, held for one run of the state `owner` which contains it (see
+// RowStore).
 class CollectedLanes {
  public:
   struct Lane {
@@ -220,19 +227,21 @@ class CollectedLanes {
     bool nonoverlapping;
   };
 
-  CollectedLanes(const CollectedInputSpec& input, IntervalInputName name)
-      : input_(&input), reader_(input.lanes, name) {}
+  // Called once, while `owner` is being made.
+  void Init(const CollectedInputSpec& input,
+            IntervalInputName name,
+            OperatorState& owner);
 
   // Reads every batch `input` streams in. Lanes are numbered in `shared` if
   // given, as LaneReader::Start() does, and by group number otherwise. Lanes
   // numbered at or above `limit` are dropped. The rows are held in buffers
-  // from `context` where they are packed (see RowStore).
+  // from the Context where they are packed (see RowStore).
   base::Status Collect(PipelineUse& input,
-                       Context& context,
+                       OperatorState& owner,
                        GroupTable* shared,
                        uint32_t limit);
 
-  uint32_t size() const { return static_cast<uint32_t>(ranges_.size()); }
+  uint32_t size() const { return ranges_.size(); }
   Lane lane(uint32_t i) const {
     const Range& range = ranges_[i];
     const Interval* data = intervals_.data();
@@ -241,22 +250,12 @@ class CollectedLanes {
             range.nonoverlapping};
   }
   // The index of the lane numbered `number`, if there is one.
-  std::optional<uint32_t> Find(uint32_t number) const {
-    auto it = std::lower_bound(by_number_.begin(), by_number_.end(), number,
-                               [](const std::pair<uint32_t, uint32_t>& p,
-                                  uint32_t n) { return p.first < n; });
-    if (it == by_number_.end() || it->first != number) {
-      return std::nullopt;
-    }
-    return it->second;
-  }
+  std::optional<uint32_t> Find(uint32_t number) const;
 
   RowStore& rows() { return rows_; }
   const LaneReader& reader() const { return reader_; }
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see Held).
-  void EndRun();
 
  private:
   struct Range {
@@ -265,64 +264,75 @@ class CollectedLanes {
     uint32_t end;
     bool nonoverlapping;
   };
+  struct Numbered {
+    uint32_t number;
+    uint32_t index;
+  };
 
-  void Add(uint32_t number, const Interval& interval);
+  static bool ByNumber(const Numbered& a, const Numbered& b);
+  void Add(uint32_t number, const Interval& interval, OperatorState& owner);
 
-  const CollectedInputSpec* input_;
+  const CollectedInputSpec* input_ = nullptr;
   LaneReader reader_;
-  std::vector<Interval> intervals_;
-  std::vector<Range> ranges_;
+  RunVector<Interval> intervals_;
+  RunVector<Range> ranges_;
   // Each range's number and index, sorted by number.
-  std::vector<std::pair<uint32_t, uint32_t>> by_number_;
+  RunVector<Numbered> by_number_;
   RowStore rows_;
 
   // Scratch: the part of a batch kept.
-  RowBatch retained_;
+  RowBatch* retained_ = nullptr;
 };
 
 // The PER values of the lanes of one input batch, for rows an operator makes
 // for those lanes. Only one batch's keys are held, plus those of a lane still
 // open from the batch before, so memory does not grow with the input.
+//
+// Plain data, held for one run of the state `owner` which contains it (see
+// RowStore).
 class LaneKeys {
  public:
   // The handle of the open lane's keys after Hold().
   static constexpr uint32_t kCarried = 0;
 
-  // `key_columns` must outlive this.
-  explicit LaneKeys(base::Span<const uint32_t> key_columns)
-      : key_columns_(key_columns) {}
+  // `key_columns` must outlive this. Called once, while `owner` is being made.
+  void Init(base::Span<const uint32_t> key_columns, OperatorState& owner);
 
   // Holds the keys of every row of `in`, after those carried by Carry().
   // Handles from before are invalid. Keys packed are held in buffers from
-  // `context` (see RowStore).
-  base::Status Hold(const RowBatch& in, Context& context);
+  // the Context (see RowStore).
+  base::Status Hold(const RowBatch& in, OperatorState& owner);
 
   // The handle of the keys of row `row` of the batch held.
   uint32_t Of(uint32_t row) const { return first_ + row; }
 
   // Keeps the keys of `handle` through the next Hold(), as kCarried: a lane
   // still open at the end of a batch continues into the next.
-  void Carry(uint32_t handle);
+  void Carry(uint32_t handle, OperatorState& owner);
 
   // Copies the keys of `handles`, in order, into `out`.
-  void Gather(RowBatch* out, base::Span<const uint32_t> handles, Context&);
-
-  void Clear();
-  // Clear(), keeping only small allocations for the next run (see Held).
-  void EndRun();
+  void Gather(RowBatch* out,
+              base::Span<const uint32_t> handles,
+              OperatorState& owner);
 
  private:
   base::Span<const uint32_t> key_columns_;
   RowStore rows_;
-  RowBatch retained_;
-  RowBatch carried_;
+  RowBatch* retained_ = nullptr;
+  RowBatch* carried_ = nullptr;
   uint32_t first_ = 0;
 };
 
 // The ts and dur columns of rows an interval operator makes, written straight
 // into buffers taken from a Context.
+//
+// Plain data, made with the state `owner` which contains it. Its buffers are
+// given back when the state's run ends.
 class BoundsColumns {
  public:
+  // Called once, while `owner` is being made.
+  void Init(OperatorState& owner);
+
   bool taken() const { return ts != nullptr; }
   void Take(Context&);
   // Adds the columns to `out` and gives it the buffers.
@@ -331,15 +341,13 @@ class BoundsColumns {
   void AddTsTo(RowBatch* out) const;
   void AddDurTo(RowBatch* out) const;
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see Held).
-  void EndRun();
 
   int64_t* ts = nullptr;
   int64_t* dur = nullptr;
 
  private:
-  ColumnBuffer ts_buffer_;
-  ColumnBuffer dur_buffer_;
+  // The ts and dur buffers.
+  ColumnBuffer* buffers_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

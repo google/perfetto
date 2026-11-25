@@ -17,9 +17,7 @@
 #include "src/trace_processor/core/exec/join.h"
 
 #include <cstdint>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -30,7 +28,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -138,25 +135,19 @@ void AddNullColumns(const JoinSpec& spec,
 
 // JoinBuild
 
-struct JoinBuild::Built : HeldState {
-  ~Built() override;
-
-  Context* context = nullptr;
-  Held<RowStore> rows{this};
+struct JoinBuild::Built : OperatorState {
+  RowStore rows;
   // The first build key, and whether each key so far is one more than the
   // one before it.
-  RunValue<int64_t> first{this, 0};
-  RunValue<bool> sequence{this, true};
+  int64_t first = 0;
+  bool sequence = true;
 };
-
-JoinBuild::Built::~Built() = default;
 
 JoinBuild::JoinBuild(uint32_t key, core::ArenaSpan<bool> unread)
     : key_(key), unread_(unread) {}
 
 OperatorState* JoinBuild::NewSinkState(Context& context) const {
   auto* built = context.Make<Built>();
-  built->context = &context;
   built->rows.SetUnread(unread_.span());
   return built;
 }
@@ -173,7 +164,7 @@ bool JoinBuild::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
     if (!count) {
       b.first = keys[selection[0]];
     }
-    auto expected = static_cast<uint64_t>(*b.first) + count;
+    auto expected = static_cast<uint64_t>(b.first) + count;
     bool all = true;
     PERFETTO_NO_VECTORIZE_LOOP
     for (uint32_t i = 0; i < in.size(); ++i) {
@@ -183,9 +174,9 @@ bool JoinBuild::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
     }
     b.sequence = all;
   }
-  base::Status status = b.rows.Append(in, *b.context);
+  base::Status status = b.rows.Append(in, b);
   if (!status.ok()) {
-    b.context->Fail(std::move(status));
+    b.context().Fail(std::move(status));
     return false;
   }
   return true;
@@ -194,7 +185,7 @@ bool JoinBuild::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
 bool JoinBuild::FinalizeSink(OperatorState& state) const {
   Built& b = state.Cast<Built>();
   if (!b.sequence) {
-    b.context->Fail(base::ErrStatus(
+    b.context().Fail(base::ErrStatus(
         "JOIN: only a right side whose keys are a sequence, such as a "
         "table's ids, is supported yet"));
     return false;
@@ -204,21 +195,15 @@ bool JoinBuild::FinalizeSink(OperatorState& state) const {
 
 // Join
 
-struct Join::State : HeldState {
-  State(Context& c, uint32_t build) : context(&c), build_use(this, build) {}
-  ~State() override;
-
-  Context* context;
+struct Join::State : OperatorState {
   PipelineUse build_use;
-  Held<RowBatch> gathered{this};
+  RowBatch* gathered = nullptr;
   // Set for a left join when some rows didn't match. The next call outputs
   // those rows, reading `paired` from this call.
-  RunValue<bool> unmatched{this, false};
+  bool unmatched = false;
   // For each input row, its build row or kNoBuildRow.
-  uint32_t paired[kMaxBatchRows];
+  core::ArenaSpan<uint32_t> paired;
 };
-
-Join::State::~State() = default;
 
 Join::Join(JoinSpec spec) : spec_(spec) {}
 
@@ -229,14 +214,18 @@ void Join::DescribeColumns(StepColumns* out) const {
 }
 
 OperatorState* Join::NewState(Context& context) const {
-  return context.Make<State>(context, spec_.build);
+  auto* state = context.Make<State>();
+  state->build_use = PipelineUse(*state, spec_.build);
+  state->gathered = context.NewBatch(*state);
+  state->paired = context.NewSpan<uint32_t>(kMaxBatchRows);
+  return state;
 }
 
 OpResult Join::Execute(const RowBatch& in,
                        RowBatch& out,
                        OperatorState& state) const {
   State& s = state.Cast<State>();
-  OperatorState* built = s.build_use.Built(*s.context);
+  OperatorState* built = s.build_use.Built(s.context());
   if (!built) {
     return OpResult::kError;
   }
@@ -249,7 +238,7 @@ OpResult Join::Execute(const RowBatch& in,
   const ColumnView& key = in.column(spec_.probe_key);
   if (key.kind() != ColumnView::Kind::kSequence &&
       !key.type().IsAnyOf<IntegerType>()) {
-    s.context->Fail(base::ErrStatus("JOIN: the key is not an integer"));
+    s.context().Fail(base::ErrStatus("JOIN: the key is not an integer"));
     return OpResult::kError;
   }
   OutputMatched(in, b, out, s);
@@ -260,19 +249,20 @@ void Join::OutputMatched(const RowBatch& in,
                          JoinBuild::Built& b,
                          RowBatch& out,
                          State& s) const {
-  if (PairKey(in, spec_.probe_key, static_cast<uint64_t>(*b.first),
-              b.rows.size(), s.paired)) {
-    out.mutable_selection().KeepMatching(s.paired, kNoBuildRow, false);
+  if (PairKey(in, spec_.probe_key, static_cast<uint64_t>(b.first),
+              b.rows.size(), s.paired.begin())) {
+    out.mutable_selection().KeepMatching(s.paired.begin(), kNoBuildRow, false);
   }
   if (out.size() && !spec_.outputs.empty()) {
-    b.rows.Gather(&s.gathered, {s.paired, s.paired + in.row_count()},
-                  &out.selection(), *s.context);
+    b.rows.Gather(s.gathered,
+                  {s.paired.begin(), s.paired.begin() + in.row_count()},
+                  &out.selection(), b);
     for (const JoinSpec::Output& output : spec_.outputs) {
-      out.AddColumn(s.gathered.column(output.column),
-                    s.gathered.buffer(output.column));
+      out.AddColumn(s.gathered->column(output.column),
+                    s.gathered->buffer(output.column));
     }
   } else {
-    AddNullColumns(spec_, b.rows, *s.context, out);
+    AddNullColumns(spec_, b.rows, s.context(), out);
   }
   s.unmatched = spec_.kind == JoinSpec::Kind::kLeft && out.size() != in.size();
 }
@@ -281,8 +271,8 @@ void Join::OutputMissed(const JoinBuild::Built& b,
                         RowBatch& out,
                         State& s) const {
   s.unmatched = false;
-  out.mutable_selection().KeepMatching(s.paired, kNoBuildRow, true);
-  AddNullColumns(spec_, b.rows, *s.context, out);
+  out.mutable_selection().KeepMatching(s.paired.begin(), kNoBuildRow, true);
+  AddNullColumns(spec_, b.rows, s.context(), out);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

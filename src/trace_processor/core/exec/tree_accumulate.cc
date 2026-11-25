@@ -18,9 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -29,73 +27,66 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
 // What one execution carries between batches: the aggregates' state for each
 // node seen.
-class AccumulateState : public HeldState {
- public:
-  AccumulateState(Context& c,
-                  core::ArenaSpan<const AggregateFunction*> functions)
-      : context(&c) {
-    seen.resize(functions.size());
-    for (const AggregateFunction* function : functions) {
-      stride += function->state_words();
-    }
-  }
-  ~AccumulateState() override;
-
-  // What each batch's columns are written in.
-  Context* context;
+struct AccumulateState : OperatorState {
   // Words of state per node.
   uint32_t stride = 0;
 
   // The aggregates' state of every node seen.
   // By node, `stride` words apart: each aggregate's state in turn.
-  Held<FlexVector<int64_t>> states{this};
+  RunVector<int64_t> states;
   // By aggregate: see GroupStates::seen.
-  Held<RunEach<SeenBytes>> seen{this};
+  core::ArenaSpan<SeenBytes> seen;
 
   // Scratch for one call.
   // The batch's nodes and parents, flattened.
-  CallScratch<std::vector<uint32_t>> node_scratch;
-  CallScratch<std::vector<uint32_t>> parent_scratch;
+  core::ArenaSpan<uint32_t> node_scratch;
+  core::ArenaSpan<uint32_t> parent_scratch;
   // The edges of the batch's rows with a parent, in row order.
-  CallScratch<FlexVector<GroupMerge>> merges;
-  CallScratch<AggregateInputLoader> input;
-  // The rows kept's results, before they're written at the batch's rows.
-  CallScratch<FlexVector<int64_t>> values;
-  CallScratch<BitVector> valid;
+  core::ArenaSpan<GroupMerge> merges;
+  AggregateInputLoader* input = nullptr;
 };
 
-AccumulateState::~AccumulateState() = default;
+OperatorState* NewAccumulateState(
+    Context& context,
+    core::ArenaSpan<const AggregateFunction*> functions) {
+  auto* state = context.Make<AccumulateState>();
+  for (const AggregateFunction* function : functions) {
+    state->stride += function->state_words();
+  }
+  state->seen = context.NewRunSpan<SeenBytes>(*state, functions.size());
+  state->node_scratch = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->parent_scratch = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->merges = context.NewSpan<GroupMerge>(kMaxBatchRows);
+  state->input = context.NewSpan<AggregateInputLoader>(1).begin();
+  return state;
+}
 
 // The column's values at the rows kept, laid out flat, gathering once unless
 // the rows kept are the first ones.
 const uint32_t* Flatten(const ColumnView& column,
                         const Selection& selection,
-                        std::vector<uint32_t>* scratch) {
+                        uint32_t* scratch) {
   const auto* data =
       static_cast<const uint32_t*>(column.data()) + column.start();
   if (selection.prefix()) {
     return data;
   }
   uint32_t count = selection.size();
-  scratch->resize(count);
-  uint32_t* out = scratch->data();
   const uint16_t* indices = selection.indices();
   for (uint32_t row = 0; row < count; ++row) {
-    out[row] = data[indices[row]];
+    scratch[row] = data[indices[row]];
   }
-  return out;
+  return scratch;
 }
 
 // Folds a batch of rows along the tree, appending each aggregate's column:
@@ -114,24 +105,26 @@ bool Accumulate(const TreeAccumulateSpec& spec,
   PERFETTO_DCHECK(IsFlat<Uint32>(parent_column) && !parent_column.validity());
   const Selection& selection = batch.selection();
   uint32_t count = batch.size();
-  const uint32_t* nodes = Flatten(node_column, selection, &s.node_scratch);
+  const uint32_t* nodes =
+      Flatten(node_column, selection, s.node_scratch.begin());
   const uint32_t* parents =
-      Flatten(parent_column, selection, &s.parent_scratch);
+      Flatten(parent_column, selection, s.parent_scratch.begin());
 
   // Makes room for every node the batch names, and lists its edges.
   uint32_t stride = s.stride;
   uint64_t nodes_needed = s.states.size() / std::max(stride, 1u);
-  s.merges.clear();
+  uint32_t merges = 0;
   for (uint32_t row = 0; row < count; ++row) {
     nodes_needed = std::max<uint64_t>(nodes_needed, uint64_t{nodes[row]} + 1);
     if (parents[row] != kNoNode) {
       nodes_needed =
           std::max<uint64_t>(nodes_needed, uint64_t{parents[row]} + 1);
-      s.merges.push_back(up ? GroupMerge{parents[row], nodes[row]}
-                            : GroupMerge{nodes[row], parents[row]});
+      s.merges[merges++] = up ? GroupMerge{parents[row], nodes[row]}
+                              : GroupMerge{nodes[row], parents[row]};
     }
   }
-  s.states.push_back_multiple(0, nodes_needed * stride - s.states.size());
+  s.states.push_back_multiple(s, 0, nodes_needed * stride - s.states.size());
+  Context& context = s.context();
 
   bool overflow = false;
   uint32_t offset = 0;
@@ -140,35 +133,37 @@ bool Accumulate(const TreeAccumulateSpec& spec,
     AggregateInput input;
     input.rows = count;
     if (function.reads_input()) {
-      s.input.Load(batch.column(spec.aggregates[a].column), selection, nullptr,
-                   count, &input);
+      s.input->Load(batch.column(spec.aggregates[a].column), selection, nullptr,
+                    count, &input);
     }
     GroupStates states{s.states.data() + offset, stride};
     offset += function.state_words();
     if (function.tracks_seen()) {
       states.seen = s.seen[a].For(static_cast<uint32_t>(nodes_needed),
-                                  input.valid != nullptr);
+                                  input.valid != nullptr, s);
     }
     function.Update(input, nodes, states, &overflow);
-    function.Combine(s.merges.data(), static_cast<uint32_t>(s.merges.size()),
-                     states, &overflow);
+    function.Combine(s.merges.begin(), merges, states, &overflow);
 
     // Written at the batch's rows, as every column of it is.
-    ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
+    ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
     ColumnChunk& chunk = buffer.chunk();
     int64_t* values = chunk.Values<int64_t>();
     chunk.SizeValidity();
     if (selection.prefix()) {
       function.Finalize(states, nodes, count, values, &chunk.validity);
     } else {
-      s.values.resize(count);
-      s.valid.resize(count);
-      function.Finalize(states, nodes, count, s.values.data(), &s.valid);
+      // Results for the kept rows, before they are written to the batch's rows.
+      ColumnBuffer kept = context.TakeBuffer(sizeof(int64_t));
+      ColumnChunk& kept_chunk = kept.chunk();
+      kept_chunk.SizeValidity();
+      int64_t* kept_values = kept_chunk.Values<int64_t>();
+      function.Finalize(states, nodes, count, kept_values,
+                        &kept_chunk.validity);
       const uint16_t* indices = selection.indices();
-      const int64_t* kept_values = s.values.data();
       for (uint32_t row = 0; row < count; ++row) {
         values[indices[row]] = kept_values[row];
-        chunk.validity.change(indices[row], s.valid.is_set(row));
+        chunk.validity.change(indices[row], kept_chunk.validity.is_set(row));
       }
     }
     batch.AddColumn(
@@ -176,7 +171,7 @@ bool Accumulate(const TreeAccumulateSpec& spec,
         std::move(buffer));
   }
   if (overflow) {
-    s.context->Fail(base::ErrStatus("TREE ACCUMULATE: integer overflow"));
+    context.Fail(base::ErrStatus("TREE ACCUMULATE: integer overflow"));
     return false;
   }
   return true;
@@ -194,10 +189,10 @@ TreeAccumulateDown::TreeAccumulateDown(core::Arena& arena,
       functions_(MakeAggregateFunctions(arena, spec.aggregates.span())) {}
 
 OperatorState* TreeAccumulateUp::NewState(Context& context) const {
-  return context.Make<AccumulateState>(context, functions_);
+  return NewAccumulateState(context, functions_);
 }
 OperatorState* TreeAccumulateDown::NewState(Context& context) const {
-  return context.Make<AccumulateState>(context, functions_);
+  return NewAccumulateState(context, functions_);
 }
 
 bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {

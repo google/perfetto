@@ -63,17 +63,26 @@ struct StepColumns {
 //  1. A plan is const once lowering ends: Sources, Transforms and Operators
 //     hold no values, and nothing the planner sets changes during a run.
 //  2. Whatever a step needs only during one call is not kept past it.
-//  3. Each state is made by the run's Context (Context::Make()) in the step's
-//     NewState(), and lives as long as the Context. Whatever it keeps across
+//  3. A state is plain data. The run's Context makes it (Context::Make()) in
+//     the step's NewState() and never destroys it. Whatever it keeps across
 //     calls is set when the state is made and never changed, is scratch for one
-//     call kept for its capacity (CallScratch<T>), or is held for the run
-//     (Held<T> or RunValue<T>, see run_held.h).
+//     call (an array from Context::NewSpan(), bounded by kMaxBatchRows), or is
+//     a value of the run: a plain value, or one in a span from
+//     Context::NewRunSpan(). Anything which grows is a RunVector, whose memory
+//     belongs to the Context. Batches and buffers a state keeps also come from
+//     the Context.
 //  4. The executor ends a state's run when the step's stream ends, meaning the
 //     step has served its last batch or no more will be pulled from it, and
 //     again before a source is restarted (see Restart()). Ending a run works
-//     the same way for every state (Context::EndRun()). A step never clears its
-//     own state; a source only resets its read position in Rewind(). A rewound
-//     state behaves exactly like a new one.
+//     the same way for every state (Context::EndRun()). The state's values are
+//     restored to how they were when NewState() returned, unless the step
+//     resets them itself in Rewind() (Context::MakeRewound()). Each RunVector
+//     is emptied, keeping its memory only if it is no bigger than
+//     kRunKeptBytes, or is kept whole as a hash table keeps its slots (see
+//     RunKeep). The batches and buffers the run took are given back. So a step
+//     never clears its own state, a source only resets its read position in
+//     Rewind(), and a rewound state behaves exactly like a new one. A state
+//     which held nothing for the run costs nothing to end.
 //  5. A step which fails reports why with Context::Fail(), then returns
 //     failure.
 //  6. A batch a step outputs never points into its state: its columns are in
@@ -107,7 +116,7 @@ class OperatorState {
 
  protected:
   OperatorState() = default;
-  // Not virtual: the Context destroys each state as the type it made.
+  // Never called: a state is plain data, and its Context frees the memory.
   ~OperatorState() = default;
 
  private:

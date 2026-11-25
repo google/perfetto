@@ -18,8 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_ACCUMULATE_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
@@ -55,11 +53,12 @@ class TreeAccumulateUp final : public Transform {
 
   TreeAccumulateUp(core::Arena&, TreeAccumulateSpec);
 
-  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
+
+  OperatorState* NewState(Context&) const override;
 
   TreeAccumulateSpec spec_;
   core::ArenaSpan<const AggregateFunction*> functions_;
@@ -82,11 +81,12 @@ class TreeAccumulateDown final : public Transform {
 
   TreeAccumulateDown(core::Arena&, TreeAccumulateSpec);
 
-  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
+
+  OperatorState* NewState(Context&) const override;
 
   TreeAccumulateSpec spec_;
   core::ArenaSpan<const AggregateFunction*> functions_;

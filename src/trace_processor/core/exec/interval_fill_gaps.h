@@ -19,9 +19,7 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <string_view>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -91,7 +89,6 @@ class IntervalFillGaps final : public Operator {
 
   IntervalFillGaps(core::Arena&, IntervalFillGapsSpec);
 
-  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
 
@@ -109,6 +106,7 @@ class IntervalFillGaps final : public Operator {
   };
 
   // Reads the background on first call. Returns false on error.
+  OperatorState* NewState(Context&) const override;
   bool EnsureBackgroundRead(State&) const;
   base::Status ReadBackground(State&) const;
 

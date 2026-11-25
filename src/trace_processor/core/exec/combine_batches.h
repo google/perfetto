@@ -18,12 +18,10 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_COMBINE_BATCHES_H_
 
 #include <cstdint>
-#include <memory>
 
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -45,23 +43,18 @@ class CombineBatches final : public Operator {
 
   CombineBatches();
 
-  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
 
  private:
-  struct State : HeldState {
-    explicit State(Context& c) : context(&c) {}
-    ~State() override;
-
-    // Provides the buffers combined rows are copied into.
-    Context* context;
-
+  struct State : OperatorState {
     // The buffered rows.
-    Held<BatchBuffer> buffered{this};
+    BatchBuffer buffered;
   };
+
+  OperatorState* NewState(Context&) const override;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

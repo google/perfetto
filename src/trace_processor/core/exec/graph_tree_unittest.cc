@@ -27,7 +27,6 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
@@ -52,7 +51,7 @@ class ColumnsSource final : public Source {
       : columns_(std::move(columns)), chunk_rows_(chunk_rows) {}
 
   OperatorState* NewState(Context& context) const override {
-    auto* state = context.Make<State>();
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -84,8 +83,7 @@ class ColumnsSource final : public Source {
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     Context* context = nullptr;
     uint32_t offset = 0;
   };
@@ -93,8 +91,6 @@ class ColumnsSource final : public Source {
   std::vector<Column> columns_;
   uint32_t chunk_rows_;
 };
-
-ColumnsSource::State::~State() = default;
 
 // A row out: the node's id and payload, its parent's id, and the row numbers.
 struct Row {

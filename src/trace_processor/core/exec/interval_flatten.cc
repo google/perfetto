@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -35,6 +34,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/heap.h"
 
@@ -46,13 +46,13 @@ constexpr auto kEndsLater = [](const auto& a, const auto& b) {
 };
 
 template <typename Live>
-void PushEnd(FlexVector<Live>& heap, Live live) {
-  heap.push_back(live);
+void PushEnd(RunVector<Live>& heap, Live live, OperatorState& owner) {
+  heap.push_back(owner, live);
   HeapSiftUp(heap.data(), heap.size() - 1, live, kEndsLater);
 }
 
 template <typename Live>
-void PopEnd(FlexVector<Live>& heap) {
+void PopEnd(RunVector<Live>& heap) {
   Live last = heap.back();
   heap.pop_back();
   if (!heap.empty()) {
@@ -103,17 +103,23 @@ IntervalFlatten::IntervalFlatten(core::Arena& arena, IntervalFlattenSpec spec)
   }
 }
 
-IntervalFlatten::State::~State() = default;
-
 OperatorState* IntervalFlatten::NewState(Context& context) const {
-  auto* state = context.Make<State>(spec_.lanes);
-  state->context = &context;
-  state->seen_bytes.resize(functions_.size());
-  state->outputs.resize(functions_.size());
-  state->stride = stride_;
-  state->states.first = uint64_t{kFirstSlot} * stride_;
-  state->states.resize(state->states.first);
+  auto* state = context.Make<State>();
+  state->seen_bytes = context.NewRunSpan<SeenBytes>(*state, functions_.size());
+  state->bounds.Init(*state);
+  state->group_buffer = context.NewBuffers(*state, 1);
+  state->outputs = context.NewBuffers(*state, functions_.size());
+  if (keyed_) {
+    state->keys.Init(spec_.lanes.key_columns.span(), *state);
+    state->served_keys = context.NewBatch(*state);
+    state->segment_key_rows = context.NewSpan<uint32_t>(kMaxBatchRows);
+  }
+  state->input = context.NewSpan<AggregateInputLoader>(1).begin();
   return state;
+}
+
+PERFETTO_NO_INLINE void IntervalFlatten::StartRun(State& s) const {
+  s.states.resize(s, uint64_t{kFirstSlot} * stride_);
 }
 
 OpResult IntervalFlatten::Execute(const RowBatch& in,
@@ -122,24 +128,25 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   auto& s = static_cast<State&>(state);
   out.Reset();
   s.segments = 0;
-  if (s.context->failed()) {
+  if (s.context().failed()) {
     return OpResult::kError;
+  }
+  if (PERFETTO_UNLIKELY(stride_ && s.states.empty())) {
+    StartRun(s);
   }
   LaneBatch lanes(in, spec_.lanes);
   // A full output batch can interrupt consumption of the same input. Keep its
   // keys in place until all rows have been consumed.
   if (!s.input_pending) {
     if (keyed_) {
-      base::Status status = s.keys.Hold(in, *s.context);
+      base::Status status = s.keys.Hold(in, s);
       if (!status.ok()) {
-        s.context->Fail(std::move(status));
+        s.context().Fail(std::move(status));
+        return OpResult::kError;
       }
       s.key_row = LaneKeys::kCarried;
     }
     s.input_pending = true;
-  }
-  if (s.context->failed()) {
-    return OpResult::kError;
   }
   uint32_t rows = in.size();
   // Stored back only on yielding, so it is not reloaded every row.
@@ -152,7 +159,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
       if (result == LaneBatch::Result::kSkip) {
         continue;
       }
-      s.context->Fail(lanes.Error(result, {"INTERVAL FLATTEN", "the input"}));
+      s.context().Fail(lanes.Error(result, {"INTERVAL FLATTEN", "the input"}));
       return OpResult::kError;
     }
     uint32_t group = lanes.lane(row);
@@ -186,7 +193,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   s.input_pending = false;
   // Only the current group's key must survive reuse of the input buffers.
   if (keyed_ && s.in_group) {
-    s.keys.Carry(s.key_row);
+    s.keys.Carry(s.key_row, s);
   }
   return Yield(out, s, OpResult::kNeedMoreInput, &in);
 }
@@ -197,20 +204,20 @@ PERFETTO_ALWAYS_INLINE void IntervalFlatten::AddInterval(State& s,
                                                          int64_t start,
                                                          int64_t end) const {
   uint32_t slot = TakeSlot(s);
-  s.rows.push_back(row);
-  s.row_slots.push_back(slot);
+  s.rows.push_back(s, row);
+  s.row_slots.push_back(s, slot);
   if (end == start) {
     // Counted only by the point at its time, emitted when the time is done.
-    s.instants.push_back(Live{start, slot, s.segments});
+    s.instants.push_back(s, Live{start, slot, s.segments});
     return;
   }
-  PushEnd(s.ends, Live{end, slot, s.segments});
+  PushEnd(s.ends, Live{end, slot, s.segments}, s);
   ++s.live;
 }
 
 PERFETTO_ALWAYS_INLINE uint32_t IntervalFlatten::TakeSlot(State& s) const {
   if (s.free_slots.empty()) {
-    s.states.push_back_multiple(0, stride_);
+    s.states.push_back_multiple(s, 0, stride_);
     return kFirstSlot + s.slots++;
   }
   uint32_t slot = s.free_slots.back();
@@ -264,7 +271,7 @@ PERFETTO_ALWAYS_INLINE void IntervalFlatten::Expire(State& s,
 // emitted; its slot is freed once they're aggregated.
 PERFETTO_ALWAYS_INLINE void IntervalFlatten::End(State& s,
                                                  const Live& live) const {
-  s.ranges.push_back(Range{live.slot, live.first, s.segments});
+  s.ranges.push_back(s, Range{live.slot, live.first, s.segments});
 }
 
 bool IntervalFlatten::Emit(State& s, int64_t ts, int64_t dur) const {
@@ -274,29 +281,24 @@ bool IntervalFlatten::Emit(State& s, int64_t ts, int64_t dur) const {
   if (n == kMaxBatchRows) {
     return false;
   }
-  if (PERFETTO_UNLIKELY(n == s.segment_capacity)) {
-    GrowSegments(s);
-  }
   if (PERFETTO_UNLIKELY(!s.bounds.taken())) {
     TakeSegmentBuffers(s);
   }
   s.bounds.ts[n] = ts;
   s.bounds.dur[n] = dur;
   s.segment_groups[n] = s.output_group;
-  s.segment_key_rows[n] = s.key_row;
+  if (keyed_) {
+    s.segment_key_rows[n] = s.key_row;
+  }
   s.segments = n + 1;
   return true;
 }
 
-PERFETTO_NO_INLINE void IntervalFlatten::GrowSegments(State& s) const {
-  s.segment_capacity = std::max(64u, s.segment_capacity * 2);
-  s.segment_key_rows.resize(s.segment_capacity);
-}
-
 PERFETTO_NO_INLINE void IntervalFlatten::TakeSegmentBuffers(State& s) const {
-  s.bounds.Take(*s.context);
-  s.group_buffer = s.context->TakeBuffer(sizeof(uint32_t));
-  s.segment_groups = s.group_buffer.chunk().Values<uint32_t>();
+  Context& context = s.context();
+  s.bounds.Take(context);
+  *s.group_buffer = context.TakeBuffer(sizeof(uint32_t));
+  s.segment_groups = s.group_buffer->chunk().Values<uint32_t>();
 }
 
 // Gives the batch's segments their aggregates, a function at a time: adds
@@ -308,14 +310,14 @@ bool IntervalFlatten::Apply(State& s, const RowBatch* in) const {
   // run to the batch's end, and on from the start of the next.
   // TODO(lalitm): carry a running total across batches for the deltas path,
   // rather than re-adding every interval still live each batch.
-  auto ended = static_cast<uint32_t>(s.ranges.size());
-  for (FlexVector<Live>* lives : {&s.ends, &s.instants}) {
+  uint32_t ended = s.ranges.size();
+  for (RunVector<Live>* lives : {&s.ends, &s.instants}) {
     for (Live& live : *lives) {
-      s.ranges.push_back(Range{live.slot, live.first, s.segments});
+      s.ranges.push_back(s, Range{live.slot, live.first, s.segments});
       live.first = 0;
     }
   }
-  auto rows = static_cast<uint32_t>(s.rows.size());
+  uint32_t rows = s.rows.size();
   bool overflow = false;
   bool nulls = false;
   for (uint32_t i = 0; i < functions_.size(); ++i) {
@@ -323,8 +325,8 @@ bool IntervalFlatten::Apply(State& s, const RowBatch* in) const {
     AggregateInput input;
     input.rows = rows;
     if (rows && function.reads_input()) {
-      s.input.Load(in->column(spec_.aggregates[i].column), in->selection(),
-                   s.rows.data(), rows, &input);
+      s.input->Load(in->column(spec_.aggregates[i].column), in->selection(),
+                    s.rows.data(), rows, &input);
     }
     GroupStates states = States(s, i, input.valid != nullptr);
     if (states.seen) {
@@ -348,13 +350,13 @@ bool IntervalFlatten::Apply(State& s, const RowBatch* in) const {
     }
   }
   for (uint32_t r = 0; r < ended; ++r) {
-    s.free_slots.push_back(s.ranges[r].slot);
+    s.free_slots.push_back(s, s.ranges[r].slot);
   }
   s.ranges.clear();
   s.rows.clear();
   s.row_slots.clear();
   if (overflow) {
-    s.context->Fail(base::ErrStatus("INTERVAL FLATTEN: integer overflow"));
+    s.context().Fail(base::ErrStatus("INTERVAL FLATTEN: integer overflow"));
     return false;
   }
   return true;
@@ -365,7 +367,7 @@ bool IntervalFlatten::Apply(State& s, const RowBatch* in) const {
 GroupStates IntervalFlatten::States(State& s, uint32_t i, bool nulls) const {
   GroupStates states{s.states.data() + offsets_[i], stride_};
   if (functions_[i]->tracks_seen()) {
-    states.seen = s.seen_bytes[i].For(kFirstSlot + s.slots, nulls);
+    states.seen = s.seen_bytes[i].For(kFirstSlot + s.slots, nulls, s);
   }
   return states;
 }
@@ -382,18 +384,16 @@ bool IntervalFlatten::AggregateDeltas(State& s) const {
   s.subtracts.clear();
   for (const Range& range : s.ranges) {
     if (range.first < range.end) {
-      s.merges.push_back(GroupMerge{range.first, range.slot});
-      s.subtracts.push_back(GroupMerge{range.end, range.slot});
+      s.merges.push_back(s, GroupMerge{range.first, range.slot});
+      s.subtracts.push_back(s, GroupMerge{range.end, range.slot});
     }
   }
   bool overflow = false;
   for (uint32_t i = 0; i < functions_.size(); ++i) {
     const AggregateFunction& function = *functions_[i];
     GroupStates states = States(s, i, false);
-    function.Combine(s.merges.data(), static_cast<uint32_t>(s.merges.size()),
-                     states, &overflow);
-    function.Subtract(s.subtracts.data(),
-                      static_cast<uint32_t>(s.subtracts.size()), states,
+    function.Combine(s.merges.data(), s.merges.size(), states, &overflow);
+    function.Subtract(s.subtracts.data(), s.subtracts.size(), states,
                       &overflow);
     function.Prefix(count, states, &overflow);
   }
@@ -402,7 +402,7 @@ bool IntervalFlatten::AggregateDeltas(State& s) const {
   }
   const uint32_t* groups = GetTree().groups.data();
   for (uint32_t i = 0; i < functions_.size(); ++i) {
-    s.outputs[i] = FinalizeToBuffer(*s.context, *functions_[i],
+    s.outputs[i] = FinalizeToBuffer(s.context(), *functions_[i],
                                     States(s, i, false), groups, count);
   }
   return true;
@@ -420,7 +420,7 @@ void IntervalFlatten::AggregateTree(State& s, bool* overflow) const {
   // An interval is merged into at most two nodes a level. Written without
   // branches: whether a node is taken is unpredictable.
   uint32_t levels = static_cast<uint32_t>(base::CountTrailZeros(leaves)) + 1;
-  s.merges.resize(uint64_t{s.ranges.size()} * 2 * levels);
+  s.merges.resize(s, uint64_t{s.ranges.size()} * 2 * levels);
   GroupMerge* out = s.merges.data();
   for (const Range& range : s.ranges) {
     for (uint32_t l = range.first + leaves, r = range.end + leaves; l < r;
@@ -435,7 +435,7 @@ void IntervalFlatten::AggregateTree(State& s, bool* overflow) const {
       out += take_r;
     }
   }
-  s.merges.resize(static_cast<uint64_t>(out - s.merges.data()));
+  s.merges.resize(s, static_cast<uint64_t>(out - s.merges.data()));
   const Tree& tree = GetTree();
   for (uint32_t i = 0; i < functions_.size(); ++i) {
     const AggregateFunction& function = *functions_[i];
@@ -443,10 +443,9 @@ void IntervalFlatten::AggregateTree(State& s, bool* overflow) const {
     if (states.seen) {
       memset(states.seen, 0, 2 * leaves);
     }
-    function.Combine(s.merges.data(), static_cast<uint32_t>(s.merges.size()),
-                     states, overflow);
+    function.Combine(s.merges.data(), s.merges.size(), states, overflow);
     function.Combine(tree.pushes.data(), 2 * leaves - 2, states, overflow);
-    s.outputs[i] = FinalizeToBuffer(*s.context, function, states,
+    s.outputs[i] = FinalizeToBuffer(s.context(), function, states,
                                     tree.groups.data() + leaves, count);
   }
 }
@@ -455,8 +454,13 @@ OpResult IntervalFlatten::Finish(RowBatch& out, OperatorState& state) const {
   auto& s = static_cast<State&>(state);
   out.Reset();
   s.segments = 0;
-  if (!s.context->failed() && s.in_group &&
-      Advance(s, std::numeric_limits<int64_t>::max())) {
+  if (s.context().failed()) {
+    return OpResult::kError;
+  }
+  if (!s.in_group) {
+    return OpResult::kNeedMoreInput;
+  }
+  if (Advance(s, std::numeric_limits<int64_t>::max())) {
     s.in_group = false;
   }
   return Yield(
@@ -468,7 +472,7 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
                                 State& s,
                                 OpResult result,
                                 const RowBatch* in) const {
-  if (s.context->failed() || !Apply(s, in)) {
+  if (s.context().failed() || !Apply(s, in)) {
     return OpResult::kError;
   }
   uint32_t count = s.segments;
@@ -479,20 +483,22 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   // takes new ones.
   s.bounds.AddTo(&out);
   if (keyed_) {
-    const uint32_t* rows = s.segment_key_rows.data();
-    s.keys.Gather(&s.served_keys, {rows, rows + count}, *s.context);
-    for (uint32_t k = 0; k < s.served_keys.column_count(); ++k) {
-      out.AddColumn(s.served_keys.column(k), s.served_keys.buffer(k));
+    const uint32_t* rows = s.segment_key_rows.begin();
+    RowBatch& keys = *s.served_keys;
+    s.keys.Gather(&keys, {rows, rows + count}, s);
+    for (uint32_t k = 0; k < keys.column_count(); ++k) {
+      out.AddColumn(keys.column(k), keys.buffer(k));
     }
   }
-  for (ColumnBuffer& buffer : s.outputs) {
+  for (uint32_t i = 0; i < functions_.size(); ++i) {
+    ColumnBuffer& buffer = s.outputs[i];
     // Take the view before moving the buffer, since argument evaluation order
     // is unspecified.
     ColumnView view = ResultView(buffer);
     out.AddColumn(view, std::move(buffer));
   }
   out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, s.segment_groups),
-                std::move(s.group_buffer));
+                std::move(*s.group_buffer));
   out.SetRowCount(count);
   return result;
 }

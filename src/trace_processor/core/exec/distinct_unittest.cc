@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/distinct.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -57,7 +56,7 @@ struct Batches {
   }
 
   Distinct op;
-  OperatorState* state = nullptr;
+  OperatorState* state;
   // Kept alive, as the batches borrow them.
   std::vector<std::vector<int64_t>> batches;
   RowBatch out;

@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -44,7 +45,8 @@ std::vector<uint32_t> Groups(GroupTable& table,
   }
   batch.SetRowCount(count);
   std::vector<uint32_t> groups(count);
-  EXPECT_EQ(table.FindOrCreate(batch, keys, groups.data()), std::nullopt);
+  EXPECT_EQ(table.FindOrCreate(batch, keys, groups.data(), test::TestOwner()),
+            std::nullopt);
   return groups;
 }
 

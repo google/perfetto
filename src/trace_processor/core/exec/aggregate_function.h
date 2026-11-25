@@ -18,18 +18,15 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_AGGREGATE_FUNCTION_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
 
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -63,6 +60,8 @@ struct AggregateInput {
 // Loads a batch's column at the rows it keeps into the shape AggregateInput
 // describes, pointing at the column's own values when they are the first
 // rows and copying them otherwise.
+//
+// Scratch for one call, made with a state (see Context::NewSpan()).
 class AggregateInputLoader {
  public:
   // Loads `count` selected rows. If `rows` is given, it lists which selected
@@ -74,15 +73,9 @@ class AggregateInputLoader {
             uint32_t count,
             AggregateInput* out);
 
-  // Ends a run (see Held).
-  void EndRun() {
-    EndRunOf(&values_);
-    EndRunOf(&valid_);
-  }
-
  private:
-  FlexVector<int64_t> values_;
-  FlexVector<uint64_t> valid_;
+  int64_t values_[kMaxBatchRows];
+  uint64_t valid_[kMaxBatchRows / 64];
 };
 
 // Where each group's state for one aggregate is: group g's words start at
@@ -99,17 +92,18 @@ struct GroupStates {
 // row of it arrived, so while no input row has been null every group has seen
 // a value and nothing is kept. From the first null, a byte a group is: a byte
 // rather than a bit, so neighbouring groups' updates don't wait on each other.
+//
+// Plain data, held for one run of the state `owner` which contains it (see
+// RunVector).
 class SeenBytes {
  public:
   // Returns what to pass as GroupStates::seen for a batch with `groups`
   // groups in all, whose input holds nulls if `nulls`.
-  uint8_t* For(uint32_t groups, bool nulls);
+  uint8_t* For(uint32_t groups, bool nulls, OperatorState& owner);
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see Held).
-  void EndRun();
 
  private:
-  FlexVector<uint8_t> bytes_;
+  RunVector<uint8_t> bytes_;
   bool tracking_ = false;
   // How many groups the last batch had.
   uint32_t groups_ = 0;

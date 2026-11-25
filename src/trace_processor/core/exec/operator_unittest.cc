@@ -15,7 +15,6 @@
  */
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -27,7 +26,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -66,13 +65,10 @@ class DropOddRows final : public Operator {
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     uint32_t selected[kMaxBatchRows];
   };
 };
-
-DropOddRows::State::~State() = default;
 
 // Reads a pipeline a row at a time, the way a consumer would.
 std::vector<uint32_t> Drain(const Pipeline& pipeline) {
@@ -106,13 +102,10 @@ class Twice final : public Operator {
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
-    RunValue<bool> again{this, false};
+  struct State : OperatorState {
+    bool again = false;
   };
 };
-
-Twice::State::~State() = default;
 
 TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   ArraySource source(Sequence(17));
@@ -181,7 +174,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
     }
 
    private:
-    struct State : HeldState {
+    struct State : OperatorState {
       bool done = false;
     };
     const std::vector<int64_t>* payload_;
@@ -252,16 +245,13 @@ class Trailer final : public Operator {
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
-    RunValue<uint32_t> let_go{this};
+  struct State : OperatorState {
+    uint32_t let_go{};
   };
 
   int64_t first_;
   uint32_t count_;
 };
-
-Trailer::State::~State() = default;
 
 // Passes every batch through, holding the rows it has seen for the run in
 // a vector `seen` points at.
@@ -271,10 +261,10 @@ class Recording final : public Operator {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  explicit Recording(const std::vector<uint32_t>** seen) : seen_(seen) {}
+  explicit Recording(const RunVector<uint32_t>** seen) : seen_(seen) {}
 
   OperatorState* NewState(Context& context) const override {
-    auto* state = context.Make<State>();
+    auto state = context.Make<State>();
     *seen_ = &state->seen;
     return state;
   }
@@ -283,25 +273,25 @@ class Recording final : public Operator {
                    OperatorState& state) const override {
     State& s = state.Cast<State>();
     for (uint32_t i = 0; i < in.size(); ++i) {
-      s.seen.push_back(in.Value<uint32_t>(0, i));
+      s.seen.push_back(s, in.Value<uint32_t>(0, i));
     }
     out.CopyFrom(in);
     return OpResult::kNeedMoreInput;
   }
 
  private:
-  struct State : HeldState {
-    Held<std::vector<uint32_t>> seen{this};
+  struct State : OperatorState {
+    RunVector<uint32_t> seen;
   };
 
-  const std::vector<uint32_t>** seen_;
+  const RunVector<uint32_t>** seen_;
 };
 
 // What a step holds for a run is let go as soon as nothing more comes out of
 // the step, before the steps above it are done, and every run starts empty.
 TEST(StateTest, AStepsRunEndsWithItsStream) {
   ArraySource source({10, 20});
-  const std::vector<uint32_t>* seen = nullptr;
+  const RunVector<uint32_t>* seen = nullptr;
   std::vector<Pipeline::Step> ops;
   ops.push_back(test::TestArena().New<Recording>(&seen));
   ops.push_back(test::TestArena().New<Trailer>(99, 2u));
@@ -388,13 +378,10 @@ class DropOddRowsInPlace final : public Transform {
   mutable const RowBatch* seen = nullptr;
 
  private:
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     uint32_t selected[kMaxBatchRows];
   };
 };
-
-DropOddRowsInPlace::State::~State() = default;
 
 TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   ArraySource source({10, 20, 30, 40, 50});

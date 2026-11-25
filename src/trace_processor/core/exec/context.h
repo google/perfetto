@@ -119,9 +119,13 @@ class Context {
   // asked for in a run. Null at its end or on failure (see error()).
   RowBatch* NextBatch(uint32_t id);
 
-  // Ends the run of pipeline `id` and of what its sink built (see Held),
-  // so the next asks for them afresh.
+  // Ends the run of pipeline `id` and of what its sink built, so the next asks
+  // for them afresh.
   void EndPipelineRun(uint32_t id);
+
+  // Records that `owner` uses pipeline `id`, so ending `owner`'s run ends
+  // pipeline `id`'s run too.
+  void UsePipeline(OperatorState& owner, uint32_t id);
 
   // Records why the run failed. Only the first failure is kept.
   void Fail(base::Status status);

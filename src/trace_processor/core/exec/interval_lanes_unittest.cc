@@ -96,7 +96,7 @@ TEST(LaneBatchTest, ReadsEachKindOfRow) {
 std::vector<uint32_t> Lanes(LaneReader& reader,
                             const RowBatch& batch,
                             GroupTable* shared) {
-  EXPECT_TRUE(reader.Start(batch, shared).ok());
+  EXPECT_TRUE(reader.Start(batch, shared, test::TestOwner()).ok());
   LaneBatch lanes = reader.batch();
   std::vector<uint32_t> out;
   for (uint32_t row = 0; row < batch.size(); ++row) {
@@ -116,8 +116,10 @@ TEST(LaneReaderTest, NumbersLanes) {
   EXPECT_EQ(lanes.lane(1), 1u);
 
   GroupTable table;
-  LaneReader a(spec, {"OP", "a"});
-  LaneReader b(spec, {"OP", "b"});
+  LaneReader a;
+  a.Init(spec, {"OP", "a"}, test::TestOwner());
+  LaneReader b;
+  b.Init(spec, {"OP", "b"}, test::TestOwner());
   EXPECT_THAT(
       Lanes(a, Batch({0, 0, 0}, {1, 1, 1}, {7, 7, 3}, {0, 0, 1}), &table),
       ElementsAre(0, 0, 1));
@@ -130,18 +132,19 @@ TEST(LaneReaderTest, NumbersLanes) {
 
 // A lane's keys stay readable after the next batch is held if carried.
 TEST(LaneKeysTest, CarriesTheOpenLane) {
-  Context& context = test::TestContext();
+  OperatorState& owner = test::TestOwner();
   std::vector<uint32_t> key_columns = {2};
-  LaneKeys keys(key_columns);
+  LaneKeys keys;
+  keys.Init(key_columns, owner);
   RowBatch first = Batch({0, 0}, {1, 1}, {7, 3}, {0, 1});
-  ASSERT_TRUE(keys.Hold(first, context).ok());
+  ASSERT_TRUE(keys.Hold(first, owner).ok());
   uint32_t open = keys.Of(1);
-  keys.Carry(open);
+  keys.Carry(open, owner);
   RowBatch second = Batch({0}, {1}, {9}, {2});
-  ASSERT_TRUE(keys.Hold(second, context).ok());
+  ASSERT_TRUE(keys.Hold(second, owner).ok());
   std::vector<uint32_t> handles = {LaneKeys::kCarried, keys.Of(0)};
   RowBatch out;
-  keys.Gather(&out, handles, context);
+  keys.Gather(&out, handles, owner);
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(3, 9));
 }
 

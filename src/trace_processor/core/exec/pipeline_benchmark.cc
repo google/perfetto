@@ -19,7 +19,6 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -28,7 +27,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
 
 // What a pipeline costs by itself: one-row batches through steps which do
@@ -46,7 +44,7 @@ class OneRowBatches final : public Source {
   explicit OneRowBatches(uint32_t batches) : batches_(batches) {}
 
   OperatorState* NewState(Context& context) const override {
-    return context.Make<State>();
+    return context.MakeRewound<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;
@@ -63,7 +61,7 @@ class OneRowBatches final : public Source {
   }
 
  private:
-  struct State : HeldState {
+  struct State : OperatorState {
     uint32_t next = 0;
   };
   uint32_t batches_;

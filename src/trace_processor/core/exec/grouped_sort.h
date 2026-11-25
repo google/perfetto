@@ -18,18 +18,15 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_GROUPED_SORT_H_
 
 #include <cstdint>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -74,25 +71,21 @@ class GroupedSort final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     // The rows, as they arrive, and the group of each.
-    Held<SortedRows> rows{this};
-    Held<GroupTable> group_table{this};
+    SortedRows rows;
+    GroupTable group_table;
     // The group of each row, in input order.
-    Held<FlexVector<uint32_t>> groups{this};
-
+    RunVector<uint32_t> groups;
     // Grouping the sorted rows: where each group's rows go, and the rows in
     // group order.
-    Held<FlexVector<uint32_t>> next{this};
-    Held<FlexVector<uint32_t>> scratch{this};
-
+    RunVector<uint32_t> next;
+    RunVector<uint32_t> scratch;
     // The rows served, and the group of each, in output order.
-    Held<FlexVector<uint32_t>> ordered_groups{this};
-    RunValue<uint32_t> emitted{this};
+    RunVector<uint32_t> ordered_groups;
+    uint32_t emitted = 0;
   };
 
-  Breaker::State* CreateState(Context&) const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;

@@ -17,10 +17,8 @@
 #include "src/trace_processor/core/exec/distinct.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -35,10 +33,11 @@ Distinct::Distinct(core::ArenaSpan<uint32_t> columns) : columns_(columns) {
   PERFETTO_CHECK(!columns_.empty() && columns_.size() <= kMaxColumns);
 }
 
-Distinct::State::~State() = default;
-
 OperatorState* Distinct::NewState(Context& context) const {
-  return context.Make<State>();
+  auto* state = context.Make<State>();
+  state->row_keys = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->kept = context.NewSpan<uint32_t>(kMaxBatchRows);
+  return state;
 }
 
 bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
@@ -47,10 +46,9 @@ bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
   if (count == 0) {
     return true;
   }
-  s.row_keys.resize(count);
   uint32_t next = s.keys.size();
   if (std::optional<uint32_t> bad =
-          s.keys.FindOrCreate(batch, columns_.span(), s.row_keys.data())) {
+          s.keys.FindOrCreate(batch, columns_.span(), s.row_keys.begin(), s)) {
     s.context().Fail(base::ErrStatus(
         "DISTINCT: key %u must be a column holding one type", *bad + 1));
     return false;
@@ -60,12 +58,13 @@ bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
   }
   // Keys are numbered in the order first seen, so a row is the first with
   // its key exactly when it got the next number.
-  s.kept.resize(count);
-  uint32_t* kept = s.kept.data();
+  // Use locals, since a store to `kept` could otherwise alias the spans' sizes.
+  const uint32_t* row_keys = s.row_keys.begin();
+  uint32_t* kept = s.kept.begin();
   uint32_t n = 0;
   for (uint32_t i = 0; i < count; ++i) {
     kept[n] = i;
-    bool first = s.row_keys[i] == next;
+    bool first = row_keys[i] == next;
     n += first;
     next += first;
   }

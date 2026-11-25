@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "src/trace_processor/core/common/storage_types.h"

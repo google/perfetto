@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>
@@ -32,7 +31,6 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_store.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -133,9 +131,9 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
       ColumnView::Reference(StorageType{Double{}}, values.data()));
   input.SetRowCount(4);
   RowStore store;
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, test::TestOwner()).ok());
   ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows),
-                         test::TestContext()),
+                         test::TestOwner()),
             4u);
   for (uint32_t i = 0; i < 4; ++i) {
     double value = output.Value<double>(0, i);
@@ -147,6 +145,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
 
 TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
   Context context;
+  OperatorState& owner = *context.Make<EmptyState>();
   RowStore store;
   std::vector<int64_t> stable = test::Sequence(256);
   for (uint32_t batch = 0; batch < 2; ++batch) {
@@ -174,7 +173,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                               &chunk.validity, 1),
         local);
     in.SetRowCount(128);
-    ASSERT_TRUE(store.Append(in, context).ok());
+    ASSERT_TRUE(store.Append(in, owner).ok());
   }
   RowBatch retained;
   for (uint32_t count : {63u, 64u, 65u, kMaxBatchRows}) {
@@ -197,7 +196,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
     ASSERT_EQ(store.Gather(&out,
                            base::Span<const uint32_t>(order.data(),
                                                       order.data() + count),
-                           context),
+                           owner),
               count);
     EXPECT_NE(out.column(0).data(), stable.data());
     EXPECT_TRUE(out.selection().prefix());
@@ -225,7 +224,7 @@ class ContractSource final : public Source {
 
   ContractSource(std::vector<std::vector<int64_t>> chunks, bool fail = false)
       : chunks_(std::move(chunks)), fail_(fail) {}
-  struct State : HeldState {
+  struct State : OperatorState {
     size_t next = 0;
     bool failed = false;
   };
@@ -241,7 +240,6 @@ class ContractSource final : public Source {
     auto& s = state.Cast<State>();
     out.Reset();
     if (s.next == chunks_.size()) {
-      s.failed = fail_;
       if (fail_) {
         s.context().Fail(base::ErrStatus("source failed"));
       }
@@ -266,8 +264,8 @@ class ContractFilter final : public Operator {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  struct State : HeldState {
-    std::vector<uint32_t> selected;
+  struct State : OperatorState {
+    uint32_t selected[kMaxBatchRows];
   };
   OperatorState* NewState(Context& context) const override {
     return context.Make<State>();
@@ -275,15 +273,16 @@ class ContractFilter final : public Operator {
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override {
-    auto& rows = state.Cast<State>().selected;
-    rows.clear();
+    uint32_t* rows = state.Cast<State>().selected;
+    uint32_t count = 0;
     for (uint32_t i = 0; i < in.size(); ++i) {
       ++evaluated;
       if (in.Value<int64_t>(0, i) >= 0)
-        rows.push_back(i);
+        rows[count++] = i;
     }
     out.CopyFrom(in);
-    out.mutable_selection().Keep(rows);
+    out.mutable_selection().Keep(
+        base::Span<const uint32_t>(rows, rows + count));
     return OpResult::kNeedMoreInput;
   }
   mutable uint32_t evaluated = 0;

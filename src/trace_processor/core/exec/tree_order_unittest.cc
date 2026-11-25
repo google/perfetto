@@ -15,11 +15,9 @@
  */
 
 #include "src/trace_processor/core/exec/tree_order.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>
@@ -61,7 +59,7 @@ class RowSource final : public Source {
       : rows_(std::move(rows)), chunk_rows_(chunk_rows) {}
 
   OperatorState* NewState(Context& context) const override {
-    auto* state = context.Make<State>();
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -71,49 +69,46 @@ class RowSource final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
+    std::vector<int64_t> ids;
+    std::vector<int64_t> parents;
+    std::vector<int64_t> payloads;
+    BitVector validity;
     auto total = static_cast<uint32_t>(rows_.size());
     if (s.offset == total) {
       return false;
     }
     uint32_t count = std::min(chunk_rows_, total - s.offset);
-    s.ids.resize(count);
-    s.parents.resize(count);
-    s.payloads.resize(count);
-    s.validity = BitVector::CreateWithSize(count);
+    ids.resize(count);
+    parents.resize(count);
+    payloads.resize(count);
+    validity = BitVector::CreateWithSize(count);
     for (uint32_t i = 0; i < count; ++i) {
       const Row& row = rows_[s.offset + i];
-      s.ids[i] = row.id;
-      s.payloads[i] = row.payload;
-      s.parents[i] = row.parent.value_or(0);
+      ids[i] = row.id;
+      payloads[i] = row.payload;
+      parents[i] = row.parent.value_or(0);
       if (row.parent) {
-        s.validity.set(i);
+        validity.set(i);
       }
     }
     out.Reset();
-    test::AddCopy(*s.context, s.ids, nullptr, &out);
-    test::AddCopy(*s.context, s.parents, &s.validity, &out);
-    test::AddCopy(*s.context, s.payloads, nullptr, &out);
+    test::AddCopy(*s.context, ids, nullptr, &out);
+    test::AddCopy(*s.context, parents, &validity, &out);
+    test::AddCopy(*s.context, payloads, nullptr, &out);
     out.SetRowCount(count);
     s.offset += count;
     return true;
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     Context* context = nullptr;
     uint32_t offset = 0;
-    std::vector<int64_t> ids;
-    std::vector<int64_t> parents;
-    std::vector<int64_t> payloads;
-    BitVector validity;
   };
 
   std::vector<Row> rows_;
   uint32_t chunk_rows_;
 };
-
-RowSource::State::~State() = default;
 
 // Drives a plan the way an executor does: it creates the state and owns the
 // batch, leaving the plan const.

@@ -17,11 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BREAKER_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BREAKER_H_
 
-#include <memory>
-
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/arena.h"
 
@@ -32,13 +29,7 @@ namespace perfetto::trace_processor::core::exec {
 // served by the source of the next (see Served).
 class Breaker : public Sink {
  public:
-  struct State : HeldState {
-    State() = default;
-    ~State() override;
-
-    // What the columns served are filled in.
-    Context* context = nullptr;
-  };
+  struct State : OperatorState {};
 
   // Which of its input's columns it reads and keeps (see StepColumns).
   virtual void DescribeColumns(StepColumns* out) const = 0;
@@ -59,11 +50,6 @@ class Breaker : public Sink {
  protected:
   Breaker() = default;
   ~Breaker() = default;
-
-  OperatorState* NewSinkState(Context&) const final;
-
-  // Makes the state for the buffered data, with Context::Make().
-  virtual State* CreateState(Context& context) const = 0;
 
  private:
   friend class Served;

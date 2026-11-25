@@ -22,7 +22,6 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -40,47 +39,38 @@ uint32_t Pipelines::Add(const Pipeline* pipeline, const Sink* sink) {
   return id;
 }
 
-PipelineUse::PipelineUse(HeldState* owner, uint32_t id) : id_(id) {
-  owner->AddHeld(this, &EndRun);
+PipelineUse::PipelineUse(OperatorState& owner, uint32_t id) : id_(id) {
+  owner.context().UsePipeline(owner, id);
 }
 
-OperatorState* PipelineUse::Built(Context& context) {
-  context_ = &context;
+OperatorState* PipelineUse::Built(Context& context) const {
   return context.BuildSink(id_);
 }
 
-RowBatch* PipelineUse::Next(Context& context) {
-  context_ = &context;
+RowBatch* PipelineUse::Next(Context& context) const {
   return context.NextBatch(id_);
 }
 
-OperatorState* PipelineUse::IfBuilt() const {
-  return context_ ? context_->IfBuilt(id_) : nullptr;
+OperatorState* PipelineUse::IfBuilt(const Context& context) const {
+  return context.IfBuilt(id_);
 }
 
-void PipelineUse::EndRun() {
-  if (context_) {
-    context_->EndPipelineRun(id_);
-    context_ = nullptr;
-  }
+void PipelineUse::EndRun(Context& context) const {
+  context.EndPipelineRun(id_);
 }
 
-struct Served::State : HeldState {
-  State(Context& c, uint32_t id) : context(&c), use(this, id) {}
-  ~State() override;
-
-  Context* context;
+struct Served::State : OperatorState {
   PipelineUse use;
-  RunValue<bool> done{this, false};
+  bool done = false;
 };
-
-Served::State::~State() = default;
 
 Served::Served(uint32_t id, const Breaker& breaker)
     : id_(id), breaker_(breaker) {}
 
 OperatorState* Served::NewState(Context& context) const {
-  return context.Make<State>(context, id_);
+  auto* state = context.Make<State>();
+  state->use = PipelineUse(*state, id_);
+  return state;
 }
 
 bool Served::GetData(RowBatch& out, OperatorState& state) const {
@@ -90,7 +80,7 @@ bool Served::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
   // Built the first time, and then only looked up.
-  OperatorState* sink = s.use.Built(*s.context);
+  OperatorState* sink = s.use.Built(s.context());
   if (!sink) {
     s.done = true;
     return false;
@@ -101,13 +91,13 @@ bool Served::GetData(RowBatch& out, OperatorState& state) const {
   }
   // Served whole: what the breaker holds goes now, not when the run ends.
   s.done = true;
-  s.use.EndRun();
+  s.use.EndRun(s.context());
   return false;
 }
 
 const RowsInPlace* Served::InPlace(const OperatorState& state) const {
   const State& s = state.Cast<const State>();
-  OperatorState* built = s.use.IfBuilt();
+  OperatorState* built = s.use.IfBuilt(s.context());
   return built ? breaker_.InPlace(*built) : nullptr;
 }
 

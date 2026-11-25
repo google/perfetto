@@ -21,7 +21,6 @@
 #include <cstring>
 #include <numeric>
 #include <optional>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -37,10 +36,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/layout_column.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -50,9 +46,11 @@ namespace {
 // one, adding each string to those to rank.
 void AppendStrings(const ColumnView& column,
                    const Selection& selection,
-                   FlexVector<StringPool::Id>* ids,
-                   BitVector* present,
-                   StringRanks* ranks) {
+                   OperatorState& owner,
+                   RunVector<StringPool::Id>* ids,
+                   RunBits* present,
+                   RunMap* ranks,
+                   RunVector<StringPool::Id>* ranked) {
   bool sparse = column.kind() == ColumnView::Kind::kSparse;
   const auto* data = static_cast<const StringPool::Id*>(
       sparse ? column.sparse_data() : column.data());
@@ -68,10 +66,15 @@ void AppendStrings(const ColumnView& column,
       index =
           filter::IndexToStorageIndex<SparseNull>(index, validity, popcount);
     }
-    ids->push_back(valid ? data[index] : StringPool::Id::Null());
-    present->push_back(valid);
+    StringPool::Id id = valid ? data[index] : StringPool::Id::Null();
+    ids->push_back(owner, id);
+    present->push_back(owner, valid);
     if (valid) {
-      ranks->Add(data[index]);
+      uint32_t before = ranks->size();
+      ranks->FindOrInsert(owner, id.raw_id(), 0);
+      if (ranks->size() != before) {
+        ranked->push_back(owner, id);
+      }
     }
   }
 }
@@ -115,47 +118,48 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
 base::Status SortedRows::Append(const RowBatch& in,
                                 base::Span<const SortKey> keys,
                                 const StringPool* pool,
-                                Context& context) {
-  return Store(in, keys, pool, context, nullptr);
+                                OperatorState& owner) {
+  return Store(in, keys, pool, owner, nullptr);
 }
 
 base::Status SortedRows::AppendLaidOut(const RowBatch& in,
                                        base::Span<const SortKey> keys,
                                        const StringPool* pool,
-                                       Context& context,
+                                       OperatorState& owner,
                                        const uint8_t* laid_out) {
-  return Store(in, keys, pool, context, laid_out);
+  return Store(in, keys, pool, owner, laid_out);
 }
 
 base::Status SortedRows::Store(const RowBatch& in,
                                base::Span<const SortKey> keys,
                                const StringPool* pool,
-                               Context& context,
+                               OperatorState& owner,
                                const uint8_t* laid_out) {
   if (in.size() == 0) {
     return base::OkStatus();
   }
-  RETURN_IF_ERROR(CheckKeys(in, keys, pool));
-  uint64_t at = uint64_t{rows_.size()} * layout_.stride();
-  keys_.resize(at + uint64_t{in.size()} * layout_.stride());
+  RETURN_IF_ERROR(CheckKeys(in, keys, pool, owner));
+  uint64_t at = uint64_t{rows_.size()} * stride_;
+  keys_.resize(owner, at + uint64_t{in.size()} * stride_);
   if (laid_out) {
-    memcpy(keys_.data() + at, laid_out, uint64_t{in.size()} * layout_.stride());
+    memcpy(keys_.data() + at, laid_out, uint64_t{in.size()} * stride_);
   } else {
     LayOutKeys(in, keys, keys_.data() + at);
   }
   for (uint32_t k = 0; k < keys.size(); ++k) {
     if (types_[k].string) {
       // Laid out by Sort(), once every string is in and ranked.
-      AppendStrings(in.column(keys[k].column), in.selection(), &strings_[k].ids,
-                    &strings_[k].present, &ranks_);
+      AppendStrings(in.column(keys[k].column), in.selection(), owner,
+                    &strings_[k].ids, &strings_[k].present, &ranks_, &ranked_);
     }
   }
-  return rows_.Append(in, context);
+  return rows_.Append(in, owner);
 }
 
 base::Status SortedRows::CheckKeys(const RowBatch& in,
                                    base::Span<const SortKey> keys,
-                                   const StringPool* pool) {
+                                   const StringPool* pool,
+                                   OperatorState& owner) {
   bool first = types_.empty() && !keys.empty();
   for (uint32_t k = 0; k < keys.size(); ++k) {
     std::optional<KeyType> type =
@@ -173,11 +177,17 @@ base::Status SortedRows::CheckKeys(const RowBatch& in,
     // out as nullable, because nullability can change from batch to batch.
     columns_.clear();
     for (uint32_t k = 0; k < keys.size(); ++k) {
-      types_.push_back(*GetKeyType(in.column(keys[k].column), true));
-      columns_.push_back({types_[k].layout, true, keys[k].descending});
+      types_.push_back(owner, *GetKeyType(in.column(keys[k].column), true));
+      columns_.push_back(owner, {types_[k].layout, true, keys[k].descending});
     }
-    layout_.Assign(columns_);
-    strings_.resize(keys.size());
+    slots_.resize(owner, keys.size());
+    stride_ =
+        RowLayout::LayOut(columns_.data(), columns_.size(), slots_.data());
+    uint32_t had = strings_.size();
+    strings_.resize(owner, keys.size());
+    for (uint32_t k = had; k < keys.size(); ++k) {
+      strings_[k] = Strings();
+    }
     pool_ = pool;
   }
   return base::OkStatus();
@@ -188,7 +198,7 @@ void SortedRows::LayOutKeys(const RowBatch& in,
                             uint8_t* rows) const {
   for (uint32_t k = 0; k < keys.size(); ++k) {
     const ColumnView& column = in.column(keys[k].column);
-    const RowLayout::Slot& slot = layout_.slot(k);
+    const RowLayout::Slot& slot = slots_[k];
     bool sparse = column.kind() == ColumnView::Kind::kSparse;
     if (column.kind() == ColumnView::Kind::kSequence ||
         (sparse && column.type().Is<Id>())) {
@@ -238,10 +248,13 @@ std::optional<StringPool::Id> SortedRows::string(uint32_t key,
   return strings.ids[row];
 }
 
-void SortedRows::Sort() {
+void SortedRows::Sort(OperatorState& owner) {
   uint32_t rows = rows_.size();
-  if (ranks_.size()) {
-    ranks_.Rank(*pool_);
+  if (ranked_.size()) {
+    StringRanks::Sort(*pool_, ranked_.data(), ranked_.size());
+    for (uint32_t rank = 0; rank < ranked_.size(); ++rank) {
+      *ranks_.Find(ranked_[rank].raw_id()) = rank;
+    }
   }
   for (uint32_t k = 0; k < types_.size(); ++k) {
     if (!types_[k].string) {
@@ -249,67 +262,55 @@ void SortedRows::Sort() {
     }
     const Strings& strings = strings_[k];
     RowLayout::Write<uint32_t>(
-        layout_.slot(k), rows,
+        slots_[k], rows,
         [&](uint32_t row, uint32_t* out) {
           if (!strings.present.is_set(row)) {
             return false;
           }
-          *out = *ranks_.Find(strings.ids[row]);
+          *out = *ranks_.Find(strings.ids[row].raw_id());
           return true;
         },
         keys_.data());
   }
-  order_.resize(rows);
+  order_.resize(owner, rows);
   std::iota(order_.data(), order_.data() + rows, 0u);
-  if (layout_.stride()) {
+  if (stride_) {
     base::Span<uint32_t> order(order_.data(), order_.data() + rows);
     core::ops::SortRowLayout(
         base::Span<const uint8_t>(keys_.data(), keys_.data() + keys_.size()),
-        layout_.stride(), &order);
+        stride_, &order);
   }
 }
 
-uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, Context& context) {
-  auto count =
-      std::min(kMaxBatchRows, static_cast<uint32_t>(order_.size()) - at);
+uint32_t SortedRows::Gather(RowBatch* out, uint32_t at, OperatorState& owner) {
+  auto count = std::min(kMaxBatchRows, order_.size() - at);
   const uint32_t* begin = order_.data() + at;
   return rows_.Gather(out, base::Span<const uint32_t>(begin, begin + count),
-                      context);
+                      owner);
 }
 
 uint32_t SortedRows::GatherInPlace(RowBatch* out,
                                    uint32_t at,
-                                   Context& context) {
-  auto count =
-      std::min(kMaxBatchRows, static_cast<uint32_t>(order_.size()) - at);
+                                   OperatorState& owner) {
+  auto count = std::min(kMaxBatchRows, order_.size() - at);
   const uint32_t* begin = order_.data() + at;
   return rows_.GatherInPlace(
-      out, base::Span<const uint32_t>(begin, begin + count), context);
+      out, base::Span<const uint32_t>(begin, begin + count), owner);
 }
 
-void SortedRows::Place() {
+void SortedRows::Place(OperatorState& owner) {
   base::Span<const uint32_t> order(order_.data(), order_.data() + size());
-  placed_ = rows_.Place(order, &in_place_);
-}
-
-void SortedRows::EndRun() {
-  types_.clear();
-  strings_.clear();
-  ranks_.Clear();
-  pool_ = nullptr;
-  EndRunOf(&keys_);
-  rows_.EndRun();
-  EndRunOf(&order_);
-  in_place_.batches.clear();
-  placed_ = false;
-  EndRunOf(&in_place_.batch);
-  EndRunOf(&in_place_.row);
+  placed_ = rows_.Place(order, &in_place_, owner);
 }
 
 void SortedRows::Clear() {
   types_.clear();
-  strings_.clear();
-  ranks_.Clear();
+  for (Strings& strings : strings_) {
+    strings.ids.clear();
+    strings.present.clear();
+  }
+  ranks_.clear();
+  ranked_.clear();
   pool_ = nullptr;
   keys_.clear();
   rows_.Clear();

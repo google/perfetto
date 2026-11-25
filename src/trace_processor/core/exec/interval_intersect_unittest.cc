@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -28,7 +27,6 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -57,7 +55,7 @@ class TableSource final : public Source {
   uint32_t columns() const { return columns_; }
 
   OperatorState* NewState(Context& context) const override {
-    auto* state = context.Make<State>();
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -67,20 +65,21 @@ class TableSource final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
+    std::vector<std::vector<int64_t>> columns;
     auto total = static_cast<uint32_t>(rows_.size());
     if (s.offset == total) {
       return false;
     }
     uint32_t count = std::min(chunk_rows_, total - s.offset);
-    s.columns.assign(columns_, std::vector<int64_t>(count));
+    columns.assign(columns_, std::vector<int64_t>(count));
     for (uint32_t row = 0; row < count; ++row) {
       for (uint32_t c = 0; c < columns_; ++c) {
-        s.columns[c][row] = rows_[s.offset + row][c];
+        columns[c][row] = rows_[s.offset + row][c];
       }
     }
     out.Reset();
     for (uint32_t c = 0; c < columns_; ++c) {
-      test::AddCopy(*s.context, s.columns[c], nullptr, &out);
+      test::AddCopy(*s.context, columns[c], nullptr, &out);
     }
     out.SetRowCount(count);
     s.offset += count;
@@ -88,19 +87,15 @@ class TableSource final : public Source {
   }
 
  private:
-  struct State : HeldState {
+  struct State : OperatorState {
     Context* context = nullptr;
-    ~State() override;
     uint32_t offset = 0;
-    std::vector<std::vector<int64_t>> columns;
   };
 
   Table rows_;
   uint32_t columns_;
   uint32_t chunk_rows_;
 };
-
-TableSource::State::~State() = default;
 
 // An operand whose ts and dur are its first two columns, the rest being
 // whatever the table carries along. Every column is retained.

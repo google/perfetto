@@ -36,11 +36,9 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec::test {
@@ -58,6 +56,20 @@ inline Context& TestContext() {
     context.ref().ClearError();
   }
   return context.ref();
+}
+
+// A state in TestContext() for tests which use run memory without a step, such
+// as a RowStore's. Each test gets one state and uses it throughout.
+inline OperatorState& TestOwner() {
+  static OperatorState* owner = nullptr;
+  static const ::testing::TestInfo* test = nullptr;
+  const ::testing::TestInfo* current =
+      ::testing::UnitTest::GetInstance()->current_test_info();
+  if (current != test || !owner) {
+    test = current;
+    owner = TestContext().Make<EmptyState>();
+  }
+  return *owner;
 }
 
 // Ends the run of `state` and clears any failure, as a consumer restarting it
@@ -181,7 +193,7 @@ class ArraySource final : public Source {
   }
 
  private:
-  struct State : HeldState {
+  struct State : OperatorState {
     uint32_t emitted = 0;
   };
 
@@ -233,7 +245,7 @@ class FailingSource final : public Source {
   }
 
  private:
-  struct State : HeldState {
+  struct State : OperatorState {
     bool emitted = false;
   };
   int64_t values_[2] = {1, 2};

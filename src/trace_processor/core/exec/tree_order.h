@@ -18,19 +18,15 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_ORDER_H_
 
 #include <cstdint>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -66,29 +62,27 @@ class TreeChildFirst final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     // The rows, as they arrive.
-    Held<RowStore> rows{this};
+    RowStore rows;
     // The node and parent of each row in order of arrival: what a sort needs.
-    Held<FlexVector<uint32_t>> nodes{this};
-    Held<FlexVector<uint32_t>> parents{this};
+    RunVector<uint32_t> nodes;
+    RunVector<uint32_t> parents;
 
     // What is known of the tree so far.
     // By node number.
-    Held<BitVector> has_row{this};
-    RunValue<uint32_t> nodes_seen{this};
+    RunBits has_row;
+    uint32_t nodes_seen = 0;
     // Which orders the rows so far are still consistent with.
-    RunValue<bool> parent_first{this, true};
-    RunValue<bool> child_first{this, true};
+    bool parent_first = true;
+    bool child_first = true;
 
     // The rows served.
     // The order to emit the rows in. Empty means in arrival order.
-    Held<FlexVector<uint32_t>> order{this};
-    RunValue<uint32_t> emitted{this};
+    RunVector<uint32_t> order;
+    uint32_t emitted = 0;
   };
 
-  Breaker::State* CreateState(Context&) const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
@@ -128,7 +122,6 @@ class TreeParentFirst final : public Operator {
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
 
-  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -137,22 +130,16 @@ class TreeParentFirst final : public Operator {
  private:
   friend class PipelineFormatter;
 
-  struct State : HeldState {
-    State() = default;
-    ~State() override;
-
+  struct State : OperatorState {
     // What is known about each node number.
     struct Nodes {
       // The node's row is out, or is on its way out in `letting_go`.
-      BitVector out;
+      RunBits out;
       // The first row of `held` waiting on this node, or kNoNode.
-      FlexVector<uint32_t> first_waiting;
+      RunVector<uint32_t> first_waiting;
 
       // Grows to at least `count` nodes, ahead of need.
-      void Grow(uint32_t count);
-      void Clear();
-      // Ends a run (see Held).
-      void EndRun();
+      void Grow(uint32_t count, OperatorState& owner);
     };
 
     // Rows which arrived before their parent. Each knows its node and the
@@ -161,35 +148,32 @@ class TreeParentFirst final : public Operator {
     // the run ends.
     struct Waiting {
       RowStore rows;
-      FlexVector<uint32_t> node;
-      FlexVector<uint32_t> next_waiting;
+      RunVector<uint32_t> node;
+      RunVector<uint32_t> next_waiting;
       uint32_t let_go = 0;
 
       void Clear();
-      // Ends a run (see Held).
-      void EndRun();
     };
 
-    // What rows let go are gathered into.
-    Context* context = nullptr;
-
     // The nodes, and the rows waiting on them.
-    Held<Nodes> nodes{this};
-    Held<Waiting> held{this};
+    Nodes nodes;
+    Waiting held;
 
     // Rows of `held` on their way out after the current batch, served a
     // batch at a time from `served`.
-    Held<FlexVector<uint32_t>> letting_go{this};
-    RunValue<uint32_t> served{this};
+    RunVector<uint32_t> letting_go;
+    uint32_t served = 0;
 
     // The batch's rows held, sliced out to be copied.
-    Held<RowBatch> held_batch{this};
+    RowBatch* held_batch = nullptr;
 
     // Scratch for one call: which of the batch's rows pass straight through,
     // and which are held.
-    CallScratch<FlexVector<uint32_t>> passing;
-    CallScratch<FlexVector<uint32_t>> holding;
+    core::ArenaSpan<uint32_t> passing;
+    core::ArenaSpan<uint32_t> holding;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   // Moves every row waiting on `node` to `letting_go`.
   void Release(uint32_t node, State&) const;

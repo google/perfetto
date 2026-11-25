@@ -15,12 +15,10 @@
  */
 
 #include "src/trace_processor/core/exec/tree_accumulate.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>
@@ -71,7 +69,7 @@ class RowSource final : public Source {
   }
 
   OperatorState* NewState(Context& context) const override {
-    auto* state = context.Make<State>();
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -81,42 +79,41 @@ class RowSource final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
+    std::vector<int64_t> ids;
+    std::vector<int64_t> parents;
+    std::vector<int64_t> values;
+    BitVector validity;
     auto total = static_cast<uint32_t>(parents_.size());
     if (s.offset == total) {
       return false;
     }
     uint32_t count = std::min(chunk_rows_, total - s.offset);
-    s.ids.resize(count);
-    s.parents.resize(count);
-    s.values.resize(count);
-    s.validity = BitVector::CreateWithSize(count);
+    ids.resize(count);
+    parents.resize(count);
+    values.resize(count);
+    validity = BitVector::CreateWithSize(count);
     for (uint32_t i = 0; i < count; ++i) {
       uint32_t row = order_[s.offset + i];
-      s.ids[i] = row;
-      s.values[i] = values_[row];
-      s.parents[i] = parents_[row] < 0 ? 0 : parents_[row];
+      ids[i] = row;
+      values[i] = values_[row];
+      parents[i] = parents_[row] < 0 ? 0 : parents_[row];
       if (parents_[row] >= 0) {
-        s.validity.set(i);
+        validity.set(i);
       }
     }
     out.Reset();
-    test::AddCopy(*s.context, s.ids, nullptr, &out);
-    test::AddCopy(*s.context, s.parents, &s.validity, &out);
-    test::AddCopy(*s.context, s.values, nullptr, &out);
+    test::AddCopy(*s.context, ids, nullptr, &out);
+    test::AddCopy(*s.context, parents, &validity, &out);
+    test::AddCopy(*s.context, values, nullptr, &out);
     out.SetRowCount(count);
     s.offset += count;
     return true;
   }
 
  private:
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     Context* context = nullptr;
     uint32_t offset = 0;
-    std::vector<int64_t> ids;
-    std::vector<int64_t> parents;
-    std::vector<int64_t> values;
-    BitVector validity;
   };
 
   std::vector<int64_t> parents_;
@@ -124,8 +121,6 @@ class RowSource final : public Source {
   uint32_t chunk_rows_;
   std::vector<uint32_t> order_;
 };
-
-RowSource::State::~State() = default;
 
 // The two folds written out directly: up sums everything below a node, down
 // sums everything above it.

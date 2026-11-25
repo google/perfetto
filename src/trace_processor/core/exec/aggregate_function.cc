@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -26,7 +25,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -46,8 +45,7 @@ void AggregateInputLoader::Load(const ColumnView& column,
   out->rows = count;
   out->valid = nullptr;
   if (validity) {
-    valid_.resize((count + 63) / 64);
-    out->valid = valid_.data();
+    out->valid = valid_;
   }
   if (!rows && selection.prefix()) {
     // The rows are a run: read in place, with their validity a word at a time.
@@ -61,7 +59,7 @@ void AggregateInputLoader::Load(const ColumnView& column,
   // Gathered, a word of rows at a time: each row's value and validity are read
   // from where it is stored, found once. Vector instructions do not speed up
   // gathers, and only add code.
-  values_.resize(count);
+  PERFETTO_DCHECK(count <= kMaxBatchRows);
   for (uint32_t row = 0; row < count; row += 64) {
     uint32_t n = std::min(64u, count - row);
     uint64_t word = 0;
@@ -75,10 +73,10 @@ void AggregateInputLoader::Load(const ColumnView& column,
       valid_[row / 64] = word;
     }
   }
-  out->values = values_.data();
+  out->values = values_;
 }
 
-uint8_t* SeenBytes::For(uint32_t groups, bool nulls) {
+uint8_t* SeenBytes::For(uint32_t groups, bool nulls, OperatorState& owner) {
   if (!tracking_ && !nulls) {
     groups_ = groups;
     return nullptr;
@@ -86,16 +84,11 @@ uint8_t* SeenBytes::For(uint32_t groups, bool nulls) {
   if (!tracking_) {
     // Every group so far added only values.
     tracking_ = true;
-    bytes_.push_back_multiple(1, groups_);
+    bytes_.push_back_multiple(owner, 1, groups_);
   }
-  bytes_.push_back_multiple(0, groups - bytes_.size());
+  bytes_.push_back_multiple(owner, 0, groups - bytes_.size());
   groups_ = groups;
   return bytes_.data();
-}
-
-void SeenBytes::EndRun() {
-  Clear();
-  EndRunOf(&bytes_);
 }
 
 void SeenBytes::Clear() {

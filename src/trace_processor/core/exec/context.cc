@@ -87,6 +87,8 @@ struct Context::Held {
   std::vector<Buffers> made_buffers;
   std::vector<Buffers> taken_buffers;
   std::vector<Buffers> free_buffers;
+  // Pipelines whose runs end when this state's run ends.
+  std::vector<uint32_t> pipelines;
 };
 
 namespace {
@@ -217,6 +219,9 @@ RowBatch* Context::NextBatch(uint32_t id) {
 }
 
 void Context::EndPipelineRun(uint32_t id) {
+  if (id >= slot_count_) {
+    return;
+  }
   Slot& slot = slots_[id];
   if (!slot.running) {
     return;
@@ -227,6 +232,11 @@ void Context::EndPipelineRun(uint32_t id) {
   if (slot.state) {
     EndRun(*slot.state);
   }
+}
+
+void Context::UsePipeline(OperatorState& owner, uint32_t id) {
+  held_[owner.id_].pipelines.push_back(id);
+  SetHolds(owner, true);
 }
 
 void Context::Fail(base::Status status) {
@@ -287,6 +297,7 @@ void Context::SetHolds(OperatorState& state, bool holds) {
 bool Context::Holds(const Held& held, OperatorState& state) {
   return !held.bytes.empty() || !held.blocks.empty() ||
          !held.made_batches.empty() || !held.made_buffers.empty() ||
+         !held.pipelines.empty() ||
          (held.members && static_cast<HeldState&>(state).holds());
 }
 
@@ -302,6 +313,9 @@ RunHeader Ended(const RunHeader& header, RunKeep keep) {
 
 void Context::EndHeldRun(OperatorState& state) {
   Held& held = held_[state.id_];
+  for (uint32_t id : held.pipelines) {
+    EndPipelineRun(id);
+  }
   if (held.members) {
     static_cast<HeldState&>(state).EndRun();
   }

@@ -27,7 +27,6 @@
 namespace perfetto::trace_processor::core::exec {
 
 class Breaker;
-class HeldState;
 
 // Consumes every batch of the pipeline it ends, building what the step
 // reading it gets once it is finalized, such as the rows a sort holds or a
@@ -96,32 +95,28 @@ class Pipelines {
 };
 
 // A step's use of one of the plan's Pipelines in one run, through the run's
-// Context: what its sink built, or its batches as they stream in. The run of
-// what it uses ends with the step's (see Held).
+// Context: what its sink built, or its batches as they stream in. Plain data;
+// the run of what it uses ends with `owner`'s.
 class PipelineUse final {
  public:
-  PipelineUse(HeldState* owner, uint32_t id);
-  PipelineUse(const PipelineUse&) = delete;
-  PipelineUse& operator=(const PipelineUse&) = delete;
+  PipelineUse() = default;
+  PipelineUse(OperatorState& owner, uint32_t id);
 
   // What the pipeline's sink built, built first if it is not yet, or null on
   // failure (see Context::error()).
-  OperatorState* Built(Context& context);
+  OperatorState* Built(Context& context) const;
 
   // What the pipeline's sink built, or null if it is not built.
-  OperatorState* IfBuilt() const;
+  OperatorState* IfBuilt(const Context& context) const;
 
   // The pipeline's next batch, or null at its end or on failure (see
   // Context::error()).
-  RowBatch* Next(Context& context);
+  RowBatch* Next(Context& context) const;
 
-  void EndRun();
+  void EndRun(Context& context) const;
 
  private:
-  static void EndRun(void* held) { static_cast<PipelineUse*>(held)->EndRun(); }
-
-  uint32_t id_;
-  Context* context_ = nullptr;
+  uint32_t id_ = 0;
 };
 
 // The source of the pipeline after a breaker, which serves what the breaker
