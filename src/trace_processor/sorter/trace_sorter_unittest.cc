@@ -49,6 +49,7 @@ using ::testing::ElementsAre;
 using ::testing::InSequence;
 using ::testing::MockFunction;
 using ::testing::NiceMock;
+using ::testing::Pair;
 
 struct FtraceEventData {
   TraceBlobView packet;
@@ -235,6 +236,48 @@ TEST_F(TraceSorterTest, IncrementalExtraction) {
   // The forced extraction should get the last packet.
   EXPECT_CALL(*sink_ptr, MockParse(1500, _));
   context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(TraceSorterTest, IncrementalExtractionWithOneFlushPerRead) {
+  CreateSorter(false);
+  std::vector<std::pair<int64_t, uint32_t>> parsed;
+  auto stream = CreateRecordingStream(&parsed);
+  auto flush_and_read = [&](int64_t ts) {
+    stream->Push(ts, {test_buffer_.slice_off(0, 1), 0});
+    context_.sorter->NotifyFlushEvent();
+    context_.sorter->NotifyReadBufferEvent();
+  };
+
+  flush_and_read(100);
+  flush_and_read(200);
+  EXPECT_TRUE(parsed.empty());
+
+  flush_and_read(300);
+  EXPECT_THAT(parsed, ElementsAre(Pair(100, 0)));
+
+  flush_and_read(400);
+  EXPECT_THAT(parsed, ElementsAre(Pair(100, 0), Pair(200, 0)));
+}
+
+TEST_F(TraceSorterTest, IncrementalExtractionUsesLatestReadBetweenFlushes) {
+  CreateSorter(false);
+  std::vector<std::pair<int64_t, uint32_t>> parsed;
+  auto stream = CreateRecordingStream(&parsed);
+  auto& sorter = *context_.sorter;
+
+  stream->Push(100, {test_buffer_.slice_off(0, 1), 0});
+  sorter.NotifyReadBufferEvent();
+  stream->Push(200, {test_buffer_.slice_off(0, 1), 0});
+  sorter.NotifyReadBufferEvent();
+
+  sorter.NotifyFlushEvent();
+  stream->Push(300, {test_buffer_.slice_off(0, 1), 0});
+  sorter.NotifyReadBufferEvent();
+  EXPECT_TRUE(parsed.empty());
+
+  sorter.NotifyFlushEvent();
+  sorter.NotifyReadBufferEvent();
+  EXPECT_THAT(parsed, ElementsAre(Pair(100, 0), Pair(200, 0)));
 }
 
 // Simulate a producer bug where the third packet is emitted
