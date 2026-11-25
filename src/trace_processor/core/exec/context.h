@@ -19,23 +19,36 @@
 
 #include <cstdint>
 #include <memory>
+#include <new>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-struct ParamValue;
+class HeldState;
 class OperatorState;
-class RowBatch;
 class Pipelines;
+class RowBatch;
+struct ParamValue;
 
-// What one execution of a plan shares as it runs: the storage the batches'
-// own columns are in. A step takes a buffer for each column it fills, sized
-// for the column's values, and hands it to the batch; once no batch holds it,
-// the buffer comes back to be taken again (see BufferPool).
+// What one execution of a plan shares while it runs: the storage for the
+// batches' own columns, the states of its steps and what they hold, and the
+// first error.
+//
+// A step takes a buffer for each column it fills, sized for the column's
+// values, and hands it to the batch. Once no batch holds the buffer, it can be
+// taken again (see BufferPool).
+//
+// The context makes every state (Make()) and frees it when the context is
+// destroyed. EndRun() restores a state to how it was made (see OperatorState).
 //
 // Must outlive every batch holding one of its buffers.
 class Context {
@@ -84,23 +97,140 @@ class Context {
   // so the next asks for them afresh.
   void EndPipelineRun(uint32_t id);
 
+  // Records why the run failed. Only the first failure is kept.
+  void Fail(base::Status status);
+  // The run's first failure, or ok.
+  const base::Status& error() const { return error_; }
+  bool failed() const { return !error_.ok(); }
+  // Clears the failure, as is done when a run starts.
+  void ClearError() {
+    if (!error_.ok()) {
+      error_ = base::OkStatus();
+    }
+  }
+
+  // Makes a step's state. The state lives as long as the context, and its
+  // values are restored to how they were made at the end of each run. Every
+  // state is made here, or by MakeRewound(), in a step's NewState().
+  template <typename T, typename... Args>
+  T* Make(Args&&... args) {
+    return MakeState<T>(true, std::forward<Args>(args)...);
+  }
+  // Like Make(), but for a state whose step resets in Rewind() every value a
+  // run changes, such as a scan's read position. Ending a run leaves its values
+  // alone.
+  template <typename T, typename... Args>
+  T* MakeRewound(Args&&... args) {
+    return MakeState<T>(false, std::forward<Args>(args)...);
+  }
+
+  // Allocates `size` uninitialized Ts which live as long as the state. Ending a
+  // run leaves them alone, so they suit values set when the state is made, or
+  // scratch for one call.
+  template <typename T>
+  core::ArenaSpan<T> NewSpan(uint32_t size) {
+    static_assert(
+        std::is_trivially_copyable_v<T> && std::is_trivially_destructible_v<T>,
+        "a state is plain data");
+    return {static_cast<T*>(AllocateSpan(sizeof(T) * size, alignof(T))), size};
+  }
+  // Like NewSpan(), but makes a single T from `args`.
+  template <typename T, typename... Args>
+  T* New(Args&&... args) {
+    static_assert(std::is_trivially_destructible_v<T>, "a state is plain data");
+    return new (AllocateSpan(sizeof(T), alignof(T)))
+        T(std::forward<Args>(args)...);
+  }
+
+  // Makes an object for a state which is not plain data, such as a compiled
+  // pattern. It is destroyed along with the context.
+  template <typename T, typename... Args>
+  T* Own(Args&&... args) {
+    T* object = new T(std::forward<Args>(args)...);
+    AddOwned(object, &Delete<T>);
+    return object;
+  }
+
+  // Called once a state's NewState() returns. The state's values at this point
+  // are what each of its runs restores.
+  OperatorState* Made(OperatorState* state);
+
+  // Ends the run of `state`. Its values are restored to how they were made,
+  // unless it was made by MakeRewound(), and a HeldState ends the run of each
+  // of its members. This costs only a check when the state holds nothing for
+  // the run. Defined in operator.h.
+  inline void EndRun(OperatorState& state);
+
+  // Whether any state has something to end when its run ends. If none does,
+  // ending runs can be skipped entirely.
+  bool holding() const { return holding_ != 0; }
+
+  // Makes a batch which lives as long as the state. The context never empties
+  // it; whoever holds it does.
+  RowBatch* NewBatch();
+
  private:
   // A pipeline's states, made the first time it runs and kept for the next
   // runs, which end them instead.
   struct Slot {
-    Slot();
-    ~Slot();
-
-    std::unique_ptr<OperatorState> pipeline;
-    std::unique_ptr<OperatorState> state;
+    OperatorState* pipeline = nullptr;
+    OperatorState* state = nullptr;
     bool running = false;
     bool built = false;
   };
 
+  // What each state holds, by state id.
+  struct Held;
+
+  struct Owned {
+    void* object;
+    void (*destroy)(void*);
+  };
+
+  template <typename T>
+  static void Delete(void* object) {
+    delete static_cast<T*>(object);
+  }
+
+  template <typename T, typename... Args>
+  T* MakeState(bool restored, Args&&... args) {
+    static_assert(std::is_base_of_v<OperatorState, T>);
+    if constexpr (std::is_base_of_v<HeldState, T>) {
+      // Its members end their own runs, so the state is never restored. The
+      // context destroys it.
+      T* state = new T(std::forward<Args>(args)...);
+      AddOwned(state, &Delete<T>);
+      AddState(state, sizeof(T), false);
+      AddHeldState(state);
+      return state;
+    } else {
+      static_assert(std::is_trivially_destructible_v<T>,
+                    "a state is plain data, or a HeldState");
+      T* state = new (states_.Allocate(sizeof(T), alignof(T)))
+          T(std::forward<Args>(args)...);
+      AddState(state, sizeof(T), restored);
+      return state;
+    }
+  }
+
   // Starts a run of pipeline `id`.
   Slot& Start(uint32_t id);
 
-  // Declared before `nulls_` and the pipelines' states, so it outlives them.
+  void AddState(OperatorState* state, uint32_t size, bool restored);
+  void AddHeldState(OperatorState* state);
+  // Memory for a span made with a state. A span of at least a cache line is
+  // aligned to whole cache lines, as the vectors these spans replace were.
+  void* AllocateSpan(size_t size, size_t align);
+  void AddRunBytes(OperatorState& owner, void* where, uint32_t size);
+  void AddOwned(void* object, void (*destroy)(void*));
+  // What EndRun() does for a state which holds something for the run.
+  void EndHeldRun(OperatorState& state);
+  // Whether `state` still needs ending at the end of each run, once this run
+  // has ended.
+  static bool Holds(const Held& held, OperatorState& state);
+  void SetHolds(OperatorState& state, bool holds);
+
+  // Declared before everything holding its buffers, so it outlives them.
   BufferPool buffers_;
   ColumnBuffer nulls_;
   base::Span<const ParamValue> params_;
@@ -108,6 +238,16 @@ class Context {
   // By pipeline, sized once, as running a pipeline can run another within it.
   std::unique_ptr<Slot[]> slots_;
   uint32_t slot_count_ = 0;
+  base::Status error_;
+  // The states, their spans, and the saved values each run starts from.
+  core::Arena states_;
+  std::vector<Held> held_;
+  // How many states hold something (see OperatorState::holds_).
+  uint32_t holding_ = 0;
+
+  // Batches which live as long as the context (see NewBatch()).
+  std::vector<std::unique_ptr<RowBatch>> batches_;
+  std::vector<Owned> owned_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

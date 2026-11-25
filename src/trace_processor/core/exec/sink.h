@@ -30,6 +30,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 class Breaker;
+class HeldState;
 
 // Consumes every batch of the pipeline it ends, building what the step
 // reading it gets once it is finalized, such as the rows a sort holds or a
@@ -39,7 +40,9 @@ class Sink {
   Sink(const Sink&) = delete;
   Sink& operator=(const Sink&) = delete;
 
-  virtual std::unique_ptr<OperatorState> MakeSinkState(Context&) const = 0;
+  OperatorState* MakeSinkState(Context& context) const {
+    return context.Made(NewSinkState(context));
+  }
   virtual base::Status ConsumeBatch(const RowBatch& in,
                                     OperatorState& state) const = 0;
 
@@ -62,6 +65,8 @@ class Sink {
  protected:
   Sink() = default;
   ~Sink() = default;
+
+  virtual OperatorState* NewSinkState(Context&) const = 0;
 };
 
 // A plan's pipelines besides the one whose output is the plan's. Each ends in
@@ -97,7 +102,7 @@ class Pipelines {
 // what it uses ends with the step's (see Held).
 class PipelineUse final {
  public:
-  PipelineUse(OperatorState* owner, uint32_t id);
+  PipelineUse(HeldState* owner, uint32_t id);
   PipelineUse(const PipelineUse&) = delete;
   PipelineUse& operator=(const PipelineUse&) = delete;
 
@@ -131,7 +136,6 @@ class Served final : public Source {
   // `breaker` ends pipeline `id`, and must outlive this.
   Served(uint32_t id, const Breaker& breaker);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState&) const override {}
   base::Status status(const OperatorState& state) const override;
@@ -142,6 +146,8 @@ class Served final : public Source {
 
  private:
   struct State;
+
+  OperatorState* NewState(Context&) const override;
 
   uint32_t id_;
   const Breaker& breaker_;

@@ -44,7 +44,7 @@ uint32_t Pipelines::Add(const Pipeline* pipeline, const Sink* sink) {
   return id;
 }
 
-PipelineUse::PipelineUse(OperatorState* owner, uint32_t id) : id_(id) {
+PipelineUse::PipelineUse(HeldState* owner, uint32_t id) : id_(id) {
   owner->AddHeld(this, &EndRun);
 }
 
@@ -73,7 +73,7 @@ void PipelineUse::EndRun() {
   }
 }
 
-struct Served::State : OperatorState {
+struct Served::State : HeldState {
   State(Context& c, uint32_t id) : context(&c), use(this, id) {}
   ~State() override;
 
@@ -88,8 +88,8 @@ Served::State::~State() = default;
 Served::Served(uint32_t id, const Breaker& breaker)
     : id_(id), breaker_(breaker) {}
 
-std::unique_ptr<OperatorState> Served::MakeState(Context& context) const {
-  return std::make_unique<State>(context, id_);
+OperatorState* Served::NewState(Context& context) const {
+  return context.Make<State>(context, id_);
 }
 
 bool Served::GetData(RowBatch& out, OperatorState& state) const {

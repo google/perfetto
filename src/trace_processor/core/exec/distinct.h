@@ -52,14 +52,14 @@ class Distinct final : public Transform {
 
   explicit Distinct(core::ArenaSpan<uint32_t> columns);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     State() = default;
     ~State() override;
 

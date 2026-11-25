@@ -29,8 +29,8 @@ namespace perfetto::trace_processor::core::exec {
 Sort::Sort(SortSpec spec) : spec_(spec) {}
 Sort::State::~State() = default;
 
-std::unique_ptr<Breaker::State> Sort::CreateState() const {
-  auto state = std::make_unique<State>();
+Breaker::State* Sort::CreateState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows.SetUnread(unread_.span());
   return state;
 }

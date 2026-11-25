@@ -89,7 +89,7 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   // this.
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
-    state->EndRun();
+    test::EndRun(*state);
     std::vector<int64_t> ts(chunk), dur(chunk), key(chunk), weight(chunk);
     std::vector<uint32_t> groups(chunk);
     auto key_valid = BitVector::CreateWithSize(chunk);
@@ -173,7 +173,7 @@ TEST(IntervalFlattenTest, ErrorLeavesNoRowsForTheNextRun) {
   // The second row's negative duration fails with the first still unaggregated.
   fill({0, 1}, {10, -1});
   ASSERT_EQ(op.Execute(in, out, *state), OpResult::kError);
-  state->EndRun();
+  test::EndRun(*state);
 
   fill({0}, {10});
   ASSERT_NE(op.Execute(in, out, *state), OpResult::kError);

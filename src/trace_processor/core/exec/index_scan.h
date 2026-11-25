@@ -64,14 +64,14 @@ class IndexScan final : public Source {
             core::ArenaSpan<SortedSearches::Search> searches,
             const StringPool* pool);
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     ~State() override;
     RowListReader reader;
     const Context* context = nullptr;

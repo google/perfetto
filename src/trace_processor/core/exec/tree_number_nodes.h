@@ -59,7 +59,7 @@ class TreeNumberNodes final : public Transform {
 
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
@@ -86,7 +86,7 @@ class TreeNumberNodes final : public Transform {
     uint32_t* nodes;
     uint32_t* parent_nodes;
   };
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(Context& c) : context(&c) {}
     ~State() override;
     // What the numbers are written in.

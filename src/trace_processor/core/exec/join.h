@@ -41,7 +41,6 @@ class JoinBuild final : public Sink {
   // each column the join doesn't output; those columns aren't stored.
   JoinBuild(uint32_t key, core::ArenaSpan<bool> unread);
 
-  std::unique_ptr<OperatorState> MakeSinkState(Context&) const override;
   base::Status ConsumeBatch(const RowBatch& in,
                             OperatorState& state) const override;
   base::Status FinalizeSink(OperatorState& state) const override;
@@ -49,6 +48,8 @@ class JoinBuild final : public Sink {
  private:
   friend class Join;
   struct Built;
+
+  OperatorState* NewSinkState(Context&) const override;
 
   uint32_t key_;
   core::ArenaSpan<bool> unread_;
@@ -84,7 +85,6 @@ class Join final : public Operator {
   explicit Join(JoinSpec spec);
 
   void DescribeColumns(StepColumns* out) const override;
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -93,6 +93,8 @@ class Join final : public Operator {
  private:
   friend class PipelineFormatter;
   struct State;
+
+  OperatorState* NewState(Context&) const override;
 
   // Outputs the rows of `in` that have a match. For a left join where some
   // rows didn't match, it arranges for the next call to output those.

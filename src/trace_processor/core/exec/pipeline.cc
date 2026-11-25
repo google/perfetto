@@ -18,10 +18,8 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -65,74 +63,58 @@ Pipeline::Pipeline(core::Arena& arena,
     plan_flags_ |= State::kSegmented;
   }
 }
-Pipeline::State::~State() = default;
-
-std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
-  auto state = std::make_unique<State>();
-  state->context = &context;
-  state->owned_source_state = source_.MakeState(context);
+OperatorState* Pipeline::NewState(Context& context) const {
+  auto* state = context.MakeRewound<State>();
   state->source = &source_;
-  state->source_state = state->owned_source_state.get();
-  // Built at its size, the vector needs no code to grow.
-  state->starts = std::vector<State::Start>(segments_.size());
+  state->source_state = source_.MakeState(context);
+  state->starts = context.NewSpan<State::Start>(segments_.size());
+  state->output = context.NewBatch();
   MakeStepStates(*state);
-  state->output_links = last_segment_ == 0
-                            ? &state->source_links
-                            : &state->starts[last_segment_].links;
+  state->output_links = state->starts[last_segment_].links;
   state->flags = plan_flags_;
   return state;
 }
 
 void Pipeline::MakeStepStates(State& s) const {
-  s.operators.reserve(steps_.size());
-  for (const Step& step : steps_) {
-    const Transform* const* transform = std::get_if<const Transform*>(&step);
-    s.operators.push_back(
-        transform ? (*transform)->MakeState(*s.context)
-                  : base::unchecked_get<const Operator*>(step)->MakeState(
-                        *s.context));
+  Context& context = s.context();
+  s.operators = context.NewSpan<OperatorState*>(steps_.size());
+  for (uint32_t i = 0; i < steps_.size(); ++i) {
+    const Transform* const* transform =
+        std::get_if<const Transform*>(&steps_[i]);
+    s.operators[i] =
+        transform ? (*transform)->MakeState(context)
+                  : base::unchecked_get<const Operator*>(steps_[i])->MakeState(
+                        context);
   }
   for (uint32_t seg = 0; seg < segments_.size(); ++seg) {
     const Segment& segment = segments_[seg];
-    auto& links = seg == 0 ? s.source_links : s.starts[seg].links;
+    State::Start& start = s.starts[seg];
+    start = State::Start();
+    uint32_t transforms = segment.end - segment.first;
+    start.links = context.NewSpan<State::Link>(transforms);
+    start.states = context.NewSpan<OperatorState*>(transforms + 1);
+    start.states[0] = segment.start < 0
+                          ? s.source_state
+                          : s.operators[static_cast<uint32_t>(segment.start)];
     for (uint32_t t = segment.first; t < segment.end; ++t) {
-      links.push_back({base::unchecked_get<const Transform*>(steps_[t]),
-                       s.operators[t].get()});
+      start.links[t - segment.first] = {
+          base::unchecked_get<const Transform*>(steps_[t]), s.operators[t]};
+      start.states[t - segment.first + 1] = s.operators[t];
+    }
+    if (seg) {
+      start.input = context.NewBatch();
+      start.out = context.NewBatch();
     }
   }
-  s.source_holds = s.source_state->holds();
-  s.held.resize(segments_.size());
-  auto add = [&s](const OperatorState& state, OperatorState::Registry* into) {
-    if (const OperatorState::Registry* r = state.held_.get()) {
-      into->held.insert(into->held.end(), r->held.begin(), r->held.end());
-      into->values.insert(into->values.end(), r->values.begin(),
-                          r->values.end());
-      into->statuses.insert(into->statuses.end(), r->statuses.begin(),
-                            r->statuses.end());
-      s.holds_any = true;
-    }
-  };
-  for (uint32_t seg = 0; seg < segments_.size(); ++seg) {
-    const Segment& segment = segments_[seg];
-    if (segment.start < 0) {
-      add(*s.source_state, &s.held[seg]);
-    }
-    for (auto t = static_cast<uint32_t>(std::max(segment.start, 0));
-         t < segment.end; ++t) {
-      add(*s.operators[t], &s.held[seg]);
-    }
-  }
-  if (s.holds_any) {
-    s.AddHeld(&s, &Pipeline::EndStateRun);
-  }
+}
+
+void Pipeline::EndRun(OperatorState& state) const {
+  EndUpTo(last_segment_, state.Cast<State>());
 }
 
 void Pipeline::Rewind(OperatorState& state) const {
   auto& s = state.Cast<State>();
   ++s.run;
-  if (s.flags & State::kFailed) {
-    s.status = base::OkStatus();
-  }
   s.flags = plan_flags_;
   // Whatever the last run left, if it stopped before its streams ended.
   EndUpTo(last_segment_, s);
@@ -156,12 +138,11 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
   }
   RowBatch* batch;
   if (!(flags & State::kSegmented)) {
-    // Holding nothing, the run ends with its source: nothing to stop, and its
-    // status is read only when asked for.
+    // Holding nothing, the run ends with its source: nothing to stop.
     if (PERFETTO_UNLIKELY(flags & State::kSourceDone)) {
       return nullptr;
     }
-    batch = s.source->Next(s.output, *s.source_state);
+    batch = s.source->Next(*s.output, *s.source_state);
     if (PERFETTO_UNLIKELY(!batch)) {
       SourceDone(s);
       return nullptr;
@@ -173,7 +154,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
       return nullptr;
     }
   }
-  for (const State::Link& link : *s.output_links) {
+  for (const State::Link& link : s.output_links) {
     if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
       TransformFailed(link, s);
       return nullptr;
@@ -188,7 +169,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
 
 PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
   auto last = static_cast<uint32_t>(segments_.size() - 1);
-  RowBatch* batch = SegmentNext(last, s.output, s);
+  RowBatch* batch = SegmentNext(last, *s.output, s);
   if (!batch) {
     Stop(s);
   }
@@ -198,8 +179,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
 PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::SegmentNext(uint32_t segment,
                                                        RowBatch& scratch,
                                                        State& s) const {
-  const std::vector<State::Link>& links =
-      segment == 0 ? s.source_links : s.starts[segment].links;
+  core::ArenaSpan<State::Link> links = s.starts[segment].links;
   for (;;) {
     RowBatch* batch;
     if (PERFETTO_LIKELY(segment == 0 && !(s.flags & State::kAttention))) {
@@ -271,7 +251,7 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
     }
     bool has_input = start.continuation;
     if (!has_input && !start.input_done) {
-      start.current = SegmentNext(segment - 1, start.input, s);
+      start.current = SegmentNext(segment - 1, *start.input, s);
       if (start.current) {
         has_input = true;
       } else if (s.flags & (State::kStopped | State::kFailed)) {
@@ -280,10 +260,10 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
         start.input_done = true;
       }
     }
-    start.out.Reset();
+    start.out->Reset();
     OpResult result = has_input
-                          ? op.Execute(*start.current, start.out, op_state)
-                          : op.Finish(start.out, op_state);
+                          ? op.Execute(*start.current, *start.out, op_state)
+                          : op.Finish(*start.out, op_state);
     if (result == OpResult::kError) {
       StepFailed(op.status(op_state), s);
       return nullptr;
@@ -293,8 +273,8 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
         (!has_input && result != OpResult::kHaveMoreOutput)) {
       start.finished = true;
     }
-    if (start.out.size()) {
-      return &start.out;
+    if (start.out->size()) {
+      return start.out;
     }
     if (start.finished) {
       EndUpTo(segment, s);
@@ -317,21 +297,12 @@ bool Pipeline::GetData(RowBatch& out, OperatorState& state) const {
   return true;
 }
 
-base::Status Pipeline::status(const OperatorState& state) const {
-  const auto& s = state.Cast<const State>();
-  if (!(s.flags & (State::kHolds | State::kFailed)) &&
-      (s.flags & State::kSourceDone) && !s.source_holds) {
-    return source_.status(*s.source_state);
-  }
-  return s.status;
-}
-
 PERFETTO_ALWAYS_INLINE bool Pipeline::CanContinue(State& state) const {
   return PERFETTO_LIKELY(!(state.flags & (State::kStopped | State::kFailed)));
 }
 
 PERFETTO_NO_INLINE void Pipeline::Stop(State& state) const {
-  for (auto& start : state.starts) {
+  for (State::Start& start : state.starts) {
     start.current = nullptr;
   }
   state.flags |= State::kStopped;
@@ -339,39 +310,43 @@ PERFETTO_NO_INLINE void Pipeline::Stop(State& state) const {
 
 PERFETTO_NO_INLINE void Pipeline::SourceDone(State& s) const {
   s.flags |= State::kSourceDone;
-  // Read now if ending the run resets it, or the pipeline holds rows and must
-  // stop at once; otherwise status() reads it only if asked.
-  if (s.source_holds || (s.flags & State::kHolds)) {
-    Fail(s, source_.status(*s.source_state));
+  // Read the source's status now, because ending its run resets it.
+  Context& context = s.context();
+  if (!context.failed()) {
+    base::Status status = source_.status(*s.source_state);
+    if (!status.ok()) {
+      context.Fail(std::move(status));
+    }
+  }
+  if (context.failed()) {
+    s.flags |= State::kFailed;
   }
   EndUpTo(0, s);
 }
 
-PERFETTO_NO_INLINE void Pipeline::EndRunsUpTo(uint32_t segment, State& s) {
+PERFETTO_NO_INLINE void Pipeline::EndRunsUpTo(uint32_t segment,
+                                              State& s) const {
+  Context& context = s.context();
   for (uint32_t seg = s.ended_segments; seg <= segment; ++seg) {
-    OperatorState::EndRuns(s.held[seg]);
+    for (OperatorState* state : s.starts[seg].states) {
+      context.EndRun(*state);
+    }
   }
   s.ended_segments = segment + 1;
 }
 
-void Pipeline::EndStateRun(void* state) {
-  auto& s = *static_cast<State*>(state);
-  auto last = static_cast<uint32_t>(s.held.size() - 1);
-  if (s.ended_segments <= last) {
-    EndRunsUpTo(last, s);
-  }
-}
-
-void Pipeline::Fail(State& state, base::Status status) {
-  if (!status.ok()) {
-    state.status = std::move(status);
-    state.flags |= State::kFailed;
-  }
+base::Status Pipeline::status(const OperatorState& state) const {
+  return state.context().error();
 }
 
 void Pipeline::StepFailed(base::Status status, State& state) {
-  Fail(state, status.ok() ? base::ErrStatus("operator failed without status")
-                          : std::move(status));
+  Context& context = state.context();
+  if (!context.failed()) {
+    context.Fail(status.ok()
+                     ? base::ErrStatus("operator failed without saying why")
+                     : std::move(status));
+  }
+  state.flags |= State::kFailed;
 }
 
 PERFETTO_NO_INLINE void Pipeline::TransformFailed(const State::Link& link,

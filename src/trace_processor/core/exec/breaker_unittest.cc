@@ -63,8 +63,8 @@ class Reverse final : public Breaker {
     RunValue<uint32_t> served{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override {
-    return std::make_unique<State>();
+  Breaker::State* CreateState(Context& context) const override {
+    return context.Make<State>();
   }
   bool Consume(const RowBatch& in, Breaker::State& state) const override {
     State& s = state.Cast<State>();
@@ -181,14 +181,11 @@ class Total final : public Sink {
 
   explicit Total(uint32_t* builds) : builds_(builds) {}
 
-  struct Sum : OperatorState {
+  struct Sum : HeldState {
     ~Sum() override;
     RunValue<int64_t> value{this, 0};
   };
 
-  std::unique_ptr<OperatorState> MakeSinkState(Context&) const override {
-    return std::make_unique<Sum>();
-  }
   base::Status ConsumeBatch(const RowBatch& in,
                             OperatorState& state) const override {
     Sum& sum = state.Cast<Sum>();
@@ -203,6 +200,10 @@ class Total final : public Sink {
   }
 
  private:
+  OperatorState* NewSinkState(Context& context) const override {
+    return context.Make<Sum>();
+  }
+
   uint32_t* builds_;
 };
 
@@ -216,7 +217,7 @@ class WithTotal final : public Transform {
 
   explicit WithTotal(uint32_t total) : total_(total) {}
 
-  struct State : OperatorState {
+  struct State : HeldState {
     State(Context& c, uint32_t total) : context(&c), use(this, total) {}
     ~State() override;
     Context* context;
@@ -225,9 +226,6 @@ class WithTotal final : public Transform {
   };
 
   void DescribeColumns(StepColumns* out) const override { out->reads = {1}; }
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    return std::make_unique<State>(context, total_);
-  }
   bool Process(RowBatch& batch, OperatorState& state) const override {
     State& s = state.Cast<State>();
     base::StatusOr<OperatorState*> built = s.use.Built(*s.context);
@@ -247,6 +245,10 @@ class WithTotal final : public Transform {
   }
 
  private:
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>(context, total_);
+  }
+
   uint32_t total_;
 };
 
@@ -303,18 +305,19 @@ class CountEndRuns final : public Transform {
     uint32_t* ends;
   };
 
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(uint32_t* ends) : counter(this, ends) {}
     ~State() override;
     Held<Counter> counter;
   };
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>(ends_);
-  }
   bool Process(RowBatch&, OperatorState&) const override { return true; }
 
  private:
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>(ends_);
+  }
+
   uint32_t* ends_;
 };
 

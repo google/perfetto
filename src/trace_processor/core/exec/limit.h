@@ -44,7 +44,7 @@ class Limit final : public Operator {
   // No `limit` keeps every row after the offset.
   Limit(std::optional<uint32_t> limit, uint32_t offset);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -52,7 +52,7 @@ class Limit final : public Operator {
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     State() = default;
     ~State() override;
 

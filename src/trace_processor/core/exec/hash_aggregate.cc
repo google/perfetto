@@ -91,8 +91,8 @@ HashAggregate::HashAggregate(core::Arena& arena, HashAggregateSpec spec)
 }
 HashAggregate::State::~State() = default;
 
-std::unique_ptr<Breaker::State> HashAggregate::CreateState() const {
-  auto state = std::make_unique<State>();
+Breaker::State* HashAggregate::CreateState(Context& context) const {
+  auto* state = context.Make<State>();
   state->groups.set_payload_words(state_words_);
   state->seen.resize(functions_.size());
   state->total.push_back_multiple(0, state_words_);

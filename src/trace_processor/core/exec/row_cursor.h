@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_CURSOR_H_
 
 #include <cstdint>
-#include <memory>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -80,7 +79,10 @@ class RowCursor {
 
   bool eof() const { return index_ == size_; }
 
-  base::Status status() const { return source_.status(*state_); }
+  // Why the run stopped early, or ok.
+  base::Status status() const {
+    return context_.failed() ? context_.error() : source_.status(*state_);
+  }
 
   // The value of `column` at the current row.
   template <typename T>
@@ -119,9 +121,10 @@ class RowCursor {
   }
 
   const Source& source_;
-  // Before the state and the batch, which hold its buffers.
+  // Declared before the batch, which holds its buffers. It also holds the
+  // state.
   Context context_;
-  std::unique_ptr<OperatorState> state_;
+  OperatorState* state_;
   RowBatch scratch_;
   // The source's current batch, valid until the next pull.
   RowBatch* batch_ = nullptr;

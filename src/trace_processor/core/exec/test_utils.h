@@ -41,14 +41,28 @@
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec::test {
 
 // A Context for tests which make states themselves, rather than through a
-// RowCursor. Tests run on one thread, so they can share it.
+// RowCursor. Tests run on one thread, so they can share it; each test starts
+// with no failure.
 inline Context& TestContext() {
   static base::NoDestructor<Context> context;
+  static const ::testing::TestInfo* test = nullptr;
+  const ::testing::TestInfo* current =
+      ::testing::UnitTest::GetInstance()->current_test_info();
+  if (current != test) {
+    test = current;
+    context.ref().ClearError();
+  }
   return context.ref();
+}
+
+// Ends the run of `state`, as a consumer restarting it does (see Restart()).
+inline void EndRun(OperatorState& state) {
+  state.context().EndRun(state);
 }
 
 // The arena tests make operators in. It is never freed and lives as long as the
@@ -141,8 +155,8 @@ class ArraySource final : public Source {
   explicit ArraySource(const std::vector<int64_t>& values)
       : values_(InArena(values)) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;
@@ -165,7 +179,7 @@ class ArraySource final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     uint32_t emitted = 0;
   };
 
@@ -196,8 +210,8 @@ class FailingSource final : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = false;
@@ -220,7 +234,7 @@ class FailingSource final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     bool emitted = false;
   };
   int64_t values_[2] = {1, 2};
@@ -248,9 +262,6 @@ class BatchesSource final : public Source {
   explicit BatchesSource(std::vector<const RowBatch*> batches)
       : batches_(std::move(batches)) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
-  }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;
   }
@@ -267,6 +278,9 @@ class BatchesSource final : public Source {
   struct State : OperatorState {
     size_t next = 0;
   };
+  OperatorState* NewState(Context& context) const override {
+    return context.MakeRewound<State>();
+  }
   std::vector<const RowBatch*> batches_;
 };
 
@@ -299,18 +313,23 @@ class AfterBreaker {
   // Every batch it outputs, read by `read`, and how the run ended.
   template <typename Read>
   base::Status Drain(Read read) {
-    std::unique_ptr<OperatorState> state = pipeline_->MakeState(context_);
+    if (!state_) {
+      state_ = pipeline_->MakeState(context_);
+    } else {
+      Restart(*pipeline_, *state_);
+    }
     RowBatch batch;
-    while (pipeline_->GetData(batch, *state)) {
+    while (pipeline_->GetData(batch, *state_)) {
       read(batch);
     }
-    return pipeline_->status(*state);
+    return pipeline_->status(*state_);
   }
 
  private:
   Pipelines pipelines_;
   const Pipeline* pipeline_;
   Context context_;
+  OperatorState* state_ = nullptr;
 };
 
 // Runs `breaker` over copies of `batches`, which must outlive it, each time
@@ -347,7 +366,7 @@ class BreakerRun {
 
   BatchesSource source_;
   AfterBreaker run_;
-  std::unique_ptr<OperatorState> state_;
+  OperatorState* state_;
   RowBatch out_;
 };
 

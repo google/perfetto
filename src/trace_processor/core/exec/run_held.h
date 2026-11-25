@@ -36,10 +36,69 @@
 
 // What a step's state holds for one run (see OperatorState): a Held<T> for
 // anything with storage, a RunValue<T> for a plain value. Each registers with
-// the state it is in, so the executor ends its run when the step's stream
+// the HeldState it is in, so the executor ends its run when the step's stream
 // ends.
 
 namespace perfetto::trace_processor::core::exec {
+
+// A state which keeps what it holds for a run in Held<T> and RunValue<T>
+// members. The Context ends the state's run by ending each of them.
+class HeldState : public OperatorState {
+ public:
+  HeldState() = default;
+  virtual ~HeldState();
+
+  // Ends the run of everything the state holds. Called by the Context, never
+  // by the step.
+  void EndRun() {
+    if (held_) {
+      EndHeldRuns();
+    }
+  }
+
+  // Whether the state holds anything for a run, which is settled once it is
+  // made.
+  bool holds() const { return held_ != nullptr; }
+
+ private:
+  friend class PipelineUse;
+  template <typename T>
+  friend class RunValue;
+  template <typename T>
+  friend class Held;
+
+  // Something held for a run which ends it with a call made for its type
+  // (see Held).
+  struct HeldObject {
+    void* where;
+    void (*end_run)(void*);
+  };
+  // A plain value held for a run: where it is, and the bytes it starts each
+  // run with. Put back with a store, so ending a run calls nothing for it.
+  struct HeldValue {
+    void* where;
+    uint64_t initial;
+    uint32_t size;
+  };
+  // Everything the state holds for a run. Behind a pointer, made on the
+  // first registration, so a state holding nothing stays small.
+  struct Registry {
+    std::vector<HeldObject> held;
+    std::vector<HeldValue> values;
+    std::vector<base::Status*> statuses;
+  };
+
+  Registry& registry() {
+    if (!held_) {
+      held_ = std::make_unique<Registry>();
+    }
+    return *held_;
+  }
+  void EndHeldRuns();
+  void AddHeld(void* where, void (*end_run)(void*));
+
+  std::unique_ptr<Registry> held_;
+};
 
 // Storage of up to this many bytes is kept across runs, so a pipeline run
 // over and over on small inputs allocates nothing after its first run.
@@ -123,7 +182,7 @@ template <typename T>
 class Held final : public T {
  public:
   template <typename... Args>
-  explicit Held(OperatorState* owner, Args&&... args)
+  explicit Held(HeldState* owner, Args&&... args)
       : T(std::forward<Args>(args)...) {
     owner->AddHeld(static_cast<T*>(this), &EndRun);
   }
@@ -139,7 +198,7 @@ class Held final : public T {
 template <>
 class Held<base::Status> final : public base::Status {
  public:
-  explicit Held(OperatorState* owner) {
+  explicit Held(HeldState* owner) {
     owner->registry().statuses.push_back(this);
   }
   Held(const Held&) = delete;
@@ -165,8 +224,8 @@ class RunValue final {
   static_assert(std::is_trivially_copyable_v<T> &&
                 (sizeof(T) == 1 || sizeof(T) == 4 || sizeof(T) == 8));
 
-  explicit RunValue(OperatorState* owner, T initial = T()) : value_(initial) {
-    OperatorState::HeldValue held{&value_, 0, sizeof(T)};
+  explicit RunValue(HeldState* owner, T initial = T()) : value_(initial) {
+    HeldState::HeldValue held{&value_, 0, sizeof(T)};
     memcpy(&held.initial, &initial, sizeof(T));
     owner->registry().values.push_back(held);
   }

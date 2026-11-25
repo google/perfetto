@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/core/exec/tree_order.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -59,8 +60,8 @@ class RowSource final : public Source {
   RowSource(std::vector<Row> rows, uint32_t chunk_rows)
       : rows_(std::move(rows)), chunk_rows_(chunk_rows) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto* state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -98,7 +99,7 @@ class RowSource final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     ~State() override;
     Context* context = nullptr;
     uint32_t offset = 0;
@@ -119,13 +120,16 @@ RowSource::State::~State() = default;
 class Execution {
  public:
   explicit Execution(const Source& source)
-      : source_(source), state_(source.MakeState(context_)) {}
+      : source_(source), state_(source.MakeState(context_)) {
+    Restart(source_, *state_);
+  }
 
   // As above, for a plan whose other pipelines are `pipelines`.
   Execution(const Source& source, const Pipelines& pipelines)
       : source_(source) {
     context_.SetPipelines(&pipelines);
     state_ = source.MakeState(context_);
+    Restart(source_, *state_);
   }
 
   RowBatch* Next() {
@@ -137,7 +141,7 @@ class Execution {
  private:
   const Source& source_;
   Context context_;
-  std::unique_ptr<OperatorState> state_;
+  OperatorState* state_ = nullptr;
   RowBatch batch_;
 };
 

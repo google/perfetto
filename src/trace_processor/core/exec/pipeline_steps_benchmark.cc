@@ -121,7 +121,7 @@ void Run(benchmark::State& state,
     pipeline = arena.New<Served>(id, *breaker);
   }
   context.SetPipelines(&pipelines);
-  std::unique_ptr<OperatorState> run = pipeline->MakeState(context);
+  OperatorState* run = pipeline->MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {
     Restart(*pipeline, *run);

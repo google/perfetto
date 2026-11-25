@@ -173,9 +173,8 @@ TreeNumberNodes::TreeNumberNodes(uint32_t id_column, uint32_t parent_column)
 
 TreeNumberNodes::State::~State() = default;
 
-std::unique_ptr<OperatorState> TreeNumberNodes::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<State>(context);
+OperatorState* TreeNumberNodes::NewState(Context& context) const {
+  auto* state = context.Make<State>(context);
   state->ids = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
   state->parents = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
   return state;

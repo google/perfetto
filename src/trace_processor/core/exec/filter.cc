@@ -397,8 +397,8 @@ Filter::Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool)
 
 Filter::State::~State() = default;
 
-std::unique_ptr<OperatorState> Filter::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* Filter::NewState(Context& context) const {
+  return context.Make<State>(context);
 }
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {

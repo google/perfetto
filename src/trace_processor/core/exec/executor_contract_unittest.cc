@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -224,12 +225,12 @@ class ContractSource final : public Source {
 
   ContractSource(std::vector<std::vector<int64_t>> chunks, bool fail = false)
       : chunks_(std::move(chunks)), fail_(fail) {}
-  struct State : OperatorState {
+  struct State : HeldState {
     size_t next = 0;
     bool failed = false;
   };
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;
@@ -266,11 +267,11 @@ class ContractFilter final : public Operator {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  struct State : OperatorState {
+  struct State : HeldState {
     std::vector<uint32_t> selected;
   };
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,

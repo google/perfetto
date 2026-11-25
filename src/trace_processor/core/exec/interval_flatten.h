@@ -64,7 +64,7 @@ class IntervalFlatten final : public Operator {
 
   IntervalFlatten(core::Arena&, IntervalFlattenSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
@@ -86,7 +86,7 @@ class IntervalFlatten final : public Operator {
     uint32_t end;
   };
 
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(const IntervalLaneSpec& lanes)
         : keys(this, lanes.key_columns.span()) {}
     ~State() override;

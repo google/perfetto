@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
@@ -50,8 +51,8 @@ class ColumnsSource final : public Source {
   explicit ColumnsSource(std::vector<Column> columns, uint32_t chunk_rows = 3)
       : columns_(std::move(columns)), chunk_rows_(chunk_rows) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto* state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -83,7 +84,7 @@ class ColumnsSource final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     ~State() override;
     Context* context = nullptr;
     uint32_t offset = 0;

@@ -34,8 +34,8 @@ namespace perfetto::trace_processor::core::exec {
 GroupedSort::GroupedSort(GroupedSortSpec spec) : spec_(spec) {}
 GroupedSort::State::~State() = default;
 
-std::unique_ptr<Breaker::State> GroupedSort::CreateState() const {
-  auto state = std::make_unique<State>();
+Breaker::State* GroupedSort::CreateState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows.SetUnread(unread_.span());
   return state;
 }

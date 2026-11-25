@@ -91,7 +91,7 @@ struct Regions {
   }
 };
 
-class IntersectState : public OperatorState {
+class IntersectState : public HeldState {
  public:
   ~IntersectState() override;
 
@@ -223,9 +223,8 @@ IntervalIntersect::IntervalIntersect(
   PERFETTO_CHECK(operands_.size() >= 2);
 }
 
-std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<IntersectState>();
+OperatorState* IntervalIntersect::NewState(Context& context) const {
+  auto* state = context.Make<IntersectState>();
   state->context = &context;
   auto count = static_cast<uint32_t>(operands_.size());
   for (uint32_t i = 0; i < count; ++i) {
@@ -237,7 +236,7 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
   state->scratch.gather_rows.resize(count);
   for (const CollectedInputSpec& operand : operands_) {
     state->operand_inputs.push_back(
-        std::make_unique<PipelineUse>(state.get(), operand.pipeline));
+        std::make_unique<PipelineUse>(state, operand.pipeline));
   }
   return state;
 }

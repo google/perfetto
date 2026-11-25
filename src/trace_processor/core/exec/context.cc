@@ -16,9 +16,12 @@
 
 #include "src/trace_processor/core/exec/context.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -28,18 +31,45 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
+struct Context::Held {
+  struct Bytes {
+    void* where;
+    // A copy of the bytes as they were when the state was made.
+    void* made;
+    uint32_t size;
+  };
+
+  // The state and its size.
+  void* state;
+  uint32_t size;
+  // Whether the state is a HeldState, whose members end their own runs.
+  bool members = false;
+  // The state's own bytes, if they are restored.
+  std::vector<Bytes> bytes;
+};
+
+namespace {
+
+// Blocks use Slab's alignment, so a kept block can be reused for any type.
+constexpr size_t kBlockAlignment = Slab<uint8_t>::kAlignment;
+
+}  // namespace
 
 Context::Context() = default;
 
-Context::Slot::Slot() = default;
-Context::Slot::~Slot() = default;
-
 Context::~Context() {
+  held_.clear();
+  batches_.clear();
+  for (const Owned& owned : owned_) {
+    owned.destroy(owned.object);
+  }
   nulls_ = ColumnBuffer();
 }
 
@@ -72,7 +102,7 @@ Context::Slot& Context::Start(uint32_t id) {
       slot.state = entry.sink->MakeSinkState(*this);
     }
   } else {
-    Restart(*entry.pipeline, *slot.pipeline);
+    entry.pipeline->Rewind(*slot.pipeline);
   }
   slot.running = true;
   return slot;
@@ -80,7 +110,7 @@ Context::Slot& Context::Start(uint32_t id) {
 
 base::StatusOr<OperatorState*> Context::BuildSink(uint32_t id) {
   if (slots_[id].built) {
-    return slots_[id].state.get();
+    return slots_[id].state;
   }
   Slot& slot = Start(id);
   const Pipelines::Entry& entry = (*pipelines_)[id];
@@ -104,11 +134,14 @@ base::StatusOr<OperatorState*> Context::BuildSink(uint32_t id) {
     return status;
   }
   slot.built = true;
-  return slot.state.get();
+  return slot.state;
 }
 
 OperatorState* Context::IfBuilt(uint32_t id) const {
-  return slots_[id].built ? slots_[id].state.get() : nullptr;
+  if (id >= slot_count_) {
+    return nullptr;
+  }
+  return slots_[id].built ? slots_[id].state : nullptr;
 }
 
 RowBatch* Context::NextBatch(uint32_t id) {
@@ -133,10 +166,83 @@ void Context::EndPipelineRun(uint32_t id) {
   }
   slot.running = false;
   slot.built = false;
-  slot.pipeline->EndRun();
+  (*pipelines_)[id].pipeline->EndRun(*slot.pipeline);
   if (slot.state) {
-    slot.state->EndRun();
+    EndRun(*slot.state);
   }
 }
 
+void Context::Fail(base::Status status) {
+  if (error_.ok()) {
+    error_ = std::move(status);
+  }
+}
+
+void Context::AddState(OperatorState* state, uint32_t size, bool restored) {
+  state->context_ = this;
+  state->id_ = static_cast<uint32_t>(held_.size());
+  Held& held = held_.emplace_back();
+  held.state = state;
+  held.size = size;
+  if (restored) {
+    // The fields of OperatorState itself never change, so they are not saved.
+    static_assert(sizeof(OperatorState) ==
+                  sizeof(void*) + 2 * sizeof(uint32_t));
+    AddRunBytes(*state, reinterpret_cast<char*>(state) + sizeof(OperatorState),
+                size - static_cast<uint32_t>(sizeof(OperatorState)));
+  }
+}
+
+void Context::AddHeldState(OperatorState* state) {
+  held_[state->id_].members = true;
+}
+
+void* Context::AllocateSpan(size_t size, size_t align) {
+  return states_.Allocate(size,
+                          size >= kBlockAlignment ? kBlockAlignment : align);
+}
+
+void Context::AddRunBytes(OperatorState& owner, void* where, uint32_t size) {
+  if (size) {
+    held_[owner.id_].bytes.push_back({where, nullptr, size});
+  }
+}
+
+void Context::AddOwned(void* object, void (*destroy)(void*)) {
+  owned_.push_back({object, destroy});
+}
+
+OperatorState* Context::Made(OperatorState* state) {
+  Held& held = held_[state->id_];
+  for (Held::Bytes& bytes : held.bytes) {
+    bytes.made = states_.Allocate(bytes.size, alignof(std::max_align_t));
+    memcpy(bytes.made, bytes.where, bytes.size);
+  }
+  SetHolds(*state, Holds(held, *state));
+  return state;
+}
+
+void Context::SetHolds(OperatorState& state, bool holds) {
+  holding_ += static_cast<uint32_t>(holds) - state.holds_;
+  state.holds_ = holds;
+}
+
+bool Context::Holds(const Held& held, OperatorState& state) {
+  return !held.bytes.empty() ||
+         (held.members && static_cast<HeldState&>(state).holds());
+}
+
+void Context::EndHeldRun(OperatorState& state) {
+  Held& held = held_[state.id_];
+  if (held.members) {
+    static_cast<HeldState&>(state).EndRun();
+  }
+  for (const Held::Bytes& bytes : held.bytes) {
+    memcpy(bytes.where, bytes.made, bytes.size);
+  }
+}
+
+RowBatch* Context::NewBatch() {
+  return batches_.emplace_back(std::make_unique<RowBatch>()).get();
+}
 }  // namespace perfetto::trace_processor::core::exec

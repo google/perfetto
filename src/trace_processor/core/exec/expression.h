@@ -125,7 +125,7 @@ class Compute final : public Transform {
           base::Span<const ExprProgram> programs,
           const StringPool* pool);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
 

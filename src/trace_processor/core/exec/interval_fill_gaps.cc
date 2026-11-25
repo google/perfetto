@@ -47,7 +47,7 @@ constexpr char kName[] = "INTERVAL FILL GAPS";
 
 }  // namespace
 
-struct IntervalFillGaps::State : OperatorState {
+struct IntervalFillGaps::State : HeldState {
   State(const IntervalFillGapsSpec& spec, Context& c)
       : context(&c),
         background_input(this, spec.background.pipeline),
@@ -131,9 +131,8 @@ IntervalFillGaps::IntervalFillGaps(core::Arena& arena,
   }
 }
 
-std::unique_ptr<OperatorState> IntervalFillGaps::MakeState(
-    Context& context) const {
-  return std::make_unique<State>(spec_, context);
+OperatorState* IntervalFillGaps::NewState(Context& context) const {
+  return context.Make<State>(spec_, context);
 }
 
 base::Status IntervalFillGaps::status(const OperatorState& state) const {

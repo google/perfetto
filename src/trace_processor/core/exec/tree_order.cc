@@ -52,8 +52,8 @@ TreeChildFirst::TreeChildFirst(uint32_t node_column, uint32_t parent_column)
 
 TreeChildFirst::State::~State() = default;
 
-std::unique_ptr<Breaker::State> TreeChildFirst::CreateState() const {
-  auto state = std::make_unique<State>();
+Breaker::State* TreeChildFirst::CreateState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows.SetUnread(unread_.span());
   return state;
 }
@@ -265,9 +265,8 @@ void TreeParentFirst::State::Waiting::Clear() {
   let_go = 0;
 }
 
-std::unique_ptr<OperatorState> TreeParentFirst::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<State>();
+OperatorState* TreeParentFirst::NewState(Context& context) const {
+  auto* state = context.Make<State>();
   state->context = &context;
   state->held.rows.SetUnread(unread_.span());
   return state;

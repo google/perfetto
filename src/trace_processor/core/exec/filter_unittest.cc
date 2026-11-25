@@ -98,7 +98,7 @@ std::vector<int64_t> KeptIn(const RowBatch& batch,
                             const StringPool& pool) {
   Filter filter(test::InArena<Filter::Condition>({{0, In{}, 0}}), &pool);
   Context context;
-  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  OperatorState* state = filter.MakeState(context);
   List fetcher;
   fetcher.v = std::move(list);
   ParamValue cast[1];
@@ -180,7 +180,7 @@ class FilterTest : public ::testing::Test {
                             const RowBatch* in = nullptr) {
     Filter filter(Conditions(on), &pool_);
     Context context;
-    std::unique_ptr<OperatorState> state = filter.MakeState(context);
+    OperatorState* state = filter.MakeState(context);
     std::vector<ParamValue> cast;
     CastAll(on, values, &cast);
     context.SetParams(base::Span<const ParamValue>(cast));
@@ -229,12 +229,12 @@ TEST_F(FilterTest, GlobMatchesThePoolOnceForAPattern) {
   std::vector<On> on = {{1, Glob{}}};
   Filter filter(Conditions(on), &pool_);
   Context context;
-  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  OperatorState* state = filter.MakeState(context);
   std::vector<ParamValue> cast;
   CastAll(on, {"[ab]*"}, &cast);
   context.SetParams(base::Span<const ParamValue>(cast));
   for (uint32_t i = 0; i < 3; ++i) {
-    state->EndRun();
+    test::EndRun(*state);
     RowBatch batch;
     batch.CopyFrom(batch_);
     ASSERT_TRUE(filter.Process(batch, *state));
@@ -263,7 +263,7 @@ TEST_F(FilterTest, GlobMatchesRowsOneAtATimeOverALargePool) {
   std::vector<On> on = {{1, Glob{}}};
   Filter filter(Conditions(on), &pool_);
   Context context;
-  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  OperatorState* state = filter.MakeState(context);
   std::vector<ParamValue> cast;
   CastAll(on, {"[ab]*"}, &cast);
   context.SetParams(base::Span<const ParamValue>(cast));
@@ -312,7 +312,7 @@ TEST_F(FilterTest, RunsAgainWithNewValues) {
   std::vector<On> on = {{1, Lt{}, 0}, {1, Ne{}, 1}};
   Filter filter(Conditions(on), &pool_);
   Context context;
-  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  OperatorState* state = filter.MakeState(context);
   std::vector<ParamValue> cast;
   auto run = [&](const char* lt, const char* ne) {
     CastAll(on, {lt, ne}, &cast);
@@ -333,7 +333,7 @@ TEST_F(FilterTest, RunsAgainWithANewPattern) {
   std::vector<On> on = {{1, Regex{}, 0}};
   Filter filter(Conditions(on), &pool_);
   Context context;
-  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  OperatorState* state = filter.MakeState(context);
   std::vector<ParamValue> cast;
   auto run = [&](const char* pattern) {
     CastAll(on, {pattern}, &cast);
@@ -355,7 +355,7 @@ TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
   StringPool pool;
   Filter filter(test::InArena<Filter::Condition>({{0, Ge{}, 0}}), &pool);
   Context context;
-  std::unique_ptr<OperatorState> state = filter.MakeState(context);
+  OperatorState* state = filter.MakeState(context);
   Values fetcher;
   fetcher.v = {int64_t{12}};
   ParamValue cast[1];
@@ -425,7 +425,7 @@ TEST(FilterNullTest, ReadsVariantColumns) {
   auto kept = [&](Op op) {
     Filter filter(test::InArena<Filter::Condition>({{0, op}}), &pool);
     Context context;
-    std::unique_ptr<OperatorState> state = filter.MakeState(context);
+    OperatorState* state = filter.MakeState(context);
     RowBatch batch;
     batch.AddBorrowedColumn(ColumnView::Variants(variants, 1));
     batch.AddBorrowedColumn(

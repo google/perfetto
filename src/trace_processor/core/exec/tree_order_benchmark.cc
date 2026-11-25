@@ -92,7 +92,7 @@ void Run(benchmark::State& state,
   // Before every batch and state, which hold its buffers.
   Context context;
   context.SetPipelines(pipelines);
-  std::unique_ptr<OperatorState> run = source.MakeState(context);
+  OperatorState* run = source.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     Restart(source, *run);

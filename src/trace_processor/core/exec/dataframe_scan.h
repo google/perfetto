@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -57,14 +58,14 @@ class DataframeScan final : public Source {
                 uint32_t row_count,
                 ReadDirection direction);
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override;
+  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     ~State() override;
     RangeReader reader;
   };

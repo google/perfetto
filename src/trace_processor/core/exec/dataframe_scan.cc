@@ -37,8 +37,8 @@ DataframeScan::DataframeScan(core::ArenaSpan<const dataframe::Column*> columns,
 
 DataframeScan::State::~State() = default;
 
-std::unique_ptr<OperatorState> DataframeScan::MakeState(Context&) const {
-  auto state = std::make_unique<State>();
+OperatorState* DataframeScan::NewState(Context& context) const {
+  auto* state = context.Make<State>();
   state->reader.Init(columns_.span());
   state->reader.Start({0, row_count_}, direction_);
   return state;

@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -55,8 +56,8 @@ class TableSource final : public Source {
 
   uint32_t columns() const { return columns_; }
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto* state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -87,7 +88,7 @@ class TableSource final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     Context* context = nullptr;
     ~State() override;
     uint32_t offset = 0;
@@ -154,7 +155,7 @@ Table Intersect(std::vector<Operand> operands, base::Status* status) {
   IntervalIntersect intersect(test::InArena(specs));
   Context context;
   context.SetPipelines(&pipelines);
-  std::unique_ptr<OperatorState> state = intersect.MakeState(context);
+  OperatorState* state = intersect.MakeState(context);
   return Collect(intersect, *state, status);
 }
 

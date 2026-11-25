@@ -18,14 +18,11 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_PIPELINE_H_
 
 #include <cstdint>
-#include <memory>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
-#include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/arena.h"
@@ -51,11 +48,13 @@ class Pipeline final : public Source {
   Pipeline(core::Arena& arena, const Source&, base::Span<const Step> steps);
   Pipeline(core::Arena&, Source&&, base::Span<const Step>) = delete;
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   RowBatch* Next(RowBatch& scratch, OperatorState& state) const override;
 
   // As Next(): a pipeline outputs batches it holds, so needs no scratch.
   RowBatch* Next(OperatorState& state) const;
+  // Ends the run of every segment not yet ended. Used by Context when a side
+  // pipeline is stopped before exhaustion.
+  void EndRun(OperatorState& state) const;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
@@ -81,12 +80,10 @@ class Pipeline final : public Source {
   };
 
   struct State : OperatorState {
-    ~State() override;
-
     // What a run has run into, and what the plan is, in one byte.
     enum Flag : uint8_t {
       kStopped = 1,
-      // Mirrors !status.ok().
+      // Set once a step has failed. The Context holds the reason.
       kFailed = 2,
       kSourceDone = 4,
       // The rest are the plan's, set again when a run starts.
@@ -105,50 +102,43 @@ class Pipeline final : public Source {
       OperatorState* state;
     };
 
-    // What Next() reads on its fast path, together.
-    uint8_t flags = 0;
-    Context* context = nullptr;
-    const Source* source = nullptr;
-    OperatorState* source_state = nullptr;
-    // The last segment's transforms, whichever segment that is.
-    const std::vector<Link>* output_links = nullptr;
-    std::vector<Link> source_links;
-
-    // Why the run failed, while kFailed is set.
-    base::Status status = base::OkStatus();
-
-    // The source's state and the steps' states, by step: made once, with
-    // each run ended as soon as its stream ends.
-    std::unique_ptr<OperatorState> owned_source_state;
-    std::vector<std::unique_ptr<OperatorState>> operators;
-
     // The segments starting with an operator, by segment.
     struct Start {
-      std::vector<Link> links;
-      RowBatch input;
+      core::ArenaSpan<Link> links;
+      // The states whose runs end with this segment's: first the source's or
+      // the operator's, then the transforms'.
+      core::ArenaSpan<OperatorState*> states;
+      RowBatch* input = nullptr;
       // Kept across continuations.
       RowBatch* current = nullptr;
-      RowBatch out;
+      RowBatch* out = nullptr;
       bool continuation = false;
       bool input_done = false;
       bool finished = false;
       // The run this was last used in; reset on first use in a new one.
       uint64_t run = 0;
     };
-    std::vector<Start> starts;
+
+    // What Next() reads on its fast path, together.
+    uint8_t flags = 0;
+    const Source* source = nullptr;
+    OperatorState* source_state = nullptr;
+    // The last segment's transforms, whichever segment that is.
+    core::ArenaSpan<Link> output_links;
+
+    // Each step's state, by step, made once.
+    core::ArenaSpan<OperatorState*> operators;
+    // One per segment. The first, the source's, uses only its links and states.
+    core::ArenaSpan<Start> starts;
     uint64_t run = 0;
-    // Everything the source and the steps hold for a run, merged by segment:
-    // all ending a segment's run touches.
-    std::vector<OperatorState::Registry> held;
-    bool holds_any = false;
-    bool source_holds = false;
     // How many segments, from the first, have had their runs ended.
     uint32_t ended_segments = 0;
 
     // The batch returned to the caller.
-    RowBatch output;
+    RowBatch* output = nullptr;
   };
 
+  OperatorState* NewState(Context&) const override;
   // Makes every step's state, and points the links at them.
   void MakeStepStates(State&) const;
 
@@ -172,16 +162,15 @@ class Pipeline final : public Source {
     if (s.ended_segments > segment) {
       return;
     }
-    if (!s.holds_any) {
+    if (!s.context().holding()) {
       s.ended_segments = segment + 1;
       return;
     }
     EndRunsUpTo(segment, s);
   }
-  static void EndRunsUpTo(uint32_t segment, State&);
-  static void EndStateRun(void* state);
-  // Records a failure; an ok status records nothing.
-  static void Fail(State&, base::Status status);
+  void EndRunsUpTo(uint32_t segment, State&) const;
+  // Called when a step fails. Stops the run and makes sure the Context records
+  // why.
   static void StepFailed(base::Status status, State&);
   static void TransformFailed(const State::Link& link, State&);
 

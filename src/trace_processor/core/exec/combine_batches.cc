@@ -27,9 +27,8 @@ namespace perfetto::trace_processor::core::exec {
 CombineBatches::CombineBatches() = default;
 CombineBatches::State::~State() = default;
 
-std::unique_ptr<OperatorState> CombineBatches::MakeState(
-    Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* CombineBatches::NewState(Context& context) const {
+  return context.Make<State>(context);
 }
 
 OpResult CombineBatches::Execute(const RowBatch& in,

@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -53,8 +54,8 @@ class Intervals final : public Source {
       key_.push_back(int64_t{i % 64});
     }
   }
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;
@@ -77,7 +78,7 @@ class Intervals final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     uint32_t next = 0;
   };
   std::vector<int64_t> ts_;

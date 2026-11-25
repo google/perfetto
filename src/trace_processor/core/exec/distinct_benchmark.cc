@@ -98,7 +98,7 @@ void BM_Distinct(benchmark::State& state) {
   core::Arena arena;
   Distinct op(arena.CopySpan<uint32_t>(columns));
   Context context;
-  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
+  OperatorState* op_state = op.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     for (const RowBatch& batch : batches) {
@@ -106,7 +106,7 @@ void BM_Distinct(benchmark::State& state) {
       op.Process(out, *op_state);
       benchmark::DoNotOptimize(out.size());
     }
-    op_state->EndRun();
+    op_state->context().EndRun(*op_state);
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

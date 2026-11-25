@@ -76,14 +76,14 @@ void RunTreeNumberNodes(benchmark::State& state,
   DataframeScan scan(
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
+  OperatorState* scan_state = scan.MakeState(context);
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
+  OperatorState* op_state = op.MakeState(context);
   RowBatch in;
   RowBatch out;
   for (auto _ : state) {
     scan.Rewind(*scan_state);
-    op_state->EndRun();
+    op_state->context().EndRun(*op_state);
     while (scan.GetData(in, *scan_state)) {
       out.CopyFrom(in);
       if (!op.Process(out, *op_state)) {
@@ -118,7 +118,7 @@ void BM_TreeNumberNodesScanOnly(benchmark::State& state) {
   DataframeScan scan(
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
+  OperatorState* scan_state = scan.MakeState(context);
   RowBatch in;
   for (auto _ : state) {
     scan.Rewind(*scan_state);

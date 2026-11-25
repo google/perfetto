@@ -95,7 +95,7 @@ class HashAggregate final : public Breaker {
     CallScratch<FlexVector<uint32_t>> served_rows;
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  Breaker::State* CreateState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;

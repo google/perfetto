@@ -116,7 +116,7 @@ class NodeIndex {
 
 }  // namespace
 
-struct GraphTree::State : OperatorState {
+struct GraphTree::State : HeldState {
   ~State() override;
 
   struct Tree : util::GraphTree {
@@ -162,8 +162,8 @@ GraphTree::State::~State() = default;
 
 GraphTree::GraphTree(GraphTreeSpec spec) : spec_(spec) {}
 
-std::unique_ptr<OperatorState> GraphTree::MakeState(Context& context) const {
-  return std::make_unique<State>(context, spec_);
+OperatorState* GraphTree::NewState(Context& context) const {
+  return context.Make<State>(context, spec_);
 }
 
 void GraphTree::Rewind(OperatorState&) const {}

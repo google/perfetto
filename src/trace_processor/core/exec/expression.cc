@@ -785,7 +785,7 @@ class Evaluator {
   uint32_t rows_ = 0;
 };
 
-struct ComputeState : OperatorState {
+struct ComputeState : HeldState {
   ~ComputeState() override;
   Held<RunEach<Evaluator>> evaluators{this};
   Held<base::Status> status{this};
@@ -821,8 +821,8 @@ Compute::Compute(core::Arena& arena,
   }
 }
 
-std::unique_ptr<OperatorState> Compute::MakeState(Context& context) const {
-  auto state = std::make_unique<ComputeState>();
+OperatorState* Compute::NewState(Context& context) const {
+  auto* state = context.Make<ComputeState>();
   state->evaluators.reserve(programs_.size());
   for (const Program& program : programs_) {
     state->evaluators.emplace_back(program, context, pool_);

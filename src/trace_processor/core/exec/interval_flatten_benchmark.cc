@@ -78,7 +78,7 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     spec.lanes.group_column = 3;
   }
   IntervalFlatten op(arena, spec);
-  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
+  OperatorState* op_state = op.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     for (const RowBatch& batch : batches) {
@@ -91,7 +91,7 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     while (op.Finish(out, *op_state) == OpResult::kHaveMoreOutput) {
       benchmark::DoNotOptimize(out.size());
     }
-    op_state->EndRun();
+    op_state->context().EndRun(*op_state);
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

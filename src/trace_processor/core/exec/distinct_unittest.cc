@@ -57,7 +57,7 @@ struct Batches {
   }
 
   Distinct op;
-  std::unique_ptr<OperatorState> state;
+  OperatorState* state = nullptr;
   // Kept alive, as the batches borrow them.
   std::vector<std::vector<int64_t>> batches;
   RowBatch out;
@@ -89,7 +89,7 @@ TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
   in.SetRowCount(5);
 
   Distinct op(test::InArena<uint32_t>({0, 1}));
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  OperatorState* state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 1, 2));
@@ -110,7 +110,7 @@ TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
   in.SetRowCount(5);
 
   Distinct op(test::InArena<uint32_t>({0}));
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  OperatorState* state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadNullableColumn<double>(out, 0),
@@ -129,7 +129,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
       base::Span<const uint32_t>(kept.data(), kept.data() + kept.size()));
 
   Distinct op(test::InArena<uint32_t>({0}));
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  OperatorState* state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2));
@@ -148,7 +148,7 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
   of_doubles.SetRowCount(1);
 
   Distinct op(test::InArena<uint32_t>({0}));
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  OperatorState* state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, of_ints, out, *state));
   EXPECT_FALSE(test::ProcessCopy(op, of_doubles, out, *state));
@@ -156,12 +156,12 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
               HasSubstr("DISTINCT: key 1 must be a column holding one type"));
 
   // A new run starts with nothing seen.
-  state->EndRun();
+  test::EndRun(*state);
   EXPECT_TRUE(op.status(*state).ok());
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 0u);
-  state->EndRun();
+  test::EndRun(*state);
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 1u);
 }

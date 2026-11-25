@@ -139,7 +139,7 @@ void AddNullColumns(const JoinSpec& spec,
 
 // JoinBuild
 
-struct JoinBuild::Built : OperatorState {
+struct JoinBuild::Built : HeldState {
   ~Built() override;
 
   Context* context = nullptr;
@@ -155,9 +155,8 @@ JoinBuild::Built::~Built() = default;
 JoinBuild::JoinBuild(uint32_t key, core::ArenaSpan<bool> unread)
     : key_(key), unread_(unread) {}
 
-std::unique_ptr<OperatorState> JoinBuild::MakeSinkState(
-    Context& context) const {
-  auto built = std::make_unique<Built>();
+OperatorState* JoinBuild::NewSinkState(Context& context) const {
+  auto* built = context.Make<Built>();
   built->context = &context;
   built->rows.SetUnread(unread_.span());
   return built;
@@ -200,7 +199,7 @@ base::Status JoinBuild::FinalizeSink(OperatorState& state) const {
 
 // Join
 
-struct Join::State : OperatorState {
+struct Join::State : HeldState {
   State(Context& c, uint32_t build) : context(&c), build_use(this, build) {}
   ~State() override;
 
@@ -225,8 +224,8 @@ void Join::DescribeColumns(StepColumns* out) const {
   out->reads = {spec_.probe_key};
 }
 
-std::unique_ptr<OperatorState> Join::MakeState(Context& context) const {
-  return std::make_unique<State>(context, spec_.build);
+OperatorState* Join::NewState(Context& context) const {
+  return context.Make<State>(context, spec_.build);
 }
 
 base::Status Join::status(const OperatorState& state) const {

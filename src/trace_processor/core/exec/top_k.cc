@@ -40,8 +40,8 @@ namespace perfetto::trace_processor::core::exec {
 TopK::TopK(TopKSpec spec) : spec_(spec) {}
 TopK::State::~State() = default;
 
-std::unique_ptr<Breaker::State> TopK::CreateState() const {
-  auto state = std::make_unique<State>();
+Breaker::State* TopK::CreateState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows = std::make_unique<SortedRows>();
   state->spare = std::make_unique<SortedRows>();
   state->rows->SetUnread(unread_.span());

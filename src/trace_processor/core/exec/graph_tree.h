@@ -79,7 +79,7 @@ class GraphTree final : public Source {
 
   explicit GraphTree(GraphTreeSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;

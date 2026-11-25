@@ -182,8 +182,8 @@ AssertType::AssertType(uint32_t column,
 
 AssertType::State::~State() = default;
 
-std::unique_ptr<OperatorState> AssertType::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* AssertType::NewState(Context& context) const {
+  return context.Make<State>(context);
 }
 
 base::Status AssertType::status(const OperatorState& state) const {
@@ -322,8 +322,8 @@ NullColumn::NullColumn(uint32_t column, StorageType type)
 
 NullColumn::State::~State() = default;
 
-std::unique_ptr<OperatorState> NullColumn::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* NullColumn::NewState(Context& context) const {
+  return context.Make<State>(context);
 }
 
 bool NullColumn::Process(RowBatch& batch, OperatorState& state) const {

@@ -41,7 +41,7 @@ namespace {
 
 // What one execution carries between batches: the aggregates' state for each
 // node seen.
-class AccumulateState : public OperatorState {
+class AccumulateState : public HeldState {
  public:
   AccumulateState(Context& c,
                   core::ArenaSpan<const AggregateFunction*> functions)
@@ -195,13 +195,11 @@ TreeAccumulateDown::TreeAccumulateDown(core::Arena& arena,
     : spec_(spec),
       functions_(MakeAggregateFunctions(arena, spec.aggregates.span())) {}
 
-std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState(
-    Context& context) const {
-  return std::make_unique<AccumulateState>(context, functions_);
+OperatorState* TreeAccumulateUp::NewState(Context& context) const {
+  return context.Make<AccumulateState>(context, functions_);
 }
-std::unique_ptr<OperatorState> TreeAccumulateDown::MakeState(
-    Context& context) const {
-  return std::make_unique<AccumulateState>(context, functions_);
+OperatorState* TreeAccumulateDown::NewState(Context& context) const {
+  return context.Make<AccumulateState>(context, functions_);
 }
 
 base::Status TreeAccumulateUp::status(const OperatorState& state) const {

@@ -45,14 +45,14 @@ class CombineBatches final : public Operator {
 
   CombineBatches();
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(Context& c) : context(&c) {}
     ~State() override;
 

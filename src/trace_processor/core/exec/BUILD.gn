@@ -130,6 +130,7 @@ source_set("test_utils") {
   deps = [
     ":exec",
     "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
     "../../../base",
     "../common",
     "../dataframe",

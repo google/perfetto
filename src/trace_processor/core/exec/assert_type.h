@@ -53,14 +53,14 @@ class AssertType final : public Transform {
 
   AssertType(uint32_t column, AssertTypeTarget type, std::string_view name);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(Context& c) : context(&c) {}
     ~State() override;
     // What the converted column is written in.
@@ -92,13 +92,13 @@ class NullColumn final : public Transform {
 
   NullColumn(uint32_t column, StorageType type);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(Context& c) : context(&c) {}
     ~State() override;
     Context* context;

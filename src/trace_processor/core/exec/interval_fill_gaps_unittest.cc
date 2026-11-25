@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -53,8 +54,8 @@ class RowsSource final : public Source {
     }
   }
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;
@@ -77,7 +78,7 @@ class RowsSource final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     uint32_t emitted = 0;
   };
   std::vector<std::vector<int64_t>> rows_;
@@ -230,7 +231,7 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
   auto state = op.MakeState(fill.context());
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
-    state->EndRun();
+    test::EndRun(*state);
     EXPECT_EQ(RunFill(op, *state, input, chunk), expected);
   }
 }

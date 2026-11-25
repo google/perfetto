@@ -61,7 +61,7 @@ struct Asserted {
   }
 
   AssertType op;
-  std::unique_ptr<OperatorState> state;
+  OperatorState* state = nullptr;
   std::vector<Variant> values;
   RowBatch input;
   // The batch converted in place.
@@ -124,7 +124,7 @@ TEST(AssertTypeTest, AValueTheTypeCannotHoldIsReported) {
             "an integer"},
        }) {
     AssertType op(0, c.type, "a");
-    std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+    OperatorState* state = op.MakeState(test::TestContext());
     RowBatch batch;
     batch.AddBorrowedColumn(ColumnView::Reference(c.stored, c.value));
     batch.SetRowCount(1);
@@ -138,7 +138,7 @@ TEST(AssertTypeTest, WideningASelectedFlatColumnRemapsValidity) {
   BitVector validity = BitVector::CreateWithSize(3);
   validity.set(1);
   AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  OperatorState* state = op.MakeState(test::TestContext());
   RowBatch batch;
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Uint32{}}, values.data(), &validity));

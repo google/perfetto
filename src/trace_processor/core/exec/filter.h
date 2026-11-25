@@ -70,13 +70,13 @@ class Filter final : public Transform {
   // `pool` holds the strings of the columns, and must outlive the filter.
   Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(const Context& c) : context(&c) {}
     ~State() override;
     // Where the run's params are.

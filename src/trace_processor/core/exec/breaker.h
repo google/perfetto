@@ -33,7 +33,7 @@ namespace perfetto::trace_processor::core::exec {
 // served by the source of the next (see Served).
 class Breaker : public Sink {
  public:
-  struct State : OperatorState {
+  struct State : HeldState {
     State() = default;
     ~State() override;
 
@@ -55,7 +55,6 @@ class Breaker : public Sink {
 
   // Sink.
   bool IsBreaker() const final { return true; }
-  std::unique_ptr<OperatorState> MakeSinkState(Context&) const final;
   base::Status ConsumeBatch(const RowBatch& in,
                             OperatorState& state) const final;
   base::Status FinalizeSink(OperatorState& state) const final;
@@ -64,11 +63,13 @@ class Breaker : public Sink {
   Breaker() = default;
   ~Breaker() = default;
 
+  OperatorState* NewSinkState(Context&) const final;
+
+  // Makes the state for the buffered data, with Context::Make().
+  virtual State* CreateState(Context& context) const = 0;
+
  private:
   friend class Served;
-
-  // Creates the state for the buffered data.
-  virtual std::unique_ptr<State> CreateState() const = 0;
 
   // Each batch of the input goes into Consume(), then Finalize() runs once.
   // Both return false on failure, having set the status.

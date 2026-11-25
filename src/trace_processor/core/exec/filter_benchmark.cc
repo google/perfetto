@@ -141,8 +141,8 @@ void RunExecutor(benchmark::State& state,
 
   Context context;
   context.SetParams(base::Span<const ParamValue>(cast));
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
-  std::unique_ptr<OperatorState> filter_state = filter.MakeState(context);
+  OperatorState* scan_state = scan.MakeState(context);
+  OperatorState* filter_state = filter.MakeState(context);
   RowBatch batch;
   for (auto _ : state) {
     caster(fetcher, 0, s.pool(), &cast[0]);

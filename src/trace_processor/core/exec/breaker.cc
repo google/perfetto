@@ -26,8 +26,8 @@ namespace perfetto::trace_processor::core::exec {
 
 Breaker::State::~State() = default;
 
-std::unique_ptr<OperatorState> Breaker::MakeSinkState(Context& context) const {
-  std::unique_ptr<State> state = CreateState();
+OperatorState* Breaker::NewSinkState(Context& context) const {
+  State* state = CreateState(context);
   state->context = &context;
   return state;
 }

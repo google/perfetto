@@ -37,7 +37,7 @@ class EmptySource final : public Source {
 
   EmptySource();
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
 };

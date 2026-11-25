@@ -16,20 +16,55 @@
 
 #include "src/trace_processor/core/exec/operator.h"
 
+#include <cstring>
+
+#include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/run_held.h"
+
 namespace perfetto::trace_processor::core::exec {
 
-OperatorState::~OperatorState() = default;
+HeldState::~HeldState() = default;
 
-void OperatorState::EndHeldRuns() {
-  EndRuns(*held_);
+void HeldState::EndHeldRuns() {
+  const Registry& registry = *held_;
+  for (const HeldValue& value : registry.values) {
+    switch (value.size) {
+      case 1:
+        memcpy(value.where, &value.initial, 1);
+        break;
+      case 4:
+        memcpy(value.where, &value.initial, 4);
+        break;
+      default:
+        memcpy(value.where, &value.initial, 8);
+        break;
+    }
+  }
+  for (base::Status* status : registry.statuses) {
+    if (!status->ok()) {
+      *status = base::OkStatus();
+    }
+  }
+  for (const HeldObject& held : registry.held) {
+    held.end_run(held.where);
+  }
 }
 
-void OperatorState::AddHeld(void* where, void (*end_run)(void*)) {
+void HeldState::AddHeld(void* where, void (*end_run)(void*)) {
   registry().held.push_back({where, end_run});
 }
 
 // Defined out of line so that each class's vtable is emitted in one object
 // file.
+RowBatch* Source::Next(RowBatch& scratch, OperatorState& state) const {
+  return GetData(scratch, state) ? &scratch : nullptr;
+}
+OperatorState* Transform::NewState(Context& context) const {
+  return context.Make<EmptyState>();
+}
+OperatorState* Operator::NewState(Context& context) const {
+  return context.Make<EmptyState>();
+}
 base::Status Source::status(const OperatorState&) const {
   return base::OkStatus();
 }

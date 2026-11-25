@@ -88,7 +88,7 @@ class TreeChildFirst final : public Breaker {
     RunValue<uint32_t> emitted{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  Breaker::State* CreateState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
@@ -128,7 +128,7 @@ class TreeParentFirst final : public Operator {
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -138,7 +138,7 @@ class TreeParentFirst final : public Operator {
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     State() = default;
     ~State() override;
 

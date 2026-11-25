@@ -105,9 +105,8 @@ IntervalFlatten::IntervalFlatten(core::Arena& arena, IntervalFlattenSpec spec)
 
 IntervalFlatten::State::~State() = default;
 
-std::unique_ptr<OperatorState> IntervalFlatten::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<State>(spec_.lanes);
+OperatorState* IntervalFlatten::NewState(Context& context) const {
+  auto* state = context.Make<State>(spec_.lanes);
   state->context = &context;
   state->seen_bytes.resize(functions_.size());
   state->outputs.resize(functions_.size());

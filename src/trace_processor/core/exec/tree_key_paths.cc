@@ -40,7 +40,7 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-class KeyPathsState : public OperatorState {
+class KeyPathsState : public HeldState {
  public:
   explicit KeyPathsState(Context& c) : context(&c) {}
   ~KeyPathsState() override;
@@ -66,8 +66,8 @@ KeyPathsState::~KeyPathsState() = default;
 
 TreeKeyPaths::TreeKeyPaths(TreeKeyPathsSpec spec) : spec_(spec) {}
 
-std::unique_ptr<OperatorState> TreeKeyPaths::MakeState(Context& context) const {
-  return std::make_unique<KeyPathsState>(context);
+OperatorState* TreeKeyPaths::NewState(Context& context) const {
+  return context.Make<KeyPathsState>(context);
 }
 
 base::Status TreeKeyPaths::status(const OperatorState& state) const {

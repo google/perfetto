@@ -106,8 +106,8 @@ void Expand::DescribeColumns(StepColumns* out) const {
   out->reads.assign(columns_.begin(), columns_.end());
 }
 
-std::unique_ptr<OperatorState> Expand::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* Expand::NewState(Context& context) const {
+  return context.Make<State>(context);
 }
 
 bool Expand::Process(RowBatch& batch, OperatorState& state) const {

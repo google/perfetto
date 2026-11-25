@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/core/exec/tree_key_paths.h"
+#include "src/trace_processor/core/exec/run_held.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -51,8 +52,8 @@ class KeyedRows final : public Source {
         keys_(std::move(keys)),
         chunk_rows_(chunk_rows) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto* state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -90,7 +91,7 @@ class KeyedRows final : public Source {
   }
 
  private:
-  struct State : OperatorState {
+  struct State : HeldState {
     ~State() override;
     Context* context = nullptr;
     uint32_t offset = 0;
@@ -123,8 +124,7 @@ Paths KeyPaths(const std::vector<int64_t>& parents,
       TreeKeyPathsSpec{3, 4, test::InArena<uint32_t>({2})}));
   Pipeline pipeline(test::TestArena(), source, ops);
 
-  std::unique_ptr<OperatorState> state =
-      pipeline.MakeState(test::TestContext());
+  OperatorState* state = pipeline.MakeState(test::TestContext());
   RowBatch batch;
   Paths result;
   result.keys.assign(parents.size(), -1);

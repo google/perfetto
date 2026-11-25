@@ -37,8 +37,8 @@ Distinct::Distinct(core::ArenaSpan<uint32_t> columns) : columns_(columns) {
 
 Distinct::State::~State() = default;
 
-std::unique_ptr<OperatorState> Distinct::MakeState(Context&) const {
-  return std::make_unique<State>();
+OperatorState* Distinct::NewState(Context& context) const {
+  return context.Make<State>();
 }
 
 base::Status Distinct::status(const OperatorState& state) const {

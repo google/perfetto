@@ -91,7 +91,7 @@ class IntervalFillGaps final : public Operator {
 
   IntervalFillGaps(core::Arena&, IntervalFillGapsSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;

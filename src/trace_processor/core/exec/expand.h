@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -39,13 +40,13 @@ class Expand final : public Transform {
   explicit Expand(core::ArenaSpan<uint32_t> columns);
 
   void DescribeColumns(StepColumns* out) const override;
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
+  struct State : HeldState {
     explicit State(Context& c) : context(&c) {}
     ~State() override;
     Context* context;
