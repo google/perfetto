@@ -12,19 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assetSrc} from '../../../../base/assets';
 import {AsyncLazy} from '../../../../base/async_lazy';
-import {errResult, okResult, type Result} from '../../../../base/result';
-import {exists} from '../../../../base/utils';
+import {okResult, type Result} from '../../../../base/result';
 import {AdbKey} from './adb_key';
 
-// How long we will store the key in memory
-const KEY_IN_MEMORY_TIMEOUT = 1000 * 60 * 30; // 30 minutes
+const DB_NAME = 'perfetto-adb';
+const DB_VERSION = 1;
+const STORE_NAME = 'keys';
+const KEY_ID = 'webusb-adb-key';
+
+export interface AdbKeyStore {
+  load(): Promise<string | undefined>;
+  save(serializedKey: string): Promise<void>;
+}
+
+const INDEXED_DB_KEY_STORE: AdbKeyStore = {
+  load: loadKeyFromIndexedDb,
+  save: storeKeyInIndexedDb,
+};
 
 export class AdbKeyManager {
   private static shared?: AdbKeyManager;
-  private expiryTimerId = -1;
-  private key = new AsyncLazy<AdbKey>();
+  private readonly key = new AsyncLazy<AdbKey>();
+
+  constructor(private readonly store: AdbKeyStore = INDEXED_DB_KEY_STORE) {}
 
   // Returns a process-wide AdbKeyManager so the cached in-memory key survives
   // page unmounts/remounts and is shared across plugins.
@@ -33,81 +44,80 @@ export class AdbKeyManager {
   }
 
   // Finds a key, by priority:
-  // - Look in memory (i.e. this.key)
-  // - Look in the credential store.
-  // - Finally creates one from scratch if needed.
+  // 1. In memory (this.key).
+  // 2. Persisted in IndexedDB (survives reloads and new tabs on this origin).
+  // 3. Generated fresh and persisted to IndexedDB.
   async getOrCreateKey(): Promise<Result<AdbKey>> {
-    this.refreshKeyExpiry();
     return this.key.getOrCreate(async () => {
-      // 2. We try to get the private key from the browser.
-      // The mediation is set as 'optional', because we use
-      // 'preventSilentAccess', which sometimes requests the user to click
-      // on a button to allow the auth, but sometimes only shows a
-      // notification and does not require the user to click on anything.
-      // If we had set mediation to 'required', the user would have been
-      // asked to click on a button every time.
-      if (hasPasswordCredential()) {
-        const options: PasswordCredentialRequestOptions = {
-          password: true,
-          mediation: 'optional',
-        };
-        const credential = await navigator.credentials.get(options);
-        await navigator.credentials.preventSilentAccess();
-        if (exists(credential) && 'password' in credential) {
-          return okResult(AdbKey.deserialize(credential.password as string));
+      try {
+        const stored = await this.store.load();
+        if (stored !== undefined) {
+          const parsed = AdbKey.tryDeserialize(stored);
+          if (parsed !== undefined) {
+            return okResult(parsed);
+          }
         }
+      } catch (err) {
+        console.warn('Failed to load WebUSB ADB key from IndexedDB:', err);
       }
 
-      // This can happen in two cases:
-      // 1. The very first time when we have no credentials saved.
-      // 2. If the user (accidentally) dismisses the "sign in" dialog.
-      // We use this UX to prevent that if the user accidentally clicks Escape,
-      // we invalidate the key and generates a new one, which would be
-      // unauthorized.
-      if (!confirm("Couldn't load the ADB key. Generate a new key?")) {
-        return errResult(
-          "Couldn't load the ADB Key. " + 'Did you dismiss the sign-in dialog',
-        );
-      }
-
-      // 3. We generate a new key pair.
       const newKey = await AdbKey.generateNewKeyPair();
-      await storeKeyInBrowserCredentials(newKey);
+      try {
+        await this.store.save(newKey.serialize());
+      } catch (err) {
+        console.warn('Failed to store WebUSB ADB key in IndexedDB:', err);
+      }
       return okResult(newKey);
     });
   }
-
-  private refreshKeyExpiry() {
-    if (this.expiryTimerId >= 0) {
-      clearTimeout(this.expiryTimerId);
-    }
-    this.expiryTimerId = self.setTimeout(
-      () => this.key.reset(),
-      KEY_IN_MEMORY_TIMEOUT,
-    );
-  }
 }
 
-// Update credential store with the given key.
-async function storeKeyInBrowserCredentials(key: AdbKey): Promise<void> {
-  if (!hasPasswordCredential()) {
-    return;
-  }
-  const credential = new PasswordCredential({
-    id: 'webusb-adb-key',
-    password: key.serialize(),
-    name: 'WebUSB ADB Key',
-    iconURL: assetSrc('assets/favicon.png'),
+function openKeyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error('indexedDB.open failed'));
   });
-  // The 'Save password?' Chrome dialogue only appears if the key is
-  // not already stored in Chrome.
-  await navigator.credentials.store(credential);
-  // 'preventSilentAccess' guarantees the user is always notified when
-  // credentials are accessed. Sometimes the user is asked to click a button
-  // and other times only a notification is shown temporarily.
-  await navigator.credentials.preventSilentAccess();
 }
 
-function hasPasswordCredential() {
-  return 'PasswordCredential' in window;
+async function loadKeyFromIndexedDb(): Promise<string | undefined> {
+  if (typeof indexedDB === 'undefined') return undefined;
+  const db = await openKeyDb();
+  try {
+    return await new Promise<string | undefined>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).get(KEY_ID);
+      req.onsuccess = () => {
+        resolve(typeof req.result === 'string' ? req.result : undefined);
+      };
+      req.onerror = () =>
+        reject(req.error ?? new Error('indexedDB get failed'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function storeKeyInIndexedDb(serializedKey: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const db = await openKeyDb();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(serializedKey, KEY_ID);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () =>
+        reject(tx.error ?? new Error('indexedDB transaction failed'));
+      tx.onabort = () =>
+        reject(tx.error ?? new Error('indexedDB transaction aborted'));
+    });
+  } finally {
+    db.close();
+  }
 }
