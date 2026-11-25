@@ -153,6 +153,19 @@ TYPED_TEST(TaskRunnerTest, PostDelayedTask) {
 // When the only pending task is more than INT_MAX ms away, the runner must
 // sleep until it, not busy-poll with a 0 ms timeout.
 TYPED_TEST(TaskRunnerTest, FarFutureDelayedTaskDoesNotSpin) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
+  // On Windows (non-ARM64), GetThreadCPUTimeNs() calibrates the TSC frequency
+  // over a 50 ms window starting from its first call and returns 0 until
+  // calibration completes. Wait for calibration before capturing cpu_start;
+  // otherwise cpu_start is 0 while the post-Run() call returns the thread's
+  // entire cumulative CPU time since process startup.
+  TimeMillis wait_start = GetWallTimeMs();
+  while (GetThreadCPUTimeNs() == TimeNanos(0) &&
+         GetWallTimeMs() - wait_start < TimeMillis(200)) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+#endif
   auto& task_runner = this->task_runner;
   task_runner.PostDelayedTask([] {}, std::numeric_limits<uint32_t>::max());
   std::thread quitter([&task_runner] {
