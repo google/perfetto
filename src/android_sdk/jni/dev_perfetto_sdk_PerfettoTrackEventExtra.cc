@@ -304,15 +304,17 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_bytes(
     jbyteArray val) {
   sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
   const jsize len = val ? env->GetArrayLength(val) : 0;
-  uint8_t* dst = field->resize_bytes(static_cast<size_t>(len));
-  if (len > 0) {
+  uint8_t* dst =
+      field->set_bytes(static_cast<uint32_t>(id), static_cast<size_t>(len));
+  if (dst) {
     env->GetByteArrayRegion(val, 0, len, reinterpret_cast<jbyte*>(dst));
   }
-  auto& field_bytes = field->get()->field_bytes;
-  field_bytes.header.type = PERFETTO_TE_HL_PROTO_TYPE_BYTES;
-  field_bytes.header.id = static_cast<uint32_t>(id);
-  field_bytes.buf = dst ? static_cast<const void*>(dst) : "";
-  field_bytes.len = static_cast<size_t>(len);
+}
+
+static void dev_perfetto_sdk_PerfettoTrackEventExtraField_release_bytes(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jlong ptr) {
+  sdk_for_jni::ProtoField* field = toPointer<sdk_for_jni::ProtoField>(ptr);
+  field->release_bytes();
 }
 
 static void
@@ -730,6 +732,8 @@ static const JNINativeMethod gFieldMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_string},
     {"native_set_value_bytes", "(JJ[B)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_bytes},
+    {"native_release_bytes", "(J)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraField_release_bytes},
     {"native_set_value_with_interning", "(JJLjava/lang/String;J)V",
      (void*)
          dev_perfetto_sdk_PerfettoTrackEventExtraField_set_value_with_interning},

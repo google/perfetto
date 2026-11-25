@@ -201,6 +201,13 @@ public final class PerfettoTrackEventBuilder {
     mIsBuilt = true;
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+    for (int i = 0, size = mPendingPointers.size(); i < size; i++) {
+      PerfettoPointer ptr = mPendingPointers.get(i);
+      if (ptr instanceof Field) {
+        ((Field) ptr).releaseBytes();
+      }
+    }
+    mPendingPointers.clear();
     if (mParent == null) {
       PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
       for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {

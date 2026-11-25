@@ -179,20 +179,13 @@ TEST(TracingSdkForJniTest, ProtoFieldBytes) {
   auto* jpg_field = new sdk_for_jni::ProtoField();
   auto* empty_field = new sdk_for_jni::ProtoField();
 
-  uint8_t* dst = jpg_field->resize_bytes(expected.size());
+  uint8_t* dst =
+      jpg_field->set_bytes(1, expected.size());  // Screenshot.jpg_image
+  ASSERT_NE(dst, nullptr);
   memcpy(dst, expected.data(), expected.size());
-  auto& fb = jpg_field->get()->field_bytes;
-  fb.header.type = PERFETTO_TE_HL_PROTO_TYPE_BYTES;
-  fb.header.id = 1;  // Screenshot.jpg_image
-  fb.buf = dst;
-  fb.len = expected.size();
 
-  uint8_t* empty_dst = empty_field->resize_bytes(0);
-  auto& empty_fb = empty_field->get()->field_bytes;
-  empty_fb.header.type = PERFETTO_TE_HL_PROTO_TYPE_BYTES;
-  empty_fb.header.id = 2;  // Screenshot.pam_image
-  empty_fb.buf = empty_dst ? static_cast<const void*>(empty_dst) : "";
-  empty_fb.len = 0;
+  uint8_t* empty_dst = empty_field->set_bytes(2, 0);  // Screenshot.pam_image
+  EXPECT_EQ(empty_dst, nullptr);
 
   nested->set_id(50);  // TrackEvent.screenshot
   nested->add_field(
@@ -206,6 +199,17 @@ TEST(TracingSdkForJniTest, ProtoFieldBytes) {
   extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
       const_cast<PerfettoTeHlExtraProtoFields*>(proto->get())));
   trace_event(PERFETTO_TE_TYPE_INSTANT, category.get(), "Screenshot", &extra);
+
+  jpg_field->release_bytes();
+  EXPECT_EQ(jpg_field->get()->field_bytes.len, 0u);
+
+  // Verify the field can allocate again after release_bytes().
+  const std::string second("abc", 3);
+  uint8_t* dst2 = jpg_field->set_bytes(1, second.size());
+  ASSERT_NE(dst2, nullptr);
+  memcpy(dst2, second.data(), second.size());
+  EXPECT_EQ(jpg_field->get()->field_bytes.len, second.size());
+  jpg_field->release_bytes();
 
   sdk_for_jni::ProtoField::delete_field(empty_field);
   sdk_for_jni::ProtoField::delete_field(jpg_field);

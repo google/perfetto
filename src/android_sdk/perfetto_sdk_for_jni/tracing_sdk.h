@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -316,7 +317,7 @@ class DebugArg {
 
 class ProtoField {
  public:
-  ProtoField() {}
+  ProtoField() : arg_{} {}
   ProtoField(const ProtoField&) = delete;
   ProtoField& operator=(const ProtoField&) = delete;
   static void delete_field(void* ptr) { delete static_cast<ProtoField*>(ptr); }
@@ -325,16 +326,33 @@ class ProtoField {
     str_ = val;
     return str_.c_str();
   }
-  uint8_t* resize_bytes(size_t len) {
-    bytes_.resize(len);
-    return bytes_.data();
+  uint8_t* set_bytes(uint32_t id, size_t len) {
+    if (len > bytes_capacity_) {
+      bytes_.reset(new uint8_t[len]);
+      bytes_capacity_ = len;
+    }
+    auto& field_bytes = arg_.field_bytes;
+    field_bytes.header.type = PERFETTO_TE_HL_PROTO_TYPE_BYTES;
+    field_bytes.header.id = id;
+    field_bytes.buf = len > 0 ? static_cast<const void*>(bytes_.get()) : "";
+    field_bytes.len = len;
+    return len > 0 ? bytes_.get() : nullptr;
+  }
+  void release_bytes() {
+    bytes_.reset();
+    bytes_capacity_ = 0;
+    if (arg_.field_bytes.header.type == PERFETTO_TE_HL_PROTO_TYPE_BYTES) {
+      arg_.field_bytes.buf = "";
+      arg_.field_bytes.len = 0;
+    }
   }
   PerfettoTeHlProtoFieldUnion* get() { return &arg_; }
 
  private:
   PerfettoTeHlProtoFieldUnion arg_;
   std::string str_;
-  std::vector<uint8_t> bytes_;
+  std::unique_ptr<uint8_t[]> bytes_;
+  size_t bytes_capacity_ = 0;
 };
 
 class ProtoFieldNested {

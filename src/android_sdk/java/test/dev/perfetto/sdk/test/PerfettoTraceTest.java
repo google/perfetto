@@ -48,7 +48,6 @@ import perfetto.protos.DataSourceConfigOuterClass.DataSourceConfig;
 import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotation;
 import perfetto.protos.DebugAnnotationOuterClass.DebugAnnotationName;
 import perfetto.protos.InternedDataOuterClass.InternedData;
-import perfetto.protos.ScreenshotOuterClass.Screenshot;
 import perfetto.protos.SourceLocationOuterClass.SourceLocation;
 import perfetto.protos.TraceConfigOuterClass.TraceConfig;
 import perfetto.protos.TraceConfigOuterClass.TraceConfig.BufferConfig;
