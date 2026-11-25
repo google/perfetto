@@ -132,25 +132,28 @@ uint32_t CountValid(const AggregateInput& in) {
   return count;
 }
 
-// COUNT(*): how many rows a group holds.
-class CountStar : public AggregateFunction {
+// COUNT(column) counts the rows of a group that hold a value. COUNT(*) is the
+// same function with no input column, so it counts every row.
+class Count final : public AggregateFunction {
  public:
+  explicit Count(bool reads_input) : reads_input_(reads_input) {}
   uint32_t state_words() const override { return 1; }
-  bool reads_input() const override { return false; }
+  bool reads_input() const override { return reads_input_; }
   bool tracks_seen() const override { return false; }
   void Update(const AggregateInput& in,
               const uint32_t* groups,
               GroupStates states,
               bool*) const override {
     for (uint32_t row = 0; row < in.rows; ++row) {
-      ++states.words[groups[row] * states.stride];
+      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
+      states.words[groups[row] * states.stride] += valid;
     }
   }
   void UpdateGroup(const AggregateInput& in,
                    uint32_t group,
                    GroupStates states,
                    bool*) const override {
-    states.words[group * states.stride] += in.rows;
+    states.words[group * states.stride] += CountValid(in);
   }
   void Combine(const GroupMerge* merges,
                uint32_t count,
@@ -189,28 +192,9 @@ class CountStar : public AggregateFunction {
     }
     valid->FillBits(0, count, true);
   }
-};
 
-// COUNT(column): how many of a group's rows hold a value. Merges and reads
-// as COUNT(*) does.
-class Count final : public CountStar {
- public:
-  bool reads_input() const override { return true; }
-  void Update(const AggregateInput& in,
-              const uint32_t* groups,
-              GroupStates states,
-              bool*) const override {
-    for (uint32_t row = 0; row < in.rows; ++row) {
-      bool valid = !in.valid || ((in.valid[row / 64] >> (row % 64)) & 1);
-      states.words[groups[row] * states.stride] += valid;
-    }
-  }
-  void UpdateGroup(const AggregateInput& in,
-                   uint32_t group,
-                   GroupStates states,
-                   bool*) const override {
-    states.words[group * states.stride] += CountValid(in);
-  }
+ private:
+  bool reads_input_;
 };
 
 // SUM: the total of a group's values, null if it holds none. State: the
@@ -430,11 +414,11 @@ std::unique_ptr<AggregateFunction> MakeAggregateFunction(
     AggregateCall::Function function) {
   switch (function) {
     case AggregateCall::Function::kCountStar:
-      return std::make_unique<CountStar>();
+      return std::make_unique<Count>(false);
     case AggregateCall::Function::kSum:
       return std::make_unique<Sum>();
     case AggregateCall::Function::kCount:
-      return std::make_unique<Count>();
+      return std::make_unique<Count>(true);
     case AggregateCall::Function::kMin:
       // Flips every bit but the sign: the smallest value is the largest word.
       return std::make_unique<Extreme>(~(uint64_t{1} << 63));
