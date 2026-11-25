@@ -25,6 +25,7 @@ interface TestNode {
   readonly name: string;
   readonly selfValue: number;
   readonly cumulativeValue: number;
+  readonly baselineCumulativeValue?: number;
 }
 
 function makeData(nodes: ReadonlyArray<TestNode>): TreeExplorerData {
@@ -35,10 +36,12 @@ function makeData(nodes: ReadonlyArray<TestNode>): TreeExplorerData {
     xStart: 0,
     xEnd: 0,
   }));
+  const compared = nodes.some((n) => n.baselineCumulativeValue !== undefined);
   return {
     nodes: fullNodes,
     unfilteredCumulativeValue: 0,
     allRootsCumulativeValue: 0,
+    allRootsBaselineCumulativeValue: compared ? 0 : undefined,
     minDepth: Math.min(0, ...nodes.map((n) => n.depth)),
     maxDepth: Math.max(0, ...nodes.map((n) => n.depth)),
     nodeActions: [],
@@ -89,7 +92,7 @@ test('computeFlatFunctions sums self and total per name', () => {
 
 test('computeFlatFunctions counts recursive frames once per path', () => {
   // A -> B -> A: the inner A's cumulative value is already part of the outer
-  // A's, so A's total must be 10, not 17.
+  // A's, so A's total must be 10, not 17. The same goes for baselines.
   const fns = byName(
     computeFlatFunctions(
       makeData([
@@ -100,6 +103,7 @@ test('computeFlatFunctions counts recursive frames once per path', () => {
           name: 'A',
           selfValue: 1,
           cumulativeValue: 10,
+          baselineCumulativeValue: 4,
         },
         {
           id: 2,
@@ -108,6 +112,7 @@ test('computeFlatFunctions counts recursive frames once per path', () => {
           name: 'B',
           selfValue: 2,
           cumulativeValue: 9,
+          baselineCumulativeValue: 3,
         },
         {
           id: 3,
@@ -116,12 +121,13 @@ test('computeFlatFunctions counts recursive frames once per path', () => {
           name: 'A',
           selfValue: 7,
           cumulativeValue: 7,
+          baselineCumulativeValue: 1,
         },
       ]),
     ),
   );
-  expect(fns.get('A')).toEqual({name: 'A', self: 8, total: 10});
-  expect(fns.get('B')).toEqual({name: 'B', self: 2, total: 9});
+  expect(fns.get('A')).toMatchObject({self: 8, total: 10, baselineTotal: 4});
+  expect(fns.get('B')).toMatchObject({self: 2, total: 9, baselineTotal: 3});
 });
 
 test('computeFlatFunctions adds distinct paths through the same name', () => {

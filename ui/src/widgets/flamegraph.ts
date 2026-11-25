@@ -52,7 +52,9 @@ import {
   type TreeExplorerPropertyDefinition,
   type TreeExplorerState,
   addFilter,
+  displayChange,
   displayPercentage,
+  displayRelativeChange,
   displaySize,
   getUnitDisplayName,
   metricId,
@@ -390,8 +392,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               {
                 trigger: m('.popup-anchor', {
                   style: {
-                    left: this.tooltipPos?.x + 'px',
-                    top: this.tooltipPos?.y + 'px',
+                    left:
+                      this.tooltipPos !== undefined
+                        ? `${this.tooltipPos.x}px`
+                        : undefined,
+                    // Center on the bar so row 0 (root) isn't treated as
+                    // clipped off the top edge by Popper's hide modifier.
+                    top:
+                      this.tooltipPos !== undefined
+                        ? `${this.tooltipPos.y + NODE_HEIGHT / 2}px`
+                        : undefined,
                   },
                 }),
                 fitContent: true,
@@ -475,8 +485,12 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const yStart = canvasRect.top;
     const yEnd = canvasRect.bottom;
 
-    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
-      this.attrs.data;
+    const {
+      allRootsCumulativeValue,
+      allRootsBaselineCumulativeValue,
+      unfilteredCumulativeValue,
+      nodes,
+    } = this.attrs.data;
     const unit = ensureExists(this.selectedMetric).unit;
 
     ctx.font = LABEL_FONT_STYLE;
@@ -508,14 +522,49 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           allRootsCumulativeValue,
           unfilteredCumulativeValue,
         );
-        name = `root: ${val} (${percent})`;
-        colorScheme = getFlamegraphColorScheme('root', state === 'PARTIAL');
+        if (allRootsBaselineCumulativeValue !== undefined) {
+          const change = displayChange(
+            allRootsCumulativeValue - allRootsBaselineCumulativeValue,
+            unit,
+          );
+          const rel = displayRelativeChange(
+            allRootsCumulativeValue,
+            allRootsBaselineCumulativeValue,
+          );
+          name = `root: ${val} (${percent}), ${change} (${rel})`;
+          colorScheme =
+            diffColorStep(
+              allRootsCumulativeValue,
+              allRootsBaselineCumulativeValue,
+            ) !== 0
+              ? getDiffColorScheme(
+                  allRootsCumulativeValue,
+                  allRootsBaselineCumulativeValue,
+                  state === 'PARTIAL',
+                )
+              : getFlamegraphColorScheme('root', state === 'PARTIAL');
+        } else {
+          name = `root: ${val} (${percent})`;
+          colorScheme = getFlamegraphColorScheme('root', state === 'PARTIAL');
+        }
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        // In a diff, nodes too small to draw are shown as unchanged.
+        colorScheme =
+          allRootsBaselineCumulativeValue !== undefined
+            ? getDiffColorScheme(0, 0, state === 'PARTIAL')
+            : getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
-        name = nodes[source.queryIdx]!.name;
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        const node = nodes[source.queryIdx]!;
+        name = node.name;
+        colorScheme =
+          node.baselineCumulativeValue === undefined
+            ? getFlamegraphColorScheme(name, state === 'PARTIAL')
+            : getDiffColorScheme(
+                node.cumulativeValue,
+                node.baselineCumulativeValue,
+                state === 'PARTIAL',
+              );
       }
       const highlighted =
         source.kind === 'NODE' &&
@@ -589,6 +638,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const {
       nodes,
       allRootsCumulativeValue,
+      allRootsBaselineCumulativeValue,
       unfilteredCumulativeValue,
       nodeActions,
       rootActions,
@@ -609,6 +659,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           m('.tooltip-text', `${val}, ${percent}`),
           this.renderActionsMenu(rootActions, new Map()),
         ),
+        renderBaselineTooltipLines(
+          allRootsCumulativeValue,
+          allRootsBaselineCumulativeValue,
+          unit,
+        ),
       );
     }
     const {queryIdx} = source;
@@ -619,6 +674,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
+      baselineCumulativeValue,
     } = nodes[queryIdx]!;
 
     const percent = displayPercentage(
@@ -666,6 +722,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           '.tooltip-text',
           `${displaySize(selfValue, unit)} (${selfPercentText})`,
         ),
+      ),
+      renderBaselineTooltipLines(
+        cumulativeValue,
+        baselineCumulativeValue,
+        unit,
       ),
       Array.from(properties, ([_, value]) => {
         if (value.isVisible) {
@@ -1112,6 +1173,14 @@ export function buildFlamegraphExportString(
     ...unaggKeys,
     'cumulativeValue',
     'selfValue',
+    ...(data.allRootsBaselineCumulativeValue !== undefined
+      ? [
+          'baselineCumulativeValue',
+          'totalDelta',
+          'baselineSelfValue',
+          'selfDelta',
+        ]
+      : []),
     ...aggKeys,
   ];
   const columnNames: Record<string, string> = {
@@ -1122,6 +1191,10 @@ export function buildFlamegraphExportString(
     name: metric.nameColumnLabel ?? 'Name',
     cumulativeValue: `Cumulative ${metric.name} (${unitDisplay})`,
     selfValue: `Self ${metric.name} (${unitDisplay})`,
+    baselineCumulativeValue: `Baseline total ${metric.name} (${unitDisplay})`,
+    totalDelta: `Total Δ ${metric.name} (${unitDisplay})`,
+    baselineSelfValue: `Baseline self ${metric.name} (${unitDisplay})`,
+    selfDelta: `Self Δ ${metric.name} (${unitDisplay})`,
   };
   const rows = nodes.map((n) => {
     const row: Record<string, string> = {
@@ -1132,6 +1205,15 @@ export function buildFlamegraphExportString(
       cumulativeValue: n.cumulativeValue.toString(),
       selfValue: n.selfValue.toString(),
     };
+    if (n.baselineCumulativeValue !== undefined) {
+      row.baselineCumulativeValue = n.baselineCumulativeValue.toString();
+      row.totalDelta = (
+        n.cumulativeValue - n.baselineCumulativeValue
+      ).toString();
+      const baselineSelf = n.baselineSelfValue ?? 0;
+      row.baselineSelfValue = baselineSelf.toString();
+      row.selfDelta = (n.selfValue - baselineSelf).toString();
+    }
     for (const key of [...unaggKeys, ...aggKeys]) {
       row[key] = n.properties.get(key)?.value ?? '';
     }
@@ -1221,6 +1303,10 @@ function computeRenderNodes(
   for (let i = 0; i < nodes.length; i++) {
     const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
     assertTrue(depth !== 0);
+    // Nodes with only a baseline value take no width.
+    if (qXEnd <= qXStart) {
+      continue;
+    }
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
     if (
@@ -1398,6 +1484,92 @@ const ROOT_COLOR_SCHEME = makeColorScheme(
 
 // Cache for computed color schemes by name
 const colorSchemeCache = new Map<string, ColorScheme>();
+
+// Nodes compared with a baseline are red when they grew and blue when they
+// shrank, stronger the bigger the change relative to the larger of the two
+// values. Text stays black on all of them.
+const DIFF_COLOR_STEPS = 10;
+const UNCHANGED_COLOR = new HSLColor([0, 0, 93]);
+const UNCHANGED_COLOR_SCHEME = makeColorScheme(
+  UNCHANGED_COLOR,
+  UNCHANGED_COLOR.darken(10),
+);
+const diffColorSchemeCache = new Map<number, ColorScheme>();
+
+// The change from `baseline` to `value`, rounded to one of the steps from
+// -DIFF_COLOR_STEPS (all gone) to +DIFF_COLOR_STEPS (all new).
+export function diffColorStep(value: number, baseline: number): number {
+  const larger = Math.max(Math.abs(value), Math.abs(baseline));
+  if (larger === 0) return 0;
+  const step = Math.round(((value - baseline) / larger) * DIFF_COLOR_STEPS);
+  // Small decreases round to -0.
+  return step === 0 ? 0 : step;
+}
+
+function getDiffColorScheme(
+  value: number,
+  baseline: number,
+  greyed: boolean,
+): ColorScheme {
+  if (greyed) {
+    return GREYED_COLOR_SCHEME;
+  }
+  const step = diffColorStep(value, baseline);
+  if (step === 0) {
+    return UNCHANGED_COLOR_SCHEME;
+  }
+  let scheme = diffColorSchemeCache.get(step);
+  if (scheme === undefined) {
+    const strength = Math.abs(step) / DIFF_COLOR_STEPS;
+    const base = new HSLColor({
+      h: step > 0 ? 0 : 220,
+      s: 50 + 30 * strength,
+      l: 92 - 14 * strength,
+    });
+    scheme = makeColorScheme(base, base.darken(15));
+    diffColorSchemeCache.set(step, scheme);
+  }
+  return scheme;
+}
+
+// The colors of a node whose value changed from `baseline` to `value`, for
+// other views of the same diff, or undefined if it is drawn as unchanged.
+export function diffColors(
+  value: number,
+  baseline: number,
+): {readonly background: string; readonly text: string} | undefined {
+  if (diffColorStep(value, baseline) === 0) {
+    return undefined;
+  }
+  const {base, textBase} = getDiffColorScheme(value, baseline, false);
+  return {background: base.cssString, text: textBase.cssString};
+}
+
+function renderBaselineTooltipLines(
+  value: number,
+  baseline: number | undefined,
+  unit: string,
+): m.Children {
+  if (baseline === undefined) {
+    return null;
+  }
+  return [
+    m(
+      '.tooltip-text-line',
+      m('.tooltip-bold-text', 'Baseline total:'),
+      m('.tooltip-text', displaySize(baseline, unit)),
+    ),
+    m(
+      '.tooltip-text-line',
+      m('.tooltip-bold-text', 'Total Δ:'),
+      m(
+        '.tooltip-text',
+        `${displayChange(value - baseline, unit)}` +
+          ` (${displayRelativeChange(value, baseline)})`,
+      ),
+    ),
+  ];
+}
 
 function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (greyed) {

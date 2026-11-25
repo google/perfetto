@@ -25,6 +25,8 @@ import {
 } from '../base/export_formatters';
 import type {ExportFormat} from '../widgets/export_button';
 import {
+  displayChange,
+  displayRelativeChange,
   displaySize,
   getUnitDisplayName,
   type TreeExplorerData,
@@ -41,6 +43,7 @@ import type {
 } from './widgets/datagrid/data_source';
 import type {IdBasedTree} from './widgets/datagrid/model';
 import type {Row, SqlValue} from '../trace_processor/query_result';
+import {diffColors} from '../widgets/flamegraph';
 import {Icon} from '../widgets/icon';
 import {Tooltip} from '../widgets/tooltip';
 
@@ -78,7 +81,12 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
-    return m(DataGrid, {
+    const hasBaseline =
+      attrs.data.allRootsBaselineCumulativeValue !== undefined;
+    // Keyed so that the grid is re-created, with or without the baseline
+    // columns, when comparing starts or stops.
+    const grid = m(DataGrid, {
+      key: String(hasBaseline),
       className: 'pf-tree-explorer__grid',
       fillHeight: true,
       // The tree explorer's own filter bar is the filtering surface;
@@ -115,6 +123,8 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
           columnType: 'quantitative',
           cellRenderer: fmtPercent,
         },
+        // The tree data source returns full rows.
+        ...(hasBaseline && baselineSchema(attrs.unit, (row) => row)),
       },
       data: this.source,
       initialColumns: [
@@ -122,13 +132,93 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
         {id: 'total', field: 'total', sort: 'DESC'},
         {id: 'self', field: 'self'},
         {id: 'percent', field: 'percent'},
+        ...(hasBaseline ? BASELINE_COLUMNS : []),
       ],
       tree: this.tree ?? DEFAULT_TREE,
       onTreeChanged: (tree) => {
         this.tree = tree;
       },
     });
+    return [grid];
   }
+}
+
+// Columns of the table views when the tree is compared with a baseline. Grid
+// rows only hold the shown columns, so `fullRow` gives the source row of a
+// grid row, whose values color the changes.
+function baselineSchema(unit: string, fullRow: (row: Row) => Row | undefined) {
+  const size = (title: string) => ({
+    title,
+    columnType: 'quantitative' as const,
+    cellRenderer: (value: SqlValue) =>
+      typeof value === 'number' ? displaySize(value, unit) : '',
+  });
+  // A change between the `current` and `baseline` fields of the source row.
+  const delta = (title: string, current: string, baseline: string) => ({
+    title,
+    columnType: 'quantitative' as const,
+    cellRenderer: (value: SqlValue, row: Row) => {
+      const full = fullRow(row);
+      return renderDelta(value, full?.[current], full?.[baseline], unit);
+    },
+  });
+  return {
+    baselineTotal: size('Baseline total'),
+    totalDelta: delta('Total Δ', 'total', 'baselineTotal'),
+    baselineSelf: size('Baseline self'),
+    selfDelta: delta('Self Δ', 'self', 'baselineSelf'),
+  };
+}
+
+// A change from `baseline` to `current`, colored like a flamegraph node.
+function renderDelta(
+  value: SqlValue,
+  current: SqlValue | undefined,
+  baseline: SqlValue | undefined,
+  unit: string,
+): m.Children {
+  if (typeof value !== 'number') {
+    return '';
+  }
+  const hasBoth = typeof current === 'number' && typeof baseline === 'number';
+  const rel =
+    value !== 0 && hasBoth
+      ? ` (${displayRelativeChange(current, baseline)})`
+      : '';
+  const text = `${displayChange(value, unit)}${rel}`;
+  const colors = hasBoth ? diffColors(current, baseline) : undefined;
+  if (colors === undefined) {
+    return text;
+  }
+  return m(
+    'span.pf-tree-explorer__change',
+    {style: {backgroundColor: colors.background, color: colors.text}},
+    text,
+  );
+}
+
+const BASELINE_COLUMNS = [
+  {id: 'baselineTotal', field: 'baselineTotal'},
+  {id: 'totalDelta', field: 'totalDelta'},
+  {id: 'baselineSelf', field: 'baselineSelf'},
+  {id: 'selfDelta', field: 'selfDelta'},
+];
+
+// Baseline columns of a row for a node's (or function's) values.
+function baselineCells(
+  total: number,
+  self: number,
+  baselineTotal: number | undefined,
+  baselineSelf: number | undefined,
+): Row {
+  return baselineTotal === undefined || baselineSelf === undefined
+    ? {}
+    : {
+        baselineTotal,
+        totalDelta: total - baselineTotal,
+        baselineSelf,
+        selfDelta: self - baselineSelf,
+      };
 }
 
 // Tree-mode DataGrid source over resident tree explorer nodes. Children are
@@ -191,6 +281,12 @@ class TreeExplorerTreeDataSource extends InMemoryDataSource {
           self: n.selfValue,
           percent:
             this.total === 0 ? 0 : (n.cumulativeValue / this.total) * 100,
+          ...baselineCells(
+            n.cumulativeValue,
+            n.selfValue,
+            n.baselineCumulativeValue,
+            n.baselineSelfValue,
+          ),
           __id: n.id,
           __depth: depth,
           __has_children: children === undefined ? 0 : 1,
@@ -213,6 +309,25 @@ class TreeExplorerTreeDataSource extends InMemoryDataSource {
         return (a, b) => dir * a.name.localeCompare(b.name);
       case 'self':
         return (a, b) => dir * (a.selfValue - b.selfValue);
+      case 'baselineTotal':
+        return (a, b) =>
+          dir *
+          ((a.baselineCumulativeValue ?? 0) - (b.baselineCumulativeValue ?? 0));
+      case 'totalDelta':
+        return (a, b) =>
+          dir *
+          (a.cumulativeValue -
+            (a.baselineCumulativeValue ?? 0) -
+            (b.cumulativeValue - (b.baselineCumulativeValue ?? 0)));
+      case 'baselineSelf':
+        return (a, b) =>
+          dir * ((a.baselineSelfValue ?? 0) - (b.baselineSelfValue ?? 0));
+      case 'selfDelta':
+        return (a, b) =>
+          dir *
+          (a.selfValue -
+            (a.baselineSelfValue ?? 0) -
+            (b.selfValue - (b.baselineSelfValue ?? 0)));
       default: // 'total', 'percent' and the initial (unsorted) state.
         return (a, b) => dir * (a.cumulativeValue - b.cumulativeValue);
     }
@@ -223,6 +338,9 @@ export interface TreeExplorerFlatFunction {
   readonly name: string;
   readonly self: number;
   readonly total: number;
+  // `self` and `total` in the baseline, when the tree is compared with one.
+  readonly baselineSelf?: number;
+  readonly baselineTotal?: number;
 }
 
 // Aggregates the tree per function name, pprof-style: `self` sums a
@@ -251,7 +369,10 @@ export function computeFlatFunctions(
     }
   }
 
-  const functions = new Map<string, {self: number; total: number}>();
+  const functions = new Map<
+    string,
+    {self: number; total: number; baselineSelf: number; baselineTotal: number}
+  >();
   // Number of times each name occurs on the current root-to-node path.
   // Explicit stack with exit markers: call stacks can be deep.
   const onPath = new Map<string, number>();
@@ -268,13 +389,15 @@ export function computeFlatFunctions(
       }
       let fn = functions.get(name);
       if (fn === undefined) {
-        fn = {self: 0, total: 0};
+        fn = {self: 0, total: 0, baselineSelf: 0, baselineTotal: 0};
         functions.set(name, fn);
       }
       fn.self += node.selfValue;
+      fn.baselineSelf += node.baselineSelfValue ?? 0;
       const occurrences = onPath.get(name) ?? 0;
       if (occurrences === 0) {
         fn.total += node.cumulativeValue;
+        fn.baselineTotal += node.baselineCumulativeValue ?? 0;
       }
       onPath.set(name, occurrences + 1);
       stack.push({node, exit: true});
@@ -283,7 +406,16 @@ export function computeFlatFunctions(
       }
     }
   }
-  return [...functions].map(([name, {self, total}]) => ({name, self, total}));
+  const compared = data.allRootsBaselineCumulativeValue !== undefined;
+  return [...functions].map(
+    ([name, {self, total, baselineSelf, baselineTotal}]) => ({
+      name,
+      self,
+      total,
+      baselineSelf: compared ? baselineSelf : undefined,
+      baselineTotal: compared ? baselineTotal : undefined,
+    }),
+  );
 }
 
 export interface TreeExplorerFlatViewAttrs {
@@ -298,17 +430,23 @@ export interface TreeExplorerFlatViewAttrs {
 export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatViewAttrs> {
   private rows?: readonly Row[];
   private rowsData?: TreeExplorerData;
+  private rowsByName = new Map<string, Row>();
   private nodesByName = new Map<string, TreeExplorerNode[]>();
 
   view({attrs}: m.CVnode<TreeExplorerFlatViewAttrs>): m.Children {
     if (this.rows === undefined || this.rowsData !== attrs.data) {
       this.rowsData = attrs.data;
       this.rows = flatFunctionRows(attrs.data);
+      this.rowsByName = new Map(this.rows.map((r) => [String(r.name), r]));
       this.nodesByName = nodesByName(attrs.data);
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
-    return m(DataGrid, {
+    const hasBaseline =
+      attrs.data.allRootsBaselineCumulativeValue !== undefined;
+    // Keyed as in TreeExplorerTreeView.
+    const grid = m(DataGrid, {
+      key: String(hasBaseline),
       className: 'pf-tree-explorer__grid',
       fillHeight: true,
       disableFilterControls: true,
@@ -354,6 +492,12 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
           columnType: 'quantitative',
           cellRenderer: fmtPercent,
         },
+        ...(hasBaseline &&
+          baselineSchema(attrs.unit, (row) =>
+            typeof row.name === 'string'
+              ? this.rowsByName.get(row.name)
+              : undefined,
+          )),
       },
       data: this.rows,
       initialColumns: [
@@ -362,8 +506,10 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
         {id: 'selfPercent', field: 'selfPercent'},
         {id: 'total', field: 'total'},
         {id: 'totalPercent', field: 'totalPercent'},
+        ...(hasBaseline ? BASELINE_COLUMNS : []),
       ],
     });
+    return [grid];
   }
 }
 
@@ -416,6 +562,7 @@ function flatFunctionRows(data: TreeExplorerData): readonly Row[] {
     selfPercent: pct(fn.self),
     total: fn.total,
     totalPercent: pct(fn.total),
+    ...baselineCells(fn.total, fn.self, fn.baselineTotal, fn.baselineSelf),
   }));
 }
 
@@ -431,13 +578,26 @@ export function buildFlatExportString(
   format: ExportFormat,
 ): string {
   const unitDisplay = getUnitDisplayName(metric.unit);
-  const columns = ['name', 'self', 'selfPercent', 'total', 'totalPercent'];
+  const columns = [
+    'name',
+    'self',
+    'selfPercent',
+    'total',
+    'totalPercent',
+    ...(data.allRootsBaselineCumulativeValue !== undefined
+      ? ['baselineTotal', 'totalDelta', 'baselineSelf', 'selfDelta']
+      : []),
+  ];
   const columnNames: Record<string, string> = {
     name: metric.nameColumnLabel ?? 'Name',
     self: `Self ${metric.name} (${unitDisplay})`,
     selfPercent: 'Self %',
     total: `Total ${metric.name} (${unitDisplay})`,
     totalPercent: 'Total %',
+    baselineTotal: `Baseline total ${metric.name} (${unitDisplay})`,
+    totalDelta: `Total Δ ${metric.name} (${unitDisplay})`,
+    baselineSelf: `Baseline self ${metric.name} (${unitDisplay})`,
+    selfDelta: `Self Δ ${metric.name} (${unitDisplay})`,
   };
   const total = data.allRootsCumulativeValue;
   const pct = (value: number) =>
@@ -450,6 +610,14 @@ export function buildFlatExportString(
       selfPercent: pct(fn.self),
       total: fn.total.toString(),
       totalPercent: pct(fn.total),
+      ...(fn.baselineTotal === undefined || fn.baselineSelf === undefined
+        ? {}
+        : {
+            baselineTotal: fn.baselineTotal.toString(),
+            totalDelta: (fn.total - fn.baselineTotal).toString(),
+            baselineSelf: fn.baselineSelf.toString(),
+            selfDelta: (fn.self - fn.baselineSelf).toString(),
+          }),
     }));
   switch (format) {
     case 'tsv':

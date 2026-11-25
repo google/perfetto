@@ -90,12 +90,19 @@ export interface TreeExplorerNode {
   readonly propertyValues: ReadonlyMap<string, string>;
   readonly xStart: number;
   readonly xEnd: number;
+  // The node's cumulative and self values in the baseline the tree is compared
+  // with, if any.
+  readonly baselineCumulativeValue?: number;
+  readonly baselineSelfValue?: number;
 }
 
 export interface TreeExplorerData {
   readonly nodes: ReadonlyArray<TreeExplorerNode>;
   readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
+  // Total of the root nodes in the baseline, when the tree is compared with
+  // one (see TreeExplorerQueryMetric.baselineColumn).
+  readonly allRootsBaselineCumulativeValue?: number;
   readonly minDepth: number;
   readonly maxDepth: number;
   readonly nodeActions: ReadonlyArray<TreeExplorerOptionalAction>;
@@ -455,6 +462,20 @@ export function displayPercentage(size: number, totalSize: number): string {
     return `[NULL]%`;
   }
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
+}
+
+// Formats a signed difference in the metric's unit, e.g. "+1.20 MiB".
+export function displayChange(change: number, unit: string): string {
+  return `${change < 0 ? '-' : '+'}${displaySize(Math.abs(change), unit)}`;
+}
+
+// Formats a relative change against `baseline`, e.g. "+13.6%" or "new".
+export function displayRelativeChange(value: number, baseline: number): string {
+  if (baseline === 0) {
+    return value === 0 ? '+0.0%' : 'new';
+  }
+  const percent = ((value - baseline) / Math.abs(baseline)) * 100;
+  return `${percent < 0 ? '' : '+'}${percent.toFixed(1)}%`;
 }
 
 export function getUnitDisplayName(unit: string | undefined): string {
