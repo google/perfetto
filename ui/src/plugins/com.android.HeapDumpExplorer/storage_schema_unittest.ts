@@ -34,6 +34,7 @@ describe('HDE_STATE_SCHEMA', () => {
       flamegraphTabs: [{pathHashes: 'abc', isDominator: true}],
       instanceTabs: [{objId: 42, label: 'java.lang.String'}],
       flamegraphPanelState: TREE_STATE,
+      flamegraphCompareWith: {upid: 5, ts: '323456789012345'},
       callstackPanelState: TREE_STATE,
     };
     expect(HDE_STATE_SCHEMA.parse(state)).toEqual(state);

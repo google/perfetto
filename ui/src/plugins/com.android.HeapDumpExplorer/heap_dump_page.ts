@@ -114,6 +114,10 @@ function buildTabs(
         trace,
         upid: activeDump.upid,
         ts: activeDump.ts,
+        dumps: session.dumps,
+        compareWith: session.flamegraphCompareWith,
+        onCompareWithChange: session.setFlamegraphCompareWith.bind(session),
+        dumpLabel: (d) => dumpLabel(session, d),
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState.bind(session),
         onShowObjects: (pathHashes, isDominator) =>
@@ -275,6 +279,11 @@ function processLabel(d: HeapDump): string {
   return d.pid !== null ? `${name} (pid ${d.pid})` : name;
 }
 
+function dumpLabel(session: HeapDumpExplorerSession, d: HeapDump): string {
+  const offset = Time.diff(d.ts, session.trace.traceInfo.start);
+  return `${processLabel(d)} — ${formatDuration(session.trace, offset)}`;
+}
+
 function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
   const allDumps = session.dumps;
   const active = session.activeDump;
@@ -295,9 +304,8 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
         }),
       },
       allDumps.map((d) => {
-        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
         return m(MenuItem, {
-          label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
+          label: dumpLabel(session, d),
           active: d === active,
           onclick: () => session.selectDump(d),
         });

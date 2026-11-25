@@ -90,6 +90,16 @@
   color: var(--pf-color-text-hint);
 }
 
+// Dump picker above the Flamegraph tab's tree explorer.
+.pf-hde-flamegraph-dumps {
+  padding: 0.5rem 1rem 0;
+  font-size: 0.875rem;
+
+  &__hint {
+    color: var(--pf-color-text-hint);
+  }
+}
+
 .pf-hde-error-text {
   color: var(--pf-color-danger);
   padding: 1rem;
