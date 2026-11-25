@@ -119,6 +119,7 @@ TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
 
   auto* process_tree = packet.mutable_process_tree();
   AddProcess(process_tree, 10, 1, 1000, {"/bin/foo", "--arg"}, false);
+  process_tree->mutable_processes()->back().set_process_start_from_boot(555);
   AddProcess(process_tree, 20, 2, 2000, {"/bin/bar"}, true);
   AddProcess(process_tree, 30, 3, 3000, {}, false);
   AddThread(process_tree, 11, 10, "thread_a");
@@ -149,6 +150,8 @@ TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
   ASSERT_EQ(p10->ppid(), 1);
   ASSERT_EQ(p10->uid(), 1000);
   ASSERT_FALSE(p10->is_kthread());
+  ASSERT_TRUE(p10->has_process_start_from_boot());
+  ASSERT_EQ(p10->process_start_from_boot(), 555u);
   ASSERT_EQ(p10->cmdline_size(), 2);
   ASSERT_EQ(p10->cmdline()[0], "/bin/foo");
   ASSERT_EQ(p10->cmdline()[1], "--arg");
@@ -158,6 +161,7 @@ TEST_F(MergeProcessTreeTest, CollectsAndAugmentsProcessesAndThreads) {
   ASSERT_EQ(p20->ppid(), 2);
   ASSERT_EQ(p20->uid(), 2000);
   ASSERT_TRUE(p20->is_kthread());
+  ASSERT_FALSE(p20->has_process_start_from_boot());
   ASSERT_EQ(p20->cmdline_size(), 1);
   ASSERT_EQ(p20->cmdline()[0], "/bin/bar");
 

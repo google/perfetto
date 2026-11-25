@@ -24,6 +24,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
@@ -354,6 +355,7 @@ class Context {
     int32_t pid = 0;
     int32_t ppid = 0;
     int32_t uid = 0;
+    std::optional<uint64_t> process_start_from_boot;
   };
 
   struct ProcessTreeThread {
@@ -377,6 +379,17 @@ class Context {
   // Number of ProcessTree packets seen in Pass 1 (used by dynamic Pass 2 to
   // skip merging when <= 1 snapshot exists).
   uint32_t process_tree_packets = 0;
+
+  // Scratch state owned by CollectTimelineEvents when back-dating is enabled
+  // (see CollectTimelineEvents::set_backdate_first_open). Cleared in End().
+  struct TimelineBackdating {
+    // Per pid: (timestamp of its earliest process snapshot, process start
+    // from that snapshot), so a start is only paired with the open event it
+    // came from.
+    std::unordered_map<int32_t, std::pair<uint64_t, uint64_t>>
+        first_snapshot_start;
+  };
+  TimelineBackdating timeline_backdating;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The

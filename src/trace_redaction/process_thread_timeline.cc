@@ -40,6 +40,34 @@ void ProcessThreadTimeline::Append(const Event& event) {
   mode_ = Mode::kWrite;
 }
 
+void ProcessThreadTimeline::BackdateFirstOpenEvents(
+    const std::unordered_map<int32_t, uint64_t>& start_ts_by_pid,
+    bool fallback_to_zero) {
+  PERFETTO_DCHECK(mode_ == Mode::kWrite || events_.empty());
+
+  std::unordered_map<int32_t, Event*> earliest_open;
+  for (auto& event : events_) {
+    if (event.type != Event::Type::kOpen) {
+      continue;
+    }
+    auto [it, inserted] = earliest_open.emplace(event.pid, &event);
+    if (!inserted && event.ts < it->second->ts) {
+      it->second = &event;
+    }
+  }
+
+  for (auto& [pid, event] : earliest_open) {
+    auto start = start_ts_by_pid.find(pid);
+    if (start == start_ts_by_pid.end() && !fallback_to_zero) {
+      continue;
+    }
+    uint64_t ts = start == start_ts_by_pid.end() ? 0 : start->second;
+    if (ts < event->ts) {
+      event->ts = ts;
+    }
+  }
+}
+
 void ProcessThreadTimeline::Sort() {
   std::sort(events_.begin(), events_.end(), OrderByPid);
   mode_ = Mode::kRead;

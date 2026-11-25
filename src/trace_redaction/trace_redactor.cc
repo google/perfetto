@@ -313,7 +313,8 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   pass1->emplace_collect<FindPackageUid>();
   pass1->emplace_collect<CollectClocks>();
   pass1->emplace_collect<CollectSystemInfo>();
-  pass1->emplace_collect<CollectTimelineEvents>();
+  pass1->emplace_collect<CollectTimelineEvents>()->set_backdate_first_open(
+      true);
   pass1->emplace_collect<CollectFrameCookies>();
 
   // Add all validators.
