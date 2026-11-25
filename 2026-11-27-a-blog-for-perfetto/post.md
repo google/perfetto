@@ -67,7 +67,7 @@ We are lucky to have a number of performance experts, inside and outside of
 Google, already helping us on this journey and writing up their work. We would
 like many more voices to join them. Android has been Perfetto's most natural
 home so far, but going forward we are planning to expand our coverage with more
-topics about Linux embedded. Because in the end the true core of Perfetot has
+topics about Linux embedded. Because in the end the true core of Perfetto has
 always been understanding intricate architectural interactions across the
 operating system and the hardware.
 
@@ -92,7 +92,7 @@ traces that exposed it, the queries or views that made it click, and a
 measurable outcome. They do not need to be long, and they do not need to be
 about Android. The journey matters more than the final destination.
 
-Anything that has a "teachable moment" is the right content for our BLog.
+Anything that has a "teachable moment" is the right content for our blog.
 
 Posts live on the
 [`blog` branch](https://github.com/google/perfetto/tree/blog) of the Perfetto
