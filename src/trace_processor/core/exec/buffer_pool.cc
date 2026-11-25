@@ -17,6 +17,7 @@
 #include "src/trace_processor/core/exec/buffer_pool.h"
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 
 #include "perfetto/base/logging.h"
@@ -43,6 +44,8 @@ ColumnBuffer::Block* BufferPool::NewBlock(uint32_t width_class) {
   block->width_class = width_class;
   uint64_t bytes = uint64_t{kMaxBatchRows} * (4u << width_class);
   block->chunk.storage = Slab<uint8_t>::Alloc(bytes);
+  // Zero once on allocation so null slots in reused chunks are initialized.
+  memset(block->chunk.storage.data(), 0, bytes);
   allocated_bytes_ += bytes;
   return block;
 }

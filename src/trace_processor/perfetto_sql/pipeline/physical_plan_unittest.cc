@@ -809,8 +809,8 @@ TEST_F(PhysicalPlanTest, WhereMatchesAGlobLiteralOncePerExecution) {
     StringArgs args;
     args.values = {"", run_pattern};
     base::Span<const core::exec::ParamValue> run = params.Bind(args);
-    EXPECT_NE(run[0].glob, nullptr);
-    EXPECT_EQ(run[1].glob, nullptr);
+    EXPECT_NE(run[0].glob(), nullptr);
+    EXPECT_EQ(run[1].glob(), nullptr);
     std::vector<int64_t> out;
     for (bool row = cursor.Open(run); row; row = cursor.Next()) {
       out.push_back(*IntAt(cursor, physical->columns()[0].index));

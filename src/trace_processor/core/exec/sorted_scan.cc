@@ -42,6 +42,16 @@ namespace {
 
 using filter::CastFilterValueResult;
 
+// Out-of-line so FindAll avoids constructing CastFilterValueResult::Value on
+// the common integer/SetId path.
+PERFETTO_NO_INLINE Range SearchSortedString(const filter::SortedColumn& column,
+                                            RangeOp op,
+                                            const char* str,
+                                            Range range) {
+  return filter::SearchSorted(column, op, CastFilterValueResult::Value(str),
+                              range);
+}
+
 }  // namespace
 
 SortedSearches::SortedSearches(core::Arena& arena,
@@ -98,46 +108,42 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
     const Search& s = searches_[i];
     PERFETTO_DCHECK(s.param < context.params().size());
     const ParamValue& cast = values[s.param];
-    if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+    if (cast.validity == CastFilterValueResult::kNoneMatch) {
       range.e = range.b;
       break;
     }
-    if (cast.value.validity == CastFilterValueResult::kAllMatch) {
+    if (cast.validity == CastFilterValueResult::kAllMatch) {
       continue;
     }
-    const dataframe::Column& column = *s.column;
     switch (s.kind) {
       case Search::Kind::kBinarySearch: {
         const Sorted& sorted = sorted_[i];
         if (sorted.string_eq) {
           // String = values are cast to an interned id.
-          range = filter::SearchSorted(
-              sorted.column, sorted.op,
-              CastFilterValueResult::Value(pool_->Get(cast.string_id).c_str()),
-              range);
+          range = SearchSortedString(sorted.column, sorted.op,
+                                     pool_->Get(cast.string_id).c_str(), range);
         } else if (sorted.column.type.Is<String>()) {
           // `value` points into `text`, and goes stale if the value is moved.
-          range = filter::SearchSorted(
-              sorted.column, sorted.op,
-              CastFilterValueResult::Value(cast.text.c_str()), range);
+          range = SearchSortedString(sorted.column, sorted.op,
+                                     cast.text().c_str(), range);
         } else {
-          range = filter::SearchSorted(sorted.column, sorted.op,
-                                       cast.value.value, range);
+          range =
+              filter::SearchSorted(sorted.column, sorted.op, cast.value, range);
         }
         break;
       }
       case Search::Kind::kSetIdEq:
         filter::SetIdSortedEqualRange(
-            column.storage.unchecked_data<Uint32>(),
-            base::unchecked_get<uint32_t>(cast.value.value), range);
+            static_cast<const uint32_t*>(sorted_[i].column.data),
+            base::unchecked_get<uint32_t>(cast.value), range);
         break;
       case Search::Kind::kSmallValueEq: {
         const auto& small =
-            column.specialized_storage
+            s.column->specialized_storage
                 .unchecked_get<dataframe::SpecializedStorage::SmallValueEq>();
         filter::SmallValueEqualRange(
             small.bit_vector, small.prefix_popcount.data(),
-            base::unchecked_get<uint32_t>(cast.value.value), range);
+            base::unchecked_get<uint32_t>(cast.value), range);
         break;
       }
     }
@@ -148,10 +154,9 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
 Range SortedSearches::FindIdEq(const Context& context, Range rows) const {
   Range range = rows;
   const ParamValue& cast = context.params().b[searches_[0].param];
-  if (PERFETTO_LIKELY(cast.value.validity == CastFilterValueResult::kValid)) {
-    filter::IdEqualRange(base::unchecked_get<uint32_t>(cast.value.value),
-                         range);
-  } else if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+  if (PERFETTO_LIKELY(cast.validity == CastFilterValueResult::kValid)) {
+    filter::IdEqualRange(base::unchecked_get<uint32_t>(cast.value), range);
+  } else if (cast.validity == CastFilterValueResult::kNoneMatch) {
     range.e = range.b;
   }
   return range;

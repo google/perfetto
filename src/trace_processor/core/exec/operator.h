@@ -172,6 +172,8 @@ class Source {
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
     return nullptr;
   }
+  // Whether InPlace() may ever return non-null for this source.
+  virtual bool HasInPlace() const { return false; }
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
   virtual const void* type() const = 0;

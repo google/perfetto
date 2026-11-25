@@ -53,6 +53,7 @@ RowBatch& RowBatch::operator=(RowBatch&& other) noexcept {
                other.buffer_count_);
   }
   selection_.CopyFrom(other.selection_);
+  last_ = false;
   other.Reset();
   return *this;
 }
@@ -63,6 +64,7 @@ void RowBatch::CopyFrom(const RowBatch& other) {
   own_buffers_.assign(other.buffers_, other.buffers_ + other.buffer_count_);
   Repoint();
   selection_.CopyFrom(other.selection_);
+  last_ = false;
 }
 
 void RowBatch::Project(const RowBatch& other,
@@ -72,6 +74,7 @@ void RowBatch::Project(const RowBatch& other,
     AddColumn(other.column(column), other.buffer(column));
   }
   selection_.CopyFrom(other.selection_);
+  last_ = false;
 }
 
 void RowBatch::AddColumn(const ColumnView& view, ColumnBuffer buffer) {
@@ -95,6 +98,7 @@ void RowBatch::Reset() {
   own_buffers_.clear();
   Repoint();
   selection_.Reset(0);
+  last_ = false;
 }
 
 void RowBatch::Own() {

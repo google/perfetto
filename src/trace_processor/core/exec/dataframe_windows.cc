@@ -16,13 +16,11 @@
 
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 
-#include <array>
 #include <cstdint>
 #include <cstring>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -90,6 +88,13 @@ const BitVector* GatherColumn(const ColumnView& view,
   const uint32_t* popcount = view.popcount();
   const uint32_t* begin = rows.b;
   auto count = static_cast<uint32_t>(rows.size());
+  if (!validity && !sparse && data) {
+    for (uint32_t i = 0; i < count; ++i) {
+      memcpy(values + uint64_t{i} * kWidth, data + uint64_t{begin[i]} * kWidth,
+             kWidth);
+    }
+    return nullptr;
+  }
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t row = begin[i];
     uint8_t* value = values + uint64_t{i} * kWidth;
@@ -175,6 +180,13 @@ void DataframeWindows::Gather(base::Span<const uint32_t> rows,
   }
   for (uint32_t i = 0; i < count_; ++i) {
     const ColumnView& view = lent_[i];
+    if (view.kind() == ColumnView::Kind::kSequence && !view.validity()) {
+      // A non-null Id column's gathered values are the row indices themselves;
+      // `rows` outlives the run, so lend it directly without copying.
+      gathered_[i] = ColumnView::Reference(StorageType{Uint32{}}, rows.b);
+      gathered_buffers_[i] = ColumnBuffer();
+      continue;
+    }
     uint32_t width = ValueWidth(view.type());
     // A buffer a batch still holds is left to it: a fresh one is taken.
     gathered_buffers_[i] = context.TakeBuffer(width);
@@ -190,32 +202,6 @@ void DataframeWindows::Gather(base::Span<const uint32_t> rows,
   out.SetRowCount(static_cast<uint32_t>(rows.size()));
 }
 
-void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
-  // Only the windows move: the views stay as they were lent.
-  for (uint32_t i = 0; i < count_; ++i) {
-    lent_[i].set_start(from);
-  }
-  out.SetColumns(lent_, buffers_, count_);
-  out.SetRowCount(count);
-}
-
-namespace {
-
-// From kMaxBatchRows - 1 down to 0: the last `count` reverse a batch.
-const uint32_t* DescendingIndices() {
-  static const base::NoDestructor<std::array<uint32_t, kMaxBatchRows>> kTable(
-      [] {
-        std::array<uint32_t, kMaxBatchRows> table;
-        for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
-          table[i] = kMaxBatchRows - 1 - i;
-        }
-        return table;
-      }());
-  return kTable.ref().data();
-}
-
-}  // namespace
-
 void RangeReader::Init(base::Span<const dataframe::Column* const> columns,
                        OperatorState& owner) {
   windows_.Init(columns, owner);
@@ -228,9 +214,8 @@ bool RangeReader::ReadBackwards(RowBatch& out) {
   uint32_t count = std::min(kMaxBatchRows, next_ - range_.b);
   next_ -= count;
   windows_.Fill(next_, count, out);
-  const uint32_t* descending = DescendingIndices();
-  out.mutable_selection().Reorder(base::Span<const uint32_t>(
-      descending + (kMaxBatchRows - count), descending + kMaxBatchRows));
+  out.mutable_selection().Reverse();
+  out.SetLast(next_ == range_.b);
   return true;
 }
 

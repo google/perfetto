@@ -160,8 +160,16 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
     }
     // A batch with no rows left has nothing for later transforms to do.
     if (PERFETTO_UNLIKELY(!batch->size())) {
+      if (batch->last() && !(flags & State::kSegmented) &&
+          !s.context().holding()) {
+        s.flags |= State::kSourceDone;
+        return nullptr;
+      }
       return NextSlow(s);
     }
+  }
+  if (PERFETTO_UNLIKELY(s.context().holding())) {
+    batch->SetLast(false);
   }
   return batch;
 }
@@ -171,6 +179,9 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
   RowBatch* batch = SegmentNext(last, *s.output, s);
   if (!batch) {
     Stop(s);
+  } else {
+    // Slow paths may hold state that requires Stop() on exhaustion.
+    batch->SetLast(false);
   }
   return batch;
 }

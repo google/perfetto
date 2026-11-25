@@ -66,79 +66,119 @@ struct GlobMatch {
 // allocates, and nothing dispatches on the column's type or the comparison,
 // which matters when each run looks up one row.
 struct ParamValue {
-  filter::CastFilterValueResult value =
-      filter::CastFilterValueResult::NoneMatch();
+  // Cold storage allocated lazily for string ordering, REGEXP, GLOB, and IN.
+  struct Extra {
+    std::string text;
+    std::optional<base::Regex> regex;
+    filter::CastFilterValueListResult::Ptr list;
+    std::unique_ptr<GlobMatch> glob;
+  };
+
+  Extra& EnsureExtra() {
+    if (!extra) {
+      extra = std::make_unique<Extra>();
+    }
+    return *extra;
+  }
+
+  const std::string& text() const { return extra->text; }
+  const base::Regex& regex() const { return *extra->regex; }
+  const filter::CastFilterValueListResult& list() const { return *extra->list; }
+  GlobMatch* glob() const { return extra ? extra->glob.get() : nullptr; }
+
+  filter::CastFilterValueResult::Value value =
+      filter::CastFilterValueResult::Id{0};
+  filter::CastFilterValueResult::Validity validity =
+      filter::CastFilterValueResult::kNoneMatch;
   // For a string compared by = or !=: the string's id in the pool.
   StringPool::Id string_id = StringPool::Id::Null();
-  // For a string compared by order: its text, which `value` points to. Its
-  // buffer is reused, so only a string longer than any before allocates.
-  std::string text;
-  // For REGEXP: the pattern, compiled once a run rather than once a batch.
-  std::optional<base::Regex> regex;
-  // For IN: the list's values, while `value` says whether any can match. Its
-  // allocations are reused from run to run.
-  filter::CastFilterValueListResult::Ptr list;
-  // For a GLOB literal with wildcards (see AttachGlob).
-  std::unique_ptr<GlobMatch> glob;
+  std::unique_ptr<Extra> extra;
 };
+static_assert(sizeof(ParamValue) <= 32);
 
 // Gives `value`, a GLOB literal just cast, its GlobMatch, so that it is
 // matched against the pool once however many runs read it. A pattern without
 // wildcards still compares string ids, and needs none.
 inline void AttachGlob(ParamValue* value) {
-  value->glob.reset();
-  if (value->value.validity != filter::CastFilterValueResult::kValid) {
+  if (value->extra) {
+    value->extra->glob.reset();
+  }
+  if (value->validity != filter::CastFilterValueResult::kValid) {
     return;
   }
-  auto glob = std::make_unique<GlobMatch>(base::StringView(value->text));
+  auto glob = std::make_unique<GlobMatch>(base::StringView(value->text()));
   if (!glob->matcher.IsEquality()) {
-    value->glob = std::move(glob);
+    value->EnsureExtra().glob = std::move(glob);
   }
 }
 
 namespace internal {
 
-// Casts the value `fetcher` has at `index` into `out`, for a column of
-// storage type T compared by `op`. `pool` holds the column's strings.
+// Casts the value `fetcher` has at `index` into `out`, for a numeric column of
+// storage type T compared by `op`.
 template <typename T, typename Fetcher>
 void CastParamFor(Fetcher& fetcher,
                   uint32_t index,
                   NonNullOp op,
-                  const StringPool& pool,
+                  const StringPool&,
                   ParamValue* out) {
-  out->value = filter::CastFilterValue<T>(index, fetcher, op);
-  if constexpr (std::is_same_v<T, String>) {
-    if (out->value.validity != filter::CastFilterValueResult::kValid) {
+  auto res = filter::CastFilterValue<T>(index, fetcher, op);
+  out->validity = res.validity;
+  if (PERFETTO_LIKELY(res.validity == filter::CastFilterValueResult::kValid)) {
+    out->value = res.value;
+  }
+}
+
+// Casts a string param for = or !=, resolving it to an interned pool id.
+// Split from CastStringOtherParam so string equality avoids regex stack state.
+template <bool kEq, typename Fetcher>
+void CastStringEqParam(Fetcher& fetcher,
+                       uint32_t index,
+                       NonNullOp,
+                       const StringPool& pool,
+                       ParamValue* out) {
+  auto type = fetcher.GetValueType(index);
+  if (PERFETTO_LIKELY(type == Fetcher::kString)) {
+    const char* text = fetcher.GetStringValue(index);
+    std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
+    if (PERFETTO_LIKELY(id.has_value())) {
+      out->validity = filter::CastFilterValueResult::kValid;
+      out->string_id = *id;
+    } else {
+      out->validity = kEq ? filter::CastFilterValueResult::kNoneMatch
+                          : filter::CastFilterValueResult::kAllMatch;
+    }
+    return;
+  }
+  PERFETTO_DCHECK(type == Fetcher::kNull || type == Fetcher::kInt64 ||
+                  type == Fetcher::kDouble);
+  out->validity = type == Fetcher::kNull || kEq
+                      ? filter::CastFilterValueResult::kNoneMatch
+                      : filter::CastFilterValueResult::kAllMatch;
+}
+
+// Casts a string param for ordering, GLOB, or REGEXP.
+template <typename Fetcher>
+void CastStringOtherParam(Fetcher& fetcher,
+                          uint32_t index,
+                          NonNullOp op,
+                          const StringPool&,
+                          ParamValue* out) {
+  auto res = filter::CastFilterValue<String>(index, fetcher, op);
+  out->validity = res.validity;
+  if (res.validity != filter::CastFilterValueResult::kValid) {
+    return;
+  }
+  ParamValue::Extra& extra = out->EnsureExtra();
+  extra.text.assign(base::unchecked_get<const char*>(res.value));
+  out->value = extra.text.c_str();
+  if (op.Is<Regex>()) {
+    base::StatusOr<base::Regex> regex = base::Regex::Create(extra.text);
+    if (!regex.ok()) {
+      out->validity = filter::CastFilterValueResult::kNoneMatch;
       return;
     }
-    const char* text = base::unchecked_get<const char*>(out->value.value);
-    if (op.Is<Eq>() || op.Is<Ne>()) {
-      // A string no row holds equals none of them, and differs from all.
-      std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
-      if (!id) {
-        out->value = op.Is<Eq>() ? filter::CastFilterValueResult::NoneMatch()
-                                 : filter::CastFilterValueResult::AllMatch();
-        return;
-      }
-      out->string_id = *id;
-      // Whatever `text` points to need not outlive the cast.
-      out->value.value = static_cast<const char*>(nullptr);
-    } else {
-      out->text.assign(text);
-      out->value.value = out->text.c_str();
-      if (op.Is<Regex>()) {
-        // As the interpreter does, a pattern which does not compile matches
-        // nothing.
-        base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
-        if (!regex.ok()) {
-          out->value = filter::CastFilterValueResult::NoneMatch();
-          return;
-        }
-        out->regex = std::move(*regex);
-      }
-    }
-  } else {
-    base::ignore_result(pool);
+    extra.regex = std::move(*regex);
   }
 }
 
@@ -150,7 +190,7 @@ void CastParamListFor(Fetcher& fetcher,
                       NonNullOp op,
                       const StringPool& pool,
                       ParamValue* out) {
-  auto& list = out->list;
+  auto& list = out->EnsureExtra().list;
   if (!list) {
     list = std::make_unique<filter::CastFilterValueListResult>();
     list->Init<T>();
@@ -158,7 +198,7 @@ void CastParamListFor(Fetcher& fetcher,
     list->Clear<T>();
   }
   filter::CastFilterValueList<T>(index, fetcher, op, &pool, *list);
-  out->value.validity = list->validity;
+  out->validity = list->validity;
 }
 
 }  // namespace internal
@@ -202,7 +242,13 @@ ParamCaster<Fetcher> GetParamCaster(StorageType type, const Op& op) {
     case StorageType::GetTypeIndex<Double>():
       return {&internal::CastParamFor<Double, Fetcher>, non_null};
     case StorageType::GetTypeIndex<String>():
-      return {&internal::CastParamFor<String, Fetcher>, non_null};
+      if (non_null.Is<Eq>()) {
+        return {&internal::CastStringEqParam<true, Fetcher>, non_null};
+      }
+      if (non_null.Is<Ne>()) {
+        return {&internal::CastStringEqParam<false, Fetcher>, non_null};
+      }
+      return {&internal::CastStringOtherParam<Fetcher>, non_null};
     default:
       PERFETTO_FATAL("Unsupported storage type");
   }

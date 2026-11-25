@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/selection.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
@@ -161,6 +162,20 @@ void Selection::KeepMatching(const uint32_t* values,
     }
   }
   size_ = n;
+}
+
+void Selection::Reverse() {
+  if (size_ <= 1) {
+    return;
+  }
+  if (prefix_) {
+    for (uint32_t i = 0; i < size_; ++i) {
+      indices_[i] = static_cast<uint16_t>(size_ - 1 - i);
+    }
+    prefix_ = false;
+  } else {
+    std::reverse(indices_, indices_ + size_);
+  }
 }
 
 void Selection::KeepRange(uint32_t first, uint32_t count) {

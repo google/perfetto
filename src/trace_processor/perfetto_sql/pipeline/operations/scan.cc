@@ -561,7 +561,7 @@ std::optional<Scan::SearchPlan> Scan::PlanSearch(
   // A condition no row can match leaves nothing to read.
   for (const Condition& condition : conditions) {
     if (condition.value &&
-        condition.value->value.validity ==
+        condition.value->validity ==
             core::filter::CastFilterValueResult::kNoneMatch) {
       plan.kind = ScanSearch::Kind::kEmpty;
       for (uint32_t i = 0; i < conditions.size(); ++i) {

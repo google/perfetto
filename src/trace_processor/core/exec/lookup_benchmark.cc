@@ -71,8 +71,12 @@ struct Args {
       keys.push_back(pool.InternString(
           base::StackString<32>("debug.key_%u", i).string_view()));
     }
-    dataframe::AdhocDataframeBuilder builder({"arg_set_id", "key", "int_value"},
-                                             &pool);
+    // Match ArgTable's DenseNull key column (a trailing null row keeps the
+    // DenseNull overlay without affecting any lookup in [0, kRows)).
+    dataframe::AdhocDataframeBuilder builder(
+        {"arg_set_id", "key", "int_value"}, &pool,
+        dataframe::AdhocDataframeBuilder::Options{
+            {}, dataframe::NullabilityType::kDenseNull});
     uint32_t row = 0;
     while (row < kRows) {
       uint32_t size =
@@ -92,10 +96,14 @@ struct Args {
       }
       row += size;
     }
+    PERFETTO_CHECK(builder.PushNonNull(kArgSetId, int64_t{kRows}));
+    builder.PushNull(kKey);
+    builder.PushNull(kIntValue);
     auto built = std::move(builder).Build();
     PERFETTO_CHECK(built.ok());
     df = std::make_unique<dataframe::Dataframe>(std::move(*built));
     PERFETTO_CHECK(df->column(kArgSetId).sort_state.Is<SetIdSorted>());
+    PERFETTO_CHECK(df->column(kKey).null_storage.nullability().Is<DenseNull>());
 
     // Each lookup is of a key its set has.
     struct Key : dataframe::CellCallback {

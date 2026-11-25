@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/core/exec/filter.h"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -60,22 +61,30 @@ struct Rows {
   bool contiguous;
 };
 
+using CompareFn = Rows (*)(const ColumnView&,
+                           const ParamValue&,
+                           const StringPool&,
+                           Rows);
+
 // Writes contiguous rows out, for the steps which read them one by one.
-void Materialize(Rows& r) {
-  if (r.contiguous) {
-    std::iota(r.rows, r.rows + r.count, 0u);
-    r.contiguous = false;
-  }
+PERFETTO_NO_INLINE Rows Materialize(Rows r) {
+  std::iota(r.rows, r.rows + r.count, 0u);
+  r.contiguous = false;
+  return r;
 }
 
 // Keeps the rows which are null if `nulls`, or which are not otherwise.
-void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
+PERFETTO_NO_INLINE Rows KeepNulls(const ColumnView& column,
+                                  bool nulls,
+                                  Rows r) {
   const BitVector* validity = column.validity();
   if (column.kind() != ColumnView::Kind::kVariant && !validity) {
     r.count = nulls ? 0 : r.count;
-    return;
+    return r;
   }
-  Materialize(r);
+  if (r.contiguous) {
+    r = Materialize(r);
+  }
   if (column.kind() == ColumnView::Kind::kVariant) {
     const auto* data = static_cast<const Variant*>(column.data());
     uint32_t start = column.start();
@@ -89,7 +98,7 @@ void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
       }
     }
     r.count = kept;
-    return;
+    return r;
   }
   uint32_t start = column.start();
   uint32_t* rows = r.rows;
@@ -102,19 +111,27 @@ void KeepNulls(const ColumnView& column, bool nulls, Rows& r) {
     }
   }
   r.count = kept;
+  return r;
 }
+
+// Forward declaration for Compare<String, Glob>.
+PERFETTO_NO_INLINE Rows KeepGlobMatches(const ColumnView& column,
+                                        GlobMatch& glob,
+                                        const StringPool& pool,
+                                        Rows r);
 
 // Keeps the rows of a column of storage type T which compare true by O with
 // the param. The kernels read each row's value at the column's data
 // plus the row, so the data passed starts where the window does.
 template <typename T, typename O>
-void Compare(const ColumnView& column,
+Rows Compare(const ColumnView& column,
              const ParamValue& cast,
              const StringPool& pool,
-             Rows& r) {
-  // The value was cast for the column's storage type, which picks its
-  // alternative.
-  PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
+             Rows r) {
+  if constexpr (!std::is_same_v<T, String> ||
+                (!std::is_same_v<O, Eq> && !std::is_same_v<O, Ne>)) {
+    PERFETTO_DCHECK(cast.value.index() == StorageType::GetTypeIndex<T>());
+  }
   if (r.contiguous) {
     // The rows are a run, so the values are read in order with no list.
     if constexpr (std::is_same_v<T, String>) {
@@ -128,28 +145,35 @@ void Compare(const ColumnView& column,
                                 cast.string_id.raw_id(), Cmp()) -
             r.rows);
         r.contiguous = false;
-        return;
+        return r;
       }
     } else {
       using M =
           StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
       const auto* data = static_cast<const M*>(column.data()) + column.start();
       // A local, not to be reloaded after every row written.
-      M value = base::unchecked_get<M>(cast.value.value);
+      M value = base::unchecked_get<M>(cast.value);
       r.count = static_cast<uint32_t>(
           filter::FilterRange(
               data, 0, r.count, r.rows, value,
               filter::comparators::IntegerOrDoubleComparator<M, O>()) -
           r.rows);
       r.contiguous = false;
-      return;
+      return r;
     }
   }
-  Materialize(r);
+  if (r.contiguous) {
+    r = Materialize(r);
+  }
   uint32_t* begin = r.rows;
   uint32_t* end = r.rows + r.count;
   uint32_t* kept;
   if constexpr (std::is_same_v<T, String>) {
+    if constexpr (std::is_same_v<O, Glob>) {
+      if (GlobMatch* glob = cast.glob()) {
+        return KeepGlobMatches(column, *glob, pool, r);
+      }
+    }
     const auto* data =
         static_cast<const StringPool::Id*>(column.data()) + column.start();
     if constexpr (std::is_same_v<O, Eq> || std::is_same_v<O, Ne>) {
@@ -160,99 +184,87 @@ void Compare(const ColumnView& column,
       kept = filter::Filter(reinterpret_cast<const uint32_t*>(data), begin, end,
                             begin, cast.string_id.raw_id(), Cmp());
     } else if constexpr (std::is_same_v<O, Regex>) {
-      kept = filter::StringFilterRegex(&pool, data, *cast.regex, begin, end,
+      kept = filter::StringFilterRegex(&pool, data, cast.regex(), begin, end,
                                        begin);
     } else {
       kept = filter::FilterStringCompare<O>(&pool, data, begin, end, begin,
-                                            cast.text.c_str());
+                                            cast.text().c_str());
     }
   } else {
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     const auto* data = static_cast<const M*>(column.data()) + column.start();
-    M value = base::unchecked_get<M>(cast.value.value);
+    M value = base::unchecked_get<M>(cast.value);
     kept =
         filter::Filter(data, begin, end, begin, value,
                        filter::comparators::IntegerOrDoubleComparator<M, O>());
   }
   r.count = static_cast<uint32_t>(kept - begin);
+  return r;
 }
 
 // Keeps the rows of a column of storage type T whose value is in `list`.
 template <typename T>
-void KeepIn(const ColumnView& column,
-            const CastFilterValueListResult& list,
-            Rows& r) {
+Rows KeepIn(const ColumnView& column,
+            const ParamValue& cast,
+            const StringPool&,
+            Rows r) {
   using M =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
   const auto* data = static_cast<const M*>(column.data()) + column.start();
-  Materialize(r);
+  if (r.contiguous) {
+    r = Materialize(r);
+  }
   base::Span<uint32_t> rows(r.rows, r.rows + r.count);
   base::Span<uint32_t> dest = rows;
-  filter::NonIndexedFilterInScan<T>(list, data, column.start(), rows, dest);
+  filter::NonIndexedFilterInScan<T>(cast.list(), data, column.start(), rows,
+                                    dest);
   r.count = static_cast<uint32_t>(dest.size());
+  return r;
 }
+
+using CompareTable =
+    std::array<std::array<CompareFn, StorageType::kSize>, Op::kSize>;
 
 template <typename T>
-void CompareByOp(const Op& op,
-                 const ColumnView& column,
-                 const ParamValue& cast,
-                 const StringPool& pool,
-                 Rows& r) {
-  switch (op.index()) {
-    case Op::GetTypeIndex<Eq>():
-      return Compare<T, Eq>(column, cast, pool, r);
-    case Op::GetTypeIndex<Ne>():
-      return Compare<T, Ne>(column, cast, pool, r);
-    case Op::GetTypeIndex<Lt>():
-      return Compare<T, Lt>(column, cast, pool, r);
-    case Op::GetTypeIndex<Le>():
-      return Compare<T, Le>(column, cast, pool, r);
-    case Op::GetTypeIndex<Gt>():
-      return Compare<T, Gt>(column, cast, pool, r);
-    case Op::GetTypeIndex<Ge>():
-      return Compare<T, Ge>(column, cast, pool, r);
-    case Op::GetTypeIndex<In>():
-      return KeepIn<T>(column, *cast.list, r);
-    case Op::GetTypeIndex<Glob>():
-      if constexpr (std::is_same_v<T, String>) {
-        return Compare<T, Glob>(column, cast, pool, r);
-      }
-      break;
-    case Op::GetTypeIndex<Regex>():
-      if constexpr (std::is_same_v<T, String>) {
-        return Compare<T, Regex>(column, cast, pool, r);
-      }
-      break;
-    default:
-      break;
+constexpr void FillCompareColumn(CompareTable& t) {
+  constexpr size_t kCol = StorageType::GetTypeIndex<T>();
+  t[Op::GetTypeIndex<Eq>()][kCol] = &Compare<T, Eq>;
+  t[Op::GetTypeIndex<Ne>()][kCol] = &Compare<T, Ne>;
+  t[Op::GetTypeIndex<Lt>()][kCol] = &Compare<T, Lt>;
+  t[Op::GetTypeIndex<Le>()][kCol] = &Compare<T, Le>;
+  t[Op::GetTypeIndex<Gt>()][kCol] = &Compare<T, Gt>;
+  t[Op::GetTypeIndex<Ge>()][kCol] = &Compare<T, Ge>;
+  t[Op::GetTypeIndex<In>()][kCol] = &KeepIn<T>;
+  if constexpr (std::is_same_v<T, String>) {
+    t[Op::GetTypeIndex<Glob>()][kCol] = &Compare<T, Glob>;
+    t[Op::GetTypeIndex<Regex>()][kCol] = &Compare<T, Regex>;
   }
-  PERFETTO_FATAL("Unsupported filter operator");
 }
 
-// Drops the nulls, which no comparison or IN is true of. False if nothing is
-// left to compare: no row can match the cast value, every row left does, or no
-// row is left.
-bool KeepRowsWhichCanMatch(const ParamValue& cast,
-                           const ColumnView& column,
-                           Rows& r) {
-  if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
-    r.count = 0;
-    return false;
-  }
-  KeepNulls(column, /*nulls=*/false, r);
-  return cast.value.validity == CastFilterValueResult::kValid && r.count != 0;
+constexpr CompareTable MakeCompareTable() {
+  CompareTable t{};
+  FillCompareColumn<Uint32>(t);
+  FillCompareColumn<Int32>(t);
+  FillCompareColumn<Int64>(t);
+  FillCompareColumn<Double>(t);
+  FillCompareColumn<String>(t);
+  return t;
 }
+
+constexpr CompareTable kCompareTable = MakeCompareTable();
 
 // Keeps the rows of a string `column` whose value `glob`'s pattern matches.
 // Rows are matched one at a time until as many have been as a quarter of the
 // pool's strings; then, as the interpreter does for a large input, every
 // string in the pool is matched in one pass, and each row after is a bit test.
-void KeepGlobMatches(const ColumnView& column,
-                     GlobMatch& glob,
-                     const StringPool& pool,
-                     Rows& r) {
+PERFETTO_NO_INLINE Rows KeepGlobMatches(const ColumnView& column,
+                                        GlobMatch& glob,
+                                        const StringPool& pool,
+                                        Rows r) {
   const util::GlobMatcher& matcher = glob.matcher;
-  Materialize(r);
+  if (r.contiguous) {
+    r = Materialize(r);
+  }
   const auto* data =
       static_cast<const StringPool::Id*>(column.data()) + column.start();
   uint32_t kept = 0;
@@ -281,7 +293,7 @@ void KeepGlobMatches(const ColumnView& column,
       kept += matcher.Matches(pool.Get(data[row]));
     }
     r.count = kept;
-    return;
+    return r;
   }
   const BitVector& matches = glob.matches;
   for (uint32_t i = 0; i < count; ++i) {
@@ -295,13 +307,17 @@ void KeepGlobMatches(const ColumnView& column,
     kept += match;
   }
   r.count = kept;
+  return r;
 }
 
 // Copies the values of a sparse `column` at the rows kept, none of which is
 // null, into `values` at each row, and views them as a flat column.
 template <uint32_t kWidth>
-ColumnView GatherSparse(const ColumnView& column, Rows& r, uint8_t* values) {
-  Materialize(r);
+PERFETTO_NO_INLINE std::pair<ColumnView, Rows>
+GatherSparse(const ColumnView& column, Rows r, uint8_t* values) {
+  if (r.contiguous) {
+    r = Materialize(r);
+  }
   const auto* packed = static_cast<const uint8_t*>(column.sparse_data());
   // Locals: the bytes written could otherwise alias any of them.
   const uint32_t* rows = r.rows;
@@ -321,14 +337,14 @@ ColumnView GatherSparse(const ColumnView& column, Rows& r, uint8_t* values) {
       memcpy(value, &slot, sizeof(slot));
     }
   }
-  return ColumnView::Reference(column.type(), values);
+  return {ColumnView::Reference(column.type(), values), r};
 }
 
 // Writes the values of a sequence at the rows kept into `values` at each row,
 // and views them as a flat column. Contiguous rows stay contiguous, so the
 // comparison can still filter them as a range.
 PERFETTO_NO_INLINE ColumnView GatherSequence(const ColumnView& column,
-                                             Rows& r,
+                                             Rows r,
                                              uint32_t* values) {
   uint32_t start = column.start();
   if (r.contiguous) {
@@ -343,44 +359,45 @@ PERFETTO_NO_INLINE ColumnView GatherSequence(const ColumnView& column,
   return ColumnView::Reference(StorageType{Uint32{}}, values);
 }
 
-// Applies a comparison or IN to the rows kept so far. The values of a sparse
-// column or a sequence at those rows are written to `sparse_values` first.
-void ApplyCondition(const Op& op,
-                    const ParamValue& cast,
-                    const ColumnView& lent,
-                    const StringPool& pool,
-                    uint64_t* sparse_values,
-                    Rows& r) {
-  if (!KeepRowsWhichCanMatch(cast, lent, r)) {
-    return;
+PERFETTO_NO_INLINE void UnpackSelection(const uint16_t* indices,
+                                        uint32_t count,
+                                        uint32_t* out) {
+  for (uint32_t i = 0; i < count; ++i) {
+    out[i] = indices[i];
+  }
+}
+
+PERFETTO_NO_INLINE Rows ApplySlow(const ColumnView& lent,
+                                  Op op,
+                                  const ParamValue& cast,
+                                  const StringPool& pool,
+                                  uint64_t* sparse_values,
+                                  Rows r) {
+  if (cast.validity == CastFilterValueResult::kNoneMatch) {
+    r.count = 0;
+    return r;
+  }
+  if (lent.kind() == ColumnView::Kind::kVariant || lent.validity() != nullptr) {
+    r = KeepNulls(lent, /*nulls=*/false, r);
+  }
+  if (cast.validity != CastFilterValueResult::kValid || r.count == 0) {
+    return r;
   }
   ColumnView column = lent;
   if (lent.kind() == ColumnView::Kind::kSparse) {
     auto* values = reinterpret_cast<uint8_t*>(sparse_values);
-    column = ValueWidth(lent.type()) == sizeof(uint32_t)
-                 ? GatherSparse<sizeof(uint32_t)>(lent, r, values)
-                 : GatherSparse<sizeof(uint64_t)>(lent, r, values);
+    auto gathered = ValueWidth(lent.type()) == sizeof(uint32_t)
+                        ? GatherSparse<sizeof(uint32_t)>(lent, r, values)
+                        : GatherSparse<sizeof(uint64_t)>(lent, r, values);
+    column = gathered.first;
+    r = gathered.second;
   } else if (lent.kind() == ColumnView::Kind::kSequence) {
     column =
         GatherSequence(lent, r, reinterpret_cast<uint32_t*>(sparse_values));
   }
-  if (op.Is<Glob>() && cast.glob) {
-    return KeepGlobMatches(column, *cast.glob, pool, r);
-  }
-  switch (column.type().index()) {
-    case StorageType::GetTypeIndex<Uint32>():
-      return CompareByOp<Uint32>(op, column, cast, pool, r);
-    case StorageType::GetTypeIndex<Int32>():
-      return CompareByOp<Int32>(op, column, cast, pool, r);
-    case StorageType::GetTypeIndex<Int64>():
-      return CompareByOp<Int64>(op, column, cast, pool, r);
-    case StorageType::GetTypeIndex<Double>():
-      return CompareByOp<Double>(op, column, cast, pool, r);
-    case StorageType::GetTypeIndex<String>():
-      return CompareByOp<String>(op, column, cast, pool, r);
-    default:
-      PERFETTO_FATAL("Unsupported storage type");
-  }
+  CompareFn fn = kCompareTable[op.index()][column.type().index()];
+  PERFETTO_DCHECK(fn != nullptr);
+  return fn(column, cast, pool, r);
 }
 
 }  // namespace
@@ -402,32 +419,53 @@ OperatorState* Filter::NewState(Context& context) const {
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
-  const Context& context = s.context();
-  const ParamValue* values = context.params().b;
   const Selection& selection = batch.selection();
   Rows r{s.rows.begin(), selection.size(), selection.prefix()};
-  if (!r.contiguous) {
-    const uint16_t* indices = selection.indices();
-    for (uint32_t i = 0, n = r.count; i < n; ++i) {
-      r.rows[i] = indices[i];
-    }
-  }
-  for (uint32_t i = 0; i < conditions_.size() && r.count != 0; ++i) {
-    const Condition& c = conditions_[i];
-    const ColumnView& column = batch.column(c.column);
-    if (c.op.IsAnyOf<NullOp>()) {
-      KeepNulls(column, c.op.Is<IsNull>(), r);
-      continue;
-    }
-    PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
-    PERFETTO_DCHECK(c.param < context.params().size());
-    ApplyCondition(c.op, values[c.param], column, *pool_,
-                   s.sparse_values.begin(), r);
-  }
-  if (r.contiguous && r.count == selection.size()) {
+  if (PERFETTO_UNLIKELY(r.count == 0 || conditions_.empty())) {
     return true;
   }
-  Materialize(r);
+  if (PERFETTO_UNLIKELY(!r.contiguous)) {
+    UnpackSelection(selection.indices(), r.count, r.rows);
+  }
+  const Context& context = s.context();
+  const ParamValue* values = context.params().b;
+  for (const Condition& c : conditions_) {
+    const ColumnView& column = batch.column(c.column);
+    if (PERFETTO_UNLIKELY(c.op.IsAnyOf<NullOp>())) {
+      r = KeepNulls(column, c.op.Is<IsNull>(), r);
+    } else {
+      PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
+      PERFETTO_DCHECK(c.param < context.params().size());
+      const ParamValue& cast = values[c.param];
+      // Dense nullable flat columns hold initialized slots, so numeric
+      // comparisons and interned-id string = / != can filter contiguously
+      // first and drop nulls only from the surviving rows.
+      bool null_before_compare = column.validity() != nullptr &&
+                                 column.type().Is<String>() && !c.op.Is<Eq>() &&
+                                 !c.op.Is<Ne>();
+      if (PERFETTO_UNLIKELY(cast.validity != CastFilterValueResult::kValid ||
+                            column.kind() != ColumnView::Kind::kFlat ||
+                            null_before_compare)) {
+        r = ApplySlow(column, c.op, cast, *pool_, s.sparse_values.begin(), r);
+      } else {
+        CompareFn fn = kCompareTable[c.op.index()][column.type().index()];
+        PERFETTO_DCHECK(fn != nullptr);
+        r = fn(column, cast, *pool_, r);
+        if (column.validity() != nullptr && r.count != 0) {
+          r = KeepNulls(column, /*nulls=*/false, r);
+        }
+      }
+    }
+    if (r.count == 0) {
+      break;
+    }
+  }
+  if (PERFETTO_UNLIKELY(r.contiguous)) {
+    if (r.count == selection.size()) {
+      return true;
+    }
+    r = Materialize(r);
+  }
   batch.mutable_selection().KeepRows(
       base::Span<const uint32_t>(r.rows, r.rows + r.count));
   return true;

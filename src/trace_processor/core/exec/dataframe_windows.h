@@ -50,7 +50,16 @@ class DataframeWindows {
   void Init(base::Span<const dataframe::Column* const>, OperatorState& owner);
 
   // Points `out` at rows [from, from + count), all kept.
-  void Fill(uint32_t from, uint32_t count, RowBatch& out);
+  PERFETTO_ALWAYS_INLINE void Fill(uint32_t from,
+                                   uint32_t count,
+                                   RowBatch& out) {
+    // Only the windows move: the views stay as they were lent.
+    for (uint32_t i = 0; i < count_; ++i) {
+      lent_[i].set_start(from);
+    }
+    out.SetColumns(lent_, buffers_, count_);
+    out.SetRowCount(count);
+  }
 
   // Fills `out` with copies of the values at `rows`, in buffers taken from
   // `context`. A column with no storage of its own becomes stored Uint32s,
@@ -105,6 +114,7 @@ class RangeReader {
     uint32_t count = std::min(kMaxBatchRows, range_.e - next_);
     windows_.Fill(next_, count, out);
     next_ += count;
+    out.SetLast(next_ == range_.e);
     return true;
   }
 
@@ -146,6 +156,7 @@ class RowListReader {
     windows_.Gather(base::Span<const uint32_t>(next_, next_ + count), *context_,
                     out);
     next_ += count;
+    out.SetLast(next_ == end_);
     return true;
   }
 

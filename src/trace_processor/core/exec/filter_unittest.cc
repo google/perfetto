@@ -437,5 +437,54 @@ TEST(FilterNullTest, ReadsVariantColumns) {
   EXPECT_THAT(kept(IsNotNull{}), ElementsAre(20, 30));
 }
 
+TEST(FilterNullTest, DenseNullDropsMatchingNullSlots) {
+  StringPool pool;
+  StringPool::Id a = pool.InternString("a");
+  StringPool::Id b = pool.InternString("b");
+  // Rows 1 and 3 are null even though their underlying storage holds matching
+  // values (e.g. placeholder 0 or a stale interned id).
+  StringPool::Id strings[] = {a, a, b, StringPool::Id::Null(), a};
+  int64_t numbers[] = {0, 0, 10, 10, 20};
+  int64_t ids[] = {0, 1, 2, 3, 4};
+  BitVector validity = BitVector::CreateWithSize(5, true);
+  validity.clear(1);
+  validity.clear(3);
+
+  auto run = [&](ColumnView col, StorageType type, Op op, Value v) {
+    Filter filter(test::InArena<Filter::Condition>({{0, op, 0}}), &pool);
+    Context context;
+    OperatorState* state = filter.MakeState(context);
+    Values fetcher;
+    fetcher.v = {v};
+    ParamValue cast[1];
+    GetParamCaster<Values>(type, op)(fetcher, 0, pool, &cast[0]);
+    context.SetParams(base::Span<const ParamValue>(cast));
+    RowBatch batch;
+    batch.AddBorrowedColumn(col);
+    batch.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, ids, nullptr));
+    batch.SetRowCount(5);
+    PERFETTO_CHECK(filter.Process(batch, *state));
+    return test::ReadColumn<int64_t>(batch, 1);
+  };
+
+  ColumnView str_col =
+      ColumnView::Reference(StorageType{String{}}, strings, &validity);
+  EXPECT_THAT(run(str_col, StorageType{String{}}, Eq{}, "a"),
+              ElementsAre(0, 4));
+  EXPECT_THAT(run(str_col, StorageType{String{}}, Ne{}, "a"), ElementsAre(2));
+  EXPECT_THAT(run(str_col, StorageType{String{}}, Lt{}, "b"),
+              ElementsAre(0, 4));
+
+  ColumnView num_col =
+      ColumnView::Reference(StorageType{Int64{}}, numbers, &validity);
+  EXPECT_THAT(run(num_col, StorageType{Int64{}}, Eq{}, int64_t{0}),
+              ElementsAre(0));
+  EXPECT_THAT(run(num_col, StorageType{Int64{}}, Ne{}, int64_t{0}),
+              ElementsAre(2, 4));
+  EXPECT_THAT(run(num_col, StorageType{Int64{}}, Lt{}, int64_t{15}),
+              ElementsAre(0, 2));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec
