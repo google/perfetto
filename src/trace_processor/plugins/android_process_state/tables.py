@@ -120,11 +120,8 @@ ANDROID_FREEZER_STATE_TABLE = Table(
         C('unfreeze_reason',
           CppOptional(CppString()),
           cpp_access=CppAccess.READ),
-        C('unfrozen_start_ts',
-          CppOptional(CppInt64()),
-          cpp_access=CppAccess.READ),
-        C('frozen_start_ts', CppOptional(CppInt64()),
-          cpp_access=CppAccess.READ),
+        C('unfrozen_start_ts', CppOptional(CppInt64())),
+        C('frozen_start_ts', CppOptional(CppInt64())),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(

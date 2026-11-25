@@ -300,25 +300,22 @@ WITH
     )
     UNION ALL
     -- Processes without events kept their trace-stop state throughout, since
-    -- they entered it if the snapshot says so.
-    SELECT upid, ts, iif(death IS NULL, -1, death - ts) AS dur, state
+    -- they entered it if the snapshot says so. A start after the process's
+    -- death is invalid, so it is treated as unknown, and the duration is never
+    -- negative, so it can't be mistaken for an open-ended (-1) span.
+    SELECT upid, ts, iif(death IS NULL, -1, max(death - ts, 0)) AS dur, state
     FROM (
       SELECT
         s.upid,
-        max(
-          l.birth,
-          coalesce(
-            iif(
-              s.unfreeze_reason IS NULL,
-              s.frozen_start_ts,
-              s.unfrozen_start_ts
-            ),
-            l.birth
-          )
-        ) AS ts,
+        max(l.birth, coalesce(iif(start_ts > l.death, NULL, start_ts), l.birth)) AS ts,
         l.death,
         iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
-      FROM __intrinsic_android_freezer_state AS s
+      FROM (
+        SELECT
+          *,
+          iif(unfreeze_reason IS NULL, frozen_start_ts, unfrozen_start_ts) AS start_ts
+        FROM __intrinsic_android_freezer_state
+      ) AS s
       JOIN lifetimes AS l USING (upid)
       WHERE
         s.is_initial = 1

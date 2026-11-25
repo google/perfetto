@@ -32,7 +32,6 @@
 
 namespace perfetto::trace_processor {
 class ArgsInserter;
-class ClockTracker;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
@@ -112,19 +111,16 @@ class AndroidProcessStateTracker {
     std::optional<int64_t> frozen_start_ts;
   };
 
-  // Reads the prev_* fields shared by AndroidProcessStateChangedEvent and
-  // AndroidProcessStateDiedEvent into |prev|. Defined in the .cc file, the
-  // only place it is instantiated.
+  // The track-event stream only emits delta transitions (prev -> cur). To
+  // reconstruct each process's state at the start of the trace, records the
+  // prev_* fields shared by AndroidProcessStateChangedEvent and
+  // AndroidProcessStateDiedEvent from the earliest such event of |upid|, at
+  // |ts|. Later events return before reading them. Defined in the .cc file,
+  // the only place it is instantiated.
   template <typename Decoder>
-  static void ReadPrevState(const Decoder& event,
-                            ClockTracker* clock_tracker,
-                            int64_t ts,
-                            ProcessStateValues* prev);
-
-  // Records the pre-change state (prev_*) from the earliest delta track event
-  // seen for a process to establish its baseline at trace start.
   void UpdateInitialStateFromDelta(int64_t ts,
-                                   const ProcessStateValues& prev_state);
+                                   UniquePid upid,
+                                   const Decoder& event);
 
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.

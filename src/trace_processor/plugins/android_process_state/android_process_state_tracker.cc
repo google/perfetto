@@ -110,40 +110,34 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
-// The track-event stream only emits delta transitions (prev -> cur). To
-// reconstruct each process's state at the start of the trace, we record the
-// `prev_*` values from its earliest observed delta event.
+template <typename Decoder>
 void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
     int64_t ts,
-    const ProcessStateValues& prev_state) {
-  EarliestDelta& earliest = earliest_prev_[prev_state.upid];
+    UniquePid upid,
+    const Decoder& event) {
+  EarliestDelta& earliest = earliest_prev_[upid];
   if (ts >= earliest.ts) {
     return;
   }
   earliest.ts = ts;
-  earliest.values = prev_state;
-}
-
-template <typename Decoder>
-void AndroidProcessStateTracker::ReadPrevState(const Decoder& event,
-                                               ClockTracker* clock_tracker,
-                                               int64_t ts,
-                                               ProcessStateValues* prev) {
+  ProcessStateValues& prev = earliest.values;
+  prev = ProcessStateValues();
+  prev.upid = upid;
   if (event.has_prev_proc_state()) {
-    prev->proc_state = static_cast<int32_t>(event.prev_proc_state());
+    prev.proc_state = static_cast<int32_t>(event.prev_proc_state());
   }
   if (event.has_prev_oom_score()) {
-    prev->oom_score = event.prev_oom_score();
+    prev.oom_score = event.prev_oom_score();
   }
   if (event.has_prev_capability_flags()) {
-    prev->capability_flags = event.prev_capability_flags();
+    prev.capability_flags = event.prev_capability_flags();
   }
   if (event.has_prev_process_group()) {
-    prev->process_group = static_cast<int32_t>(event.prev_process_group());
+    prev.process_group = static_cast<int32_t>(event.prev_process_group());
   }
   if (event.has_prev_proc_state_start_ns()) {
-    prev->start_ts =
-        StartNsToTraceTime(clock_tracker, event.prev_proc_state_start_ns(), ts);
+    prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                       event.prev_proc_state_start_ns(), ts);
   }
 }
 
@@ -158,10 +152,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   UniquePid upid = *opt_upid;
 
-  ProcessStateValues prev;
-  prev.upid = upid;
-  ReadPrevState(p, context_->clock_tracker.get(), ts, &prev);
-  UpdateInitialStateFromDelta(ts, prev);
+  UpdateInitialStateFromDelta(ts, upid, p);
 
   // Insert the change row.
   tables::AndroidProcessStateTable::Row row;
@@ -214,22 +205,14 @@ void AndroidProcessStateTracker::ParseProcessStateDied(
     int64_t ts,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessStateDiedEvent::Decoder p(bytes);
-  if (!p.has_pid() || p.pid() <= 0) {
-    return;
-  }
-  auto pid = static_cast<uint32_t>(p.pid());
   // system_server emits this before cleaning up the process, so the pid still
   // resolves to the dying process unless it was already reused.
   std::optional<UniquePid> opt_upid =
-      context_->process_tracker->GetProcessOrNull(pid);
+      ResolveLiveProcess(ts, "process_state_died", p.pid());
   if (!opt_upid) {
-    unknown_process_logger_.Record(ts, "process_state_died", pid);
     return;
   }
-  ProcessStateValues prev;
-  prev.upid = *opt_upid;
-  ReadPrevState(p, context_->clock_tracker.get(), ts, &prev);
-  UpdateInitialStateFromDelta(ts, prev);
+  UpdateInitialStateFromDelta(ts, *opt_upid, p);
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
