@@ -951,3 +951,143 @@ describe('DriveClient.uploadFile', () => {
     });
   });
 });
+
+describe('DriveClient.getPermissions', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(
+      Response.json({
+        permissions: [
+          {
+            id: 'p1',
+            type: 'user',
+            role: 'owner',
+            emailAddress: 'alice@example.com',
+            displayName: 'Alice',
+          },
+          {
+            id: 'p2',
+            type: 'domain',
+            role: 'reader',
+            domain: 'example.com',
+            allowFileDiscovery: true,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('requests fields=permissions with supportsAllDrives=true and parses permissions', async () => {
+    const client = await createClient();
+    const result = await client.getPermissions(
+      'secret-token',
+      'file123',
+      'rk-1',
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          id: 'p1',
+          type: 'user',
+          role: 'owner',
+          emailAddress: 'alice@example.com',
+          displayName: 'Alice',
+        },
+        {
+          id: 'p2',
+          type: 'domain',
+          role: 'reader',
+          domain: 'example.com',
+          allowFileDiscovery: true,
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions');
+    expect(url.searchParams.get('fields')).toBe(
+      'permissions(id,type,role,emailAddress,displayName,domain,allowFileDiscovery)',
+    );
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(request.headers.get('X-Goog-Drive-Resource-Keys')).toBe(
+      'file123/rk-1',
+    );
+  });
+
+  test('reports HTTP 403 as access_denied', async () => {
+    fetchMock.mockResolvedValue(new Response(null, {status: 403}));
+    const client = await createClient();
+    const result = await client.getPermissions('token', 'file123');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
+});
+
+describe('DriveClient.createPermission', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({id: 'p1'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('posts permission payload with supportsAllDrives=true', async () => {
+    const client = await createClient();
+    const payload = {
+      type: 'domain',
+      domain: '00gjdgxs4cdk4oe.audience.googledomains.com',
+      role: 'reader',
+      allowFileDiscovery: true,
+    } as const;
+    const result = await client.createPermission(
+      'secret-token',
+      'file123',
+      payload,
+    );
+
+    expect(result).toEqual({ok: true});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(request.method).toBe('POST');
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions');
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(await request.json()).toEqual(payload);
+  });
+
+  test('reports HTTP 403 as access_denied with Drive error message', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({error: {message: 'Forbidden by policy'}}, {status: 403}),
+    );
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {type: 'access_denied', cause: 'Forbidden by policy'},
+    });
+  });
+});
