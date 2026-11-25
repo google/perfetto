@@ -31,7 +31,6 @@ from typing import List
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-import check_sql_modules_legacy
 from python.generators.sql_processing.pfsql import parse_modules
 from python.generators.sql_processing.stdlib_parser import parse_all_modules
 from python.generators.sql_processing.utils import check_banned_usage
@@ -280,10 +279,6 @@ def check_layering(modules: List[dict], quiet: bool = False) -> int:
 
 
 def main() -> int:
-  # Chromium doesn't pass the flag yet and has no pfsql binary.
-  if not any(arg.split('=')[0] == '--pfsql-binary' for arg in sys.argv[1:]):
-    return check_sql_modules_legacy.main()
-
   parser = argparse.ArgumentParser(
       description="Check stdlib modules for banned patterns and documentation")
   parser.add_argument(
