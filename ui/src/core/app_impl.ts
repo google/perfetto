@@ -66,6 +66,7 @@ function derivePolicy(isInternalUser: boolean): Policy {
       ? 'https://goto.google.com/perfetto-ui-bug'
       : 'https://github.com/google/perfetto/issues/new',
     googlerOnlyFeatures: isInternalUser,
+    defaultPlugins: isInternalUser ? ['dev.perfetto.GoogleDrive'] : [],
   };
 }
 
@@ -179,7 +180,10 @@ export class AppImpl implements App {
       hidden: this.initialRouteArgs.hideSidebar,
     });
     this.embedder = createEmbedder();
-    this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
+    this.plugins = new PluginManagerImpl([
+      ...this.embedder.defaultPlugins,
+      ...this.policy.defaultPlugins,
+    ]);
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,
