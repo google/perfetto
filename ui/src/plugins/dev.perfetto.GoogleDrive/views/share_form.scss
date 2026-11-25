@@ -15,12 +15,8 @@
 // The "Share to Google Drive" dialog is built from the standard widgets (Form,
 // TextInput, Button, Callout, ...), which bring their own styling. Only the
 // layout specific to this dialog lives here.
-.pf-gdrive-share {
-  // Fill the modal, which is at least a quarter of the viewport wide, but do
-  // not let the form get cramped when that is narrow or stretch too wide.
-  min-width: min(450px, 80vw);
-  max-width: min(500px, 80vw);
 
+.pf-gdrive-share {
   &__error {
     display: flex;
     align-items: flex-start;

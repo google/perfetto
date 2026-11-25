@@ -43,6 +43,7 @@ import {
   uploadTraceToGDrive,
 } from './share_to_gdrive';
 import {GDRIVE_PLUGIN_ID, parseGDriveTraceArgs} from './trace_args';
+import './index.scss';
 
 export interface GDriveClients {
   readonly oauth: GoogleOAuthClient;
@@ -184,6 +185,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           key: OPEN_MODAL_KEY,
           title: 'Open from Google Drive',
           icon: 'drive_export',
+          className: 'pf-gdrive-modal',
           content: () =>
             m(OpenForm, {
               link,
@@ -374,6 +376,7 @@ export default class GoogleDrivePlugin implements PerfettoPlugin {
           key: 'GDriveUpload',
           title: 'Share to Google Drive',
           icon: 'cloud_upload',
+          className: 'pf-gdrive-modal',
           onClose: () => dialogAbort.abort(),
           content: () =>
             m(ShareForm, {
