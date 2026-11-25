@@ -342,6 +342,11 @@ CREATE PERFETTO TABLE _android_freezer_flattened AS
 FROM (
   SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur, state
   FROM _android_freezer_intervals
+  -- The trace-stop snapshot packet doesn't extend the trace bounds, so a span
+  -- from its start times can begin after the trace end. Such a span lies
+  -- outside the trace, and would give INTERVAL FLATTEN a negative duration.
+  WHERE
+    ts < trace_end()
 )
 |> INTERVAL FLATTEN PER state AGGREGATE COUNT(*) AS concurrency
 |> INTERVAL FILL GAPS WITH (

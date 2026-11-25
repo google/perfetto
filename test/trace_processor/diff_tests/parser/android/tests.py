@@ -680,6 +680,7 @@ class AndroidParser(TestSuite):
           "[NULL]",1200,"[NULL]","[NULL]","UFR_NONE",6499500000,"[NULL]",1
           "[NULL]",1300,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
           5500000000,1400,1000,"[NULL]","[NULL]","[NULL]","[NULL]",0
+          "[NULL]",1500,"[NULL]","[NULL]","[NULL]","[NULL]",6700000000,1
         """))
 
   def test_android_freezer_state(self):
