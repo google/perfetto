@@ -76,6 +76,11 @@ base::Status AddSythThreadsToProcessTrees::Transform(
   }
 
   protozero::ProtoDecoder decoder(*packet);
+  if (!decoder.FindField(protos::pbzero::TracePacket::kProcessTreeFieldNumber)
+           .valid()) {
+    return base::OkStatus();
+  }
+
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
   for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {

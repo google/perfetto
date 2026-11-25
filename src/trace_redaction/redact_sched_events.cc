@@ -123,8 +123,13 @@ base::Status RedactSchedEvents::Transform(const Context& context,
     return base::ErrStatus("RedactSchedEvents: null or empty packet.");
   }
 
-  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
   protozero::ProtoDecoder decoder(*packet);
+  if (!decoder.FindField(protos::pbzero::TracePacket::kFtraceEventsFieldNumber)
+           .valid()) {
+    return base::OkStatus();
+  }
+
+  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {

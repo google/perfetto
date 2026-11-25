@@ -16,6 +16,7 @@
 
 #include "src/trace_redaction/broadphase_packet_filter.h"
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_redaction/proto_util.h"
@@ -25,26 +26,50 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto::trace_redaction {
+namespace {
+
+// Returns true when every top-level field of `packet` is in `mask` and none is
+// `ftrace_events` (which requires inner event filtering via `ftrace_mask`), so
+// the packet can pass through untouched without re-serialization.
+bool IsPacketFullyAllowed(const std::string& packet,
+                          const Context::TracePacketMask& mask) {
+  protozero::ProtoDecoder decoder(packet);
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() >= mask.size() || !mask.test(field.id()) ||
+        field.id() == protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
 
 base::Status BroadphasePacketFilter::Transform(const Context& context,
                                                std::string* packet) const {
-  if (context.packet_mask.none()) {
+  if (PERFETTO_UNLIKELY(context.packet_mask.none())) {
     return base::ErrStatus("FilterTracePacketFields: empty packet mask.");
   }
 
-  if (context.ftrace_mask.none()) {
-    return base::ErrStatus("FilterTracePacketFields: empty ftrace mask.");
-  }
-
-  if (!packet || packet->empty()) {
+  if (PERFETTO_UNLIKELY(!packet || packet->empty())) {
     return base::ErrStatus("FilterTracePacketFields: missing packet.");
   }
 
-  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
+  const auto& mask = context.packet_mask;
+
+  if (PERFETTO_UNLIKELY(
+          mask.test(protos::pbzero::TracePacket::kFtraceEventsFieldNumber) &&
+          context.ftrace_mask.none())) {
+    return base::ErrStatus("FilterTracePacketFields: empty ftrace mask.");
+  }
+
+  if (IsPacketFullyAllowed(*packet, mask)) {
+    return base::OkStatus();
+  }
 
   protozero::ProtoDecoder decoder(*packet);
-
-  const auto& mask = context.packet_mask;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {

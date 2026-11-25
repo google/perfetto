@@ -49,6 +49,11 @@ base::Status RedactProcessEvents::Transform(const Context& context,
   }
 
   protozero::ProtoDecoder packet_decoder(*packet);
+  if (!packet_decoder
+           .FindField(protos::pbzero::TracePacket::kFtraceEventsFieldNumber)
+           .valid()) {
+    return base::OkStatus();
+  }
 
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 

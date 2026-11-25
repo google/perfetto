@@ -93,6 +93,10 @@ base::Status ReduceThreadsInProcessTrees::Transform(const Context& context,
   }
 
   protozero::ProtoDecoder decoder(*packet);
+  if (!decoder.FindField(protos::pbzero::TracePacket::kProcessTreeFieldNumber)
+           .valid()) {
+    return base::OkStatus();
+  }
 
   // This has been verified by the verify primitive.
   auto timestamp =

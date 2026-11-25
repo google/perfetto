@@ -79,6 +79,10 @@ void OnFtraceEventBundle(
 base::Status DropEmptyFtraceEvents::Transform(const Context&,
                                               std::string* packet) const {
   protozero::ProtoDecoder decoder(*packet);
+  if (!decoder.FindField(kFtraceEventsFieldNumber).valid()) {
+    return base::OkStatus();
+  }
+
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet_message;
 
   for (auto field = decoder.ReadField(); field.valid();
