@@ -103,8 +103,11 @@ export default defineConfig({
     {
       // Component tests: drive single widgets mounted in isolation via
       // component_harness.html. Requires `ui/build --enable-component-harness`.
+      // Uses {testFilePath} rather than {testFileName} because colocated
+      // *.ctest.ts files share basenames across plugins/widgets.
       name: 'components',
       testMatch: '**/*.ctest.ts',
+      snapshotPathTemplate: '{snapshotDir}/components/{testFilePath}/{arg}{ext}',
       use: chromiumUse,
     },
   ],

@@ -33,6 +33,8 @@ export interface HarnessWindow {
   __events: unknown[];
   // Set to true once the fixture has been mounted and first rendered.
   __harnessReady: boolean;
+  // Set when the requested fixture could not be found.
+  __harnessError?: string;
 }
 
 // Builds the name -> fixture map from the result of an import.meta.glob() of
