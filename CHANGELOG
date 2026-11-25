@@ -12,6 +12,9 @@ Unreleased:
   Trace Processor:
    * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
      one call failed (e.g. an interrupted query), until they were redefined.
+   * Fixed `InterruptQuery()` (e.g. Ctrl-C in `trace_processor_shell`) being
+     lost when it arrived between two statements of a query, which let the
+     rest of the query run to the end.
    * Fixed `heap_graph_object.root_distance` always being `-1` for
      `android.java_hprof` heap graphs (regression introduced in v59.0).
    * Fixed `android.cujs` jank CUJ frame metrics (e.g.
