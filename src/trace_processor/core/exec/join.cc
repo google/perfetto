@@ -155,8 +155,6 @@ JoinBuild::Built::~Built() = default;
 JoinBuild::JoinBuild(uint32_t key, core::ArenaSpan<bool> unread)
     : key_(key), unread_(unread) {}
 
-JoinBuild::~JoinBuild() = default;
-
 std::unique_ptr<OperatorState> JoinBuild::MakeSinkState(
     Context& context) const {
   auto built = std::make_unique<Built>();
@@ -220,8 +218,6 @@ struct Join::State : OperatorState {
 Join::State::~State() = default;
 
 Join::Join(JoinSpec spec) : spec_(spec) {}
-
-Join::~Join() = default;
 
 void Join::DescribeColumns(StepColumns* out) const {
   out->keeps = StepColumns::Keeps::kAll;

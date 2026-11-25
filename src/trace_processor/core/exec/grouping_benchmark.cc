@@ -113,8 +113,9 @@ void BM_GroupBy(benchmark::State& state) {
   keys = shape == kTwoInt64 ? std::vector<uint32_t>{0, 1}
                             : std::vector<uint32_t>{0};
 
-  test::BreakerRun run(batches, std::make_unique<GroupedSort>(GroupedSortSpec{
-                                    arena.CopySpan<uint32_t>(keys), {}}));
+  test::BreakerRun run(arena, batches,
+                       arena.New<GroupedSort>(GroupedSortSpec{
+                           arena.CopySpan<uint32_t>(keys), {}}));
   for (auto _ : state) {
     benchmark::DoNotOptimize(run.Run());
   }

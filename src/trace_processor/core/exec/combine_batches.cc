@@ -25,7 +25,6 @@
 namespace perfetto::trace_processor::core::exec {
 
 CombineBatches::CombineBatches() = default;
-CombineBatches::~CombineBatches() = default;
 CombineBatches::State::~State() = default;
 
 std::unique_ptr<OperatorState> CombineBatches::MakeState(

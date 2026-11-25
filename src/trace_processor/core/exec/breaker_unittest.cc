@@ -118,21 +118,21 @@ std::vector<int64_t> DrainValues(const Source& source,
 
 // Ends a pipeline of `input`, with no steps, in `breaker`, and returns the
 // source which serves what it builds.
-std::unique_ptr<Served> EndIn(Pipelines& pipelines,
-                              const Source& input,
-                              std::unique_ptr<Breaker> breaker) {
-  const Breaker& served = *breaker;
+const Served* EndIn(Pipelines& pipelines,
+                    const Source& input,
+                    const Breaker* breaker) {
   uint32_t id = pipelines.Add(
-      nullptr, std::make_unique<Pipeline>(input, std::vector<Pipeline::Step>()),
-      std::move(breaker));
-  return std::make_unique<Served>(id, served);
+      test::TestArena().New<Pipeline>(test::TestArena(), input,
+                                      base::Span<const Pipeline::Step>{}),
+      breaker);
+  return test::TestArena().New<Served>(id, *breaker);
 }
 
 TEST(BreakerTest, ServesOnlyOnceTheWholeInputIsIn) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
   Pipelines pipelines;
-  std::unique_ptr<Served> reverse =
-      EndIn(pipelines, source, std::make_unique<Reverse>());
+  const Served* reverse =
+      EndIn(pipelines, source, test::TestArena().New<Reverse>());
   std::vector<int64_t> values = DrainValues(*reverse, pipelines);
   ASSERT_EQ(values.size(), kMaxBatchRows * 2u + 7u);
   EXPECT_EQ(values.front(), kMaxBatchRows * 2 + 6);
@@ -145,10 +145,10 @@ TEST(BreakerTest, ConsecutiveBreakersEachEndAPipeline) {
   auto expected = Sequence(kMaxBatchRows * 2 + 7);
   ArraySource source(expected);
   Pipelines pipelines;
-  std::unique_ptr<Served> first =
-      EndIn(pipelines, source, std::make_unique<Reverse>());
-  std::unique_ptr<Served> second =
-      EndIn(pipelines, *first, std::make_unique<Reverse>(0));
+  const Served* first =
+      EndIn(pipelines, source, test::TestArena().New<Reverse>());
+  const Served* second =
+      EndIn(pipelines, *first, test::TestArena().New<Reverse>(0u));
   RowCursor cursor(*second, pipelines);
   // Restart while a breaker still has buffered output to serve.
   ASSERT_TRUE(cursor.Open());
@@ -165,8 +165,8 @@ TEST(BreakerTest, ConsecutiveBreakersEachEndAPipeline) {
 TEST(BreakerTest, AFailedInputFailsTheSourceServingIt) {
   FailingSource source;
   Pipelines pipelines;
-  std::unique_ptr<Served> reverse =
-      EndIn(pipelines, source, std::make_unique<Reverse>());
+  const Served* reverse =
+      EndIn(pipelines, source, test::TestArena().New<Reverse>());
   RowCursor cursor(*reverse, pipelines);
   EXPECT_FALSE(cursor.Open());
   EXPECT_EQ(cursor.status().message(), "input broke");
@@ -257,13 +257,13 @@ TEST(SinkTest, BuildsOnceARunWhenFirstRead) {
   ArraySource summed(Sequence(kMaxBatchRows + 4));
   Pipelines pipelines;
   uint32_t total = pipelines.Add(
-      nullptr,
-      std::make_unique<Pipeline>(summed, std::vector<Pipeline::Step>()),
-      std::make_unique<Total>(&builds));
+      test::TestArena().New<Pipeline>(test::TestArena(), summed,
+                                      base::Span<const Pipeline::Step>{}),
+      test::TestArena().New<Total>(&builds));
   ArraySource rows(Sequence(kMaxBatchRows * 2));
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::make_unique<WithTotal>(total));
-  Pipeline reads(rows, std::move(steps));
+  steps.push_back(test::TestArena().New<WithTotal>(total));
+  Pipeline reads(test::TestArena(), rows, steps);
 
   int64_t sum = (kMaxBatchRows + 4) * (kMaxBatchRows + 3) / 2;
   RowCursor cursor(reads, pipelines);
@@ -281,8 +281,8 @@ TEST(SinkTest, BuildsOnceARunWhenFirstRead) {
   // A step given no rows never reads it, so it is not built.
   ArraySource none(std::vector<int64_t>{});
   std::vector<Pipeline::Step> empty_steps;
-  empty_steps.push_back(std::make_unique<WithTotal>(total));
-  Pipeline empty(none, std::move(empty_steps));
+  empty_steps.push_back(test::TestArena().New<WithTotal>(total));
+  Pipeline empty(test::TestArena(), none, empty_steps);
   RowCursor empty_cursor(empty, pipelines);
   EXPECT_FALSE(empty_cursor.Open());
   EXPECT_EQ(builds, 2u);
@@ -324,10 +324,10 @@ TEST(SinkTest, EndPipelineRunEndsHeldStepsBeforeExhaustion) {
   uint32_t ends = 0;
   ArraySource rows(Sequence(kMaxBatchRows * 2));
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::make_unique<CountEndRuns>(&ends));
+  steps.push_back(test::TestArena().New<CountEndRuns>(&ends));
   Pipelines pipelines;
   uint32_t id = pipelines.Add(
-      nullptr, std::make_unique<Pipeline>(rows, std::move(steps)), nullptr);
+      test::TestArena().New<Pipeline>(test::TestArena(), rows, steps), nullptr);
 
   Context context;
   context.SetPipelines(&pipelines);

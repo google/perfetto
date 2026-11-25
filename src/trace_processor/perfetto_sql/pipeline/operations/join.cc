@@ -211,11 +211,11 @@ void Join::Lower(Lowering* c, const PlanNode& node) const {
                   type.storage().value_or(core::StorageType{core::Int64{}})};
   }
   uint32_t build_pipeline =
-      build.FinishSide(std::make_unique<ex::JoinBuild>(key, unread));
+      build.FinishSide(build.arena().New<ex::JoinBuild>(key, unread));
   ex::JoinSpec spec{
       left_ ? ex::JoinSpec::Kind::kLeft : ex::JoinSpec::Kind::kInner,
       c->QueryPosition(probe_key_), build_pipeline, outputs};
-  c->AddOperator(std::make_unique<ex::Join>(spec));
+  c->AddOperator(c->arena().New<ex::Join>(spec));
 }
 
 void Join::Serialize(PlanCodec& c) {

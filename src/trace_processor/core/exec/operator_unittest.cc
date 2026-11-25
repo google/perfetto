@@ -118,9 +118,9 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   ArraySource source(Sequence(17));
   std::vector<Pipeline::Step> ops;
   for (int i = 0; i < 3; ++i) {
-    ops.push_back(std::make_unique<DropOddRows>());
+    ops.push_back(test::TestArena().New<DropOddRows>());
   }
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(test::TestArena(), source, ops);
 
   // Keeping every second row three times leaves every eighth. The third
   // operator narrows a selection the batch already composed, in place.
@@ -130,7 +130,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
 // Reads every row of every batch, and reads them all again when reopened.
 TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(test::TestArena(), source, {});
 
   for (int run = 0; run < 2; ++run) {
     std::vector<uint32_t> rows = Drain(pipeline);
@@ -204,7 +204,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 // must still report eof.
 TEST(SinkTest, EofStaysEof) {
   ArraySource source({1, 2});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(test::TestArena(), source, {});
   RowCursor cursor(pipeline);
   EXPECT_TRUE(cursor.eof());
   cursor.Open();
@@ -307,9 +307,9 @@ TEST(StateTest, AStepsRunEndsWithItsStream) {
   ArraySource source({10, 20});
   const std::vector<uint32_t>* seen = nullptr;
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Recording>(&seen));
-  ops.push_back(std::make_unique<Trailer>(99, 2));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(test::TestArena().New<Recording>(&seen));
+  ops.push_back(test::TestArena().New<Trailer>(99, 2u));
+  Pipeline pipeline(test::TestArena(), source, ops);
   std::unique_ptr<OperatorState> state =
       pipeline.MakeState(test::TestContext());
   for (uint32_t run = 0; run < 2; ++run) {
@@ -336,9 +336,9 @@ TEST(StateTest, AStepsRunEndsWithItsStream) {
 TEST(OperatorTest, FanOutNestsInnermostFirst) {
   ArraySource source({10, 20});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Twice>());
-  ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(test::TestArena().New<Twice>());
+  ops.push_back(test::TestArena().New<Twice>());
+  Pipeline pipeline(test::TestArena(), source, ops);
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
@@ -348,9 +348,9 @@ TEST(OperatorTest, FanOutNestsInnermostFirst) {
 TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
   ArraySource source({10, 20});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Trailer>(99, 1));
-  ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(test::TestArena().New<Trailer>(99, 1u));
+  ops.push_back(test::TestArena().New<Twice>());
+  Pipeline pipeline(test::TestArena(), source, ops);
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
 }
@@ -360,9 +360,9 @@ TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
 TEST(FinishTest, OperatorsAreFinishedBottomUp) {
   ArraySource source({10});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Trailer>(7, 1));
-  ops.push_back(std::make_unique<Trailer>(8, 1));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(test::TestArena().New<Trailer>(7, 1u));
+  ops.push_back(test::TestArena().New<Trailer>(8, 1u));
+  Pipeline pipeline(test::TestArena(), source, ops);
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
 }
@@ -403,11 +403,11 @@ DropOddRowsInPlace::State::~State() = default;
 
 TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   ArraySource source({10, 20, 30, 40, 50});
-  auto drop = std::make_unique<DropOddRowsInPlace>();
-  const DropOddRowsInPlace* transform = drop.get();
+  auto drop = test::TestArena().New<DropOddRowsInPlace>();
+  const DropOddRowsInPlace* transform = drop;
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::move(drop));
-  Pipeline pipeline(source, std::move(steps));
+  steps.push_back(drop);
+  Pipeline pipeline(test::TestArena(), source, steps);
 
   auto state = pipeline.MakeState(test::TestContext());
   RowBatch scratch;

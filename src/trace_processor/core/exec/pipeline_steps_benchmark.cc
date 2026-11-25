@@ -87,14 +87,14 @@ dataframe::Dataframe BuildTree(uint32_t rows,
 }
 
 // Runs the steps `make` builds over a scan of the tree read in `direction`,
-// every run, then `breaker` if given, as the sink of that pipeline, served by
-// the source of the next as a plan runs it.
+// every run, then `make_breaker` if given, as the sink of that pipeline,
+// served by the source of the next as a plan runs it.
 template <typename MakeSteps>
 void Run(benchmark::State& state,
          bool child_first,
          ReadDirection direction,
          MakeSteps make,
-         std::unique_ptr<Breaker> breaker) {
+         const Breaker* (*make_breaker)(core::Arena&) = nullptr) {
   // Before every batch and state, which hold its buffers.
   Context context;
   Pipelines pipelines;
@@ -109,18 +109,16 @@ void Run(benchmark::State& state,
   // The scan lends parent_id sparse: lay it out before the steps, as lowering
   // would.
   std::vector<Pipeline::Step> steps = make(arena);
+  const Breaker* breaker = make_breaker ? make_breaker(arena) : nullptr;
   if (!steps.empty() || breaker) {
     steps.insert(steps.begin(),
-                 std::make_unique<Expand>(arena.CopySpan<uint32_t>({kParent})));
+                 arena.New<Expand>(arena.CopySpan<uint32_t>({kParent})));
   }
-  auto first = std::make_unique<Pipeline>(scan, std::move(steps));
-  std::unique_ptr<Source> pipeline;
+  const Pipeline* first = arena.New<Pipeline>(arena, scan, steps);
+  const Source* pipeline = first;
   if (breaker) {
-    const Breaker& served = *breaker;
-    uint32_t id = pipelines.Add(nullptr, std::move(first), std::move(breaker));
-    pipeline = std::make_unique<Served>(id, served);
-  } else {
-    pipeline = std::move(first);
+    uint32_t id = pipelines.Add(first, breaker);
+    pipeline = arena.New<Served>(id, *breaker);
   }
   context.SetPipelines(&pipelines);
   std::unique_ptr<OperatorState> run = pipeline->MakeState(context);
@@ -158,99 +156,83 @@ BENCHMARK(BM_StepsScanBackwards)->Apply(Sizes);
 
 // The same order by a sort.
 void BM_StepsSortDescending(benchmark::State& state) {
-  core::Arena arena;
   Run(
       state, false, ReadDirection::kForwards,
       [](core::Arena&) { return std::vector<Pipeline::Step>(); },
-      std::make_unique<Sort>(SortSpec{arena.CopySpan<SortKey>({{kId, true}})}));
+      [](core::Arena& arena) -> const Breaker* {
+        return arena.New<Sort>(
+            SortSpec{arena.CopySpan<SortKey>({{kId, true}})});
+      });
 }
 BENCHMARK(BM_StepsSortDescending)->Apply(Sizes);
 
 void BM_StepsTreeNumberNodes(benchmark::State& state) {
-  Run(
-      state, false, ReadDirection::kForwards,
-      [](core::Arena&) {
-        std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        return steps;
-      },
-      nullptr);
+  Run(state, false, ReadDirection::kForwards, [](core::Arena& arena) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+    return steps;
+  });
 }
 BENCHMARK(BM_StepsTreeNumberNodes)->Apply(Sizes);
 
 void BM_StepsTreeAccumulateDown(benchmark::State& state) {
-  Run(
-      state, false, ReadDirection::kForwards,
-      [](core::Arena& arena) {
-        std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeAccumulateDown>(
-            arena, TreeAccumulateSpec{
-                       kNode, kParentNode,
-                       arena.CopySpan<AggregateCall>(
-                           {{AggregateCall::Function::kSum, kValue}})}));
-        return steps;
-      },
-      nullptr);
+  Run(state, false, ReadDirection::kForwards, [](core::Arena& arena) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+    steps.push_back(arena.New<TreeAccumulateDown>(
+        arena,
+        TreeAccumulateSpec{kNode, kParentNode,
+                           arena.CopySpan<AggregateCall>(
+                               {{AggregateCall::Function::kSum, kValue}})}));
+    return steps;
+  });
 }
 BENCHMARK(BM_StepsTreeAccumulateDown)->Apply(Sizes);
 
 void BM_StepsTreeAccumulateUp(benchmark::State& state) {
-  Run(
-      state, true, ReadDirection::kForwards,
-      [](core::Arena& arena) {
-        std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeAccumulateUp>(
-            arena, TreeAccumulateSpec{
-                       kNode, kParentNode,
-                       arena.CopySpan<AggregateCall>(
-                           {{AggregateCall::Function::kSum, kValue}})}));
-        return steps;
-      },
-      nullptr);
+  Run(state, true, ReadDirection::kForwards, [](core::Arena& arena) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+    steps.push_back(arena.New<TreeAccumulateUp>(
+        arena,
+        TreeAccumulateSpec{kNode, kParentNode,
+                           arena.CopySpan<AggregateCall>(
+                               {{AggregateCall::Function::kSum, kValue}})}));
+    return steps;
+  });
 }
 BENCHMARK(BM_StepsTreeAccumulateUp)->Apply(Sizes);
 
 void BM_StepsTreeKeyPaths(benchmark::State& state) {
-  Run(
-      state, false, ReadDirection::kForwards,
-      [](core::Arena& arena) {
-        std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeKeyPaths>(TreeKeyPathsSpec{
-            kNode, kParentNode, arena.CopySpan<uint32_t>({kValue})}));
-        return steps;
-      },
-      nullptr);
+  Run(state, false, ReadDirection::kForwards, [](core::Arena& arena) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+    steps.push_back(arena.New<TreeKeyPaths>(TreeKeyPathsSpec{
+        kNode, kParentNode, arena.CopySpan<uint32_t>({kValue})}));
+    return steps;
+  });
 }
 BENCHMARK(BM_StepsTreeKeyPaths)->Apply(Sizes);
 
 // A column already of the type asserted passes through unchanged.
 void BM_StepsAssertTypeAsIs(benchmark::State& state) {
-  Run(
-      state, false, ReadDirection::kForwards,
-      [](core::Arena&) {
-        std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<AssertType>(
-            kValue, AssertTypeTarget(Int64{}), "value"));
-        return steps;
-      },
-      nullptr);
+  Run(state, false, ReadDirection::kForwards, [](core::Arena& arena) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(
+        arena.New<AssertType>(kValue, AssertTypeTarget(Int64{}), "value"));
+    return steps;
+  });
 }
 BENCHMARK(BM_StepsAssertTypeAsIs)->Apply(Sizes);
 
 // A narrower integer column is widened into one of the type asserted.
 void BM_StepsAssertTypeWiden(benchmark::State& state) {
-  Run(
-      state, false, ReadDirection::kForwards,
-      [](core::Arena&) {
-        std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<AssertType>(
-            kSmall, AssertTypeTarget(Int64{}), "small"));
-        return steps;
-      },
-      nullptr);
+  Run(state, false, ReadDirection::kForwards, [](core::Arena& arena) {
+    std::vector<Pipeline::Step> steps;
+    steps.push_back(
+        arena.New<AssertType>(kSmall, AssertTypeTarget(Int64{}), "small"));
+    return steps;
+  });
 }
 BENCHMARK(BM_StepsAssertTypeWiden)->Apply(Sizes);
 

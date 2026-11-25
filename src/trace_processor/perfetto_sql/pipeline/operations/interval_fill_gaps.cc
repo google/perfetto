@@ -253,7 +253,7 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   }
   spec.background.retained_columns = arena.CopySpan<uint32_t>(retained);
   spec.background.pipeline = background.FinishSide();
-  c->AddOperator(std::make_unique<ex::IntervalFillGaps>(arena, spec));
+  c->AddOperator(arena.New<ex::IntervalFillGaps>(arena, spec));
 }
 
 const OperationRegistration& IntervalFillGaps::registration() const {

@@ -112,7 +112,7 @@ void Limit::Lower(Lowering* c, const PlanNode& node) const {
   }
   // Rows kept stay in their input order, so any known arrangement survives.
   c->AddOperator(
-      std::make_unique<ex::Limit>(count, Clamp(std::max<int64_t>(offset_, 0))));
+      c->arena().New<ex::Limit>(count, Clamp(std::max<int64_t>(offset_, 0))));
 }
 
 const OperationRegistration& Limit::registration() const {

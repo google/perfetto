@@ -156,9 +156,9 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
                               c->QueryPosition(tree.parent_number),
                               LowerAggregates(c, acc.aggregates_)};
   if (acc.direction_ == TreeDirection::kUp) {
-    c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(arena, spec));
+    c->AddOperator(arena.New<ex::TreeAccumulateUp>(arena, spec));
   } else {
-    c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(arena, spec));
+    c->AddOperator(arena.New<ex::TreeAccumulateDown>(arena, spec));
   }
 }
 

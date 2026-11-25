@@ -177,7 +177,7 @@ void GraphTree::Lower(Lowering* c, const PlanNode& node) const {
   spec.seed_column = seeds.QueryPosition(seed_);
   spec.seeds = seeds.FinishSide();
 
-  c->SetSource(std::make_unique<ex::GraphTree>(spec));
+  c->SetSource(c->arena().New<ex::GraphTree>(spec));
 }
 
 const OperationRegistration& GraphTree::registration() const {

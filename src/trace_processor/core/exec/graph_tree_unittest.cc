@@ -139,9 +139,9 @@ class GraphTreeTest : public ::testing::Test {
   struct Planned {
     std::unique_ptr<Pipelines> pipelines;
     std::unique_ptr<Context> context;
-    std::unique_ptr<GraphTree> tree;
+    const GraphTree* tree = nullptr;
 
-    const GraphTree* operator->() const { return tree.get(); }
+    const GraphTree* operator->() const { return tree; }
     const GraphTree& operator*() const { return *tree; }
   };
 
@@ -160,7 +160,7 @@ class GraphTreeTest : public ::testing::Test {
     spec.seed_column = 0;
     planned.context = std::make_unique<Context>();
     planned.context->SetPipelines(planned.pipelines.get());
-    planned.tree = std::make_unique<GraphTree>(spec);
+    planned.tree = test::TestArena().New<GraphTree>(spec);
     return planned;
   }
 

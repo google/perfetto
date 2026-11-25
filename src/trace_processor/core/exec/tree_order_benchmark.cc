@@ -118,9 +118,9 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Expand>(arena.CopySpan<uint32_t>({1})));
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  Pipeline pipeline(scan, std::move(ops));
+  ops.push_back(arena.New<Expand>(arena.CopySpan<uint32_t>({1})));
+  ops.push_back(arena.New<TreeNumberNodes>(0u, 1u));
+  Pipeline pipeline(arena, scan, ops);
   Run(state, pipeline, rows, nullptr);
 }
 
@@ -134,10 +134,10 @@ void BM_TreeParentFirst(benchmark::State& state) {
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Expand>(arena.CopySpan<uint32_t>({1})));
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
-  Pipeline pipeline(scan, std::move(ops));
+  ops.push_back(arena.New<Expand>(arena.CopySpan<uint32_t>({1})));
+  ops.push_back(arena.New<TreeNumberNodes>(0u, 1u));
+  ops.push_back(arena.New<TreeParentFirst>(2u, 3u));
+  Pipeline pipeline(arena, scan, ops);
   Run(state, pipeline, rows, nullptr);
 }
 
@@ -151,16 +151,13 @@ void BM_TreeChildFirst(benchmark::State& state) {
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Expand>(arena.CopySpan<uint32_t>({1})));
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  ops.push_back(arena.New<Expand>(arena.CopySpan<uint32_t>({1})));
+  ops.push_back(arena.New<TreeNumberNodes>(0u, 1u));
   // A plan ends the pipeline in the breaker, and serves it to the next.
   Pipelines pipelines;
-  auto child_first = std::make_unique<TreeChildFirst>(2, 3);
-  const TreeChildFirst& breaker = *child_first;
-  uint32_t id =
-      pipelines.Add(nullptr, std::make_unique<Pipeline>(scan, std::move(ops)),
-                    std::move(child_first));
-  Served order(id, breaker);
+  const TreeChildFirst* breaker = arena.New<TreeChildFirst>(2u, 3u);
+  uint32_t id = pipelines.Add(arena.New<Pipeline>(arena, scan, ops), breaker);
+  Served order(id, *breaker);
   Run(state, order, rows, &pipelines);
 }
 

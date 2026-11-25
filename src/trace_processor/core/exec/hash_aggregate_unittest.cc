@@ -50,7 +50,8 @@ Columns Aggregate(HashAggregateSpec spec,
                   base::Status* status = nullptr) {
   test::BatchesSource source(std::move(batches));
   test::AfterBreaker run(
-      source, {}, std::make_unique<HashAggregate>(test::TestArena(), spec));
+      source, {},
+      test::TestArena().New<HashAggregate>(test::TestArena(), spec));
   Columns out;
   base::Status ended = run.Drain([&](const RowBatch& batch) {
     EXPECT_TRUE(out.empty());

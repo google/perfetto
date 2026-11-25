@@ -74,7 +74,7 @@ OutputProperties Distinct::Derive(DeriveContext& c) const {
 void Distinct::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
   // Rows kept stay in their input order, so any known arrangement survives.
-  c->AddOperator(std::make_unique<ex::Distinct>(c->QueryPositions(columns_)));
+  c->AddOperator(c->arena().New<ex::Distinct>(c->QueryPositions(columns_)));
 }
 
 const OperationRegistration& Distinct::registration() const {

@@ -35,7 +35,7 @@ using testing::ElementsAre;
 std::vector<Pipeline::Step> Limited(std::optional<uint32_t> limit,
                                     uint32_t offset) {
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::make_unique<Limit>(limit, offset));
+  steps.push_back(test::TestArena().New<Limit>(limit, offset));
   return steps;
 }
 
@@ -50,7 +50,7 @@ std::vector<int64_t> Read(RowCursor& cursor) {
 // The rows kept span batches, and each run counts from the first row.
 TEST(LimitTest, KeepsTheRowsAfterTheOffset) {
   test::ArraySource source(test::Sequence(5000));
-  Pipeline pipeline(source, Limited(2000, 2047));
+  const Pipeline& pipeline = test::TestPipeline(source, Limited(2000, 2047));
   RowCursor cursor(pipeline);
   for (uint32_t run = 0; run < 2; ++run) {
     std::vector<int64_t> values = Read(cursor);
@@ -65,12 +65,12 @@ TEST(LimitTest, KeepsTheRowsAfterTheOffset) {
 // a second batch.
 TEST(LimitTest, StopsReadingOnceItHasItsRows) {
   test::FailingSource source;
-  Pipeline enough(source, Limited(2, 0));
+  const Pipeline& enough = test::TestPipeline(source, Limited(2, 0));
   RowCursor first(enough);
   EXPECT_THAT(Read(first), ElementsAre(1, 2));
   EXPECT_TRUE(first.status().ok());
 
-  Pipeline more(source, Limited(3, 0));
+  const Pipeline& more = test::TestPipeline(source, Limited(3, 0));
   RowCursor second(more);
   Read(second);
   EXPECT_FALSE(second.status().ok());

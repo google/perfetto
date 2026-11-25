@@ -171,7 +171,6 @@ bool ParentsInOrder(const ColumnView& ids,
 TreeNumberNodes::TreeNumberNodes(uint32_t id_column, uint32_t parent_column)
     : id_column_(id_column), parent_column_(parent_column) {}
 
-TreeNumberNodes::~TreeNumberNodes() = default;
 TreeNumberNodes::State::~State() = default;
 
 std::unique_ptr<OperatorState> TreeNumberNodes::MakeState(

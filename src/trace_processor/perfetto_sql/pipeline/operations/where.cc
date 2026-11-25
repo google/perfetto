@@ -464,7 +464,7 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     }
     conditions[i] = condition;
   }
-  c->AddOperator(std::make_unique<ex::Filter>(conditions, c->context().pool));
+  c->AddOperator(c->arena().New<ex::Filter>(conditions, c->context().pool));
 }
 
 const OperationRegistration& Where::registration() const {

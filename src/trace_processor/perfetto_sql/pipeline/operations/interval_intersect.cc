@@ -227,7 +227,7 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     lowered.pipeline = side.FinishSide();
     inputs[i] = lowered;
   }
-  c->SetSource(std::make_unique<ex::IntervalIntersect>(inputs));
+  c->SetSource(arena.New<ex::IntervalIntersect>(inputs));
 }
 
 const OperationRegistration& IntervalIntersect::registration() const {

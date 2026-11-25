@@ -30,16 +30,17 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-Sink::~Sink() = default;
+// Defined out of line so that Sink's vtable is emitted in one object file.
+base::Status Sink::FinalizeSink(OperatorState&) const {
+  return base::OkStatus();
+}
 
 Pipelines::Pipelines() = default;
 Pipelines::~Pipelines() = default;
 
-uint32_t Pipelines::Add(std::unique_ptr<Source> input,
-                        std::unique_ptr<Pipeline> pipeline,
-                        std::unique_ptr<Sink> sink) {
+uint32_t Pipelines::Add(const Pipeline* pipeline, const Sink* sink) {
   auto id = static_cast<uint32_t>(entries_.size());
-  entries_.push_back({std::move(input), std::move(pipeline), std::move(sink)});
+  entries_.push_back({pipeline, sink});
   return id;
 }
 
@@ -86,8 +87,6 @@ Served::State::~State() = default;
 
 Served::Served(uint32_t id, const Breaker& breaker)
     : id_(id), breaker_(breaker) {}
-
-Served::~Served() = default;
 
 std::unique_ptr<OperatorState> Served::MakeState(Context& context) const {
   return std::make_unique<State>(context, id_);

@@ -327,8 +327,8 @@ TEST_P(ExecutorBoundaryContractTest, FilteringIsIndependentOfBatchBoundaries) {
   chunks.emplace_back();
   ContractSource source(std::move(chunks));
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<ContractFilter>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(test::TestArena().New<ContractFilter>());
+  Pipeline pipeline(test::TestArena(), source, ops);
   RowCursor cursor(pipeline);
   for (uint32_t run = 0; run < 2; ++run) {
     std::vector<int64_t> actual;
@@ -345,7 +345,7 @@ INSTANTIATE_TEST_SUITE_P(BatchSizes,
 
 TEST(ExecutorContractTest, EmptySourceBatchesAreNotEofWithoutOperators) {
   ContractSource source({{}, {11}, {}, {22}, {}});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(test::TestArena(), source, {});
   RowCursor cursor(pipeline);
   std::vector<int64_t> actual;
   for (bool more = cursor.Open(); more && !cursor.eof(); more = cursor.Next())
@@ -356,11 +356,11 @@ TEST(ExecutorContractTest, EmptySourceBatchesAreNotEofWithoutOperators) {
 
 TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
   ContractSource source({{-1, -2}, {9, 10}, {11}});
-  auto filter = std::make_unique<ContractFilter>();
-  auto* observed = filter.get();
+  auto filter = test::TestArena().New<ContractFilter>();
+  auto* observed = filter;
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::move(filter));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(filter);
+  Pipeline pipeline(test::TestArena(), source, ops);
   {
     RowCursor cursor(pipeline);
     ASSERT_TRUE(cursor.Open());
@@ -375,11 +375,11 @@ TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
 
 TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   ContractSource source({{11}}, true);
-  auto probe = std::make_unique<FinishProbe>();
-  auto* observed = probe.get();
+  auto probe = test::TestArena().New<FinishProbe>();
+  auto* observed = probe;
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(probe);
+  Pipeline pipeline(test::TestArena(), source, ops);
   RowCursor cursor(pipeline);
   ASSERT_TRUE(cursor.Open());
   EXPECT_EQ(cursor.Value<int64_t>(0), 11);
@@ -395,10 +395,10 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
 TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
   EmptySource source;
   std::vector<Pipeline::Step> ops;
-  auto probe = std::make_unique<FinishProbe>();
-  FinishProbe* observed = probe.get();
-  ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops));
+  auto probe = test::TestArena().New<FinishProbe>();
+  FinishProbe* observed = probe;
+  ops.push_back(probe);
+  Pipeline pipeline(test::TestArena(), source, ops);
   RowCursor cursor(pipeline);
   for (uint32_t run = 1; run <= 2; ++run) {
     EXPECT_FALSE(cursor.Open());
@@ -410,8 +410,8 @@ TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
 TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
   ContractSource source({{}, {1}, {2}, {3}, {4}, {5}});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<CombineBatches>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(test::TestArena().New<CombineBatches>());
+  Pipeline pipeline(test::TestArena(), source, ops);
   auto state = pipeline.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(pipeline.GetData(out, *state));

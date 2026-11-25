@@ -179,7 +179,7 @@ Output Drain(const Source& source) {
 
 std::vector<Pipeline::Step> Number() {
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  ops.push_back(test::TestArena().New<TreeNumberNodes>(0u, 1u));
   return ops;
 }
 
@@ -202,13 +202,13 @@ Output NumberAndOrder(const Source& input, Direction direction) {
   if (direction == Direction::kChildFirst) {
     // Child first holds every row, so ends the pipeline numbering them.
     test::AfterBreaker run(input, Number(),
-                           std::make_unique<TreeChildFirst>(3u, 4u));
+                           test::TestArena().New<TreeChildFirst>(3u, 4u));
     Execution execution(run.pipeline(), run.pipelines());
     return Drain(&execution);
   }
   std::vector<Pipeline::Step> ops = Number();
-  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
-  Pipeline order(input, std::move(ops));
+  ops.push_back(test::TestArena().New<TreeParentFirst>(3u, 4u));
+  Pipeline order(test::TestArena(), input, ops);
   return Drain(order);
 }
 
@@ -342,9 +342,9 @@ TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
           {df.shared_column(0), df.shared_column(1), df.shared_column(2)}),
       df.row_count(), ReadDirection::kForwards);
   auto ops = Number();
-  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+  ops.push_back(test::TestArena().New<TreeParentFirst>(3u, 4u));
   test::AfterBreaker order(scan, std::move(ops),
-                           std::make_unique<TreeChildFirst>(3u, 4u));
+                           test::TestArena().New<TreeChildFirst>(3u, 4u));
 
   Execution run(order.pipeline(), order.pipelines());
   std::vector<uint32_t> ids;

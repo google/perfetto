@@ -43,8 +43,8 @@ struct Output {
 };
 
 // Runs `grouped_sort` over `source`, as a plan runs it.
-Output Drain(const Source& source, std::unique_ptr<GroupedSort> grouped_sort) {
-  test::AfterBreaker run(source, {}, std::move(grouped_sort));
+Output Drain(const Source& source, const GroupedSort* grouped_sort) {
+  test::AfterBreaker run(source, {}, grouped_sort);
   Output out;
   out.status = run.Drain([&out](const RowBatch& batch) {
     for (uint32_t id : test::ReadColumn<uint32_t>(batch, 0)) {
@@ -58,9 +58,8 @@ Output Drain(const Source& source, std::unique_ptr<GroupedSort> grouped_sort) {
 }
 
 // A GroupedSort that groups by `column` and sorts each group by `keys`.
-std::unique_ptr<GroupedSort> GroupOn(uint32_t column,
-                                     std::vector<SortKey> keys = {}) {
-  return std::make_unique<GroupedSort>(
+const GroupedSort* GroupOn(uint32_t column, std::vector<SortKey> keys = {}) {
+  return test::TestArena().New<GroupedSort>(
       GroupedSortSpec{test::InArena<uint32_t>({column}), test::InArena(keys)});
 }
 

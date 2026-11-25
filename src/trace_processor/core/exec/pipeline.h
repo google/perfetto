@@ -24,9 +24,11 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -43,12 +45,11 @@ class Pipeline final : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  using Step =
-      std::variant<std::unique_ptr<Transform>, std::unique_ptr<Operator>>;
+  using Step = std::variant<const Transform*, const Operator*>;
 
-  Pipeline(const Source&, std::vector<Step>);
-  Pipeline(Source&&, std::vector<Step>) = delete;
-  ~Pipeline() override;
+  // Copies `steps` into `arena`.
+  Pipeline(core::Arena& arena, const Source&, base::Span<const Step> steps);
+  Pipeline(core::Arena&, Source&&, base::Span<const Step>) = delete;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   RowBatch* Next(RowBatch& scratch, OperatorState& state) const override;
@@ -65,7 +66,7 @@ class Pipeline final : public Source {
   const Source& input() const { return source_; }
 
   // The operators and transforms, in the order they run.
-  const std::vector<Step>& steps() const { return steps_; }
+  base::Span<const Step> steps() const { return steps_.span(); }
 
  private:
   friend class PipelineFormatter;
@@ -186,8 +187,8 @@ class Pipeline final : public Source {
 
   // The plan.
   const Source& source_;
-  std::vector<Step> steps_;
-  std::vector<Segment> segments_;
+  core::ArenaSpan<Step> steps_;
+  core::ArenaSpan<Segment> segments_;
   uint32_t last_segment_ = 0;
 
   // How it runs: the options, and the State::Flags every run starts with.

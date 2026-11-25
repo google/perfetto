@@ -44,7 +44,6 @@ class CombineBatches final : public Operator {
   static constexpr uint32_t kTargetBatchRows = kMaxBatchRows;
 
   CombineBatches();
-  ~CombineBatches() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,

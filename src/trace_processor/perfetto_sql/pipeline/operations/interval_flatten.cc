@@ -147,7 +147,7 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   core::Arena& arena = c->arena();
   ex::IntervalFlattenSpec spec{c->QueryIntervalLanes(ts_, dur_, keys_),
                                LowerAggregates(c, aggregates_)};
-  c->AddOperator(std::make_unique<ex::IntervalFlatten>(arena, spec));
+  c->AddOperator(arena.New<ex::IntervalFlatten>(arena, spec));
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

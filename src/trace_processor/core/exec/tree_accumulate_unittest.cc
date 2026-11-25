@@ -168,15 +168,15 @@ Result Accumulate(const std::vector<int64_t>& parent,
   RowSource source(parent, value, chunk_rows, std::move(order));
   // Ids become node numbers before anything else sees them.
   std::vector<Pipeline::Step> number;
-  number.push_back(std::make_unique<TreeNumberNodes>(0, 1));
+  number.push_back(test::TestArena().New<TreeNumberNodes>(0u, 1u));
   TreeAccumulateSpec spec{3, 4, test::InArena<AggregateCall>({Sum(2)})};
   std::vector<Pipeline::Step> accumulate;
   if (up) {
     accumulate.push_back(
-        std::make_unique<TreeAccumulateUp>(test::TestArena(), spec));
+        test::TestArena().New<TreeAccumulateUp>(test::TestArena(), spec));
   } else {
     accumulate.push_back(
-        std::make_unique<TreeAccumulateDown>(test::TestArena(), spec));
+        test::TestArena().New<TreeAccumulateDown>(test::TestArena(), spec));
   }
   Result result;
   result.totals.assign(parent.size(), 0);
@@ -192,18 +192,18 @@ Result Accumulate(const std::vector<int64_t>& parent,
   if (up && !already_ordered) {
     // Child first holds every row, so ends the pipeline numbering them.
     test::AfterBreaker run(source, std::move(number),
-                           std::make_unique<TreeChildFirst>(3u, 4u),
+                           test::TestArena().New<TreeChildFirst>(3u, 4u),
                            std::move(accumulate));
     status = run.Drain(read);
   } else {
     std::vector<Pipeline::Step> ops = std::move(number);
     if (!already_ordered) {
-      ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+      ops.push_back(test::TestArena().New<TreeParentFirst>(3u, 4u));
     }
     for (auto& step : accumulate) {
-      ops.push_back(std::move(step));
+      ops.push_back(step);
     }
-    Pipeline pipeline(source, std::move(ops));
+    Pipeline pipeline(test::TestArena(), source, ops);
     std::unique_ptr<OperatorState> state =
         pipeline.MakeState(test::TestContext());
     RowBatch batch;

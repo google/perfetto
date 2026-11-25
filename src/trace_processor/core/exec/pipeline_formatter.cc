@@ -251,11 +251,10 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline,
   }
   for (const Pipeline::Step& step : pipeline.steps()) {
     out += " | ";
-    if (const auto* transform =
-            std::get_if<std::unique_ptr<Transform>>(&step)) {
+    if (const auto* transform = std::get_if<const Transform*>(&step)) {
       out += TransformString(**transform);
     } else {
-      out += OperatorString(*std::get<std::unique_ptr<Operator>>(step));
+      out += OperatorString(*std::get<const Operator*>(step));
     }
   }
   return out;

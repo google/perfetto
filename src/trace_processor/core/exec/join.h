@@ -40,7 +40,6 @@ class JoinBuild final : public Sink {
   // `key` is the column holding the Int64 join keys. `unread[c]` is true for
   // each column the join doesn't output; those columns aren't stored.
   JoinBuild(uint32_t key, core::ArenaSpan<bool> unread);
-  ~JoinBuild() override;
 
   std::unique_ptr<OperatorState> MakeSinkState(Context&) const override;
   base::Status ConsumeBatch(const RowBatch& in,
@@ -83,7 +82,6 @@ class Join final : public Operator {
   const void* type() const override { return &kType; }
 
   explicit Join(JoinSpec spec);
-  ~Join() override;
 
   void DescribeColumns(StepColumns* out) const override;
   std::unique_ptr<OperatorState> MakeState(Context&) const override;

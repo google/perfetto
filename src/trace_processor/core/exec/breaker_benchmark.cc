@@ -54,7 +54,8 @@ struct Column {
 
 // Runs `breaker` over `rows` rows of `columns`.
 void RunColumns(benchmark::State& state,
-                std::unique_ptr<Breaker> breaker,
+                core::Arena& arena,
+                const Breaker* breaker,
                 uint32_t rows,
                 const std::vector<Column>& columns) {
   std::vector<RowBatch> batches;
@@ -67,7 +68,7 @@ void RunColumns(benchmark::State& state,
     }
     batch.SetRowCount(count);
   }
-  test::BreakerRun run(batches, std::move(breaker));
+  test::BreakerRun run(arena, batches, breaker);
   for (auto _ : state) {
     benchmark::DoNotOptimize(run.Run());
   }
@@ -77,7 +78,8 @@ void RunColumns(benchmark::State& state,
 // Runs `breaker` over `rows` rows of `key_columns` Int64 keys with `distinct`
 // values spread through them.
 void Run(benchmark::State& state,
-         std::unique_ptr<Breaker> breaker,
+         core::Arena& arena,
+         const Breaker* breaker,
          uint32_t rows,
          uint32_t distinct,
          uint32_t key_columns = 1) {
@@ -86,7 +88,7 @@ void Run(benchmark::State& state,
     keys.push_back(int64_t{(i * 2654435761u) % distinct});
   }
   RunColumns(
-      state, std::move(breaker), rows,
+      state, arena, breaker, rows,
       std::vector<Column>(key_columns, {StorageType{Int64{}}, keys.data()}));
 }
 
@@ -117,30 +119,29 @@ std::vector<int64_t> KeepKeys(int64_t input) {
 }
 
 // A TopK of `count` rows, or with 0, a Sort.
-std::unique_ptr<Breaker> SortFirst(core::Arena& arena,
-                                   int64_t count,
-                                   const StringPool* pool) {
+const Breaker* SortFirst(core::Arena& arena,
+                         int64_t count,
+                         const StringPool* pool) {
   if (count == 0) {
-    return std::make_unique<Sort>(
+    return arena.New<Sort>(
         SortSpec{arena.CopySpan<SortKey>({{0, false}}), pool});
   }
-  return std::make_unique<TopK>(TopKSpec{arena.CopySpan<SortKey>({{0, false}}),
-                                         pool, static_cast<uint32_t>(count)});
+  return arena.New<TopK>(TopKSpec{arena.CopySpan<SortKey>({{0, false}}), pool,
+                                  static_cast<uint32_t>(count)});
 }
 
 void BM_SortInt64(benchmark::State& state) {
   core::Arena arena;
-  Run(state,
-      std::make_unique<Sort>(SortSpec{arena.CopySpan<SortKey>({{0, false}})}),
-      kRows, 1u << 30);
+  Run(state, arena,
+      arena.New<Sort>(SortSpec{arena.CopySpan<SortKey>({{0, false}})}), kRows,
+      1u << 30);
 }
 BENCHMARK(BM_SortInt64);
 
 void BM_SortInt64OneRow(benchmark::State& state) {
   core::Arena arena;
-  Run(state,
-      std::make_unique<Sort>(SortSpec{arena.CopySpan<SortKey>({{0, false}})}),
-      1, 1);
+  Run(state, arena,
+      arena.New<Sort>(SortSpec{arena.CopySpan<SortKey>({{0, false}})}), 1, 1);
 }
 BENCHMARK(BM_SortInt64OneRow);
 
@@ -148,11 +149,11 @@ BENCHMARK(BM_SortInt64OneRow);
 // carried beside the key.
 void BM_TopKInt64(benchmark::State& state) {
   core::Arena arena;
-  std::unique_ptr<Breaker> op = SortFirst(arena, state.range(0), nullptr);
+  const Breaker* op = SortFirst(arena, state.range(0), nullptr);
   std::vector<int64_t> keys = KeepKeys(state.range(1));
   std::vector<Column> columns(1 + static_cast<size_t>(state.range(2)),
                               {StorageType{Int64{}}, keys.data()});
-  RunColumns(state, std::move(op), kKeepRows, columns);
+  RunColumns(state, arena, op, kKeepRows, columns);
 }
 BENCHMARK(BM_TopKInt64)
     ->ArgNames({"keep", "input", "payload"})
@@ -169,8 +170,8 @@ void BM_TopKString(benchmark::State& state) {
         pool.InternString(base::StringView("key" + std::to_string(key))));
   }
   core::Arena arena;
-  std::unique_ptr<Breaker> op = SortFirst(arena, state.range(0), &pool);
-  RunColumns(state, std::move(op), kKeepRows,
+  const Breaker* op = SortFirst(arena, state.range(0), &pool);
+  RunColumns(state, arena, op, kKeepRows,
              {{StorageType{String{}}, keys.data()}});
 }
 BENCHMARK(BM_TopKString)
@@ -179,8 +180,8 @@ BENCHMARK(BM_TopKString)
 
 void BM_GroupByInt64(benchmark::State& state) {
   core::Arena arena;
-  Run(state,
-      std::make_unique<GroupedSort>(
+  Run(state, arena,
+      arena.New<GroupedSort>(
           GroupedSortSpec{arena.CopySpan<uint32_t>({0}), {}}),
       kRows, static_cast<uint32_t>(state.range(0)));
 }
@@ -189,8 +190,8 @@ BENCHMARK(BM_GroupByInt64)->Arg(16)->Arg(kRows);
 // Keys too long for std::string to hold inline.
 void BM_GroupByThreeKeys(benchmark::State& state) {
   core::Arena arena;
-  Run(state,
-      std::make_unique<GroupedSort>(
+  Run(state, arena,
+      arena.New<GroupedSort>(
           GroupedSortSpec{arena.CopySpan<uint32_t>({0, 1, 2}), {}}),
       kRows, kRows, 3);
 }
@@ -198,8 +199,8 @@ BENCHMARK(BM_GroupByThreeKeys);
 
 void BM_GroupByInt64OneRow(benchmark::State& state) {
   core::Arena arena;
-  Run(state,
-      std::make_unique<GroupedSort>(
+  Run(state, arena,
+      arena.New<GroupedSort>(
           GroupedSortSpec{arena.CopySpan<uint32_t>({0}), {}}),
       1, 1);
 }

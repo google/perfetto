@@ -478,9 +478,9 @@ void Scan::Lower(Lowering* c, const PlanNode& node) const {
     LowerSearch(c, node, data);
     return;
   }
-  c->SetSource(std::make_unique<ex::DataframeScan>(
-      c->KeepColumns(data.columns), data.row_count,
-      c->QueryScanDirection(node)));
+  c->SetSource(c->arena().New<ex::DataframeScan>(c->KeepColumns(data.columns),
+                                                 data.row_count,
+                                                 c->QueryScanDirection(node)));
   c->SetSparseColumns(SparseColumns(data));
 }
 
@@ -488,7 +488,7 @@ void Scan::LowerSearch(Lowering* c,
                        const PlanNode& node,
                        const Bindings::Dataframe& data) const {
   if (search_->kind == ScanSearch::Kind::kEmpty) {
-    c->SetSource(std::make_unique<ex::EmptySource>());
+    c->SetSource(c->arena().New<ex::EmptySource>());
     return;
   }
   const StringPool* pool = c->context().pool;
@@ -538,15 +538,14 @@ void Scan::LowerSearch(Lowering* c,
     }
     const core::dataframe::Index& index = data.indexes[search_->index];
     c->KeepAlive(index.permutation_vector());
-    c->SetSource(
-        std::make_unique<ex::IndexScan>(arena, c->KeepColumns(data.columns),
-                                        index, equalities, searches, pool));
+    c->SetSource(arena.New<ex::IndexScan>(arena, c->KeepColumns(data.columns),
+                                          index, equalities, searches, pool));
     // It copies the rows it reads, so lends no sparse column.
     return;
   }
-  c->SetSource(std::make_unique<ex::SortedScan>(
-      arena, c->KeepColumns(data.columns), data.row_count, searches, pool,
-      c->QueryScanDirection(node)));
+  c->SetSource(arena.New<ex::SortedScan>(arena, c->KeepColumns(data.columns),
+                                         data.row_count, searches, pool,
+                                         c->QueryScanDirection(node)));
   c->SetSparseColumns(SparseColumns(data));
 }
 

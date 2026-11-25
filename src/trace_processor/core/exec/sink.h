@@ -36,7 +36,6 @@ class Breaker;
 // join's hash table of its build side.
 class Sink {
  public:
-  virtual ~Sink();
   Sink(const Sink&) = delete;
   Sink& operator=(const Sink&) = delete;
 
@@ -45,7 +44,7 @@ class Sink {
                                     OperatorState& state) const = 0;
 
   // Called once, after the last batch.
-  virtual base::Status FinalizeSink(OperatorState& state) const = 0;
+  virtual base::Status FinalizeSink(OperatorState& state) const;
 
   // Whether this sink is a Breaker whose output is served by the next pipeline.
   virtual bool IsBreaker() const { return false; }
@@ -62,6 +61,7 @@ class Sink {
 
  protected:
   Sink() = default;
+  ~Sink() = default;
 };
 
 // A plan's pipelines besides the one whose output is the plan's. Each ends in
@@ -70,12 +70,11 @@ class Sink {
 // (see PipelineUse).
 class Pipelines {
  public:
-  // `input` is what `pipeline` reads, if this owns it, so is declared first
-  // to be destroyed last. `sink` is null for a pipeline streamed.
+  // `sink` is null for a pipeline streamed. Both are owned by the plan's
+  // arena.
   struct Entry {
-    std::unique_ptr<Source> input;
-    std::unique_ptr<Pipeline> pipeline;
-    std::unique_ptr<Sink> sink;
+    const Pipeline* pipeline;
+    const Sink* sink;
   };
 
   Pipelines();
@@ -83,11 +82,8 @@ class Pipelines {
   Pipelines(const Pipelines&) = delete;
   Pipelines& operator=(const Pipelines&) = delete;
 
-  // Adds `pipeline`, which reads `input`, ending in `sink` or streamed if
-  // null, and returns its id.
-  uint32_t Add(std::unique_ptr<Source> input,
-               std::unique_ptr<Pipeline> pipeline,
-               std::unique_ptr<Sink> sink);
+  // Adds `pipeline`, ending in `sink` or streamed if null, and returns its id.
+  uint32_t Add(const Pipeline* pipeline, const Sink* sink);
 
   const Entry& operator[](uint32_t id) const { return entries_[id]; }
   uint32_t size() const { return static_cast<uint32_t>(entries_.size()); }
@@ -134,7 +130,6 @@ class Served final : public Source {
 
   // `breaker` ends pipeline `id`, and must outlive this.
   Served(uint32_t id, const Breaker& breaker);
-  ~Served() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;

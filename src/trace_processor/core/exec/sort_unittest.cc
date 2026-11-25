@@ -70,9 +70,9 @@ std::vector<std::pair<uint32_t, std::optional<int64_t>>> CursorRows(
   return rows;
 }
 
-std::unique_ptr<Sort> SortInPlace(std::vector<SortSpec::Key> keys,
-                                  std::vector<bool> unread) {
-  auto sort = std::make_unique<Sort>(SortSpec{test::InArena(keys)});
+const Sort* SortInPlace(std::vector<SortSpec::Key> keys,
+                        std::vector<bool> unread) {
+  Sort* sort = test::TestArena().New<Sort>(SortSpec{test::InArena(keys)});
   auto span =
       test::TestArena().NewSpan<bool>(static_cast<uint32_t>(unread.size()));
   for (uint32_t i = 0; i < unread.size(); ++i) {
@@ -83,16 +83,16 @@ std::unique_ptr<Sort> SortInPlace(std::vector<SortSpec::Key> keys,
   return sort;
 }
 
-std::unique_ptr<Sort> SortBy(std::vector<SortSpec::Key> keys,
-                             const StringPool* pool = nullptr) {
-  return std::make_unique<Sort>(SortSpec{test::InArena(keys), pool});
+const Sort* SortBy(std::vector<SortSpec::Key> keys,
+                   const StringPool* pool = nullptr) {
+  return test::TestArena().New<Sort>(SortSpec{test::InArena(keys), pool});
 }
 
 // Runs `sort` over `in`, reading each batch it outputs with `read`.
 template <typename Read>
-void SortOnce(std::unique_ptr<Sort> sort, const RowBatch& in, Read read) {
+void SortOnce(const Sort* sort, const RowBatch& in, Read read) {
   test::BatchesSource source({&in});
-  test::AfterBreaker run(source, {}, std::move(sort));
+  test::AfterBreaker run(source, {}, sort);
   base::Status status = run.Drain(read);
   EXPECT_TRUE(status.ok()) << status.message();
 }

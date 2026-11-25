@@ -90,7 +90,7 @@ CollectedInputSpec Operand(core::Arena& arena,
                            Pipelines& pipelines,
                            const Intervals& source) {
   CollectedInputSpec operand;
-  operand.pipeline = test::AddStream(pipelines, source);
+  operand.pipeline = test::AddStream(arena, pipelines, source);
   operand.lanes.ts_column = 0;
   operand.lanes.dur_column = 1;
   operand.lanes.key_columns = arena.CopySpan<uint32_t>({2});

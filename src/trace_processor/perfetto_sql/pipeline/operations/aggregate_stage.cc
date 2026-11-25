@@ -135,7 +135,7 @@ OutputProperties AggregateStage::Derive(DeriveContext& c) const {
 void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
   core::Arena& arena = c->arena();
-  c->AddOperator(std::make_unique<ex::HashAggregate>(
+  c->AddOperator(arena.New<ex::HashAggregate>(
       arena, ex::HashAggregateSpec{c->QueryPositions(keys_),
                                    LowerAggregates(c, aggregates_)}));
 }

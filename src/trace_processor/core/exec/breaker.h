@@ -42,8 +42,6 @@ class Breaker : public Sink {
     Held<base::Status> status{this};
   };
 
-  ~Breaker() override;
-
   // Which of its input's columns it reads and keeps (see StepColumns).
   virtual void DescribeColumns(StepColumns* out) const = 0;
 
@@ -64,6 +62,7 @@ class Breaker : public Sink {
 
  protected:
   Breaker() = default;
+  ~Breaker() = default;
 
  private:
   friend class Served;

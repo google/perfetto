@@ -43,7 +43,6 @@ class Limit final : public Operator {
 
   // No `limit` keeps every row after the offset.
   Limit(std::optional<uint32_t> limit, uint32_t offset);
-  ~Limit() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,

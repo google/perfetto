@@ -93,8 +93,8 @@ void Run(benchmark::State& state,
     keys.push_back(0);
   }
   test::BreakerRun run(
-      batches,
-      std::make_unique<HashAggregate>(
+      arena, batches,
+      arena.New<HashAggregate>(
           arena, HashAggregateSpec{arena.CopySpan<uint32_t>(keys),
                                    arena.CopySpan<AggregateCall>(calls)}));
   for (auto _ : state) {
