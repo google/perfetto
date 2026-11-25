@@ -126,6 +126,12 @@ class RowBatch {
     SetColumns(views.data(), static_cast<uint32_t>(views.size()),
                buffers.data(), static_cast<uint32_t>(buffers.size()));
   }
+  // As above, with `count` views and their buffers.
+  void SetColumns(const ColumnView* views,
+                  const ColumnBuffer* buffers,
+                  uint32_t count) {
+    SetColumns(views, count, buffers, count);
+  }
   // Replaces `column` with `view`, which is onto `buffer`.
   void SetColumn(uint32_t column, const ColumnView& view, ColumnBuffer buffer);
   // Replaces `column` with a column of `type` where every row is null.

@@ -18,15 +18,12 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DATAFRAME_SCAN_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
 
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -58,17 +55,17 @@ class DataframeScan final : public Source {
                 uint32_t row_count,
                 ReadDirection direction);
 
-  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     RangeReader reader;
   };
+
+  OperatorState* NewState(Context& context) const override;
 
   core::ArenaSpan<const dataframe::Column*> columns_;
   uint32_t row_count_;

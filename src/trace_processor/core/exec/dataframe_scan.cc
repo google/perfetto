@@ -17,9 +17,7 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 
 #include <cstdint>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -35,11 +33,9 @@ DataframeScan::DataframeScan(core::ArenaSpan<const dataframe::Column*> columns,
                              ReadDirection direction)
     : columns_(columns), row_count_(row_count), direction_(direction) {}
 
-DataframeScan::State::~State() = default;
-
 OperatorState* DataframeScan::NewState(Context& context) const {
-  auto* state = context.Make<State>();
-  state->reader.Init(columns_.span());
+  auto* state = context.MakeRewound<State>();
+  state->reader.Init(columns_.span(), *state);
   state->reader.Start({0, row_count_}, direction_);
   return state;
 }

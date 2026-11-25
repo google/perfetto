@@ -19,11 +19,9 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <memory>
 #include <numeric>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/span.h"
@@ -395,17 +393,19 @@ Filter::Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool)
   }
 }
 
-Filter::State::~State() = default;
-
 OperatorState* Filter::NewState(Context& context) const {
-  return context.Make<State>(context);
+  auto* state = context.MakeRewound<State>();
+  state->rows = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->sparse_values = context.NewSpan<uint64_t>(kMaxBatchRows);
+  return state;
 }
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
-  const ParamValue* values = s.context->params().b;
+  const Context& context = s.context();
+  const ParamValue* values = context.params().b;
   const Selection& selection = batch.selection();
-  Rows r{s.rows.data(), selection.size(), selection.prefix()};
+  Rows r{s.rows.begin(), selection.size(), selection.prefix()};
   if (!r.contiguous) {
     const uint16_t* indices = selection.indices();
     for (uint32_t i = 0, n = r.count; i < n; ++i) {
@@ -420,9 +420,9 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       continue;
     }
     PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
-    PERFETTO_DCHECK(c.param < s.context->params().size());
+    PERFETTO_DCHECK(c.param < context.params().size());
     ApplyCondition(c.op, values[c.param], column, *pool_,
-                   s.sparse_values.data(), r);
+                   s.sparse_values.begin(), r);
   }
   if (r.contiguous && r.count == selection.size()) {
     return true;

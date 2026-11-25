@@ -19,18 +19,13 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
-#include <utility>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/variant.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -59,7 +54,6 @@ class TreeNumberNodes final : public Transform {
 
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
 
-  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
 
   // Whether every id seen so far was already its own node number.
@@ -68,46 +62,24 @@ class TreeNumberNodes final : public Transform {
  private:
   friend class PipelineFormatter;
 
-  struct Key {
-    int64_t value;
-    bool is_string;
-
-    bool operator==(const Key& other) const {
-      return value == other.value && is_string == other.is_string;
-    }
-    template <typename H>
-    friend H PerfettoHashValue(H h, const Key& key) {
-      return H::Combine(std::move(h), key.value, key.is_string);
-    }
-  };
-  // Where the two columns appended to the batch are written.
   struct Numbers {
     uint32_t* nodes;
     uint32_t* parent_nodes;
   };
-  struct State : HeldState {
-    explicit State(Context& c) : context(&c) {}
-    ~State() override;
-    // What the numbers are written in.
-    Context* context;
-
-    // The number of each id seen.
-    // While the ids arriving are 0, 1, 2, ... they are already node numbers,
-    // so the map stays empty.
-    RunValue<bool> dense{this, true};
-    RunValue<uint32_t> numbered{this};
-    Held<base::FlatHashMap<Key, uint32_t>> numbers{this};
-    // Which nodes have had a row of their own, to catch an id used twice.
-    Held<BitVector> has_row{this};
-
-    // Scratch for one call: the batch's ids and parent ids, whatever type
-    // they arrived as.
-    CallScratch<FlexVector<Variant>> ids;
-    CallScratch<FlexVector<Variant>> parents;
+  struct State : OperatorState {
+    bool dense = true;
+    uint32_t numbered = 0;
+    // By id, its number: integer ids, and string ids by their interned id.
+    RunMap numbers;
+    RunMap string_numbers;
+    RunBits has_row;
+    // Scratch for one call.
+    core::ArenaSpan<Variant> ids;
+    core::ArenaSpan<Variant> parents;
   };
 
-  // Numbers a batch of a table scanned in row order whose parents all point
-  // back, or returns false having changed nothing.
+  OperatorState* NewState(Context&) const override;
+
   bool NumberInOrder(const RowBatch&, uint32_t count, Numbers&, State&) const;
   bool NumberByKey(const RowBatch&, uint32_t count, Numbers&, State&) const;
   uint32_t Number(State&, const Variant& id) const;

@@ -18,8 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_INDEX_SCAN_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
 
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -29,10 +27,9 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -64,25 +61,22 @@ class IndexScan final : public Source {
             core::ArenaSpan<SortedSearches::Search> searches,
             const StringPool* pool);
 
-  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     RowListReader reader;
-    const Context* context = nullptr;
-    // By equality: prefix popcounts of sparse null columns.
-    std::vector<Slab<uint32_t>> popcounts;
     // By equality: the column as filter::SearchIndexEqual takes it.
-    std::vector<filter::IndexColumn> columns;
+    core::ArenaSpan<filter::IndexColumn> columns;
     // The entries in the sorted searches' range, when they can't be cut.
-    Held<std::vector<uint32_t>> in_range{this};
+    RunVector<uint32_t> in_range;
     bool searched = false;
   };
+
+  OperatorState* NewState(Context& context) const override;
 
   base::Span<const uint32_t> Find(State& s) const;
 

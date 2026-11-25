@@ -18,12 +18,10 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_LIMIT_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -44,7 +42,6 @@ class Limit final : public Operator {
   // No `limit` keeps every row after the offset.
   Limit(std::optional<uint32_t> limit, uint32_t offset);
 
-  OperatorState* NewState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -52,14 +49,13 @@ class Limit final : public Operator {
  private:
   friend class PipelineFormatter;
 
-  struct State : HeldState {
-    State() = default;
-    ~State() override;
-
+  struct State : OperatorState {
     // How many rows of the offset are dropped, and how many are kept.
-    RunValue<uint32_t> skipped{this};
-    RunValue<uint32_t> kept{this};
+    uint32_t skipped = 0;
+    uint32_t kept = 0;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   std::optional<uint32_t> limit_;
   uint32_t offset_;

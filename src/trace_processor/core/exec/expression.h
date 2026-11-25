@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_EXPRESSION_H_
 
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -125,11 +124,12 @@ class Compute final : public Transform {
           base::Span<const ExprProgram> programs,
           const StringPool* pool);
 
-  OperatorState* NewState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
+
+  OperatorState* NewState(Context&) const override;
 
   core::ArenaSpan<Program> programs_;
   const StringPool* pool_;

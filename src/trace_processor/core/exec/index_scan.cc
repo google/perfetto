@@ -18,10 +18,8 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -73,24 +71,30 @@ IndexScan::IndexScan(core::Arena& arena,
   }
 }
 
-IndexScan::State::~State() = default;
-
 OperatorState* IndexScan::NewState(Context& context) const {
-  auto* state = context.Make<State>();
-  state->reader.Init(columns_.span(), &context);
-  state->context = &context;
-  state->popcounts.resize(equalities_.size());
+  auto* state = context.MakeRewound<State>();
+  state->reader.Init(columns_.span(), *state);
+  state->columns = context.NewSpan<filter::IndexColumn>(equalities_.size());
   for (uint32_t i = 0; i < equalities_.size(); ++i) {
     const dataframe::Column& column = *equalities_[i].column;
     const BitVector* nulls = column.null_storage.MaybeGetNullBitVector();
     // Built here rather than lazily in Find(), which runs far more often.
+    const uint32_t* popcount = nullptr;
     if (StoresNoValueForNulls(column)) {
-      state->popcounts[i] = nulls->PrefixPopcount();
+      Slab<uint32_t> built = nulls->PrefixPopcount();
+      core::ArenaSpan<uint32_t> kept =
+          context.NewSpan<uint32_t>(static_cast<uint32_t>(built.size()));
+      if (built.size()) {
+        memcpy(kept.begin(), built.data(), built.size() * sizeof(uint32_t));
+      }
+      popcount = kept.begin();
     }
-    state->columns.push_back({column.storage.type(),
-                              column.null_storage.nullability(),
-                              column.storage.untyped_data(), nulls,
-                              state->popcounts[i].data(), pool_});
+    state->columns[i] = {column.storage.type(),
+                         column.null_storage.nullability(),
+                         column.storage.untyped_data(),
+                         nulls,
+                         popcount,
+                         pool_};
   }
   return state;
 }
@@ -102,11 +106,12 @@ void IndexScan::Rewind(OperatorState& state) const {
 base::Span<const uint32_t> IndexScan::Find(State& s) const {
   base::Span<const uint32_t> entries(
       permutation_->data(), permutation_->data() + permutation_->size());
-  const ParamValue* values = s.context->params().b;
+  const Context& context = s.context();
+  const ParamValue* values = context.params().b;
   bool one_key = whole_key_;
   for (uint32_t i = 0; i < equalities_.size() && !entries.empty(); ++i) {
     const Equality& eq = equalities_[i];
-    PERFETTO_DCHECK(eq.param < s.context->params().size());
+    PERFETTO_DCHECK(eq.param < context.params().size());
     const ParamValue& cast = values[eq.param];
     if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
       entries.e = entries.b;
@@ -133,18 +138,17 @@ base::Span<const uint32_t> IndexScan::Find(State& s) const {
   if (one_key) {
     // The entries are rows in order, so only the rows between the first and
     // the last need searching.
-    Range range =
-        searches_.Find(*s.context, {*entries.b, *(entries.e - 1) + 1});
+    Range range = searches_.Find(context, {*entries.b, *(entries.e - 1) + 1});
     const uint32_t* b = std::lower_bound(entries.b, entries.e, range.b);
     const uint32_t* e = std::lower_bound(b, entries.e, range.e);
     return base::Span<const uint32_t>(b, e);
   }
   auto rows = static_cast<uint32_t>(permutation_->size());
-  Range range = searches_.Find(*s.context, {0, rows});
+  Range range = searches_.Find(context, {0, rows});
   s.in_range.clear();
   for (const uint32_t* it = entries.b; it != entries.e; ++it) {
     if (*it >= range.b && *it < range.e) {
-      s.in_range.push_back(*it);
+      s.in_range.push_back(s, *it);
     }
   }
   return base::Span<const uint32_t>(s.in_range.data(),

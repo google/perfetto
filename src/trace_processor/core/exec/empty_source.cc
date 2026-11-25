@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/core/exec/empty_source.h"
 
-#include <memory>
-
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 

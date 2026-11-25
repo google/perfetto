@@ -20,7 +20,6 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <variant>
 

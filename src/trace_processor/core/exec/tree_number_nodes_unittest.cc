@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -69,7 +68,7 @@ struct Numbered {
   bool Process() { return test::ProcessCopy(op, in, out, *state); }
 
   TreeNumberNodes op;
-  OperatorState* state = nullptr;
+  OperatorState* state;
   std::vector<T> ids_;
   std::vector<T> parents_;
   BitVector validity_;
@@ -164,7 +163,7 @@ struct Scanned {
   }
 
   TreeNumberNodes op;
-  OperatorState* state = nullptr;
+  OperatorState* state;
   std::vector<uint32_t> parents_;
   BitVector validity_;
   RowBatch out;

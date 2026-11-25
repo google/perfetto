@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/assert_type.h"
 
 #include <cstdint>
-#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -33,7 +32,6 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -180,16 +178,10 @@ AssertType::AssertType(uint32_t column,
                        std::string_view name)
     : column_(column), type_(type.Upcast<StorageType>()), name_(name) {}
 
-AssertType::State::~State() = default;
-
-OperatorState* AssertType::NewState(Context& context) const {
-  return context.Make<State>(context);
-}
-
 bool AssertType::Widen(const ColumnView& column,
                        const Selection& selection,
                        ColumnChunk& chunk,
-                       State& state) const {
+                       Context& context) const {
   StorageType from = column.type();
   if (type_.Is<Int64>()) {
     PERFETTO_DCHECK((from.IsAnyOf<base::TypeSet<Id, Uint32, Int32>>()));
@@ -218,7 +210,7 @@ bool AssertType::Widen(const ColumnView& column,
   }
   if (from.Is<Int64>()) {
     auto exact = [&](int64_t value, double* out) {
-      return ExactDouble(value, out) || NotExact(name_, state.context);
+      return ExactDouble(value, out) || NotExact(name_, &context);
     };
     return WidenAs<int64_t>(column, selection, exact, chunk.Values<double>(),
                             &chunk.validity);
@@ -229,21 +221,21 @@ bool AssertType::Widen(const ColumnView& column,
 }
 
 bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
-  State& s = state.Cast<State>();
+  Context& context = state.context();
   const ColumnView& column = batch.column(column_);
   if (column.kind() != ColumnView::Kind::kVariant && column.type() == type_) {
     return true;
   }
-  ColumnBuffer buffer = s.context->TakeBuffer(ValueWidth(type_));
+  ColumnBuffer buffer = context.TakeBuffer(ValueWidth(type_));
   ColumnChunk& chunk = buffer.chunk();
   chunk.SizeValidity();
   if (column.kind() != ColumnView::Kind::kVariant) {
     bool widen = column.type().IsAnyOf<IntegerType>() &&
                  (type_.Is<Int64>() || type_.Is<Double>());
     if (!widen) {
-      return WrongType(name_, "is", Name(column.type()), type_, s.context);
+      return WrongType(name_, "is", Name(column.type()), type_, &context);
     }
-    if (!Widen(column, batch.selection(), chunk, s)) {
+    if (!Widen(column, batch.selection(), chunk, context)) {
       return false;
     }
     // A column without validity has no nulls to remap, so stays non-null.
@@ -255,7 +247,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   }
 
   auto mismatch = [&](const Variant& cell) {
-    return WrongType(name_, "holds", Name(cell.type), type_, s.context);
+    return WrongType(name_, "holds", Name(cell.type), type_, &context);
   };
   const Selection& selection = batch.selection();
   bool ok;
@@ -284,7 +276,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
               return mismatch(cell);
             }
             return ExactDouble(cell.AsInt64(), out) ||
-                   NotExact(name_, s.context);
+                   NotExact(name_, &context);
           },
           chunk.Values<double>(), &chunk.validity);
       break;
@@ -316,14 +308,8 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
 NullColumn::NullColumn(uint32_t column, StorageType type)
     : column_(column), type_(type) {}
 
-NullColumn::State::~State() = default;
-
-OperatorState* NullColumn::NewState(Context& context) const {
-  return context.Make<State>(context);
-}
-
 bool NullColumn::Process(RowBatch& batch, OperatorState& state) const {
-  batch.SetNullColumn(column_, type_, *state.Cast<State>().context);
+  batch.SetNullColumn(column_, type_, state.context());
   return true;
 }
 

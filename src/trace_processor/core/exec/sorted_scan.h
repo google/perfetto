@@ -18,8 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_SORTED_SCAN_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -29,7 +27,6 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/range.h"
 
@@ -105,19 +102,18 @@ class SortedScan final : public Source {
              const StringPool* pool,
              ReadDirection direction);
 
-  OperatorState* NewState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : HeldState {
-    ~State() override;
+  struct State : OperatorState {
     RangeReader reader;
-    const Context* context = nullptr;
     bool searched = false;
   };
+
+  OperatorState* NewState(Context& context) const override;
 
   core::ArenaSpan<const dataframe::Column*> columns_;
   uint32_t row_count_;

@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -62,7 +61,7 @@ struct Asserted {
   }
 
   AssertType op;
-  OperatorState* state = nullptr;
+  OperatorState* state;
   std::vector<Variant> values;
   RowBatch input;
   // The batch converted in place.

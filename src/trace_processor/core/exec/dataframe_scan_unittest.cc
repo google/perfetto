@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
