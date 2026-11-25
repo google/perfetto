@@ -18,6 +18,7 @@
 
 #include <string>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/field.h"
@@ -31,13 +32,11 @@ namespace perfetto::trace_redaction {
 
 base::Status ScrubProcessStats::Transform(const Context& context,
                                           std::string* packet) const {
-  if (!context.package_uid.has_value()) {
-    return base::ErrStatus("FilterProcessStats: missing package uid.");
-  }
-
-  if (!context.timeline) {
-    return base::ErrStatus("FilterProcessStats: missing timeline.");
-  }
+  // Validated once before Transform() by PackageValidation / FindPackageUid and
+  // TimelineValidation; DCHECKs avoid repeating these checks on every packet in
+  // release builds.
+  PERFETTO_DCHECK(context.package_uid.has_value());
+  PERFETTO_DCHECK(context.timeline);
 
   protozero::ProtoDecoder packet_decoder(*packet);
 

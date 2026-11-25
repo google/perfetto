@@ -24,6 +24,11 @@
 
 namespace perfetto::trace_redaction {
 
+// Removes ProcessStats.processes entries that do not match `filter_`.
+//
+// Requires `PackageValidation` (or `FindPackageUid`) and `TimelineValidation`
+// in the pipeline so `Context::package_uid` and `Context::timeline` are
+// validated once before `Transform()` runs.
 class ScrubProcessStats : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,
