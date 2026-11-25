@@ -78,6 +78,11 @@ export async function openFileFromDeeplink(
     drive.openFile(oauthToken, fileId, resourceKey),
   ]);
   let fileName = fileMetaResult.ok ? fileMetaResult.value.name : undefined;
+  // Remember the file's resource key, for links to it. The deep link carries
+  // it when Drive's "Open with" made it; otherwise Drive reports it.
+  let knownResourceKey =
+    resourceKey ??
+    (fileMetaResult.ok ? fileMetaResult.value.resourceKey : undefined);
   let fileDownloadResult = initialDownloadResult;
 
   // If access is blocked, attempt to open it via the picker instead. The app
@@ -104,6 +109,7 @@ export async function openFileFromDeeplink(
     // The picker reports the name of the file just authorized, which saves
     // looking it up.
     fileName = picked.value.name;
+    knownResourceKey ??= picked.value.resourceKey;
 
     // Try the download again.
     fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey);
@@ -124,7 +130,7 @@ export async function openFileFromDeeplink(
     // perfetto-ui-data GCS bucket via permalinks or crash reports.
     shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
-    pluginArgs: gdriveTraceArgs(fileId),
+    pluginArgs: gdriveTraceArgs(fileId, knownResourceKey),
   });
 }
 

@@ -368,6 +368,12 @@ bool SqliteConnection::PreparedStatement::IsDone() const {
   return !sqlite3_stmt_busy(stmt_.get());
 }
 
+void SqliteConnection::PreparedStatement::Reset() {
+  sqlite3_reset(stmt_.get());
+  sqlite3_clear_bindings(stmt_.get());
+  status_ = base::OkStatus();
+}
+
 const char* SqliteConnection::PreparedStatement::original_sql() const {
   return sql_source_.original_sql().c_str();
 }

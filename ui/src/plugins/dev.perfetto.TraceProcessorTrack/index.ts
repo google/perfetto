@@ -718,7 +718,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       src: `
         select
           id,
-          dur,
+          iif(dur = -1, trace_end() - ts, dur) as dur,
           ts,
           parent_id,
           name
@@ -743,9 +743,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         currentSelection.end,
       ),
     );
-    // Incomplete slices (dur = -1) are dropped by `createIITable` but their
-    // descendants are not: only keep slices reachable from a root so that
-    // every remaining slice's parent is also present.
+    // Only keep slices reachable from a root so that every remaining slice's
+    // parent is also present.
     const nodesTable = disposables.use(
       await createPerfettoTable({
         engine: trace.engine,

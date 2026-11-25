@@ -20,13 +20,42 @@ import {
 
 describe('parseGDriveTraceArgs', () => {
   test('returns fileId for valid args', () => {
-    expect(parseGDriveTraceArgs({fileId: 'abc123'})).toBe('abc123');
-    expect(parseGDriveTraceArgs({fileId: '0-aZ_9'})).toBe('0-aZ_9');
+    expect(parseGDriveTraceArgs({fileId: 'abc123'})).toEqual({
+      fileId: 'abc123',
+    });
+    expect(parseGDriveTraceArgs({fileId: '0-aZ_9'})).toEqual({
+      fileId: '0-aZ_9',
+    });
+  });
+
+  test('returns the resource key too, if present', () => {
+    expect(
+      parseGDriveTraceArgs({fileId: 'abc123', resourceKey: '0-key_9'}),
+    ).toEqual({fileId: 'abc123', resourceKey: '0-key_9'});
+  });
+
+  test('drops an invalid resource key, keeping the file ID', () => {
+    expect(
+      parseGDriveTraceArgs({fileId: 'abc123', resourceKey: 'bad/key'}),
+    ).toEqual({fileId: 'abc123'});
+    expect(parseGDriveTraceArgs({fileId: 'abc123', resourceKey: 42})).toEqual({
+      fileId: 'abc123',
+    });
   });
 
   test('round-trips gdriveTraceArgs', () => {
     const pluginArgs = gdriveTraceArgs('file_123');
-    expect(parseGDriveTraceArgs(pluginArgs[GDRIVE_PLUGIN_ID])).toBe('file_123');
+    expect(parseGDriveTraceArgs(pluginArgs[GDRIVE_PLUGIN_ID])).toEqual({
+      fileId: 'file_123',
+    });
+  });
+
+  test('round-trips gdriveTraceArgs with a resource key', () => {
+    const pluginArgs = gdriveTraceArgs('file_123', '0-key_9');
+    expect(parseGDriveTraceArgs(pluginArgs[GDRIVE_PLUGIN_ID])).toEqual({
+      fileId: 'file_123',
+      resourceKey: '0-key_9',
+    });
   });
 
   test('returns undefined for non-object args', () => {

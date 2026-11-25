@@ -10,8 +10,11 @@
 #             span falls back to unfrozen_dur_ms (2s). Synthetic: producers
 #             write a non-zero start in practice.
 # - PID 1400: freeze at 6s with unfrozen_start_ns 1ns after the event
-#             (synthetic). The leading span is capped at the event and dropped.
-# Trace-stop snapshot at 7s, for processes without events:
+#             (synthetic). The parser drops it as invalid, so the leading span
+#             falls back to unfrozen_dur_ms (1s).
+# Trace-stop snapshot at 7.5s, for processes without events. Only the last
+# track event (7s) bounds the trace, not the snapshot packet, so the trace ends
+# at 7s:
 # - PID 800: unfrozen since 3s. Like real producers (ProtoOutputStream omits 0
 #            values), the record has no unfreeze_reason for UFR_NONE.
 # - PID 900: frozen since 4s.
@@ -19,6 +22,8 @@
 # - PID 1200: unfrozen since 6.9995s, with unfrozen_dur_ms omitted (0ms).
 # - PID 1300: frozen, frozen_start_ns = 0 (unknown). Synthetic: producers only
 #             write frozen_start_ns when it is > 0.
+# - PID 1500: frozen since 7.2s, after the trace end. Its span lies past the
+#             trace, so it doesn't count towards the freezer concurrency.
 packet {
   clock_snapshot {
     primary_trace_clock: BUILTIN_CLOCK_MONOTONIC
@@ -41,6 +46,7 @@ packet {
     processes { pid: 1200 ppid: 1 cmdline: "proc1200" }
     processes { pid: 1300 ppid: 1 cmdline: "proc1300" }
     processes { pid: 1400 ppid: 1 cmdline: "proc1400" }
+    processes { pid: 1500 ppid: 1 cmdline: "proc1500" }
   }
 }
 packet {
@@ -127,9 +133,15 @@ packet {
   }
 }
 packet {
-  timestamp: 7000000000
+  timestamp: 7500000000
   timestamp_clock_id: 6
   [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+    record {
+      pid: 1500
+      uid: 10015
+      frozen_dur_ms: 300
+      frozen_start_ns: 7200000000
+    }
     record {
       pid: 800
       uid: 10008

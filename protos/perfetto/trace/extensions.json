@@ -1,10 +1,11 @@
 {
   "comment": [
     "Allocation registry for out-of-tree extensions against Perfetto trace",
-    "protos. Three scopes are tracked here:",
-    "  * TrackEvent   -- typed-event payloads emitted on a track (`extend TrackEvent`)",
-    "  * TracePacket  -- top-level trace packet types (`extend TracePacket`)",
-    "  * InternedData -- per-sequence interned data types (`extend InternedData`)",
+    "protos. Four scopes are tracked here:",
+    "  * TrackEvent      -- typed-event payloads emitted on a track (`extend TrackEvent`)",
+    "  * TrackDescriptor -- domain-specific track metadata (`extend TrackDescriptor`)",
+    "  * TracePacket     -- top-level trace packet types (`extend TracePacket`)",
+    "  * InternedData    -- per-sequence interned data types (`extend InternedData`)",
     "",
     "Adding a new allocation:",
     "  * Pick an unused tag range and add it as a new entry under the matching",
@@ -85,6 +86,29 @@
           "contact": "perfetto-dev@googlegroups.com",
           "description": "Reserved for Perfetto unit and integration tests",
           "proto": "protos/perfetto/trace/test_extensions.proto"
+        }
+      ]
+    },
+    {
+      "scope": "perfetto.protos.TrackDescriptor",
+      "range": [1000, 9999],
+      "allocations": [
+        {
+          "name": "perfetto_gpu",
+          "range": [3000, 3099],
+          "contact": "perfetto-dev@googlegroups.com",
+          "description": "Reserved for Perfetto GPU integration",
+          "proto": "protos/perfetto/trace/gpu/gpu_track_event.proto"
+        },
+        {
+          "name": "unallocated",
+          "comment": [
+            "Unallocated TrackDescriptor extension numbers."
+          ],
+          "ranges": [
+            [1000, 2999],
+            [3100, 9999]
+          ]
         }
       ]
     },

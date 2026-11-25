@@ -115,7 +115,7 @@ path tables and takes a few seconds; later runs take under a second.
 > do not walk the heap graph from the roots down. `heap_graph_reference` has
 > millions of cyclic edges, so those queries take minutes or time out. If you
 > need a custom query, walk up `heap_graph_dominator_tree.idom_id` or
-> `_heap_graph_object_min_depth_tree.parent_id` and join `heap_graph_reference`
+> `heap_graph_shortest_path_tree.parent_id` and join `heap_graph_reference`
 > through `heap_graph_object.reference_set_id`.
 
 ### 3.2 Which instances leaked? (`.hprof` only)

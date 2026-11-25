@@ -175,7 +175,36 @@ class Freezer(TestSuite):
         5500000000,-1,1100,"FROZEN"
         6499500000,-1,1200,"UNFROZEN"
         500000000,-1,1300,"FROZEN"
+        4500000000,1000000000,1400,"UNFROZEN"
         5500000000,-1,1400,"FROZEN"
+        6700000000,-1,1500,"FROZEN"
+        """))
+
+  def test_android_freezer_concurrency_start_times(self):
+    # PID 1500's span starts after the trace end, so it is left out of the
+    # concurrency rather than giving INTERVAL FLATTEN a negative duration.
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/freezer_start_times.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT state, ts, dur, concurrency
+        FROM _android_freezer_concurrency
+        ORDER BY state, ts;
+        """,
+        out=Csv("""
+        "state","ts","dur","concurrency"
+        "FROZEN",500000000,2500000000,2
+        "FROZEN",3000000000,500000000,3
+        "FROZEN",3500000000,1000000000,4
+        "FROZEN",4500000000,1000000000,3
+        "FROZEN",5500000000,1000000000,6
+        "UNFROZEN",500000000,2000000000,0
+        "UNFROZEN",2500000000,1000000000,1
+        "UNFROZEN",3500000000,500000000,2
+        "UNFROZEN",4000000000,500000000,3
+        "UNFROZEN",4500000000,1000000000,5
+        "UNFROZEN",5500000000,999500000,2
+        "UNFROZEN",6499500000,500000,3
         """))
 
   def test_android_freezer_concurrency(self):

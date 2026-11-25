@@ -31,7 +31,7 @@
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
-class ClockTracker;
+class ArgsInserter;
 class TraceProcessorContext;
 }  // namespace perfetto::trace_processor
 
@@ -45,13 +45,15 @@ StringId InternEnum(TraceProcessorContext* context,
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
 // (is_initial = 1, ts = NULL) at finalization. Initial process state rows carry
-// the time the state was entered, when known, in state_start_ts.
+// the time the state was entered, when known, in state_start_ts. Also records
+// the process groups requested through Process.setProcessGroup.
 class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
       TraceProcessorContext* context,
       tables::AndroidProcessStateTable* process_state_table,
-      tables::AndroidFreezerStateTable* freezer_state_table);
+      tables::AndroidFreezerStateTable* freezer_state_table,
+      tables::AndroidProcessGroupTable* process_group_table);
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
@@ -65,10 +67,29 @@ class AndroidProcessStateTracker {
   // An AndroidFreezerState dump TracePacket at |ts|.
   void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
 
+  // An AndroidProcessGroupChangedEvent TrackEvent extension at |ts|. Inserts
+  // one row per event. Unlike the other tables, no initial rows are
+  // synthesized: the event carries no previous group, and the snapshot's
+  // process_group is OomAdjuster's view, not the group last requested through
+  // Process.setProcessGroup, so the group before a process's first event is
+  // unknown.
+  void ParseProcessGroupChange(int64_t ts, protozero::ConstBytes bytes);
+
   // Synthesizes the per-process initial-state rows.
   void Finalize();
 
  private:
+  // Returns the live process for |pid|, or std::nullopt if |pid| is <= 0 (also
+  // when it is missing from the event, as it then decodes as 0) or has no live
+  // process. In the latter case, records an android_track_event_process_unknown
+  // notice for |source|, with |process_name| and |start_seq_id| when known.
+  std::optional<UniquePid> ResolveLiveProcess(
+      int64_t ts,
+      const char* source,
+      int64_t pid,
+      protozero::ConstChars process_name = {},
+      std::optional<int64_t> start_seq_id = std::nullopt);
+
   // Information captured for a process from dumps or delta events.
   struct ProcessStateValues {
     UniquePid upid = 0;
@@ -90,13 +111,16 @@ class AndroidProcessStateTracker {
     std::optional<int64_t> frozen_start_ts;
   };
 
-  // Reads the prev_* fields shared by AndroidProcessStateChangedEvent and
-  // AndroidProcessStateDiedEvent into |prev|. Defined in the .cc file, the
-  // only place it is instantiated.
+  // The track-event stream only emits delta transitions (prev -> cur). To
+  // reconstruct each process's state at the start of the trace, records the
+  // prev_* fields shared by AndroidProcessStateChangedEvent and
+  // AndroidProcessStateDiedEvent from the earliest such event of |upid|, at
+  // |ts|. Later events return before reading them. Defined in the .cc file,
+  // the only place it is instantiated.
   template <typename Decoder>
-  static void ReadPrevState(const Decoder& event,
-                            ClockTracker* clock_tracker,
-                            ProcessStateValues* prev);
+  void UpdateInitialStateFromDelta(int64_t ts,
+                                   UniquePid upid,
+                                   const Decoder& event);
 
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.
@@ -104,11 +128,6 @@ class AndroidProcessStateTracker {
     int64_t ts = std::numeric_limits<int64_t>::max();
     ProcessStateValues values;
   };
-
-  // Records the pre-change state (prev_*) from the earliest delta track event
-  // seen for a process to establish its baseline at trace start.
-  void UpdateInitialStateFromDelta(int64_t ts,
-                                   const ProcessStateValues& prev_state);
 
   // Computes the initial baseline state for every process by starting from the
   // trace-stop dump snapshot and overlaying the pre-transition states from the
@@ -130,14 +149,28 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
-  // Populates capability_flags[i] args on the given AndroidProcessState row.
-  void AddCapabilityFlagsArgs(tables::AndroidProcessStateTable::Id id,
-                              int32_t mask);
+  // Populates decoded flag array entries (capability_flags[i],
+  // cpu_time_reasons[i], implicit_cpu_time_reasons[i], freeze_policy_flags[i])
+  // onto row.arg_set_id using a single ArgsInserter.
+  void AddFlagsArgs(tables::AndroidProcessStateTable::Id id,
+                    const tables::AndroidProcessStateTable::Row& row);
+
+  // Appends decoded flag entries for a single non-zero bitmask onto |inserter|.
+  void EmitDecodedFlags(ArgsInserter& inserter,
+                        StringId flat_key_id,
+                        const char* key_prefix,
+                        DescriptorPool::CachedDescriptor& cache,
+                        const char* enum_name,
+                        int32_t mask);
 
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
+  tables::AndroidProcessGroupTable* const process_group_table_;
   const StringId capability_flags_id_;
+  const StringId cpu_time_reasons_id_;
+  const StringId implicit_cpu_time_reasons_id_;
+  const StringId freeze_policy_flags_id_;
   UnknownProcessLogger unknown_process_logger_;
 
   DescriptorPool::CachedDescriptor proc_state_cache_;
@@ -145,6 +178,8 @@ class AndroidProcessStateTracker {
   DescriptorPool::CachedDescriptor reason_cache_;
   DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
   DescriptorPool::CachedDescriptor capability_flags_cache_;
+  DescriptorPool::CachedDescriptor cpu_time_reasons_cache_;
+  DescriptorPool::CachedDescriptor freeze_policy_flags_cache_;
   std::vector<std::string_view> flag_views_;
 
   // Map of upid -> earliest observed delta transition during the trace.
