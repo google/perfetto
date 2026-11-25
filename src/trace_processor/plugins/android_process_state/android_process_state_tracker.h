@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -109,13 +110,12 @@ class AndroidProcessStateTracker {
   // The track-event stream only emits delta transitions (prev -> cur). To
   // reconstruct each process's state at the start of the trace, records the
   // prev_* fields of the earliest AndroidProcessStateChangedEvent of |upid|,
-  // at |ts|. Later events return before reading them. Templated on the decoder
-  // to keep the proto headers out of this header; defined in the .cc file, the
-  // only place it is instantiated.
-  template <typename Decoder>
-  void UpdateInitialStateFromDelta(int64_t ts,
-                                   UniquePid upid,
-                                   const Decoder& event);
+  // at |ts|. Later events return before reading them.
+  void UpdateInitialStateFromDelta(
+      int64_t ts,
+      UniquePid upid,
+      const com::android::internal::pbzero::AndroidProcessStateChangedEvent::
+          Decoder& event);
 
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.

@@ -110,11 +110,10 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
-template <typename Decoder>
 void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
     int64_t ts,
     UniquePid upid,
-    const Decoder& event) {
+    const fb::AndroidProcessStateChangedEvent::Decoder& event) {
   EarliestDelta& earliest = earliest_prev_[upid];
   if (ts >= earliest.ts) {
     return;
