@@ -10,7 +10,8 @@
 #             span falls back to unfrozen_dur_ms (2s). Synthetic: producers
 #             write a non-zero start in practice.
 # - PID 1400: freeze at 6s with unfrozen_start_ns 1ns after the event
-#             (synthetic). The leading span is capped at the event and dropped.
+#             (synthetic). The parser drops it as invalid, so the leading span
+#             falls back to unfrozen_dur_ms (1s).
 # Trace-stop snapshot at 7s, for processes without events:
 # - PID 800: unfrozen since 3s. Like real producers (ProtoOutputStream omits 0
 #            values), the record has no unfreeze_reason for UFR_NONE.

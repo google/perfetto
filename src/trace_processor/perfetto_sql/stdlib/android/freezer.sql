@@ -272,8 +272,10 @@ WITH
     -- time the event says (its exact start time, else its duration). In
     -- ring-buffer traces the event that started that state is often
     -- overwritten, so don't stretch the span back to process or trace start;
-    -- before it the state is unknown. The span never starts after the event, so
-    -- an invalid start can't produce a negative (or open-ended -1) duration.
+    -- before it the state is unknown. The parser drops a start after the event,
+    -- but a process birth after it could still put the span after the event, so
+    -- the span is capped at the event and never gets a negative (or open-ended
+    -- -1) duration.
     SELECT upid, ts, event_ts - ts AS dur, state
     FROM (
       SELECT

@@ -19,7 +19,6 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -44,10 +43,10 @@ namespace {
 namespace fb = com::android::internal::pbzero;
 
 // Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
-// proc_state_start_ns) to trace time. Values <= 0 mean unknown. Also returns
-// std::nullopt if the conversion fails (the clock tracker records a stat in
-// that case) or if the start is after |event_ts|, the trace time of the event
-// reporting it, as a state can't start after it is reported.
+// proc_state_start_ns, frozen_start_ns) to trace time. Values <= 0 mean
+// unknown. Also returns std::nullopt if the conversion fails (the clock tracker
+// records a stat in that case) or if the start is after |event_ts|, the trace
+// time of the event reporting it, as a state can't start after it is reported.
 std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
                                           int64_t boottime_ns,
                                           int64_t event_ts) {
@@ -62,9 +61,6 @@ std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
   }
   return start_ts;
 }
-
-// Freezer start times aren't bounded by the event reporting them.
-constexpr int64_t kNoEventBound = std::numeric_limits<int64_t>::max();
 }  // namespace
 
 StringId InternEnum(TraceProcessorContext* context,
@@ -301,12 +297,12 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   // system_server writes these unconditionally (a freeze carries
   // unfrozen_start_ns, an unfreeze frozen_start_ns), so 0 means unknown.
   if (evt.has_unfrozen_start_ns()) {
-    row.unfrozen_start_ts = StartNsToTraceTime(
-        context_->clock_tracker.get(), evt.unfrozen_start_ns(), kNoEventBound);
+    row.unfrozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                               evt.unfrozen_start_ns(), ts);
   }
   if (evt.has_frozen_start_ns()) {
-    row.frozen_start_ts = StartNsToTraceTime(
-        context_->clock_tracker.get(), evt.frozen_start_ns(), kNoEventBound);
+    row.frozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                             evt.frozen_start_ns(), ts);
   }
   if (evt.has_unfreeze_reason()) {
     row.unfreeze_reason =
@@ -331,13 +327,12 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
     FreezerStateValues v;
     v.upid = *opt_upid;
     if (rec.has_unfrozen_start_ns()) {
-      v.unfrozen_start_ts =
-          StartNsToTraceTime(context_->clock_tracker.get(),
-                             rec.unfrozen_start_ns(), kNoEventBound);
+      v.unfrozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                               rec.unfrozen_start_ns(), ts);
     }
     if (rec.has_frozen_start_ns()) {
-      v.frozen_start_ts = StartNsToTraceTime(
-          context_->clock_tracker.get(), rec.frozen_start_ns(), kNoEventBound);
+      v.frozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                             rec.frozen_start_ns(), ts);
     }
     // An unfrozen process in the dump has unfrozen_dur_ms and, on newer
     // producers, unfrozen_start_ns; a frozen one has the frozen_* fields
