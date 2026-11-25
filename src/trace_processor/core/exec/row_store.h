@@ -65,6 +65,9 @@ class RowStore {
 
   // How many rows are held.
   uint32_t size() const { return size_; }
+  // The first batch appended, for its columns' types, or null if there was
+  // none.
+  const RowBatch* shape() const { return has_shape_ ? &shape_ : nullptr; }
 
   // Points `out` at up to `count` rows from `offset` on, as they are held. A
   // run stops at the end of a batch held, so it can be shorter: returns how
@@ -78,6 +81,15 @@ class RowStore {
   // batches are held.
   uint32_t Gather(RowBatch* out,
                   base::Span<const uint32_t> rows,
+                  Context& context) {
+    return Gather(out, rows, nullptr, context);
+  }
+
+  // Same as Gather(), but if `kept` isn't null, only the rows it selects are
+  // read and written. The other output rows are left unspecified.
+  uint32_t Gather(RowBatch* out,
+                  base::Span<const uint32_t> rows,
+                  const Selection* kept,
                   Context& context);
 
   // As Gather(), but rows held in one batch, in any order, are viewed where
@@ -127,11 +139,20 @@ class RowStore {
   // Points `out` at `held`, with every column of the shape.
   void ViewHeld(const RowBatch& held, RowBatch* out) const;
 
-  // The batch held which row `row` is in.
-  uint32_t Find(uint32_t row) const {
+  // Where row `row` is stored (see kPlaceRowBits). The row within its batch
+  // is a physical row, before the batch's selection is applied. Rows in the
+  // dense run (see dense_) are their own place.
+  uint32_t PlaceOf(uint32_t row) const {
     PERFETTO_DCHECK(row < held_rows_);
-    return batch_of_row_[row];
+    return row < dense_ ? row : places_[row - dense_];
   }
+
+  // The index of the batch holding row `row`.
+  uint32_t Find(uint32_t row) const { return PlaceOf(row) >> kPlaceRowBits; }
+
+  // If `rows` are consecutive rows of one batch, points `out` at them without
+  // copying and returns true.
+  bool ViewIfRun(RowBatch* out, const uint32_t* rows, uint32_t count);
 
   // `count` consecutive rows from `first`, all in `batch`, viewed in place.
   uint32_t ViewRun(RowBatch* out,
@@ -140,9 +161,8 @@ class RowStore {
                    uint32_t count) const;
 
   // The row `row` is of the batch it is in, before that batch's selection.
-  uint32_t RowInBatch(uint32_t row, uint32_t batch) const {
-    uint32_t start = batch ? ends_[batch - 1] : 0;
-    return batches_[batch]->selection()[row - start];
+  uint32_t RowInBatch(uint32_t row) const {
+    return PlaceOf(row) & kPlaceRowMask;
   }
 
   // The first `held_` are the batches held, the rest kept for reuse.
@@ -152,9 +172,13 @@ class RowStore {
   uint32_t held_rows_ = 0;
   // By batch held, the row after its last.
   FlexVector<uint32_t> ends_;
-  // By row held, the batch it is in: found at once, as rows taken out of
-  // order would otherwise each search the batches.
-  FlexVector<uint32_t> batch_of_row_;
+  // Rows are stored in batches. While every batch is full and unfiltered, row
+  // r is simply row r % kMaxBatchRows of batch r / kMaxBatchRows, so its
+  // place equals r. `dense_` counts the rows from the start where that holds.
+  // For the rows after them, `places_` records each row's place as it's
+  // appended, so a lookup never has to search the batches.
+  uint32_t dense_ = 0;
+  FlexVector<uint32_t> places_;
   // By column, where each batch held has its values: what gathering reads,
   // recorded as each batch is held so no gather has to look at batches its
   // rows are not in.

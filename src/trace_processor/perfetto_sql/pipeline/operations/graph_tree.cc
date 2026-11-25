@@ -104,7 +104,7 @@ base::Status GraphTree::BuildPlan(Compiler* c, uint32_t node) {
   }
   if (std::optional<NameId> qualifier = Scan::SourceQualifier(
           c, *Node<SyntaqlitePerfettoPipeSource>(c->parser(), n->nodes))) {
-    c->AddAlias({*qualifier, c->row()});
+    c->AddAlias(*qualifier, 0);
   }
   tree.parent_ = c->AddColumn(parent_name, core::Int64{});
   c->Append({parent_name, tree.parent_}, node);

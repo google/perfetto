@@ -147,8 +147,18 @@ void RowStore::Hold(const RowBatch& in) {
       nullable_[c] = true;
     }
   }
+  if (dense_ == held_rows_ && held_rows_ == (held_ << kPlaceRowBits) &&
+      in.selection().prefix()) {
+    dense_ += in.size();
+  } else {
+    PERFETTO_DCHECK(held_ < 1u << (32 - kPlaceRowBits));
+    const Selection& selection = in.selection();
+    for (uint32_t i = 0; i < in.size(); ++i) {
+      places_.push_back((held_ << kPlaceRowBits) | selection[i]);
+    }
+  }
   held_rows_ += in.size();
-  batch_of_row_.push_back_multiple(held_++, in.size());
+  ++held_;
   ends_.push_back(held_rows_);
 }
 
@@ -168,7 +178,8 @@ void RowStore::Clear() {
   held_ = 0;
   held_rows_ = 0;
   ends_.clear();
-  batch_of_row_.clear();
+  dense_ = 0;
+  places_.clear();
   for (FlexVector<GatherSource>& sources : sources_) {
     sources.clear();
   }
@@ -189,7 +200,7 @@ void RowStore::Clear() {
 void RowStore::EndRun() {
   Clear();
   EndRunOf(&ends_);
-  EndRunOf(&batch_of_row_);
+  EndRunOf(&places_);
   EndRunOf(&nullable_);
   for (FlexVector<GatherSource>& sources : sources_) {
     EndRunOf(&sources);
@@ -258,13 +269,14 @@ bool RowStore::Place(base::Span<const uint32_t> rows, RowsInPlace* out) {
     PERFETTO_DCHECK(rows[r] < size_);
     uint32_t batch = Find(rows[r]);
     out->batch[r] = batch;
-    out->row[r] = RowInBatch(rows[r], batch);
+    out->row[r] = RowInBatch(rows[r]);
   }
   return true;
 }
 
 uint32_t RowStore::Gather(RowBatch* out,
                           base::Span<const uint32_t> rows,
+                          const Selection* kept,
                           Context& context) {
   PERFETTO_DCHECK(!holds_sparse_);
   out->Reset();
@@ -274,28 +286,31 @@ uint32_t RowStore::Gather(RowBatch* out,
     return 0;
   }
   Flush();
-  // Rows held one after another in one batch are already laid out as wanted:
-  // view them where they are.
-  uint32_t first = rows[0];
-  PERFETTO_DCHECK(first < size_);
-  uint32_t batch = Find(first);
-  bool run =
-      batches_[batch]->selection().prefix() && first + count <= ends_[batch];
-  for (uint32_t r = 1; run && r < count; ++r) {
-    run = rows[r] == first + r;
+  if (!kept && ViewIfRun(out, rows.data(), count)) {
+    return count;
   }
-  if (run) {
-    return ViewRun(out, batch, first, count);
+  // The positions in `rows` of the rows to gather.
+  std::array<uint16_t, kMaxBatchRows> prefix_rows;
+  uint32_t kept_count = kept ? kept->size() : count;
+  const uint16_t* kept_rows;
+  if (kept && !kept->prefix()) {
+    kept_rows = kept->indices();
+  } else {
+    for (uint32_t i = 0; i < kept_count; ++i) {
+      prefix_rows[i] = static_cast<uint16_t>(i);
+    }
+    kept_rows = prefix_rows.data();
   }
-  // Which batch each row is in, and which row of it: found once for every
-  // column. Rows taken out of order rarely come in runs from one batch, so
-  // each column is then copied a row at a time, not a run at a time.
-  std::array<uint32_t, kMaxBatchRows> batches;
-  std::array<uint32_t, kMaxBatchRows> batch_rows;
-  for (uint32_t r = 0; r < count; ++r) {
-    PERFETTO_DCHECK(rows[r] < size_);
-    batches[r] = Find(rows[r]);
-    batch_rows[r] = RowInBatch(rows[r], batches[r]);
+  // Look up each row's place once, rather than once per column. While every
+  // row so far is in the dense run, a row is its own place and there's
+  // nothing to look up.
+  std::array<uint32_t, kMaxBatchRows> found;
+  const uint32_t* places = rows.data();
+  if (!places_.empty()) {
+    for (uint32_t i = 0; i < kept_count; ++i) {
+      found[kept_rows[i]] = PlaceOf(rows[kept_rows[i]]);
+    }
+    places = found.data();
   }
   for (uint32_t c = 0; c < shape_.column_count(); ++c) {
     const ColumnView& like = shape_.column(c);
@@ -306,12 +321,28 @@ uint32_t RowStore::Gather(RowBatch* out,
     }
     ColumnBuffer buffer = context.TakeBuffer(ValueWidth(like));
     ColumnChunk& chunk = buffer.chunk();
-    chunk.Gather(like, sources_[stored].data(), batches.data(),
-                 batch_rows.data(), count, nullable_[stored]);
+    chunk.Gather(like, sources_[stored].data(), places, kept_rows, kept_count,
+                 count, nullable_[stored]);
     out->AddColumn(chunk.View(like, nullable_[stored]), std::move(buffer));
   }
   out->SetRowCount(count);
   return count;
+}
+
+bool RowStore::ViewIfRun(RowBatch* out, const uint32_t* rows, uint32_t count) {
+  uint32_t first = rows[0];
+  PERFETTO_DCHECK(first < size_);
+  uint32_t batch = Find(first);
+  if (!batches_[batch]->selection().prefix() || first + count > ends_[batch]) {
+    return false;
+  }
+  for (uint32_t r = 1; r < count; ++r) {
+    if (rows[r] != first + r) {
+      return false;
+    }
+  }
+  ViewRun(out, batch, first, count);
+  return true;
 }
 
 uint32_t RowStore::GatherInPlace(RowBatch* out,
@@ -347,7 +378,7 @@ uint32_t RowStore::GatherInPlace(RowBatch* out,
   }
   std::array<uint32_t, kMaxBatchRows> batch_rows;
   for (uint32_t r = 0; r < count; ++r) {
-    batch_rows[r] = RowInBatch(rows[r], batch);
+    batch_rows[r] = RowInBatch(rows[r]);
   }
   out->SetRowCount(held.selection().rows());
   out->mutable_selection().Reorder(

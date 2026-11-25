@@ -535,16 +535,87 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
-  # JOIN, INTERVAL MERGE and INTERVALS FROM EVENTS parse, but nothing lowers
-  # them yet.
-  def test_join_is_not_supported_yet(self):
+  # A JOIN whose right-side keys are consecutive, as a table's ids are.
+  def test_join_using_a_sequence(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
         PERFETTO PRAGMA pipelines = 1;
-        FROM (SELECT 1 AS id) |> LEFT JOIN (SELECT 1 AS id) AS t USING (id);
+        CREATE PERFETTO TABLE l AS
+        SELECT 2 AS k, 'b' AS a UNION ALL SELECT 4, 'd'
+        UNION ALL SELECT NULL, 'n' UNION ALL SELECT 3, 'c';
+        CREATE PERFETTO TABLE r AS
+        SELECT 1 AS k, 'x' AS b UNION ALL SELECT 2, 'y' UNION ALL SELECT 3, 'z';
+        FROM l |> JOIN r USING (k) |> ORDER BY a;
         """,
-        out=ExpectedError('JOIN is not supported yet'))
+        out=Csv("""
+        "k","a","b"
+        2,"b","y"
+        3,"c","z"
+        """))
+
+  def test_left_join_keeps_rows_without_a_match(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE l AS
+        SELECT 2 AS k, 'b' AS a UNION ALL SELECT 4, 'd'
+        UNION ALL SELECT NULL, 'n' UNION ALL SELECT 3, 'c';
+        CREATE PERFETTO TABLE r AS
+        SELECT 1 AS k, 'x' AS b UNION ALL SELECT 2, 'y' UNION ALL SELECT 3, 'z';
+        FROM l |> LEFT JOIN r USING (k) |> ORDER BY a;
+        """,
+        out=Csv("""
+        "k","a","b"
+        2,"b","y"
+        3,"c","z"
+        4,"d","[NULL]"
+        "[NULL]","n","[NULL]"
+        """))
+
+  def test_join_on_columns_of_each_side(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE l AS SELECT 2 AS x UNION ALL SELECT 1;
+        CREATE PERFETTO TABLE r AS SELECT 1 AS id, 'x' AS b
+        UNION ALL SELECT 2, 'y';
+        FROM l |> JOIN r AS t ON t.id = x |> SELECT x, t.id, b |> ORDER BY x;
+        """,
+        out=Csv("""
+        "x","id","b"
+        1,1,"x"
+        2,2,"y"
+        """))
+
+  def test_join_on_keys_not_a_sequence_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE r AS SELECT 1 AS k UNION ALL SELECT 5;
+        FROM (SELECT 1 AS k) |> JOIN r USING (k);
+        """,
+        out=ExpectedError('keys are a sequence'))
+
+  def test_join_using_case_insensitive_and_sql_right_side(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE l AS
+        SELECT 2 AS k, 'b' AS a UNION ALL SELECT 1, 'a';
+        FROM l
+        |> JOIN (SELECT 1 AS k, 'x' AS b UNION ALL SELECT 2, 'y') AS r USING (K)
+        |> ORDER BY k;
+        """,
+        out=Csv("""
+        "k","a","b"
+        1,"a","x"
+        2,"b","y"
+        """))
 
   def test_join_needs_on_or_using(self):
     return DiffTestBlueprint(
@@ -553,7 +624,7 @@ class PerfettoPipeline(TestSuite):
         PERFETTO PRAGMA pipelines = 1;
         FROM (SELECT 1 AS id) |> JOIN (SELECT 1 AS id) AS t;
         """,
-        out=ExpectedError('JOIN needs ON or USING'))
+        out=ExpectedError('ON or USING'))
 
   def test_interval_merge_is_not_supported_yet(self):
     return DiffTestBlueprint(

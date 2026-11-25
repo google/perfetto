@@ -129,6 +129,13 @@ void Compiler::AddAlias(Alias alias) {
   scope_.aliases.push_back(std::move(alias));
 }
 
+void Compiler::AddAlias(NameId name, size_t first_column) {
+  const std::vector<RowColumn>& row = scope_.row;
+  AddAlias(
+      {name,
+       {row.begin() + static_cast<std::ptrdiff_t>(first_column), row.end()}});
+}
+
 void Compiler::ReplaceAliasColumns(
     const std::vector<std::pair<ColumnId, ColumnId>>& replaced) {
   for (Alias& alias : scope_.aliases) {
@@ -197,18 +204,6 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
       case SYNTAQLITE_NODE_PERFETTO_TREE_EXPAND:
         name = "TREE EXPAND";
         break;
-      case SYNTAQLITE_NODE_PERFETTO_PIPE_JOIN: {
-        const auto* join = Node<SyntaqlitePerfettoPipeJoin>(p_, stage);
-        if (!syntaqlite_node_is_present(join->on_expr) &&
-            !syntaqlite_node_is_present(join->using_columns)) {
-          return source_(stage).AddTraceback(
-              0, base::ErrStatus("JOIN needs ON or USING to say which rows "
-                                 "match; a join of every row with every "
-                                 "other is not supported"));
-        }
-        name = "JOIN";
-        break;
-      }
       default: {
         std::string sql = source_(stage).sql();
         name = sql.substr(0, sql.find_first_of(" \n"));

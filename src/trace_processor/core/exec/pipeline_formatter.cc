@@ -42,6 +42,7 @@
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/exec/join.h"
 #include "src/trace_processor/core/exec/limit.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -397,6 +398,13 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
       out += "; " + Aggregates(spec.aggregates);
     }
     return out + ")";
+  }
+  if (op.Is<Join>()) {
+    const JoinSpec& spec = static_cast<const Join&>(op).spec_;
+    return std::string("Join(") +
+           (spec.kind == JoinSpec::Kind::kLeft ? "left" : "inner") + "; " +
+           Column(spec.probe_key) + " = build " + std::to_string(spec.build) +
+           ")";
   }
   if (op.Is<Limit>()) {
     const auto& limit = static_cast<const Limit&>(op);

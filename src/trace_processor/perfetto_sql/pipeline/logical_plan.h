@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_H_
 
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
@@ -209,18 +210,24 @@ class LogicalPlan {
   // Adds a node reading `children` and makes it the root, which holds while a
   // plan is built bottom up: each node added is the topmost one so far.
   template <typename T>
-  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
+  PlanNodeId AddNode(T operation,
+                     std::initializer_list<PlanNodeId> children = {}) {
+    std::unique_ptr<PlanOperation> op =
+        std::make_unique<T>(std::move(operation));
+    return AddNode(std::move(op), children);
+  }
+  template <typename T>
+  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children) {
     std::unique_ptr<PlanOperation> op =
         std::make_unique<T>(std::move(operation));
     return AddNode(std::move(op), std::move(children));
   }
+  // Out of line because every operation's BuildPlan calls it; inlining would
+  // copy it into each.
   PlanNodeId AddNode(std::unique_ptr<PlanOperation> operation,
-                     std::vector<PlanNodeId> children) {
-    auto id = static_cast<PlanNodeId>(nodes_.size());
-    nodes_.emplace_back(std::move(operation), std::move(children));
-    root_ = id;
-    return id;
-  }
+                     std::initializer_list<PlanNodeId> children);
+  PlanNodeId AddNode(std::unique_ptr<PlanOperation> operation,
+                     std::vector<PlanNodeId> children);
 
   std::vector<PlanColumn>& columns() { return columns_; }
   const std::vector<PlanColumn>& columns() const { return columns_; }
