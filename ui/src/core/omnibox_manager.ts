@@ -112,7 +112,6 @@ export class OmniboxManagerImpl implements OmniboxManager {
       }, durationMs);
     }
     this._statusMessageContainer = statusMessageContainer;
-    raf.scheduleFullRedraw();
   }
 
   get statusMessage(): string | undefined {

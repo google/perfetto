@@ -15,6 +15,7 @@
 import {errResult, okResult, type Result} from '../../../base/result';
 import type {App} from '../../../public/app';
 import type {Setting} from '../../../public/settings';
+import type {TraceStream} from '../../../public/stream';
 import {promptModal} from '../../../widgets/modal';
 import {
   alertConnectFailed,
@@ -52,7 +53,9 @@ const STATE = JSON.stringify({
   action: 'open',
   resourceKeys: {[FILE_ID]: RESOURCE_KEY},
 });
-const CONTENTS = new ArrayBuffer(8);
+const STREAM: TraceStream = {
+  readChunk: vi.fn(),
+};
 const PICKED_FILE = {
   id: FILE_ID,
   name: 'picked.pftrace',
@@ -67,7 +70,7 @@ const ACCESS_DENIED = errResult<DriveError>({type: 'access_denied'});
 interface Outcomes {
   readonly auth?: ReadonlyArray<Result<string, AuthError>>;
   readonly meta?: Result<GoogleDriveFileMeta, DriveError>;
-  readonly downloads?: ReadonlyArray<Result<ArrayBuffer, DriveError>>;
+  readonly downloads?: ReadonlyArray<Result<TraceStream, DriveError>>;
   readonly picked?: PickerResult;
   // Which button the user presses on each prompt. A prompt with no answer is
   // dismissed.
@@ -88,7 +91,7 @@ function inOrder<T>(answers: ReadonlyArray<T>, fallback: T): () => T {
 
 function setup(outcomes: Outcomes = {}) {
   const nextAuth = inOrder(outcomes.auth ?? [], okResult(TOKEN));
-  const nextDownload = inOrder(outcomes.downloads ?? [], okResult(CONTENTS));
+  const nextDownload = inOrder(outcomes.downloads ?? [], okResult(STREAM));
 
   const authenticate = vi.fn(async () => nextAuth());
   const getMeta = vi.fn(
@@ -98,8 +101,7 @@ function setup(outcomes: Outcomes = {}) {
   const requestFileAccess = vi.fn(
     async () => outcomes.picked ?? okResult(PICKED_FILE),
   );
-  const openTraceFromBuffer = vi.fn();
-  const showStatusMessage = vi.fn();
+  const openTraceFromStream = vi.fn();
 
   vi.mocked(promptModal).mockImplementation(
     async (args) => outcomes.prompts?.[args.key ?? ''] as never,
@@ -107,10 +109,7 @@ function setup(outcomes: Outcomes = {}) {
 
   const run = (state = STATE) =>
     openFileFromDeeplink(
-      {
-        openTraceFromBuffer,
-        omnibox: {showStatusMessage},
-      } as unknown as App,
+      {openTraceFromStream} as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {getMeta, openFile, requestFileAccess} as unknown as DriveClient,
       state,
@@ -123,8 +122,7 @@ function setup(outcomes: Outcomes = {}) {
     getMeta,
     openFile,
     requestFileAccess,
-    openTraceFromBuffer,
-    showStatusMessage,
+    openTraceFromStream,
   };
 }
 
@@ -150,14 +148,13 @@ describe('openFileFromDeeplink', () => {
   });
 
   describe('when the file can be read straight away', () => {
-    test('opens it as a non-shareable trace, with no prompts', async () => {
+    test('opens it as a trace stream, with no prompts', async () => {
       const t = setup();
       await t.run();
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({
-          buffer: CONTENTS,
-          shareable: false,
           // Records which Drive file the trace is, for "Share to GDrive".
           pluginArgs: {
             'dev.perfetto.GoogleDrive': {
@@ -172,15 +169,11 @@ describe('openFileFromDeeplink', () => {
       expectNoAlerts();
     });
 
-    test('downloads the file named by the state, with its resource key', async () => {
+    test('opens the file named by the state, with its resource key', async () => {
       const t = setup();
       await t.run();
 
-      expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE_ID, RESOURCE_KEY, {
-        onProgress: expect.any(Function),
-      });
-      expect(t.showStatusMessage).toHaveBeenCalledWith('Downloading trace…', 0);
-      expect(t.showStatusMessage).toHaveBeenLastCalledWith('', 1);
+      expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE_ID, RESOURCE_KEY);
     });
 
     // So that links copied from the share dialog include it.
@@ -190,7 +183,8 @@ describe('openFileFromDeeplink', () => {
       });
       await t.run(JSON.stringify({ids: [FILE_ID]}));
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({
           pluginArgs: {
             'dev.perfetto.GoogleDrive': {
@@ -206,7 +200,8 @@ describe('openFileFromDeeplink', () => {
       const t = setup();
       await t.run(JSON.stringify({ids: [FILE_ID]}));
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({
           pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE_ID}},
         }),
@@ -217,10 +212,10 @@ describe('openFileFromDeeplink', () => {
       const t = setup({meta: okResult({name: 'from-drive.pftrace'})});
       await t.run();
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({
           title: 'from-drive.pftrace',
-          fileName: 'from-drive.pftrace',
         }),
       );
     });
@@ -229,9 +224,9 @@ describe('openFileFromDeeplink', () => {
       const t = setup({meta: errResult({type: 'error'})});
       await t.run();
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({
-          buffer: CONTENTS,
           title: 'Google Drive file',
         }),
       );
@@ -249,7 +244,7 @@ describe('openFileFromDeeplink', () => {
       await t.run(state);
 
       expect(t.authenticate).not.toHaveBeenCalled();
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
       expect(promptsShown()).toEqual([]);
       expectNoAlerts();
     });
@@ -265,7 +260,7 @@ describe('openFileFromDeeplink', () => {
 
       expect(promptsShown()).toEqual([CONNECT_PROMPT]);
       expect(t.authenticate).toHaveBeenCalledTimes(2);
-      expect(t.openTraceFromBuffer).toHaveBeenCalled();
+      expect(t.openTraceFromStream).toHaveBeenCalled();
       expectNoAlerts();
     });
 
@@ -283,7 +278,7 @@ describe('openFileFromDeeplink', () => {
 
         expect(t.authenticate).toHaveBeenCalledTimes(1);
         expect(t.openFile).not.toHaveBeenCalled();
-        expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+        expect(t.openTraceFromStream).not.toHaveBeenCalled();
         expectNoAlerts();
       },
     );
@@ -298,7 +293,7 @@ describe('openFileFromDeeplink', () => {
 
       expect(alertConnectFailed).toHaveBeenCalledWith(error);
       expect(t.openFile).not.toHaveBeenCalled();
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
     });
 
     test('reports other failures without offering to retry', async () => {
@@ -308,7 +303,7 @@ describe('openFileFromDeeplink', () => {
 
       expect(promptsShown()).toEqual([]);
       expect(alertConnectFailed).toHaveBeenCalledWith(error);
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
     });
   });
 
@@ -345,9 +340,9 @@ describe('openFileFromDeeplink', () => {
   });
 
   describe('when access to the file is denied', () => {
-    test('asks to authorize, shows the picker, then downloads again', async () => {
+    test('asks to authorize, shows the picker, then opens again', async () => {
       const t = setup({
-        downloads: [ACCESS_DENIED, okResult(CONTENTS)],
+        downloads: [ACCESS_DENIED, okResult(STREAM)],
         prompts: {[AUTHORIZE_PROMPT]: 'authorize'},
       });
       await t.run();
@@ -355,8 +350,9 @@ describe('openFileFromDeeplink', () => {
       expect(promptsShown()).toEqual([AUTHORIZE_PROMPT]);
       expect(t.requestFileAccess).toHaveBeenCalledWith(TOKEN, FILE_ID);
       expect(t.openFile).toHaveBeenCalledTimes(2);
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
-        expect.objectContaining({buffer: CONTENTS, shareable: false}),
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
+        expect.any(Object),
       );
       expectNoAlerts();
     });
@@ -364,12 +360,13 @@ describe('openFileFromDeeplink', () => {
     test('names the trace after the file the user authorized', async () => {
       const t = setup({
         meta: ACCESS_DENIED,
-        downloads: [ACCESS_DENIED, okResult(CONTENTS)],
+        downloads: [ACCESS_DENIED, okResult(STREAM)],
         prompts: {[AUTHORIZE_PROMPT]: 'authorize'},
       });
       await t.run();
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({title: 'picked.pftrace'}),
       );
     });
@@ -377,13 +374,14 @@ describe('openFileFromDeeplink', () => {
     test('records the resource key the picker reports', async () => {
       const t = setup({
         meta: ACCESS_DENIED,
-        downloads: [ACCESS_DENIED, okResult(CONTENTS)],
+        downloads: [ACCESS_DENIED, okResult(STREAM)],
         picked: okResult({...PICKED_FILE, resourceKey: 'rk-picked'}),
         prompts: {[AUTHORIZE_PROMPT]: 'authorize'},
       });
       await t.run(JSON.stringify({ids: [FILE_ID]}));
 
-      expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+      expect(t.openTraceFromStream).toHaveBeenCalledWith(
+        STREAM,
         expect.objectContaining({
           pluginArgs: {
             'dev.perfetto.GoogleDrive': {
@@ -408,21 +406,21 @@ describe('openFileFromDeeplink', () => {
         await t.run();
 
         expect(t.requestFileAccess).not.toHaveBeenCalled();
-        expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+        expect(t.openTraceFromStream).not.toHaveBeenCalled();
         expectNoAlerts();
       },
     );
 
     test('skips the authorize prompt if the user turned it off', async () => {
       const t = setup({
-        downloads: [ACCESS_DENIED, okResult(CONTENTS)],
+        downloads: [ACCESS_DENIED, okResult(STREAM)],
         hideAuthDialog: true,
       });
       await t.run();
 
       expect(promptsShown()).toEqual([]);
       expect(t.requestFileAccess).toHaveBeenCalledWith(TOKEN, FILE_ID);
-      expect(t.openTraceFromBuffer).toHaveBeenCalled();
+      expect(t.openTraceFromStream).toHaveBeenCalled();
     });
 
     test('stops silently if the picker is cancelled', async () => {
@@ -434,7 +432,7 @@ describe('openFileFromDeeplink', () => {
       await t.run();
 
       expect(t.openFile).toHaveBeenCalledTimes(1);
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
       expectNoAlerts();
     });
 
@@ -448,7 +446,7 @@ describe('openFileFromDeeplink', () => {
       await t.run();
 
       expect(alertPickerFailed).toHaveBeenCalledWith(error);
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
     });
 
     test('reports the failure if access is still denied afterwards', async () => {
@@ -463,7 +461,7 @@ describe('openFileFromDeeplink', () => {
         ACCESS_DENIED.error,
         'picked.pftrace',
       );
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
     });
   });
 
@@ -476,7 +474,7 @@ describe('openFileFromDeeplink', () => {
       expect(promptsShown()).toEqual([]);
       expect(t.requestFileAccess).not.toHaveBeenCalled();
       expect(alertDownloadFailed).toHaveBeenCalledWith(error, 'meta.pftrace');
-      expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+      expect(t.openTraceFromStream).not.toHaveBeenCalled();
     });
   });
 });

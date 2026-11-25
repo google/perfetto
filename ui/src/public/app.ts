@@ -42,6 +42,11 @@ export interface Route {
  * The API endpoint to interact programmatically with the UI before a trace has
  * been loaded. This is passed to plugins' OnActivate().
  */
+export interface OpenTraceStreamOpts {
+  readonly title?: string;
+  readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+}
+
 export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
@@ -100,7 +105,10 @@ export interface App {
 
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;
-  openTraceFromStream(stream: TraceStream): Promise<Trace>;
+  openTraceFromStream(
+    stream: TraceStream,
+    opts?: OpenTraceStreamOpts,
+  ): Promise<Trace>;
   openTraceFromBuffer(args: {
     buffer: ArrayBuffer;
     title: string;

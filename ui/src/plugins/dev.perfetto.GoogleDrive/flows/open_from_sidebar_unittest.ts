@@ -14,6 +14,7 @@
 
 import {errResult, okResult, type Result} from '../../../base/result';
 import type {App} from '../../../public/app';
+import type {TraceStream} from '../../../public/stream';
 import {
   alertConnectFailed,
   alertDownloadFailed,
@@ -39,29 +40,27 @@ const FILE = {
   id: 'file123',
   name: 'my.pftrace',
 } as google.picker.DocumentObject;
-const CONTENTS = new ArrayBuffer(8);
+const STREAM: TraceStream = {
+  readChunk: vi.fn(),
+};
 
 // What each step of the flow returns. Defaults to everything succeeding, so
 // each test only states the step it wants to fail.
 interface Outcomes {
   readonly auth?: Result<string, AuthError>;
   readonly picked?: PickerResult;
-  readonly download?: Result<ArrayBuffer, DriveError>;
+  readonly download?: Result<TraceStream, DriveError>;
 }
 
 function setup(outcomes: Outcomes = {}) {
   const authenticate = vi.fn(async () => outcomes.auth ?? okResult(TOKEN));
   const pickFile = vi.fn(async () => outcomes.picked ?? okResult(FILE));
-  const openFile = vi.fn(async () => outcomes.download ?? okResult(CONTENTS));
-  const openTraceFromBuffer = vi.fn();
-  const showStatusMessage = vi.fn();
+  const openFile = vi.fn(async () => outcomes.download ?? okResult(STREAM));
+  const openTraceFromStream = vi.fn();
 
   const run = () =>
     openFileFromSidebar(
-      {
-        openTraceFromBuffer,
-        omnibox: {showStatusMessage},
-      } as unknown as App,
+      {openTraceFromStream} as unknown as App,
       {authenticate} as unknown as GoogleOAuthClient,
       {pickFile, openFile} as unknown as DriveClient,
     );
@@ -71,8 +70,7 @@ function setup(outcomes: Outcomes = {}) {
     authenticate,
     pickFile,
     openFile,
-    openTraceFromBuffer,
-    showStatusMessage,
+    openTraceFromStream,
   };
 }
 
@@ -87,21 +85,14 @@ describe('openFileFromSidebar', () => {
     vi.clearAllMocks();
   });
 
-  test('opens the picked file as a non-shareable trace', async () => {
+  test('opens the picked file as a trace stream', async () => {
     const t = setup();
     await t.run();
 
     expect(t.pickFile).toHaveBeenCalledWith(TOKEN);
-    expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE.id, undefined, {
-      onProgress: expect.any(Function),
-    });
-    expect(t.showStatusMessage).toHaveBeenCalledWith('Downloading trace…', 0);
-    expect(t.showStatusMessage).toHaveBeenLastCalledWith('', 1);
-    expect(t.openTraceFromBuffer).toHaveBeenCalledWith({
-      buffer: CONTENTS,
+    expect(t.openFile).toHaveBeenCalledWith(TOKEN, FILE.id);
+    expect(t.openTraceFromStream).toHaveBeenCalledWith(STREAM, {
       title: 'my.pftrace',
-      fileName: 'my.pftrace',
-      shareable: false,
       // Records which Drive file the trace is, for "Share to GDrive".
       pluginArgs: {'dev.perfetto.GoogleDrive': {fileId: FILE.id}},
     });
@@ -123,7 +114,8 @@ describe('openFileFromSidebar', () => {
     });
     await t.run();
 
-    expect(t.openTraceFromBuffer).toHaveBeenCalledWith(
+    expect(t.openTraceFromStream).toHaveBeenCalledWith(
+      STREAM,
       expect.objectContaining({title: 'Google Drive file'}),
     );
   });
@@ -135,7 +127,7 @@ describe('openFileFromSidebar', () => {
 
     expect(alertConnectFailed).toHaveBeenCalledWith(error);
     expect(t.pickFile).not.toHaveBeenCalled();
-    expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+    expect(t.openTraceFromStream).not.toHaveBeenCalled();
   });
 
   test('stops silently when the picker is cancelled', async () => {
@@ -144,7 +136,7 @@ describe('openFileFromSidebar', () => {
 
     expectNoAlerts();
     expect(t.openFile).not.toHaveBeenCalled();
-    expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+    expect(t.openTraceFromStream).not.toHaveBeenCalled();
   });
 
   test('reports a picker failure and stops', async () => {
@@ -154,7 +146,7 @@ describe('openFileFromSidebar', () => {
 
     expect(alertPickerFailed).toHaveBeenCalledWith(error);
     expect(t.openFile).not.toHaveBeenCalled();
-    expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+    expect(t.openTraceFromStream).not.toHaveBeenCalled();
   });
 
   test('reports a failed download and opens nothing', async () => {
@@ -163,6 +155,6 @@ describe('openFileFromSidebar', () => {
     await t.run();
 
     expect(alertDownloadFailed).toHaveBeenCalledWith(error, 'my.pftrace');
-    expect(t.openTraceFromBuffer).not.toHaveBeenCalled();
+    expect(t.openTraceFromStream).not.toHaveBeenCalled();
   });
 });

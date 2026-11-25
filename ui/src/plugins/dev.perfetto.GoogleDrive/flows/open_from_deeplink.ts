@@ -26,7 +26,6 @@ import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
 import {gdriveTraceArgs} from '../trace_args';
-import {formatDownloadStatus} from './download_status';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -73,20 +72,11 @@ export async function openFileFromDeeplink(
   // browser's cache rather than from Drive.
   removeStateParamFromUrl();
 
-  // Attempt to download the file and look up its name in parallel.
-  app.omnibox.showStatusMessage(formatDownloadStatus(), 0);
+  // Attempt to open the file and look up its name in parallel.
   const [fileMetaResult, initialDownloadResult] = await Promise.all([
     drive.getMeta(oauthToken, fileId, resourceKey),
-    drive.openFile(oauthToken, fileId, resourceKey, {
-      onProgress: (loadedBytes, totalBytes) => {
-        app.omnibox.showStatusMessage(
-          formatDownloadStatus(loadedBytes, totalBytes),
-          0,
-        );
-      },
-    }),
+    drive.openFile(oauthToken, fileId, resourceKey),
   ]);
-  app.omnibox.showStatusMessage('', 1);
 
   let fileName = fileMetaResult.ok ? fileMetaResult.value.name : undefined;
   // Remember the file's resource key, for links to it. The deep link carries
@@ -122,17 +112,8 @@ export async function openFileFromDeeplink(
     fileName = picked.value.name;
     knownResourceKey ??= picked.value.resourceKey;
 
-    // Try the download again.
-    app.omnibox.showStatusMessage(formatDownloadStatus(), 0);
-    fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey, {
-      onProgress: (loadedBytes, totalBytes) => {
-        app.omnibox.showStatusMessage(
-          formatDownloadStatus(loadedBytes, totalBytes),
-          0,
-        );
-      },
-    });
-    app.omnibox.showStatusMessage('', 1);
+    // Try opening the file again.
+    fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey);
   }
 
   if (!fileDownloadResult.ok) {
@@ -142,13 +123,8 @@ export async function openFileFromDeeplink(
 
   fileName ??= 'Google Drive file';
 
-  app.openTraceFromBuffer({
-    buffer: fileDownloadResult.value,
+  app.openTraceFromStream(fileDownloadResult.value, {
     title: fileName,
-    fileName: fileName,
-    // ACL-protected Drive traces must not be re-uploaded to the public
-    // perfetto-ui-data GCS bucket via permalinks or crash reports.
-    shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(fileId, knownResourceKey),
   });

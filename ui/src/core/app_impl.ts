@@ -16,7 +16,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
 import {ensureExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
-import type {App, Route} from '../public/app';
+import type {App, OpenTraceStreamOpts, Route} from '../public/app';
 import type {Policy} from '../public/policy';
 import type {SqlPackage} from '../public/extra_sql_packages';
 import type {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
@@ -255,10 +255,16 @@ export class AppImpl implements App {
 
   openTraceFromStream(
     stream: TraceStream,
-    title?: string,
+    opts?: OpenTraceStreamOpts,
     serializedAppState?: SerializedAppState,
   ) {
-    return this.openTrace({type: 'STREAM', stream, title, serializedAppState});
+    return this.openTrace({
+      type: 'STREAM',
+      stream,
+      title: opts?.title,
+      pluginArgs: opts?.pluginArgs,
+      serializedAppState,
+    });
   }
 
   openTraceFromBuffer(

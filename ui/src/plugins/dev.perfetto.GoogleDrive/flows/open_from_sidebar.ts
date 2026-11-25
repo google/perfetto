@@ -21,7 +21,6 @@ import {
 import type {DriveClient} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
 import {gdriveTraceArgs} from '../trace_args';
-import {formatDownloadStatus} from './download_status';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -57,30 +56,16 @@ export async function openFileFromSidebar(
   // trace.
   const filename = file.name ?? 'Google Drive file';
 
-  // Download the file, reporting progress in the top toolbar.
-  app.omnibox.showStatusMessage(formatDownloadStatus(), 0);
-  const download = await drive.openFile(oauthToken, file.id, undefined, {
-    onProgress: (loadedBytes, totalBytes) => {
-      app.omnibox.showStatusMessage(
-        formatDownloadStatus(loadedBytes, totalBytes),
-        0,
-      );
-    },
-  });
-  app.omnibox.showStatusMessage('', 1);
+  // Stream the file directly into TraceProcessor.
+  const download = await drive.openFile(oauthToken, file.id);
   if (!download.ok) {
     await alertDownloadFailed(download.error, filename);
     return;
   }
 
   // Open the trace.
-  app.openTraceFromBuffer({
-    buffer: download.value,
+  app.openTraceFromStream(download.value, {
     title: filename,
-    fileName: filename,
-    // ACL-protected Drive traces must not be re-uploaded to the public
-    // perfetto-ui-data GCS bucket via permalinks or crash reports.
-    shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(file.id, file.resourceKey),
   });

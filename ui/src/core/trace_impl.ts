@@ -335,8 +335,11 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.openTraceFromUrl(url, serializedAppState);
   }
 
-  openTraceFromStream(stream: TraceStream) {
-    return this.app.openTraceFromStream(stream);
+  openTraceFromStream(
+    stream: TraceStream,
+    opts?: Parameters<AppImpl['openTraceFromStream']>[1],
+  ) {
+    return this.app.openTraceFromStream(stream, opts);
   }
 
   openTraceFromBuffer(

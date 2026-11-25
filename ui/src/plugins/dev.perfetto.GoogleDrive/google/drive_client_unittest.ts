@@ -385,13 +385,19 @@ describe('DriveClient.openFile', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  test("returns the file's contents", async () => {
-    fetchMock.mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
+  test("returns the file's contents as a TraceStream", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {headers: {'Content-Length': '3'}}),
+    );
     const client = await createClient();
     const result = await client.openFile('token', 'file123');
 
     expect(result.ok).toBe(true);
-    expect(Array.from(new Uint8Array(result.value!))).toEqual([1, 2, 3]);
+    const chunk = await result.value!.readChunk();
+    expect(Array.from(chunk.data)).toEqual([1, 2, 3]);
+    expect(chunk.eof).toBe(true);
+    expect(chunk.bytesRead).toBe(3);
+    expect(chunk.bytesTotal).toBe(3);
   });
 
   // The flows offer the file picker when access is denied, so this mapping
@@ -427,19 +433,7 @@ describe('DriveClient.openFile', () => {
     });
   });
 
-  test('reports a failure to read the body as an error, without rejecting', async () => {
-    const failure = new Error('connection lost');
-    const body = new ReadableStream({
-      start: (controller) => controller.error(failure),
-    });
-    fetchMock.mockResolvedValue(new Response(body));
-    const client = await createClient();
-    const result = await client.openFile('token', 'file123');
-
-    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
-  });
-
-  test('reports download progress as chunks arrive', async () => {
+  test('streams multi-chunk responses with Content-Length progress metadata', async () => {
     const chunk1 = new Uint8Array([1, 2, 3]);
     const chunk2 = new Uint8Array([4, 5]);
     const body = new ReadableStream<Uint8Array>({
@@ -452,20 +446,15 @@ describe('DriveClient.openFile', () => {
     fetchMock.mockResolvedValue(
       new Response(body, {headers: {'Content-Length': '5'}}),
     );
-    const onProgress = vi.fn();
     const client = await createClient();
-    const result = await client.openFile('token', 'file123', undefined, {
-      onProgress,
-    });
+    const result = await client.openFile('token', 'file123');
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(Array.from(new Uint8Array(result.value))).toEqual([1, 2, 3, 4, 5]);
-    }
-    expect(onProgress.mock.calls).toEqual([
-      [3, 5],
-      [5, 5],
-    ]);
+    const chunk = await result.value!.readChunk();
+    expect(Array.from(chunk.data)).toEqual([1, 2, 3, 4, 5]);
+    expect(chunk.eof).toBe(true);
+    expect(chunk.bytesRead).toBe(5);
+    expect(chunk.bytesTotal).toBe(5);
   });
 
   test('sends the token to Google only, and only in a header', async () => {
