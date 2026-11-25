@@ -306,9 +306,101 @@ function postWithProgress(
   return deferred;
 }
 
+// URL prefixes allowed for gapi.drive.share.ShareClient iframes (matching the
+// CSP frame-src allowlist in ui/src/frontend/index.ts). ShareClient does not
+// accept a container element and always mounts directly under document.body, so
+// we filter by iframe src to avoid matching unrelated iframes on the page.
+const DRIVE_SHARE_IFRAME_PREFIXES = [
+  'https://drive.google.com/sharing/',
+  'https://drive.google.com/drivesharing/',
+] as const;
+
+function isDriveShareIframe(iframe: HTMLIFrameElement): boolean {
+  return DRIVE_SHARE_IFRAME_PREFIXES.some((prefix) =>
+    iframe.src.startsWith(prefix),
+  );
+}
+
+// Google's ShareClient hides its closed dialog with `aria-hidden="true"` on a
+// wrapper (without always setting `display: none` or removing the iframe).
+function isShareDialogIframeVisible(iframe: HTMLIFrameElement): boolean {
+  return (
+    isDriveShareIframe(iframe) &&
+    iframe.isConnected &&
+    iframe.closest('[aria-hidden="true"]') === null
+  );
+}
+
+function findVisibleShareDialogIframes(): Set<HTMLIFrameElement> {
+  return new Set(
+    Array.from(document.querySelectorAll('iframe')).filter((f) =>
+      isShareDialogIframeVisible(f),
+    ),
+  );
+}
+// Hack: Google's gapi.drive.share.ShareClient API does not expose any callback
+// or event when the user closes the sharing dialog. To detect dismissal so we
+// can refresh permissions, we watch document.body with a MutationObserver for
+// the share iframe injected (or made visible) by ShareClient and invoke
+// `onClose` once that iframe is removed or hidden. Returns a cleanup function
+// that disconnects the observer.
+function observeSharingDialogClose(
+  initiallyVisibleIframes: ReadonlySet<HTMLIFrameElement>,
+  onClose: () => void,
+): () => void {
+  if (
+    typeof document === 'undefined' ||
+    document.body === null ||
+    typeof MutationObserver === 'undefined'
+  ) {
+    return () => {};
+  }
+
+  let dialogIframe: HTMLIFrameElement | undefined;
+  let finished = false;
+
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    observer.disconnect();
+  };
+
+  const check = () => {
+    if (finished) return;
+    if (dialogIframe === undefined) {
+      for (const iframe of findVisibleShareDialogIframes()) {
+        if (!initiallyVisibleIframes.has(iframe)) {
+          dialogIframe = iframe;
+          break;
+        }
+      }
+      return;
+    }
+    if (!isShareDialogIframeVisible(dialogIframe)) {
+      cleanup();
+      onClose();
+    }
+  };
+
+  const observer = new MutationObserver(() => {
+    check();
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src', 'style', 'class', 'hidden', 'aria-hidden'],
+  });
+
+  return cleanup;
+}
+
 // Talks to Google Drive: shows its file and folder pickers and sharing dialog,
 // and downloads and uploads files.
 export class DriveClient {
+  private cancelSharingDialogObserver?: () => void;
+
   private constructor(private readonly config: DriveClientConfig) {}
 
   // Loads everything the client needs and returns a ready-to-use client:
@@ -362,19 +454,60 @@ export class DriveClient {
     return this.picker(oauthToken, {view, title: 'Select folder'});
   }
 
-  // Opens Drive's sharing settings dialog for a file. The drive-share module
-  // it needs is loaded by create(). Never throws.
-  openSharingDialog(
+  // Opens Drive's sharing settings dialog for a file, resolving once the
+  // dialog is closed (or when `opts.signal` aborts, or when another
+  // openSharingDialog() call supersedes this one). The drive-share module it
+  // needs is loaded by create(). Never rejects.
+  async openSharingDialog(
     oauthToken: string,
     fileId: string,
-  ): Result<void, SharingDialogError> {
+    opts?: {readonly signal?: AbortSignal},
+  ): Promise<Result<void, SharingDialogError>> {
+    // Tear down any previous observer so at most one MutationObserver is ever
+    // attached to document.body at a time.
+    this.cancelSharingDialogObserver?.();
+
+    const closed = defer<void>();
+    let cleanupObserver: (() => void) | undefined;
+    const signal = opts?.signal;
+    const finish = () => {
+      cleanupObserver?.();
+      cleanupObserver = undefined;
+      signal?.removeEventListener('abort', finish);
+      if (this.cancelSharingDialogObserver === finish) {
+        this.cancelSharingDialogObserver = undefined;
+      }
+      closed.resolve();
+    };
+
     try {
+      // HACK: Google's ShareClient API has no onClose callback or event when
+      // the user dismisses the sharing dialog. Snapshot currently visible
+      // iframes before opening it so observeSharingDialogClose() can spot the
+      // new share iframe and resolve the promise when it is removed or hidden.
+      const initiallyVisibleIframes =
+        typeof document !== 'undefined' && document.body !== null
+          ? findVisibleShareDialogIframes()
+          : undefined;
+      if (initiallyVisibleIframes !== undefined && !signal?.aborted) {
+        this.cancelSharingDialogObserver = finish;
+        signal?.addEventListener('abort', finish, {once: true});
+        cleanupObserver = observeSharingDialogClose(
+          initiallyVisibleIframes,
+          finish,
+        );
+      } else {
+        finish();
+      }
+
       const shareClient = new gapi.drive.share.ShareClient();
       shareClient.setOAuthToken(oauthToken);
       shareClient.setItemIds([fileId]);
       shareClient.showSettingsDialog();
+      await closed;
       return okResult();
     } catch (e) {
+      finish();
       return errResult({type: 'error', cause: e});
     }
   }
