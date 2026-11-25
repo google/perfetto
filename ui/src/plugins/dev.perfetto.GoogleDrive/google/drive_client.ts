@@ -306,10 +306,37 @@ function postWithProgress(
   return deferred;
 }
 
+// URL prefixes allowed for gapi.drive.share.ShareClient iframes (matching the
+// CSP frame-src allowlist in ui/src/frontend/index.ts). ShareClient does not
+// accept a container element and always mounts directly under document.body, so
+// we filter by iframe src to avoid matching unrelated iframes on the page.
+const DRIVE_SHARE_IFRAME_PREFIXES = [
+  'https://drive.google.com/sharing/',
+  'https://drive.google.com/drivesharing/',
+] as const;
+
+function isDriveShareIframe(iframe: HTMLIFrameElement): boolean {
+  return DRIVE_SHARE_IFRAME_PREFIXES.some((prefix) =>
+    iframe.src.startsWith(prefix),
+  );
+}
+
 // Google's ShareClient hides its closed dialog with `aria-hidden="true"` on a
 // wrapper (without always setting `display: none` or removing the iframe).
 function isShareDialogIframeVisible(iframe: HTMLIFrameElement): boolean {
-  return iframe.isConnected && iframe.closest('[aria-hidden="true"]') === null;
+  return (
+    isDriveShareIframe(iframe) &&
+    iframe.isConnected &&
+    iframe.closest('[aria-hidden="true"]') === null
+  );
+}
+
+function findVisibleShareDialogIframes(): Set<HTMLIFrameElement> {
+  return new Set(
+    Array.from(document.querySelectorAll('iframe')).filter((f) =>
+      isShareDialogIframeVisible(f),
+    ),
+  );
 }
 // Hack: Google's gapi.drive.share.ShareClient API does not expose any callback
 // or event when the user closes the sharing dialog. To detect dismissal so we
@@ -341,11 +368,8 @@ function observeSharingDialogClose(
   const check = () => {
     if (finished) return;
     if (dialogIframe === undefined) {
-      for (const iframe of Array.from(document.querySelectorAll('iframe'))) {
-        if (
-          !initiallyVisibleIframes.has(iframe) &&
-          isShareDialogIframeVisible(iframe)
-        ) {
+      for (const iframe of findVisibleShareDialogIframes()) {
+        if (!initiallyVisibleIframes.has(iframe)) {
           dialogIframe = iframe;
           break;
         }
@@ -366,7 +390,7 @@ function observeSharingDialogClose(
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['style', 'class', 'hidden', 'aria-hidden'],
+    attributeFilter: ['src', 'style', 'class', 'hidden', 'aria-hidden'],
   });
 
   return cleanup;
@@ -463,11 +487,7 @@ export class DriveClient {
       // new share iframe and resolve the promise when it is removed or hidden.
       const initiallyVisibleIframes =
         typeof document !== 'undefined' && document.body !== null
-          ? new Set<HTMLIFrameElement>(
-              Array.from(document.querySelectorAll('iframe')).filter((f) =>
-                isShareDialogIframeVisible(f),
-              ),
-            )
+          ? findVisibleShareDialogIframes()
           : undefined;
       if (initiallyVisibleIframes !== undefined && !signal?.aborted) {
         this.cancelSharingDialogObserver = finish;

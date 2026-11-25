@@ -1036,6 +1036,15 @@ describe('DriveClient.getPermissions', () => {
 });
 
 describe('DriveClient.openSharingDialog', () => {
+  function appendShareDialogIframe(): HTMLDivElement {
+    const dialogEl = document.createElement('div');
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://drive.google.com/sharing/share?id=file123';
+    dialogEl.appendChild(iframe);
+    document.body.appendChild(dialogEl);
+    return dialogEl;
+  }
+
   afterEach(() => {
     vi.unstubAllGlobals();
     document.body.innerHTML = '';
@@ -1050,9 +1059,7 @@ describe('DriveClient.openSharingDialog', () => {
             setOAuthToken() {}
             setItemIds() {}
             showSettingsDialog() {
-              dialogEl = document.createElement('div');
-              dialogEl.appendChild(document.createElement('iframe'));
-              document.body.appendChild(dialogEl);
+              dialogEl = appendShareDialogIframe();
             }
           },
         },
@@ -1083,9 +1090,7 @@ describe('DriveClient.openSharingDialog', () => {
             setOAuthToken() {}
             setItemIds() {}
             showSettingsDialog() {
-              dialogEl = document.createElement('div');
-              dialogEl.appendChild(document.createElement('iframe'));
-              document.body.appendChild(dialogEl);
+              dialogEl = appendShareDialogIframe();
             }
           },
         },
@@ -1103,6 +1108,41 @@ describe('DriveClient.openSharingDialog', () => {
     expect(settled).toBe(false);
 
     dialogEl!.setAttribute('aria-hidden', 'true');
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('ignores unrelated iframes added and removed while open', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = appendShareDialogIframe();
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let settled = false;
+    const promise = client.openSharingDialog('token', 'file123').then((res) => {
+      settled = true;
+      return res;
+    });
+
+    const unrelated = document.createElement('iframe');
+    unrelated.src = 'https://docs.google.com/picker';
+    document.body.appendChild(unrelated);
+    await Promise.resolve();
+    unrelated.remove();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    dialogEl!.remove();
     expect(await promise).toEqual({ok: true});
   });
 
@@ -1147,9 +1187,7 @@ describe('DriveClient.openSharingDialog', () => {
             setOAuthToken() {}
             setItemIds() {}
             showSettingsDialog() {
-              dialogEl = document.createElement('div');
-              dialogEl.appendChild(document.createElement('iframe'));
-              document.body.appendChild(dialogEl);
+              dialogEl = appendShareDialogIframe();
             }
           },
         },
