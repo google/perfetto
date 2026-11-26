@@ -18,6 +18,7 @@ import {ensureExists} from '../base/assert';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 import {Flamegraph, buildFlamegraphExportString} from '../widgets/flamegraph';
+import {renderDiffLegend} from '../widgets/flamegraph_diff';
 import type {ExportDownloadItem} from '../widgets/export_button';
 import {TreeExplorerFilterBar} from '../widgets/tree_explorer_filter_bar';
 import {
@@ -178,6 +179,10 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
             displayMode: key as TreeExplorerDisplayMode,
           });
         },
+        rightContent:
+          displayMode === 'flamegraph' &&
+          data?.diff !== undefined &&
+          renderDiffLegend(data.diff, unit),
         tabs: [
           {
             key: 'flamegraph',

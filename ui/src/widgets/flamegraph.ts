@@ -43,6 +43,7 @@ import {
   FILTER_TYPES,
   type FilterType,
   type TreeExplorerData,
+  type TreeExplorerDiff,
   type TreeExplorerFilter,
   type TreeExplorerMetric,
   type TreeExplorerNode,
@@ -57,6 +58,12 @@ import {
   getUnitDisplayName,
   metricId,
 } from './tree_explorer';
+import {
+  diffColor,
+  diffScore,
+  displayDiff,
+  renderDiffTable,
+} from './flamegraph_diff';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -390,8 +397,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
               {
                 trigger: m('.popup-anchor', {
                   style: {
-                    left: this.tooltipPos?.x + 'px',
-                    top: this.tooltipPos?.y + 'px',
+                    left:
+                      this.tooltipPos !== undefined
+                        ? `${this.tooltipPos.x}px`
+                        : undefined,
+                    // Center on the bar so row 0 (root) isn't treated as
+                    // clipped off the top edge by Popper's hide modifier.
+                    top:
+                      this.tooltipPos !== undefined
+                        ? `${this.tooltipPos.y + NODE_HEIGHT / 2}px`
+                        : undefined,
                   },
                 }),
                 fitContent: true,
@@ -450,7 +465,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           this.attrs.data,
           this.zoomRegion ?? {
             queryXStart: 0,
-            queryXEnd: this.attrs.data.allRootsCumulativeValue,
+            queryXEnd: layoutWidth(this.attrs.data),
             type: 'ROOT',
           },
           size.width,
@@ -475,7 +490,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const yStart = canvasRect.top;
     const yEnd = canvasRect.bottom;
 
-    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
+    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes, diff} =
       this.attrs.data;
     const unit = ensureExists(this.selectedMetric).unit;
 
@@ -500,22 +515,45 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
 
       const hover = isIntersecting(this.hoveredX, this.hoveredY, node);
+      const greyed = state === 'PARTIAL';
       let name: string;
       let colorScheme;
       if (source.kind === 'ROOT') {
-        const val = displaySize(allRootsCumulativeValue, unit);
-        const percent = displayPercentage(
-          allRootsCumulativeValue,
-          unfilteredCumulativeValue,
-        );
-        name = `root: ${val} (${percent})`;
-        colorScheme = getFlamegraphColorScheme('root', state === 'PARTIAL');
+        if (diff !== undefined) {
+          const baseline = diff.allRootsBaselineCumulativeValue;
+          name = `root: ${displayDiff(baseline, allRootsCumulativeValue, unit)}`;
+          colorScheme = getDiffColorScheme(
+            allRootsCumulativeValue - baseline,
+            diff,
+            greyed,
+          );
+        } else {
+          const val = displaySize(allRootsCumulativeValue, unit);
+          const percent = displayPercentage(
+            allRootsCumulativeValue,
+            unfilteredCumulativeValue,
+          );
+          name = `root: ${val} (${percent})`;
+          colorScheme = getFlamegraphColorScheme('root', greyed);
+        }
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        // In a diff, nodes too small to draw are shown as unchanged.
+        colorScheme =
+          diff !== undefined
+            ? getDiffColorScheme(0, diff, greyed)
+            : getFlamegraphColorScheme(name, greyed);
       } else {
-        name = nodes[source.queryIdx]!.name;
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        const node = nodes[source.queryIdx]!;
+        name = node.name;
+        colorScheme =
+          diff !== undefined
+            ? getDiffColorScheme(
+                node.cumulativeValue - (node.baselineCumulativeValue ?? 0),
+                diff,
+                greyed,
+              )
+            : getFlamegraphColorScheme(name, greyed);
       }
       const highlighted =
         source.kind === 'NODE' &&
@@ -592,9 +630,36 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       unfilteredCumulativeValue,
       nodeActions,
       rootActions,
+      diff,
     } = ensureExists(this.attrs.data);
     const {unit, nameColumnLabel} = ensureExists(this.selectedMetric);
+    const allTotals =
+      diff === undefined
+        ? undefined
+        : {
+            baseline: diff.unfilteredBaselineCumulativeValue,
+            current: unfilteredCumulativeValue,
+          };
     if (source.kind === 'ROOT') {
+      if (diff !== undefined) {
+        return m(
+          'div',
+          m(
+            '.tooltip-text-line',
+            m('.tooltip-bold-text', 'root'),
+            this.renderActionsMenu(rootActions, new Map()),
+          ),
+          renderDiffTable([
+            {
+              label: 'Cumulative',
+              baseline: diff.allRootsBaselineCumulativeValue,
+              current: allRootsCumulativeValue,
+              unit,
+              allTotals,
+            },
+          ]),
+        );
+      }
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
         allRootsCumulativeValue,
@@ -612,6 +677,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {queryIdx} = source;
+    const node = nodes[queryIdx]!;
     const {
       name,
       cumulativeValue,
@@ -619,7 +685,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
-    } = nodes[queryIdx]!;
+    } = node;
 
     const percent = displayPercentage(
       cumulativeValue,
@@ -642,6 +708,19 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       selfPercentText += `, parent: ${parentSelfPercent}`;
     }
     const nameLabel = nameColumnLabel ?? 'Name';
+    // In a diff, properties with a baseline value are rows of the diff table.
+    const inDiffTable = (p: TreeExplorerPropertyDefinition) =>
+      diff !== undefined && p.baselineValue !== undefined;
+    const propertyLines = Array.from(properties, ([_, value]) => {
+      if (value.isVisible && !inDiffTable(value)) {
+        return m(
+          '.tooltip-text-line',
+          m('.tooltip-bold-text', value.displayName + ':'),
+          m('.tooltip-text', value.value),
+        );
+      }
+      return null;
+    });
     const defaultContent = [
       // Show marker at the top of the tooltip
       marker &&
@@ -651,36 +730,62 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-bold-text', `${nameLabel}:`),
         m('.tooltip-text', name),
       ),
-      m(
-        '.tooltip-text-line',
-        m('.tooltip-bold-text', 'Cumulative:'),
-        m(
-          '.tooltip-text',
-          `${displaySize(cumulativeValue, unit)} (${percentText})`,
-        ),
+      // In a diff, the properties stay with the name, above the diff table.
+      diff !== undefined && propertyLines,
+      diff !== undefined
+        ? renderDiffTable([
+            {
+              label: 'Cumulative',
+              baseline: node.baselineCumulativeValue ?? 0,
+              current: cumulativeValue,
+              unit,
+              allTotals,
+            },
+            {
+              label: 'Self',
+              baseline: node.baselineSelfValue ?? 0,
+              current: selfValue,
+              unit,
+              allTotals,
+            },
+            ...Array.from(properties.values())
+              .filter((p) => p.isVisible && inDiffTable(p))
+              .map((p) => ({
+                label: p.displayName,
+                baseline: Number(p.baselineValue),
+                current: Number(p.value),
+                unit: '',
+              })),
+          ])
+        : [
+            m(
+              '.tooltip-text-line',
+              m('.tooltip-bold-text', 'Cumulative:'),
+              m(
+                '.tooltip-text',
+                `${displaySize(cumulativeValue, unit)} (${percentText})`,
+              ),
+            ),
+            m(
+              '.tooltip-text-line',
+              m('.tooltip-bold-text', 'Self:'),
+              m(
+                '.tooltip-text',
+                `${displaySize(selfValue, unit)} (${selfPercentText})`,
+              ),
+            ),
+          ],
+      diff === undefined && propertyLines,
+      this.renderNodeActionBar(
+        source,
+        name,
+        node,
+        // The host's actions act on the current tree, which nodes only the
+        // baseline has are missing from.
+        diff !== undefined && cumulativeValue === 0 ? [] : nodeActions,
       ),
-      m(
-        '.tooltip-text-line',
-        m('.tooltip-bold-text', 'Self:'),
-        m(
-          '.tooltip-text',
-          `${displaySize(selfValue, unit)} (${selfPercentText})`,
-        ),
-      ),
-      Array.from(properties, ([_, value]) => {
-        if (value.isVisible) {
-          return m(
-            '.tooltip-text-line',
-            m('.tooltip-bold-text', value.displayName + ':'),
-            m('.tooltip-text', value.value),
-          );
-        }
-        return null;
-      }),
-      this.renderNodeActionBar(source, name, nodes[queryIdx]!, nodeActions),
     ];
     const {renderNodeTooltip} = this.attrs;
-    const node = nodes[queryIdx]!;
     return m(
       'div',
       renderNodeTooltip === undefined
@@ -1191,11 +1296,13 @@ function drawNodeDecorations(
 }
 
 function computeRenderNodes(
-  {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
+  data: TreeExplorerData,
   zoomRegion: ZoomRegion,
   canvasWidth: number,
   yOffset: number,
 ): ReadonlyArray<RenderNode> {
+  const {nodes, minDepth} = data;
+  const rootsWidth = layoutWidth(data);
   const renderNodes: RenderNode[] = [];
 
   const mergedKeyToX = new Map<string, number>();
@@ -1207,12 +1314,11 @@ function computeRenderNodes(
     source: {
       kind: 'ROOT',
       queryXStart: 0,
-      queryXEnd: allRootsCumulativeValue,
+      queryXEnd: rootsWidth,
       type: 'ROOT',
     },
     state:
-      zoomRegion.queryXStart === 0 &&
-      zoomRegion.queryXEnd === allRootsCumulativeValue
+      zoomRegion.queryXStart === 0 && zoomRegion.queryXEnd === rootsWidth
         ? 'NORMAL'
         : 'PARTIAL',
   });
@@ -1231,7 +1337,7 @@ function computeRenderNodes(
     }
     const queryXPerPx = depthMatchingZoom
       ? zoomQueryWidth / canvasWidth
-      : allRootsCumulativeValue / canvasWidth;
+      : rootsWidth / canvasWidth;
     const relativeXStart = depthMatchingZoom
       ? qXStart - zoomRegion.queryXStart
       : qXStart;
@@ -1398,6 +1504,35 @@ const ROOT_COLOR_SCHEME = makeColorScheme(
 
 // Cache for computed color schemes by name
 const colorSchemeCache = new Map<string, ColorScheme>();
+
+// Nodes compared with a baseline are colored by their change (see diffScore),
+// rounded to steps so that the color schemes can be cached.
+const DIFF_COLOR_STEPS = 32;
+const diffColorSchemeCache = new Map<number, ColorScheme>();
+
+function getDiffColorScheme(
+  change: number,
+  diff: TreeExplorerDiff,
+  greyed: boolean,
+): ColorScheme {
+  if (greyed) {
+    return GREYED_COLOR_SCHEME;
+  }
+  const step = Math.round(diffScore(change, diff) * DIFF_COLOR_STEPS);
+  let scheme = diffColorSchemeCache.get(step);
+  if (scheme === undefined) {
+    const base = diffColor(step / DIFF_COLOR_STEPS);
+    scheme = makeColorScheme(base, base.darken(15));
+    diffColorSchemeCache.set(step, scheme);
+  }
+  return scheme;
+}
+
+// The width of the roots in the units of the nodes' xStart and xEnd: in a
+// diff, nodes are laid out by their value in both trees.
+function layoutWidth({allRootsCumulativeValue, diff}: TreeExplorerData) {
+  return allRootsCumulativeValue + (diff?.allRootsBaselineCumulativeValue ?? 0);
+}
 
 function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   if (greyed) {

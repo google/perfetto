@@ -57,6 +57,11 @@ export interface TreeExplorerQueryColumn {
 export interface AggTreeExplorerQueryColumn extends TreeExplorerQueryColumn {
   // The aggregation to be run when nodes are merged together in the tree.
   readonly mergeAggregation: 'ONE_OR_SUMMARY' | 'SUM' | 'CONCAT_WITH_COMMA';
+
+  // Optional column of `statement` holding the property's value in the
+  // baseline (see TreeExplorerQueryMetric.baselineColumn), merged the same
+  // way.
+  readonly baselineName?: string;
 }
 
 export interface TreeExplorerQueryMetric {
@@ -86,6 +91,12 @@ export interface TreeExplorerQueryMetric {
   // `selfValue`, all columns specified by `unaggregatableProperties` and
   // `aggregatableProperties`.
   readonly statement: string;
+
+  // Optional numeric column of `statement` holding each row's value in a
+  // baseline to compare the tree with. Nodes are merged the same way for both
+  // values, so each node also gets its values in the baseline, and nodes are
+  // laid out by their value in both trees.
+  readonly baselineColumn?: string;
 
   // Additional contextual columns containing data which should not be merged
   // between sibling nodes, even if they have the same name.
@@ -177,7 +188,16 @@ interface MetricTable extends AsyncDisposable {
   readonly metric: TreeExplorerQueryMetric;
   readonly table: DisposableSqlEntity;
   readonly unfilteredCumulativeValue: number;
+  readonly unfilteredBaselineCumulativeValue: number;
+  // The value columns of a diff (see computeTree) the operator has outputs
+  // for: it has none for a column without values, e.g. when the source has no
+  // rows.
+  readonly diffColumns: ReadonlySet<string>;
 }
+
+// With a baseline, `value` holds each row's value in both trees, which lays
+// the nodes out, and this column holds its current value.
+const CURRENT_COLUMN = '_current';
 
 interface MetricTableSlot {
   readonly metric: TreeExplorerQueryMetric;
@@ -255,12 +275,21 @@ export class TreeExplorerFetcher implements Disposable {
       ...(metric.unaggregatableProperties ?? []),
       ...(metric.aggregatableProperties ?? []),
     ];
+    const baseline = metric.baselineColumn;
     const sourceColumns = [
       's.id',
       's.parentId as parent_id',
       's.name',
-      's.value',
+      baseline === undefined ? 's.value' : `s.value + s.${baseline} as value`,
       ...properties.map((property) => `s.${property.name}`),
+      ...(metric.aggregatableProperties ?? []).flatMap((property) =>
+        property.baselineName === undefined
+          ? []
+          : [`s.${property.baselineName}`],
+      ),
+      ...(baseline === undefined
+        ? []
+        : [`s.value as ${CURRENT_COLUMN}`, `s.${baseline}`]),
     ];
     const table = await createVirtualTable({
       engine: this.trace.engine,
@@ -270,20 +299,58 @@ export class TreeExplorerFetcher implements Disposable {
       ))`,
     });
     try {
-      const result = await this.trace.engine.query(`
-        select cumulative_value
-        from ${table.name}(__intrinsic_flamegraph_config(
-          'value', 'value',
-          'view', 'TOP_DOWN'
-        ))
-        where __intrinsic_flamegraph_find(_tree_id, 'SUPER_ROOT')
-      `);
+      const diffColumns = new Set<string>();
+      let unfilteredCumulativeValue = 0;
+      let unfilteredBaselineCumulativeValue = 0;
+      if (baseline === undefined) {
+        const result = await this.trace.engine.query(`
+          select cumulative_value
+          from ${table.name}(__intrinsic_flamegraph_config(
+            'value', 'value',
+            'view', 'TOP_DOWN'
+          ))
+          where __intrinsic_flamegraph_find(_tree_id, 'SUPER_ROOT')
+        `);
+        unfilteredCumulativeValue = result.firstRow({
+          cumulative_value: NUM,
+        }).cumulative_value;
+      } else {
+        const names = [CURRENT_COLUMN, baseline].map((column) =>
+          sqliteString(`cumulative_${column}`),
+        );
+        const outputs = await this.trace.engine.query(`
+          select name from pragma_table_info(${sqliteString(table.name)})
+          where name in (${names.join(', ')})
+        `);
+        for (const it = outputs.iter({name: STR}); it.valid(); it.next()) {
+          diffColumns.add(it.name.substring('cumulative_'.length));
+        }
+        if (diffColumns.size > 0) {
+          const hasCurrent = diffColumns.has(CURRENT_COLUMN);
+          const hasBaseline = diffColumns.has(baseline);
+          const configArgs = [
+            `'value', 'value'`,
+            ...(hasCurrent ? [`'value', ${sqliteString(CURRENT_COLUMN)}`] : []),
+            ...(hasBaseline ? [`'value', ${sqliteString(baseline)}`] : []),
+            `'view', 'TOP_DOWN'`,
+          ];
+          const totals = await this.trace.engine.query(`
+            select
+              ${hasCurrent ? `coalesce(sum(self_${CURRENT_COLUMN}), 0)` : '0'} as currentTotal,
+              ${hasBaseline ? `coalesce(sum(self_${baseline}), 0)` : '0'} as baselineTotal
+            from ${table.name}(__intrinsic_flamegraph_config(${configArgs.join(', ')}))
+          `);
+          const row = totals.firstRow({currentTotal: NUM, baselineTotal: NUM});
+          unfilteredCumulativeValue = row.currentTotal;
+          unfilteredBaselineCumulativeValue = row.baselineTotal;
+        }
+      }
       return {
         metric,
         table,
-        unfilteredCumulativeValue: result.firstRow({
-          cumulative_value: NUM,
-        }).cumulative_value,
+        unfilteredCumulativeValue,
+        unfilteredBaselineCumulativeValue,
+        diffColumns,
         [Symbol.asyncDispose]: () => table[Symbol.asyncDispose](),
       };
     } catch (error) {
@@ -304,6 +371,7 @@ async function computeTree(
     optionalNodeActions,
     optionalRootActions,
     optionalMarker,
+    baselineColumn,
   } = metricTable.metric;
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
@@ -340,20 +408,49 @@ async function computeTree(
       `'aggregate', ${sqliteString(column.mergeAggregation)}, ` +
         `${sqliteString(column.name)}, ${sqliteString(column.name)}`,
     );
+    if (column.baselineName !== undefined) {
+      configArgs.push(
+        `'aggregate', ${sqliteString(column.mergeAggregation)}, ` +
+          `${sqliteString(column.baselineName)}, ` +
+          sqliteString(column.baselineName),
+      );
+    }
   }
+  const aggBaselineCols = agg.flatMap((x) =>
+    x.baselineName === undefined ? [] : [x.baselineName],
+  );
+  // With a baseline, the current and baseline values come from extra value
+  // columns, each with self_<name> and cumulative_<name> outputs. A column
+  // without values is 0 everywhere.
+  const diffValue = (column: string) => {
+    if (!metricTable.diffColumns.has(column)) {
+      return {self: '0', cumulative: '0'};
+    }
+    configArgs.push(`'value', ${sqliteString(column)}`);
+    return {self: `self_${column}`, cumulative: `cumulative_${column}`};
+  };
+  const current =
+    baselineColumn === undefined
+      ? {self: 'self_value', cumulative: 'cumulative_value'}
+      : diffValue(CURRENT_COLUMN);
+  const baseline =
+    baselineColumn === undefined ? undefined : diffValue(baselineColumn);
 
   const outputColumns = [
     '_tree_id as id',
     'IFNULL(_tree_parent_id, -1) as parentId',
     'depth',
     `IIF(IFNULL(name, '') = '', 'unknown', name) as name`,
-    'self_value as selfValue',
-    'cumulative_value as cumulativeValue',
+    `${current.self} as selfValue`,
+    `${current.cumulative} as cumulativeValue`,
     'parent_cumulative_value as parentCumulativeValue',
     'x_start as xStart',
     'x_end as xEnd',
     ...unaggCols,
     ...aggCols,
+    ...aggBaselineCols,
+    `${baseline?.cumulative ?? 'NULL'} as baselineCumulativeValue`,
+    `${baseline?.self ?? 'NULL'} as baselineSelfValue`,
   ];
 
   // The operator emits rows pre-ordered for rendering with layout geometry
@@ -377,10 +474,18 @@ async function computeTree(
     xStart: NUM,
     xEnd: NUM,
     ...Object.fromEntries(unaggCols.map((m) => [m, STR_NULL])),
-    ...Object.fromEntries(aggCols.map((m) => [m, UNKNOWN])),
+    ...Object.fromEntries(
+      [...aggCols, ...aggBaselineCols].map((m) => [m, UNKNOWN]),
+    ),
+    baselineCumulativeValue: NUM_NULL,
+    baselineSelfValue: NUM_NULL,
   });
   let postiveRootsValue = 0;
   let negativeRootsValue = 0;
+  let postiveRootsBaselineValue = 0;
+  let negativeRootsBaselineValue = 0;
+  let maxGrowth = 0;
+  let maxShrink = 0;
   let minDepth = 0;
   let maxDepth = 0;
   const nodes = [];
@@ -403,9 +508,13 @@ async function computeTree(
       if (r !== null) {
         // UNKNOWN-typed aggregations (e.g. SUM) can yield number/bigint.
         const value = String(r);
+        const baselineValue =
+          a.baselineName === undefined ? null : it.get(a.baselineName);
         properties.set(a.name, {
           displayName: a.displayName,
           value,
+          baselineValue:
+            baselineValue === null ? undefined : String(baselineValue),
           isVisible: a.isVisible ? a.isVisible(value) : true,
           isAggregatable: true,
         });
@@ -434,11 +543,20 @@ async function computeTree(
       properties,
       marker,
       propertyValues,
+      baselineCumulativeValue: it.baselineCumulativeValue ?? undefined,
+      baselineSelfValue: it.baselineSelfValue ?? undefined,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;
+      postiveRootsBaselineValue += it.baselineCumulativeValue ?? 0;
     } else if (it.depth === -1) {
       negativeRootsValue += it.cumulativeValue;
+      negativeRootsBaselineValue += it.baselineCumulativeValue ?? 0;
+    }
+    if (it.baselineCumulativeValue !== null) {
+      const change = it.cumulativeValue - it.baselineCumulativeValue;
+      maxGrowth = Math.max(maxGrowth, change);
+      maxShrink = Math.max(maxShrink, -change);
     }
     minDepth = Math.min(minDepth, it.depth);
     maxDepth = Math.max(maxDepth, it.depth);
@@ -447,6 +565,19 @@ async function computeTree(
     nodes,
     allRootsCumulativeValue:
       view.kind === 'BOTTOM_UP' ? negativeRootsValue : postiveRootsValue,
+    diff:
+      baselineColumn === undefined
+        ? undefined
+        : {
+            allRootsBaselineCumulativeValue:
+              view.kind === 'BOTTOM_UP'
+                ? negativeRootsBaselineValue
+                : postiveRootsBaselineValue,
+            unfilteredBaselineCumulativeValue:
+              metricTable.unfilteredBaselineCumulativeValue,
+            maxGrowth,
+            maxShrink,
+          },
     unfilteredCumulativeValue: metricTable.unfilteredCumulativeValue,
     minDepth,
     maxDepth,

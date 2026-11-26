@@ -71,6 +71,9 @@ export interface TreeExplorerOptionalMarker {
 export type TreeExplorerPropertyDefinition = {
   displayName: string;
   value: string;
+  // The value in the baseline the tree is compared with, for properties that
+  // have one (see AggTreeExplorerQueryColumn.baselineName).
+  baselineValue?: string;
   isVisible: boolean;
   isAggregatable: boolean;
 };
@@ -90,12 +93,32 @@ export interface TreeExplorerNode {
   readonly propertyValues: ReadonlyMap<string, string>;
   readonly xStart: number;
   readonly xEnd: number;
+  // The node's cumulative and self values in the baseline the tree is compared
+  // with, if any.
+  readonly baselineCumulativeValue?: number;
+  readonly baselineSelfValue?: number;
+}
+
+// How a tree compared with a baseline changed (see
+// TreeExplorerQueryMetric.baselineColumn).
+export interface TreeExplorerDiff {
+  // allRootsCumulativeValue in the baseline.
+  readonly allRootsBaselineCumulativeValue: number;
+  // unfilteredCumulativeValue in the baseline.
+  readonly unfilteredBaselineCumulativeValue: number;
+  // The largest growth and the largest shrink of a node's cumulative value,
+  // both positive. Each scales the colors of the changes in its direction.
+  readonly maxGrowth: number;
+  readonly maxShrink: number;
 }
 
 export interface TreeExplorerData {
   readonly nodes: ReadonlyArray<TreeExplorerNode>;
   readonly unfilteredCumulativeValue: number;
   readonly allRootsCumulativeValue: number;
+  // Set when the tree is compared with a baseline. Nodes are then laid out by
+  // their value in both trees, so that nodes only the baseline has are drawn.
+  readonly diff?: TreeExplorerDiff;
   readonly minDepth: number;
   readonly maxDepth: number;
   readonly nodeActions: ReadonlyArray<TreeExplorerOptionalAction>;
@@ -455,6 +478,32 @@ export function displayPercentage(size: number, totalSize: number): string {
     return `[NULL]%`;
   }
   return `${((size / totalSize) * 100.0).toFixed(2)}%`;
+}
+
+// Formats a signed change in the metric's unit, e.g. "+1.20 MiB".
+export function displayChange(change: number, unit: string): string {
+  if (change === 0) return displaySize(0, unit);
+  return `${change < 0 ? '-' : '+'}${displaySize(Math.abs(change), unit)}`;
+}
+
+// The change from `baseline` to `current` in percent of `baseline`, or
+// undefined for a new value, which has no baseline to divide by.
+export function relativeChange(
+  baseline: number,
+  current: number,
+): number | undefined {
+  if (baseline === 0) return current === 0 ? 0 : undefined;
+  return ((current - baseline) / baseline) * 100;
+}
+
+// Formats relativeChange, e.g. "+13.60%", or "new".
+export function displayRelativeChange(
+  baseline: number,
+  current: number,
+): string {
+  const change = relativeChange(baseline, current);
+  if (change === undefined) return 'new';
+  return `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
 }
 
 export function getUnitDisplayName(unit: string | undefined): string {
