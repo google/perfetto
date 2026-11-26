@@ -17,7 +17,6 @@
 @mixin filled-color-scheme($intent-color, $text-color) {
   color: $text-color;
   background: $intent-color;
-  border-color: var(--pf-color-border-filled);
   box-shadow: var(--pf-shadow-control-filled);
 
   &:hover {
@@ -25,7 +24,6 @@
       $intent-color,
       var(--pf-color-interactive-base)
     );
-    border-color: var(--pf-color-border-filled);
   }
 
   &:active,
@@ -42,7 +40,6 @@
 
     &:hover {
       background: $intent-color;
-      border-color: var(--pf-color-border-filled);
     }
 
     &.pf-active {
@@ -260,22 +257,6 @@
 
     &:hover {
       border-color: var(--pf-color-border-strong);
-    }
-
-    &.pf-intent-primary {
-      border-color: var(--pf-color-primary-border);
-    }
-
-    &.pf-intent-success {
-      border-color: var(--pf-color-success-border);
-    }
-
-    &.pf-intent-danger {
-      border-color: var(--pf-color-danger-border);
-    }
-
-    &.pf-intent-warning {
-      border-color: var(--pf-color-warning-border);
     }
 
     &[disabled]:hover {
