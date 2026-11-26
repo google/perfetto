@@ -58,6 +58,10 @@ export default class MemscopePlugin implements PerfettoPlugin {
   private static hideDefaultChangedHintSetting: Setting<boolean>;
 
   static onActivate(app: App) {
+    // Claim hosting before any trace loads: HeapDumpExplorerPlugin is a
+    // dependency so its onTraceLoad runs before MemscopePlugin.onTraceLoad.
+    HeapDumpExplorerPlugin.claimStandaloneHost();
+
     MemscopePlugin.openByDefaultSetting = app.settings.register({
       id: 'dev.perfetto.OpenMemoryOverviewByDefault',
       name: 'Open Memory Overview by default',
