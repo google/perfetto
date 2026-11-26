@@ -95,7 +95,7 @@ const CHART_HEIGHT_LABELS: [string, ChartHeightSize][] = [
 ];
 const yModeDescriptor: TrackSettingDescriptor<YMode> = {
   name: 'Y Mode',
-  description: 'TODO',
+  description: 'value, delta, rate',
   render(setter, values) {
     const value = valueIfAllEqual(values);
     return m(MenuItem, {label: `Mode (currently: ${value ?? 'mixed'})`}, [
