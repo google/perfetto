@@ -37,7 +37,10 @@ import {
   type PprofProfileType,
 } from '../../../base/trace_converter';
 
+import {Button} from '../../../widgets/button';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {showModal} from '../../../widgets/modal';
+import {Inline, Stack, StackAuto, StackFixed} from '../../../widgets/stack';
 import {
   mergedClassNodeIcon,
   mergedClassNodeTooltipRenderer,
@@ -45,9 +48,10 @@ import {
 import {
   MERGED_CLASS_FLAMEGRAPH_PROPERTY,
   MERGED_CLASS_PROPERTY,
-  mergedClassColumnSql,
+  mergedClassNamesSql,
 } from '../../dev.perfetto.HeapProfile/merged_class_sql';
 import {NUM} from '../../../trace_processor/query_result';
+import type {HeapDump} from '../types';
 
 // Referenced by session.openFlamegraphPivotedAt.
 export const METRIC_OBJECT_SIZE = 'Object Size';
@@ -57,6 +61,12 @@ interface FlamegraphViewAttrs {
   readonly trace: Trace;
   readonly upid: number;
   readonly ts: time;
+  // Every heap dump of the trace: this one can be compared with the others.
+  readonly dumps: ReadonlyArray<HeapDump>;
+  // The dump the flamegraph is compared with, if any.
+  readonly compareWith: HeapDump | undefined;
+  readonly onCompareWithChange: (dump: HeapDump | undefined) => void;
+  readonly dumpLabel: (dump: HeapDump) => string;
   readonly state: TreeExplorerState | undefined;
   readonly onStateChange: (state: TreeExplorerState) => void;
   // Open the flamegraph-objects tab for `pathHashes` (CSV).
@@ -91,11 +101,42 @@ const SELF_COUNT_AGG_PROP = {
   mergeAggregation: 'SUM' as const,
 };
 
-// Build a JAVA_HEAP_GRAPH metric for the BFS or dominator class tree,
-// projecting `valueColumn` as `value` and the other column for tooltips.
+// Several dumps can't be grouped by path_hash_stable: the hash is computed per
+// dump, so it would keep their nodes apart. It is concatenated instead, as
+// dev.perfetto.HeapProfile does, so that the objects of a node can still be
+// listed.
+const MULTI_DUMP_UNAGG_PROPS = UNAGG_PROPS.filter(
+  (p) => p.name !== 'path_hash_stable',
+);
+const PATH_HASH_AGG_PROP = {
+  name: 'path_hash_stable',
+  displayName: 'Path Hash',
+  mergeAggregation: 'CONCAT_WITH_COMMA' as const,
+  isVisible: () => false,
+};
+
+type DumpRef = Pick<HeapDump, 'upid' | 'ts'>;
+
+function inDumpsSql(dumps: ReadonlyArray<DumpRef>): string {
+  return dumps
+    .map((d) => `(upid = ${d.upid} and graph_sample_ts = ${d.ts})`)
+    .join(' or ');
+}
+
+// '1' if the class named by `t.name` is potentially merged in any of `dumps`.
+function potentiallyMergedColumnSql(dumps: ReadonlyArray<DumpRef>): string {
+  const names = dumps
+    .map((d) => `select name from (${mergedClassNamesSql(d.upid, d.ts)})`)
+    .join(' union ');
+  return `CAST(t.name IN (${names}) AS TEXT) AS ${MERGED_CLASS_PROPERTY}`;
+}
+
+// Build a JAVA_HEAP_GRAPH metric for the BFS or dominator class tree of
+// `dump`, projecting `valueColumn` as `value` and the other column for
+// tooltips. The values of `baselineDump`, if any, are the baseline.
 function buildMetric(
-  upid: number,
-  ts: time,
+  dump: DumpRef,
+  baselineDump: DumpRef | undefined,
   name: string,
   unit: string,
   valueColumn: 'self_size' | 'self_count',
@@ -109,6 +150,11 @@ function buildMetric(
     ? 'android.memory.heap_graph.dominator_class_tree'
     : 'android.memory.heap_graph.class_tree';
   const otherCol = valueColumn === 'self_size' ? 'self_count' : 'self_size';
+  const compared = baselineDump !== undefined;
+  const allDumps = compared ? [dump, baselineDump] : [dump];
+  // `column` on the rows of `of`, and 0 on the rows of the other dump.
+  const valueOf = (column: string, of: DumpRef) =>
+    compared ? `iif(${inDumpsSql([of])}, ${column}, 0)` : column;
   return {
     name,
     unit,
@@ -120,16 +166,21 @@ function buildMetric(
         ifnull(name, 'unknown') as name,
         root_type,
         heap_type,
-        ${valueColumn} as value,
-        ${otherCol},
-        CAST(path_hash_stable AS TEXT) AS path_hash_stable,
-        ${mergedClassColumnSql('t.name', upid, ts)}
+        ${valueOf(valueColumn, dump)} as value,
+        ${valueOf(otherCol, dump)} as ${otherCol},
+        iif(${inDumpsSql([dump])}, CAST(path_hash_stable AS TEXT), NULL)
+          AS path_hash_stable,
+        ${compared ? `${valueOf(valueColumn, baselineDump)} as baseline,` : ''}
+        ${potentiallyMergedColumnSql(allDumps)}
       from ${tree} t
-      where graph_sample_ts = ${ts} and upid = ${upid}
+      where ${inDumpsSql(allDumps)}
     `,
-    unaggregatableProperties: UNAGG_PROPS,
-    aggregatableProperties:
-      valueColumn === 'self_size' ? [SELF_COUNT_AGG_PROP] : [],
+    baselineColumn: compared ? 'baseline' : undefined,
+    unaggregatableProperties: compared ? MULTI_DUMP_UNAGG_PROPS : UNAGG_PROPS,
+    aggregatableProperties: [
+      ...(valueColumn === 'self_size' ? [SELF_COUNT_AGG_PROP] : []),
+      ...(compared ? [PATH_HASH_AGG_PROP] : []),
+    ],
     optionalNodeActions: [showObjectsAction],
   };
 }
@@ -168,9 +219,9 @@ const METRIC_SPECS: ReadonlyArray<MetricSpec> = [
   },
 ];
 
-function buildHeapGraphMetrics(
-  upid: number,
-  ts: time,
+export function buildHeapGraphMetrics(
+  dump: DumpRef,
+  baselineDump: DumpRef | undefined,
   onShowObjects: (pathHashes: string, isDominator: boolean) => void,
 ): ReadonlyArray<TreeExplorerQueryMetric> {
   const showObjectsAction = (
@@ -188,8 +239,8 @@ function buildHeapGraphMetrics(
   });
   return METRIC_SPECS.map((s) =>
     buildMetric(
-      upid,
-      ts,
+      dump,
+      baselineDump,
       s.name,
       s.unit,
       s.valueColumn,
@@ -199,9 +250,56 @@ function buildHeapGraphMetrics(
   );
 }
 
+function renderComparePicker(attrs: FlamegraphViewAttrs): m.Children {
+  const others = attrs.dumps.filter(
+    (d) => !(d.upid === attrs.upid && d.ts === attrs.ts),
+  );
+  if (others.length === 0) return null;
+  const {compareWith, dumpLabel} = attrs;
+  return m(
+    StackFixed,
+    {className: 'pf-hde-flamegraph-dumps'},
+    m(Inline, {spacing: 'small'}, [
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label:
+              compareWith === undefined
+                ? 'Compare with'
+                : `Compare with ${dumpLabel(compareWith)}`,
+            icon: 'compare_arrows',
+            rightIcon: 'arrow_drop_down',
+            compact: true,
+          }),
+        },
+        [
+          m(MenuItem, {
+            label: 'No comparison',
+            active: compareWith === undefined,
+            onclick: () => attrs.onCompareWithChange(undefined),
+          }),
+          ...others.map((d) =>
+            m(MenuItem, {
+              label: dumpLabel(d),
+              active: d === compareWith,
+              onclick: () => attrs.onCompareWithChange(d),
+            }),
+          ),
+        ],
+      ),
+      compareWith !== undefined &&
+        m(
+          'span.pf-hde-flamegraph-dumps__hint',
+          'Red: more than the compared dump, blue: less.',
+        ),
+    ]),
+  );
+}
+
 export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
-  // The fetcher is created for the dump it serves and disposed by the memo when
-  // the dump changes or when this view is removed.
+  // The fetcher is created for the dumps it serves and disposed by the memo
+  // when they change or when this view is removed.
   const fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
@@ -215,12 +313,16 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
 
   return {
     view({attrs}) {
+      const dump: DumpRef = {upid: attrs.upid, ts: attrs.ts};
+      const baselineDump = attrs.compareWith;
+      const ref = (d: DumpRef | undefined) =>
+        d === undefined ? null : {upid: d.upid, ts: d.ts};
       const fetcher = fetcherMemo.use({
-        key: {upid: attrs.upid, ts: attrs.ts},
+        key: {dump: ref(dump), baselineDump: ref(baselineDump)},
         compute: () =>
           new TreeExplorerFetcher(
             attrs.trace,
-            buildHeapGraphMetrics(attrs.upid, attrs.ts, attrs.onShowObjects),
+            buildHeapGraphMetrics(dump, baselineDump, attrs.onShowObjects),
           ),
       });
       const metrics = fetcher.metrics;
@@ -249,26 +351,38 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
           incompleteFlamegraphModal(attrs.trace, () => {
             incomplete.dismissed = true;
           }),
-        m(TreeExplorerPanel, {
-          fetcher,
-          state,
-          onStateChange: attrs.onStateChange,
-          nodeIcon: MERGED_CLASS_NODE_ICON,
-          renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
-          extraDownloadItems: [
-            {
-              label: 'Pprof profile (.pb)',
-              icon: 'file_download',
-              description:
-                'Whole snapshot, converted from the trace: filters, the ' +
-                'selected measure and the view direction are not applied.',
-              title:
-                'Download the full profile as pprof, for use with pprof tools',
-              onDownload: () =>
-                downloadPprof(attrs.trace, attrs.upid, attrs.ts),
-            },
-          ],
-        }),
+        m(Stack, {fillHeight: true, spacing: 'none'}, [
+          renderComparePicker(attrs),
+          m(
+            StackAuto,
+            m(TreeExplorerPanel, {
+              fetcher,
+              state,
+              onStateChange: attrs.onStateChange,
+              nodeIcon: MERGED_CLASS_NODE_ICON,
+              renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
+              // A pprof holds one snapshot, so it can't show a diff.
+              extraDownloadItems:
+                baselineDump !== undefined
+                  ? []
+                  : [
+                      {
+                        label: 'Pprof profile (.pb)',
+                        icon: 'file_download',
+                        description:
+                          'Whole snapshot, converted from the trace: ' +
+                          'filters, the selected measure and the view ' +
+                          'direction are not applied.',
+                        title:
+                          'Download the full profile as pprof, for use ' +
+                          'with pprof tools',
+                        onDownload: () =>
+                          downloadPprof(attrs.trace, attrs.upid, attrs.ts),
+                      },
+                    ],
+            }),
+          ),
+        ]),
       ];
     },
     onremove() {

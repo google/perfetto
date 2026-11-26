@@ -87,6 +87,11 @@ export interface TreeExplorerQueryMetric {
   // `aggregatableProperties`.
   readonly statement: string;
 
+  // Optional numeric column of `statement` holding each row's value in a
+  // baseline to compare the tree with. Nodes are merged the same way for both
+  // values, so each node also gets its cumulative value in the baseline.
+  readonly baselineColumn?: string;
+
   // Additional contextual columns containing data which should not be merged
   // between sibling nodes, even if they have the same name.
   //
@@ -177,6 +182,9 @@ interface MetricTable extends AsyncDisposable {
   readonly metric: TreeExplorerQueryMetric;
   readonly table: DisposableSqlEntity;
   readonly unfilteredCumulativeValue: number;
+  // Whether the operator has outputs for `metric.baselineColumn`: it has none
+  // for a value column without values, e.g. when the source has no rows.
+  readonly hasBaselineValues: boolean;
 }
 
 interface MetricTableSlot {
@@ -261,6 +269,9 @@ export class TreeExplorerFetcher implements Disposable {
       's.name',
       's.value',
       ...properties.map((property) => `s.${property.name}`),
+      ...(metric.baselineColumn !== undefined
+        ? [`s.${metric.baselineColumn}`]
+        : []),
     ];
     const table = await createVirtualTable({
       engine: this.trace.engine,
@@ -278,12 +289,20 @@ export class TreeExplorerFetcher implements Disposable {
         ))
         where __intrinsic_flamegraph_find(_tree_id, 'SUPER_ROOT')
       `);
+      const baselineOutput =
+        metric.baselineColumn === undefined
+          ? undefined
+          : await this.trace.engine.query(`
+              select 1 from pragma_table_info(${sqliteString(table.name)})
+              where name = ${sqliteString(`cumulative_${metric.baselineColumn}`)}
+            `);
       return {
         metric,
         table,
         unfilteredCumulativeValue: result.firstRow({
           cumulative_value: NUM,
         }).cumulative_value,
+        hasBaselineValues: (baselineOutput?.numRows() ?? 0) > 0,
         [Symbol.asyncDispose]: () => table[Symbol.asyncDispose](),
       };
     } catch (error) {
@@ -304,6 +323,7 @@ async function computeTree(
     optionalNodeActions,
     optionalRootActions,
     optionalMarker,
+    baselineColumn,
   } = metricTable.metric;
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
@@ -341,6 +361,21 @@ async function computeTree(
         `${sqliteString(column.name)}, ${sqliteString(column.name)}`,
     );
   }
+  // Each node's values in the baseline, if any: an extra value column gets
+  // self_<name> and cumulative_<name> outputs. A baseline without values is 0
+  // everywhere.
+  let baselineSelf: string | undefined;
+  let baselineCumulative: string | undefined;
+  if (baselineColumn !== undefined) {
+    if (metricTable.hasBaselineValues) {
+      configArgs.push(`'value', ${sqliteString(baselineColumn)}`);
+      baselineSelf = `self_${baselineColumn}`;
+      baselineCumulative = `cumulative_${baselineColumn}`;
+    } else {
+      baselineSelf = '0';
+      baselineCumulative = '0';
+    }
+  }
 
   const outputColumns = [
     '_tree_id as id',
@@ -354,16 +389,23 @@ async function computeTree(
     'x_end as xEnd',
     ...unaggCols,
     ...aggCols,
+    `${baselineCumulative ?? 'NULL'} as baselineCumulativeValue`,
+    `${baselineSelf ?? 'NULL'} as baselineSelfValue`,
   ];
 
   // The operator emits rows pre-ordered for rendering with layout geometry
-  // attached; nodes with no cumulative value are invisible and skipped.
+  // attached; nodes with no cumulative value are invisible and skipped. Nodes
+  // with a baseline value are kept for the tables, with no width.
+  const hasValue =
+    baselineCumulative === undefined
+      ? 'cumulative_value > 0'
+      : `(cumulative_value > 0 or ${baselineCumulative} > 0)`;
   const res = await engine.query(`
     select ${outputColumns.join(', ')}
     from ${metricTable.table.name}(
       __intrinsic_flamegraph_config(${configArgs.join(', ')})
     )
-    where cumulative_value > 0
+    where ${hasValue}
   `);
 
   const it = res.iter({
@@ -378,9 +420,13 @@ async function computeTree(
     xEnd: NUM,
     ...Object.fromEntries(unaggCols.map((m) => [m, STR_NULL])),
     ...Object.fromEntries(aggCols.map((m) => [m, UNKNOWN])),
+    baselineCumulativeValue: NUM_NULL,
+    baselineSelfValue: NUM_NULL,
   });
   let postiveRootsValue = 0;
   let negativeRootsValue = 0;
+  let postiveRootsBaselineValue = 0;
+  let negativeRootsBaselineValue = 0;
   let minDepth = 0;
   let maxDepth = 0;
   const nodes = [];
@@ -434,19 +480,32 @@ async function computeTree(
       properties,
       marker,
       propertyValues,
+      baselineCumulativeValue: it.baselineCumulativeValue ?? undefined,
+      baselineSelfValue: it.baselineSelfValue ?? undefined,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;
+      postiveRootsBaselineValue += it.baselineCumulativeValue ?? 0;
     } else if (it.depth === -1) {
       negativeRootsValue += it.cumulativeValue;
+      negativeRootsBaselineValue += it.baselineCumulativeValue ?? 0;
     }
-    minDepth = Math.min(minDepth, it.depth);
-    maxDepth = Math.max(maxDepth, it.depth);
+    // Nodes with only a baseline value take no width, so no row is drawn.
+    if (it.cumulativeValue > 0) {
+      minDepth = Math.min(minDepth, it.depth);
+      maxDepth = Math.max(maxDepth, it.depth);
+    }
   }
   return {
     nodes,
     allRootsCumulativeValue:
       view.kind === 'BOTTOM_UP' ? negativeRootsValue : postiveRootsValue,
+    allRootsBaselineCumulativeValue:
+      baselineColumn === undefined
+        ? undefined
+        : view.kind === 'BOTTOM_UP'
+          ? negativeRootsBaselineValue
+          : postiveRootsBaselineValue,
     unfilteredCumulativeValue: metricTable.unfilteredCumulativeValue,
     minDepth,
     maxDepth,
