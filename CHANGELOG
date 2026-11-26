@@ -10,6 +10,9 @@ Unreleased:
      and `authoritative_trigger` packets, reporting the effective trigger
      mode of the session.
   Trace Processor:
+   * Fixed ART method v2 traces written by AOSP ART (`trace.cc`) being parsed
+     with the wrong record layout, which produced unnamed slices with wrong
+     timestamps.
    * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
      one call failed (e.g. an interrupted query), until they were redefined.
    * Fixed `InterruptQuery()` (e.g. Ctrl-C in `trace_processor_shell`) being
