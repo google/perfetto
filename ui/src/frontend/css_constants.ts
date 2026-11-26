@@ -24,6 +24,7 @@ export let COLOR_BORDER = 'hotpink';
 export let COLOR_BORDER_SECONDARY = 'hotpink';
 export let COLOR_BACKGROUND_SECONDARY = 'hotpink';
 export let COLOR_ACCENT = 'hotpink';
+export let COLOR_WARNING = 'hotpink';
 export let COLOR_BACKGROUND = 'hotpink';
 export let COLOR_TEXT = 'hotpink';
 export let COLOR_TEXT_MUTED = 'hotpink';
@@ -66,6 +67,7 @@ export function initCssConstants(element?: Element) {
   COLOR_BACKGROUND_SECONDARY =
     getCssStr('--pf-color-background-secondary') ?? COLOR_BACKGROUND_SECONDARY;
   COLOR_ACCENT = getCssStr('--pf-color-accent') ?? COLOR_ACCENT;
+  COLOR_WARNING = getCssStr('--pf-color-warning') ?? COLOR_WARNING;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
     getCssNum('--details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
   COLOR_BACKGROUND = getCssStr('--pf-color-background') ?? COLOR_BACKGROUND;

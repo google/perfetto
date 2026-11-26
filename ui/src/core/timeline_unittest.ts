@@ -95,6 +95,40 @@ describe('TimelineImpl', () => {
     timeline.setVisibleWindow(HighPrecisionTimeSpan.fromTime(t(1400), t(1600)));
   });
 
+  describe('onVisibleWindowChanged', () => {
+    test('fires whenever the visible window changes', () => {
+      const windows: Array<[number, number]> = [];
+      timeline.onVisibleWindowChanged.addListener(() => {
+        const {start, end} = timeline.visibleWindow;
+        windows.push([start.toNumber(), end.toNumber()]);
+      });
+
+      timeline.pan(100);
+      timeline.zoom(0.5);
+      timeline.setVisibleWindow(
+        HighPrecisionTimeSpan.fromTime(t(1100), t(1200)),
+      );
+
+      expect(windows).toEqual([
+        [1500, 1700],
+        [1550, 1650],
+        [1100, 1200],
+      ]);
+    });
+
+    test('reports the requested window before clamping', () => {
+      const requested: number[] = [];
+      timeline.onVisibleWindowChanged.addListener((e) =>
+        requested.push(e.requested.start.toNumber()),
+      );
+
+      // Way past the end: the window is clamped, but the request isn't.
+      timeline.pan(20000);
+      expect(timeline).toHaveViewport(1802, 2002);
+      expect(requested).toEqual([21400]);
+    });
+  });
+
   describe('pan', () => {
     test('should pan forward by delta', () => {
       timeline.pan(100);
