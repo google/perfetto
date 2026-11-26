@@ -135,10 +135,10 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     const nodeSpacingX = 250;
     const nodes: GraphNode[] = [];
 
-    for (let i = 0; i < roots.length; i++) {
+    for (const [i, root] of roots.entries()) {
       nodes.push({
         ...buildReadOnlyNodeConfig(
-          roots[i]!,
+          root,
           innerSet,
           connectedInputs,
           connectedOutputs,
@@ -150,8 +150,7 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
 
     // Add "Input N" nodes for external connections.
     // Grey out disconnected inputs.
-    for (let i = 0; i < groupNode.externalConnections.length; i++) {
-      const conn = groupNode.externalConnections[i]!;
+    for (const [i, conn] of groupNode.externalConnections.entries()) {
       const isConnected = groupNode.secondaryInputs.connections.has(
         conn.groupPort,
       );

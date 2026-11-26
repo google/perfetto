@@ -252,7 +252,7 @@ export async function showMetricsExportModal(
           resultStates.set(vc.column, {kind: 'error', message: result.error});
         }
       } else if (result.protoSummary) {
-        for (let i = 0; i < valueColumns.length; i++) {
+        for (const [i, valueColumn] of valueColumns.entries()) {
           const parsed = parseMetricBundleForValue(
             result.protoSummary,
             metricIdPrefix,
@@ -261,12 +261,12 @@ export async function showMetricsExportModal(
             i,
           );
           if (parsed !== undefined && parsed.rows.length > 0) {
-            resultStates.set(valueColumns[i]!.column, {
+            resultStates.set(valueColumn.column, {
               kind: 'data',
               result: parsed,
             });
           } else {
-            resultStates.set(valueColumns[i]!.column, {
+            resultStates.set(valueColumn.column, {
               kind: 'error',
               message: 'No metric data found',
             });
