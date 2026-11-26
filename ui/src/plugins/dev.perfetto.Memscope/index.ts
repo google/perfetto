@@ -258,28 +258,35 @@ export default class MemscopePlugin implements PerfettoPlugin {
     });
 
     // Legacy /heapdump alias (used by external links & HeapProfile timeline
-    // flamegraph drill-downs): opens the unified page directly in Java Heap
-    // scope with the requested subpage.
-    trace.pages.registerPage({
-      route: '/heapdump',
-      render: (subpage) => {
-        const upid = hdeSession?.activeDump?.upid ?? bestUpid;
-        if (upid === undefined) {
-          return m(EmptyState, {
-            icon: 'memory',
-            title: 'No processes with memory data in this trace',
-          });
-        }
-        const cleanedSubpage = subpage?.startsWith('/')
-          ? subpage.slice(1)
-          : subpage;
-        return renderUnifiedPage({
-          upid,
-          scope: 'heap',
-          hdeSubpage: cleanedSubpage || undefined,
+    // flamegraph drill-downs): delegate through HeapDumpExplorerPlugin when it
+    // registered /heapdump so we never double-register the route, and hide its
+    // standalone sidebar entry.
+    const renderHeapdumpAlias = (subpage: string | undefined): m.Children => {
+      const upid = hdeSession?.activeDump?.upid ?? bestUpid;
+      if (upid === undefined) {
+        return m(EmptyState, {
+          icon: 'memory',
+          title: 'No processes with memory data in this trace',
         });
-      },
-    });
+      }
+      const cleanedSubpage = subpage?.startsWith('/')
+        ? subpage.slice(1)
+        : subpage;
+      return renderUnifiedPage({
+        upid,
+        scope: 'heap',
+        hdeSubpage: cleanedSubpage || undefined,
+      });
+    };
+
+    if (hdePlugin.hasHeapDumps()) {
+      hdePlugin.setUnifiedHost(renderHeapdumpAlias);
+    } else {
+      trace.pages.registerPage({
+        route: '/heapdump',
+        render: renderHeapdumpAlias,
+      });
+    }
 
     if (
       availability.hasSmapsSnapshots ||

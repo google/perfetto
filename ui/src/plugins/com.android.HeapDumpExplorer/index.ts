@@ -37,6 +37,7 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   private readonly session: HeapDumpExplorerSession;
   private _hasHeapDumps = false;
   private _restoredFromPermalink = false;
+  private unifiedHostRenderer?: (subpage: string | undefined) => m.Children;
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -94,6 +95,13 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     return this.session.selectDumpForProcess(upid, preferredTs) !== undefined;
   }
 
+  // Lets a unified host plugin (e.g. Memscope) take over rendering of the
+  // /heapdump route and hide the standalone Heapdump Explorer sidebar item
+  // without causing a duplicate /heapdump page registration.
+  setUnifiedHost(renderer: (subpage: string | undefined) => m.Children): void {
+    this.unifiedHostRenderer = renderer;
+  }
+
   // Change which heap dump we're looking at from another plugin
   updateHeadDump(upid: number, ts: time): void {
     const dump = this.session.dumps.find((d) => d.upid === upid && d.ts === ts);
@@ -118,16 +126,12 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
         session.openFlamegraph({pathHashes, isDominator, upid, ts}),
       );
 
-    // When the unified Memory Explorer (Memscope) plugin is active, it hosts
-    // the Heap Dump Explorer as its Java Heap scope and owns the single Memory
-    // sidebar entry and routing (including legacy #!/heapdump links).
-    if (ctx.plugins.isPluginEnabled('dev.perfetto.Memscope')) {
-      return;
-    }
-
     ctx.pages.registerPage({
       route: '/heapdump',
-      render: (subpage) => m(HeapDumpPage, {session, subpage}),
+      render: (subpage) =>
+        this.unifiedHostRenderer !== undefined
+          ? this.unifiedHostRenderer(subpage)
+          : m(HeapDumpPage, {session, subpage}),
     });
 
     if (restored) {
@@ -149,6 +153,7 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       text: 'Heapdump Explorer',
       href: '#!/heapdump',
       icon: 'memory',
+      hidden: () => this.unifiedHostRenderer !== undefined,
     });
   }
 }
