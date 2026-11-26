@@ -18,6 +18,7 @@ import type {AppImpl} from '../../core/app_impl';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {Flag} from '../../public/feature_flag';
 import type {PerfettoPlugin} from '../../public/plugin';
+import {ActivityMinimapMode} from './activity_minimap_mode';
 import {TimelinePage} from './timeline_page';
 import {
   DEFAULT_TRACK_MIN_HEIGHT_PX,
@@ -50,6 +51,8 @@ export default class TimelinePlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: TraceImpl): Promise<void> {
+    trace.minimap.registerMode(new ActivityMinimapMode(trace));
+
     trace.pages.registerPage({
       route: '/viewer',
       render: () => {
