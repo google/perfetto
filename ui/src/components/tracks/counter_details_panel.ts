@@ -12,38 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, type duration, type time} from '../../base/time';
+import {Duration, Time, type duration, type time} from '../../base/time';
 import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
-import {
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import m from 'mithril';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {DurationWidget} from '../../components/widgets/duration';
+import {Timestamp} from '../widgets/timestamp';
+import {DurationWidget} from '../widgets/duration';
 import type {TrackEventSelection} from '../../public/selection';
-import {hasArgs, renderArguments} from '../../components/details/args';
-import {asArgSetId} from '../../components/sql_utils/core_types';
-import {type ArgsDict, getArgs} from '../../components/sql_utils/args';
+import {hasArgs, renderArguments} from '../details/args';
+import {asArgSetId} from '../sql_utils/core_types';
+import {type ArgsDict, getArgs} from '../sql_utils/args';
 import {
   type YMode,
   counterDisplayUnit,
   counterValueExpression,
-} from '../../components/tracks/counter_track';
+} from './counter_track';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
   ts: time;
 
-  // The delta between this sample and the next one's timestamps T(N+1) - T(N)
+  // How long the sample lasts, as in the selection (-1 if it did not end)
   duration: duration;
 
   // The raw value F(N)
@@ -83,10 +78,11 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
     this.sqlSource = sqlSource;
   }
 
-  async load({eventId}: TrackEventSelection) {
+  async load({eventId, dur}: TrackEventSelection) {
     this.counterDetails = await loadCounterDetails(
       this.engine,
       eventId,
+      dur ?? Duration.ZERO,
       this.sqlSource,
     );
   }
@@ -170,6 +166,7 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
 async function loadCounterDetails(
   engine: Engine,
   id: number,
+  duration: duration,
   sqlSource: string,
 ): Promise<CounterDetails> {
   const deltaExpr = counterValueExpression('delta');
@@ -187,22 +184,13 @@ async function loadCounterDetails(
     ),
     CURRENT AS (
       SELECT * FROM src WHERE id = ${id}
-    ),
-    NEXT as (
-      SELECT
-        ts
-      FROM (${sqlSource})
-      WHERE ts > (select ts from CURRENT)
-      ORDER BY ts ASC
-      LIMIT 1
     )
     SELECT
       ts as leftTs,
       value,
       delta,
       rate,
-      arg_set_id as argSetId,
-      (SELECT ts FROM NEXT) as rightTs
+      arg_set_id as argSetId
     FROM CURRENT
   `;
 
@@ -212,12 +200,9 @@ async function loadCounterDetails(
     delta: NUM,
     rate: NUM_NULL,
     leftTs: LONG,
-    rightTs: LONG_NULL,
     argSetId: NUM_NULL,
   });
   const leftTs = Time.fromRaw(row.leftTs);
-  const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
-  const duration = rightTs - leftTs;
   const argSetId = row.argSetId;
   const args =
     argSetId == null ? undefined : await getArgs(engine, asArgSetId(argSetId));
