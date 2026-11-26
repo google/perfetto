@@ -488,6 +488,31 @@ The resulting trace file can be directly opened in the
 [Perfetto UI](https://ui.perfetto.dev) or the
 [Trace Processor](/docs/analysis/trace-processor.md).
 
+## Troubleshooting
+
+### {#msvc-lambdas} MSVC hangs when compiling trace macros inside a lambda
+
+MSVC's legacy lambda processor can hang when compiling trace macros such as
+`TRACE_EVENT` inside a lambda. Enable the standards-conforming lambda
+processor on the application target that uses these macros.
+
+For C++17 projects, add `/Zc:lambda` to the compiler options (available since
+Visual Studio 2019 version 16.8). For example, in CMake:
+
+```cmake
+if (MSVC)
+  target_compile_options(example PRIVATE "/Zc:lambda")
+endif (MSVC)
+```
+
+`/Zc:lambda` is enabled automatically by `/std:c++20` and later language modes.
+The `/permissive-` option in the CMake example above also enables it in Visual
+Studio 2022 version 17.6 and later, but not in older versions. See Microsoft's
+[`/Zc:lambda`][msvc-lambda] and [`/permissive-`][msvc-permissive] documentation for
+details.
+
+[msvc-lambda]: https://learn.microsoft.com/en-us/cpp/build/reference/zc-lambda
+[msvc-permissive]: https://learn.microsoft.com/en-us/cpp/build/reference/permissive-standards-conformance
 [ipc]: /docs/design-docs/api-and-abi.md#socket-protocol
 [atrace-ds]: /docs/data-sources/atrace.md
 [atrace-ndk]: https://developer.android.com/ndk/reference/group/tracing
