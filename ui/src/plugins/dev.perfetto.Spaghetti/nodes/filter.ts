@@ -29,7 +29,6 @@ import {
 } from '../sql_types';
 import {formatFilterConditions} from '../generator_utils';
 import type {NodeManifest, RenderContext} from '../node_types';
-import './filter.scss';
 
 export const FILTER_OPS = [
   '=',
@@ -72,6 +71,12 @@ const FilterConfigSchema = z
 
 export type FilterConfig = z.infer<typeof FilterConfigSchema>;
 
+function valuePlaceholder(op: FilterOp): string {
+  if (op === 'LIKE' || op === 'NOT LIKE') return '%pattern%';
+  if (op === 'GLOB') return '*pattern*';
+  return 'value';
+}
+
 function FilterNodeContent(): m.Component<{
   config: FilterConfig;
   updateConfig: (updates: Partial<FilterConfig>) => void;
@@ -83,21 +88,23 @@ function FilterNodeContent(): m.Component<{
       const conditions = config.conditions;
       const conjunction = config.conjunction ?? 'AND';
 
-      return m(Stack, {className: 'pf-spag-filter'}, [
-        m(
-          RadioGroup,
-          {
-            fillWidth: true,
-            className: 'pf-spag-conjunction',
-            selectedValue: conjunction,
-            onValueChange: (value: string) =>
-              updateConfig({conjunction: value as 'AND' | 'OR'}),
-          },
-          [
-            m(RadioGroup.Button, {value: 'AND'}, 'AND'),
-            m(RadioGroup.Button, {value: 'OR'}, 'OR'),
-          ],
-        ),
+      return m(Stack, {minWidth: 'lg'}, [
+        conditions.length > 1 &&
+          m(
+            RadioGroup,
+            {
+              fillWidth: true,
+              selectedValue: conjunction,
+              onValueChange: (value: string) =>
+                updateConfig({conjunction: value as 'AND' | 'OR'}),
+            },
+            [
+              m(RadioGroup.Button, {value: 'AND'}, 'Match all (AND)'),
+              m(RadioGroup.Button, {value: 'OR'}, 'Match any (OR)'),
+            ],
+          ),
+        conditions.length === 0 &&
+          m('.pf-spag-passthrough-hint', 'No conditions (all rows)'),
         m(DraggableStack, {
           rows: conditions.map((cond, i) => [
             m(ColumnPicker, {
@@ -126,7 +133,7 @@ function FilterNodeContent(): m.Component<{
             ),
             !isUnaryFilterOp(cond.op) &&
               m(TextInput, {
-                placeholder: 'value',
+                placeholder: valuePlaceholder(cond.op),
                 value: cond.value,
                 onChange: (value) =>
                   updateConfig({

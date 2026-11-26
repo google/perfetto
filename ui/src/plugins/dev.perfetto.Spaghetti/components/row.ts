@@ -27,22 +27,31 @@ export function Row(): m.Component<m.Attributes> {
 }
 
 export namespace Row {
-  export const DragHandle: m.Component = {
-    view() {
+  export const DragHandle: m.Component<m.Attributes> = {
+    view({attrs}) {
+      const {className, ...rest} = attrs;
       return m(Icon, {
+        ...rest,
         icon: 'drag_indicator',
-        className: 'pf-spag-draghandle',
+        className: classNames('pf-spag-draghandle', className),
       });
     },
   };
 
   export const DeleteButton: m.Component<Partial<ButtonAttrs>> = {
     view({attrs}) {
-      const {icon = 'delete', tooltip = 'Remove', className, ...rest} = attrs;
+      const {
+        icon = 'close',
+        tooltip = 'Remove',
+        compact = true,
+        className,
+        ...rest
+      } = attrs;
       return m(Button, {
         className: classNames('pf-spag-delete', className),
         icon,
         tooltip,
+        compact,
         ...rest,
       });
     },

@@ -62,8 +62,10 @@ export class ColumnsTab implements m.ClassComponent<ColumnsTabAttrs> {
             m('td.pf-spag-col-name', col.name),
             m(
               'td.pf-spag-col-type',
-              m(Icon, {icon: perfettoSqlTypeIcon(col.type)}),
-              perfettoSqlTypeToString(col.type),
+              m('span.pf-spag-col-type-badge', [
+                m(Icon, {icon: perfettoSqlTypeIcon(col.type)}),
+                perfettoSqlTypeToString(col.type),
+              ]),
             ),
           ]),
         ),

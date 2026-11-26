@@ -93,9 +93,6 @@ export function GraphTab(): m.Component<GraphTabAttrs> {
               apply();
             }
           },
-          onblur: () => {
-            if (editing) apply();
-          },
           ondblclick: () => {
             if (!editing) {
               editValue = liveJson;

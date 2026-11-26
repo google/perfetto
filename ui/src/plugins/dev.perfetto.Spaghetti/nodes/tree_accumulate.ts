@@ -67,8 +67,24 @@ function TreeAccumulateContent(): m.Component<{
               updateConfig({direction: value as 'UP' | 'DOWN'}),
           },
           [
-            m(RadioGroup.Button, {value: 'UP'}, 'Up (Subtree)'),
-            m(RadioGroup.Button, {value: 'DOWN'}, 'Down (Ancestors)'),
+            m(
+              RadioGroup.Button,
+              {
+                value: 'UP',
+                icon: 'arrow_upward',
+                title: 'Accumulate up from each node’s subtree',
+              },
+              'Subtree',
+            ),
+            m(
+              RadioGroup.Button,
+              {
+                value: 'DOWN',
+                icon: 'arrow_downward',
+                title: 'Accumulate down from each node’s ancestors',
+              },
+              'Ancestors',
+            ),
           ],
         ),
         m('.pf-spag-section-label', 'Tree columns'),
@@ -110,7 +126,7 @@ function TreeAccumulateContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Aggregation',
+          label: 'Add aggregation',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>
@@ -189,7 +205,10 @@ export const manifest: NodeManifest<TreeAccumulateConfig> = {
       .filter((a) => a.func === 'COUNT' || a.column !== '')
       .map((a) => ({
         name: aggAlias(a, config.direction),
-        type: {kind: 'int' as const},
+        type:
+          a.func === 'COUNT'
+            ? {kind: 'int' as const}
+            : columns.find((col) => col.name === a.column)?.type,
       }));
     return [...columns, ...added];
   },

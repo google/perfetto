@@ -21,27 +21,6 @@
   height: 100%;
   box-sizing: border-box;
   align-content: flex-start;
-
-  &--empty {
-    align-items: center;
-    align-content: center;
-    justify-content: center;
-  }
-
-  &__placeholder {
-    opacity: 0.5;
-  }
-}
-
-.pf-spag-chart-svg {
-  display: block;
-  overflow: visible;
-}
-
-.pf-spag-chart-sep {
-  opacity: 0.5;
-  font-size: 11px;
-  padding: 0 2px;
 }
 
 .pf-spag-chart-panel {
@@ -49,29 +28,99 @@
   border: 1px solid var(--pf-color-border);
   border-radius: 6px;
   padding: 10px 12px;
-  min-width: 280px;
-  flex: 1 1 280px;
-  max-width: 480px;
+  min-width: 300px;
+  flex: 1 1 340px;
+  max-width: 560px;
   box-sizing: border-box;
   color: var(--pf-color-text);
 }
 
-.pf-spag-chart-title {
-  font-size: 12px;
-  font-weight: 600;
+.pf-spag-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
-  opacity: 0.85;
+}
+
+.pf-spag-chart-title {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  color: var(--pf-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-spag-chart-meta {
+  font-size: 10px;
+  color: var(--pf-color-text-muted);
+  flex-shrink: 0;
+}
+
+.pf-spag-chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-spag-chart-bar-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 140px) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pf-spag-chart-bar-label {
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pf-color-text);
+}
+
+.pf-spag-chart-bar-track {
+  height: 14px;
+  background: color-mix(in srgb, var(--pf-color-border) 35%, transparent);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pf-spag-chart-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  min-width: 3px;
+}
+
+.pf-spag-chart-bar-value {
+  font-family: var(--pf-font-monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+  text-align: right;
+  white-space: nowrap;
+  min-width: 44px;
 }
 
 .pf-spag-chart-loading,
 .pf-spag-chart-empty,
 .pf-spag-chart-error {
-  font-size: 12px;
-  opacity: 0.5;
-  padding: 4px 0;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  padding: 6px 0;
+}
+
+.pf-spag-chart-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .pf-spag-chart-error {
-  color: var(--pf-error, #c00);
-  opacity: 1;
+  color: var(--pf-color-danger);
+  font-family: var(--pf-font-monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
 }

@@ -29,14 +29,15 @@ export class DraggableStack implements m.ClassComponent<DraggableStackAttrs> {
 
   view({attrs}: m.CVnode<DraggableStackAttrs>): m.Children {
     const {rows, onReorder, onDelete, deleteTitle} = attrs;
+    if (rows.length === 0) return undefined;
 
     return m(
       Stack,
+      {className: 'pf-spag-draggable-stack'},
       rows.map((row, i) =>
         m(
           Row,
           {
-            draggable: true,
             ondragstart: (e: DragEvent) => {
               if (!e.dataTransfer) return;
               e.dataTransfer.effectAllowed = 'move';
@@ -44,7 +45,12 @@ export class DraggableStack implements m.ClassComponent<DraggableStackAttrs> {
               (e.currentTarget as HTMLElement).classList.add('pf-dragging');
             },
             ondragend: (e: DragEvent) => {
-              (e.currentTarget as HTMLElement).classList.remove('pf-dragging');
+              const el = e.currentTarget as HTMLElement;
+              el.draggable = false;
+              el.classList.remove('pf-dragging');
+            },
+            onpointerup: (e: PointerEvent) => {
+              (e.currentTarget as HTMLElement).draggable = false;
             },
             ondragover: (e: DragEvent) => {
               if (!e.dataTransfer?.types.includes(this.mimeType)) return;
@@ -58,6 +64,7 @@ export class DraggableStack implements m.ClassComponent<DraggableStackAttrs> {
             },
             ondragleave: (e: DragEvent) => {
               const el = e.currentTarget as HTMLElement;
+              if (el.contains(e.relatedTarget as Node | null)) return;
               el.classList.remove('pf-drag-over-top', 'pf-drag-over-bottom');
             },
             ondrop: (e: DragEvent) => {
@@ -82,7 +89,16 @@ export class DraggableStack implements m.ClassComponent<DraggableStackAttrs> {
             },
           },
           [
-            m(Row.DragHandle),
+            m(Row.DragHandle, {
+              onpointerdown: (e: PointerEvent) => {
+                const rowEl = (e.currentTarget as HTMLElement).closest(
+                  '.pf-spag-row',
+                ) as HTMLElement | null;
+                if (rowEl !== null) {
+                  rowEl.draggable = true;
+                }
+              },
+            }),
             row,
             m(Row.DeleteButton, {
               tooltip: deleteTitle,

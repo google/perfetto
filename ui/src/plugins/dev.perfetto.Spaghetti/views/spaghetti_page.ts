@@ -32,12 +32,14 @@ import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {HotkeyContext} from '../../../widgets/hotkey_context';
+import {Icon} from '../../../widgets/icon';
 import {
   MenuDivider,
   MenuItem,
   MenuTitle,
   PopupMenu,
 } from '../../../widgets/menu';
+import {Spinner} from '../../../widgets/spinner';
 import {
   NodeGraph,
   type Connection,
@@ -166,7 +168,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     const result: Connection[] = [];
     for (const node of Object.values(getFlatNodes().nodes)) {
       const inputs = node.inputs ?? [];
-      for (let i = 0; i < inputs.length; i++) {
+      const maxPorts = getManifestInputs(getManifest(node.type), node).length;
+      for (let i = 0; i < Math.min(inputs.length, maxPorts); i++) {
         const fromId = inputs[i];
         if (fromId !== null && fromId !== undefined) {
           result.push({
@@ -371,8 +374,19 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
     updateStore((draft) => {
       if (toNodeId) {
-        // Insert new chain node right after toNodeId in its chain.
-        const parentNode = draft.nodes.find((n) => n.id === toNodeId);
+        // Insert new chain node right after toNodeId in its chain (root or docked).
+        let parentNode: NodeData | undefined;
+        outer: for (const root of draft.nodes) {
+          let cur: NodeData = root;
+          while (true) {
+            if (cur.id === toNodeId) {
+              parentNode = cur;
+              break outer;
+            }
+            if (!cur.next) break;
+            cur = cur.next;
+          }
+        }
         if (parentNode) {
           const chainNode: NodeData = {
             type,
@@ -400,10 +414,114 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         });
       }
     });
+
+    const selected = getState().selectedNodeIds;
+    selected.clear();
+    selected.add(id);
   };
 
-  function renderTitleBarActions(): m.Children {
-    return [];
+  function findContainingRoot(
+    roots: readonly RootNodeData[],
+    nodeId: string,
+  ): RootNodeData | undefined {
+    for (const root of roots) {
+      let cur: NodeData | undefined = root;
+      while (cur !== undefined) {
+        if (cur.id === nodeId) return root;
+        cur = cur.next;
+      }
+    }
+    return undefined;
+  }
+
+  function undockNode(nodeId: string) {
+    const state = getState();
+    const root = findContainingRoot(state.store.nodes, nodeId);
+    const parent = findDockedParent(getFlatNodes(), nodeId);
+    if (!parent || !root) return;
+    updateStore((draft) => {
+      let parentNode: NodeData | undefined;
+      outer: for (const r of draft.nodes) {
+        let cur: NodeData = r;
+        while (true) {
+          if (cur.id === parent.id) {
+            parentNode = cur;
+            break outer;
+          }
+          if (!cur.next) break;
+          cur = cur.next;
+        }
+      }
+      if (!parentNode?.next || parentNode.next.id !== nodeId) return;
+      const detached = parentNode.next;
+      parentNode.next = undefined;
+      draft.nodes.push({
+        ...detached,
+        x: root.x + 280,
+        y: root.y + 40,
+      } as RootNodeData);
+    });
+  }
+
+  function renderAddBelowSubmenu(nodeId: string): m.Children {
+    const items: m.Children[] = [];
+    for (const category of NODE_CATEGORIES) {
+      const dockable = category.types.filter((type) => {
+        const mfest = getManifest(type);
+        return (mfest.getInputs?.(mfest.defaultConfig()) ?? []).length > 0;
+      });
+      if (dockable.length === 0) continue;
+      if (items.length > 0) items.push(m(MenuDivider));
+      items.push(m(MenuTitle, {label: category.title}));
+      for (const type of dockable) {
+        const mfest = getManifest(type);
+        items.push(
+          m(MenuItem, {
+            label: mfest.title,
+            icon: mfest.icon,
+            className: 'pf-spag-add-menu-item',
+            style: `--pf-node-hue: ${mfest.hue}`,
+            onclick: () => addNode(type, nodeId),
+          }),
+        );
+      }
+    }
+    return m(
+      MenuItem,
+      {label: 'Add step below', icon: 'add'},
+      m('.pf-spag-add-menu-list', items),
+    );
+  }
+
+  function renderTitleBarActions(
+    isPinned: boolean,
+    errorTooltip: string | undefined,
+  ): m.Children {
+    const actions: m.Children[] = [];
+    if (errorTooltip !== undefined) {
+      actions.push(
+        m(Icon, {
+          icon: 'warning',
+          className: 'pf-spag-node-error-icon',
+          title: errorTooltip,
+        }),
+      );
+    }
+    if (isPinned) {
+      actions.push(
+        m(Button, {
+          icon: 'push_pin',
+          compact: true,
+          className: 'pf-spag-node-pin-btn',
+          title: 'Pinned node (click to unpin)',
+          onclick: (e: MouseEvent) => {
+            e.stopPropagation();
+            getState().pinnedNodeId = undefined;
+          },
+        }),
+      );
+    }
+    return actions;
   }
 
   // Build RenderContext and dispatch to manifest.render.
@@ -438,6 +556,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     const ctx: RenderContext = {
       availableColumns,
       tableNames,
+      sqlModules,
       trace,
       isSelected: getState().selectedNodeIds.has(nodeData.id),
       inputPorts: ports,
@@ -454,6 +573,12 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         function updateInChain(node: NodeData): boolean {
           if (node.id === nodeData.id) {
             node.config = {...node.config, ...updates};
+            // Drop any wired connections beyond the node's updated port count.
+            if (node.inputs !== undefined) {
+              const maxPorts = getManifestInputs(manifest, node).length;
+              const trimmed = trimInputs(node.inputs.slice(0, maxPorts));
+              node.inputs = trimmed.length > 0 ? trimmed : undefined;
+            }
             return true;
           }
           return node.next ? updateInChain(node.next) : false;
@@ -473,9 +598,13 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     tableNames: string[],
     trace: Trace,
     sqlModules: SqlModules | undefined,
+    invalidNodeId: string | undefined,
+    invalidReason: string | undefined,
     isRoot = false,
   ): Omit<Node, 'x' | 'y'> {
     const manifest = getManifest(nodeData.type);
+    const isPinned = getState().pinnedNodeId === nodeData.id;
+    const isInvalid = invalidNodeId === nodeData.id;
 
     return {
       id: nodeData.id,
@@ -499,43 +628,63 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             tableNames,
             trace,
             sqlModules,
+            invalidNodeId,
+            invalidReason,
             false,
           )
         : undefined,
       titleBar: {
         title: manifest.title,
         icon: manifest.resolveIcon?.(nodeData.config) ?? manifest.icon,
-        actions: renderTitleBarActions(),
+        actions: renderTitleBarActions(
+          isPinned,
+          isInvalid ? invalidReason : undefined,
+        ),
       },
       hue: manifest.hue,
+      invalid: isInvalid,
       contextMenuItems: [
         m(MenuItem, {
-          label:
-            getState().pinnedNodeId === nodeData.id ? 'Unpin node' : 'Pin node',
+          label: isPinned ? 'Unpin node' : 'Pin node',
           icon: 'push_pin',
           onclick: () => {
             const state = getState();
-            state.pinnedNodeId =
-              state.pinnedNodeId === nodeData.id ? undefined : nodeData.id;
+            state.pinnedNodeId = isPinned ? undefined : nodeData.id;
           },
         }),
+        renderAddBelowSubmenu(nodeData.id),
+        !isRoot &&
+          m(MenuItem, {
+            label: 'Undock',
+            icon: 'link_off',
+            onclick: () => undockNode(nodeData.id),
+          }),
         m(MenuItem, {
           label: 'Duplicate',
           icon: 'content_copy',
           onclick: () => {
             const newId = shortUuid();
-            const rootData = nodeData as Partial<RootNodeData>;
+            const containingRoot = findContainingRoot(
+              getState().store.nodes,
+              nodeData.id,
+            );
+            const baseX = containingRoot?.x ?? 100;
+            const baseY = containingRoot?.y ?? 100;
             updateStore((draft) => {
               draft.nodes.push({
                 type: nodeData.type,
                 id: newId,
-                x: (rootData.x ?? 100) + 50,
-                y: (rootData.y ?? 100) + 50,
+                x: baseX + 50,
+                y: baseY + 50,
                 config: structuredClone(nodeData.config),
               });
             });
+            const selected = getState().selectedNodeIds;
+            selected.clear();
+            selected.add(newId);
           },
         }),
+        m(MenuDivider),
         m(MenuItem, {
           label: 'Delete',
           icon: 'delete',
@@ -555,6 +704,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
     tableNames: string[],
     trace: Trace,
     sqlModules: SqlModules | undefined,
+    invalidNodeId: string | undefined,
+    invalidReason: string | undefined,
   ): Node {
     const model = buildNodeModel(
       matService,
@@ -562,6 +713,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       tableNames,
       trace,
       sqlModules,
+      invalidNodeId,
+      invalidReason,
       true,
     );
     return {
@@ -595,8 +748,56 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       const flatNodes = getFlatNodes();
       const activeConns = getActiveConnections();
 
+      // Use pinned node if set, otherwise fall back to selected node.
+      const activeNodeId = state.getActiveNodeId();
+
+      // Schedule materialization on every render — the AsyncLimiter
+      // ensures only the latest invocation actually runs.
+      matService.scheduleUpdate(
+        store,
+        activeNodeId,
+        sqlModules,
+        materializationDialect,
+        emulateSlowLoads,
+      );
+
+      const dataSource = matService.dataSource;
+      const matError = matService.error;
+      const cacheEntries = matService.cacheEntries;
+
+      // Build DataGrid schema from the node's output columns.
+      const outputColumns = activeNodeId
+        ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
+        : undefined;
+
+      // The SQL tab shows the whole query in the configured dialect.
+      const serialized = activeNodeId
+        ? serialize(flatNodes, activeNodeId, materializationDialect, {
+            sqlModules,
+          })
+        : undefined;
+
+      const invalidNodeId =
+        serialized !== undefined && !serialized.ok
+          ? (serialized.nodeId ?? activeNodeId)
+          : matError !== undefined
+            ? activeNodeId
+            : undefined;
+      const invalidReason =
+        serialized !== undefined && !serialized.ok
+          ? serialized.error
+          : matError;
+
       const renderedNodes: Node[] = store.nodes.map((n) =>
-        renderNodeChain(matService, n, tableNames, trace, sqlModules),
+        renderNodeChain(
+          matService,
+          n,
+          tableNames,
+          trace,
+          sqlModules,
+          invalidNodeId,
+          invalidReason,
+        ),
       );
 
       const toolbarItems: m.Children[] = [];
@@ -636,9 +837,11 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         toolbarItems.push(
           m(Button, {
             variant: ButtonVariant.Filled,
+            intent: Intent.Primary,
             icon: 'push_pin',
+            rightIcon: 'close',
             label: pinnedLabel,
-            title: 'Unpin node',
+            title: 'Pinned node — click to unpin',
             onclick: () => {
               state.pinnedNodeId = undefined;
             },
@@ -733,12 +936,14 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
           m(Button, {
             variant: ButtonVariant.Filled,
             icon: 'undo',
+            title: 'Undo (Ctrl/Cmd+Z)',
             disabled: !canUndo(),
             onclick: undo,
           }),
           m(Button, {
             variant: ButtonVariant.Filled,
             icon: 'redo',
+            title: 'Redo (Ctrl/Cmd+Shift+Z)',
             disabled: !canRedo(),
             onclick: redo,
           }),
@@ -847,6 +1052,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               for (let i = 0; i < n.inputs.length; i++) {
                 if (n.inputs[i] === otherId) n.inputs[i] = null;
               }
+              const trimmed = trimInputs(n.inputs);
+              n.inputs = trimmed.length > 0 ? trimmed : undefined;
             }
           });
         },
@@ -928,34 +1135,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         },
       });
 
-      // Use pinned node if set, otherwise fall back to selected node.
-      const activeNodeId = state.getActiveNodeId();
-
-      // Schedule materialization on every render — the AsyncLimiter
-      // ensures only the latest invocation actually runs.
-      matService.scheduleUpdate(
-        store,
-        activeNodeId,
-        sqlModules,
-        materializationDialect,
-        emulateSlowLoads,
-      );
-
-      const dataSource = matService.dataSource;
-      const matError = matService.error;
-      const cacheEntries = matService.cacheEntries;
-
-      // Build DataGrid schema from the node's output columns.
-      const outputColumns = activeNodeId
-        ? getOutputColumnsForNode(flatNodes, activeNodeId, sqlModules)
-        : undefined;
-
-      // The SQL tab shows the whole query in the configured dialect.
-      const serialized = activeNodeId
-        ? serialize(flatNodes, activeNodeId, materializationDialect, {
-            sqlModules,
-          })
-        : undefined;
       const serializedSql =
         serialized === undefined
           ? undefined
@@ -976,8 +1155,75 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         2,
       );
 
-      const sqlPanel = m(
-        '.pf-spag__sql-panel',
+      const activeNode = activeNodeId
+        ? flatNodes.nodes[activeNodeId]
+        : undefined;
+      const activeManifest = activeNode
+        ? getManifest(activeNode.type)
+        : undefined;
+      const isBuilding = [...matService.lastRunOutcomes.values()].some(
+        (o) => o.kind === 'building',
+      );
+      const inspectorStatus =
+        activeNode === undefined
+          ? undefined
+          : serialized !== undefined && !serialized.ok
+            ? {label: 'Incomplete', kind: 'warn' as const}
+            : matError !== undefined
+              ? {label: 'Error', kind: 'error' as const}
+              : isBuilding
+                ? {label: 'Running…', kind: 'loading' as const}
+                : dataSource !== undefined
+                  ? {label: 'Ready', kind: 'ok' as const}
+                  : undefined;
+
+      const inspectorHeader = m(
+        '.pf-spag__inspector-header',
+        activeNode !== undefined && activeManifest !== undefined
+          ? [
+              m(
+                '.pf-spag__inspector-node',
+                {style: {'--pf-node-hue': `${activeManifest.hue}`}},
+                [
+                  m(Icon, {
+                    icon:
+                      activeManifest.resolveIcon?.(activeNode.config) ??
+                      activeManifest.icon,
+                    className: 'pf-spag__inspector-icon',
+                  }),
+                  m('span.pf-spag__inspector-title', activeManifest.title),
+                ],
+              ),
+              inspectorStatus !== undefined &&
+                m(
+                  'span.pf-spag__status-pill',
+                  {
+                    className: `pf-spag__status-pill--${inspectorStatus.kind}`,
+                  },
+                  inspectorStatus.label,
+                ),
+              m('.pf-spag__toolbar-spacer'),
+              m(Button, {
+                icon: 'push_pin',
+                compact: true,
+                active: pinnedNodeId === activeNode.id,
+                intent:
+                  pinnedNodeId === activeNode.id ? Intent.Primary : undefined,
+                title:
+                  pinnedNodeId === activeNode.id
+                    ? 'Unpin this node'
+                    : 'Pin this node so results stay fixed while editing others',
+                onclick: () => {
+                  state.pinnedNodeId =
+                    pinnedNodeId === activeNode.id ? undefined : activeNode.id;
+                },
+              }),
+            ]
+          : m('span.pf-spag__inspector-empty', 'Inspector — select a node'),
+      );
+
+      const sqlPanel = m('.pf-spag__sql-panel', [
+        inspectorHeader,
         m(Tabs, {
           tabs: [
             {
@@ -994,7 +1240,10 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             },
             {
               key: 'columns',
-              title: 'Columns',
+              title:
+                outputColumns !== undefined
+                  ? `Columns (${outputColumns.length})`
+                  : 'Columns',
               content: m(ColumnsTab, {outputColumns, activeNodeId}),
             },
             {
@@ -1034,7 +1283,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             },
           ],
         }),
-      );
+      ]);
 
       const datagridSchema: ColumnSchema = Object.fromEntries(
         (outputColumns ?? []).map((col) => {
@@ -1120,7 +1369,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               fillHeight: true,
               title: 'Incomplete query',
             },
-            serialized.error,
+            m('.pf-spag__error-text', serialized.error),
           );
         }
         if (matError) {
@@ -1134,18 +1383,21 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
             m('pre.pf-spag__error', matError),
           );
         }
+        if (serialized?.ok) {
+          return m(
+            EmptyState,
+            {
+              fillHeight: true,
+              title: 'Running query…',
+            },
+            m(Spinner, {easing: true}),
+          );
+        }
         return m(EmptyState, {
           title: 'Query results will appear here',
           fillHeight: true,
         });
       }
-
-      const activeNode = activeNodeId
-        ? flatNodes.nodes[activeNodeId]
-        : undefined;
-      const activeManifest = activeNode
-        ? getManifest(activeNode.type)
-        : undefined;
 
       const detailsCtx: DetailsContext = {
         outputColumns,
@@ -1154,25 +1406,65 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         output: matService.outputRead,
       };
 
-      const resultsPanel = activeManifest?.renderDetails
-        ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
-        : activeNodeId && serialized?.ok && dataSource
-          ? m(DataGrid, {
-              key: matService.outputRead?.sql ?? '',
-              data: dataSource,
-              schema: datagridSchema,
-              fillHeight: true,
-            })
-          : renderEmptyState();
+      const resultsPanel =
+        activeNode !== undefined &&
+        activeManifest?.renderDetails !== undefined &&
+        serialized?.ok === true
+          ? activeManifest.renderDetails(activeNode.config, detailsCtx)
+          : activeNodeId && serialized?.ok && dataSource
+            ? m(DataGrid, {
+                key: matService.outputRead?.sql ?? '',
+                data: dataSource,
+                schema: datagridSchema,
+                fillHeight: true,
+              })
+            : renderEmptyState();
 
       const bottomPanel = m(SplitPanel, {
         direction: 'vertical',
         controlledPanel: 'first',
-        initialSplit: {percent: 30},
-        minSize: 50,
+        initialSplit: {percent: 34},
+        minSize: 80,
         firstPanel: sqlPanel,
         secondPanel: resultsPanel,
       });
+
+      const canvasPanel = m('.pf-spag__canvas-wrap', [
+        graphPanel,
+        store.nodes.length === 0 &&
+          m(
+            '.pf-spag__empty-canvas',
+            m('.pf-spag__empty-card', [
+              m(Icon, {icon: 'cable', className: 'pf-spag__empty-icon'}),
+              m('.pf-spag__empty-title', 'Build a visual query pipeline'),
+              m(
+                '.pf-spag__empty-desc',
+                'Start with a data source, then dock or wire transforms to explore your trace.',
+              ),
+              m('.pf-spag__empty-actions', [
+                m(Button, {
+                  label: 'From table',
+                  icon: 'table_chart',
+                  variant: ButtonVariant.Filled,
+                  intent: Intent.Primary,
+                  onclick: () => addNode('from'),
+                }),
+                m(Button, {
+                  label: 'Data Table',
+                  icon: 'grid_on',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => addNode('data_table'),
+                }),
+                m(Button, {
+                  label: 'Raw SQL',
+                  icon: 'code',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => addNode('sql'),
+                }),
+              ]),
+            ]),
+          ),
+      ]);
 
       return m(
         '.pf-spag',
@@ -1212,7 +1504,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
                 },
               ],
             },
-            graphPanel,
+            canvasPanel,
           ),
           secondPanel: bottomPanel,
         }),
@@ -1274,6 +1566,7 @@ const NODE_CATEGORIES: readonly NodeCategory[] = [
 function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
   const SEARCH_BOX_REF = 'SearchBox';
   let searchTerm = '';
+  let highlightIdx = 0;
 
   return {
     view({attrs}) {
@@ -1293,7 +1586,10 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
       }
 
       const filteredNodeTypes: string[] = [];
-      const menuChildren: m.Children[] = [];
+      const matchingCategories: Array<{
+        readonly title: string;
+        readonly types: readonly string[];
+      }> = [];
 
       for (const category of NODE_CATEGORIES) {
         const matching = category.types.filter((type) => {
@@ -1306,15 +1602,28 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
           );
         });
         if (matching.length === 0) continue;
+        matchingCategories.push({title: category.title, types: matching});
+        for (const type of matching) {
+          filteredNodeTypes.push(type);
+        }
+      }
 
+      if (highlightIdx >= filteredNodeTypes.length) {
+        highlightIdx = Math.max(0, filteredNodeTypes.length - 1);
+      }
+
+      const menuChildren: m.Children[] = [];
+      let itemIndex = 0;
+      for (const category of matchingCategories) {
         if (menuChildren.length > 0) {
           menuChildren.push(m(MenuDivider));
         }
         menuChildren.push(m(MenuTitle, {label: category.title}));
-        for (const type of matching) {
-          const isFirst = filteredNodeTypes.length === 0;
-          filteredNodeTypes.push(type);
-          menuChildren.push(nodeMenuItem(type, query !== '' && isFirst));
+        for (const type of category.types) {
+          const isHighlighted =
+            itemIndex === highlightIdx && (query !== '' || highlightIdx > 0);
+          menuChildren.push(nodeMenuItem(type, isHighlighted));
+          itemIndex++;
         }
       }
 
@@ -1330,13 +1639,25 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
         value: searchTerm,
         oninput: (e: InputEvent) => {
           searchTerm = (e.target as HTMLInputElement).value;
+          highlightIdx = 0;
         },
         onkeydown: (e: KeyboardEvent) => {
-          if (e.key === 'Enter') {
-            const first = filteredNodeTypes[0];
-            if (first !== undefined) {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (filteredNodeTypes.length > 0) {
+              highlightIdx = Math.min(
+                highlightIdx + 1,
+                filteredNodeTypes.length - 1,
+              );
+            }
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightIdx = Math.max(highlightIdx - 1, 0);
+          } else if (e.key === 'Enter') {
+            const target = filteredNodeTypes[highlightIdx];
+            if (target !== undefined) {
               e.preventDefault();
-              onAddNode?.(first);
+              onAddNode?.(target);
             }
           }
         },

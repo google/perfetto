@@ -25,10 +25,10 @@ import {indentTail, perClause} from '../generator_utils';
 import {DraggableStack} from '../components/draggable_stack';
 import {InputPortStepper} from '../components/input_port_stepper';
 import {Stack} from '../components/stack';
-import {TextInput} from '../../../widgets/text_input';
 import type {ColumnDef} from '../graph_utils';
 import type {Port} from '../graph_model';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {ColumnPicker} from '../widgets/column_picker';
 
 const IntervalIntersectConfigSchema = z
   .object({
@@ -44,34 +44,49 @@ export type IntervalIntersectConfig = z.infer<
   typeof IntervalIntersectConfigSchema
 >;
 
+function getPartitionCandidates(ctx: RenderContext): ColumnDef[] {
+  const connected = ctx.inputPorts
+    .map((p) => ctx.getInputColumns(p.name))
+    .filter((cols) => cols.length > 0);
+  const first = connected[0];
+  if (first === undefined) return [];
+  if (connected.length === 1) return first;
+  const common = first.filter((col) =>
+    connected.slice(1).every((cols) => cols.some((c) => c.name === col.name)),
+  );
+  return common.length > 0 ? common : first;
+}
+
 function IntervalIntersectContent(): m.Component<{
   config: IntervalIntersectConfig;
   updateConfig: (updates: Partial<IntervalIntersectConfig>) => void;
   ctx: RenderContext;
 }> {
   return {
-    view({attrs: {config, updateConfig}}) {
+    view({attrs: {config, updateConfig, ctx}}) {
       const canRemove = config.numInputs > 2;
-      return m(Stack, [
-        m(Checkbox, {
-          label: 'Filter dur >= 0',
-          checked: config.filterNegativeDur,
-          onchange: () =>
-            updateConfig({filterNegativeDur: !config.filterNegativeDur}),
-        }),
+      const partitionCandidates = getPartitionCandidates(ctx);
+      return m(Stack, {minWidth: 'md'}, [
         m(InputPortStepper, {
           canRemove,
           onRemove: () =>
             updateConfig({numInputs: Math.max(2, config.numInputs - 1)}),
           onAdd: () => updateConfig({numInputs: config.numInputs + 1}),
         }),
+        m(Checkbox, {
+          label: 'Filter dur >= 0',
+          checked: config.filterNegativeDur,
+          onchange: () =>
+            updateConfig({filterNegativeDur: !config.filterNegativeDur}),
+        }),
         m('.pf-spag-section-label', 'Partition by'),
         m(DraggableStack, {
           rows: config.partitionColumns.map((col, i) =>
-            m(TextInput, {
+            m(ColumnPicker, {
               value: col,
+              columns: partitionCandidates,
               placeholder: 'column',
-              onChange: (value) =>
+              onSelect: (value) =>
                 updateConfig({
                   partitionColumns: config.partitionColumns.with(i, value),
                 }),
@@ -87,7 +102,7 @@ function IntervalIntersectContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Column',
+          label: 'Add partition',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () => {

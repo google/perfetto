@@ -15,86 +15,193 @@
 // Query Builder node content styles.
 // These classes standardize layout and typography across all node types.
 
-@import "../../assets/theme.scss";
+@use "../../assets/theme" as *;
 
 // Scope node-content overrides to the query builder page.
 .pf-spag {
-  // Consistent minimum width for nodes.
-  .pf-node {
-    min-width: 200px;
+  // Refined node container, header, and port styling.
+  .pf-node-wrapper {
+    border-radius: 6px;
   }
 
-  // Make inputs, selects, and popup triggers inside node content fill width.
+  .pf-node {
+    min-width: 210px;
+    border-radius: 6px;
+
+    &.pf-docked-child {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+
+    &.pf-has-docked-child {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+  }
+
+  .pf-node-header {
+    padding: 4px 6px 4px 8px;
+    border-radius: 5px 5px 0 0;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .pf-docked-child .pf-node-header {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+
+  .pf-node[style*="--pf-node-hue"]:not(.pf-invalid) {
+    .pf-node-header {
+      background: color-mix(
+        in srgb,
+        hsl(var(--pf-node-hue), 60%, 50%) 28%,
+        var(--pf-color-background-secondary)
+      );
+      border-bottom-color: color-mix(
+        in srgb,
+        hsl(var(--pf-node-hue), 55%, 50%) 35%,
+        var(--pf-color-border)
+      );
+    }
+
+    .pf-node-title-icon {
+      font-size: 15px;
+      color: color-mix(
+        in srgb,
+        hsl(var(--pf-node-hue), 75%, 50%) 80%,
+        currentColor
+      );
+    }
+  }
+
+  .pf-node-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .pf-port-row {
+    font-size: 11px;
+    padding: 3px 14px;
+  }
+
+  // Harmonize typography and control sizing inside node bodies.
   .pf-node-content {
+    padding: 8px 10px;
+    font-size: var(--pf-font-size-s);
+
     .pf-text-input,
     .pf-select {
       display: flex;
       min-width: 0;
+      box-sizing: border-box;
+      min-height: 24px;
+      align-items: center;
     }
 
-    .pf-control-group .pf-text-input input {
-      width: 0;
-      min-width: 50px;
+    .pf-text-input {
+      padding: 2px 6px;
+
+      input {
+        flex: 1 1 auto;
+        width: auto;
+        field-sizing: content;
+        min-width: 72px;
+        max-width: 260px;
+      }
+    }
+
+    .pf-select {
+      padding: 2px 4px;
+    }
+
+    .pf-radio-group {
+      font-size: 11px;
+
+      .pf-radio-group__button {
+        padding: 2px 8px;
+        white-space: nowrap;
+      }
+    }
+
+    .pf-button {
+      font-size: var(--pf-font-size-s);
+    }
+
+    .pf-checkbox {
+      font-size: var(--pf-font-size-s);
     }
   }
 }
 
-// Query builder overrides for ControlGroup rows.
-.pf-node-content .pf-control-group {
-  // Text inputs grow to fill available space.
-  .pf-text-input {
-    flex: 1;
-    min-width: 0;
-  }
-
-  // Selects shrink to content.
-  .pf-select {
-    flex: 0 0 auto;
-  }
-
-  // Close/delete buttons do not grow.
-  > button,
-  > .pf-button-wrapper {
-    flex: 0 0 auto;
-  }
-}
-
-// Section header label (e.g. "EXPRESSIONS", "AGGREGATIONS", "Aliases").
+// Section header label (e.g. "COLUMNS", "EXPRESSIONS", "AGGREGATIONS").
 .pf-spag-section-label {
-  font-weight: bold;
+  font-weight: 600;
   font-size: 10px;
-  opacity: 0.7;
+  letter-spacing: 0.06em;
+  color: var(--pf-color-text-muted);
   text-transform: uppercase;
+  user-select: none;
+
+  &:not(:first-child) {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px solid var(--pf-color-border-secondary);
+  }
 }
 
 // Subtle hint text below controls.
 .pf-spag-hint {
   font-size: 11px;
-  opacity: 0.7;
+  color: var(--pf-color-text-muted);
 
   &--muted {
-    opacity: 0.5;
+    opacity: 0.7;
   }
 }
 
-// Inline operator / separator symbol inside rows (e.g. "=", "→").
+// Inline operator / separator symbol inside rows (e.g. "=", "→", "×").
 .pf-spag-operator {
-  opacity: 0.5;
-}
-
-// Placeholder shown when a node has no upstream connection.
-.pf-spag-placeholder {
+  color: var(--pf-color-text-muted);
   font-size: 11px;
-  opacity: 0.5;
-  font-style: italic;
+  padding: 0 2px;
+  flex: 0 0 auto;
+  user-select: none;
 }
 
 // Empty-list passthrough hint inside nodes (e.g. "All columns (passthrough)").
 .pf-spag-passthrough-hint {
   font-size: 11px;
-  opacity: 0.5;
+  color: var(--pf-color-text-muted);
+  opacity: 0.8;
   font-style: italic;
-  padding: 2px 4px;
+  padding: 2px 2px;
+}
+
+// Labeled compact field row (label on left, control on right).
+.pf-spag-field-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px 8px;
+
+  &__label {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+    user-select: none;
+  }
+}
+
+// Invalid text input state inside nodes (e.g. non-numeric limit/timestamp).
+.pf-text-input.pf-spag-input--invalid {
+  border-color: var(--pf-color-danger);
+  background: color-mix(
+    in srgb,
+    var(--pf-color-danger) 8%,
+    var(--pf-color-void)
+  );
 }
 
 // Equal-width − Input / + Input button row.
@@ -107,24 +214,30 @@
   }
 }
 
-// Clickable AND/OR conjunction label spanning the full grid row.
-.pf-spag-conjunction {
-  display: flex;
-  flex-direction: row;
-
-  & > * {
-    flex: 1;
-  }
-}
-
 // Query error display with preserved whitespace for SQL error formatting.
 .pf-spag__error {
   font-family: var(--pf-font-monospace);
   font-size: 12px;
-  margin: 0;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-width: 520px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--pf-color-danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pf-color-danger) 30%, transparent);
+  color: var(--pf-color-text);
   text-align: left;
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+}
+
+// Wrapped single-paragraph error text inside EmptyState (overrides nowrap).
+.pf-spag__error-text {
+  white-space: normal;
+  max-width: 420px;
+  line-height: 1.4;
 }
 
 // Scrollable node list inside the Add Node popup menu (rendered in a Portal).

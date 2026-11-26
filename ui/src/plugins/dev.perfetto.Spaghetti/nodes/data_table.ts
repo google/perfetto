@@ -258,24 +258,22 @@ function DataTableContent(): m.Component<{
                           },
                         }),
                         canDeleteCol &&
-                          m(
-                            'button.pf-spag-data-table__col-del',
-                            {
-                              type: 'button',
-                              title: 'Delete column',
-                              onclick: () => {
-                                updateConfig({
-                                  columns: config.columns.filter(
-                                    (_, j) => j !== colIdx,
-                                  ),
-                                  rows: config.rows.map((r) =>
-                                    r.filter((_, j) => j !== colIdx),
-                                  ),
-                                });
-                              },
+                          m(Button, {
+                            className: 'pf-spag-data-table__col-del',
+                            icon: 'close',
+                            compact: true,
+                            title: 'Delete column',
+                            onclick: () => {
+                              updateConfig({
+                                columns: config.columns.filter(
+                                  (_, j) => j !== colIdx,
+                                ),
+                                rows: config.rows.map((r) =>
+                                  r.filter((_, j) => j !== colIdx),
+                                ),
+                              });
                             },
-                            '×',
-                          ),
+                          }),
                       ]),
                       m(
                         'select.pf-spag-data-table__col-type',
@@ -324,6 +322,15 @@ function DataTableContent(): m.Component<{
                             value: val,
                             placeholder: 'NULL',
                             spellcheck: false,
+                            onkeydown: (e: KeyboardEvent) => {
+                              if (
+                                e.key === 'Enter' &&
+                                rowIdx === config.rows.length - 1
+                              ) {
+                                e.preventDefault();
+                                addRow();
+                              }
+                            },
                             onpaste: (e: ClipboardEvent) =>
                               handlePaste(e, rowIdx, colIdx),
                             oninput: (e: InputEvent) => {
@@ -356,12 +363,14 @@ function DataTableContent(): m.Component<{
         ),
         m('.pf-spag-data-table-actions', [
           m(Button, {
-            label: '+ Row',
+            label: 'Row',
+            icon: 'add',
             variant: ButtonVariant.Filled,
             onclick: addRow,
           }),
           m(Button, {
-            label: '+ Column',
+            label: 'Column',
+            icon: 'add',
             variant: ButtonVariant.Filled,
             onclick: addColumn,
           }),

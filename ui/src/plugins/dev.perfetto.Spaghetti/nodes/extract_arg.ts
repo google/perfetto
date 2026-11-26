@@ -54,12 +54,12 @@ function ExtractArgContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, [
-        m('.pf-spag-section-label', 'Join Key'),
+      return m(Stack, {minWidth: 'md'}, [
+        m('.pf-spag-section-label', 'Arg set column'),
         m(ColumnPicker, {
           value: config.argSetIdCol,
           columns: ctx.availableColumns,
-          placeholder: 'column',
+          placeholder: 'arg_set_id',
           onSelect: (value: string) => {
             updateConfig({argSetIdCol: value});
           },
@@ -118,7 +118,7 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 174,
   schema: ExtractArgConfigSchema,
-  defaultConfig: () => ({argSetIdCol: '', extractions: []}),
+  defaultConfig: () => ({argSetIdCol: 'arg_set_id', extractions: []}),
   render(config, updateConfig, ctx) {
     return m(ExtractArgContent, {config, updateConfig, ctx});
   },
@@ -135,11 +135,15 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   generators: {
     sql: (config, ctx) => {
       if (ctx.input('input') === undefined) return undefined;
+      const hasExtractions = config.extractions.some((e) => e.argName !== '');
+      if (hasExtractions && config.argSetIdCol === '') return undefined;
       const exprs = extractParts(config);
       return exprs.length > 0 ? {select: ['*', ...exprs]} : {};
     },
     psn: (config, ctx) => {
       if (ctx.input('input') === undefined) return undefined;
+      const hasExtractions = config.extractions.some((e) => e.argName !== '');
+      if (hasExtractions && config.argSetIdCol === '') return undefined;
       const exprs = extractParts(config);
       return {stages: exprs.length > 0 ? [`EXTEND ${exprs.join(', ')}`] : []};
     },

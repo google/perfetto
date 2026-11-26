@@ -64,7 +64,7 @@ function IntervalFillGapsContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Partition',
+          label: 'Add partition',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>

@@ -20,8 +20,8 @@ import type {ColumnDef} from '../graph_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
 import {DraggableStack} from '../components/draggable_stack';
+import {Row} from '../components/row';
 import {Stack} from '../components/stack';
-import './join.scss';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
 
@@ -74,7 +74,7 @@ function JoinNodeContent(): m.Component<{
       const leftSet = new Set(leftColumns.map((c) => c.name));
 
       const joinType = config.joinType;
-      return m(Stack, {minWidth: 'sm'}, [
+      return m(Stack, {minWidth: 'md'}, [
         m(
           RadioGroup,
           {
@@ -84,17 +84,16 @@ function JoinNodeContent(): m.Component<{
               updateConfig({joinType: value as 'LEFT' | 'INNER'}),
           },
           [
-            m(RadioGroup.Button, {value: 'LEFT'}, 'Left'),
-            m(RadioGroup.Button, {value: 'INNER'}, 'Inner'),
+            m(RadioGroup.Button, {value: 'LEFT'}, 'Left join'),
+            m(RadioGroup.Button, {value: 'INNER'}, 'Inner join'),
           ],
         ),
         m('.pf-spag-section-label', 'Join on'),
-        m('.pf-spag-group-grid', [
+        m(Row, [
           m(ColumnPicker, {
             value: config.leftColumn,
             columns: leftColumns,
             placeholder: 'left col',
-            className: 'pf-spag-join-col',
             onSelect: (value: string) => {
               updateConfig({leftColumn: value});
             },
@@ -104,7 +103,6 @@ function JoinNodeContent(): m.Component<{
             value: config.rightColumn,
             columns: rightColumns,
             placeholder: 'right col',
-            className: 'pf-spag-join-col',
             onSelect: (value: string) => {
               updateConfig({rightColumn: value});
             },
@@ -112,6 +110,8 @@ function JoinNodeContent(): m.Component<{
         ]),
 
         m('.pf-spag-section-label', 'Columns to add'),
+        columns.length === 0 &&
+          m('.pf-spag-passthrough-hint', 'Left columns only'),
         m(DraggableStack, {
           rows: columns.map((entry, i) => {
             const defaultAlias = leftSet.has(entry.column)
@@ -133,7 +133,7 @@ function JoinNodeContent(): m.Component<{
           onDelete: (i) => updateConfig({columns: columns.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Column',
+          label: 'Add column',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () => {
@@ -196,11 +196,9 @@ export const manifest: NodeManifest<JoinConfig> = {
       const colName = entry.column;
       if (!colName) continue;
       const rightCol = rightCols.find((c) => c.name === colName);
-      if (rightCol) {
-        const alias =
-          entry.alias || (leftSet.has(colName) ? `right_${colName}` : colName);
-        outputCols.push({name: alias, type: rightCol.type});
-      }
+      const alias =
+        entry.alias || (leftSet.has(colName) ? `right_${colName}` : colName);
+      outputCols.push({name: alias, type: rightCol?.type});
     }
 
     return outputCols;

@@ -14,13 +14,31 @@
 
 .pf-spag-row {
   display: flex;
-  align-items: baseline;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   position: relative;
 
   .pf-spag-delete {
-    margin-right: -6px;
-    opacity: 0.5;
+    margin-left: auto;
+    margin-right: -4px;
+    flex: 0 0 auto;
+    opacity: 0.35;
+    transition:
+      opacity 0.12s ease,
+      color 0.12s ease;
+
+    &:hover {
+      opacity: 1;
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &:hover .pf-spag-delete {
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+    }
   }
 
   &.pf-dragging {
@@ -28,11 +46,13 @@
   }
 
   &.pf-drag-over-top {
-    box-shadow: 0 -2px 0 0 var(--pf-color-primary, #6a8);
+    box-shadow: 0 -2px 0 0 var(--pf-color-primary);
+    border-radius: 2px;
   }
 
   &.pf-drag-over-bottom {
-    box-shadow: 0 2px 0 0 var(--pf-color-primary, #6a8);
+    box-shadow: 0 2px 0 0 var(--pf-color-primary);
+    border-radius: 2px;
   }
 
   // Select elements shrink to current value.
@@ -42,36 +62,40 @@
     width: auto;
   }
 
-  // Value text input grows to fill remaining space.
+  // Text inputs grow to fit content (clamped) and stretch to fill remaining space.
   .pf-text-input {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
-    field-sizing: content;
-    width: auto;
 
     input {
-      width: 0;
-      min-width: 50px;
+      flex: 1 1 auto;
+      width: auto;
+      field-sizing: content;
+      min-width: 68px;
+      max-width: 220px;
     }
   }
 
-  //   // Close button doesn't grow.
-  //   button,
-  //   .pf-button-wrapper {
-  //     flex: 0 0 auto;
-  //   }
+  .pf-radio-group {
+    flex: 0 0 auto;
+  }
 
   // Drag handle icon.
   .pf-spag-draghandle {
     cursor: grab;
     flex: 0 0 auto;
-    margin-left: -6px;
-    font-size: 16px;
+    margin-left: -4px;
+    font-size: 15px;
     align-self: center;
-    opacity: 0.5;
+    opacity: 0.3;
+    transition: opacity 0.12s ease;
 
     &:active {
       cursor: grabbing;
     }
+  }
+
+  &:hover .pf-spag-draghandle {
+    opacity: 0.75;
   }
 }

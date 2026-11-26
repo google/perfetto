@@ -52,6 +52,8 @@ function ExtendContent(): m.Component<{
   return {
     view({attrs: {config, updateConfig}}) {
       return m(Stack, {minWidth: 'lg'}, [
+        config.entries.length === 0 &&
+          m('.pf-spag-passthrough-hint', 'No expressions (passthrough)'),
         m(DraggableStack, {
           rows: config.entries.map((entry, i) =>
             m(TextInputWithAlias, {
@@ -74,7 +76,7 @@ function ExtendContent(): m.Component<{
             updateConfig({entries: config.entries.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Add column',
+          label: 'Add expression',
           variant: ButtonVariant.Filled,
           icon: 'add',
           onclick: () => {

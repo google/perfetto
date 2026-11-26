@@ -17,15 +17,32 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 1 auto;
 
   &__label {
-    opacity: 0.5;
+    color: var(--pf-color-text-muted);
     font-size: 11px;
+    font-style: italic;
+    user-select: none;
+  }
+
+  .pf-text-input input {
+    min-width: 56px;
+    max-width: 140px;
   }
 }
 
-// Compact "as" button that expands into the alias editor.
+// Compact alias button that expands into the alias editor.
 .pf-spag-alias-btn {
-  opacity: 0.5;
-  font-size: var(--pf-font-size-sm);
+  flex: 0 0 auto;
+  opacity: 0.4;
+  font-size: var(--pf-font-size-s);
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease;
+
+  &:hover {
+    opacity: 1;
+    color: var(--pf-color-primary);
+  }
 }

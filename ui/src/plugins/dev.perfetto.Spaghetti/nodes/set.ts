@@ -74,7 +74,7 @@ function SetContent(): m.Component<{
             updateConfig({entries: config.entries.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Set column',
+          label: 'Add assignment',
           variant: ButtonVariant.Filled,
           icon: 'add',
           onclick: () => {

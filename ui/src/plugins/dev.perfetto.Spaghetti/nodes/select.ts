@@ -66,10 +66,15 @@ function SelectNodeContent(): m.Component<{
       const entries = config.entries ?? [];
       const expressions = config.expressions ?? [];
 
-      return m(Stack, [
+      return m(Stack, {minWidth: 'md'}, [
         m('.pf-spag-section-label', 'Columns'),
         entries.length === 0 &&
-          m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
+          m(
+            '.pf-spag-passthrough-hint',
+            expressions.length > 0
+              ? 'All input columns (*) + expressions'
+              : 'All columns (passthrough)',
+          ),
         m(DraggableStack, {
           rows: entries.map((entry, i) =>
             m(ColumnPickerWithAlias, {

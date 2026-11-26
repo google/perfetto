@@ -46,6 +46,9 @@ export class ColumnPicker implements m.ClassComponent<ColumnPickerAttrs> {
       suggestions,
       onChange: attrs.onSelect,
       placeholder: attrs.placeholder ?? 'column',
+      title: isUnknown
+        ? `Column "${attrs.value}" is not in upstream columns`
+        : undefined,
       className: classNames(
         isUnknown && 'pf-column-picker--unknown',
         attrs.className,

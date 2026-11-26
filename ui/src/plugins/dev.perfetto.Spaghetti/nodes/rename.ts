@@ -16,10 +16,11 @@ import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {ColumnPickerWithAlias} from '../components/column_picker_with_alias';
+import {TextInput} from '../../../widgets/text_input';
 import {DraggableStack} from '../components/draggable_stack';
 import {Stack} from '../components/stack';
 import type {NodeManifest, RenderContext} from '../node_types';
+import {ColumnPicker} from '../widgets/column_picker';
 
 const RenameEntrySchema = z.object({
   column: z.string(),
@@ -47,29 +48,33 @@ function RenameContent(): m.Component<{
         config.entries.length === 0 &&
           m('.pf-spag-passthrough-hint', 'All columns (passthrough)'),
         m(DraggableStack, {
-          rows: config.entries.map((entry, i) =>
-            m(ColumnPickerWithAlias, {
+          rows: config.entries.map((entry, i) => [
+            m(ColumnPicker, {
               value: entry.column,
               columns: ctx.availableColumns,
+              placeholder: 'column',
               onSelect: (column) =>
                 updateConfig({
                   entries: config.entries.with(i, {...entry, column}),
                 }),
-              alias: entry.alias,
-              aliasPlaceholder: entry.column || 'new name',
-              onAliasChange: (alias) =>
+            }),
+            m('span.pf-spag-operator', '→'),
+            m(TextInput, {
+              value: entry.alias,
+              placeholder: entry.column || 'new name',
+              onChange: (alias) =>
                 updateConfig({
                   entries: config.entries.with(i, {...entry, alias}),
                 }),
             }),
-          ),
+          ]),
           onReorder: (from, to) =>
             updateConfig({entries: moveItem(config.entries, from, to)}),
           onDelete: (i) =>
             updateConfig({entries: config.entries.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Rename column',
+          label: 'Add rename',
           variant: ButtonVariant.Filled,
           icon: 'add',
           onclick: () => {

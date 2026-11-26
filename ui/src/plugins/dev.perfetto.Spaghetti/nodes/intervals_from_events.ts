@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
+import {classNames} from '../../../base/classnames';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {TextInput} from '../../../widgets/text_input';
@@ -48,7 +49,8 @@ function IntervalsFromEventsContent(): m.Component<{
   return {
     view({attrs: {config, updateConfig, ctx}}) {
       const inputColumns = ctx.getInputColumns('input');
-      return m(Stack, [
+      const closeAtValid = config.closeAtExpr.trim() !== '';
+      return m(Stack, {minWidth: 'md'}, [
         m('.pf-spag-section-label', 'Partition by'),
         m(DraggableStack, {
           rows: config.partitionColumns.map((col, i) =>
@@ -72,7 +74,7 @@ function IntervalsFromEventsContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Partition',
+          label: 'Add partition',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>
@@ -98,10 +100,8 @@ function IntervalsFromEventsContent(): m.Component<{
           m(TextInput, {
             value: config.closeAtExpr,
             placeholder: 'trace_end()',
-            oninput: (e: InputEvent) =>
-              updateConfig({
-                closeAtExpr: (e.target as HTMLInputElement).value,
-              }),
+            className: classNames(!closeAtValid && 'pf-spag-input--invalid'),
+            onChange: (value: string) => updateConfig({closeAtExpr: value}),
           }),
       ]);
     },

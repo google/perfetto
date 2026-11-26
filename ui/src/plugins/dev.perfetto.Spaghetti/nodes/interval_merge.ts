@@ -59,7 +59,7 @@ function IntervalMergeContent(): m.Component<{
 }> {
   return {
     view({attrs: {config, updateConfig, ctx}}) {
-      return m(Stack, [
+      return m(Stack, {minWidth: 'lg'}, [
         m(
           RadioGroup,
           {
@@ -106,7 +106,7 @@ function IntervalMergeContent(): m.Component<{
               updateConfig({keyColumns: config.keyColumns.toSpliced(i, 1)}),
           }),
           m(Button, {
-            label: 'Key',
+            label: 'Add key',
             icon: 'add',
             variant: ButtonVariant.Filled,
             onclick: () =>
@@ -138,7 +138,7 @@ function IntervalMergeContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Partition',
+          label: 'Add partition',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>
@@ -168,7 +168,7 @@ function IntervalMergeContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Aggregation',
+          label: 'Add aggregation',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>
@@ -190,10 +190,7 @@ function isValid(config: IntervalMergeConfig): boolean {
   );
   if (!aggsValid) return false;
   if (config.mergeKind === 'CONSECUTIVE') {
-    return (
-      config.keyColumns.some((k) => k !== '') &&
-      config.keyColumns.every((k) => k !== '')
-    );
+    return config.keyColumns.some((k) => k !== '');
   }
   return true;
 }
@@ -307,7 +304,13 @@ export const manifest: NodeManifest<IntervalMergeConfig> = {
         : [];
     const aggCols: ColumnDef[] = config.aggregations
       .filter((a) => a.func === 'COUNT' || a.column !== '')
-      .map((a) => ({name: pipelineAggAlias(a), type: {kind: 'int' as const}}));
+      .map((a) => ({
+        name: pipelineAggAlias(a),
+        type:
+          a.func === 'COUNT'
+            ? {kind: 'int' as const}
+            : columns.find((col) => col.name === a.column)?.type,
+      }));
     return [
       {name: 'ts', type: {kind: 'timestamp' as const}},
       {name: 'dur', type: {kind: 'duration' as const}},

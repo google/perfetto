@@ -19,9 +19,9 @@ table.pf-spag-cols {
 
   th,
   td {
-    padding: 3px 4px;
+    padding: 5px 10px;
     text-align: left;
-    vertical-align: baseline;
+    vertical-align: middle;
   }
 
   thead th {
@@ -48,10 +48,18 @@ table.pf-spag-cols {
     }
   }
 
+  td.pf-spag-col-name {
+    font-family: var(--pf-font-monospace);
+  }
+
   td.pf-spag-col-type {
     color: var(--pf-color-text-muted);
     font-family: var(--pf-font-monospace);
+  }
+
+  .pf-spag-col-type-badge {
     display: inline-flex;
-    gap: 0.4em;
+    align-items: center;
+    gap: 5px;
   }
 }

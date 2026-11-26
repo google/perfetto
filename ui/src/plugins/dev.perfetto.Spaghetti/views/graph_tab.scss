@@ -28,9 +28,9 @@
   }
 
   .pf-spag-graph-tab-error {
-    padding: 4px 8px;
-    color: var(--pf-color-error, #c00);
-    font-size: 12px;
+    padding: 6px 10px;
+    color: var(--pf-color-danger);
+    font-size: var(--pf-font-size-s);
     flex-shrink: 0;
   }
 

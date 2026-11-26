@@ -36,7 +36,7 @@ const GroupByConfigSchema = z
   .object({
     groupColumns: z
       .array(z.string())
-      .describe('At least one non-empty column required'),
+      .describe('Columns to group by (may be empty when aggregating all rows)'),
     aggregations: z.array(AggregationSchema),
   })
   .describe(
@@ -80,7 +80,7 @@ function GroupByContent(): m.Component<{
             updateConfig({groupColumns: config.groupColumns.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Grouping',
+          label: 'Add grouping',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () => {
@@ -96,11 +96,19 @@ function GroupByContent(): m.Component<{
               {
                 value: agg.func,
                 onchange: (e: Event) => {
+                  const nextFunc = (e.target as HTMLSelectElement)
+                    .value as Aggregation['func'];
+                  const nextCol =
+                    nextFunc === 'COUNT'
+                      ? agg.column || '*'
+                      : agg.column === '*'
+                        ? ''
+                        : agg.column;
                   updateConfig({
                     aggregations: config.aggregations.with(i, {
                       ...agg,
-                      func: (e.target as HTMLSelectElement)
-                        .value as Aggregation['func'],
+                      func: nextFunc,
+                      column: nextCol,
                     }),
                   });
                 },
@@ -115,7 +123,10 @@ function GroupByContent(): m.Component<{
             ),
             m(ColumnPickerWithAlias, {
               value: agg.column,
-              columns: [{name: '*'}, ...ctx.availableColumns],
+              columns:
+                agg.func === 'COUNT'
+                  ? [{name: '*'}, ...ctx.availableColumns]
+                  : ctx.availableColumns,
               onSelect: (column) =>
                 updateConfig({
                   aggregations: config.aggregations.with(i, {...agg, column}),
@@ -136,7 +147,7 @@ function GroupByContent(): m.Component<{
             updateConfig({aggregations: config.aggregations.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Aggregation',
+          label: 'Add aggregation',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () => {
@@ -154,8 +165,9 @@ function GroupByContent(): m.Component<{
 }
 
 function isValid(config: GroupByConfig): boolean {
-  const hasGroup = config.groupColumns.some((c) => c);
-  return hasGroup;
+  const hasGroup = config.groupColumns.some((c) => c !== '');
+  const hasAgg = config.aggregations.some((a) => a.column !== '');
+  return hasGroup || hasAgg;
 }
 
 function aggParts(config: GroupByConfig): {keys: string[]; aggs: string[]} {
@@ -189,6 +201,9 @@ export const manifest: NodeManifest<GroupByConfig> = {
         const name = aggAlias(a);
         if (a.func === 'COUNT') {
           return {name, type: {kind: 'int' as const}};
+        }
+        if (a.func === 'AVG') {
+          return {name, type: {kind: 'double' as const}};
         }
         const orig = columns?.find((c) => c.name === a.column);
         return {name, type: orig?.type};

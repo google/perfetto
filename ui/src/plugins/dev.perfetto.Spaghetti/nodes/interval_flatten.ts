@@ -85,7 +85,7 @@ function IntervalFlattenContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Partition',
+          label: 'Add partition',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>
@@ -115,7 +115,7 @@ function IntervalFlattenContent(): m.Component<{
             }),
         }),
         m(Button, {
-          label: 'Aggregation',
+          label: 'Add aggregation',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () =>
@@ -244,7 +244,13 @@ export const manifest: NodeManifest<IntervalFlattenConfig> = {
       .map((c) => columns.find((col) => col.name === c) ?? {name: c});
     const aggCols: ColumnDef[] = config.aggregations
       .filter((a) => a.func === 'COUNT' || a.column !== '')
-      .map((a) => ({name: pipelineAggAlias(a), type: {kind: 'int' as const}}));
+      .map((a) => ({
+        name: pipelineAggAlias(a),
+        type:
+          a.func === 'COUNT'
+            ? {kind: 'int' as const}
+            : columns.find((col) => col.name === a.column)?.type,
+      }));
     return [
       {name: 'ts', type: {kind: 'timestamp' as const}},
       {name: 'dur', type: {kind: 'duration' as const}},

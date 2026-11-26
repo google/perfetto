@@ -12,13 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+.pf-spag-sql-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--pf-color-border-secondary);
+
+  .pf-spag-section-label {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
 .pf-spag-sql-textarea {
-  width: 220px;
+  width: 100%;
+  min-width: 240px;
   height: 120px;
-  min-height: 100px;
+  min-height: 90px;
   resize: both;
   font-family: var(--pf-font-monospace);
   font-size: 12px;
+  line-height: 1.45;
   background: var(--pf-color-void);
   color: var(--pf-color-text);
   border: 1px solid var(--pf-color-border);
@@ -35,17 +53,29 @@
 .pf-spag-sql-col-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .pf-spag-sql-port-index {
-  grid-column: span 1;
+  font-family: var(--pf-font-monospace);
+  min-width: 18px;
+}
+
+.pf-spag-sql-port-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px;
+  align-items: center;
+
+  .pf-text-input {
+    min-width: 0;
+  }
 }
 
 .pf-spag-sql-col-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 2px;
+  grid-template-columns: 1fr auto auto;
+  gap: 4px;
   align-items: center;
 
   .pf-text-input {
@@ -57,7 +87,24 @@
     width: auto;
   }
 
-  .pf-button {
-    margin-right: -6px;
+  .pf-spag-delete {
+    margin-right: -4px;
+    opacity: 0.35;
+    transition:
+      opacity 0.12s ease,
+      color 0.12s ease;
+
+    &:hover {
+      opacity: 1;
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &:hover .pf-spag-delete {
+    opacity: 0.7;
+
+    &:hover {
+      opacity: 1;
+    }
   }
 }

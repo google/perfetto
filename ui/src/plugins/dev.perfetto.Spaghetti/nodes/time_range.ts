@@ -14,8 +14,11 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {classNames} from '../../../base/classnames';
+import {Duration} from '../../../base/time';
 import type {NodeManifest} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
 
 const TimeRangeConfigSchema = z
@@ -29,9 +32,27 @@ const TimeRangeConfigSchema = z
 
 export type TimeRangeConfig = z.infer<typeof TimeRangeConfigSchema>;
 
+const INT_RE = /^-?\d+$/;
+
+function isValidInt(s: string): boolean {
+  return INT_RE.test(s.trim());
+}
+
 // The default (0, 0) means no range has been captured yet.
-function isUnset(config: TimeRangeConfig): boolean {
-  return config.ts === '0' && config.dur === '0';
+function isValidRange(config: TimeRangeConfig): boolean {
+  if (!isValidInt(config.ts) || !isValidInt(config.dur)) return false;
+  return config.ts.trim() !== '0' || config.dur.trim() !== '0';
+}
+
+function formatDurHint(durStr: string): string | undefined {
+  if (!isValidInt(durStr)) return undefined;
+  try {
+    const dur = BigInt(durStr.trim());
+    if (dur <= 0n) return undefined;
+    return Duration.humanise(Duration.fromRaw(dur));
+  } catch {
+    return undefined;
+  }
 }
 
 export const manifest: NodeManifest<TimeRangeConfig> = {
@@ -43,29 +64,67 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
   render(config, updateConfig, ctx) {
     const timeSpan = ctx.trace.selection.getTimeSpanOfSelection();
     const hasSelection = timeSpan !== undefined;
+    const {start: traceStart, end: traceEnd} = ctx.trace.traceInfo;
+    const traceDur = traceEnd - traceStart;
 
-    const snapButton = m(Button, {
-      variant: ButtonVariant.Filled,
-      onclick: () => {
-        if (!timeSpan) return;
-        updateConfig({
-          ts: timeSpan.start.toString(),
-          dur: timeSpan.duration.toString(),
-        });
-      },
-      disabled: !hasSelection,
-      label: 'Snap selection',
-      title: hasSelection
-        ? 'Capture current timeline selection'
-        : 'Make a selection on the timeline first',
-    });
+    const tsValid = isValidInt(config.ts);
+    const durValid = isValidInt(config.dur);
+    const durHint = formatDurHint(config.dur);
 
-    const hasCaptured = config.ts !== '0' || config.dur !== '0';
-    const info = hasCaptured
-      ? m('span.pf-spag-hint', `ts=${config.ts}, dur=${config.dur}`)
-      : m('span.pf-spag-hint.pf-spag-hint--muted', 'Click snap to capture');
-
-    return m(Stack, [snapButton, info]);
+    return m(Stack, {minWidth: 'sm'}, [
+      m('.pf-spag-port-stepper', [
+        m(Button, {
+          variant: ButtonVariant.Filled,
+          icon: 'ads_click',
+          disabled: !hasSelection,
+          label: 'Selection',
+          title: hasSelection
+            ? 'Capture current timeline selection'
+            : 'Make a selection on the timeline first',
+          onclick: () => {
+            if (!timeSpan) return;
+            updateConfig({
+              ts: timeSpan.start.toString(),
+              dur: timeSpan.duration.toString(),
+            });
+          },
+        }),
+        m(Button, {
+          variant: ButtonVariant.Filled,
+          icon: 'fit_screen',
+          label: 'Full trace',
+          title: 'Capture full trace time bounds',
+          onclick: () => {
+            updateConfig({
+              ts: traceStart.toString(),
+              dur: (traceDur > 0n ? traceDur : 0n).toString(),
+            });
+          },
+        }),
+      ]),
+      m('.pf-spag-field-grid', [
+        m('span.pf-spag-field-grid__label', 'ts (ns)'),
+        m(TextInput, {
+          value: config.ts,
+          placeholder: '0',
+          className: classNames(!tsValid && 'pf-spag-input--invalid'),
+          onChange: (value: string) => updateConfig({ts: value.trim() || '0'}),
+        }),
+        m('span.pf-spag-field-grid__label', 'dur (ns)'),
+        m(TextInput, {
+          value: config.dur,
+          placeholder: '0',
+          className: classNames(!durValid && 'pf-spag-input--invalid'),
+          onChange: (value: string) => updateConfig({dur: value.trim() || '0'}),
+        }),
+      ]),
+      durHint !== undefined
+        ? m('span.pf-spag-hint', `Window: ${durHint}`)
+        : m(
+            'span.pf-spag-hint.pf-spag-hint--muted',
+            'Snap a range or enter ns values',
+          ),
+    ]);
   },
   getOutputColumns() {
     return [
@@ -76,14 +135,16 @@ export const manifest: NodeManifest<TimeRangeConfig> = {
   },
   generators: {
     sql: (config) =>
-      isUnset(config)
-        ? undefined
-        : {from: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`},
-    psn: (config) =>
-      isUnset(config)
+      !isValidRange(config)
         ? undefined
         : {
-            subquery: `(SELECT 0 AS id, ${config.ts} AS ts, ${config.dur} AS dur)`,
+            from: `(SELECT 0 AS id, ${config.ts.trim()} AS ts, ${config.dur.trim()} AS dur)`,
+          },
+    psn: (config) =>
+      !isValidRange(config)
+        ? undefined
+        : {
+            subquery: `(SELECT 0 AS id, ${config.ts.trim()} AS ts, ${config.dur.trim()} AS dur)`,
           },
   },
 };

@@ -55,7 +55,7 @@ export const manifest: NodeManifest<UnionConfig> = {
         onAdd: () => updateConfig({numInputs: n + 1}),
       }),
       m(Checkbox, {
-        label: 'Distinct',
+        label: 'Deduplicate rows (UNION)',
         checked: config.distinct,
         onchange: () => updateConfig({distinct: !config.distinct}),
       }),

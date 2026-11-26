@@ -14,10 +14,11 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {classNames} from '../../../base/classnames';
 import type {NodeManifest} from '../node_types';
 import type {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {Combobox} from '../../../widgets/combobox';
-import './from.scss';
+import {Stack} from '../components/stack';
 
 const FromConfigSchema = z
   .object({
@@ -46,13 +47,28 @@ export const manifest: NodeManifest<FromConfig> = {
   schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
   render(config, updateConfig, ctx) {
-    return m(Combobox, {
-      value: config.table,
-      suggestions: ctx.tableNames,
-      placeholder: 'Pick table...',
-      icon: 'table_chart',
-      onChange: (value: string) => updateConfig({table: value}),
-    });
+    const isUnknown =
+      config.table !== '' &&
+      ctx.tableNames.length > 0 &&
+      !ctx.tableNames.includes(config.table);
+    const mod = config.table
+      ? ctx.sqlModules?.getModuleForTable(config.table)
+      : undefined;
+    const moduleHint =
+      mod && !mod.includeKey.startsWith('prelude') ? mod.includeKey : undefined;
+
+    return m(Stack, [
+      m(Combobox, {
+        value: config.table,
+        suggestions: ctx.tableNames,
+        placeholder: 'Pick table...',
+        icon: 'table_chart',
+        title: isUnknown ? `Table "${config.table}" not found` : undefined,
+        className: classNames(isUnknown && 'pf-column-picker--unknown'),
+        onChange: (value: string) => updateConfig({table: value}),
+      }),
+      moduleHint !== undefined && m('span.pf-spag-hint', moduleHint),
+    ]);
   },
   getOutputColumns(config, ctx) {
     if (!config.table || !ctx.sqlModules) return undefined;

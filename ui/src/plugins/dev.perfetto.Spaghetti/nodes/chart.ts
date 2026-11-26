@@ -15,8 +15,12 @@
 import m from 'mithril';
 import {z} from 'zod';
 import {moveItem} from '../../../base/array_utils';
+import {AsyncMemo, TASK_CANCELLED} from '../../../base/async_memo';
+import {Duration} from '../../../base/time';
 import type {NodeManifest, DetailsContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
+import {EmptyState} from '../../../widgets/empty_state';
+import {Spinner} from '../../../widgets/spinner';
 import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
 import {ColumnPicker} from '../widgets/column_picker';
 import {DraggableStack} from '../components/draggable_stack';
@@ -45,118 +49,122 @@ const ChartConfigSchema = z
 export type ChartConfig = z.infer<typeof ChartConfigSchema>;
 
 // ---------------------------------------------------------------------------
-// Bar chart component — renders one SVG bar chart for a single spec.
+// Bar chart component — renders one horizontal bar chart for a single spec.
 // ---------------------------------------------------------------------------
 
 interface BarRow {
-  label: string;
-  value: number;
+  readonly label: string;
+  readonly value: number;
 }
 
+type BarChartQueryResult =
+  | {readonly ok: true; readonly rows: readonly BarRow[]}
+  | {readonly ok: false; readonly error: string};
+
 const CHART_LIMIT = 20;
-const BAR_HEIGHT = 18;
-const BAR_GAP = 3;
-const LABEL_WIDTH = 130;
-const VALUE_WIDTH = 52;
-const BAR_AREA_WIDTH = 180;
-const CHART_SVG_WIDTH = LABEL_WIDTH + BAR_AREA_WIDTH + VALUE_WIDTH;
+const CHART_COLOR_COUNT = 8;
 
 interface ChartSource {
   readonly sql: string;
   readonly includes: readonly string[];
 }
 
+function formatChartValue(value: number, isDuration: boolean): string {
+  if (isDuration && Number.isFinite(value)) {
+    return Duration.humanise(Duration.fromRaw(BigInt(Math.round(value))));
+  }
+  if (Number.isInteger(value)) {
+    return value.toLocaleString();
+  }
+  return value.toPrecision(4);
+}
+
 function BarChartPanel(): m.Component<{
-  spec: ChartSpec;
-  source: ChartSource;
-  ctx: DetailsContext;
+  readonly spec: ChartSpec;
+  readonly source: ChartSource;
+  readonly ctx: DetailsContext;
 }> {
-  let rows: BarRow[] | undefined;
-  let error: string | undefined;
-  let loadingFor = '';
-
-  function keyFor(source: ChartSource, spec: ChartSpec): string {
-    return `${source.sql}|${spec.xCol}|${spec.yCol}`;
-  }
-
-  function load(source: ChartSource, spec: ChartSpec, ctx: DetailsContext) {
-    const k = keyFor(source, spec);
-    if (loadingFor === k) return;
-    loadingFor = k;
-    rows = undefined;
-    error = undefined;
-
-    if (!spec.xCol) {
-      rows = [];
-      loadingFor = '';
-      return;
-    }
-
-    const valueExpr = spec.yCol
-      ? `SUM(CAST(${spec.yCol} AS REAL))`
-      : 'COUNT(*)';
-    const sql =
-      source.includes
-        .map((inc) => `INCLUDE PERFETTO MODULE ${inc};\n`)
-        .join('') +
-      `SELECT CAST(${spec.xCol} AS TEXT) AS label, ${valueExpr} AS value ` +
-      `FROM (${source.sql}) ` +
-      `GROUP BY ${spec.xCol} ` +
-      `ORDER BY value DESC ` +
-      `LIMIT ${CHART_LIMIT}`;
-
-    ctx.trace.engine
-      .query(sql)
-      .then((result) => {
-        if (loadingFor !== k) return; // stale
-        const newRows: BarRow[] = [];
-        const it = result.iter({label: STR_NULL, value: NUM_NULL});
-        for (; it.valid(); it.next()) {
-          newRows.push({
-            label: it.label ?? '(null)',
-            value: Number(it.value ?? 0),
-          });
-        }
-        rows = newRows;
-        m.redraw();
-      })
-      .catch((e: unknown) => {
-        if (loadingFor !== k) return;
-        error = e instanceof Error ? e.message : String(e);
-        rows = [];
-        m.redraw();
-      });
-  }
+  const queryMemo = new AsyncMemo<BarChartQueryResult>();
 
   return {
-    oninit({attrs}) {
-      load(attrs.source, attrs.spec, attrs.ctx);
-    },
-    onupdate({attrs}) {
-      load(attrs.source, attrs.spec, attrs.ctx);
+    onremove() {
+      queryMemo.dispose();
     },
     view({attrs}) {
-      const {spec} = attrs;
+      const {spec, source, ctx} = attrs;
       const title = spec.xCol
         ? spec.yCol
           ? `${spec.xCol} × ${spec.yCol}`
           : `${spec.xCol} (count)`
         : '(no column selected)';
 
-      if (error) {
+      if (!spec.xCol) {
         return m('.pf-spag-chart-panel', [
           m('.pf-spag-chart-title', title),
-          m('.pf-spag-chart-error', error),
+          m('.pf-spag-chart-empty', 'Pick an x column in the Chart node.'),
         ]);
       }
 
-      if (!rows) {
+      const result = queryMemo.use({
+        key: {
+          sql: source.sql,
+          includes: [...source.includes],
+          xCol: spec.xCol,
+          yCol: spec.yCol,
+        },
+        compute: async (
+          signal,
+        ): Promise<BarChartQueryResult | typeof TASK_CANCELLED> => {
+          const valueExpr = spec.yCol
+            ? `SUM(CAST(${spec.yCol} AS REAL))`
+            : 'COUNT(*)';
+          const sql =
+            source.includes
+              .map((inc) => `INCLUDE PERFETTO MODULE ${inc};\n`)
+              .join('') +
+            `SELECT CAST(${spec.xCol} AS TEXT) AS label, ${valueExpr} AS value ` +
+            `FROM (${source.sql}) ` +
+            `GROUP BY ${spec.xCol} ` +
+            `ORDER BY value DESC ` +
+            `LIMIT ${CHART_LIMIT}`;
+
+          try {
+            const queryRes = await ctx.trace.engine.query(sql);
+            if (signal.isCancelled) return TASK_CANCELLED;
+            const rows: BarRow[] = [];
+            const it = queryRes.iter({label: STR_NULL, value: NUM_NULL});
+            for (; it.valid(); it.next()) {
+              rows.push({
+                label: it.label ?? '(null)',
+                value: Number(it.value ?? 0),
+              });
+            }
+            return {ok: true, rows};
+          } catch (e: unknown) {
+            if (signal.isCancelled) return TASK_CANCELLED;
+            return {
+              ok: false,
+              error: e instanceof Error ? e.message : String(e),
+            };
+          }
+        },
+      });
+
+      if (result.data === undefined) {
         return m('.pf-spag-chart-panel', [
           m('.pf-spag-chart-title', title),
-          m('.pf-spag-chart-loading', 'Loading…'),
+          m('.pf-spag-chart-loading', [m(Spinner), ' Loading…']),
         ]);
       }
 
+      if (!result.data.ok) {
+        return m('.pf-spag-chart-panel', [
+          m('.pf-spag-chart-title', title),
+          m('.pf-spag-chart-error', result.data.error),
+        ]);
+      }
+
+      const rows = result.data.rows;
       if (rows.length === 0) {
         return m('.pf-spag-chart-panel', [
           m('.pf-spag-chart-title', title),
@@ -164,61 +172,49 @@ function BarChartPanel(): m.Component<{
         ]);
       }
 
-      const maxValue = Math.max(...rows.map((r) => r.value), 1);
-      const svgHeight = rows.length * (BAR_HEIGHT + BAR_GAP) + BAR_GAP;
-
-      const bars = rows.map((row, i) => {
-        const y = BAR_GAP + i * (BAR_HEIGHT + BAR_GAP);
-        const barW = Math.max(2, (row.value / maxValue) * BAR_AREA_WIDTH);
-        const hue = (i * 47) % 360;
-        const label =
-          row.label.length > 18 ? row.label.slice(0, 17) + '…' : row.label;
-        const valueStr = Number.isInteger(row.value)
-          ? row.value.toLocaleString()
-          : row.value.toPrecision(4);
-
-        return m('g', {key: i}, [
-          m(
-            'text',
-            {
-              'x': LABEL_WIDTH - 4,
-              'y': y + BAR_HEIGHT / 2 + 4,
-              'text-anchor': 'end',
-              'font-size': '11',
-              'fill': 'var(--pf-color-text)',
-            },
-            label,
-          ),
-          m('rect', {
-            x: LABEL_WIDTH,
-            y,
-            width: barW,
-            height: BAR_HEIGHT,
-            fill: `hsl(${hue} 55% 50%)`,
-            rx: 2,
-          }),
-          m(
-            'text',
-            {
-              'x': LABEL_WIDTH + barW + 4,
-              'y': y + BAR_HEIGHT / 2 + 4,
-              'font-size': '11',
-              'fill': 'var(--pf-color-text)',
-            },
-            valueStr,
-          ),
-        ]);
-      });
+      const yColDef = spec.yCol
+        ? ctx.outputColumns?.find((c) => c.name === spec.yCol)
+        : undefined;
+      const isDuration = yColDef?.type?.kind === 'duration';
+      const maxValue = Math.max(...rows.map((r) => Math.abs(r.value)), 1);
 
       return m('.pf-spag-chart-panel', [
-        m('.pf-spag-chart-title', title),
+        m('.pf-spag-chart-header', [
+          m('.pf-spag-chart-title', title),
+          m(
+            'span.pf-spag-chart-meta',
+            rows.length >= CHART_LIMIT
+              ? `top ${CHART_LIMIT}`
+              : `${rows.length} ${rows.length === 1 ? 'group' : 'groups'}`,
+          ),
+        ]),
         m(
-          'svg.pf-spag-chart-svg',
-          {
-            viewBox: `0 0 ${CHART_SVG_WIDTH} ${svgHeight}`,
-            width: '100%',
-          },
-          bars,
+          '.pf-spag-chart-bars',
+          rows.map((row, i) => {
+            const pct = Math.max(1, (Math.abs(row.value) / maxValue) * 100);
+            const colorIdx = (i % CHART_COLOR_COUNT) + 1;
+            const valueStr = formatChartValue(row.value, isDuration);
+            return m(
+              '.pf-spag-chart-bar-row',
+              {
+                key: i,
+                title: `${row.label}: ${valueStr}`,
+              },
+              [
+                m('.pf-spag-chart-bar-label', row.label),
+                m(
+                  '.pf-spag-chart-bar-track',
+                  m('.pf-spag-chart-bar-fill', {
+                    style: {
+                      width: `${pct.toFixed(2)}%`,
+                      background: `var(--pf-chart-color-${colorIdx})`,
+                    },
+                  }),
+                ),
+                m('.pf-spag-chart-bar-value', valueStr),
+              ],
+            );
+          }),
         ),
       ]);
     },
@@ -230,29 +226,45 @@ function BarChartPanel(): m.Component<{
 // ---------------------------------------------------------------------------
 
 function ChartDashboard(): m.Component<{
-  config: ChartConfig;
-  ctx: DetailsContext;
+  readonly config: ChartConfig;
+  readonly ctx: DetailsContext;
 }> {
   return {
     view({attrs: {config, ctx}}) {
+      if (ctx.error !== undefined) {
+        return m(
+          EmptyState,
+          {
+            icon: 'warning',
+            fillHeight: true,
+            title: 'Query error',
+          },
+          m('pre.pf-spag__error', ctx.error),
+        );
+      }
+
       const source = ctx.output;
       if (source === undefined) {
         return m(
-          '.pf-spag-chart-dashboard.pf-spag-chart-dashboard--empty',
-          m(
-            'span.pf-spag-chart-dashboard__placeholder',
-            'Connect an input to see charts.',
-          ),
+          EmptyState,
+          {
+            icon: 'bar_chart',
+            fillHeight: true,
+            title: 'No chart data',
+          },
+          'Connect an input to see charts.',
         );
       }
 
       if (config.charts.length === 0) {
         return m(
-          '.pf-spag-chart-dashboard.pf-spag-chart-dashboard--empty',
-          m(
-            'span.pf-spag-chart-dashboard__placeholder',
-            'Add chart specs in the node to see visualizations.',
-          ),
+          EmptyState,
+          {
+            icon: 'bar_chart',
+            fillHeight: true,
+            title: 'No charts configured',
+          },
+          'Click "Add chart" on the Chart node to visualize columns.',
         );
       }
 
@@ -291,9 +303,18 @@ export const manifest: NodeManifest<ChartConfig> = {
   render(config, updateConfig, ctx) {
     const n = config.numInputs;
     const canRemove = n > 1;
-    const cols = ctx.availableColumns;
+    let cols = ctx.availableColumns;
+    if (cols.length === 0) {
+      for (const port of ctx.inputPorts) {
+        const portCols = ctx.getInputColumns(port.name);
+        if (portCols.length > 0) {
+          cols = portCols;
+          break;
+        }
+      }
+    }
 
-    return m(Stack, [
+    return m(Stack, {minWidth: 'lg'}, [
       m(InputPortStepper, {
         canRemove,
         onRemove: () => updateConfig({numInputs: n - 1}),
@@ -310,7 +331,7 @@ export const manifest: NodeManifest<ChartConfig> = {
             onSelect: (xCol) =>
               updateConfig({charts: config.charts.with(i, {...spec, xCol})}),
           }),
-          m('span.pf-spag-chart-sep', '×'),
+          m('span.pf-spag-operator', '×'),
           m(ColumnPicker, {
             value: spec.yCol,
             columns: cols,

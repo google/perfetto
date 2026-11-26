@@ -17,7 +17,9 @@ import {TextInput} from '../../../widgets/text_input';
 import {AliasTag} from './alias_tag';
 
 export function sanitizeAlias(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_]/g, '_');
+  const cleaned = value.replace(/[^a-zA-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  if (cleaned === '') return '';
+  return /^\d/.test(cleaned) ? `col_${cleaned}` : cleaned;
 }
 
 export interface TextInputWithAliasAttrs {

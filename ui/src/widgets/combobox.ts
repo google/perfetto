@@ -61,6 +61,7 @@ export interface ComboboxAttrs {
   readonly placeholder?: string;
   readonly className?: string;
   readonly icon?: string;
+  readonly title?: string;
 }
 
 export class Combobox implements m.ClassComponent<ComboboxAttrs> {
@@ -73,6 +74,7 @@ export class Combobox implements m.ClassComponent<ComboboxAttrs> {
       placeholder,
       className,
       icon,
+      title,
       onChange = () => {},
       suggestions,
     } = attrs;
@@ -100,14 +102,18 @@ export class Combobox implements m.ClassComponent<ComboboxAttrs> {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         this.isOpen = true;
-        this.highlightIdx = Math.min(this.highlightIdx + 1, totalItems - 1);
+        this.highlightIdx =
+          totalItems > 0 ? Math.min(this.highlightIdx + 1, totalItems - 1) : 0;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         this.highlightIdx = Math.max(this.highlightIdx - 1, 0);
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (this.isOpen) {
-          onChange(allItems[this.highlightIdx]!.value);
+          const highlighted = allItems[this.highlightIdx];
+          if (highlighted !== undefined) {
+            onChange(highlighted.value);
+          }
           this.isOpen = false;
           this.highlightIdx = 0;
         } else {
@@ -125,6 +131,7 @@ export class Combobox implements m.ClassComponent<ComboboxAttrs> {
       value,
       placeholder,
       className,
+      title,
       leftIcon: icon,
       onInput: (value: string) => {
         onChange(value);
@@ -170,7 +177,7 @@ export class Combobox implements m.ClassComponent<ComboboxAttrs> {
             s.content,
           ),
         ),
-        m(MenuDivider),
+        options.filtered.length > 0 && options.all.length > 0 && m(MenuDivider),
         options.all.map((s, idx) => {
           const realIdx = idx + options.filtered.length;
           return m(
@@ -192,7 +199,7 @@ export class Combobox implements m.ClassComponent<ComboboxAttrs> {
       Popup,
       {
         trigger,
-        isOpen: this.isOpen,
+        isOpen: this.isOpen && totalItems > 0,
         onChange: (shouldOpen: boolean) => {
           if (!shouldOpen) {
             this.isOpen = false;

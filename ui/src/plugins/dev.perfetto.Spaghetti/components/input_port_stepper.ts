@@ -27,12 +27,14 @@ export class InputPortStepper implements m.ClassComponent<InputPortStepperAttrs>
     return m('.pf-spag-port-stepper', [
       canRemove &&
         m(Button, {
-          label: '− Input',
+          label: 'Input',
+          icon: 'remove',
           variant: ButtonVariant.Filled,
           onclick: onRemove,
         }),
       m(Button, {
-        label: '+ Input',
+        label: 'Input',
+        icon: 'add',
         variant: ButtonVariant.Filled,
         onclick: onAdd,
       }),

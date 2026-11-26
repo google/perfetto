@@ -82,7 +82,9 @@ function SortNodeContent(): m.Component<{
         });
       };
 
-      return m(Stack, [
+      return m(Stack, {minWidth: 'md'}, [
+        conditions.length === 0 &&
+          m('.pf-spag-passthrough-hint', 'No sort keys (passthrough)'),
         m(DraggableStack, {
           rows: conditions.map((cond, i) => [
             m(ColumnPicker, {
@@ -113,7 +115,7 @@ function SortNodeContent(): m.Component<{
           onDelete: (i) => updateConditions(conditions.toSpliced(i, 1)),
         }),
         m(Button, {
-          label: 'Add sort by',
+          label: 'Add sort',
           icon: 'add',
           variant: ButtonVariant.Filled,
           onclick: () => {

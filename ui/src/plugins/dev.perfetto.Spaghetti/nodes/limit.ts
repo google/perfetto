@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
+import {classNames} from '../../../base/classnames';
 import type {NodeManifest} from '../node_types';
 import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
@@ -56,18 +57,30 @@ export const manifest: NodeManifest<LimitConfig> = {
   schema: LimitConfigSchema,
   defaultConfig: () => ({limitCount: '100', offset: ''}),
   render(config, updateConfig) {
-    return m(Stack, [
-      m(TextInput, {
-        placeholder: 'Row count...',
-        value: config.limitCount,
-        onChange: (value: string) => updateConfig({limitCount: value}),
-      }),
-      m(TextInput, {
-        placeholder: 'Offset (optional)...',
-        value: config.offset ?? '',
-        onChange: (value: string) => updateConfig({offset: value}),
-      }),
-    ]);
+    const limitValid =
+      config.limitCount !== '' && /^\d+$/.test(config.limitCount);
+    const offsetStr = config.offset ?? '';
+    const offsetValid = offsetStr === '' || /^\d+$/.test(offsetStr);
+
+    return m(
+      Stack,
+      m('.pf-spag-field-grid', [
+        m('span.pf-spag-field-grid__label', 'Limit'),
+        m(TextInput, {
+          placeholder: '100',
+          value: config.limitCount,
+          className: classNames(!limitValid && 'pf-spag-input--invalid'),
+          onChange: (value: string) => updateConfig({limitCount: value.trim()}),
+        }),
+        m('span.pf-spag-field-grid__label', 'Offset'),
+        m(TextInput, {
+          placeholder: '0 (optional)',
+          value: offsetStr,
+          className: classNames(!offsetValid && 'pf-spag-input--invalid'),
+          onChange: (value: string) => updateConfig({offset: value.trim()}),
+        }),
+      ]),
+    );
   },
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
   generators: {

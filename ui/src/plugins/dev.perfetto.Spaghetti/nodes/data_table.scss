@@ -85,15 +85,11 @@
 
   &__col-del {
     flex: 0 0 auto;
-    background: transparent;
     color: var(--pf-color-text-muted);
-    border: none;
-    border-radius: 2px;
-    padding: 0 3px;
-    font-size: 12px;
-    line-height: 1;
-    cursor: pointer;
-    opacity: 0.6;
+    opacity: 0.45;
+    transition:
+      opacity 0.12s ease,
+      color 0.12s ease;
 
     &:hover {
       opacity: 1;
@@ -111,6 +107,11 @@
     padding: 0;
     outline: none;
     cursor: pointer;
+
+    option {
+      background: var(--pf-color-background-secondary);
+      color: var(--pf-color-text);
+    }
   }
 
   &__td {
@@ -123,6 +124,26 @@
       text-align: center;
       width: 24px;
       padding: 0 2px;
+
+      .pf-spag-delete {
+        opacity: 0.35;
+        transition:
+          opacity 0.12s ease,
+          color 0.12s ease;
+
+        &:hover {
+          opacity: 1;
+          color: var(--pf-color-danger);
+        }
+      }
+    }
+  }
+
+  &__tr:hover &__td--actions .pf-spag-delete {
+    opacity: 0.75;
+
+    &:hover {
+      opacity: 1;
     }
   }
 

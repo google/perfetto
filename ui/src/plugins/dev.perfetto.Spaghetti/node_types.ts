@@ -28,6 +28,8 @@ export interface RenderContext {
   readonly availableColumns: ColumnDef[];
   /** All table names for FROM node pickers. */
   readonly tableNames: string[];
+  /** SQL modules for table/module metadata lookups. */
+  readonly sqlModules: SqlModules | undefined;
   /** The trace object for timeline access. */
   readonly trace: Trace;
   /** Whether this node is currently selected. */

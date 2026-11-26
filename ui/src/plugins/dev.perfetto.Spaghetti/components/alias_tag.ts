@@ -26,6 +26,7 @@ export function AliasTag(): m.Component<{
 }> {
   let pendingFocus = false;
   let isFocused = false;
+  let committedValue: string | undefined;
 
   return {
     view({attrs: {alias, placeholder, onChange}}) {
@@ -49,25 +50,38 @@ export function AliasTag(): m.Component<{
               placeholder,
               value: alias,
               autofocus: pendingFocus,
-              onChange: (value: string) => onChange(value),
+              onChange: (value: string) => {
+                committedValue = value;
+                if (value !== alias) {
+                  onChange(value);
+                }
+              },
+              onkeydown: (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              },
               onfocus: () => {
                 isFocused = true;
                 pendingFocus = false;
+                committedValue = undefined;
               },
               onblur: (e: FocusEvent) => {
                 const value = (e.target as HTMLInputElement).value;
                 isFocused = false;
                 pendingFocus = false;
-                if (value !== alias) {
+                if (value !== alias && value !== committedValue) {
                   onChange(value);
                 }
+                committedValue = undefined;
               },
             }),
           ],
         );
       }
       return m(Button, {
-        icon: 'shoppingmode',
+        icon: 'label',
+        compact: true,
         className: 'pf-spag-alias-btn',
         tooltip: 'Add alias',
         onclick: () => {

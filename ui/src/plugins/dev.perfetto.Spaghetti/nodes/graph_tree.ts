@@ -59,7 +59,7 @@ function GraphTreeContent(): m.Component<{
           [
             m(RadioGroup.Button, {value: 'BFS'}, 'BFS'),
             m(RadioGroup.Button, {value: 'DFS'}, 'DFS'),
-            m(RadioGroup.Button, {value: 'DOMINATOR'}, 'Dom'),
+            m(RadioGroup.Button, {value: 'DOMINATOR'}, 'Dominator'),
           ],
         ),
         m('.pf-spag-section-label', 'Node ID'),

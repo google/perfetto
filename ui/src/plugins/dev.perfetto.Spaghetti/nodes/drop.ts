@@ -56,7 +56,7 @@ function DropContent(): m.Component<{
             updateConfig({columns: config.columns.toSpliced(i, 1)}),
         }),
         m(Button, {
-          label: 'Drop column',
+          label: 'Add column',
           variant: ButtonVariant.Filled,
           icon: 'add',
           onclick: () => {
@@ -94,11 +94,13 @@ export const manifest: NodeManifest<DropConfig> = {
       if (inputColumns === undefined) {
         return {error: 'Drop needs known input columns in Standard SQL mode.'};
       }
-      return {
-        select: inputColumns
-          .filter((c) => !dropped.has(c.name))
-          .map((c) => c.name),
-      };
+      const remaining = inputColumns
+        .filter((c) => !dropped.has(c.name))
+        .map((c) => c.name);
+      if (remaining.length === 0) {
+        return {error: 'Cannot drop all columns.'};
+      }
+      return {select: remaining};
     },
     psn: (config, ctx) => {
       if (ctx.input('input') === undefined) return undefined;
