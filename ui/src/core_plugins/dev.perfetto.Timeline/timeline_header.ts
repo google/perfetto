@@ -25,7 +25,7 @@ import {
   VirtualOverlayCanvas,
   type VirtualOverlayCanvasDrawContext,
 } from '../../widgets/virtual_overlay_canvas';
-import {TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
+import {COLOR_ACCENT, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {NotesPanel} from './notes_panel';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
@@ -43,6 +43,10 @@ export interface TimelineHeaderAttrs {
   // to the right of the header is actually rendered on.
   onTimelineBoundsChange?(rect: Rect2D): void;
 
+  // Returns the current mouse hover X position relative to the timeline header,
+  // or undefined when the mouse is not hovering the timeline.
+  getHoverX?(): number | undefined;
+
   readonly className?: string;
 }
 
@@ -52,7 +56,11 @@ export interface TimelineHeaderAttrs {
 interface Panel {
   readonly height: number;
   render(): m.Children;
-  renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void;
+  renderCanvas(
+    ctx: CanvasRenderingContext2D,
+    size: Size2D,
+    hoverX?: number,
+  ): void;
 }
 
 /**
@@ -99,7 +107,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
               bottom: 0,
             });
             attrs.onTimelineBoundsChange?.(rect);
-            this.drawCanvas(ctx);
+            this.drawCanvas(ctx, attrs.getHoverX?.());
           },
         },
         this.panels.map((p) => p.render()),
@@ -117,15 +125,19 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
     this.trash.dispose();
   }
 
-  private drawCanvas({
-    ctx,
-    virtualCanvasSize,
-  }: VirtualOverlayCanvasDrawContext) {
+  private drawCanvas(
+    {ctx, virtualCanvasSize}: VirtualOverlayCanvasDrawContext,
+    hoverX?: number,
+  ) {
     let top = 0;
     for (const p of this.panels) {
       using _ = canvasSave(ctx);
       ctx.translate(0, top);
-      p.renderCanvas(ctx, {width: virtualCanvasSize.width, height: p.height});
+      p.renderCanvas(
+        ctx,
+        {width: virtualCanvasSize.width, height: p.height},
+        hoverX,
+      );
       top += p.height;
     }
 
@@ -135,6 +147,15 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
       right: virtualCanvasSize.width,
       bottom: virtualCanvasSize.height,
     });
+
+    if (
+      hoverX !== undefined &&
+      hoverX >= timelineRect.left &&
+      hoverX < timelineRect.right
+    ) {
+      ctx.fillStyle = COLOR_ACCENT;
+      ctx.fillRect(Math.floor(hoverX), 0, 1, virtualCanvasSize.height);
+    }
 
     // Always grab the latest visible window and create a timescale
     // out of it.

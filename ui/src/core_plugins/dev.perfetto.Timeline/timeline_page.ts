@@ -14,8 +14,9 @@
 
 import m from 'mithril';
 import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
+import {currentTargetOffset, toHTMLElement} from '../../base/dom_utils';
 import type {Rect2D} from '../../base/geom';
+import type {MithrilEvent} from '../../base/mithril_utils';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
 import {raf} from '../../core/raf_scheduler';
@@ -45,6 +46,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
   private timelineBounds?: Rect2D;
   private pinnedTracksHeight: number | 'auto' = 'auto';
+  private hoverX?: number;
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
@@ -62,6 +64,30 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private renderTimeline(trace: TraceImpl): m.Children {
     return m(
       '.pf-timeline-page__timeline',
+      {
+        onmousemove: (e: MithrilEvent<MouseEvent>) => {
+          e.redraw = false;
+          if (
+            e.target instanceof Element &&
+            e.target.closest('.pf-resize-handle')
+          ) {
+            if (this.hoverX !== undefined) {
+              this.hoverX = undefined;
+              raf.scheduleCanvasRedraw();
+            }
+            return;
+          }
+          this.hoverX = currentTargetOffset(e).x;
+          raf.scheduleCanvasRedraw();
+        },
+        onmouseleave: (e: MithrilEvent<MouseEvent>) => {
+          e.redraw = false;
+          if (this.hoverX !== undefined) {
+            this.hoverX = undefined;
+            raf.scheduleCanvasRedraw();
+          }
+        },
+      },
       this.renderHeader(trace),
       this.renderTracks(trace),
       this.renderTrackShellResizeHandle(),
@@ -103,6 +129,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       // use keep track of the timeline width, but we use the header one
       // because it's always rendered.
       onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
+      getHoverX: () => this.hoverX,
     });
   }
 
@@ -130,6 +157,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           rootNode: trace.currentWorkspace.pinnedTracksNode,
           canReorderNodes: true,
           scrollToNewTracks: true,
+          getHoverX: () => this.hoverX,
         }),
       ),
       m(ResizeHandle, {
@@ -157,6 +185,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       canReorderNodes: trace.currentWorkspace.userEditable,
       canRemoveNodes: trace.currentWorkspace.userEditable,
       trackFilter: (track) => trackMatchesFilter(trace, track),
+      getHoverX: () => this.hoverX,
     });
   }
 
