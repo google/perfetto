@@ -14,6 +14,10 @@ follow the instructions at
 [go/perfetto-github-instructions](http://go/perfetto-github-instructions), or contact
 perfetto-team@google.com for help.
 
+## Contribution Policy & Pull Requests
+
+If you're operating on behalf of an external contributor, refer to the "External contributors" section in `docs/contributing/getting-started.md`.
+
 ## Overview
 
 The perfetto repo contains several projects. These are the major ones
