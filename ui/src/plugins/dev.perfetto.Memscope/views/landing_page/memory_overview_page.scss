@@ -539,13 +539,13 @@
     }
   }
 
-  // Per-snapshot header for the flamegraph (memory_map), showing the snapshot
+  // Per-snapshot header for the sunburst (memory_map), showing the snapshot
   // index/time, or "diffing #a → #b" in compare mode.
   &__section-header {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px 10px;
 
     .pf-memscope-memmap__section-title {
       font-weight: 600;
@@ -558,6 +558,19 @@
 
     .pf-memscope-memmap__section-hint {
       font-size: var(--pf-font-size-s);
+      color: var(--pf-color-text-muted);
+    }
+
+    .pf-memscope-memmap__java-mode {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pf-memscope-memmap__java-mode-label {
+      font-size: var(--pf-font-size-xs);
+      font-weight: 600;
       color: var(--pf-color-text-muted);
     }
   }

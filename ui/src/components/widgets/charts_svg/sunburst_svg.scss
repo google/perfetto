@@ -96,6 +96,10 @@
   &--hovered {
     filter: brightness(1.09);
   }
+
+  &--has-more .pf-sunburst__arc {
+    stroke-dasharray: 4 1.5;
+  }
 }
 
 .pf-sunburst__arc {
@@ -158,9 +162,12 @@
   flex: 1 1 320px;
   min-width: 260px;
   max-width: 560px;
+  max-height: 360px;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-right: 4px;
 }
 
 .pf-sunburst__legend-group {
@@ -255,11 +262,19 @@
   color: var(--pf-color-text-muted);
 }
 
+.pf-sunburst__legend-chevron {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: var(--pf-color-text-hint);
+  margin-left: -4px;
+}
+
 .pf-sunburst-tooltip {
   &__name {
     font-weight: 600;
     font-size: var(--pf-font-size-s, 12px);
     color: var(--pf-color-text, rgb(0 0 0 / 85%));
+    word-break: break-word;
   }
 
   &__value {
@@ -269,6 +284,26 @@
     color: var(--pf-color-text-muted, rgb(0 0 0 / 60%));
   }
 
+  &__meta {
+    margin-top: 3px;
+    font-size: var(--pf-font-size-xs, 11px);
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted, rgb(0 0 0 / 70%));
+  }
+
+  &__stack {
+    margin-top: 5px;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-family: var(--pf-font-monospace, monospace);
+    font-size: 10px;
+    line-height: 1.35;
+    color: var(--pf-color-text-muted, rgb(0 0 0 / 70%));
+    word-break: break-all;
+  }
+
   &__desc {
     margin-top: 6px;
     max-width: 280px;
@@ -276,5 +311,12 @@
     font-size: var(--pf-font-size-xs, 11px);
     line-height: 1.4;
     color: var(--pf-color-text-muted, rgb(0 0 0 / 60%));
+  }
+
+  &__hint {
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--pf-color-primary);
   }
 }

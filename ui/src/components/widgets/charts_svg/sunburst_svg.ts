@@ -15,8 +15,8 @@
 // Pure SVG interactive Sunburst Chart widget.
 // Renders hierarchical proportional data as concentric radial rings around a
 // live readout donut center, with ancestor-lineage hover highlighting, rich
-// cursor tooltips, click-to-zoom subtree exploration, and a synchronized
-// breakdown legend.
+// cursor tooltips, multi-level click-to-zoom subtree exploration, and a
+// synchronized breakdown legend.
 
 import m from 'mithril';
 import {classNames} from '../../../base/classnames';
@@ -34,6 +34,9 @@ const MIN_LABEL_ANGLE = 0.34;
 const MIN_LABEL_ARC_PX = 48;
 
 export interface SunburstSegment {
+  // Optional stable key to disambiguate siblings that share the same display
+  // name. Falls back to `name`.
+  readonly key?: string;
   readonly name: string;
   readonly value: number;
   readonly cssColor: string;
@@ -47,8 +50,11 @@ export interface SunburstSvgAttrs {
   readonly data: SunburstSegment;
   // Formats a segment's value for labels, center readout, and default tooltip.
   readonly formatValue?: (value: number) => string;
-  // Diameter of the SVG sunburst in px (default: 320).
+  // Diameter of the SVG sunburst in px (default: 350).
   readonly size?: number;
+  // Maximum number of concentric rings rendered at once (default: 4). Deeper
+  // children remain reachable by clicking a parent slice to zoom in.
+  readonly maxVisibleDepth?: number;
   // Invoked when a segment is clicked.
   readonly onSegmentClick?: (seg: SunburstSegment) => void;
   // When true (default), clicking a segment with children zooms into it and
@@ -62,64 +68,93 @@ export interface SunburstSvgAttrs {
 
 interface PlacedArc {
   readonly id: string;
+  readonly parentId?: string;
   readonly seg: SunburstSegment;
   readonly depth: number; // 1-based ring index relative to current focus root
   readonly startAngle: number;
   readonly endAngle: number;
   readonly shareOfRoot: number;
-  readonly pathNames: readonly string[];
+  readonly pathKeys: readonly string[];
   readonly ancestorIds: ReadonlySet<string>;
+  readonly hasHiddenChildren: boolean;
+}
+
+function segmentKey(seg: SunburstSegment, index: number, dup: boolean): string {
+  const base = seg.key ?? seg.name;
+  return dup ? `${base}#${index}` : base;
 }
 
 function collectArcs(
   node: SunburstSegment,
   depth: number,
+  maxDepth: number,
   startAngle: number,
   endAngle: number,
   rootTotal: number,
-  parentPath: readonly string[],
+  parentId: string | undefined,
+  parentPathKeys: readonly string[],
   ancestorIds: ReadonlySet<string>,
   out: PlacedArc[],
 ): void {
+  if (depth > maxDepth) return;
   const childTotal = node.children.reduce(
     (s, c) => s + Math.max(0, c.value),
     0,
   );
   if (childTotal <= 0) return;
 
+  // Detect duplicate raw keys among siblings so every placed arc gets a unique
+  // key/path even if callers pass two slices with the same label.
+  const keyCounts = new Map<string, number>();
+  for (const c of node.children) {
+    const k = c.key ?? c.name;
+    keyCounts.set(k, (keyCounts.get(k) ?? 0) + 1);
+  }
+
+  const denom = node.value > 0 ? Math.max(node.value, childTotal) : childTotal;
   const span = endAngle - startAngle;
   let angle = startAngle;
   for (let i = 0; i < node.children.length; i++) {
     const child = node.children[i];
     if (child === undefined || child.value <= 0) continue;
-    const sweep = (child.value / childTotal) * span;
+    const sweep = (child.value / denom) * span;
     const nextAngle = angle + sweep;
-    const pathNames = [...parentPath, child.name];
-    const id = pathNames.join(' / ');
+    const rawKey = child.key ?? child.name;
+    const stepKey = segmentKey(child, i, (keyCounts.get(rawKey) ?? 0) > 1);
+    const pathKeys = [...parentPathKeys, stepKey];
+    const id = pathKeys.join('\u001f');
     const nextAncestors = new Set(ancestorIds);
     nextAncestors.add(id);
+    const hasPositiveChildren = child.children.some((c) => c.value > 0);
+    const hasHiddenChildren = depth === maxDepth && hasPositiveChildren;
 
     out.push({
       id,
+      parentId,
       seg: child,
       depth,
       startAngle: angle,
       endAngle: nextAngle,
       shareOfRoot: rootTotal > 0 ? child.value / rootTotal : 0,
-      pathNames,
+      pathKeys,
       ancestorIds: nextAncestors,
+      hasHiddenChildren,
     });
 
-    collectArcs(
-      child,
-      depth + 1,
-      angle,
-      nextAngle,
-      rootTotal,
-      pathNames,
-      nextAncestors,
-      out,
-    );
+    if (depth < maxDepth) {
+      collectArcs(
+        child,
+        depth + 1,
+        maxDepth,
+        angle,
+        nextAngle,
+        rootTotal,
+        id,
+        pathKeys,
+        nextAncestors,
+        out,
+      );
+    }
     angle = nextAngle;
   }
 }
@@ -213,7 +248,7 @@ function truncateLabel(text: string, maxChars: number): string {
   return `${text.slice(0, maxChars - 1)}…`;
 }
 
-// Walks a saved zoom path (list of child names) against the latest data tree.
+// Walks a saved zoom path (list of child keys) against the latest data tree.
 // Falls back to the deepest still-matching ancestor if data changed.
 function resolveZoomTrail(
   root: SunburstSegment,
@@ -221,8 +256,23 @@ function resolveZoomTrail(
 ): {readonly trail: SunburstSegment[]; readonly focus: SunburstSegment} {
   const trail: SunburstSegment[] = [root];
   let cur = root;
-  for (const name of zoomPath) {
-    const next = cur.children.find((c) => c.name === name);
+  for (const targetKey of zoomPath) {
+    const keyCounts = new Map<string, number>();
+    for (const c of cur.children) {
+      const k = c.key ?? c.name;
+      keyCounts.set(k, (keyCounts.get(k) ?? 0) + 1);
+    }
+    let next: SunburstSegment | undefined;
+    for (let i = 0; i < cur.children.length; i++) {
+      const child = cur.children[i];
+      if (child === undefined) continue;
+      const rawKey = child.key ?? child.name;
+      const stepKey = segmentKey(child, i, (keyCounts.get(rawKey) ?? 0) > 1);
+      if (stepKey === targetKey || rawKey === targetKey) {
+        next = child;
+        break;
+      }
+    }
     if (next === undefined || next.children.length === 0) break;
     trail.push(next);
     cur = next;
@@ -252,7 +302,8 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
     const {
       data,
       formatValue = String,
-      size = 310,
+      size = 350,
+      maxVisibleDepth = 4,
       onSegmentClick,
       zoomable = true,
       showLegend = true,
@@ -268,9 +319,11 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
     collectArcs(
       focus,
       1,
+      Math.max(1, maxVisibleDepth),
       START_ANGLE,
       START_ANGLE + TWO_PI,
       focusTotal,
+      undefined,
       [],
       new Set(),
       arcs,
@@ -284,7 +337,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
     const cx = size / 2;
     const cy = size / 2;
     const outerR = size / 2 - 6;
-    const innerHoleR = Math.round(outerR * 0.34);
+    const innerHoleR = Math.round(outerR * 0.3);
     const ringSpan = (outerR - innerHoleR) / maxDepth;
 
     const hoveredArc =
@@ -301,11 +354,11 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
           ? focus.value / data.value
           : 1;
 
-    const zoomInto = (pathNames: readonly string[], seg: SunburstSegment) => {
-      if (zoomable && seg.children.length > 0) {
+    const zoomInto = (pathKeys: readonly string[], seg: SunburstSegment) => {
+      if (zoomable && seg.children.some((c) => c.value > 0)) {
         this.zoomPath = [
           ...this.zoomPath.slice(0, trail.length - 1),
-          ...pathNames,
+          ...pathKeys,
         ];
         this.hoveredId = undefined;
       }
@@ -325,14 +378,12 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
       .slice()
       .sort((a, b) => b.seg.value - a.seg.value);
 
-    const childrenByParent = new Map<string, PlacedArc[]>();
+    const childrenByParentId = new Map<string, PlacedArc[]>();
     for (const a of arcs) {
-      if (a.depth !== 2) continue;
-      const parentName = a.pathNames[0];
-      if (parentName === undefined) continue;
-      const list = childrenByParent.get(parentName) ?? [];
+      if (a.depth !== 2 || a.parentId === undefined) continue;
+      const list = childrenByParentId.get(a.parentId) ?? [];
       list.push(a);
-      childrenByParent.set(parentName, list);
+      childrenByParentId.set(a.parentId, list);
     }
 
     return m('.pf-sunburst', {className}, [
@@ -344,7 +395,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
             const isLast = idx === trail.length - 1;
             return m(
               'span.pf-sunburst__crumb-item',
-              {key: `${idx}-${node.name}`},
+              {key: `${idx}-${node.key ?? node.name}`},
               [
                 idx > 0 &&
                   m(Icon, {
@@ -405,7 +456,8 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                   hoveredArc === undefined ||
                   hoveredArc.ancestorIds.has(arc.id) ||
                   arc.ancestorIds.has(hoveredArc.id);
-                const canZoom = zoomable && arc.seg.children.length > 0;
+                const canZoom =
+                  zoomable && arc.seg.children.some((c) => c.value > 0);
 
                 // Tangential label inside wide-enough wedges
                 const sweep = arc.endAngle - arc.startAngle;
@@ -437,6 +489,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                       !isRelated && 'pf-sunburst__slice--dimmed',
                       (canZoom || onSegmentClick !== undefined) &&
                         'pf-sunburst__slice--clickable',
+                      arc.hasHiddenChildren && 'pf-sunburst__slice--has-more',
                     ),
                     onmouseenter: () => {
                       this.hoveredId = arc.id;
@@ -446,7 +499,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                         this.hoveredId = undefined;
                       }
                     },
-                    onclick: () => zoomInto(arc.pathNames, arc.seg),
+                    onclick: () => zoomInto(arc.pathKeys, arc.seg),
                   },
                   [
                     m('path.pf-sunburst__arc', {
@@ -495,7 +548,8 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                     'text.pf-sunburst__center-sub',
                     {x: cx, y: cy + 22},
                     hoveredArc !== undefined
-                      ? `${(centerShare * 100).toFixed(1)}%`
+                      ? `${(centerShare * 100).toFixed(1)}%` +
+                          (hoveredArc.hasHiddenChildren ? ' · click ▸' : '')
                       : isZoomed
                         ? '← Zoom out'
                         : '100%',
@@ -511,14 +565,15 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
           legendRoots.length > 0 &&
           m('.pf-sunburst__legend', [
             legendRoots.map((rootArc) => {
-              const subs = (childrenByParent.get(rootArc.seg.name) ?? [])
+              const subs = (childrenByParentId.get(rootArc.id) ?? [])
                 .slice()
                 .sort((a, b) => b.seg.value - a.seg.value);
               const rootHovered =
                 hoveredArc !== undefined &&
                 (hoveredArc.id === rootArc.id ||
                   hoveredArc.ancestorIds.has(rootArc.id));
-              const canZoomRoot = zoomable && rootArc.seg.children.length > 0;
+              const canZoomRoot =
+                zoomable && rootArc.seg.children.some((c) => c.value > 0);
 
               return m('.pf-sunburst__legend-group', {key: rootArc.id}, [
                 m(
@@ -537,7 +592,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                         this.hoveredId = undefined;
                       }
                     },
-                    onclick: () => zoomInto(rootArc.pathNames, rootArc.seg),
+                    onclick: () => zoomInto(rootArc.pathKeys, rootArc.seg),
                   },
                   [
                     m('span.pf-sunburst__swatch', {
@@ -552,6 +607,11 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                       'span.pf-sunburst__legend-pct',
                       `${(rootArc.shareOfRoot * 100).toFixed(1)}%`,
                     ),
+                    canZoomRoot &&
+                      m(Icon, {
+                        icon: 'chevron_right',
+                        className: 'pf-sunburst__legend-chevron',
+                      }),
                   ],
                 ),
                 subs.length > 0 &&
@@ -563,7 +623,8 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                         (hoveredArc.id === subArc.id ||
                           hoveredArc.ancestorIds.has(subArc.id));
                       const canZoomSub =
-                        zoomable && subArc.seg.children.length > 0;
+                        zoomable &&
+                        subArc.seg.children.some((c) => c.value > 0);
                       return m(
                         'button.pf-sunburst__legend-row.pf-sunburst__legend-row--child',
                         {
@@ -581,7 +642,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                               this.hoveredId = undefined;
                             }
                           },
-                          onclick: () => zoomInto(subArc.pathNames, subArc.seg),
+                          onclick: () => zoomInto(subArc.pathKeys, subArc.seg),
                         },
                         [
                           m(
@@ -599,6 +660,11 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                             'span.pf-sunburst__legend-pct',
                             `${(subArc.shareOfRoot * 100).toFixed(1)}%`,
                           ),
+                          canZoomSub &&
+                            m(Icon, {
+                              icon: 'chevron_right',
+                              className: 'pf-sunburst__legend-chevron',
+                            }),
                         ],
                       );
                     }),
@@ -617,15 +683,16 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
             offset: TOOLTIP_OFFSET_PX,
             skidOffset: TOOLTIP_OFFSET_PX,
           },
-          m(
-            '.pf-sunburst-tooltip',
+          m('.pf-sunburst-tooltip', [
             hoveredArc.seg.tooltip ??
               defaultTooltip(
                 hoveredArc.seg,
                 hoveredArc.shareOfRoot,
                 formatValue,
               ),
-          ),
+            hoveredArc.hasHiddenChildren &&
+              m('.pf-sunburst-tooltip__hint', 'Click to drill down further'),
+          ]),
         ),
     ]);
   }
