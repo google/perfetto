@@ -228,6 +228,11 @@ void CopyDenseValues(const std::vector<TraceBlobView>& pieces,
     memcpy(out, piece.data(), piece.size());
     out += piece.size();
   }
+  if constexpr (!PERFETTO_IS_LITTLE_ENDIAN()) {
+    for (T& value : *output) {
+      value = base::LEToHost(value);
+    }
+  }
 }
 
 // Arrow has one value slot per logical row. Sparse dataframe storage keeps
@@ -328,8 +333,7 @@ base::StatusOr<LocatedBatches> LocateBatches(
     return InvalidFile();
   }
 
-  uint32_t footer_size;
-  memcpy(&footer_size, footer_size_blob->data(), sizeof(footer_size));
+  auto footer_size = Load<uint32_t>(footer_size_blob->data(), 0);
   if (static_cast<uint64_t>(footer_size) + kMinimumFileSize > file_size) {
     return InvalidFile();
   }
@@ -352,7 +356,8 @@ base::StatusOr<LocatedBatches> LocateBatches(
     return InvalidFile();
   }
   auto schema = footer->Table(footer_field::kSchema);
-  if (!schema) {
+  if (!schema ||
+      schema.Scalar<int16_t>(schema_field::kEndianness) != kEndiannessLittle) {
     return InvalidFile();
   }
   auto fields = schema.VecTable(schema_field::kFields);
@@ -402,11 +407,10 @@ base::StatusOr<LocatedBatches> LocateBatches(
   auto marker = data.SliceOff(
       base + static_cast<size_t>(footer_relative - kEndOfStreamSize),
       kEndOfStreamSize);
-  MessagePrefix end_of_stream{};
   if (!marker) {
     return InvalidFile();
   }
-  memcpy(&end_of_stream, marker->data(), sizeof(end_of_stream));
+  auto end_of_stream = Load<MessagePrefix>(marker->data(), 0);
   if (end_of_stream.continuation != kContinuation ||
       end_of_stream.metadata_size != 0) {
     return InvalidFile();
@@ -439,9 +443,9 @@ base::StatusOr<Message> ReadMessage(const util::TraceBlobViewReader& data,
   uint32_t continuation = 0;
   int32_t metadata_size = 0;
   if (prefix) {
-    memcpy(&continuation, prefix->data(), sizeof(continuation));
-    memcpy(&metadata_size, prefix->data() + sizeof(continuation),
-           sizeof(metadata_size));
+    MessagePrefix p = Load<MessagePrefix>(prefix->data(), 0);
+    continuation = p.continuation;
+    metadata_size = p.metadata_size;
   }
   if (!prefix || continuation != kContinuation || metadata_size <= 0 ||
       static_cast<uint64_t>(metadata_size) + kMessagePrefixSize !=
@@ -552,7 +556,6 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
     const util::TraceBlobViewReader& data,
     StringPool* pool,
     const DataframeSpec& spec) {
-#if PERFETTO_IS_LITTLE_ENDIAN()
   if (spec.column_names.size() != spec.column_specs.size() ||
       spec.column_names.size() > std::numeric_limits<uint32_t>::max()) {
     return base::ErrStatus("Invalid dataframe spec");
@@ -652,10 +655,6 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
   ++dataframe.non_column_mutations_;
   dataframe.Finalize();
   return dataframe;
-#else   // PERFETTO_IS_LITTLE_ENDIAN()
-  return base::ErrStatus(
-      "Arrow deserialization is not supported on big-endian hosts");
-#endif  // PERFETTO_IS_LITTLE_ENDIAN()
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe
