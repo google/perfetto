@@ -67,6 +67,10 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+    * TracingSession::StartBlocking() and SetOnStartCallback() now rely solely
+      on TYPE_ALL_DATA_SOURCES_STARTED instead of TYPE_DATA_SOURCES_INSTANCES,
+      fixing hangs when a data source unregisters or disconnects during start
+      (requires an Android 11+ tracing service).
   Tools:
     * Removed the standalone `traceconv` binary. The `traceconv` build
       target now builds `trace_processor_shell` running its
