@@ -15,9 +15,10 @@
 import m from 'mithril';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {assertUnreachable} from '../../base/assert';
-import {searchSegment} from '../../base/binary_search';
+import {search, searchSegment} from '../../base/binary_search';
 import {HSLColor} from '../../base/color';
 import type {Point2D} from '../../base/geom';
+import {clamp} from '../../base/math_utils';
 import {formatNumber} from '../../base/number_format';
 import {
   type CancellationSignal,
@@ -84,6 +85,8 @@ interface HoverState {
 const BUCKETS_PER_PIXEL = 2;
 const TRACK_HEIGHT_PX = 40;
 const TRACK_PADDING = 2; // px gap between waveform peak/trough and track edge
+const SELECTION_LINE_WIDTH = 3;
+const SELECTION_DOT_RADIUS = 3;
 
 const CHART_HEIGHT_LABELS: [string, ChartHeightSize][] = [
   ['Small (1x)', 1],
@@ -569,6 +572,10 @@ export class CounterTrack implements TrackRenderer {
       }
     }
 
+    this.drawSelection(trackCtx, data, (value) =>
+      Math.round(padTop + drawHeight - ((value - yMin) / yRange) * drawHeight),
+    );
+
     // Write the Y range labels.
     ctx.font = '10px Roboto Condensed';
     ctx.textAlign = 'left';
@@ -660,6 +667,69 @@ export class CounterTrack implements TrackRenderer {
           : data.timestampsRel[right],
       lastDisplayValue,
     };
+  }
+
+  // Highlights the selected sample if the track draws it.
+  private drawSelection(
+    {ctx, size, timescale, colors}: TrackRenderContext,
+    data: DataFrame,
+    valueToY: (value: number) => number,
+  ): void {
+    const selection = this.trace.selection.selection;
+    if (selection.kind !== 'track_event' || selection.trackUri !== this.uri) {
+      return;
+    }
+
+    const {ts, dur = 0n} = selection;
+    let end = dur > 0n ? Time.add(ts, dur) : this.endTs;
+    if (end !== undefined && this.endTs !== undefined) {
+      end = Time.min(end, this.endTs);
+    }
+
+    // Not in the loaded data, e.g. while it loads after a jump.
+    const from = Time.max(ts, data.start);
+    const to = end !== undefined ? Time.min(end, data.end) : data.end;
+    if (from >= to) return;
+
+    // A step starts at the last sample of its bucket, so the sample is drawn
+    // only if a step starts exactly at it (zoomed out, it can be merged with
+    // the samples after it). Round like the float32 timestampsRel to compare.
+    const tsRel = Math.fround(Number(from - data.start));
+    const i = search(data.timestampsRel, tsRel);
+    if (i === -1 || data.timestampsRel[i] !== tsRel) return;
+
+    const xStart = Math.floor(timescale.timeToPx(ts));
+    const xEnd =
+      end !== undefined ? Math.floor(timescale.timeToPx(end)) : size.width;
+    // Keep the line inside the track when the value is at its top or bottom.
+    const y = clamp(
+      valueToY(data.lastDisplayValuesF64[i]!),
+      SELECTION_LINE_WIDTH / 2,
+      this.getHeight() - SELECTION_LINE_WIDTH / 2,
+    );
+
+    ctx.strokeStyle = colors.COLOR_TIMELINE_OVERLAY;
+    ctx.fillStyle = colors.COLOR_TIMELINE_OVERLAY;
+
+    const left = Math.max(0, xStart);
+    const right = Math.min(size.width, xEnd);
+    if (right > left) {
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(right, y);
+      ctx.lineWidth = SELECTION_LINE_WIDTH;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    if (
+      xStart >= -SELECTION_DOT_RADIUS &&
+      xStart <= size.width + SELECTION_DOT_RADIUS
+    ) {
+      ctx.beginPath();
+      ctx.arc(xStart, y, SELECTION_DOT_RADIUS, 0, 2 * Math.PI);
+      ctx.fill();
+    }
   }
 
   private useData(
