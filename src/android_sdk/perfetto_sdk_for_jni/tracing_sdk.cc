@@ -54,6 +54,36 @@ void trace_event(int type,
   }
 }
 
+bool trace_event_with_formats(int type,
+                              const PerfettoTeCategory* perfettoTeCategory,
+                              const char* name,
+                              size_t name_size,
+                              uint32_t formats,
+                              Extra* extras,
+                              const void* raw_proto_fields,
+                              size_t raw_proto_fields_size,
+                              const PerfettoTeHlExtra* track) {
+  if (type == PERFETTO_TE_TYPE_COUNTER) {
+    // Pass nullptr so EXTRAS sessions do not intern "" when name_size is 0.
+    name = nullptr;
+    name_size = 0;
+  }
+
+  PerfettoTeHlExtra* const* extra_data = nullptr;
+  if (extras) {
+    extras->push_extra(nullptr);
+    extra_data = extras->get();
+  }
+
+  bool ok = PerfettoTeHlEmitWithFormatsImpl(
+      perfettoTeCategory->impl, type, name, name_size, formats, extra_data,
+      raw_proto_fields, raw_proto_fields_size, track);
+
+  if (extras)
+    extras->clear_extras();
+  return ok;
+}
+
 uint64_t get_process_track_uuid() {
   return PerfettoTeProcessTrackUuid();
 }
