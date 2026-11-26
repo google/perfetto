@@ -1399,13 +1399,49 @@ bool IsProtoTraceWithSymbols(const uint8_t* ptr, size_t size) {
   return tag == kModuleSymbolsTag;
 }
 
+bool TraceMayHaveClockSnapshot(const uint8_t* data,
+                               size_t size,
+                               bool inflate_compressed);
+
+// Inflates up to kContentPriorityLookahead bytes of a compressed_packets or
+// zstd_compressed_packets payload and scans them for a ClockSnapshot. If the
+// payload can't be inflated (codec not built in, corrupt), it may hold one.
+bool CompressedPacketsMayHaveClockSnapshot(util::CompressionType type,
+                                           protozero::ConstBytes payload) {
+  std::unique_ptr<util::Decompressor> decompressor =
+      util::CreateDecompressor(type);
+  if (!decompressor) {
+    return true;
+  }
+  decompressor->Feed(payload.data, payload.size);
+  auto out = std::make_unique<uint8_t[]>(kContentPriorityLookahead);
+  size_t written = 0;
+  while (written < kContentPriorityLookahead) {
+    auto res = decompressor->ExtractOutput(out.get() + written,
+                                           kContentPriorityLookahead - written);
+    if (res.ret == util::Decompressor::ResultCode::kError) {
+      return true;
+    }
+    written += res.bytes_written;
+    if (res.ret != util::Decompressor::ResultCode::kOk) {
+      break;
+    }
+  }
+  return TraceMayHaveClockSnapshot(out.get(), written,
+                                   /*inflate_compressed=*/false);
+}
+
 // Returns whether a packet of the proto trace starting with [data, data + size)
-// carries a ClockSnapshot, or compressed packets which may hide one (they are
-// not inflated). If not even the first packet fits in `size`, it may: traced
-// compresses whole batches of packets into one, often bigger than `size`, and
-// older versions put the first ClockSnapshot in there too. Malformed input is
-// not an error here: reading the file reports it.
-bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
+// carries a ClockSnapshot. The first compressed packet is inflated, up to
+// kContentPriorityLookahead bytes, and scanned; any later one, or one met while
+// `inflate_compressed` is false, may hide a ClockSnapshot. If not even the
+// first packet fits in `size`, it may: traced compresses whole batches of
+// packets into one, often bigger than `size`, and older versions put the first
+// ClockSnapshot in there too. Malformed input is not an error here: reading the
+// file reports it.
+bool TraceMayHaveClockSnapshot(const uint8_t* data,
+                               size_t size,
+                               bool inflate_compressed) {
   using protos::pbzero::TracePacket;
   protozero::ProtoDecoder trace(data, size);
   for (auto p = trace.ReadField(); p.valid(); p = trace.ReadField()) {
@@ -1415,18 +1451,27 @@ bool TraceMayHaveClockSnapshot(const uint8_t* data, size_t size) {
     }
     protozero::ProtoDecoder packet(p.as_bytes());
     for (auto f = packet.ReadField(); f.valid(); f = packet.ReadField()) {
-      // TODO(vibhuagarwal): compressed packets are not inflated, so a trace
-      // holding some counts as having a ClockSnapshot even when it has none,
-      // and sorts early. See https://github.com/google/perfetto/issues/8308.
-      if (f.id() == TracePacket::kClockSnapshotFieldNumber ||
-          f.id() == TracePacket::kCompressedPacketsFieldNumber ||
-          f.id() == TracePacket::kZstdCompressedPacketsFieldNumber) {
+      if (f.id() == TracePacket::kClockSnapshotFieldNumber) {
+        return true;
+      }
+      if (f.id() != TracePacket::kCompressedPacketsFieldNumber &&
+          f.id() != TracePacket::kZstdCompressedPacketsFieldNumber) {
+        continue;
+      }
+      if (!inflate_compressed) {
+        return true;
+      }
+      inflate_compressed = false;
+      auto type = f.id() == TracePacket::kCompressedPacketsFieldNumber
+                      ? util::CompressionType::kGzip
+                      : util::CompressionType::kZstd;
+      if (CompressedPacketsMayHaveClockSnapshot(type, f.as_bytes())) {
         return true;
       }
     }
   }
   // ProtoDecoder stops at a packet cut off at `size`: was it the first one?
-  return trace.read_offset() == 0;
+  return size > 0 && trace.read_offset() == 0;
 }
 
 // Perfetto proto trace.
@@ -1445,7 +1490,10 @@ class ProtoImporter : public TraceImporter<ProtoImporter> {
     // SDK traces) are converted through its clocks. Only the start is looked
     // at, as traced writes its first ClockSnapshot there.
     size_t lookahead = std::min(size, kContentPriorityLookahead);
-    return {true, TraceMayHaveClockSnapshot(data, lookahead) ? 0 : 1};
+    return {true, TraceMayHaveClockSnapshot(data, lookahead,
+                                            /*inflate_compressed=*/true)
+                      ? 0
+                      : 1};
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

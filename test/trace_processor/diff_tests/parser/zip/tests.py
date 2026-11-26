@@ -496,11 +496,56 @@ class Zip(TestSuite):
         "a_sdk.pb",2
         '''))
 
-  # Compressed packets are not inflated to look for a ClockSnapshot: a trace
-  # holding some counts as carrying one (traced versions from before September
-  # 2026 compressed their snapshots too), so it is read before a trace without
-  # any. So does a trace whose first packet runs past the part of the file
-  # looked at, as traced compresses whole batches of packets into one.
+  # The first compressed packet is inflated to look for a ClockSnapshot. One
+  # without a snapshot does not make its trace read first: b_system.pb is.
+  def test_zip_proto_with_compressed_packets_without_snapshot(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a_compressed.pb':
+                TextProto(_compressed_packets(b'\x0a\x02\x50\x02' * 10)),
+            'b_system.pb':
+                _SYSTEM_WITH_SNAPSHOT,
+        }),
+        query='''
+          SELECT name, processing_order
+          FROM __intrinsic_trace_file
+          WHERE name IS NOT NULL
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order"
+        "b_system.pb",1
+        "a_compressed.pb",2
+        '''))
+
+  # A ClockSnapshot inside the first compressed packet is found once inflated
+  # (traced versions from before September 2026 compressed their snapshots).
+  def test_zip_proto_with_compressed_clock_snapshot_read_first(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a_plain.pb':
+                TextProto('packet { trusted_packet_sequence_id: 1 }'),
+            # packet { clock_snapshot { clocks { clock_id: 6 timestamp: 5000 }}}
+            'b_compressed.pb':
+                TextProto(
+                    _compressed_packets(
+                        b'\x0a\x09\x32\x07\x0a\x05\x08\x06\x10\x88\x27')),
+        }),
+        query='''
+          SELECT name, processing_order
+          FROM __intrinsic_trace_file
+          WHERE name IS NOT NULL
+          ORDER BY processing_order;
+        ''',
+        out=Csv('''
+        "name","processing_order"
+        "b_compressed.pb",1
+        "a_plain.pb",2
+        '''))
+
+  # A trace whose first packet runs past the part of the file looked at may
+  # hold a ClockSnapshot, as traced compresses whole batches of packets into
+  # one, so it is read before a trace without any.
   def test_zip_proto_with_compressed_packets_read_first(self):
     return DiffTestBlueprint(
         trace=ZipTrace({
