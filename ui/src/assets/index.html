@@ -134,6 +134,13 @@ Technical Information:
         document.head.append(preloadLink);
       }
 
+      if (location.pathname === '/') {
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = version + '/assets/manifest.webmanifest';
+        document.head.append(manifestLink);
+      }
+
       const script = document.createElement('script');
       script.async = true;
       script.src = version + '/frontend_bundle.js';
