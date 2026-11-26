@@ -35,14 +35,6 @@
   } while (0)
 #endif
 
-// __has_attribute is supported only by clang and recent versions of GCC.
-// Add a layer to wrap the __has_attribute macro.
-#if defined(__has_attribute)
-#define PERFETTO_HAS_ATTRIBUTE(x) __has_attribute(x)
-#else
-#define PERFETTO_HAS_ATTRIBUTE(x) 0
-#endif
-
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 #else
