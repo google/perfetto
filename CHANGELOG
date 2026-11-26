@@ -26,6 +26,8 @@ Unreleased:
      all layers.
    * Fixed `android_frames_layers.layer_id` for layer names with more than one
      `#`.
+   * Fixed `android_sysui_jank_cujs` dropping jank CUJs without HWUI
+     `DrawFrame` slices and truncating CUJs where only a subset of frames draw.
    * The `trace_trigger` metadata is now taken from the
      `authoritative_trigger` packet, when present. Older traces fall back on
      the previous logic.
