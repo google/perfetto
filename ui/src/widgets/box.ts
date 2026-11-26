@@ -15,16 +15,29 @@
 import './box.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {classForSpacing, type HTMLAttrs, type Spacing} from './common';
+import {
+  classForDensity,
+  classForSpacing,
+  type Density,
+  type HTMLAttrs,
+  type Spacing,
+} from './common';
 
 export interface BoxAttrs extends HTMLAttrs {
   readonly fillHeight?: boolean;
   readonly spacing?: Spacing;
+  readonly density?: Density;
 }
 
 export class Box implements m.ClassComponent<BoxAttrs> {
   view({attrs, children}: m.CVnode<BoxAttrs>) {
-    const {fillHeight = false, className, spacing = 'medium', ...rest} = attrs;
+    const {
+      fillHeight = false,
+      className,
+      spacing = 'medium',
+      density,
+      ...rest
+    } = attrs;
     return m(
       '.pf-box',
       {
@@ -33,6 +46,7 @@ export class Box implements m.ClassComponent<BoxAttrs> {
           className,
           fillHeight && 'pf-box--fill-height',
           classForSpacing(spacing),
+          density !== undefined && classForDensity(density),
         ),
       },
       children,

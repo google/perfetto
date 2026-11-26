@@ -14,7 +14,13 @@
 
 import './settings_shell.scss';
 import m from 'mithril';
-import {classForIntent, type HTMLAttrs, type Intent} from './common';
+import {
+  classForDensity,
+  classForIntent,
+  type Density,
+  type HTMLAttrs,
+  type Intent,
+} from './common';
 import {ensureExists} from '../base/assert';
 import {Card} from './card';
 import {classNames} from '../base/classnames';
@@ -24,6 +30,8 @@ import {childrenValid} from '../base/mithril_utils';
 export interface SettingsShellAttrs extends HTMLAttrs {
   readonly title: string;
   readonly stickyHeaderContent?: m.Children;
+  // Padding density for controls in the settings page. Defaults to 'comfortable'.
+  readonly density?: Density;
 }
 
 export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
@@ -33,11 +41,16 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
     const {
       title,
       stickyHeaderContent: headerContent,
+      density = 'comfortable',
+      className,
       ...htmlAttrs
     } = vnode.attrs;
     return m(
       '.pf-settings-shell',
-      htmlAttrs,
+      {
+        ...htmlAttrs,
+        className: classNames(className, classForDensity(density)),
+      },
       m(
         '.pf-settings-shell__title',
         m('.pf-settings-shell__centred', m('h1', title)),

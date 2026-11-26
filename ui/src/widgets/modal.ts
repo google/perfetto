@@ -14,10 +14,11 @@
 
 import './modal.scss';
 import m from 'mithril';
+import {classNames} from '../base/classnames';
 import {defer} from '../base/deferred';
 import {Icon} from './icon';
 import {Button, ButtonVariant} from './button';
-import {Intent} from './common';
+import {classForDensity, type Density, Intent} from './common';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
 // render the DOM elements outside of the corresponding vdom tree. For instance
@@ -52,6 +53,8 @@ export interface ModalAttrs {
   readonly className?: string;
   readonly buttons?: ModalButton[];
   readonly vAlign?: 'MIDDLE' /* default */ | 'TOP';
+  // Padding density for controls inside the dialog. Defaults to 'comfortable'.
+  readonly density?: Density;
 
   // Used to disambiguate between different modal dialogs that might overlap
   // due to different client showing modal dialogs at the same time. This needs
@@ -152,8 +155,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     }
 
     const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
-    const align = attrs.vAlign === 'TOP' ? '.pf-modal-dialog-valign-top' : '';
-    const customClass = attrs.className ? '.' + attrs.className : '';
+    const density = attrs.density ?? 'comfortable';
     return m(
       '.pf-modal-backdrop',
       {
@@ -162,7 +164,14 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
         tabIndex: 0,
       },
       m(
-        `.pf-modal-dialog${align}${customClass}${aria}`,
+        `.pf-modal-dialog${aria}`,
+        {
+          className: classNames(
+            attrs.vAlign === 'TOP' && 'pf-modal-dialog-valign-top',
+            classForDensity(density),
+            attrs.className,
+          ),
+        },
         m(
           'header',
           m(

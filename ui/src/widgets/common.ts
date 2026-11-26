@@ -119,3 +119,16 @@ export function classForSpacing(spacing: Spacing): string {
       assertUnreachable(spacing);
   }
 }
+
+export type Density = 'default' | 'comfortable';
+
+export function classForDensity(density: Density): string {
+  switch (density) {
+    case 'default':
+      return 'pf-density-default';
+    case 'comfortable':
+      return 'pf-density-comfortable';
+    default:
+      assertUnreachable(density);
+  }
+}

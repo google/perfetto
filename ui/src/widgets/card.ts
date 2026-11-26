@@ -14,23 +14,28 @@
 
 import './card.scss';
 import m from 'mithril';
-import type {HTMLAttrs} from './common';
+import {classForDensity, type Density, type HTMLAttrs} from './common';
 
 import {classNames} from '../base/classnames';
 
 export interface CardAttrs extends HTMLAttrs {
   // Whether the card should have a hover effect.
   readonly interactive?: boolean;
+  readonly density?: Density;
 }
 
 export class Card implements m.ClassComponent<CardAttrs> {
   view(vnode: m.Vnode<CardAttrs>): m.Children {
-    const {interactive, ...attrs} = vnode.attrs;
+    const {interactive, density, className, ...attrs} = vnode.attrs;
     return m(
       '.pf-card',
       {
         ...attrs,
-        class: classNames(attrs.className, interactive && 'pf-interactive'),
+        className: classNames(
+          className,
+          interactive && 'pf-interactive',
+          density !== undefined && classForDensity(density),
+        ),
       },
       vnode.children,
     );
@@ -40,13 +45,23 @@ export class Card implements m.ClassComponent<CardAttrs> {
 export interface CardStackAttrs extends HTMLAttrs {
   // The direction of the stack, defaults to 'vertical'.
   readonly direction?: 'vertical' | 'horizontal';
+  readonly density?: Density;
 }
 
 export class CardStack implements m.ClassComponent<CardStackAttrs> {
   view({attrs, children}: m.Vnode<CardStackAttrs>): m.Children {
-    const {direction = 'vertical', ...htmlAttrs} = attrs;
-    const directionClass =
-      direction === 'horizontal' ? '.pf-card-stack--horizontal' : '';
-    return m('.pf-card-stack' + directionClass, htmlAttrs, children);
+    const {direction = 'vertical', density, className, ...htmlAttrs} = attrs;
+    return m(
+      '.pf-card-stack',
+      {
+        ...htmlAttrs,
+        className: classNames(
+          direction === 'horizontal' && 'pf-card-stack--horizontal',
+          density !== undefined && classForDensity(density),
+          className,
+        ),
+      },
+      children,
+    );
   }
 }

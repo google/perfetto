@@ -58,6 +58,8 @@
   --pf-padding-input-x: 7px;
   --pf-padding-menu-item-y: 5px;
   --pf-padding-menu-item-x: 8px;
+  --pf-padding-chip-y: 2px;
+  --pf-padding-chip-x: 6px;
   --pf-padding-container-s: 6px;
   --pf-padding-container-m: 12px;
   --pf-padding-container-l: 16px;
@@ -77,6 +79,32 @@
   --pf-anim-easing: cubic-bezier(0.2, 0, 0, 1);
   --pf-anim-easing-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --pf-anim-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+// Container-scoped density modifiers. Applying .pf-density-comfortable (e.g.
+// via the `density` prop on Modal, Box, Stack, Form, Card, or SettingsShell)
+// increases padding for descendant controls via CSS custom property inheritance;
+// .pf-density-default restores Perfetto's compact baseline inside nested regions.
+.pf-density-default {
+  --pf-padding-control-y: 4px;
+  --pf-padding-control-x: 8px;
+  --pf-padding-input-y: 3px;
+  --pf-padding-input-x: 7px;
+  --pf-padding-menu-item-y: 5px;
+  --pf-padding-menu-item-x: 8px;
+  --pf-padding-chip-y: 2px;
+  --pf-padding-chip-x: 6px;
+}
+
+.pf-density-comfortable {
+  --pf-padding-control-y: 6px;
+  --pf-padding-control-x: 12px;
+  --pf-padding-input-y: 5px;
+  --pf-padding-input-x: 10px;
+  --pf-padding-menu-item-y: 7px;
+  --pf-padding-menu-item-x: 10px;
+  --pf-padding-chip-y: 3px;
+  --pf-padding-chip-x: 8px;
 }
 
 * {
