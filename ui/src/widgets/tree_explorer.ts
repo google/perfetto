@@ -506,6 +506,14 @@ export function displayRelativeChange(
   return `${change > 0 ? '+' : ''}${change.toFixed(2)}%`;
 }
 
+// relativeChange for exports: a number with two decimals, or "new".
+export function exportRelativeChange(
+  baseline: number,
+  current: number,
+): string {
+  return relativeChange(baseline, current)?.toFixed(2) ?? 'new';
+}
+
 export function getUnitDisplayName(unit: string | undefined): string {
   if (unit === undefined || unit === '' || unit === 'count') {
     return 'count';

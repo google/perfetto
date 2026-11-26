@@ -48,6 +48,46 @@
   gap: 4px;
 }
 
+// A Change cell of a diff, colored like its flamegraph node.
+.pf-tree-explorer__change {
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.pf-tree-explorer__delta--grew {
+  color: color-mix(
+    in srgb,
+    var(--pf-color-danger) 65%,
+    var(--pf-color-text-muted)
+  );
+}
+
+.pf-tree-explorer__delta--shrank {
+  color: color-mix(
+    in srgb,
+    var(--pf-color-success) 65%,
+    var(--pf-color-text-muted)
+  );
+}
+
+.pf-tree-explorer__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-tree-explorer__info-icon {
+  font-size: 14px;
+  color: var(--pf-color-text-muted);
+  cursor: help;
+  opacity: 0.7;
+
+  &:hover {
+    opacity: 1;
+    color: var(--pf-color-text);
+  }
+}
+
 .pf-tree-explorer__node-icon {
   font-size: 16px;
   cursor: help;

@@ -55,6 +55,7 @@ import {
   addFilter,
   displayPercentage,
   displaySize,
+  exportRelativeChange,
   getUnitDisplayName,
   metricId,
 } from './tree_explorer';
@@ -1193,11 +1194,14 @@ export function buildFlamegraphExportString(
   metric: TreeExplorerMetric,
   format: ExportFormat,
 ): string {
-  const {nodes} = data;
+  const {nodes, diff} = data;
   const unitDisplay = getUnitDisplayName(metric.unit);
 
   const unaggKeys: string[] = [];
   const aggKeys: string[] = [];
+  // Properties with a baseline value, whose columns in a diff are their
+  // baseline and current values and the change.
+  const diffKeys = new Set<string>();
   const propDisplayNames = new Map<string, string>();
   for (const node of nodes) {
     for (const [key, prop] of node.properties) {
@@ -1205,6 +1209,9 @@ export function buildFlamegraphExportString(
       if (!keys.includes(key)) {
         keys.push(key);
         propDisplayNames.set(key, prop.displayName);
+      }
+      if (diff !== undefined && prop.baselineValue !== undefined) {
+        diffKeys.add(key);
       }
     }
   }
@@ -1215,19 +1222,44 @@ export function buildFlamegraphExportString(
     'depth',
     'name',
     ...unaggKeys,
-    'cumulativeValue',
-    'selfValue',
-    ...aggKeys,
+    ...(diff === undefined
+      ? ['cumulativeValue', 'selfValue']
+      : [
+          'cumulativeValue',
+          'baselineCumulativeValue',
+          'cumulativeDelta',
+          'cumulativeDeltaPercent',
+          'selfValue',
+          'baselineSelfValue',
+          'selfDelta',
+          'selfDeltaPercent',
+        ]),
+    ...aggKeys.flatMap((key) =>
+      diffKeys.has(key) ? [key, `${key}:baseline`, `${key}:delta`] : [key],
+    ),
   ];
+  const metricUnit = `${metric.name} (${unitDisplay})`;
   const columnNames: Record<string, string> = {
     ...Object.fromEntries(propDisplayNames),
     id: 'Id',
     parentId: 'Parent Id',
     depth: 'Depth',
     name: metric.nameColumnLabel ?? 'Name',
-    cumulativeValue: `Cumulative ${metric.name} (${unitDisplay})`,
-    selfValue: `Self ${metric.name} (${unitDisplay})`,
+    cumulativeValue: `${diff ? 'Current cumulative' : 'Cumulative'} ${metricUnit}`,
+    selfValue: `${diff ? 'Current self' : 'Self'} ${metricUnit}`,
+    baselineCumulativeValue: `Baseline cumulative ${metricUnit}`,
+    cumulativeDelta: `Cumulative delta ${metricUnit}`,
+    cumulativeDeltaPercent: 'Cumulative delta %',
+    baselineSelfValue: `Baseline self ${metricUnit}`,
+    selfDelta: `Self delta ${metricUnit}`,
+    selfDeltaPercent: 'Self delta %',
   };
+  for (const key of diffKeys) {
+    const displayName = propDisplayNames.get(key);
+    columnNames[`${key}:baseline`] = `Baseline ${displayName}`;
+    columnNames[key] = `Current ${displayName}`;
+    columnNames[`${key}:delta`] = `${displayName} delta`;
+  }
   const rows = nodes.map((n) => {
     const row: Record<string, string> = {
       id: n.id.toString(),
@@ -1237,8 +1269,28 @@ export function buildFlamegraphExportString(
       cumulativeValue: n.cumulativeValue.toString(),
       selfValue: n.selfValue.toString(),
     };
+    if (diff !== undefined) {
+      const baselineCumulative = n.baselineCumulativeValue ?? 0;
+      const baselineSelf = n.baselineSelfValue ?? 0;
+      row.baselineCumulativeValue = baselineCumulative.toString();
+      row.cumulativeDelta = (n.cumulativeValue - baselineCumulative).toString();
+      row.cumulativeDeltaPercent = exportRelativeChange(
+        baselineCumulative,
+        n.cumulativeValue,
+      );
+      row.baselineSelfValue = baselineSelf.toString();
+      row.selfDelta = (n.selfValue - baselineSelf).toString();
+      row.selfDeltaPercent = exportRelativeChange(baselineSelf, n.selfValue);
+    }
     for (const key of [...unaggKeys, ...aggKeys]) {
-      row[key] = n.properties.get(key)?.value ?? '';
+      const prop = n.properties.get(key);
+      row[key] = prop?.value ?? '';
+      if (diffKeys.has(key) && prop?.baselineValue !== undefined) {
+        row[`${key}:baseline`] = prop.baselineValue;
+        row[`${key}:delta`] = (
+          Number(prop.value) - Number(prop.baselineValue)
+        ).toString();
+      }
     }
     return row;
   });
@@ -1526,6 +1578,19 @@ function getDiffColorScheme(
     diffColorSchemeCache.set(step, scheme);
   }
   return scheme;
+}
+
+// The colors of a change, for the other views of a diff, or undefined for no
+// change.
+export function diffColors(
+  change: number,
+  diff: TreeExplorerDiff,
+): {readonly background: string; readonly text: string} | undefined {
+  if (change === 0) {
+    return undefined;
+  }
+  const {base, textBase} = getDiffColorScheme(change, diff, false);
+  return {background: base.cssString, text: textBase.cssString};
 }
 
 // The width of the roots in the units of the nodes' xStart and xEnd: in a
