@@ -100,6 +100,9 @@ export function maybeOpenTraceFromRoute(route: Route) {
  *  - Same as case 5: re-append the local_cache_key.
  */
 async function maybeOpenCachedTrace(traceUuid: string) {
+  if (AppImpl.instance.isLoadingTrace) {
+    return;
+  }
   const curTrace = AppImpl.instance.trace?.traceInfo;
   const curCacheUuid = curTrace?.cached ? curTrace.uuid : '';
 
