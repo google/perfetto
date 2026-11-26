@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import DataPath
+from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
@@ -85,6 +86,22 @@ class ArtMethodParser(TestSuite):
           "ts","dur","name","thread_name","pathname","line_number"
           1100000,400000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
           1200000,100000,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
+        '''))
+
+  def test_art_method_v2_aosp_layout(self):
+    return DiffTestBlueprint(
+        trace=Path('art_method_v2_aosp.py'),
+        query="""
+          INCLUDE PERFETTO MODULE slices.with_context;
+
+          SELECT ts, dur, name, thread_name, extract_arg(arg_set_id, 'pathname') AS pathname
+          FROM thread_slice
+          ORDER BY ts ASC
+        """,
+        out=Csv('''
+          "ts","dur","name","thread_name","pathname"
+          1100000,400000,"com.example.Foo.outer: ()V","main","Foo.java"
+          1200000,100000,"com.example.Foo.inner: ()V","main","Foo.java"
         '''))
 
   def test_art_method_track_type(self):
