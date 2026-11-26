@@ -5,3 +5,4 @@ pyarrow==25.0.0
 yapf==0.40.2
 brotli==1.2.1
 fonttools==4.60.2
+pyrefly==1.5.0
