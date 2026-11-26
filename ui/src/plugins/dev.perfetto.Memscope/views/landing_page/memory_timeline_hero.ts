@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Hero Interactive Memory Timeline: sits front-and-center at the top of the
-// unified Memory page, plotting memory over time together with explicit sample
-// markers (smaps snapshots, Java heap dumps, heapprofd native profiles).
-// Dragging anywhere across the timeline selects a [base → sel] time window and
-// switches the entire page below into Δ comparison mode.
+// Hero Interactive Memory Timeline: three clean, aligned horizontal sample
+// tracks (Smaps, Java Heap, Native) on one shared time axis. Drag anywhere
+// across the tracks to select a [base → sel] time range and switch every
+// section below into Δ mode; click any marker to pin a snapshot or dump.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../base/async_memo';
@@ -30,7 +29,6 @@ import {Icon} from '../../../../widgets/icon';
 import type {HeapDump} from '../../../com.android.HeapDumpExplorer/types';
 import {Inset} from '../../components/inset';
 import {Panel} from '../../components/panel';
-import {niceKbInterval} from '../../utils';
 import {deltaColor, formatBytes, formatDelta} from './mem_format';
 import {type MemSelection, nearestByTs} from './selection';
 import {SMAPS_CATEGORIES, SMAPS_CATEGORY_CASE_SQL} from './smaps_categories';
@@ -42,15 +40,14 @@ export interface SmapsSnap {
   readonly byCategory: ReadonlyMap<string, number>;
 }
 
-interface CounterPoint {
+interface NativeSnap {
   readonly ts: time;
-  readonly bytes: number;
+  readonly deltaBytes: number;
 }
 
 interface HeroTimelineData {
   readonly smaps: ReadonlyArray<SmapsSnap>;
-  readonly rssCounters: ReadonlyArray<CounterPoint>;
-  readonly nativeTs: ReadonlyArray<time>;
+  readonly nativeSnaps: ReadonlyArray<NativeSnap>;
   readonly javaHeapBytesByTs: ReadonlyMap<bigint, number>;
 }
 
@@ -91,53 +88,26 @@ async function loadHeroTimelineData(
   }
   const smaps: SmapsSnap[] = Array.from(byTs.values());
 
-  // 2. Fallback RSS counter curve when smaps has < 2 snapshots
-  const rssCounters: CounterPoint[] = [];
-  if (smaps.length < 2) {
-    const rssRes = await trace.engine.query(`
-      SELECT c.ts AS ts, CAST(c.value AS INT) AS bytes
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      WHERE t.upid = ${upid} AND t.name = 'mem.rss'
-      ORDER BY c.ts ASC
-    `);
-    const raw: CounterPoint[] = [];
-    for (
-      const it = rssRes.iter({ts: LONG, bytes: NUM});
-      it.valid();
-      it.next()
-    ) {
-      raw.push({ts: Time.fromRaw(it.ts), bytes: Math.max(0, it.bytes)});
-    }
-    // Downsample if there are thousands of counter ticks.
-    const maxPts = 360;
-    const step = raw.length > maxPts ? Math.ceil(raw.length / maxPts) : 1;
-    for (let i = 0; i < raw.length; i += step) {
-      const pt = raw[i];
-      if (pt !== undefined) rssCounters.push(pt);
-    }
-    const lastRaw = raw[raw.length - 1];
-    if (
-      lastRaw !== undefined &&
-      rssCounters[rssCounters.length - 1] !== lastRaw
-    ) {
-      rssCounters.push(lastRaw);
-    }
-  }
-
-  // 3. Native heapprofd sample timestamps
-  const nativeTs: time[] = [];
+  // 2. Native heapprofd sample timestamps + per-sample net delta bytes
+  const nativeSnaps: NativeSnap[] = [];
   const nativeRes = await trace.engine.query(`
-    SELECT DISTINCT a.ts AS ts
+    SELECT
+      a.ts AS ts,
+      CAST(ifnull(SUM(a.size), 0) AS INT) AS delta_bytes
     FROM heap_profile_allocation a
     WHERE a.upid = ${upid}
+    GROUP BY a.ts
     ORDER BY a.ts ASC
   `);
-  for (const it = nativeRes.iter({ts: LONG}); it.valid(); it.next()) {
-    nativeTs.push(Time.fromRaw(it.ts));
+  for (
+    const it = nativeRes.iter({ts: LONG, delta_bytes: NUM});
+    it.valid();
+    it.next()
+  ) {
+    nativeSnaps.push({ts: Time.fromRaw(it.ts), deltaBytes: it.delta_bytes});
   }
 
-  // 4. Optional Java heap size per dump (used when no smaps/RSS curve exists)
+  // 3. Optional Java heap size per dump (for rich tooltips / hover HUD)
   const javaHeapBytesByTs = new Map<bigint, number>();
   try {
     await trace.engine.query(
@@ -157,10 +127,10 @@ async function loadHeroTimelineData(
       javaHeapBytesByTs.set(it.ts, Math.max(0, it.bytes));
     }
   } catch {
-    // Module unavailable or empty — pins still plot on the time axis.
+    // Module unavailable or empty — pins still render on the Java track.
   }
 
-  return {smaps, rssCounters, nativeTs, javaHeapBytesByTs};
+  return {smaps, nativeSnaps, javaHeapBytesByTs};
 }
 
 export interface MemoryTimelineHeroAttrs {
@@ -173,47 +143,71 @@ export interface MemoryTimelineHeroAttrs {
   readonly onSelectDump?: (dump: HeapDump) => void;
 }
 
-const PAD_LEFT = 62;
+const PAD_LEFT = 132;
 const PAD_RIGHT = 20;
-const CHART_TOP = 28;
-const CHART_BOTTOM = 152;
-const LANE_Y = 172;
-const AXIS_Y = 194;
-const SVG_HEIGHT = 212;
+const TRACKS_TOP = 24;
+const TRACK_H = 34;
+const TRACK_GAP = 6;
+const TRACK_COUNT = 3;
+const TRACKS_BOTTOM =
+  TRACKS_TOP + TRACK_COUNT * TRACK_H + (TRACK_COUNT - 1) * TRACK_GAP;
+const AXIS_Y = TRACKS_BOTTOM + 16;
+const SVG_HEIGHT = AXIS_Y + 10;
 const DRAG_THRESHOLD_PX = 6;
 
 type DragMode = 'range' | 'resize-base' | 'resize-sel';
+type TrackKind = 'smaps' | 'java' | 'native';
+
+function trackCenterY(idx: number): number {
+  return TRACKS_TOP + idx * (TRACK_H + TRACK_GAP) + TRACK_H / 2;
+}
+
+function trackTopY(idx: number): number {
+  return TRACKS_TOP + idx * (TRACK_H + TRACK_GAP);
+}
 
 export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAttrs> {
   private readonly slot = new AsyncMemo<HeroTimelineData>();
   private resizeObserver?: ResizeObserver;
+  private observedWrap?: HTMLElement;
   private containerWidth = 960;
 
-  // Interactive pointer drag & hover state (in SVG pixel space)
   private dragMode?: DragMode;
   private dragAnchorX = 0;
   private dragCurrentX = 0;
   private hoverX?: number;
+  private hoverTrack?: TrackKind;
+
+  private observeWrap(dom: Element) {
+    const wrap = dom.querySelector('.pf-memtl__canvas-wrap');
+    if (!(wrap instanceof HTMLElement)) return;
+    if (this.observedWrap === wrap) return;
+    this.resizeObserver?.disconnect();
+    this.observedWrap = wrap;
+    const update = () => {
+      const w = Math.max(360, Math.floor(wrap.clientWidth));
+      if (w !== this.containerWidth) {
+        this.containerWidth = w;
+        m.redraw();
+      }
+    };
+    update();
+    this.resizeObserver = new ResizeObserver(update);
+    this.resizeObserver.observe(wrap);
+  }
 
   oncreate({dom}: m.VnodeDOM<MemoryTimelineHeroAttrs>) {
-    const wrap = dom.querySelector('.pf-memtl__canvas-wrap');
-    if (wrap instanceof HTMLElement) {
-      const update = () => {
-        const w = Math.max(320, Math.floor(wrap.clientWidth));
-        if (w !== this.containerWidth) {
-          this.containerWidth = w;
-          m.redraw();
-        }
-      };
-      update();
-      this.resizeObserver = new ResizeObserver(update);
-      this.resizeObserver.observe(wrap);
-    }
+    this.observeWrap(dom);
+  }
+
+  onupdate({dom}: m.VnodeDOM<MemoryTimelineHeroAttrs>) {
+    this.observeWrap(dom);
   }
 
   onremove() {
     this.resizeObserver?.disconnect();
     this.resizeObserver = undefined;
+    this.observedWrap = undefined;
     this.slot.dispose();
   }
 
@@ -234,8 +228,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     }).data;
 
     const smaps = data?.smaps ?? [];
-    const rssCounters = data?.rssCounters ?? [];
-    const nativeTs = data?.nativeTs ?? [];
+    const nativeSnaps = data?.nativeSnaps ?? [];
     const javaHeapBytesByTs =
       data?.javaHeapBytesByTs ?? new Map<bigint, number>();
 
@@ -245,8 +238,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const durationS = spanNs / 1e9;
 
     const svgW = this.containerWidth;
-    const plotW = Math.max(100, svgW - PAD_LEFT - PAD_RIGHT);
-    const plotH = CHART_BOTTOM - CHART_TOP;
+    const plotW = Math.max(120, svgW - PAD_LEFT - PAD_RIGHT);
 
     const xOfTs = (ts: time): number => {
       const frac = Math.min(1, Math.max(0, Number(ts - traceStart) / spanNs));
@@ -262,90 +254,12 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const secOf = (ts: time): string =>
       `${(Number(ts - traceStart) / 1e9).toFixed(1)}s`;
 
-    // Determine Y scale across whichever series we are plotting.
-    let rawMaxBytes = 0;
-    for (const s of smaps) rawMaxBytes = Math.max(rawMaxBytes, s.total);
-    if (smaps.length < 2) {
-      for (const c of rssCounters) rawMaxBytes = Math.max(rawMaxBytes, c.bytes);
-    }
-    if (rawMaxBytes === 0) {
-      for (const bytes of javaHeapBytesByTs.values()) {
-        rawMaxBytes = Math.max(rawMaxBytes, bytes);
-      }
-    }
-    const yStep =
-      rawMaxBytes > 0 ? niceKbInterval(rawMaxBytes / 1024) * 1024 : 1024 * 1024;
-    const yMax = Math.max(yStep, Math.ceil(rawMaxBytes / yStep) * yStep);
-    const yTicks: number[] = [];
-    for (let v = 0; v <= yMax; v += yStep) {
-      yTicks.push(v);
-      if (yTicks.length >= 6) break;
-    }
-    const yOfBytes = (bytes: number): number =>
-      CHART_BOTTOM - Math.min(1, Math.max(0, bytes / yMax)) * plotH;
-
-    // Build stacked area polygons for smaps categories (bottom to top).
-    const activeCategories = SMAPS_CATEGORIES.filter((cat) =>
-      smaps.some((s) => (s.byCategory.get(cat.key) ?? 0) > 0),
-    );
-    const stackedAreas: {key: string; color: string; path: string}[] = [];
-    if (smaps.length >= 2) {
-      const running = new Array<number>(smaps.length).fill(0);
-      for (const cat of activeCategories) {
-        const lowerY = running.map((v) => yOfBytes(v));
-        for (let i = 0; i < smaps.length; i++) {
-          const snap = smaps[i];
-          if (snap === undefined) continue;
-          running[i] = (running[i] ?? 0) + (snap.byCategory.get(cat.key) ?? 0);
-        }
-        const upperY = running.map((v) => yOfBytes(v));
-        const topPts = smaps
-          .map(
-            (s, i) =>
-              `${xOfTs(s.ts).toFixed(1)},${(upperY[i] ?? CHART_BOTTOM).toFixed(1)}`,
-          )
-          .join(' L');
-        const botPts = smaps
-          .map((s, i) => ({
-            x: xOfTs(s.ts).toFixed(1),
-            y: (lowerY[i] ?? CHART_BOTTOM).toFixed(1),
-          }))
-          .reverse()
-          .map((p) => `${p.x},${p.y}`)
-          .join(' L');
-        stackedAreas.push({
-          key: cat.key,
-          color: cat.color,
-          path: `M${topPts} L${botPts} Z`,
-        });
-      }
-    }
-
-    // Top ridge line for smaps or fallback RSS counter curve.
-    let ridgeLinePath = '';
-    let fallbackAreaPath = '';
-    if (smaps.length >= 2) {
-      ridgeLinePath = smaps
-        .map(
-          (s, i) =>
-            `${i === 0 ? 'M' : 'L'}${xOfTs(s.ts).toFixed(1)},${yOfBytes(s.total).toFixed(1)}`,
-        )
-        .join(' ');
-    } else if (rssCounters.length >= 2) {
-      ridgeLinePath = rssCounters
-        .map(
-          (p, i) =>
-            `${i === 0 ? 'M' : 'L'}${xOfTs(p.ts).toFixed(1)},${yOfBytes(p.bytes).toFixed(1)}`,
-        )
-        .join(' ');
-      const firstPt = rssCounters[0];
-      const lastPt = rssCounters[rssCounters.length - 1];
-      if (firstPt !== undefined && lastPt !== undefined) {
-        fallbackAreaPath =
-          `${ridgeLinePath} L${xOfTs(lastPt.ts).toFixed(1)},${CHART_BOTTOM} ` +
-          `L${xOfTs(firstPt.ts).toFixed(1)},${CHART_BOTTOM} Z`;
-      }
-    }
+    const trackAtY = (y: number): TrackKind | undefined => {
+      if (y >= trackTopY(0) && y <= trackTopY(0) + TRACK_H) return 'smaps';
+      if (y >= trackTopY(1) && y <= trackTopY(1) + TRACK_H) return 'java';
+      if (y >= trackTopY(2) && y <= trackTopY(2) + TRACK_H) return 'native';
+      return undefined;
+    };
 
     // Active range or live drag preview coordinates.
     const isDragging = this.dragMode !== undefined;
@@ -364,7 +278,6 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
           }
         : undefined;
 
-    // Live delta calculation for header badge / drag curtain pill.
     const liveBaseTs =
       isDragRange && liveRange !== undefined
         ? tsOfX(liveRange.x1)
@@ -402,14 +315,17 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       });
     }
 
-    // Pointer event handlers on the SVG surface (full-width drag + click!).
-    const localX = (e: PointerEvent): number => {
+    const localCoords = (
+      e: PointerEvent,
+    ): {x: number; rawX: number; y: number} => {
       const svg = e.currentTarget as SVGSVGElement;
       const rect = svg.getBoundingClientRect();
-      return Math.min(
-        PAD_LEFT + plotW,
-        Math.max(PAD_LEFT, e.clientX - rect.left),
-      );
+      const rawX = e.clientX - rect.left;
+      return {
+        x: Math.min(PAD_LEFT + plotW, Math.max(PAD_LEFT, rawX)),
+        rawX,
+        y: e.clientY - rect.top,
+      };
     };
 
     const startDrag = (mode: DragMode, anchorX: number, e: PointerEvent) => {
@@ -430,20 +346,26 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         this.dragAnchorX = anchorX;
         this.dragCurrentX = curX;
         this.hoverX = undefined;
+        this.hoverTrack = undefined;
       }
     };
 
     const onPointerDown = (e: PointerEvent) => {
-      const x = localX(e);
+      const {x, rawX} = localCoords(e);
+      if (rawX < PAD_LEFT) return;
       startDrag('range', x, e);
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      const x = localX(e);
+      const {x, rawX, y} = localCoords(e);
       if (this.dragMode !== undefined) {
         this.dragCurrentX = x;
+      } else if (rawX < PAD_LEFT) {
+        this.hoverX = undefined;
+        this.hoverTrack = undefined;
       } else {
         this.hoverX = x;
+        this.hoverTrack = trackAtY(y);
       }
     };
 
@@ -456,13 +378,13 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       const mode = this.dragMode;
       const x1 = Math.min(this.dragAnchorX, this.dragCurrentX);
       const x2 = Math.max(this.dragAnchorX, this.dragCurrentX);
+      const {y} = localCoords(e);
       this.dragMode = undefined;
 
       if (mode !== 'range' || x2 - x1 >= DRAG_THRESHOLD_PX) {
         const tBase = tsOfX(x1);
         const tSel = tsOfX(x2);
         onSelect({base: tBase, sel: tSel});
-        // Align active heap dump to the end of the dragged range if dumps exist.
         if (procDumps.length > 0 && onSelectDump !== undefined) {
           const nearestDump = nearestByTs(procDumps, tSel);
           if (nearestDump !== undefined) onSelectDump(nearestDump);
@@ -470,55 +392,106 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         return;
       }
 
-      // Short click: check if near a Java heap dump pin first.
+      // Click: snap to the nearest marker on the clicked track first, then fall
+      // back to any nearby marker across all tracks.
       const clickX = this.dragCurrentX;
-      for (const d of procDumps) {
-        if (Math.abs(xOfTs(d.ts) - clickX) <= 12) {
+      const clickedTrack = trackAtY(y);
+      const clickTs = tsOfX(clickX);
+
+      if (clickedTrack === 'java' && procDumps.length > 0) {
+        const d = nearestByTs(procDumps, clickTs);
+        if (d !== undefined) {
           onSelect({sel: d.ts});
           onSelectDump?.(d);
           return;
         }
       }
-      // Otherwise snap to nearest smaps snapshot or exact timestamp.
-      const clickTs = tsOfX(clickX);
-      const nearestSmap =
-        smaps.length > 0 ? nearestByTs(smaps, clickTs) : undefined;
-      const targetTs = nearestSmap?.ts ?? clickTs;
+      if (clickedTrack === 'smaps' && smaps.length > 0) {
+        const s = nearestByTs(smaps, clickTs);
+        if (s !== undefined) {
+          onSelect({sel: s.ts});
+          if (procDumps.length > 0 && onSelectDump !== undefined) {
+            const d = nearestByTs(procDumps, s.ts);
+            if (d !== undefined) onSelectDump(d);
+          }
+          return;
+        }
+      }
+      if (clickedTrack === 'native' && nativeSnaps.length > 0) {
+        const n = nearestByTs(nativeSnaps, clickTs);
+        if (n !== undefined) {
+          onSelect({sel: n.ts});
+          return;
+        }
+      }
+
+      // Fallback: nearest sample across any track
+      const candidates: {ts: time; dump?: HeapDump}[] = [
+        ...smaps.map((s) => ({ts: s.ts})),
+        ...procDumps.map((d) => ({ts: d.ts, dump: d})),
+        ...nativeSnaps.map((n) => ({ts: n.ts})),
+      ];
+      const nearest = nearestByTs(candidates, clickTs);
+      const targetTs = nearest?.ts ?? clickTs;
       onSelect({sel: targetTs});
-      if (procDumps.length > 0 && onSelectDump !== undefined) {
-        const nearestDump = nearestByTs(procDumps, targetTs);
-        if (nearestDump !== undefined) onSelectDump(nearestDump);
+      if (nearest?.dump !== undefined) {
+        onSelectDump?.(nearest.dump);
+      } else if (procDumps.length > 0 && onSelectDump !== undefined) {
+        const d = nearestByTs(procDumps, targetTs);
+        if (d !== undefined) onSelectDump(d);
       }
     };
 
     const onPointerLeave = () => {
       if (this.dragMode === undefined) {
         this.hoverX = undefined;
+        this.hoverTrack = undefined;
       }
     };
 
-    // Hover info readout
-    const hoverTs = this.hoverX !== undefined ? tsOfX(this.hoverX) : undefined;
-    const hoverSnap =
-      hoverTs !== undefined && smaps.length > 0
-        ? nearestByTs(smaps, hoverTs)
-        : undefined;
-    const hoverDump =
-      this.hoverX !== undefined
-        ? procDumps.find((d) => Math.abs(xOfTs(d.ts) - this.hoverX!) <= 12)
-        : undefined;
+    // Hover HUD readout
+    const hoverX = this.hoverX;
+    const hoverTs = hoverX !== undefined ? tsOfX(hoverX) : undefined;
+    const pickHover = <T extends {readonly ts: time}>(
+      items: ReadonlyArray<T>,
+      track: TrackKind,
+      radiusPx: number,
+    ): T | undefined => {
+      if (hoverX === undefined || hoverTs === undefined || items.length === 0) {
+        return undefined;
+      }
+      const nearest = nearestByTs(items, hoverTs);
+      if (nearest === undefined) return undefined;
+      if (
+        this.hoverTrack === track ||
+        Math.abs(xOfTs(nearest.ts) - hoverX) <= radiusPx
+      ) {
+        return nearest;
+      }
+      return undefined;
+    };
+    const hoverSnap = pickHover(smaps, 'smaps', 12);
+    const hoverDump = pickHover(procDumps, 'java', 14);
+    const hoverNative = pickHover(nativeSnaps, 'native', 10);
+    const hoverDumpBytes =
+      hoverDump !== undefined ? javaHeapBytesByTs.get(hoverDump.ts) : undefined;
 
     const firstSmap = smaps[0];
     const lastSmap = smaps[smaps.length - 1];
     const firstDump = procDumps[0];
     const lastDump = procDumps[procDumps.length - 1];
+    const firstNative = nativeSnaps[0];
+    const lastNative = nativeSnaps[nativeSnaps.length - 1];
     const canCompareFullTrace =
       (smaps.length >= 2 &&
         firstSmap !== undefined &&
         lastSmap !== undefined) ||
       (procDumps.length >= 2 &&
         firstDump !== undefined &&
-        lastDump !== undefined);
+        lastDump !== undefined) ||
+      (nativeSnaps.length >= 2 &&
+        firstNative !== undefined &&
+        lastNative !== undefined);
 
     const compareFullTrace = () => {
       if (
@@ -534,6 +507,12 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       ) {
         onSelect({base: firstDump.ts, sel: lastDump.ts});
         onSelectDump?.(lastDump);
+      } else if (
+        nativeSnaps.length >= 2 &&
+        firstNative !== undefined &&
+        lastNative !== undefined
+      ) {
+        onSelect({base: firstNative.ts, sel: lastNative.ts});
       }
     };
 
@@ -549,19 +528,36 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       onClear: () => onSelect(undefined),
     });
 
+    const tracks: ReadonlyArray<{
+      readonly id: TrackKind;
+      readonly label: string;
+      readonly count: number;
+    }> = [
+      {id: 'smaps', label: 'Smaps', count: smaps.length},
+      {id: 'java', label: 'Java Heap', count: procDumps.length},
+      {id: 'native', label: 'Native', count: nativeSnaps.length},
+    ];
+
+    const isInRange = (ts: time): boolean => {
+      if (liveBaseTs === undefined || liveSelTs === undefined) return false;
+      const lo = liveBaseTs < liveSelTs ? liveBaseTs : liveSelTs;
+      const hi = liveBaseTs < liveSelTs ? liveSelTs : liveBaseTs;
+      return ts >= lo && ts <= hi;
+    };
+
     return m(
       Panel,
       {className: 'pf-memtl-hero'},
       m(Panel.Header, {
-        title: 'Memory Timeline',
+        title: 'Memory Samples Timeline',
         subtitle:
-          'Drag across the timeline to select a time range and view all ' +
-          'sections below as a delta (Δ). Click any sample to pin.',
+          'Drag across the tracks to select a time range and view all ' +
+          'sections below as a delta (Δ). Click any marker to pin.',
         controls: headerStatus,
       }),
       m(Panel.Body, {className: 'pf-memtl-hero__body'}, [
         data === undefined
-          ? m('.pf-memscope-placeholder', 'Loading memory timeline…')
+          ? m('.pf-memscope-placeholder', 'Loading memory samples…')
           : m('.pf-memtl__canvas-wrap', [
               m(
                 'svg.pf-memtl__svg',
@@ -576,89 +572,111 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                   ondblclick: () => onSelect(undefined),
                 },
                 [
-                  // Horizontal gridlines & Y-axis byte labels
-                  yTicks.map((v) => {
-                    const y = yOfBytes(v);
-                    return m('g', {key: `y-${v}`}, [
-                      m('line.pf-memtl__gridline', {
-                        x1: PAD_LEFT,
-                        y1: y,
-                        x2: PAD_LEFT + plotW,
-                        y2: y,
-                      }),
-                      m(
-                        'text.pf-memtl__ylabel',
-                        {x: PAD_LEFT - 8, y: y + 3.5},
-                        v === 0 ? '0' : formatBytes(v),
-                      ),
-                    ]);
-                  }),
-
-                  // Stacked smaps area curves
-                  stackedAreas.map((area) =>
-                    m('path.pf-memtl__area', {
-                      key: area.key,
-                      d: area.path,
-                      fill: area.color,
-                    }),
-                  ),
-
-                  // Fallback RSS counter fill when < 2 smaps
-                  fallbackAreaPath !== '' &&
-                    m('path.pf-memtl__fallback-area', {d: fallbackAreaPath}),
-
-                  // Single-snapshot smaps bar when exactly 1 smaps snapshot
-                  smaps.length === 1 &&
-                    firstSmap !== undefined &&
-                    m('rect.pf-memtl__single-bar', {
-                      x: xOfTs(firstSmap.ts) - 8,
-                      y: yOfBytes(firstSmap.total),
-                      width: 16,
-                      height: Math.max(
-                        2,
-                        CHART_BOTTOM - yOfBytes(firstSmap.total),
-                      ),
-                      rx: 3,
-                    }),
-
-                  // Top ridge line
-                  ridgeLinePath !== '' &&
-                    m('path.pf-memtl__ridge', {d: ridgeLinePath}),
-
-                  // Dedicated sample-markers track backdrop
-                  m('rect.pf-memtl__lane-bg', {
-                    x: PAD_LEFT,
-                    y: CHART_BOTTOM + 6,
-                    width: plotW,
-                    height: 26,
-                    rx: 4,
-                  }),
-                  m(
-                    'text.pf-memtl__lane-label',
-                    {x: PAD_LEFT - 8, y: LANE_Y + 3},
-                    'Samples',
-                  ),
-
-                  // Native heapprofd sample ticks (orange)
-                  nativeTs.map((ts, i) => {
-                    const x = xOfTs(ts);
+                  // Track lanes & left track headers
+                  tracks.map((trk, idx) => {
+                    const topY = trackTopY(idx);
+                    const midY = trackCenterY(idx);
+                    const isEmpty = trk.count === 0;
+                    const isHoveredTrack = this.hoverTrack === trk.id;
                     return m(
-                      'line.pf-memtl__native-tick',
+                      'g.pf-memtl__track',
                       {
-                        key: `nat-${ts.toString()}`,
-                        x1: x,
-                        y1: LANE_Y + 3,
-                        x2: x,
-                        y2: LANE_Y + 11,
+                        key: trk.id,
+                        class: classNames(
+                          isEmpty && 'pf-memtl__track--empty',
+                          isHoveredTrack && 'pf-memtl__track--hovered',
+                        ),
                       },
-                      m('title', `heapprofd sample #${i + 1} · t=${secOf(ts)}`),
+                      [
+                        // Track band background
+                        m('rect.pf-memtl__track-bg', {
+                          x: PAD_LEFT,
+                          y: topY,
+                          width: plotW,
+                          height: TRACK_H,
+                          rx: 6,
+                        }),
+                        // Center guide rail inside track
+                        m('line.pf-memtl__track-rail', {
+                          x1: PAD_LEFT + 8,
+                          y1: midY,
+                          x2: PAD_LEFT + plotW - 8,
+                          y2: midY,
+                        }),
+                        // Left track badge shape matching its markers
+                        trk.id === 'smaps' &&
+                          m(
+                            'circle.pf-memtl__badge-dot.pf-memtl__badge-dot--smaps',
+                            {
+                              cx: 12,
+                              cy: midY,
+                              r: 4.5,
+                            },
+                          ),
+                        trk.id === 'java' &&
+                          m(
+                            'polygon.pf-memtl__badge-dot.pf-memtl__badge-dot--java',
+                            {
+                              points: `12,${midY - 5.5} 17.5,${midY} 12,${midY + 5.5} 6.5,${midY}`,
+                            },
+                          ),
+                        trk.id === 'native' &&
+                          m(
+                            'rect.pf-memtl__badge-dot.pf-memtl__badge-dot--native',
+                            {
+                              x: 9.5,
+                              y: midY - 6,
+                              width: 5,
+                              height: 12,
+                              rx: 2.5,
+                            },
+                          ),
+                        // Track name + count
+                        m(
+                          'text.pf-memtl__track-name',
+                          {x: 24, y: midY + 4},
+                          trk.label,
+                        ),
+                        m(
+                          'text.pf-memtl__track-count',
+                          {x: PAD_LEFT - 10, y: midY + 4},
+                          `${trk.count}`,
+                        ),
+                        isEmpty &&
+                          m(
+                            'text.pf-memtl__track-empty-msg',
+                            {x: PAD_LEFT + plotW / 2, y: midY + 4},
+                            'No samples captured',
+                          ),
+                      ],
                     );
                   }),
 
-                  // Smaps sample vertical guides + curve dots + lane dots (green)
+                  // Subtle vertical time gridlines
+                  xTicks.map((t, i) =>
+                    m('line.pf-memtl__vgrid', {
+                      key: `vg-${i}`,
+                      x1: t.x,
+                      y1: TRACKS_TOP,
+                      x2: t.x,
+                      y2: TRACKS_BOTTOM,
+                    }),
+                  ),
+
+                  // Shaded Range Selection Curtain (behind markers so markers pop!)
+                  liveRange !== undefined &&
+                    m('rect.pf-memtl__curtain', {
+                      x: liveRange.x1,
+                      y: TRACKS_TOP - 2,
+                      width: Math.max(2, liveRange.x2 - liveRange.x1),
+                      height: TRACKS_BOTTOM - TRACKS_TOP + 4,
+                      rx: 4,
+                    }),
+
+                  // TRACK 0: Smaps snapshot markers (green circular pins)
                   smaps.map((s, i) => {
                     const x = xOfTs(s.ts);
-                    const y = yOfBytes(s.total);
+                    const cy = trackCenterY(0);
                     const isEnd =
                       selection !== undefined &&
                       nearestByTs(smaps, selection.sel)?.ts === s.ts;
@@ -666,87 +684,78 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       selection?.base !== undefined &&
                       nearestByTs(smaps, selection.base)?.ts === s.ts &&
                       !isEnd;
-                    return m('g', {key: `smap-${s.ts.toString()}`}, [
-                      m('line.pf-memtl__sample-guide', {
-                        x1: x,
-                        y1: y,
-                        x2: x,
-                        y2: LANE_Y,
-                      }),
-                      m(
-                        'circle.pf-memtl__smaps-dot',
-                        {
+                    const isHovered = !isDragging && hoverSnap?.ts === s.ts;
+                    const inWin = isInRange(s.ts);
+                    const r = isEnd || isBase || isHovered ? 6.5 : 5;
+                    return m(
+                      'g.pf-memtl__marker.pf-memtl__marker--smaps',
+                      {
+                        key: `smap-${s.ts.toString()}`,
+                        class: classNames(
+                          isEnd && 'pf-memtl__marker--sel',
+                          isBase && 'pf-memtl__marker--base',
+                          isHovered && 'pf-memtl__marker--hovered',
+                          inWin && 'pf-memtl__marker--in-range',
+                        ),
+                      },
+                      [
+                        (isEnd || isBase || isHovered) &&
+                          m('circle.pf-memtl__marker-halo', {
+                            cx: x,
+                            cy,
+                            r: r + 4,
+                          }),
+                        m('circle.pf-memtl__smaps-dot', {cx: x, cy, r}),
+                        m('circle.pf-memtl__smaps-core', {
                           cx: x,
-                          cy: y,
-                          r: isEnd || isBase ? 5 : 3.2,
-                          class: isEnd
-                            ? 'pf-memtl__smaps-dot--sel'
-                            : isBase
-                              ? 'pf-memtl__smaps-dot--base'
-                              : undefined,
-                        },
+                          cy,
+                          r: isEnd || isBase || isHovered ? 2.2 : 1.6,
+                        }),
                         m(
                           'title',
                           `Smaps #${i + 1} · t=${secOf(s.ts)} · ${formatBytes(s.total)}`,
                         ),
-                      ),
-                      m('circle.pf-memtl__smaps-lane-dot', {
-                        cx: x,
-                        cy: LANE_Y - 3,
-                        r: 2.5,
-                      }),
-                    ]);
+                      ],
+                    );
                   }),
 
-                  // Java heap dump markers (blue diamonds + vertical dashed line)
+                  // TRACK 1: Java Heap Dump markers (blue faceted diamonds + #idx)
                   procDumps.map((d, i) => {
                     const x = xOfTs(d.ts);
+                    const cy = trackCenterY(1);
                     const isActive =
                       activeDump !== null &&
                       activeDump.upid === d.upid &&
                       activeDump.ts === d.ts;
+                    const isHovered = !isDragging && hoverDump?.ts === d.ts;
+                    const inWin = isInRange(d.ts);
                     const heapBytes = javaHeapBytesByTs.get(d.ts);
-                    const r = isActive ? 6.5 : 5;
-                    const cy = LANE_Y - 1;
+                    const r = isActive || isHovered ? 8 : 6.5;
                     const pts = `${x},${cy - r} ${x + r},${cy} ${x},${cy + r} ${x - r},${cy}`;
+                    const innerR = r * 0.36;
+                    const innerPts = `${x},${cy - innerR} ${x + innerR},${cy} ${x},${cy + innerR} ${x - innerR},${cy}`;
                     return m(
-                      'g.pf-memtl__dump-pin',
+                      'g.pf-memtl__marker.pf-memtl__marker--java',
                       {
-                        key: `dump-${d.ts.toString()}`,
-                        class: isActive
-                          ? 'pf-memtl__dump-pin--active'
-                          : undefined,
+                        key: `dump-${i}-${d.ts.toString()}`,
+                        class: classNames(
+                          isActive && 'pf-memtl__marker--active',
+                          isHovered && 'pf-memtl__marker--hovered',
+                          inWin && 'pf-memtl__marker--in-range',
+                        ),
                       },
                       [
-                        m('line.pf-memtl__dump-guide', {
-                          x1: x,
-                          y1: CHART_TOP,
-                          x2: x,
-                          y2: cy - r,
-                        }),
-                        heapBytes !== undefined &&
-                          smaps.length === 0 &&
-                          rssCounters.length < 2 &&
-                          m('rect.pf-memtl__dump-bar', {
-                            x: x - 9,
-                            y: yOfBytes(heapBytes),
-                            width: 18,
-                            height: Math.max(
-                              2,
-                              CHART_BOTTOM - yOfBytes(heapBytes),
-                            ),
-                            rx: 3,
-                          }),
-                        isActive &&
-                          m('circle.pf-memtl__dump-halo', {
+                        (isActive || isHovered) &&
+                          m('circle.pf-memtl__marker-halo', {
                             cx: x,
                             cy,
-                            r: r + 3.5,
+                            r: r + 4.5,
                           }),
                         m('polygon.pf-memtl__dump-diamond', {points: pts}),
+                        m('polygon.pf-memtl__dump-core', {points: innerPts}),
                         m(
                           'text.pf-memtl__dump-tag',
-                          {x: x + r + 4, y: cy + 3.5},
+                          {x: x + r + 5, y: cy + 3.5},
                           `#${i + 1}`,
                         ),
                         m(
@@ -760,86 +769,122 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     );
                   }),
 
-                  // Single-point pinned selection marker (when not in range mode)
+                  // TRACK 2: Native heapprofd sample markers (orange capsules)
+                  nativeSnaps.map((n, i) => {
+                    const x = xOfTs(n.ts);
+                    const cy = trackCenterY(2);
+                    const isEnd =
+                      selection !== undefined &&
+                      selection.base === undefined &&
+                      nearestByTs(nativeSnaps, selection.sel)?.ts === n.ts;
+                    const isHovered = !isDragging && hoverNative?.ts === n.ts;
+                    const inWin = isInRange(n.ts);
+                    const w = isEnd || isHovered ? 6.5 : 5;
+                    const h = isEnd || isHovered ? 18 : 14;
+                    return m(
+                      'g.pf-memtl__marker.pf-memtl__marker--native',
+                      {
+                        key: `nat-${n.ts.toString()}`,
+                        class: classNames(
+                          isEnd && 'pf-memtl__marker--sel',
+                          isHovered && 'pf-memtl__marker--hovered',
+                          inWin && 'pf-memtl__marker--in-range',
+                        ),
+                      },
+                      [
+                        (isEnd || isHovered) &&
+                          m('rect.pf-memtl__marker-halo', {
+                            x: x - w / 2 - 3,
+                            y: cy - h / 2 - 3,
+                            width: w + 6,
+                            height: h + 6,
+                            rx: 5,
+                          }),
+                        m('rect.pf-memtl__native-pill', {
+                          x: x - w / 2,
+                          y: cy - h / 2,
+                          width: w,
+                          height: h,
+                          rx: w / 2,
+                        }),
+                        m(
+                          'title',
+                          `Native sample #${i + 1} · t=${secOf(n.ts)} · ${formatDelta(n.deltaBytes)}`,
+                        ),
+                      ],
+                    );
+                  }),
+
+                  // Single-point pinned selection line
                   !isDragRange &&
                     selection !== undefined &&
                     selection.base === undefined &&
                     m('g.pf-memtl__pin-line', [
                       m('line', {
                         x1: xOfTs(selection.sel),
-                        y1: CHART_TOP - 4,
+                        y1: TRACKS_TOP - 4,
                         x2: xOfTs(selection.sel),
-                        y2: CHART_BOTTOM + 32,
+                        y2: TRACKS_BOTTOM + 4,
                       }),
                       m(
                         'text.pf-memtl__pin-label',
                         {
                           x: Math.min(
-                            PAD_LEFT + plotW - 44,
-                            Math.max(PAD_LEFT + 44, xOfTs(selection.sel)),
+                            PAD_LEFT + plotW - 40,
+                            Math.max(PAD_LEFT + 40, xOfTs(selection.sel)),
                           ),
-                          y: CHART_TOP - 10,
+                          y: TRACKS_TOP - 9,
                         },
                         `t=${secOf(selection.sel)}`,
                       ),
                     ]),
 
-                  // Shaded Range Selection Curtain + draggable Base/End handles
+                  // Range Selection Edges + Draggable Handles + Floating Label
                   liveRange !== undefined &&
                     m('g.pf-memtl__selection', [
-                      m('rect.pf-memtl__curtain', {
-                        x: liveRange.x1,
-                        y: CHART_TOP - 2,
-                        width: Math.max(2, liveRange.x2 - liveRange.x1),
-                        height: CHART_BOTTOM - CHART_TOP + 34,
-                        rx: 3,
-                      }),
-                      // Left (BASE) boundary line + drag handle
                       m('line.pf-memtl__edge.pf-memtl__edge--base', {
                         x1: liveRange.x1,
-                        y1: CHART_TOP - 4,
+                        y1: TRACKS_TOP - 4,
                         x2: liveRange.x1,
-                        y2: CHART_BOTTOM + 32,
+                        y2: TRACKS_BOTTOM + 4,
                       }),
                       !isDragging &&
                         m('rect.pf-memtl__handle.pf-memtl__handle--base', {
                           x: liveRange.x1 - 5,
-                          y: (CHART_TOP + CHART_BOTTOM) / 2 - 14,
+                          y: (TRACKS_TOP + TRACKS_BOTTOM) / 2 - 14,
                           width: 10,
                           height: 28,
                           rx: 3,
                           onpointerdown: (e: PointerEvent) =>
                             startDrag('resize-base', liveRange.x2, e),
                         }),
-                      // Right (END) boundary line + drag handle
                       m('line.pf-memtl__edge.pf-memtl__edge--sel', {
                         x1: liveRange.x2,
-                        y1: CHART_TOP - 4,
+                        y1: TRACKS_TOP - 4,
                         x2: liveRange.x2,
-                        y2: CHART_BOTTOM + 32,
+                        y2: TRACKS_BOTTOM + 4,
                       }),
                       !isDragging &&
                         m('rect.pf-memtl__handle.pf-memtl__handle--sel', {
                           x: liveRange.x2 - 5,
-                          y: (CHART_TOP + CHART_BOTTOM) / 2 - 14,
+                          y: (TRACKS_TOP + TRACKS_BOTTOM) / 2 - 14,
                           width: 10,
                           height: 28,
                           rx: 3,
                           onpointerdown: (e: PointerEvent) =>
                             startDrag('resize-sel', liveRange.x1, e),
                         }),
-                      // Floating range label above curtain
                       m(
                         'text.pf-memtl__range-label',
                         {
                           x: Math.min(
-                            PAD_LEFT + plotW - 80,
+                            PAD_LEFT + plotW - 84,
                             Math.max(
-                              PAD_LEFT + 80,
+                              PAD_LEFT + 84,
                               (liveRange.x1 + liveRange.x2) / 2,
                             ),
                           ),
-                          y: CHART_TOP - 10,
+                          y: TRACKS_TOP - 9,
                         },
                         liveBaseTs !== undefined && liveSelTs !== undefined
                           ? `${secOf(liveBaseTs)} → ${secOf(liveSelTs)}` +
@@ -850,22 +895,22 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       ),
                     ]),
 
-                  // Hover crosshair
+                  // Hover crosshair spanning all 3 tracks
                   this.hoverX !== undefined &&
                     !isDragging &&
                     m('line.pf-memtl__crosshair', {
                       x1: this.hoverX,
-                      y1: CHART_TOP,
+                      y1: TRACKS_TOP,
                       x2: this.hoverX,
-                      y2: CHART_BOTTOM + 32,
+                      y2: TRACKS_BOTTOM,
                     }),
 
-                  // X-axis baseline + time tick labels
+                  // Time axis baseline + tick labels
                   m('line.pf-memtl__xaxis', {
                     x1: PAD_LEFT,
-                    y1: AXIS_Y - 12,
+                    y1: TRACKS_BOTTOM + 6,
                     x2: PAD_LEFT + plotW,
-                    y2: AXIS_Y - 12,
+                    y2: TRACKS_BOTTOM + 6,
                   }),
                   xTicks.map((t, i) =>
                     m(
@@ -877,76 +922,31 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                 ],
               ),
 
-              // Floating hover HUD pill (positioned via CSS top-right corner)
+              // Floating hover HUD pill
               hoverTs !== undefined &&
                 !isDragging &&
                 m('.pf-memtl__hud', [
                   m('span.pf-memtl__hud-ts', `t=${secOf(hoverTs)}`),
                   hoverSnap !== undefined &&
                     m(
-                      'span.pf-memtl__hud-val',
-                      `RSS+Swap: ${formatBytes(hoverSnap.total)}`,
+                      'span.pf-memtl__hud-smaps',
+                      `● Smaps: ${formatBytes(hoverSnap.total)}`,
                     ),
                   hoverDump !== undefined &&
                     m(
                       'span.pf-memtl__hud-dump',
-                      `◆ Java Dump #${procDumps.indexOf(hoverDump) + 1}`,
+                      `◆ Java Dump #${procDumps.indexOf(hoverDump) + 1}` +
+                        (hoverDumpBytes !== undefined
+                          ? ` (${formatBytes(hoverDumpBytes)})`
+                          : ''),
+                    ),
+                  hoverNative !== undefined &&
+                    m(
+                      'span.pf-memtl__hud-native',
+                      `▮ Native: ${formatDelta(hoverNative.deltaBytes)}`,
                     ),
                 ]),
             ]),
-
-        // Legend + quick-select strip
-        m('.pf-memtl__legend-row', [
-          m('.pf-memtl__legend-items', [
-            activeCategories.map((c) =>
-              m('span.pf-memtl__legend-item', {key: c.key}, [
-                m('span.pf-memscope-growth__swatch', {
-                  style: {background: c.color},
-                }),
-                c.label,
-              ]),
-            ),
-            m('.pf-memtl__legend-sep'),
-            m(
-              'span.pf-memtl__legend-source',
-              {
-                className: classNames(
-                  smaps.length === 0 && 'pf-memtl__legend-source--empty',
-                ),
-              },
-              [
-                m(
-                  'span.pf-memscope-capture__dot.pf-memscope-capture__dot--smaps',
-                ),
-                `smaps (${smaps.length})`,
-              ],
-            ),
-            m(
-              'span.pf-memtl__legend-source',
-              {
-                className: classNames(
-                  procDumps.length === 0 && 'pf-memtl__legend-source--empty',
-                ),
-              },
-              [
-                m('span.pf-memtl__legend-diamond'),
-                `java_hprof (${procDumps.length})`,
-              ],
-            ),
-            m(
-              'span.pf-memtl__legend-source',
-              {
-                className: classNames(
-                  nativeTs.length === 0 && 'pf-memtl__legend-source--empty',
-                ),
-              },
-              [
-                m('span.pf-memtl__legend-tick'),
-                `heapprofd (${nativeTs.length})`,
-              ],
-            ),
-          ]),
-        ]),
 
         // Inline Memory Delta Breakdown Bar
         this.renderDeltaBreakdown(trace, smaps, selection),

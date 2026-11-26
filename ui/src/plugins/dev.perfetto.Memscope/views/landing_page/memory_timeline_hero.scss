@@ -86,24 +86,88 @@
 .pf-memtl__svg {
   display: block;
   width: 100%;
-  height: 212px;
+  height: 164px;
   cursor: crosshair;
   touch-action: none;
 }
 
-.pf-memtl__gridline {
-  stroke: color-mix(in srgb, var(--pf-col-border) 55%, transparent);
-  stroke-width: 1;
-  stroke-dasharray: 2 3;
+// Track lanes
+.pf-memtl__track {
+  &--empty {
+    opacity: 0.52;
+  }
+
+  &--hovered .pf-memtl__track-bg {
+    fill: color-mix(in srgb, var(--pf-col-inset) 65%, var(--pf-col-surface));
+    stroke: color-mix(in srgb, var(--pf-col-border) 95%, transparent);
+  }
 }
 
-.pf-memtl__ylabel,
-.pf-memtl__lane-label {
-  font-size: 10px;
+.pf-memtl__track-bg {
+  fill: var(--pf-col-base);
+  stroke: color-mix(in srgb, var(--pf-col-border) 65%, transparent);
+  stroke-width: 1;
+  transition: fill 0.1s ease;
+  pointer-events: none;
+}
+
+.pf-memtl__track-rail {
+  stroke: color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  pointer-events: none;
+}
+
+.pf-memtl__badge-dot {
+  pointer-events: none;
+
+  &--smaps {
+    fill: #4caf50;
+  }
+
+  &--java {
+    fill: #2196f3;
+  }
+
+  &--native {
+    fill: #ff9800;
+  }
+}
+
+.pf-memtl__track-name {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--pf-color-text);
+  pointer-events: none;
+}
+
+.pf-memtl__track-count {
+  font-size: 11px;
   font-family: var(--pf-font-monospace);
   font-variant-numeric: tabular-nums;
-  fill: var(--pf-color-text-hint);
+  fill: var(--pf-color-text-muted);
   text-anchor: end;
+  pointer-events: none;
+}
+
+.pf-memtl__track-empty-msg {
+  font-size: 11px;
+  font-style: italic;
+  fill: var(--pf-color-text-hint);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.pf-memtl__vgrid {
+  stroke: color-mix(in srgb, var(--pf-col-border) 42%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  pointer-events: none;
+}
+
+.pf-memtl__xaxis {
+  stroke: var(--pf-col-border);
+  stroke-width: 1;
   pointer-events: none;
 }
 
@@ -116,125 +180,92 @@
   pointer-events: none;
 }
 
-.pf-memtl__xaxis {
-  stroke: var(--pf-col-border);
-  stroke-width: 1;
-}
-
-.pf-memtl__area {
-  opacity: 0.78;
-  pointer-events: none;
-}
-
-.pf-memtl__fallback-area {
-  fill: color-mix(in srgb, var(--pf-color-primary) 16%, transparent);
-  pointer-events: none;
-}
-
-.pf-memtl__single-bar {
-  fill: color-mix(in srgb, #4caf50 75%, transparent);
-  stroke: #4caf50;
-  stroke-width: 1;
-  pointer-events: none;
-}
-
-.pf-memtl__ridge {
-  fill: none;
-  stroke: color-mix(in srgb, var(--pf-color-text) 65%, transparent);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-  pointer-events: none;
-}
-
-.pf-memtl__lane-bg {
-  fill: var(--pf-col-inset);
-  stroke: color-mix(in srgb, var(--pf-col-border) 65%, transparent);
-  stroke-width: 1;
-  pointer-events: none;
-}
-
-.pf-memtl__sample-guide {
-  stroke: color-mix(in srgb, #4caf50 30%, transparent);
-  stroke-width: 1;
-  pointer-events: none;
-}
-
-.pf-memtl__smaps-dot {
-  fill: #4caf50;
-  stroke: var(--pf-col-surface);
-  stroke-width: 1.5;
+// Sample markers across the 3 tracks
+.pf-memtl__marker {
   pointer-events: none;
 
-  &--sel {
-    fill: var(--pf-color-success);
-    stroke-width: 2;
-  }
-
-  &--base {
-    fill: var(--pf-color-danger);
-    stroke-width: 2;
-  }
-}
-
-.pf-memtl__smaps-lane-dot {
-  fill: #4caf50;
-  opacity: 0.85;
-  pointer-events: none;
-}
-
-.pf-memtl__native-tick {
-  stroke: #ff9800;
-  stroke-width: 2;
-  stroke-linecap: round;
-  pointer-events: none;
-}
-
-.pf-memtl__dump-pin {
-  pointer-events: none;
-
-  .pf-memtl__dump-guide {
-    stroke: color-mix(in srgb, #2196f3 50%, transparent);
-    stroke-width: 1.25;
-    stroke-dasharray: 3 3;
-  }
-
-  .pf-memtl__dump-bar {
-    fill: color-mix(in srgb, #2196f3 30%, transparent);
-    stroke: #2196f3;
-    stroke-width: 1;
-  }
-
-  .pf-memtl__dump-diamond {
-    fill: #2196f3;
-    stroke: var(--pf-col-surface);
-    stroke-width: 1.5;
-  }
-
-  .pf-memtl__dump-halo {
-    fill: color-mix(in srgb, #2196f3 22%, transparent);
-  }
-
-  .pf-memtl__dump-tag {
-    font-size: 10px;
-    font-weight: 700;
-    font-family: var(--pf-font-monospace);
-    fill: #2196f3;
-  }
-
-  &--active {
-    .pf-memtl__dump-guide {
-      stroke: var(--pf-color-primary);
-      stroke-width: 1.5;
+  &--smaps {
+    .pf-memtl__smaps-dot {
+      fill: #4caf50;
+      stroke: var(--pf-col-surface);
+      stroke-width: 1.75;
     }
 
+    .pf-memtl__smaps-core {
+      fill: var(--pf-col-surface);
+      opacity: 0.7;
+    }
+
+    .pf-memtl__marker-halo {
+      fill: color-mix(in srgb, #4caf50 24%, transparent);
+    }
+
+    &.pf-memtl__marker--sel .pf-memtl__smaps-dot {
+      fill: var(--pf-color-success);
+    }
+
+    &.pf-memtl__marker--base {
+      .pf-memtl__smaps-dot {
+        fill: var(--pf-color-danger);
+      }
+
+      .pf-memtl__marker-halo {
+        fill: color-mix(in srgb, var(--pf-color-danger) 24%, transparent);
+      }
+    }
+  }
+
+  &--java {
     .pf-memtl__dump-diamond {
-      fill: var(--pf-color-primary);
+      fill: #2196f3;
+      stroke: var(--pf-col-surface);
+      stroke-width: 1.75;
+    }
+
+    .pf-memtl__dump-core {
+      fill: var(--pf-col-surface);
+      opacity: 0.78;
+    }
+
+    .pf-memtl__marker-halo {
+      fill: color-mix(in srgb, #2196f3 24%, transparent);
     }
 
     .pf-memtl__dump-tag {
-      fill: var(--pf-color-primary);
+      font-size: 10px;
+      font-weight: 700;
+      font-family: var(--pf-font-monospace);
+      fill: #2196f3;
+    }
+
+    &.pf-memtl__marker--active {
+      .pf-memtl__dump-diamond {
+        fill: var(--pf-color-primary);
+      }
+
+      .pf-memtl__dump-tag {
+        fill: var(--pf-color-primary);
+      }
     }
   }
+
+  &--native {
+    .pf-memtl__native-pill {
+      fill: #ff9800;
+      stroke: var(--pf-col-surface);
+      stroke-width: 1.5;
+    }
+
+    .pf-memtl__marker-halo {
+      fill: color-mix(in srgb, #ff9800 24%, transparent);
+    }
+  }
+}
+
+// Selection curtain, edges, and handles
+.pf-memtl__curtain {
+  fill: color-mix(in srgb, var(--pf-color-primary) 13%, transparent);
+  pointer-events: none;
 }
 
 .pf-memtl__pin-line {
@@ -253,11 +284,6 @@
   font-family: var(--pf-font-monospace);
   fill: var(--pf-color-success);
   text-anchor: middle;
-}
-
-.pf-memtl__curtain {
-  fill: color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
-  pointer-events: none;
 }
 
 .pf-memtl__edge {
@@ -305,14 +331,14 @@
 
 .pf-memtl__hud {
   position: absolute;
-  top: 4px;
-  right: 24px;
+  top: 0;
+  right: 22px;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 3px 10px;
+  padding: 2px 10px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--pf-col-surface) 92%, transparent);
+  background: color-mix(in srgb, var(--pf-col-surface) 94%, transparent);
   border: 1px solid var(--pf-col-border);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   font-size: 11px;
@@ -325,75 +351,20 @@
     color: var(--pf-color-text);
   }
 
-  &-val {
-    color: var(--pf-color-text-muted);
-    font-weight: 500;
+  &-smaps {
+    color: #4caf50;
+    font-weight: 600;
   }
 
   &-dump {
     color: #2196f3;
     font-weight: 600;
   }
-}
 
-.pf-memtl__legend-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding-top: 2px;
-}
-
-.pf-memtl__legend-items {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  font-size: 11px;
-  color: var(--pf-color-text-muted);
-}
-
-.pf-memtl__legend-item,
-.pf-memtl__legend-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.pf-memtl__legend-source {
-  font-weight: 600;
-  color: var(--pf-color-text);
-
-  &--empty {
-    opacity: 0.45;
-    font-weight: 400;
+  &-native {
+    color: #ff9800;
+    font-weight: 600;
   }
-}
-
-.pf-memtl__legend-sep {
-  width: 1px;
-  height: 12px;
-  background: var(--pf-col-border);
-}
-
-.pf-memtl__legend-diamond {
-  width: 7px;
-  height: 7px;
-  background: #2196f3;
-  transform: rotate(45deg);
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.pf-memtl__legend-tick {
-  width: 2.5px;
-  height: 9px;
-  border-radius: 2px;
-  background: #ff9800;
-  display: inline-block;
-  flex-shrink: 0;
 }
 
 .pf-memtl__growth--active {
