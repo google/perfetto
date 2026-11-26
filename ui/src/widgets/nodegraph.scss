@@ -77,8 +77,9 @@
 
 .pf-node {
   position: relative;
-  background: var(--pf-color-background-secondary);
-  border: 2px solid var(--pf-color-border);
+  background: var(--pf-color-background-elevated);
+  border: 1px solid var(--pf-color-border);
+  box-shadow: $box-shadow-2;
   border-radius: $border-radius-large;
   min-width: 180px;
   cursor: move;

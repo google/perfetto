@@ -32,6 +32,10 @@ $border-radius: $border-radius-medium;
         box-shadow: $box-shadow-2;
         border-color: var(--pf-color-border-strong);
       }
+
+      &:active {
+        box-shadow: var(--pf-shadow-control-active);
+      }
     }
   }
 

@@ -19,9 +19,9 @@ kbd.pf-keycap {
 
   user-select: none;
   line-height: 1;
-  background-color: var(--pf-color-background-secondary);
+  background-color: var(--pf-color-button);
   border: 1px solid var(--pf-color-border);
-  box-shadow: 0 1px 0 var(--pf-color-border);
+  box-shadow: var(--pf-shadow-keycap);
   border-radius: $border-radius;
   color: var(--pf-color-text-secondary);
   display: inline-block;

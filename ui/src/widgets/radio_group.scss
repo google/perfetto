@@ -71,29 +71,33 @@
     }
 
     &.pf-active {
-      background: var(--pf-color-background-elevated);
+      background: var(--pf-color-button);
       color: var(--pf-color-text);
-      box-shadow: $box-shadow-1;
+      box-shadow: var(--pf-shadow-control);
     }
   }
 
   &.pf-intent-primary .pf-active {
     background: var(--pf-color-primary);
     color: var(--pf-color-text-on-primary);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &.pf-intent-success .pf-active {
     background: var(--pf-color-success);
     color: var(--pf-color-text-on-success);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &.pf-intent-warning .pf-active {
     background: var(--pf-color-warning);
     color: var(--pf-color-text-on-warning);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &.pf-intent-danger .pf-active {
     background: var(--pf-color-danger);
     color: var(--pf-color-text-on-danger);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 }

@@ -39,6 +39,7 @@
   color: var(--pf-color-text-secondary);
   background: var(--pf-color-background-secondary);
   border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-chip);
   overflow: hidden;
 
   &__label {
@@ -58,6 +59,10 @@
     &:hover {
       background: var(--pf-color-background-tertiary);
       border-color: var(--pf-color-border-strong);
+    }
+
+    &:active {
+      box-shadow: var(--pf-shadow-control-active);
     }
   }
 

@@ -41,6 +41,9 @@
     --pf-color-background-input: #ffffff;
     --pf-color-background-input-hover: #ffffff;
     --pf-color-background-alt: #f7f9fb;
+    --pf-color-button: #f8fafc;
+    --pf-color-button-hover: #eef2f6;
+    --pf-color-button-active: #e4eaf0;
     --pf-color-background-hover: rgba(16, 36, 59, 0.055);
     --pf-color-background-active: rgba(16, 36, 59, 0.11);
     --pf-color-background-selected: rgba(59, 89, 144, 0.11);
@@ -58,17 +61,34 @@
     --pf-color-border: #cbd3dc;
     --pf-color-border-secondary: #e2e7ed;
     --pf-color-border-strong: #aeb9c5;
+    --pf-color-border-filled: rgba(15, 23, 42, 0.16);
+    --pf-color-control-border: #aeb9c5;
 
     // Elevation & chrome
     --pf-color-box-shadow: rgba(15, 23, 42, 0.12);
     --pf-shadow-1:
-      0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08);
+      inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 2px rgba(15, 23, 42, 0.06),
+      0 1px 3px rgba(15, 23, 42, 0.08);
     --pf-shadow-2:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
       0 4px 12px -2px rgba(15, 23, 42, 0.12),
       0 2px 4px -1px rgba(15, 23, 42, 0.06);
     --pf-shadow-3:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
       0 12px 28px -4px rgba(15, 23, 42, 0.18),
       0 4px 10px -2px rgba(15, 23, 42, 0.08);
+    --pf-shadow-control:
+      inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(15, 23, 42, 0.08);
+    --pf-shadow-control-filled:
+      inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 1px 2px rgba(15, 23, 42, 0.18);
+    --pf-shadow-control-active: inset 0 1px 2px rgba(15, 23, 42, 0.14);
+    --pf-shadow-chip:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 1px rgba(15, 23, 42, 0.05);
+    --pf-shadow-keycap:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 0 var(--pf-color-border),
+      0 2px 2px rgba(15, 23, 42, 0.07);
+    --pf-shadow-thumb:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(15, 23, 42, 0.28);
     --pf-shadow-inset: inset 0 1px 2px rgba(15, 23, 42, 0.05);
     --pf-color-scrollbar: #c4cdd7;
     --pf-color-control-track: #bcc6d1;
@@ -184,6 +204,9 @@
     --pf-color-background-input: #14171d;
     --pf-color-background-input-hover: #181c24;
     --pf-color-background-alt: #181b22;
+    --pf-color-button: #2b323d;
+    --pf-color-button-hover: #333b48;
+    --pf-color-button-active: #232933;
     --pf-color-background-hover: rgba(226, 234, 244, 0.065);
     --pf-color-background-active: rgba(226, 234, 244, 0.12);
     --pf-color-background-selected: rgba(66, 114, 173, 0.22);
@@ -197,24 +220,42 @@
     --pf-color-text-hint: #748090;
     --pf-color-text-disabled: #5e6876;
 
-    // Borders (darker than surfaces for crisp, machined recessed seams)
+    // Borders (darker than surfaces for crisp, machined recessed seams;
+    // translucent secondary seam adapts uniformly across elevated/base/alt rows)
     --pf-color-border: #0a0c10;
-    --pf-color-border-secondary: #12151b;
+    --pf-color-border-secondary: rgba(0, 0, 0, 0.28);
     --pf-color-border-strong: #040507;
+    --pf-color-border-filled: rgba(0, 0, 0, 0.42);
+    --pf-color-control-border: #3d4654;
 
-    // Elevation & chrome (dark shadows paired with a subtle top edge highlight
-    // so elevated surfaces stay distinct inside dark borders)
+    // Elevation & chrome (dark shadows paired with subtle top specular rims
+    // for a tactile faux-3D bevel on raised controls and overlays)
     --pf-color-box-shadow: rgba(0, 0, 0, 0.6);
     --pf-shadow-1:
-      inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.5),
       0 1px 3px rgba(0, 0, 0, 0.35);
     --pf-shadow-2:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
       0 6px 18px -2px rgba(0, 0, 0, 0.65), 0 2px 6px -1px rgba(0, 0, 0, 0.45);
     --pf-shadow-3:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
       0 18px 40px -4px rgba(0, 0, 0, 0.78), 0 6px 16px -2px rgba(0, 0, 0, 0.52);
-    --pf-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.38);
+    --pf-shadow-control:
+      inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.48);
+    --pf-shadow-control-filled:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 1px 2px rgba(0, 0, 0, 0.5);
+    --pf-shadow-control-active: inset 0 1px 2px rgba(0, 0, 0, 0.48);
+    --pf-shadow-chip:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.34);
+    --pf-shadow-keycap:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 2px 0 var(--pf-color-border-strong), 0 2px 3px rgba(0, 0, 0, 0.42);
+    --pf-shadow-thumb:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 2px rgba(0, 0, 0, 0.5);
+    --pf-shadow-inset:
+      inset 0 1px 2px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.035);
     --pf-color-scrollbar: #3f4857;
     --pf-color-control-track: #12151a;
     --pf-color-switch-thumb: #eef2f7;

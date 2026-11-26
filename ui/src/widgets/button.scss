@@ -17,13 +17,15 @@
 @mixin filled-color-scheme($intent-color, $text-color) {
   color: $text-color;
   background: $intent-color;
-  border-color: transparent;
+  border-color: var(--pf-color-border-filled);
+  box-shadow: var(--pf-shadow-control-filled);
 
   &:hover {
     background: color-hover-surface(
       $intent-color,
       var(--pf-color-interactive-base)
     );
+    border-color: var(--pf-color-border-filled);
   }
 
   &:active,
@@ -32,11 +34,15 @@
       $intent-color,
       var(--pf-color-interactive-base)
     );
+    box-shadow: var(--pf-shadow-control-active);
   }
 
   &[disabled] {
+    box-shadow: none;
+
     &:hover {
       background: $intent-color;
+      border-color: var(--pf-color-border-filled);
     }
 
     &.pf-active {
@@ -191,64 +197,32 @@
 
   // From here on in we just describe the colors
   &--filled {
-    background: color-mix(
-      in srgb,
-      transparent,
-      var(--pf-color-interactive-base) 8%
-    );
-    border-color: color-mix(
-      in srgb,
-      transparent,
-      var(--pf-color-interactive-base) 10%
-    );
+    background: var(--pf-color-button);
+    border-color: var(--pf-color-border);
+    box-shadow: var(--pf-shadow-control);
 
     &:hover {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 13%
-      );
-      border-color: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 14%
-      );
+      background: var(--pf-color-button-hover);
+      border-color: var(--pf-color-border-strong);
     }
 
     &.pf-active,
     &:active {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 18%
-      );
-      border-color: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 18%
-      );
+      background: var(--pf-color-button-active);
+      border-color: var(--pf-color-border-strong);
+      box-shadow: var(--pf-shadow-control-active);
     }
 
     &[disabled] {
+      box-shadow: none;
+
       &:hover {
-        background: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 8%
-        ); // Reset to the default background
-        border-color: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 10%
-        );
+        background: var(--pf-color-button); // Reset to the default background
+        border-color: var(--pf-color-border);
       }
 
       &.pf-active {
-        background: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 28%
-        );
+        background: var(--pf-color-button-active);
       }
     }
 

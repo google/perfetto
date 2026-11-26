@@ -81,6 +81,7 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
               trigger: m(Button, {
                 icon: 'restore',
                 label: 'Restore Defaults',
+                variant: ButtonVariant.Filled,
               }),
             },
             m(

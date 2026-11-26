@@ -72,7 +72,7 @@ $switch-slide-distance: 0.75em;
     @include interactive-transition;
     aspect-ratio: 1;
     border-radius: $border-radius;
-    border: solid 1px var(--pf-color-border-strong);
+    border: solid 1px var(--pf-color-control-border);
     background: var(--pf-color-background-input);
     box-shadow: var(--pf-shadow-inset);
     position: relative;
@@ -97,9 +97,9 @@ $switch-slide-distance: 0.75em;
   }
 
   input:checked + .pf-checkbox__box--check {
-    border-color: var(--pf-color-primary);
+    border-color: var(--pf-color-border-filled);
     background: var(--pf-color-primary);
-    box-shadow: none;
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &:hover input:checked + .pf-checkbox__box--check {
@@ -107,10 +107,7 @@ $switch-slide-distance: 0.75em;
       var(--pf-color-primary),
       var(--pf-color-interactive-base)
     );
-    border-color: color-hover-surface(
-      var(--pf-color-primary),
-      var(--pf-color-interactive-base)
-    );
+    border-color: var(--pf-color-border-filled);
   }
 
   input:checked + .pf-checkbox__box--check .pf-checkbox__tick {
@@ -145,27 +142,25 @@ $switch-slide-distance: 0.75em;
       content: "";
       display: block;
       position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: $switch-height;
-      height: $switch-height;
+      left: $switch-border-width;
+      top: $switch-border-width;
+      width: calc(#{$switch-height} - #{$switch-border-width * 2});
+      height: calc(#{$switch-height} - #{$switch-border-width * 2});
       background: var(--pf-color-switch-thumb);
-      background-clip: padding-box;
       box-sizing: border-box;
       border-radius: 50%;
-      border: solid $switch-border-width transparent;
+      box-shadow: var(--pf-shadow-thumb);
       transition: left $anim-timing;
     }
   }
 
   input:checked + .pf-checkbox__box--switch:before {
     background: var(--pf-color-primary);
-    border-color: var(--pf-color-primary);
-    box-shadow: none;
+    border-color: var(--pf-color-border-filled);
+    box-shadow: var(--pf-shadow-inset);
   }
 
   input:checked + .pf-checkbox__box--switch:after {
-    left: $switch-slide-distance;
+    left: calc(#{$switch-slide-distance} + #{$switch-border-width});
   }
 }

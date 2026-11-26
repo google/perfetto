@@ -79,8 +79,10 @@
     }
 
     .pf-home-page__section {
-      background: var(--pf-color-background-secondary);
-      border-radius: 7px;
+      background: var(--pf-color-background-elevated);
+      border: 1px solid var(--pf-color-border);
+      box-shadow: $box-shadow-1;
+      border-radius: $border-radius-medium;
       padding: 20px 24px;
       flex: 1;
       display: flex;
@@ -236,10 +238,10 @@
     padding: var(--chan-padding);
     margin-bottom: 20px;
     position: relative;
-    background-color: var(--pf-color-background-secondary);
-    border-radius: 7px;
-    // box-shadow: inset 0 1px 3px var(--pf-color-box-shadow);
-    border: 0;
+    background-color: var(--pf-color-background-sunken);
+    border-radius: $border-radius-large;
+    box-shadow: var(--pf-shadow-inset);
+    border: 1px solid var(--pf-color-border);
     user-select: none;
   }
 
@@ -252,7 +254,8 @@
     // Width is 1/N of the inner area (fieldset width minus padding on both sides)
     width: calc((100% - var(--chan-padding) * 2) / var(--chan-num));
     z-index: 1;
-    border-radius: 5px;
+    border-radius: $border-radius-medium;
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   input[type="radio"]:nth-of-type(1):checked {
