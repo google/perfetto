@@ -116,6 +116,8 @@ class BatchTraceProcessor:
         print(df)
   """
 
+  tps_and_metadata: Optional[list[tuple[TraceProcessor, Metadata]]]
+
   class Observer(abc.ABC):
     """Observer that can be used to provide side-channel information about
     processed traces.
@@ -367,6 +369,7 @@ class BatchTraceProcessor:
       (tp, metadata) = pair
       return self._execute_handling_failure(fn, tp, metadata)
 
+    assert self.tps_and_metadata is not None
     return list(self.query_executor.map(wrapped, self.tps_and_metadata))
 
   def execute_and_flatten(
@@ -397,6 +400,7 @@ class BatchTraceProcessor:
         df[key] = value
       return df
 
+    assert self.tps_and_metadata is not None
     df = pd.concat(
         list(self.query_executor.map(wrapped, self.tps_and_metadata)))
     return df.reset_index(drop=True)
@@ -439,6 +443,7 @@ class BatchTraceProcessor:
         df = df.with_columns(pl.lit(value).alias(key))
       return df
 
+    assert self.tps_and_metadata is not None
     results = list(self.query_executor.map(wrapped, self.tps_and_metadata))
     # Skip failed traces, as pl.concat requires matching schemas.
     dfs = [df for df in results if not isinstance(df, _QueryFailed)]
