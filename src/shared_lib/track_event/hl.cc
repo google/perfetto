@@ -186,16 +186,15 @@ EventParams PrepareRawProtoEvent(const PerfettoTeCategoryImpl* cat,
                                  size_t raw_proto_fields_size,
                                  const PerfettoTeHlExtra* track,
                                  const TraceTimestamp* shared_timestamp) {
-  // Counters omit names in RAW_PROTO.
-  const bool drop_name = type == PERFETTO_TE_TYPE_COUNTER;
-  EventParams params = MakeBaseEventParams(
-      cat, type, drop_name ? nullptr : name, drop_name ? 0 : name_size);
+  EventParams params = MakeBaseEventParams(cat, type, name, name_size);
   params.raw_proto_fields = protozero::ConstBytes{
       static_cast<const uint8_t*>(raw_proto_fields), raw_proto_fields_size};
   params.track = track;
   params.named_track_uuid = NamedTrackUuid(track);
   params.timestamp =
       shared_timestamp ? *shared_timestamp : TrackEventInternal::GetTraceTime();
+  // Keep RAW_PROTO events free of interned data.
+  // Both category and name go inline so TracePacket::interned_data stays empty.
   params.intern_category = false;
   params.intern_name = false;
   return params;
@@ -318,7 +317,8 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
   }
 
   if (params.name &&
-      params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+      params.type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+      params.type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
     if (params.intern_name) {
       auto res = incr->iids.FindOrAssign(
           protos::pbzero::InternedData::kEventNamesFieldNumber, params.name,
@@ -752,7 +752,10 @@ void EmitRawProto(PerfettoTeCategoryImpl* cat,
                   const void* raw_proto_fields,
                   size_t raw_proto_fields_size,
                   const PerfettoTeHlExtra* track) {
-  PERFETTO_DCHECK(cat);
+  if (PERFETTO_UNLIKELY(!cat || !cat->desc || !cat->desc->name)) {
+    return;
+  }
+
   PERFETTO_DCHECK(EventType(type) !=
                   protos::pbzero::TrackEvent::TYPE_UNSPECIFIED);
   PERFETTO_DCHECK(name || !name_size);
@@ -761,7 +764,7 @@ void EmitRawProto(PerfettoTeCategoryImpl* cat,
                                          raw_proto_fields_size, name_size));
 
   ActiveInstances instances(cat);
-  if (!instances.current()) {
+  if (PERFETTO_UNLIKELY(!instances.current())) {
     return;
   }
 
@@ -790,26 +793,31 @@ bool EmitWithFormats(PerfettoTeCategoryImpl* cat,
       PERFETTO_TE_EVENT_FORMAT_EXTRAS | PERFETTO_TE_EVENT_FORMAT_RAW_PROTO;
   const bool has_extras = formats & PERFETTO_TE_EVENT_FORMAT_EXTRAS;
   const bool has_raw_proto = formats & PERFETTO_TE_EVENT_FORMAT_RAW_PROTO;
-  if (!cat || !formats || (formats & ~kKnownFormats)) {
+
+  if (PERFETTO_UNLIKELY(!cat || !cat->desc || !cat->desc->name || !formats ||
+                        (formats & ~kKnownFormats))) {
     return false;
   }
-  if (!name && name_size) {
+  if (PERFETTO_UNLIKELY(!name && name_size)) {
     return false;
   }
-  if (EventType(type) == protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
+  if (PERFETTO_UNLIKELY(EventType(type) ==
+                        protos::pbzero::TrackEvent::TYPE_UNSPECIFIED)) {
     return false;
   }
-  if (has_raw_proto && track && !IsTrackExtraType(track->type)) {
+  if (PERFETTO_UNLIKELY(has_raw_proto && track &&
+                        !IsTrackExtraType(track->type))) {
     return false;
   }
-  if (has_raw_proto &&
-      !ValidateRawProtoFields(raw_proto_fields, raw_proto_fields_size,
-                              name_size)) {
+  if (PERFETTO_UNLIKELY(has_raw_proto &&
+                        !ValidateRawProtoFields(raw_proto_fields,
+                                                raw_proto_fields_size,
+                                                name_size))) {
     return false;
   }
 
   ActiveInstances instances(cat);
-  if (!instances.current()) {
+  if (PERFETTO_UNLIKELY(!instances.current())) {
     return true;
   }
 

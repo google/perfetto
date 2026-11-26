@@ -2163,37 +2163,58 @@ TEST_F(SharedLibTrackEventTest, RawProtoSnapshotSkipsLateDifferentFormat) {
               ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
 }
 
-TEST_F(SharedLibTrackEventTest, RawProtoCountersHaveNoName) {
-  auto session = TracingSession::Builder()
-                     .set_data_source_name("track_event")
-                     .add_enabled_category("cat1")
-                     .set_raw_proto_events(true)
-                     .Build();
+TEST_F(SharedLibTrackEventTest, CountersHaveNoNameInBothFormats) {
+  auto extras = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .Build();
+  auto raw_proto = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("cat1")
+                       .set_raw_proto_events(true)
+                       .Build();
   ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
-      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "", 0, kRawProto, nullptr, nullptr,
-      0, nullptr));
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "", 0, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_COUNTER, "c", 1, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
   PerfettoTeHlEmitRawProtoImpl(cat1.impl, PERFETTO_TE_TYPE_COUNTER, "c", 1,
                                nullptr, 0, nullptr);
-  session.StopBlocking();
-  auto data = session.ReadBlocking();
-  EXPECT_THAT(
-      EventFieldValues(data, perfetto_protos_TrackEvent_type_field_number),
-      ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT,
-                  perfetto_protos_TrackEvent_TYPE_COUNTER));
-  EXPECT_TRUE(InternedStrings(data, 2).empty());
-  std::vector<size_t> names;
-  for (auto packet :
-       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
-    for (auto event : IdFieldView(
-             packet, perfetto_protos_TracePacket_track_event_field_number)) {
-      names.push_back(
-          IdFieldView(event, perfetto_protos_TrackEvent_name_field_number)
-              .size());
+  extras.StopBlocking();
+  raw_proto.StopBlocking();
+  auto extras_data = extras.ReadBlocking();
+  auto raw_proto_data = raw_proto.ReadBlocking();
+  EXPECT_THAT(EventFieldValues(extras_data,
+                               perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT,
+                          perfetto_protos_TrackEvent_TYPE_COUNTER));
+  EXPECT_THAT(EventFieldValues(raw_proto_data,
+                               perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT,
+                          perfetto_protos_TrackEvent_TYPE_COUNTER,
+                          perfetto_protos_TrackEvent_TYPE_COUNTER));
+  EXPECT_THAT(InternedStrings(extras_data, 2),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string(""))));
+  EXPECT_TRUE(InternedStrings(raw_proto_data, 2).empty());
+  auto event_name_counts = [](const std::vector<uint8_t>& data) {
+    std::vector<size_t> counts;
+    for (auto packet :
+         IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+      for (auto event : IdFieldView(
+               packet, perfetto_protos_TracePacket_track_event_field_number)) {
+        counts.push_back(
+            IdFieldView(event, perfetto_protos_TrackEvent_name_field_number)
+                .size() +
+            IdFieldView(event, perfetto_protos_TrackEvent_name_iid_field_number)
+                .size());
+      }
     }
-  }
-  // An empty instant name is written like EXTRAS, while a counter name is
-  // omitted.
-  EXPECT_THAT(names, ElementsAre(1u, 0u));
+    return counts;
+  };
+  // Both formats write an empty instant name and omit counter names.
+  EXPECT_THAT(event_name_counts(extras_data), ElementsAre(1u, 0u));
+  EXPECT_THAT(event_name_counts(raw_proto_data), ElementsAre(1u, 0u, 0u));
 }
 
 TEST_F(SharedLibTrackEventTest, RawProtoNamedTrackAndInlineName) {
@@ -2240,6 +2261,21 @@ TEST_F(SharedLibTrackEventTest,
                        .add_enabled_category("cat1")
                        .set_raw_proto_events(true)
                        .Build();
+  // A NULL category or perfetto_te_any_categories (NULL descriptor).
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      nullptr, PERFETTO_TE_TYPE_INSTANT, "bad", 3, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      perfetto_te_any_categories, PERFETTO_TE_TYPE_INSTANT, "bad", 3,
+      kBothFormats, nullptr, nullptr, 0, nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      perfetto_te_any_categories, PERFETTO_TE_TYPE_INSTANT, "bad", 3, kExtras,
+      nullptr, nullptr, 0, nullptr));
+  PerfettoTeHlEmitRawProtoImpl(nullptr, PERFETTO_TE_TYPE_INSTANT, "bad", 3,
+                               nullptr, 0, nullptr);
+  PerfettoTeHlEmitRawProtoImpl(perfetto_te_any_categories,
+                               PERFETTO_TE_TYPE_INSTANT, "bad", 3, nullptr, 0,
+                               nullptr);
   // Truncated fields.
   const uint8_t truncated[] = {0x12, 99};
   EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(

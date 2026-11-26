@@ -72,8 +72,9 @@ void GlobalState::OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
     cat->DisableInstance(instance_id);
   }
   perfetto_te_any_categories->DisableInstance(instance_id);
-  // Clear after DisableInstance() so GetEventFormats() does not report EXTRAS
-  // while the stopping instance is still visible on a category.
+  // Clear after DisableInstance(). A racing GetEventFormats() can still
+  // briefly report EXTRAS for a stopping RAW_PROTO session, which is harmless
+  // because emit re-checks each session's TLS format.
   raw_proto_instances_.fetch_and(static_cast<uint8_t>(~(1u << instance_id)),
                                  std::memory_order_relaxed);
   active_configs_.erase(instance_id);

@@ -417,8 +417,9 @@ struct PerfettoTeHlExtraNestedTracks {
 //          `perfetto_te_all_categories` for dynamic categories.
 // * `type`: the event type (slice begin, slice end, ...). See `enum
 //           PerfettoTeType`.
-// * `name`: All events (except when PERFETTO_TE_TYPE_SLICE_END) can have an
-//           associated name. It can be nullptr.
+// * `name`: All events (except when PERFETTO_TE_TYPE_SLICE_END or
+//           PERFETTO_TE_TYPE_COUNTER) can have an associated name. It can be
+//           nullptr.
 // * `extra_data`: Optional parameters associated with the events. Array of
 // pointers to each event. The last pointer should be NULL.
 PERFETTO_SDK_EXPORT void PerfettoTeHlEmitImpl(
@@ -444,7 +445,7 @@ PERFETTO_SDK_EXPORT void PerfettoTeHlEmitImpl(
 // * `cat`: registered category (non-NULL).
 // * `type`: `enum PerfettoTeType`.
 // * `name`, `name_size`: event name bytes without NUL (NULL only if size is 0).
-//   Ignored for slice ends, and for counters in RAW_PROTO.
+//   Ignored for slice ends and counters.
 // * `formats`: PERFETTO_TE_EVENT_FORMAT_* bits built by the caller.
 //   Sessions whose format is absent skip the event.
 // * `extras`: NULL-terminated EXTRAS array (NULL means empty).
@@ -464,8 +465,15 @@ PERFETTO_SDK_EXPORT bool PerfettoTeHlEmitWithFormatsImpl(
     size_t raw_proto_fields_size,
     const struct PerfettoTeHlExtra* track);
 
-// Fast path for RAW_PROTO-only events from trusted callers.
-// Emits only to RAW_PROTO sessions. Validated in debug builds only.
+// Fast path for RAW_PROTO-only events from trusted callers which emits only to
+// RAW_PROTO sessions.
+// Release builds skip all other validation (debug builds check with DCHECK) and
+// so malformed `raw_proto_fields` stay inside the TrackEvent submessage, so
+// only that event is corrupted.
+// RAW_PROTO-only events cannot set a custom timestamp or clock, request a flush
+// or use a dynamic category.
+// Returns early without emitting if `cat` is NULL or has no descriptor (such as
+// `perfetto_te_any_categories`).
 PERFETTO_SDK_EXPORT void PerfettoTeHlEmitRawProtoImpl(
     struct PerfettoTeCategoryImpl* cat,
     int32_t type,

@@ -20,6 +20,7 @@
 
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/public/abi/track_event_hl_abi.h"
+#include "perfetto/public/compiler.h"
 
 namespace perfetto::shlib {
 namespace {
@@ -47,10 +48,11 @@ const uint8_t* SkipValue(uint32_t wire_type,
     case static_cast<uint32_t>(ProtoWireType::kLengthDelimited): {
       uint64_t payload_size = 0;
       const uint8_t* payload = ParseVarInt(pos, buf_end, &payload_size);
-      if (payload == pos) {
+      if (PERFETTO_UNLIKELY(payload == pos)) {
         return nullptr;
       }
-      if (payload_size > static_cast<uint64_t>(buf_end - payload)) {
+      if (PERFETTO_UNLIKELY(payload_size >
+                            static_cast<uint64_t>(buf_end - payload))) {
         return nullptr;
       }
       return payload + payload_size;
@@ -68,10 +70,11 @@ bool ValidateRawProtoFields(const void* data, size_t size, size_t extra_bytes) {
   constexpr uint32_t kMaxFieldId = (1u << 29) - 1;
 
   // Fields plus extra_bytes (event name) must fit in kMaxSize.
-  if (extra_bytes > kMaxSize || size > kMaxSize - extra_bytes) {
+  if (PERFETTO_UNLIKELY(extra_bytes > kMaxSize ||
+                        size > kMaxSize - extra_bytes)) {
     return false;
   }
-  if (size && !data) {
+  if (PERFETTO_UNLIKELY(size && !data)) {
     return false;
   }
 
@@ -80,16 +83,16 @@ bool ValidateRawProtoFields(const void* data, size_t size, size_t extra_bytes) {
   while (pos < end) {
     uint64_t tag = 0;
     const uint8_t* value = ParseVarInt(pos, end, &tag);
-    if (value == pos || tag > UINT32_MAX) {
+    if (PERFETTO_UNLIKELY(value == pos || tag > UINT32_MAX)) {
       return false;
     }
     const uint32_t field_id = static_cast<uint32_t>(tag >> 3);
-    if (field_id == 0 || field_id > kMaxFieldId) {
+    if (PERFETTO_UNLIKELY(field_id == 0 || field_id > kMaxFieldId)) {
       return false;
     }
 
     pos = SkipValue(static_cast<uint32_t>(tag & 7), value, end);
-    if (!pos) {
+    if (PERFETTO_UNLIKELY(!pos)) {
       return false;
     }
   }

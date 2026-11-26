@@ -23,6 +23,7 @@
 #include <unordered_map>
 
 #include "perfetto/base/thread_annotations.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "src/shared_lib/track_event/category_impl.h"
@@ -38,7 +39,7 @@ class GlobalState {
 
   // Snapshot of PERFETTO_TE_EVENT_FORMAT_* bits active for `cat`.
   static uint32_t GetEventFormats(const PerfettoTeCategoryImpl* cat) {
-    if (!cat) {
+    if (PERFETTO_UNLIKELY(!cat)) {
       return 0;
     }
     // Acquire pairs with the release store in EnableInstance().
