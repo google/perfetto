@@ -14,6 +14,8 @@
 
 // Small string helpers shared by node SQL / PSN generators.
 
+import type {PsnInput} from './node_types';
+
 export {
   formatDataTableSql,
   formatExtractArgExpr,
@@ -64,4 +66,40 @@ export function indentTail(text: string, prefix: string): string {
     .split('\n')
     .map((line, i) => (i === 0 || line === '' ? line : `${prefix}${line}`))
     .join('\n');
+}
+
+/**
+ * Wrap one or more PSN tree stages with `RENAME` before and after when the
+ * input uses custom column names instead of `id` / `parent_id`.
+ */
+export function wrapTreeIdStages(
+  idColumn: string,
+  parentIdColumn: string,
+  stages: readonly string[],
+  renameBack = true,
+): string[] {
+  const renamesIn: string[] = [];
+  const renamesOut: string[] = [];
+  if (idColumn !== 'id') {
+    renamesIn.push(`${idColumn} AS id`);
+    renamesOut.push(`id AS ${idColumn}`);
+  }
+  if (parentIdColumn !== 'parent_id') {
+    renamesIn.push(`${parentIdColumn} AS parent_id`);
+    renamesOut.push(`parent_id AS ${parentIdColumn}`);
+  }
+  return [
+    ...(renamesIn.length > 0 ? [`RENAME ${renamesIn.join(', ')}`] : []),
+    ...stages,
+    ...(renameBack && renamesOut.length > 0
+      ? [`RENAME ${renamesOut.join(', ')}`]
+      : []),
+  ];
+}
+
+/** Normalize a secondary PSN input so its ID column is named `id`. */
+export function idSource(input: PsnInput, idColumn: string): string {
+  return idColumn === 'id'
+    ? input.source
+    : input.withStages([`SELECT ${idColumn} AS id`]);
 }

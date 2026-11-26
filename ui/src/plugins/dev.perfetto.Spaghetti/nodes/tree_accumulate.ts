@@ -24,12 +24,16 @@ import {
   PipelineAggEntrySchema,
   PipelineAggRow,
 } from '../components/pipeline_agg_row';
-import {Row} from '../components/row';
 import {Stack} from '../components/stack';
+import {TreeColumnsRow} from '../components/tree_columns_row';
 import type {ColumnDef} from '../graph_utils';
-import {type AggSpec, formatAggs, subquery} from '../generator_utils';
+import {
+  type AggSpec,
+  formatAggs,
+  subquery,
+  wrapTreeIdStages,
+} from '../generator_utils';
 import type {NodeManifest, RenderContext} from '../node_types';
-import {ColumnPicker} from '../widgets/column_picker';
 
 export type TreeAggregation = PipelineAggEntry;
 
@@ -87,22 +91,13 @@ function TreeAccumulateContent(): m.Component<{
             ),
           ],
         ),
-        m('.pf-spag-section-label', 'Tree columns'),
-        m(Row, [
-          m(ColumnPicker, {
-            value: config.idColumn,
-            columns: ctx.availableColumns,
-            placeholder: 'id',
-            onSelect: (value: string) => updateConfig({idColumn: value}),
-          }),
-          m('span.pf-spag-operator', '→'),
-          m(ColumnPicker, {
-            value: config.parentIdColumn,
-            columns: ctx.availableColumns,
-            placeholder: 'parent_id',
-            onSelect: (value: string) => updateConfig({parentIdColumn: value}),
-          }),
-        ]),
+        m(TreeColumnsRow, {
+          idColumn: config.idColumn,
+          parentIdColumn: config.parentIdColumn,
+          columns: ctx.availableColumns,
+          onIdChange: (idColumn) => updateConfig({idColumn}),
+          onParentIdChange: (parentIdColumn) => updateConfig({parentIdColumn}),
+        }),
         m('.pf-spag-section-label', 'Aggregations'),
         m(DraggableStack, {
           rows: config.aggregations.map((agg, i) =>
@@ -227,22 +222,10 @@ export const manifest: NodeManifest<TreeAccumulateConfig> = {
       }
       const aggs = treeAggs(config);
       if (aggs.length === 0) return {};
-      const renamesIn: string[] = [];
-      const renamesOut: string[] = [];
-      if (config.idColumn !== 'id') {
-        renamesIn.push(`${config.idColumn} AS id`);
-        renamesOut.push(`id AS ${config.idColumn}`);
-      }
-      if (config.parentIdColumn !== 'parent_id') {
-        renamesIn.push(`${config.parentIdColumn} AS parent_id`);
-        renamesOut.push(`parent_id AS ${config.parentIdColumn}`);
-      }
       return {
-        stages: [
-          ...(renamesIn.length > 0 ? [`RENAME ${renamesIn.join(', ')}`] : []),
+        stages: wrapTreeIdStages(config.idColumn, config.parentIdColumn, [
           `TREE ACCUMULATE ${config.direction} ${formatAggs(aggs)}`,
-          ...(renamesOut.length > 0 ? [`RENAME ${renamesOut.join(', ')}`] : []),
-        ],
+        ]),
       };
     },
   },

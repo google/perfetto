@@ -465,12 +465,36 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
 
   function renderAddBelowSubmenu(nodeId: string): m.Children {
     const items: m.Children[] = [];
+    let prevWasSubmenu = false;
     for (const category of NODE_CATEGORIES) {
       const dockable = category.types.filter((type) => {
         const mfest = getManifest(type);
         return (mfest.getInputs?.(mfest.defaultConfig()) ?? []).length > 0;
       });
       if (dockable.length === 0) continue;
+      if (category.submenu) {
+        if (items.length > 0 && !prevWasSubmenu) {
+          items.push(m(MenuDivider));
+        }
+        items.push(
+          m(
+            MenuItem,
+            {label: category.title, icon: category.icon},
+            dockable.map((type) => {
+              const mfest = getManifest(type);
+              return m(MenuItem, {
+                label: mfest.title,
+                icon: mfest.icon,
+                className: 'pf-spag-add-menu-item',
+                style: `--pf-node-hue: ${mfest.hue}`,
+                onclick: () => addNode(type, nodeId),
+              });
+            }),
+          ),
+        );
+        prevWasSubmenu = true;
+        continue;
+      }
       if (items.length > 0) items.push(m(MenuDivider));
       items.push(m(MenuTitle, {label: category.title}));
       for (const type of dockable) {
@@ -485,6 +509,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
           }),
         );
       }
+      prevWasSubmenu = false;
     }
     return m(
       MenuItem,
@@ -1520,6 +1545,8 @@ interface AddNodeMenuAttrs {
 interface NodeCategory {
   readonly title: string;
   readonly types: readonly string[];
+  readonly submenu?: boolean;
+  readonly icon?: string;
 }
 
 const NODE_CATEGORIES: readonly NodeCategory[] = [
@@ -1541,6 +1568,8 @@ const NODE_CATEGORIES: readonly NodeCategory[] = [
   },
   {
     title: 'Intervals',
+    submenu: true,
+    icon: 'date_range',
     types: [
       'interval_intersect',
       'interval_flatten',
@@ -1551,7 +1580,20 @@ const NODE_CATEGORIES: readonly NodeCategory[] = [
   },
   {
     title: 'Graphs & Trees',
-    types: ['graph_tree', 'tree_accumulate'],
+    submenu: true,
+    icon: 'account_tree',
+    types: [
+      'graph_tree',
+      'tree_accumulate',
+      'tree_key_paths',
+      'tree_find',
+      'tree_fold',
+      'tree_prune',
+      'tree_reparent',
+      'tree_merge',
+      'tree_invert',
+      'tree_expand',
+    ],
   },
   {
     title: 'Visualize & Custom',
@@ -1589,6 +1631,8 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
       const matchingCategories: Array<{
         readonly title: string;
         readonly types: readonly string[];
+        readonly submenu?: boolean;
+        readonly icon?: string;
       }> = [];
 
       for (const category of NODE_CATEGORIES) {
@@ -1602,9 +1646,17 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
           );
         });
         if (matching.length === 0) continue;
-        matchingCategories.push({title: category.title, types: matching});
-        for (const type of matching) {
-          filteredNodeTypes.push(type);
+        const asSubmenu = query === '' && category.submenu === true;
+        matchingCategories.push({
+          title: category.title,
+          types: matching,
+          submenu: asSubmenu,
+          icon: category.icon,
+        });
+        if (!asSubmenu) {
+          for (const type of matching) {
+            filteredNodeTypes.push(type);
+          }
         }
       }
 
@@ -1614,7 +1666,22 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
 
       const menuChildren: m.Children[] = [];
       let itemIndex = 0;
+      let prevWasSubmenu = false;
       for (const category of matchingCategories) {
+        if (category.submenu) {
+          if (menuChildren.length > 0 && !prevWasSubmenu) {
+            menuChildren.push(m(MenuDivider));
+          }
+          menuChildren.push(
+            m(
+              MenuItem,
+              {label: category.title, icon: category.icon},
+              category.types.map((type) => nodeMenuItem(type, false)),
+            ),
+          );
+          prevWasSubmenu = true;
+          continue;
+        }
         if (menuChildren.length > 0) {
           menuChildren.push(m(MenuDivider));
         }
@@ -1625,6 +1692,7 @@ function AddNodeMenu(): m.Component<AddNodeMenuAttrs> {
           menuChildren.push(nodeMenuItem(type, isHighlighted));
           itemIndex++;
         }
+        prevWasSubmenu = false;
       }
 
       if (menuChildren.length === 0) {

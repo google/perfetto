@@ -374,4 +374,275 @@ describe('serializePsn', () => {
       serializePsn(index, 'q', {tables: new Map([['flt', '_qb_flt']])}).ok,
     ).toBe(true);
   });
+
+  it('serializes REGEXP, IN, and BETWEEN filter operators in SQL and PSN', () => {
+    const nodes: RootNodeData[] = [
+      {
+        type: 'from',
+        id: 'src',
+        x: 0,
+        y: 0,
+        config: {table: 'slice'},
+        next: {
+          type: 'filter',
+          id: 'flt',
+          config: {
+            conjunction: 'AND',
+            conditions: [
+              {column: 'name', op: 'REGEXP', value: '^(foo|bar)$'},
+              {column: 'category', op: 'IN', value: 'render, gpu'},
+              {column: 'dur', op: 'BETWEEN', value: '100', value2: '500'},
+            ],
+          },
+        },
+      },
+    ];
+    const expectedWhere =
+      "name REGEXP '^(foo|bar)$' AND category IN ('render', 'gpu') AND dur BETWEEN 100 AND 500";
+    expect(psnOf(nodes, 'flt')).toBe(`FROM slice\n|> WHERE ${expectedWhere}`);
+    expect(sqlOf(nodes, 'flt')).toBe(
+      `SELECT *\nFROM slice\nWHERE ${expectedWhere}`,
+    );
+  });
+
+  it('serializes RFC-0041 tree stages in PSN and Standard SQL', () => {
+    const baseTree = (next: RootNodeData['next']): RootNodeData => ({
+      type: 'data_table',
+      id: 'tree',
+      x: 0,
+      y: 0,
+      config: {
+        columns: [
+          {name: 'id', type: 'int'},
+          {name: 'parent_id', type: 'int'},
+          {name: 'name', type: 'string'},
+          {name: 'self_size', type: 'int'},
+        ],
+        rows: [['1', '', 'root', '10']],
+      },
+      next,
+    });
+    const markerTable: RootNodeData = {
+      type: 'from',
+      id: 'marks',
+      x: 0,
+      y: 0,
+      config: {table: 'markers'},
+    };
+
+    // TREE KEY PATHS
+    const kpNodes = [
+      baseTree({
+        type: 'tree_key_paths',
+        id: 'kp',
+        config: {
+          idColumn: 'id',
+          parentIdColumn: 'parent_id',
+          keyColumns: ['name'],
+          keyName: 'path_id',
+          parentKeyName: 'parent_path_id',
+        },
+      }),
+    ];
+    expect(psnOf(kpNodes, 'kp')).toContain(
+      '|> TREE KEY PATHS BY name AS (path_id, parent_path_id)',
+    );
+    expect(sqlOf(kpNodes, 'kp')).toContain('WITH RECURSIVE');
+    expect(sqlOf(kpNodes, 'kp')).toContain('k._k AS path_id');
+
+    // TREE PRUNE
+    const pruneNodes: RootNodeData[] = [
+      {type: 'from', id: 'src', x: 0, y: 0, config: {table: 'nodes'}},
+      markerTable,
+      {
+        type: 'tree_prune',
+        id: 'pr',
+        x: 0,
+        y: 0,
+        inputs: ['src', 'marks'],
+        config: {idColumn: 'id', parentIdColumn: 'parent_id', atIdColumn: 'id'},
+      },
+    ];
+    expect(psnOf(pruneNodes, 'pr')).toBe(
+      'FROM nodes\n|> TREE PRUNE AT markers',
+    );
+    expect(sqlOf(pruneNodes, 'pr')).toContain(
+      'NOT IN (SELECT _id FROM _pruned)',
+    );
+
+    // TREE REPARENT
+    const reparentNodes: RootNodeData[] = [
+      baseTree(undefined),
+      markerTable,
+      {
+        type: 'tree_reparent',
+        id: 'rp',
+        x: 0,
+        y: 0,
+        inputs: ['tree', 'marks'],
+        config: {
+          idColumn: 'id',
+          parentIdColumn: 'parent_id',
+          markerIdColumn: 'id',
+        },
+      },
+    ];
+    expect(psnOf(reparentNodes, 'rp')).toContain(
+      '|> TREE REPARENT TO NEAREST ANCESTOR IN markers',
+    );
+    expect(sqlOf(reparentNodes, 'rp')).toContain(
+      'w._new_parent_id AS parent_id',
+    );
+
+    // TREE FOLD (CONTRACT + ABSORB)
+    const contractNodes: RootNodeData[] = [
+      {type: 'from', id: 'src', x: 0, y: 0, config: {table: 'nodes'}},
+      markerTable,
+      {
+        type: 'tree_fold',
+        id: 'fd',
+        x: 0,
+        y: 0,
+        inputs: ['src', 'marks'],
+        config: {
+          kind: 'CONTRACT',
+          idColumn: 'id',
+          parentIdColumn: 'parent_id',
+          atIdColumn: 'id',
+          aggregations: [{func: 'SUM', column: 'self_size', alias: 'total'}],
+        },
+      },
+    ];
+    expect(psnOf(contractNodes, 'fd')).toBe(
+      'FROM nodes\n|> TREE CONTRACT AT markers AGGREGATE SUM(self_size) AS total',
+    );
+    expect(sqlOf(contractNodes, 'fd')).toContain('SUM(src.self_size) AS total');
+
+    // TREE FIND (LEFT + DESCENDANT OR SELF + ORDER BY)
+    const findNodes: RootNodeData[] = [
+      {type: 'from', id: 'src', x: 0, y: 0, config: {table: 'nodes'}},
+      markerTable,
+      {
+        type: 'tree_find',
+        id: 'fn',
+        x: 0,
+        y: 0,
+        inputs: ['src', 'marks'],
+        config: {
+          joinType: 'LEFT',
+          direction: 'DESCENDANT',
+          orSelf: true,
+          idColumn: 'id',
+          parentIdColumn: 'parent_id',
+          targetIdColumn: 'id',
+          alias: 'y',
+          whereExpr: 'y.kind = 1',
+          orderBy: [{column: 'score', order: 'DESC'}],
+          columns: [{column: 'label', alias: 'found_label'}],
+        },
+      },
+    ];
+    expect(psnOf(findNodes, 'fn')).toBe(
+      [
+        'FROM nodes',
+        '|> AS _in',
+        '|> LEFT TREE FIND markers AS y NEAREST DESCENDANT OR SELF WHERE y.kind = 1 ORDER BY y.score DESC',
+        '|> SELECT _in.*, y.label AS found_label',
+      ].join('\n'),
+    );
+    expect(sqlOf(findNodes, 'fn')).toContain('y.score DESC');
+
+    // TREE MERGE (all 4 modes)
+    const mergeModes = [
+      ['SIBLINGS', 'TREE MERGE SIBLINGS BY name AGGREGATE SUM(self_size) AS s'],
+      [
+        'CONSECUTIVE_SIBLINGS',
+        'TREE MERGE CONSECUTIVE SIBLINGS BY name AGGREGATE SUM(self_size) AS s',
+      ],
+      [
+        'INTO_PARENT',
+        'TREE MERGE INTO PARENT BY name AGGREGATE SUM(self_size) AS s',
+      ],
+      [
+        'INTO_PARENT_INDIRECT',
+        'TREE MERGE INTO PARENT BY name INDIRECT AGGREGATE SUM(self_size) AS s',
+      ],
+    ] as const;
+    for (const [mode, expectedStage] of mergeModes) {
+      const mNodes: RootNodeData[] = [
+        {
+          type: 'from',
+          id: 'src',
+          x: 0,
+          y: 0,
+          config: {table: 'nodes'},
+          next: {
+            type: 'tree_merge',
+            id: 'mg',
+            config: {
+              mode,
+              idColumn: 'id',
+              parentIdColumn: 'parent_id',
+              byColumns: ['name'],
+              aggregations: [{func: 'SUM', column: 'self_size', alias: 's'}],
+            },
+          },
+        },
+      ];
+      expect(psnOf(mNodes, 'mg')).toBe(`FROM nodes\n|> ${expectedStage}`);
+      expect(sqlOf(mNodes, 'mg')).toContain('SUM(src.self_size) AS s');
+    }
+
+    // TREE INVERT
+    const invNodes = [
+      baseTree({
+        type: 'tree_invert',
+        id: 'inv',
+        config: {idColumn: 'id', parentIdColumn: 'parent_id'},
+      }),
+    ];
+    expect(psnOf(invNodes, 'inv')).toContain('|> TREE INVERT');
+    expect(sqlOf(invNodes, 'inv')).toContain('n._new_id AS id');
+
+    // TREE EXPAND
+    const expNodes: RootNodeData[] = [
+      baseTree(undefined),
+      {
+        type: 'data_table',
+        id: 'ins',
+        x: 0,
+        y: 0,
+        config: {
+          columns: [
+            {name: 'name', type: 'string'},
+            {name: 'frame', type: 'string'},
+            {name: 'ord', type: 'int'},
+          ],
+          rows: [['root', 'f0', '0']],
+        },
+      },
+      {
+        type: 'tree_expand',
+        id: 'ex',
+        x: 0,
+        y: 0,
+        inputs: ['tree', 'ins'],
+        config: {
+          direction: 'DOWN',
+          idColumn: 'id',
+          parentIdColumn: 'parent_id',
+          byColumns: ['name'],
+          orderColumns: ['ord'],
+          chargeColumns: ['self_size'],
+          chargeEnd: 'LEAF',
+        },
+      },
+    ];
+    expect(psnOf(expNodes, 'ex')).toContain(
+      'BY name ORDER BY ord CHARGE self_size TO LEAF',
+    );
+    expect(sqlOf(expNodes, 'ex')).toContain(
+      'IIF(e._pos = e._cnt, src.self_size, 0) AS self_size',
+    );
+  });
 });

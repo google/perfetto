@@ -36,6 +36,14 @@ import {manifest as intervalMergeNode} from './nodes/interval_merge';
 import {manifest as intervalFillGapsNode} from './nodes/interval_fill_gaps';
 import {manifest as intervalsFromEventsNode} from './nodes/intervals_from_events';
 import {manifest as treeAccumulateNode} from './nodes/tree_accumulate';
+import {manifest as treeExpandNode} from './nodes/tree_expand';
+import {manifest as treeFindNode} from './nodes/tree_find';
+import {manifest as treeFoldNode} from './nodes/tree_fold';
+import {manifest as treeInvertNode} from './nodes/tree_invert';
+import {manifest as treeKeyPathsNode} from './nodes/tree_key_paths';
+import {manifest as treeMergeNode} from './nodes/tree_merge';
+import {manifest as treePruneNode} from './nodes/tree_prune';
+import {manifest as treeReparentNode} from './nodes/tree_reparent';
 import {manifest as graphTreeNode} from './nodes/graph_tree';
 import {manifest as limitNode} from './nodes/limit';
 import {manifest as sortNode} from './nodes/sort';
@@ -73,6 +81,14 @@ export const NODE_REGISTRY: Readonly<Record<string, NodeManifest>> = {
   interval_fill_gaps: intervalFillGapsNode,
   intervals_from_events: intervalsFromEventsNode,
   tree_accumulate: treeAccumulateNode,
+  tree_key_paths: treeKeyPathsNode,
+  tree_find: treeFindNode,
+  tree_fold: treeFoldNode,
+  tree_prune: treePruneNode,
+  tree_reparent: treeReparentNode,
+  tree_merge: treeMergeNode,
+  tree_invert: treeInvertNode,
+  tree_expand: treeExpandNode,
   graph_tree: graphTreeNode,
   union: unionNode,
   chart: chartNode,

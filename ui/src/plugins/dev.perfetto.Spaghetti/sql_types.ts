@@ -28,6 +28,9 @@ export type FilterOp =
   | 'LIKE'
   | 'NOT LIKE'
   | 'GLOB'
+  | 'REGEXP'
+  | 'IN'
+  | 'BETWEEN'
   | 'IS NULL'
   | 'IS NOT NULL';
 
@@ -37,6 +40,7 @@ export interface FilterCondition {
   readonly column: string;
   readonly op: FilterOp;
   readonly value: string;
+  readonly value2?: string;
 }
 
 export type PipelineAggFunc = 'COUNT' | 'SUM' | 'MIN' | 'MAX';
@@ -72,17 +76,51 @@ function quoteValue(value: string): string {
   return isRawValue(value) ? value : `'${value.replace(/'/g, "''")}'`;
 }
 
+function quoteStringPattern(value: string): string {
+  if (value.startsWith("'") && value.endsWith("'") && value.length >= 2) {
+    return value;
+  }
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function formatInList(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+    return trimmed;
+  }
+  const items = trimmed
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .map(quoteValue);
+  return `(${items.join(', ')})`;
+}
+
 export function formatFilterConditions(
   conditions: readonly FilterCondition[],
   conjunction: FilterConjunction = 'AND',
 ): string {
   return conditions
     .filter((c) => c.column !== '')
-    .map((c) =>
-      isUnaryFilterOp(c.op)
-        ? `${c.column} ${c.op}`
-        : `${c.column} ${c.op} ${quoteValue(c.value)}`,
-    )
+    .map((c) => {
+      if (isUnaryFilterOp(c.op)) {
+        return `${c.column} ${c.op}`;
+      }
+      if (c.op === 'REGEXP') {
+        return `${c.column} REGEXP ${quoteStringPattern(c.value)}`;
+      }
+      if (c.op === 'IN') {
+        return `${c.column} IN ${formatInList(c.value)}`;
+      }
+      if (c.op === 'BETWEEN') {
+        const hi = c.value2?.trim() ?? '';
+        if (hi !== '') {
+          return `${c.column} BETWEEN ${quoteValue(c.value.trim())} AND ${quoteValue(hi)}`;
+        }
+        return `${c.column} BETWEEN ${c.value}`;
+      }
+      return `${c.column} ${c.op} ${quoteValue(c.value)}`;
+    })
     .join(` ${conjunction} `);
 }
 

@@ -40,6 +40,9 @@ export const FILTER_OPS = [
   'LIKE',
   'NOT LIKE',
   'GLOB',
+  'REGEXP',
+  'IN',
+  'BETWEEN',
   'IS NULL',
   'IS NOT NULL',
 ] as const satisfies readonly FilterOp[];
@@ -54,8 +57,12 @@ const FilterConditionSchema = z.object({
   value: z
     .string()
     .describe(
-      'Comparison value (numbers stay unquoted, plain strings are auto-quoted, "" for IS NULL / IS NOT NULL)',
+      'Comparison value (numbers stay unquoted, plain strings are auto-quoted, comma-separated list for IN, lower bound for BETWEEN, "" for IS NULL / IS NOT NULL)',
     ),
+  value2: z
+    .string()
+    .optional()
+    .describe('Upper bound for BETWEEN (only used when op is BETWEEN)'),
 });
 
 export type FilterCondition = z.infer<typeof FilterConditionSchema>;
@@ -74,6 +81,9 @@ export type FilterConfig = z.infer<typeof FilterConfigSchema>;
 function valuePlaceholder(op: FilterOp): string {
   if (op === 'LIKE' || op === 'NOT LIKE') return '%pattern%';
   if (op === 'GLOB') return '*pattern*';
+  if (op === 'REGEXP') return 'regex';
+  if (op === 'IN') return 'a, b, c';
+  if (op === 'BETWEEN') return 'min';
   return 'value';
 }
 
@@ -140,6 +150,16 @@ function FilterNodeContent(): m.Component<{
                     conditions: conditions.with(i, {...cond, value}),
                   }),
               }),
+            cond.op === 'BETWEEN' && m('span.pf-spag-operator', 'and'),
+            cond.op === 'BETWEEN' &&
+              m(TextInput, {
+                placeholder: 'max',
+                value: cond.value2 ?? '',
+                onChange: (value2) =>
+                  updateConfig({
+                    conditions: conditions.with(i, {...cond, value2}),
+                  }),
+              }),
           ]),
           onReorder: (from, to) =>
             updateConfig({conditions: moveItem(conditions, from, to)}),
@@ -166,6 +186,10 @@ function isValid(config: FilterConfig): boolean {
   return config.conditions.every((c) => {
     if (!c.column) return true;
     if (isUnaryFilterOp(c.op)) return true;
+    if (c.op === 'BETWEEN') {
+      const hi = c.value2?.trim() ?? '';
+      return c.value.trim() !== '' && (hi !== '' || /\bAND\b/i.test(c.value));
+    }
     return c.value !== '';
   });
 }
