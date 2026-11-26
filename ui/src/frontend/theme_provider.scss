@@ -193,40 +193,40 @@
   &--dark {
     color-scheme: dark;
 
-    // Surfaces (deep cool-slate ladder with headroom above dark borders so
-    // recessed seams read crisply against both primary and elevated surfaces).
-    --pf-color-void: #13161b;
-    --pf-color-background: #1c2027;
-    --pf-color-background-secondary: #232831;
-    --pf-color-background-tertiary: #2e3440;
-    --pf-color-background-elevated: #262c36;
-    --pf-color-background-sunken: #15181f;
-    --pf-color-background-input: #14171d;
-    --pf-color-background-input-hover: #181c24;
-    --pf-color-background-alt: #181b22;
-    --pf-color-button: #2b323d;
-    --pf-color-button-hover: #333b48;
-    --pf-color-button-active: #232933;
-    --pf-color-background-hover: rgba(226, 234, 244, 0.065);
-    --pf-color-background-active: rgba(226, 234, 244, 0.12);
+    // Surfaces (deep neutral-graphite ladder with headroom above dark borders
+    // so recessed seams read crisply against primary and elevated surfaces).
+    --pf-color-void: #141516;
+    --pf-color-background: #1d1e20;
+    --pf-color-background-secondary: #252628;
+    --pf-color-background-tertiary: #303235;
+    --pf-color-background-elevated: #28292c;
+    --pf-color-background-sunken: #161719;
+    --pf-color-background-input: #151618;
+    --pf-color-background-input-hover: #191a1d;
+    --pf-color-background-alt: #191a1c;
+    --pf-color-button: #2e2f32;
+    --pf-color-button-hover: #36383b;
+    --pf-color-button-active: #252629;
+    --pf-color-background-hover: rgba(255, 255, 255, 0.06);
+    --pf-color-background-active: rgba(255, 255, 255, 0.11);
     --pf-color-background-selected: rgba(66, 114, 173, 0.22);
-    --pf-color-backdrop: rgba(6, 8, 12, 0.72);
+    --pf-color-backdrop: rgba(8, 8, 10, 0.72);
 
     // Text
-    --pf-color-interactive-base: #e6edf5;
-    --pf-color-text: #e2e7ee;
-    --pf-color-text-secondary: #b8c1cd;
-    --pf-color-text-muted: #909ba9;
-    --pf-color-text-hint: #748090;
-    --pf-color-text-disabled: #5e6876;
+    --pf-color-interactive-base: #ededee;
+    --pf-color-text: #e4e5e7;
+    --pf-color-text-secondary: #b8bac0;
+    --pf-color-text-muted: #91949a;
+    --pf-color-text-hint: #767980;
+    --pf-color-text-disabled: #606369;
 
     // Borders (darker than surfaces for crisp, machined recessed seams;
     // translucent secondary seam adapts uniformly across elevated/base/alt rows)
-    --pf-color-border: #0a0c10;
+    --pf-color-border: #0a0b0c;
     --pf-color-border-secondary: rgba(0, 0, 0, 0.28);
-    --pf-color-border-strong: #040507;
+    --pf-color-border-strong: #040405;
     --pf-color-border-filled: rgba(0, 0, 0, 0.42);
-    --pf-color-control-border: #3d4654;
+    --pf-color-control-border: #44464b;
 
     // Elevation & chrome (dark shadows paired with subtle top specular rims
     // for a tactile faux-3D bevel on raised controls and overlays)
@@ -256,12 +256,12 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 2px rgba(0, 0, 0, 0.5);
     --pf-shadow-inset:
       inset 0 1px 2px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.035);
-    --pf-color-scrollbar: #3f4857;
-    --pf-color-control-track: #12151a;
-    --pf-color-switch-thumb: #eef2f7;
+    --pf-color-scrollbar: #43454a;
+    --pf-color-control-track: #131416;
+    --pf-color-switch-thumb: #f0f1f3;
 
     // Neutral & interactive accents
-    --pf-color-neutral: #86909e;
+    --pf-color-neutral: #8a8d93;
     --pf-color-accent: #5588cc;
     --pf-color-text-on-accent: #f4f7fc;
     --pf-color-focus-ring: color-mix(
@@ -343,10 +343,10 @@
     // Foreground color for text/icons drawn on top of any --pf-chart-color-*.
     --pf-chart-color-on: #1a1a1a;
 
-    --pf-color-track-summary-collapsed: #222730;
-    --pf-color-track-summary-expanded: #303744;
-    --pf-color-track-summary-expanded-text: #e6ebf0;
-    --pf-color-timeline-overlay: #e6ebf0;
+    --pf-color-track-summary-collapsed: #242528;
+    --pf-color-track-summary-expanded: #323438;
+    --pf-color-track-summary-expanded-text: #e8e9eb;
+    --pf-color-timeline-overlay: #e8e9eb;
 
     // In dark mode, the sidebar uses the same styles as the rest of the app
     --pf-sidebar-surface: var(--pf-color-background-secondary);

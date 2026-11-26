@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 .pf-cookie-consent {
   position: absolute;
   z-index: 10;
   left: 10px;
   bottom: 10px;
   width: 550px;
-  background-color: #19212b;
+  background-color: var(--pf-color-background-elevated);
+  border: 1px solid var(--pf-color-border);
+  box-shadow: $box-shadow-2;
   font-size: var(--pf-font-size-m);
-  color: rgb(180, 183, 186);
-  border-radius: 5px;
+  color: var(--pf-color-text-secondary);
+  border-radius: $border-radius-medium;
   padding: 20px;
 
   .buttons {
@@ -32,17 +36,18 @@
   }
 
   button {
-    padding: 10px;
-    border-radius: 3px;
-    color: #fff;
+    @include interactive-transition;
+    padding: 8px 12px;
+    border-radius: $border-radius;
+    color: var(--pf-color-text);
     margin-left: 5px;
     a {
       text-decoration: none;
-      color: #fff;
+      color: inherit;
     }
   }
   button:hover {
-    background-color: #373f4b;
+    background-color: var(--pf-color-background-hover);
     cursor: pointer;
   }
 }
