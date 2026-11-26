@@ -29,6 +29,7 @@ import type {Trace} from '../../../../../public/trace';
 import {SMAPS_TRACK_KIND} from '../../../../../public/track_kinds';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Callout} from '../../../components/callout';
+import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Intent} from '../../../../../widgets/common';
 import {Panel} from '../../../components/panel';
 import {deltaText, formatBytes, formatDelta} from '../mem_format';
@@ -155,6 +156,8 @@ export interface MemoryMapAttrs {
   // The page-wide selection (by ts). Undefined → latest snapshot.
   readonly selTs?: time;
   readonly baseTs?: time;
+  // Scroll smoothly to the Smaps VMAs section below.
+  readonly onInspectSmaps?: () => void;
 }
 
 export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
@@ -272,7 +275,17 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        controls: showInTimelineLink(trace, smapsTrackNode?.uri, snap.eventId),
+        controls: [
+          attrs.onInspectSmaps !== undefined &&
+            m(Button, {
+              label: 'Jump to VMAs',
+              icon: 'table_rows',
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: attrs.onInspectSmaps,
+            }),
+          showInTimelineLink(trace, smapsTrackNode?.uri, snap.eventId),
+        ],
       }),
       m(
         Panel.Body,

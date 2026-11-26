@@ -12,32 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// "Smaps detail" tab: every mapping of the selected snapshot (a dropdown picks
-// which; defaults to the latest), folded into the two-level taxonomy (or flat),
-// with regex filtering, optional extra columns and collapsible groups.
-// Self-contained: owns its query slots and loading.
+// "Memory Map (Smaps)" section: every VMA mapping of the selected snapshot
+// (driven by the top Memory Timeline when `selTs` is provided, or its own
+// dropdown otherwise), folded into the two-level taxonomy (or flat), with
+// regex filtering, optional extra columns, collapsible groups, and full Δ
+// comparison mode when a time range (`baseTs` → `selTs`) is brushed.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../base/async_memo';
+import {Time, type time} from '../../../../base/time';
 import type {Trace} from '../../../../public/trace';
 import {LONG, NUM, STR_NULL} from '../../../../trace_processor/query_result';
 import {Button} from '../../../../widgets/button';
 import {Icon} from '../../../../widgets/icon';
 import {RadioGroup} from '../../../../widgets/radio_group';
 import {Select} from '../../../../widgets/select';
-import {TextInput} from '../../../../widgets/text_input';
-import {Panel} from '../../components/panel';
-import {formatBytes, statCard} from './mem_format';
-import {emptyPanel, loadingPanel} from './section_widgets';
-import {MEMMAP_GREY} from './smaps_categories';
-import {BillboardStrip} from '../../components/billboard';
-import {Table} from '../../components/table';
 import {Stack} from '../../../../widgets/stack';
+import {TextInput} from '../../../../widgets/text_input';
+import {BillboardStrip} from '../../components/billboard';
+import {Panel} from '../../components/panel';
+import {Table} from '../../components/table';
+import {deltaText, formatBytes, formatDelta, statCard} from './mem_format';
+import {deltaCell, emptyPanel, loadingPanel} from './section_widgets';
+import {nearestByTs} from './selection';
+import {MEMMAP_GREY} from './smaps_categories';
 
-const TITLE = 'Memory Map';
+const TITLE = 'Virtual Memory Mappings (Smaps)';
 
-// One smaps path (VMA group) at the latest snapshot, with the full residency
-// split.
 interface SmapsPathRow {
   path: string;
   rss: number;
@@ -50,8 +51,18 @@ interface SmapsPathRow {
   sharedClean: number;
 }
 
-// Two-level taxonomy for the tree view: top-level groups and their
-// subcategories, in display order. classifyMapping() assigns each path.
+const ZERO_ROW: SmapsPathRow = {
+  path: '',
+  rss: 0,
+  pss: 0,
+  anon: 0,
+  swap: 0,
+  privateDirty: 0,
+  privateClean: 0,
+  sharedDirty: 0,
+  sharedClean: 0,
+};
+
 const SMAPS_TREE: {
   key: string;
   label: string;
@@ -92,9 +103,6 @@ const SMAPS_TREE: {
   },
 ];
 
-// Classifies one smaps path into a (group, sub) of SMAPS_TREE. Order matters:
-// graphics devices before the generic file-backed '/' check, and the dalvik
-// heap spaces before the generic dalvik bucket.
 function classifyMapping(path: string): {group: string; sub: string} {
   if (/dmabuf|^\/dev\/ashmem/.test(path)) {
     return {group: 'gfx', sub: 'ashmem'};
@@ -132,14 +140,11 @@ function classifyMapping(path: string): {group: string; sub: string} {
   return {group: 'anon', sub: 'other_anon'};
 }
 
-// One smaps snapshot for the picker: its ts and total resident bytes.
 interface SmapsSnapshotInfo {
-  ts: bigint;
-  rss: number;
+  readonly ts: time;
+  readonly rss: number;
 }
 
-// All smaps snapshots for one process (ts-ascending) with their total RSS, to
-// populate the snapshot dropdown.
 async function loadSmapsSnapshots(
   trace: Trace,
   upid: number,
@@ -153,13 +158,11 @@ async function loadSmapsSnapshots(
     ORDER BY s.ts ASC
   `);
   for (const it = res.iter({ts: LONG, rss: NUM}); it.valid(); it.next()) {
-    out.push({ts: it.ts, rss: it.rss});
+    out.push({ts: Time.fromRaw(it.ts), rss: it.rss});
   }
   return out;
 }
 
-// Per-path residency at the given smaps snapshot of one process. When `ts` is
-// undefined, falls back to the latest snapshot.
 async function loadSmapsPaths(
   trace: Trace,
   upid: number,
@@ -222,60 +225,153 @@ async function loadSmapsPaths(
 export interface SmapsDetailAttrs {
   readonly trace: Trace;
   readonly upid: number;
+  // Optional page-wide timeline selection. When provided, SmapsDetail aligns
+  // to `selTs` and shows Δ vs `baseTs` when a range is dragged.
+  readonly selTs?: time;
+  readonly baseTs?: time;
+  readonly hideSnapshotPicker?: boolean;
+}
+
+interface MergedPathRow {
+  readonly path: string;
+  readonly cur: SmapsPathRow;
+  readonly base?: SmapsPathRow;
 }
 
 export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
-  private readonly slot = new AsyncMemo<SmapsPathRow[]>();
+  private readonly curSlot = new AsyncMemo<SmapsPathRow[]>();
+  private readonly baseSlot = new AsyncMemo<SmapsPathRow[]>();
   private readonly snapshotsSlot = new AsyncMemo<SmapsSnapshotInfo[]>();
-  // View state.
   private smapsFlat = false;
   private smapsAllCols = false;
   private smapsFilter = '';
-  // The selected snapshot ts, or undefined to follow the latest snapshot.
   private selectedTs?: bigint;
-  // Collapsed group/subgroup keys in the tree.
   private readonly collapsed = new Set<string>();
 
   onremove() {
-    this.slot.dispose();
+    this.curSlot.dispose();
+    this.baseSlot.dispose();
     this.snapshotsSlot.dispose();
   }
 
   view({attrs}: m.Vnode<SmapsDetailAttrs>): m.Children {
-    const {trace, upid} = attrs;
+    const {trace, upid, selTs, baseTs, hideSnapshotPicker = false} = attrs;
     const snapshots =
       this.snapshotsSlot.use({
         key: {traceId: trace.traceInfo.uuid, upid},
         compute: () => loadSmapsSnapshots(trace, upid),
       }).data ?? [];
-    const rows = this.slot.use({
+
+    // Resolve active snapshot ts: external timeline selection takes precedence.
+    const resolvedCurSnap =
+      snapshots.length > 0
+        ? selTs !== undefined
+          ? nearestByTs(snapshots, selTs)
+          : this.selectedTs !== undefined
+            ? (snapshots.find((s) => s.ts === this.selectedTs) ??
+              snapshots[snapshots.length - 1])
+            : snapshots[snapshots.length - 1]
+        : undefined;
+
+    const resolvedBaseSnap =
+      baseTs !== undefined && snapshots.length > 0
+        ? nearestByTs(snapshots, baseTs)
+        : undefined;
+
+    const comparing =
+      resolvedCurSnap !== undefined &&
+      resolvedBaseSnap !== undefined &&
+      resolvedBaseSnap.ts !== resolvedCurSnap.ts;
+
+    const curTs = resolvedCurSnap?.ts ?? this.selectedTs;
+    const rows = this.curSlot.use({
       key: {
         traceId: trace.traceInfo.uuid,
         upid,
-        ts: this.selectedTs?.toString() ?? 'latest',
+        ts: curTs?.toString() ?? 'latest',
       },
-      compute: () => loadSmapsPaths(trace, upid, this.selectedTs),
+      compute: () => loadSmapsPaths(trace, upid, curTs),
     }).data;
-    if (rows === undefined) {
-      return m('.pf-memscope-charts', loadingPanel({title: TITLE})); // Still loading.
+
+    const baseRows = comparing
+      ? this.baseSlot.use({
+          key: {
+            traceId: trace.traceInfo.uuid,
+            upid,
+            ts: resolvedBaseSnap.ts.toString(),
+          },
+          compute: () => loadSmapsPaths(trace, upid, resolvedBaseSnap.ts),
+        }).data
+      : undefined;
+
+    if (rows === undefined || (comparing && baseRows === undefined)) {
+      return m('.pf-memscope-charts', loadingPanel({title: TITLE}));
     }
-    if (rows.length === 0) {
+    if (
+      rows.length === 0 &&
+      (baseRows === undefined || baseRows.length === 0)
+    ) {
       return emptyPanel({
         title: TITLE,
         message: 'No smaps data in this trace for this process.',
       });
     }
 
-    const sum = (list: SmapsPathRow[], get: (r: SmapsPathRow) => number) =>
-      list.reduce((s, r) => s + get(r), 0);
+    // Build merged rows (union of current & baseline paths when comparing).
+    const baseByPath = new Map<string, SmapsPathRow>();
+    if (baseRows !== undefined) {
+      for (const r of baseRows) {
+        baseByPath.set(r.path, r);
+      }
+    }
+    const merged: MergedPathRow[] = [];
+    const seenPaths = new Set<string>();
+    for (const r of rows) {
+      seenPaths.add(r.path);
+      merged.push({
+        path: r.path,
+        cur: r,
+        base: comparing ? baseByPath.get(r.path) : undefined,
+      });
+    }
+    if (comparing && baseRows !== undefined) {
+      for (const br of baseRows) {
+        if (!seenPaths.has(br.path)) {
+          merged.push({
+            path: br.path,
+            cur: {...ZERO_ROW, path: br.path},
+            base: br,
+          });
+        }
+      }
+    }
 
-    let filtered = rows;
+    const sumCur = (
+      list: readonly MergedPathRow[],
+      get: (r: SmapsPathRow) => number,
+    ) => list.reduce((s, mRow) => s + get(mRow.cur), 0);
+    const sumBase = (
+      list: readonly MergedPathRow[],
+      get: (r: SmapsPathRow) => number,
+    ) =>
+      list.reduce(
+        (s, mRow) => s + (mRow.base !== undefined ? get(mRow.base) : 0),
+        0,
+      );
+
+    const rowSortScore = (r: MergedPathRow): number => {
+      if (!comparing) return r.cur.rss;
+      const baseRss = r.base?.rss ?? 0;
+      return Math.abs(r.cur.rss - baseRss);
+    };
+
+    let filtered = merged;
     if (this.smapsFilter !== '') {
       try {
         const re = new RegExp(this.smapsFilter);
-        filtered = rows.filter((r) => re.test(r.path));
+        filtered = merged.filter((r) => re.test(r.path));
       } catch {
-        filtered = rows.filter((r) => r.path.includes(this.smapsFilter));
+        filtered = merged.filter((r) => r.path.includes(this.smapsFilter));
       }
     }
 
@@ -298,15 +394,32 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
         ];
 
     const fmtCell = (n: number) => (n > 0 ? formatBytes(n) : '-');
-    const numCells = (r: SmapsPathRow) =>
-      cols.map((c) => m('td.pf-memscope-table__num', fmtCell(c.get(r))));
-    const sumCells = (list: SmapsPathRow[]) =>
-      cols.map((c) =>
-        m(
+    const numCells = (r: MergedPathRow) =>
+      cols.map((c) => {
+        const curVal = c.get(r.cur);
+        const baseVal = r.base !== undefined ? c.get(r.base) : undefined;
+        return m(
+          'td.pf-memscope-table__num',
+          deltaCell(
+            fmtCell(curVal),
+            baseVal !== undefined ? curVal - baseVal : undefined,
+            comparing,
+          ),
+        );
+      });
+    const sumCells = (list: readonly MergedPathRow[]) =>
+      cols.map((c) => {
+        const curVal = sumCur(list, c.get);
+        const baseVal = comparing ? sumBase(list, c.get) : undefined;
+        return m(
           'td.pf-memscope-table__num.pf-memscope-table__size',
-          fmtCell(sum(list, c.get)),
-        ),
-      );
+          deltaCell(
+            fmtCell(curVal),
+            baseVal !== undefined ? curVal - baseVal : undefined,
+            comparing,
+          ),
+        );
+      });
 
     const toggle = (key: string) => {
       if (this.collapsed.has(key)) {
@@ -324,7 +437,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
       m('span.pf-memscope-growth__swatch', {style: {background: color}});
 
     const MAX_CHILD_ROWS = 30;
-    const pathRow = (r: SmapsPathRow, indent: string) =>
+    const pathRow = (r: MergedPathRow, indent: string) =>
       m('tr', [m(`td.pf-memscope-smaps__path.${indent}`, r.path), numCells(r)]);
     const moreRow = (n: number, indent: string) =>
       m(
@@ -338,15 +451,17 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
 
     let body: m.Child[];
     if (this.smapsFlat) {
-      body = filtered
+      const sortedFlat = filtered
+        .slice()
+        .sort((a, b) => rowSortScore(b) - rowSortScore(a));
+      body = sortedFlat
         .slice(0, 200)
         .map((r) => pathRow(r, 'pf-memscope-smaps__lvl0'));
-      if (filtered.length > 200) {
-        body.push(moreRow(filtered.length - 200, 'pf-memscope-smaps__lvl0'));
+      if (sortedFlat.length > 200) {
+        body.push(moreRow(sortedFlat.length - 200, 'pf-memscope-smaps__lvl0'));
       }
     } else {
-      // Bucket each mapping into its (group, sub) of the taxonomy.
-      const buckets = new Map<string, SmapsPathRow[]>();
+      const buckets = new Map<string, MergedPathRow[]>();
       for (const r of filtered) {
         const {group, sub} = classifyMapping(r.path);
         const key = `${group}/${sub}`;
@@ -354,6 +469,11 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
         list.push(r);
         buckets.set(key, list);
       }
+
+      const groupScore = (list: readonly MergedPathRow[]): number =>
+        comparing
+          ? Math.abs(sumCur(list, (r) => r.rss) - sumBase(list, (r) => r.rss))
+          : sumCur(list, (r) => r.rss);
 
       body = [];
       for (const g of SMAPS_TREE) {
@@ -363,9 +483,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
             rows: buckets.get(`${g.key}/${s.key}`) ?? [],
           }))
           .filter((s) => s.rows.length > 0)
-          .sort(
-            (a, b) => sum(b.rows, (r) => r.rss) - sum(a.rows, (r) => r.rss),
-          );
+          .sort((a, b) => groupScore(b.rows) - groupScore(a.rows));
         if (subLists.length === 0) continue;
         const groupRows = subLists.flatMap((s) => s.rows);
 
@@ -395,7 +513,9 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
             ),
           );
           if (this.collapsed.has(subKey)) continue;
-          const sorted = s.rows.slice().sort((a, b) => b.rss - a.rss);
+          const sorted = s.rows
+            .slice()
+            .sort((a, b) => rowSortScore(b) - rowSortScore(a));
           for (const r of sorted.slice(0, MAX_CHILD_ROWS)) {
             body.push(pathRow(r, 'pf-memscope-smaps__lvl2'));
           }
@@ -411,57 +531,126 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
       }
     }
 
+    const tOf = (ts: time) =>
+      (Number(ts - trace.traceInfo.start) / 1e9).toFixed(1);
+    const curIdx =
+      resolvedCurSnap !== undefined ? snapshots.indexOf(resolvedCurSnap) : -1;
+    const baseIdx =
+      resolvedBaseSnap !== undefined ? snapshots.indexOf(resolvedBaseSnap) : -1;
+
+    const totalRss = sumCur(merged, (r) => r.rss);
+    const baseRss = comparing ? sumBase(merged, (r) => r.rss) : 0;
+    const totalAnonSwap = sumCur(merged, (r) => r.anon + r.swap);
+    const baseAnonSwap = comparing
+      ? sumBase(merged, (r) => r.anon + r.swap)
+      : 0;
+    const totalPss = sumCur(merged, (r) => r.pss);
+    const basePss = comparing ? sumBase(merged, (r) => r.pss) : 0;
+    const totalPrivDirty = sumCur(merged, (r) => r.privateDirty);
+    const basePrivDirty = comparing
+      ? sumBase(merged, (r) => r.privateDirty)
+      : 0;
+    const totalSwap = sumCur(merged, (r) => r.swap);
+    const baseSwap = comparing ? sumBase(merged, (r) => r.swap) : 0;
+
     return m(
       Panel,
       m(Panel.Header, {title: TITLE}),
       m(
         Panel.Body,
         m(Stack, {spacing: 'large'}, [
+          resolvedCurSnap !== undefined &&
+            m('.pf-memscope-memmap__section-header', [
+              m(
+                'span.pf-memscope-memmap__section-title',
+                {
+                  className: comparing
+                    ? 'pf-memscope-memmap__section-title--diff'
+                    : 'pf-memscope-memmap__section-title--straight',
+                },
+                comparing && resolvedBaseSnap !== undefined
+                  ? `Diffing snapshot #${baseIdx + 1} (t=${tOf(resolvedBaseSnap.ts)}s) → #${curIdx + 1} (t=${tOf(resolvedCurSnap.ts)}s)`
+                  : `Snapshot #${curIdx + 1} · t=${tOf(resolvedCurSnap.ts)}s`,
+              ),
+              m(
+                'span.pf-memscope-memmap__section-hint',
+                comparing
+                  ? 'sorted by |Δ RSS| — biggest movers first'
+                  : `${rows.length} mappings · sorted by RSS`,
+              ),
+            ]),
           m(BillboardStrip, [
             statCard([
               {
                 label: 'Total RSS',
-                value: formatBytes(sum(rows, (r) => r.rss)),
-                sub: `${rows.length} mappings`,
+                value: formatBytes(totalRss),
+                sub: comparing
+                  ? deltaText(
+                      totalRss - baseRss,
+                      `Δ ${formatDelta(totalRss - baseRss)} vs baseline`,
+                    )
+                  : `${rows.length} mappings`,
               },
             ]),
             statCard([
               {
                 label: 'RSS anon + swap',
-                value: formatBytes(sum(rows, (r) => r.anon + r.swap)),
-                sub: 'private anon + swapped',
+                value: formatBytes(totalAnonSwap),
+                sub: comparing
+                  ? deltaText(
+                      totalAnonSwap - baseAnonSwap,
+                      `Δ ${formatDelta(totalAnonSwap - baseAnonSwap)} vs baseline`,
+                    )
+                  : 'private anon + swapped',
               },
             ]),
             statCard([
               {
                 label: 'Total PSS',
-                value: formatBytes(sum(rows, (r) => r.pss)),
-                sub: 'proportional set size',
+                value: formatBytes(totalPss),
+                sub: comparing
+                  ? deltaText(
+                      totalPss - basePss,
+                      `Δ ${formatDelta(totalPss - basePss)} vs baseline`,
+                    )
+                  : 'proportional set size',
               },
             ]),
             statCard([
               {
                 label: 'Private dirty',
-                value: formatBytes(sum(rows, (r) => r.privateDirty)),
-                sub: 'unshareable cost',
+                value: formatBytes(totalPrivDirty),
+                sub: comparing
+                  ? deltaText(
+                      totalPrivDirty - basePrivDirty,
+                      `Δ ${formatDelta(totalPrivDirty - basePrivDirty)} vs baseline`,
+                    )
+                  : 'unshareable cost',
               },
             ]),
             statCard([
               {
                 label: 'Swap',
-                value: formatBytes(sum(rows, (r) => r.swap)),
-                sub: 'zram / swapped out',
+                value: formatBytes(totalSwap),
+                sub: comparing
+                  ? deltaText(
+                      totalSwap - baseSwap,
+                      `Δ ${formatDelta(totalSwap - baseSwap)} vs baseline`,
+                    )
+                  : 'zram / swapped out',
               },
             ]),
           ]),
           m('.pf-memscope-smaps__controls', [
-            snapshots.length > 1 &&
+            !hideSnapshotPicker &&
+              snapshots.length > 1 &&
               m(
                 Select,
                 {
-                  // Default to the latest snapshot when nothing is picked.
                   value: (
-                    this.selectedTs ?? snapshots[snapshots.length - 1]!.ts
+                    resolvedCurSnap?.ts ??
+                    snapshots[snapshots.length - 1]?.ts ??
+                    0n
                   ).toString(),
                   onchange: (e: Event) => {
                     const v = (e.target as HTMLSelectElement).value;
@@ -510,7 +699,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
             }),
             m(
               'span.pf-memscope-smaps__counttext',
-              `${filtered.length} / ${rows.length} mappings`,
+              `${filtered.length} / ${merged.length} mappings`,
             ),
           ]),
           m(

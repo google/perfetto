@@ -1,0 +1,405 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memtl-hero {
+  border-color: color-mix(
+    in srgb,
+    var(--pf-color-primary) 28%,
+    var(--pf-col-border)
+  );
+}
+
+.pf-memtl-hero__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.pf-memtl__status-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pf-memtl__delta-badge,
+.pf-memtl__pin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text);
+
+  .pf-icon {
+    font-size: 15px;
+  }
+}
+
+.pf-memtl__delta-badge {
+  background: color-mix(
+    in srgb,
+    var(--pf-color-primary) 12%,
+    var(--pf-col-base)
+  );
+  border: 1px solid color-mix(in srgb, var(--pf-color-primary) 45%, transparent);
+
+  .pf-icon {
+    color: var(--pf-color-primary);
+  }
+}
+
+.pf-memtl__delta-badge-val {
+  font-weight: 700;
+}
+
+.pf-memtl__pin-badge {
+  background: var(--pf-col-base);
+  border: 1px solid var(--pf-col-border);
+
+  .pf-icon {
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memtl__canvas-wrap {
+  position: relative;
+  width: 100%;
+  user-select: none;
+}
+
+.pf-memtl__svg {
+  display: block;
+  width: 100%;
+  height: 212px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.pf-memtl__gridline {
+  stroke: color-mix(in srgb, var(--pf-col-border) 55%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.pf-memtl__ylabel,
+.pf-memtl__lane-label {
+  font-size: 10px;
+  font-family: var(--pf-font-monospace);
+  font-variant-numeric: tabular-nums;
+  fill: var(--pf-color-text-hint);
+  text-anchor: end;
+  pointer-events: none;
+}
+
+.pf-memtl__xlabel {
+  font-size: 10px;
+  font-family: var(--pf-font-monospace);
+  font-variant-numeric: tabular-nums;
+  fill: var(--pf-color-text-hint);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.pf-memtl__xaxis {
+  stroke: var(--pf-col-border);
+  stroke-width: 1;
+}
+
+.pf-memtl__area {
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.pf-memtl__fallback-area {
+  fill: color-mix(in srgb, var(--pf-color-primary) 16%, transparent);
+  pointer-events: none;
+}
+
+.pf-memtl__single-bar {
+  fill: color-mix(in srgb, #4caf50 75%, transparent);
+  stroke: #4caf50;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.pf-memtl__ridge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--pf-color-text) 65%, transparent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.pf-memtl__lane-bg {
+  fill: var(--pf-col-inset);
+  stroke: color-mix(in srgb, var(--pf-col-border) 65%, transparent);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.pf-memtl__sample-guide {
+  stroke: color-mix(in srgb, #4caf50 30%, transparent);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.pf-memtl__smaps-dot {
+  fill: #4caf50;
+  stroke: var(--pf-col-surface);
+  stroke-width: 1.5;
+  pointer-events: none;
+
+  &--sel {
+    fill: var(--pf-color-success);
+    stroke-width: 2;
+  }
+
+  &--base {
+    fill: var(--pf-color-danger);
+    stroke-width: 2;
+  }
+}
+
+.pf-memtl__smaps-lane-dot {
+  fill: #4caf50;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.pf-memtl__native-tick {
+  stroke: #ff9800;
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.pf-memtl__dump-pin {
+  pointer-events: none;
+
+  .pf-memtl__dump-guide {
+    stroke: color-mix(in srgb, #2196f3 50%, transparent);
+    stroke-width: 1.25;
+    stroke-dasharray: 3 3;
+  }
+
+  .pf-memtl__dump-bar {
+    fill: color-mix(in srgb, #2196f3 30%, transparent);
+    stroke: #2196f3;
+    stroke-width: 1;
+  }
+
+  .pf-memtl__dump-diamond {
+    fill: #2196f3;
+    stroke: var(--pf-col-surface);
+    stroke-width: 1.5;
+  }
+
+  .pf-memtl__dump-halo {
+    fill: color-mix(in srgb, #2196f3 22%, transparent);
+  }
+
+  .pf-memtl__dump-tag {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--pf-font-monospace);
+    fill: #2196f3;
+  }
+
+  &--active {
+    .pf-memtl__dump-guide {
+      stroke: var(--pf-color-primary);
+      stroke-width: 1.5;
+    }
+
+    .pf-memtl__dump-diamond {
+      fill: var(--pf-color-primary);
+    }
+
+    .pf-memtl__dump-tag {
+      fill: var(--pf-color-primary);
+    }
+  }
+}
+
+.pf-memtl__pin-line {
+  pointer-events: none;
+
+  line {
+    stroke: var(--pf-color-success);
+    stroke-width: 1.75;
+    stroke-dasharray: 4 3;
+  }
+}
+
+.pf-memtl__pin-label {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--pf-font-monospace);
+  fill: var(--pf-color-success);
+  text-anchor: middle;
+}
+
+.pf-memtl__curtain {
+  fill: color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
+  pointer-events: none;
+}
+
+.pf-memtl__edge {
+  stroke-width: 2;
+  pointer-events: none;
+
+  &--base {
+    stroke: var(--pf-color-danger);
+  }
+
+  &--sel {
+    stroke: var(--pf-color-success);
+  }
+}
+
+.pf-memtl__handle {
+  cursor: ew-resize;
+  stroke: var(--pf-col-surface);
+  stroke-width: 1.5;
+
+  &--base {
+    fill: var(--pf-color-danger);
+  }
+
+  &--sel {
+    fill: var(--pf-color-success);
+  }
+}
+
+.pf-memtl__range-label {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--pf-font-monospace);
+  fill: var(--pf-color-primary);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.pf-memtl__crosshair {
+  stroke: var(--pf-color-text-hint);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.pf-memtl__hud {
+  position: absolute;
+  top: 4px;
+  right: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--pf-col-surface) 92%, transparent);
+  border: 1px solid var(--pf-col-border);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+
+  &-ts {
+    font-family: var(--pf-font-monospace);
+    font-weight: 700;
+    color: var(--pf-color-text);
+  }
+
+  &-val {
+    color: var(--pf-color-text-muted);
+    font-weight: 500;
+  }
+
+  &-dump {
+    color: #2196f3;
+    font-weight: 600;
+  }
+}
+
+.pf-memtl__legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 2px;
+}
+
+.pf-memtl__legend-items {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memtl__legend-item,
+.pf-memtl__legend-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pf-memtl__legend-source {
+  font-weight: 600;
+  color: var(--pf-color-text);
+
+  &--empty {
+    opacity: 0.45;
+    font-weight: 400;
+  }
+}
+
+.pf-memtl__legend-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--pf-col-border);
+}
+
+.pf-memtl__legend-diamond {
+  width: 7px;
+  height: 7px;
+  background: #2196f3;
+  transform: rotate(45deg);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pf-memtl__legend-tick {
+  width: 2.5px;
+  height: 9px;
+  border-radius: 2px;
+  background: #ff9800;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pf-memtl__growth--active {
+  border-color: color-mix(
+    in srgb,
+    var(--pf-color-primary) 40%,
+    var(--pf-col-border)
+  );
+}

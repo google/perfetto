@@ -12,6 +12,360 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// ---------------------------------------------------------------------------
+// Timeline-First Vertical-Flow Memory Page
+// ---------------------------------------------------------------------------
+.pf-memtl-page {
+  scroll-behavior: smooth;
+}
+
+.pf-memtl-page__empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.pf-memtl-page__content {
+  padding-bottom: 48px;
+}
+
+.pf-memtl-section {
+  scroll-margin-top: 56px;
+}
+
+// Compact top subject bar
+.pf-memtl-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--pf-col-surface);
+  border: 0.5px solid var(--pf-col-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  &__left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  &__sep {
+    width: 1px;
+    height: 18px;
+    background: var(--pf-col-border);
+  }
+
+  &__trace {
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__feedback {
+    font-size: var(--pf-font-size-s);
+  }
+}
+
+.pf-memtl-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
+    color: var(--pf-color-primary);
+
+    .pf-icon {
+      font-size: 17px;
+    }
+  }
+
+  &__title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--pf-color-text);
+  }
+
+  &__badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--pf-col-inset);
+    border: 1px solid var(--pf-col-border);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memtl-proc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--pf-col-border);
+  background: var(--pf-col-base);
+  color: var(--pf-color-text);
+  font: inherit;
+  font-size: var(--pf-font-size-s);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+
+  &:hover {
+    border-color: var(--pf-color-primary);
+    background: var(--pf-col-surface);
+  }
+
+  &__name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__pid {
+    flex-shrink: 0;
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--pf-col-inset);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__caret {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: var(--pf-color-text-muted);
+    margin-left: -2px;
+  }
+}
+
+.pf-memtl-proc-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 240px;
+
+  &__main {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  &__name {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__pid {
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// Sticky section jump & active range bar
+.pf-memtl-jumpbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--pf-col-surface) 94%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--pf-col-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+
+  &__links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--pf-color-text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background-color 0.1s ease,
+      border-color 0.1s ease;
+
+    .pf-icon {
+      font-size: 14px;
+      color: var(--pf-color-text-muted);
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--pf-col-base);
+      border-color: var(--pf-col-border);
+    }
+
+    &--top {
+      font-weight: 600;
+      color: var(--pf-color-primary);
+
+      .pf-icon {
+        color: var(--pf-color-primary);
+      }
+    }
+
+    &--muted,
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__context {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  &__pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px 2px 10px;
+    border-radius: 999px;
+    background: var(--pf-col-base);
+    border: 1px solid var(--pf-col-border);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+
+    .pf-icon {
+      font-size: 14px;
+      color: var(--pf-color-text-muted);
+    }
+
+    &--delta {
+      background: color-mix(
+        in srgb,
+        var(--pf-color-primary) 12%,
+        var(--pf-col-surface)
+      );
+      border-color: color-mix(
+        in srgb,
+        var(--pf-color-primary) 45%,
+        transparent
+      );
+
+      .pf-icon {
+        color: var(--pf-color-primary);
+      }
+    }
+  }
+
+  &__hint {
+    font-size: 11px;
+    color: var(--pf-color-text-hint);
+  }
+}
+
+// Embedded Java Heap Explorer card in document flow (with fullscreen toggle)
+.pf-memtl-heap-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  &__body {
+    height: 680px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  &__dump-tag {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--pf-col-base);
+    border: 1px solid var(--pf-col-border);
+  }
+
+  &__dump-chips {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  &--expanded {
+    position: fixed;
+    inset: 12px;
+    z-index: 40;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+
+    .pf-memtl-heap-card__body {
+      height: auto;
+      flex: 1;
+      min-height: 0;
+    }
+  }
+}
+
 // Header capture strip: process identity + per-source capture facts. Layout
 // only - the raised-card chrome comes from the Panel this class is applied to.
 .pf-memscope-capture {
