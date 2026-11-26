@@ -143,6 +143,8 @@ li.pf-sidebar__item {
 }
 
 .pf-sidebar__badge {
+  margin-left: auto;
+  flex-shrink: 0;
   font-size: var(--pf-font-size-xs);
   font-family: var(--pf-font-compact);
   font-weight: 500;
@@ -170,6 +172,11 @@ li.pf-sidebar__item {
   flex-shrink: 0;
   border-color: var(--pf-sidebar-border);
   border-top-color: var(--pf-sidebar-on-surface);
+}
+
+.pf-sidebar__badge ~ .pf-sidebar__external-link-icon,
+.pf-sidebar__badge ~ .pf-spinner.pf-sidebar__spinner {
+  margin-left: 0;
 }
 
 .pf-sidebar__trace-file-name {
