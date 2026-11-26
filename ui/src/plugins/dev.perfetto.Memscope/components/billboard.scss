@@ -80,10 +80,10 @@
   margin-left: 6px;
   color: var(--pf-color-text-muted);
   &--up {
-    color: var(--pf-color-danger);
+    color: var(--pf-color-danger-text);
   }
   &--down {
-    color: var(--pf-color-success);
+    color: var(--pf-color-success-text);
   }
 }
 
@@ -97,10 +97,10 @@
   }
 }
 
-// Style billboards inside a panel differently
+// Style billboards inside a panel as recessed wells matching Inset.
 .pf-memscope-panel {
   .pf-memscope-billboard {
     background: var(--pf-col-inset);
-    box-shadow: none;
+    box-shadow: var(--pf-shadow-inset);
   }
 }
