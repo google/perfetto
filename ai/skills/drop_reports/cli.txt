@@ -1,0 +1,3 @@
+# Files of the perfetto skill that the host of cli.md does not
+# get, and the actions it lacks for each. Written by
+# tools/gen_skill_bundle.py --drop-report.

@@ -24,7 +24,7 @@ The findings that shaped it:
   rules.
 - **Warm sessions are the single biggest efficiency win.** Without
   guidance agents re-parse the trace for every query, dozens of times
-  per investigation. `querying.md` makes `server unix` plus
+  per investigation. The CLI adapter makes `server unix` plus
   `query --remote` the default.
 - **Workflows carry their own scripts.** A workflow that says "run this
   SQL file, then interpret these columns" is repeatable and cheap to
@@ -43,13 +43,14 @@ costs more or scores lower is not an improvement.
 ai/skills/perfetto/
 ├── SKILL-template.md            the router (becomes SKILL.md when bundled)
 ├── infra-references/
-│   ├── querying.md              trace_processor sessions, discovery, PerfettoSQL
+│   ├── querying.md              discovery, PerfettoSQL
 │   ├── recording_android_traces.md
 │   ├── recording_linux_traces.md
 │   ├── trace_config_reference.md
 │   └── example-configs/
 ├── environment-references/
-│   └── setup.md                 $SKILL_ROOT and the bundled trace_processor
+│   ├── cli.md                   CLI adapter: $SKILL_ROOT, sessions
+│   └── ui.md                    UI adapter: the skill inside the Perfetto UI
 └── workflows/
     ├── android_memory/          heap dumps, native heap, allocations + scripts/
     └── gpu/                     occupancy, frequency, compute kernels + scripts/
@@ -74,15 +75,38 @@ to set `$SKILL_ROOT` once.
   `trace_processor_shell`, and check the with/without numbers before
   sending the change.
 
+## Hosts
+
+`tools/gen_skill_bundle.py --adapter <path>` builds the skill for the
+host of that adapter. What differs between hosts goes in that host's
+adapter in `environment-references/` (`cli.md`, `ui.md`), including the
+skill `description` in its frontmatter. The adapter body says how the
+host performs each action, and replaces the `{{environment_setup}}`
+line of `SKILL-template.md`. Other files say what to run ("Run
+`$SKILL_ROOT/<path>.sql`"), and the adapter says how. Each file lists
+every action it needs in its `requires` frontmatter, such as `[query]`,
+and a host whose adapter lacks one does not get the file (see
+`drop_reports/`, one checked-in report per adapter).
+Point at such a file with `related` frontmatter, not with a link in the
+body. The frontmatter is described in `tools/gen_skill_bundle.py`.
+
+Every `.md` file must be reached through links from `SKILL.md`; the
+generator fails on a file that no link reaches. A new host also selects
+the form of its output with `--layout`: `tree` (the default) or `index`.
+See `tools/gen_skill_bundle.py`.
+
+When you change the skill, run `python3 tools/gen_skill_bundle_unittest.py`.
+
 ## How it ships
 
 The tree here is a build input, not a drop-in: `SKILL-template.md` is
 named so that skill loaders scanning for `SKILL.md` do not pick up the
 unassembled source, and the `trace_processor` wrapper is not checked in
-alongside it. `tools/release/build_ai_agents.py` renames the router,
-copies in `tools/trace_processor` as `bin/trace_processor`, adds the
-per-agent manifests from [`ai/extensions/`](../extensions/README.md) and
-writes the result to the `ai-agents` branch at each release. Users
+alongside it. `tools/release/build_ai_agents.py` writes the router with
+the CLI adapter in place (`tools/gen_skill_bundle.py`), copies in
+`tools/trace_processor` as `bin/trace_processor`, adds the per-agent
+manifests from [`ai/extensions/`](../extensions/README.md) and writes the
+result to the `ai-agents` branch at each release. Users
 install from that branch; see
 [`docs/getting-started/using-ai.md`](../../docs/getting-started/using-ai.md).
 To try the local tree, `ai/evals/setup_assets.py` bundles it the same way.
