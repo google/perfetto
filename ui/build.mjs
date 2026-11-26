@@ -98,6 +98,7 @@ const cfg = {
   wasmModules: [],
   crossOriginIsolation: false,
   allowAllHosts: false,
+  https: false,
   testFilter: '',
   noOverrideGnArgs: false,
 
@@ -252,6 +253,11 @@ Env-var overrides:
       "can sit behind an arbitrary reverse proxy. Disables Vite's " +
       'DNS-rebind host-check protection.',
   });
+  parser.add_argument('--https', {
+    action: 'store_true',
+    help: 'Serve the Vite dev server over HTTPS (enabling HTTP/2) using an ' +
+          'auto-generated self-signed certificate.',
+  });
   parser.add_argument('--test-filter', '-f', {
     help: "filter Jest tests by regex, e.g. 'chrome_render'",
   });
@@ -357,6 +363,7 @@ Env-var overrides:
     cfg.crossOriginIsolation = true;
   }
   cfg.allowAllHosts = !!args.allow_all_hosts;
+  cfg.https = !!args.https;
   cfg.check = !!args.typecheck;
   cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
@@ -906,6 +913,57 @@ function genServiceWorkerManifestJson() {
   addTask(makeManifest, []);
 }
 
+function ensureDevHttpsCert() {
+  const sslDir = ensureDir(pjoin(cfg.outDir, 'dev-ssl'));
+  const keyPath = pjoin(sslDir, 'key.pem');
+  const certPath = pjoin(sslDir, 'cert.pem');
+  let valid = false;
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    try {
+      const cert = new crypto.X509Certificate(fs.readFileSync(certPath));
+      valid = Date.parse(cert.validTo) > Date.now();
+    } catch {
+      valid = false;
+    }
+  }
+  if (!valid) {
+    console.log(`Generating self-signed TLS cert in ${sslDir}...`);
+    const res = exec(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        keyPath,
+        '-out',
+        certPath,
+        '-days',
+        '365',
+        '-subj',
+        '/CN=localhost',
+        '-addext',
+        'subjectAltName=DNS:localhost,IP:127.0.0.1',
+      ],
+      {noErrCheck: true},
+    );
+    if (res.error?.code === 'ENOENT') {
+      console.error(
+        'Error: --https requires `openssl` on PATH to generate a ' +
+          'self-signed development certificate.',
+      );
+      process.exit(1);
+    }
+    if (res.status !== 0) {
+      console.error(`openssl failed with code ${res.status}`);
+      process.exit(1);
+    }
+  }
+  return {key: keyPath, cert: certPath};
+}
+
 // In dev (--watch --serve), Vite owns the user-facing port. It serves the
 // frontend entry as native ESM transformed on the fly; everything else
 // (wasm, fonts, css, /test/, /v1.2.3/-relative paths) is layered on as
@@ -930,12 +988,15 @@ async function startViteDevServer() {
       }
     : undefined;
 
+  const https = cfg.https ? ensureDevHttpsCert() : undefined;
+
   const server = await createServer({
     configFile: pjoin(ROOT_DIR, 'ui/vite.config.mjs'),
     server: {
       host: cfg.httpServerListenHost,
       port,
       strictPort: false,
+      https,
       headers,
       // By default Vite only accepts requests whose Host header matches the
       // bind host, to guard against DNS-rebind attacks. When --allow-all-hosts
