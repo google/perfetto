@@ -613,6 +613,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         canvasState.isDockZone = dockInfo.isValidZone;
       }
       m.redraw();
+    } else if (canvasState.connecting !== null) {
+      m.redraw();
     }
   };
 
