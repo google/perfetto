@@ -67,4 +67,12 @@
 #define PERFETTO_HAS_BUILTIN(x) 0
 #endif
 
+// __has_attribute is supported only by clang and recent versions of GCC.
+// Add a layer to wrap the __has_attribute macro.
+#if defined(__has_attribute)
+#define PERFETTO_HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+#define PERFETTO_HAS_ATTRIBUTE(x) 0
+#endif
+
 #endif  // INCLUDE_PERFETTO_PUBLIC_COMPILER_H_
