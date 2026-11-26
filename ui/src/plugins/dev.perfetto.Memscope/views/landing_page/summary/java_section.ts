@@ -18,10 +18,12 @@
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
+import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
+import {Anchor} from '../../../../../widgets/anchor';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
@@ -39,6 +41,7 @@ import {
   classNameCell,
   deltaCell,
   emptyPanel,
+  heapDumpHref,
   loadingPanel,
   shortClassName,
   topTable,
@@ -595,10 +598,10 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
+        classNameCell(upid, c.typeName, data.retainerOf.get(c.typeName), () =>
           trace.plugins
             .getPlugin(HeapDumpExplorerPlugin)
-            .updateHeadDump(upid, cur.ts),
+            .selectDump(upid, cur.ts),
         ),
         withDelta(
           c.reachableObjCount.toLocaleString(),
@@ -675,6 +678,18 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       m(Panel.Header, {
         title: TITLE,
         controls: [
+          m(
+            Anchor,
+            {
+              href: heapDumpHref(upid),
+              onclick: () =>
+                trace.plugins
+                  .getPlugin(HeapDumpExplorerPlugin)
+                  .selectDump(upid, cur.ts),
+              icon: Icons.UpdateSelection,
+            },
+            'Explore in Java Heap',
+          ),
           showInTimelineLink(
             trace,
             findProcessTrack(trace, upid, (k) => k === 'java_heap_graph')?.uri,

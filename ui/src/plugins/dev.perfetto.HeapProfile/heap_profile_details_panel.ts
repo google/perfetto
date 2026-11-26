@@ -784,7 +784,10 @@ function getHeapGraphNodeOptionalActions(
         const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
-        onNodeSelected?.(pathHashes, isDominator);
+        if (onNodeSelected !== undefined) {
+          onNodeSelected(pathHashes, isDominator);
+          return;
+        }
 
         const name = node?.name;
         const nameSuffix =
