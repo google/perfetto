@@ -154,9 +154,9 @@
 
       &--active {
         background-color: transparent;
-        border-bottom-color: var(--pf-color-primary);
+        border-bottom-color: var(--pf-color-primary-text);
         box-shadow: none;
-        color: var(--pf-color-primary);
+        color: var(--pf-color-primary-text);
 
         &:hover {
           background-color: var(--pf-color-background-hover);

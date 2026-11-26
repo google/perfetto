@@ -16,7 +16,7 @@
 
 .pf-anchor {
   @include interactive-transition;
-  color: var(--pf-color-primary);
+  color: var(--pf-color-primary-text);
   border-radius: $border-radius;
   cursor: pointer;
   text-decoration: underline;

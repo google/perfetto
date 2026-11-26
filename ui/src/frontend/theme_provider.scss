@@ -186,7 +186,7 @@
     --pf-color-background-alt: #181b22;
     --pf-color-background-hover: rgba(226, 234, 244, 0.065);
     --pf-color-background-active: rgba(226, 234, 244, 0.12);
-    --pf-color-background-selected: rgba(108, 151, 227, 0.16);
+    --pf-color-background-selected: rgba(66, 114, 173, 0.22);
     --pf-color-backdrop: rgba(6, 8, 12, 0.72);
 
     // Text
@@ -221,71 +221,73 @@
 
     // Neutral & interactive accents
     --pf-color-neutral: #86909e;
-    --pf-color-accent: #5c8fea;
-    --pf-color-text-on-accent: #0c1320;
+    --pf-color-accent: #5588cc;
+    --pf-color-text-on-accent: #f4f7fc;
     --pf-color-focus-ring: color-mix(
       in srgb,
-      var(--pf-color-accent) 36%,
+      var(--pf-color-accent) 38%,
       transparent
     );
     --pf-color-highlight: #5e4b10;
 
-    // Semantic intents
-    --pf-color-primary: #6c97e3;
-    --pf-color-text-on-primary: #0d1421;
+    // Semantic intents (rich, muted fills paired with crisp light text;
+    // brighter *-text tokens provide WCAG AA+ contrast for links, icons, and
+    // minimal/outlined controls)
+    --pf-color-primary: #4272ad;
+    --pf-color-text-on-primary: #f4f7fc;
     --pf-color-primary-subtle: color-mix(
       in srgb,
-      var(--pf-color-primary) 14%,
+      var(--pf-color-primary) 20%,
       transparent
     );
     --pf-color-primary-border: color-mix(
       in srgb,
-      var(--pf-color-primary) 36%,
+      var(--pf-color-primary-text) 34%,
       transparent
     );
-    --pf-color-primary-text: #92b5f0;
+    --pf-color-primary-text: #7caae0;
 
-    --pf-color-danger: #e37070;
-    --pf-color-text-on-danger: #1f0c0c;
+    --pf-color-danger: #bd4444;
+    --pf-color-text-on-danger: #fdf3f3;
     --pf-color-danger-subtle: color-mix(
       in srgb,
-      var(--pf-color-danger) 14%,
+      var(--pf-color-danger) 20%,
       transparent
     );
     --pf-color-danger-border: color-mix(
       in srgb,
-      var(--pf-color-danger) 36%,
+      var(--pf-color-danger-text) 34%,
       transparent
     );
-    --pf-color-danger-text: #f09595;
+    --pf-color-danger-text: #eb8d8d;
 
-    --pf-color-success: #5fc087;
-    --pf-color-text-on-success: #0b1c12;
+    --pf-color-success: #2d7d50;
+    --pf-color-text-on-success: #f3faf6;
     --pf-color-success-subtle: color-mix(
       in srgb,
-      var(--pf-color-success) 14%,
+      var(--pf-color-success) 20%,
       transparent
     );
     --pf-color-success-border: color-mix(
       in srgb,
-      var(--pf-color-success) 36%,
+      var(--pf-color-success-text) 34%,
       transparent
     );
-    --pf-color-success-text: #81d4a2;
+    --pf-color-success-text: #74cc98;
 
-    --pf-color-warning: #e6ad47;
-    --pf-color-text-on-warning: #1f1606;
+    --pf-color-warning: #d49b35;
+    --pf-color-text-on-warning: #1c1304;
     --pf-color-warning-subtle: color-mix(
       in srgb,
-      var(--pf-color-warning) 14%,
+      var(--pf-color-warning) 16%,
       transparent
     );
     --pf-color-warning-border: color-mix(
       in srgb,
-      var(--pf-color-warning) 36%,
+      var(--pf-color-warning-text) 34%,
       transparent
     );
-    --pf-color-warning-text: #f2c570;
+    --pf-color-warning-text: #ebbb60;
 
     // Chart color palette for data visualization (brighter for dark mode)
     --pf-chart-color-1: #5e97f6; // Lighter Blue

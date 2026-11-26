@@ -65,14 +65,14 @@
   &__deps--dependencies {
     .pf-plugins-page__deps-icon,
     .pf-plugins-page__deps-label {
-      color: var(--pf-color-primary);
+      color: var(--pf-color-primary-text);
     }
   }
 
   &__deps--dependants {
     .pf-plugins-page__deps-icon,
     .pf-plugins-page__deps-label {
-      color: var(--pf-color-warning);
+      color: var(--pf-color-warning-text);
     }
   }
 
