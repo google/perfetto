@@ -69,12 +69,11 @@ StatusOr<void> Parser::ParseInstruction(
     const protos::pbzero::VmInstruction::Decoder& instruction) {
   if (instruction.has_select()) {
     auto status = ParseSelect(instruction);
-    PROTOVM_RETURN(status, "select");
+    PROTOVM_RETURN(status);
   }
 
   if (instruction.has_reg_load()) {
-    auto status = ParseRegLoad(instruction);
-    PROTOVM_RETURN_IF_NOT_OK(status, "reg_load");
+    PROTOVM_RETURN_IF_NOT_OK(ParseRegLoad(instruction));
   } else if (instruction.has_del()) {
     PROTOVM_ASSIGN_OR_RETURN(bool is_root, cursors_.dst.IsRoot());
     if (cursors_.innermost_saved_dst != nullptr &&
@@ -89,11 +88,9 @@ StatusOr<void> Parser::ParseInstruction(
       PROTOVM_ABORT(
           "del would invalidate a cursor saved by an enclosing select");
     }
-    auto status = executor_->Delete(&cursors_.dst);
-    PROTOVM_RETURN_IF_NOT_OK(status, "del");
+    PROTOVM_RETURN_IF_NOT_OK(executor_->Delete(&cursors_.dst), "del");
   } else if (instruction.has_merge()) {
-    auto status = ParseMerge(instruction);
-    PROTOVM_RETURN_IF_NOT_OK(status, "merge");
+    PROTOVM_RETURN_IF_NOT_OK(ParseMerge(instruction));
   } else if (instruction.has_set()) {
     auto status = executor_->Set(&cursors_);
     PROTOVM_RETURN_IF_NOT_OK(status, "set");
@@ -113,8 +110,7 @@ StatusOr<void> Parser::ParseMerge(
   if (merge.del_if_src_empty())
     flags |= Executor::MergeFlags::kDelIfSrcEmpty;
   auto status = executor_->Merge(&cursors_, flags);
-  PROTOVM_RETURN_IF_NOT_OK(status);
-  return status;
+  PROTOVM_RETURN(status, "merge");
 }
 
 StatusOr<void> Parser::ParseRegLoad(
@@ -130,9 +126,7 @@ StatusOr<void> Parser::ParseRegLoad(
 
   cursors_.selected = saved_selected;
 
-  PROTOVM_RETURN_IF_NOT_OK(status);
-
-  return status;
+  PROTOVM_RETURN(status, "reg_load");
 }
 
 StatusOr<void> Parser::ParseSelect(
@@ -141,9 +135,10 @@ StatusOr<void> Parser::ParseSelect(
   cursors_.innermost_saved_dst = &saved_cursors.dst;
 
   protos::pbzero::VmOpSelect::Decoder select(instruction.select());
-  cursors_.selected = !select.has_cursor()
-                          ? CursorEnum::VM_CURSOR_SRC
-                          : static_cast<CursorEnum>(select.cursor());
+  CursorEnum selected_cursor = !select.has_cursor()
+                                   ? CursorEnum::VM_CURSOR_SRC
+                                   : static_cast<CursorEnum>(select.cursor());
+  cursors_.selected = selected_cursor;
   cursors_.create_if_not_exist = select.create_if_not_exist();
 
   if (cursors_.selected == CursorEnum::VM_CURSOR_SRC &&
@@ -155,7 +150,7 @@ StatusOr<void> Parser::ParseSelect(
   auto status = ParseSelectRec(instruction, select.relative_path());
   cursors_ = saved_cursors;
 
-  return status;
+  PROTOVM_RETURN(status, "select (cursor = %d)", selected_cursor);
 }
 
 StatusOr<void> Parser::ParseSelectRec(
@@ -260,7 +255,9 @@ StatusOr<void> Parser::ParseSelectRec(
   PROTOVM_RETURN_IF_NOT_OK(status, "enter field (id = %d)",
                            static_cast<int>(curr_component.field_id()));
 
-  return ParseSelectRec(instruction, it_path_component);
+  auto status_select = ParseSelectRec(instruction, it_path_component);
+  PROTOVM_RETURN(status_select, "field (id = %d)",
+                 static_cast<int>(curr_component.field_id()));
 }
 
 }  // namespace protovm
