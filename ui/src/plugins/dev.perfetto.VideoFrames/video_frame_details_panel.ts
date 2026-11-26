@@ -29,11 +29,21 @@ import type {TrackEventSelection} from '../../public/selection';
 import {Button, ButtonBar} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
-import {GridLayout} from '../../widgets/grid_layout';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {Select} from '../../widgets/select';
 import {Tree, TreeNode} from '../../widgets/tree';
+import {
+  drawLegendGlyph,
+  TOUCH_LEGEND,
+  TOUCH_TIME_RULE,
+  type TouchOverlay,
+} from './touch_overlay';
+import type {VideoFrameInputSection} from './video_frame_input_section';
 import type {VideoFramePlayer} from './video_frame_player';
+
+// Size of a touch legend glyph, in CSS pixels.
+const LEGEND_GLYPH_PX = 14;
 
 // Playback speed options, in real-time multiples.
 const PLAYBACK_RATES = [0.1, 0.2, 0.5, 1, 1.5, 2];
@@ -55,13 +65,23 @@ interface DisplayFrame {
 
 export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
   private readonly player: VideoFramePlayer;
+  // Present iff the display has touch data.
+  private readonly touches?: TouchOverlay;
+  // Present iff the display has touch data.
+  private readonly inputSection?: VideoFrameInputSection;
 
   // The DisplayFrame the current frame was composited in, keyed by its vsync
   // id so it's queried at most once as long as the selection stays put.
   private readonly displayFrameMemo = new AsyncMemo<DisplayFrame>();
 
-  constructor(player: VideoFramePlayer) {
+  constructor(
+    player: VideoFramePlayer,
+    touches?: TouchOverlay,
+    inputSection?: VideoFrameInputSection,
+  ) {
     this.player = player;
+    this.touches = touches;
+    this.inputSection = inputSection;
   }
 
   async load(sel: TrackEventSelection) {
@@ -70,6 +90,7 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
     // The player already has currentIdx pointing at this event.
     if (this.player.playing) return;
     await this.player.ensureFramesLoaded();
+    await this.touches?.ensureLoaded();
     if (this.player.frames[this.player.currentIdx]?.id === sel.eventId) return;
     // Don't await: while load() is pending the panel sits in its loading
     // state, which remounts and blanks the <canvas>. seek() cancels stale
@@ -124,6 +145,15 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
         ),
       );
     }
+    const touches = this.touches;
+    if (touches?.isLoaded && touches.sourceSize(frame.id) === undefined) {
+      detailRows.push(
+        m(TreeNode, {
+          left: 'Touches',
+          right: 'Not shown: the trace lacks the source display size',
+        }),
+      );
+    }
     for (const err of p.errors) {
       detailRows.push(m(TreeNode, {left: 'Stream error', right: err}));
     }
@@ -137,16 +167,16 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
       },
       m(
         GridLayout,
-        m(Section, {title: 'Details'}, m(Tree, detailRows)),
+        m(
+          GridLayoutColumn,
+          m(Section, {title: 'Details'}, m(Tree, detailRows)),
+          this.inputSection?.render(frame.id, !p.playing),
+        ),
         m(
           Section,
           {title: 'Preview', className: 'pf-video-frame-preview-section'},
           p.webCodecsAvailable
-            ? m('canvas.pf-video-frame-preview', {
-                oncreate: ({dom}) =>
-                  p.attachCanvas(ensureIsInstance(dom, HTMLCanvasElement)),
-                onremove: () => p.detachCanvas(),
-              })
+            ? this.renderPreview()
             : m(
                 'span',
                 'Frame preview requires WebCodecs, which is unavailable in ' +
@@ -155,6 +185,26 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
               ),
         ),
       ),
+    );
+  }
+
+  // The decoded frame, with the touch overlay stacked on top.
+  private renderPreview(): m.Children {
+    const p = this.player;
+    const touches = this.touches;
+    return m(
+      '.pf-video-frame-stage',
+      m('canvas.pf-video-frame-preview', {
+        oncreate: ({dom}) =>
+          p.attachCanvas(ensureIsInstance(dom, HTMLCanvasElement)),
+        onremove: () => p.detachCanvas(),
+      }),
+      touches &&
+        m('canvas.pf-video-frame-preview.pf-video-frame-touches', {
+          oncreate: ({dom}) =>
+            touches.attachCanvas(ensureIsInstance(dom, HTMLCanvasElement)),
+          onremove: () => touches.detachCanvas(),
+        }),
     );
   }
 
@@ -276,6 +326,46 @@ export class VideoFrameDetailsPanel implements TrackEventDetailsPanel {
           ),
         ),
       ),
+      this.touches && this.renderTouchesToggle(this.touches),
     );
   }
+
+  private renderTouchesToggle(touches: TouchOverlay): m.Children {
+    return m(Button, {
+      icon: 'touch_app',
+      compact: true,
+      active: touches.enabled,
+      // While touches are shown, the tooltip doubles as their legend.
+      tooltip: touches.enabled
+        ? [m('div', 'Hide touches'), renderTouchLegend()]
+        : 'Show touches',
+      onclick: () => touches.toggle(),
+    });
+  }
+}
+
+// The legend of the touch overlay: each mark, drawn by the overlay's own
+// code, with what it means, and how touches are picked by time.
+function renderTouchLegend(): m.Children {
+  return m(
+    '.pf-video-frame-legend',
+    TOUCH_LEGEND.map(({mark, label}) =>
+      m(
+        '.pf-video-frame-legend__item',
+        m('canvas.pf-video-frame-legend__glyph', {
+          oncreate: ({dom}) => {
+            const c = ensureIsInstance(dom, HTMLCanvasElement);
+            const dpr = window.devicePixelRatio;
+            c.width = c.height = Math.round(LEGEND_GLYPH_PX * dpr);
+            const ctx = c.getContext('2d');
+            if (ctx === null) return;
+            ctx.scale(dpr, dpr);
+            drawLegendGlyph(ctx, mark, LEGEND_GLYPH_PX);
+          },
+        }),
+        label,
+      ),
+    ),
+    m('.pf-video-frame-legend__note', TOUCH_TIME_RULE),
+  );
 }

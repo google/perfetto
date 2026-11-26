@@ -18,6 +18,9 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_ANDROID_INPUT_EVENT_PARSER_H_
 
 #include <cstdint>
+#include <optional>
+#include <string>
+
 #include "perfetto/base/build_config.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/arg_sink.h"
@@ -41,10 +44,13 @@ class AndroidInputEventParser {
   const std::string KERNEL_TIME_KEY = "kernel_time";
   const std::string DOWN_TIME_KEY = "down_time";
 
-  void ParseMotionEvent(int64_t packet_ts, const protozero::ConstBytes& bytes);
+  void ParseMotionEvent(int64_t packet_ts,
+                        const protozero::ConstBytes& bytes,
+                        bool redacted);
   void ParseKeyEvent(int64_t packet_ts, const protozero::ConstBytes& bytes);
   void ParseWindowDispatchEvent(int64_t packet_ts,
                                 const protozero::ConstBytes& bytes);
+  std::optional<int64_t> MonotonicToTraceTime(int64_t monotonic_time);
   void TryConvertMonotonicTimestampFields(
       std::optional<int64_t> event_time_nanos,
       std::optional<int64_t> down_time_nanos,

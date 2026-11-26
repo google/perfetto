@@ -76,9 +76,11 @@ class VideoFrameModule : public ProtoImporterModule {
 
   struct StreamInfo {
     // display_name and codec_string arrive on the codec_config packet and
-    // are propagated to every frame of the stream.
+    // are propagated to every frame of the stream (including early access
+    // units re-stamped backward to pts_us ahead of the first codec_config).
     StringId display_name = kNullStringId;
     StringId codec_string = kNullStringId;
+    std::vector<uint32_t> pending_metadata_rows;
     int64_t emitted_bytes = 0;
     bool size_cap_hit = false;
   };

@@ -20,7 +20,9 @@ import {SliceTrack} from '../../components/tracks/slice_track';
 import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import type {TouchOverlay} from './touch_overlay';
 import {VideoFrameDetailsPanel} from './video_frame_details_panel';
+import type {VideoFrameInputSection} from './video_frame_input_section';
 import type {VideoFramePlayer} from './video_frame_player';
 
 export function createVideoFramesTrack(
@@ -28,6 +30,8 @@ export function createVideoFramesTrack(
   uri: string,
   displayId: number,
   player: VideoFramePlayer,
+  touches?: TouchOverlay,
+  inputSection?: VideoFrameInputSection,
 ) {
   // dur spans each frame to the next (last frame: 0). is_config rows are
   // decoder setup, not displayable, so excluded. Frames before the first key
@@ -62,7 +66,7 @@ export function createVideoFramesTrack(
   // Singleton panel so mithril patches in place instead of remounting the
   // canvas on every selection (a remount would detach the canvas and stop
   // playback, and flicker).
-  const panel = new VideoFrameDetailsPanel(player);
+  const panel = new VideoFrameDetailsPanel(player, touches, inputSection);
 
   return SliceTrack.create({
     trace,

@@ -28,6 +28,9 @@ This guide covers:
 - [Linking frames to the frame timeline](#linking-frames-to-the-frame-timeline):
   matching each captured frame to the SurfaceFlinger vsync that produced
   it.
+- [Touches on the video](#touches-on-the-video): drawing input events on
+  the captured frames, and finding the frame that showed the response to
+  each touch.
 
 ## How it works, and what it costs
 
@@ -280,3 +283,106 @@ counts present times that map to conflicting vsync ids and matched a
 frame. The display id in the composite packets is SurfaceFlinger's id for
 the virtual display, which is unrelated to the video stream's display id,
 so the present time is the only key the match can use.
+
+## Touches on the video
+
+Input events can be drawn on top of the captured frames, and each touch
+can be linked to the video frame that showed the app's response. This
+needs three more pieces of data next to the video:
+
+- **Input event tracing** (`android.input.inputevent`) records every touch
+  with its pointers and coordinates (`trace_dispatcher_input_events`), and
+  which windows it was sent to (`trace_dispatcher_window_dispatch`). The
+  window dispatches carry the touch in the display's logical coordinates,
+  which is what is needed to place it on the video after a rotation.
+- **atrace** `input` and `view` categories follow each touch from the
+  system to the app and to the app frame (`Choreographer#doFrame`) that
+  handled it. `gfx` adds the frame-rendering slices.
+- The **frame timeline** and the **virtual display** data source link that
+  app frame to the SurfaceFlinger composite that presented it, and that
+  composite to a video frame (see
+  [Linking frames to the frame timeline](#linking-frames-to-the-frame-timeline)).
+
+```
+data_sources {
+  config {
+    name: "android.display.video"
+  }
+}
+data_sources {
+  config {
+    name: "android.surfaceflinger.virtualdisplay"
+  }
+}
+data_sources {
+  config {
+    name: "android.surfaceflinger.frametimeline"
+  }
+}
+data_sources {
+  config {
+    name: "android.input.inputevent"
+    android_input_event_config {
+      mode: TRACE_MODE_TRACE_ALL
+      trace_dispatcher_input_events: true
+      trace_dispatcher_window_dispatch: true
+    }
+  }
+}
+data_sources {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      atrace_categories: "input"
+      atrace_categories: "view"
+      atrace_categories: "gfx"
+    }
+  }
+}
+```
+
+Input event tracing is only available on `userdebug` and `eng` builds,
+and records exactly where the screen was touched: treat these traces as
+sensitive. Events that are traced redacted (for example with
+`TRACE_MODE_USE_RULES` and a `TRACE_LEVEL_REDACTED` rule) carry no
+coordinates, so they can't be drawn; they are still linked to their
+frames.
+
+What you get in trace processor:
+
+- `android.video_frames`: the `android_video_frames` table, one row per
+  displayable frame with how long it was on screen, its vsync id, and the
+  logical size of the display it was captured from (`source_width`,
+  `source_height`). The picture shows that area scaled to fit and centred,
+  letterboxed after a rotation, so a point (x, y) in logical display
+  coordinates maps to `(ox + x * s, oy + y * s)` on a W×H picture, with
+  `s = min(W / source_width, H / source_height)`,
+  `ox = (W - source_width * s) / 2` and `oy = (H - source_height * s) / 2`.
+  Traces from devices that don't record the source size have NULL there.
+- `android.input`: the `android_motion_event_pointers` view, one row per
+  pointer of each touch event, with its coordinates in physical
+  (`raw_x`, `raw_y`) and logical (`x`, `y`) display coordinates. The
+  logical coordinates are exact only when the window dispatches were
+  traced; otherwise they fall back to the physical ones, which is only
+  right in the display's natural orientation.
+- `android.input_video`: the `android_input_event_video_frames` table,
+  one row per touch down/up and receiving window, with the video frame
+  that was on screen when the touch happened and the frame that showed the
+  response. The response is the video frame produced by the composite that
+  presented the app frame which handled the touch; if that composite has no
+  video frame, the earliest of the next frame by vsync id and the next frame
+  by present time is used, and `is_response_exact` is 0.
+  `input_to_photon_dur` runs from the touch to that video frame's
+  timestamp, the present time of the composite captured into the video,
+  which can be up to about a vsync before the panel showed it. Only touches
+  from pointer-class sources (touchscreen, mouse, stylus) are listed. The
+  copies InputDispatcher makes of a touch for other windows (such as the
+  halves of a split touch) and the events it generates itself (such as
+  cancellations) are not, but a split touch's windows are attributed to the
+  touch it came from. Without atrace or the frame
+  timeline, the response columns are NULL.
+
+In the UI, the touches are drawn on the video preview: a dot where a
+finger went down, a fading ring where it lifted, and a trail for moves.
+The video frame's details list the touches that happened while it was on
+screen, with their latency and a link to the response frame.

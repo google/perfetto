@@ -82,14 +82,53 @@ class VideoFrameModuleTest : public testing::Test {
                       uint32_t display_id,
                       size_t au_size,
                       int64_t ts,
-                      std::optional<uint64_t> pts_us = std::nullopt) {
+                      std::optional<uint64_t> pts_us = std::nullopt,
+                      std::optional<uint32_t> source_width = std::nullopt,
+                      std::optional<uint32_t> source_height = std::nullopt) {
     protozero::HeapBuffered<VideoFrame> vf;
     vf->set_display_id(display_id);
     if (pts_us.has_value()) {
       vf->set_pts_us(*pts_us);
     }
+    if (source_width.has_value()) {
+      vf->set_source_width(*source_width);
+    }
+    if (source_height.has_value()) {
+      vf->set_source_height(*source_height);
+    }
     std::vector<uint8_t> au(au_size, 0xAB);
     vf->set_au_data(au.data(), au.size());
+    std::vector<uint8_t> vf_bytes = vf.SerializeAsArray();
+
+    protozero::HeapBuffered<TracePacket> packet;
+    packet->AppendBytes(FrameworksBaseTracePacket::kVideoFrameFieldNumber,
+                        vf_bytes.data(), vf_bytes.size());
+    std::vector<uint8_t> bytes = packet.SerializeAsArray();
+
+    TraceBlobView tbv(TraceBlob::CopyFrom(bytes.data(), bytes.size()));
+    TracePacketData tpd{tbv.copy(), {}};
+    SelectiveTracePacketDecoder decoder(tbv.data(), tbv.length());
+    TracePacketField field = decoder.FindUnknownField(
+        FrameworksBaseTracePacket::kVideoFrameFieldNumber);
+    ASSERT_TRUE(field.valid());
+    module.ParseField({decoder, ts, tpd, field});
+  }
+
+  void PushCodecConfig(VideoFrameModule& module,
+                       uint32_t display_id,
+                       int64_t ts,
+                       const char* display_name,
+                       const char* codec_string) {
+    protozero::HeapBuffered<VideoFrame> vf;
+    vf->set_display_id(display_id);
+    if (display_name != nullptr) {
+      vf->set_display_name(display_name);
+    }
+    if (codec_string != nullptr) {
+      vf->set_codec_string(codec_string);
+    }
+    const uint8_t cfg[] = {0x00, 0x00, 0x00, 0x01, 0x67};
+    vf->set_codec_config(cfg, sizeof(cfg));
     std::vector<uint8_t> vf_bytes = vf.SerializeAsArray();
 
     protozero::HeapBuffered<TracePacket> packet;
@@ -210,6 +249,28 @@ TEST_F(VideoFrameModuleTest, CapIsPerStream) {
   EXPECT_EQ(SizeCapHits(), 1);
 }
 
+TEST_F(VideoFrameModuleTest, RecordsSourceSizePerFrame) {
+  auto module = MakeModule();
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/10, /*ts=*/1000,
+                 /*pts_us=*/std::nullopt, /*source_width=*/1080u,
+                 /*source_height=*/2400u);
+  // After a rotation the producer writes the new logical size.
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/10, /*ts=*/2000,
+                 /*pts_us=*/std::nullopt, /*source_width=*/2400u,
+                 /*source_height=*/1080u);
+  // A packet without the size (older producer) stays NULL: the previous
+  // frame's size isn't carried forward.
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/10, /*ts=*/3000);
+
+  ASSERT_EQ(FrameRowCount(), 3u);
+  EXPECT_EQ((*table_)[0].source_width(), 1080);
+  EXPECT_EQ((*table_)[0].source_height(), 2400);
+  EXPECT_EQ((*table_)[1].source_width(), 2400);
+  EXPECT_EQ((*table_)[1].source_height(), 1080);
+  EXPECT_EQ((*table_)[2].source_width(), std::nullopt);
+  EXPECT_EQ((*table_)[2].source_height(), std::nullopt);
+}
+
 TEST_F(VideoFrameModuleTest, LinksFrameTimelineVsyncId) {
   auto module = MakeModule();
   PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
@@ -306,6 +367,32 @@ TEST_F(VideoFrameModuleTest, IgnoresCompositeWithInvalidVsyncId) {
   EXPECT_EQ(VsyncId(0), std::nullopt);
   EXPECT_EQ(UnmatchedComposites(), 0);
   EXPECT_EQ(AmbiguousPresentTimes(), 0);
+}
+
+TEST_F(VideoFrameModuleTest, BackfillsStreamMetadataOnEarlyAccessUnits) {
+  auto module = MakeModule();
+  // TokenizePacket re-stamps access units backward to pts_us while codec_config
+  // keeps its encode-drain timestamp, so the first frames arrive ahead of
+  // codec_config. Both earlier and later rows of that display_id should carry
+  // display_name and codec_string.
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/10, /*ts=*/1000);
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/10, /*ts=*/1100);
+  PushAccessUnit(*module, /*display_id=*/1, /*au_size=*/10, /*ts=*/1150);
+  PushCodecConfig(*module, /*display_id=*/0, /*ts=*/1200, "Built-in Screen",
+                  "avc1.42c029");
+  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/10, /*ts=*/1300);
+
+  ASSERT_EQ(FrameRowCount(), 5u);
+  const StringId expected_name =
+      context_.storage->InternString("Built-in Screen");
+  const StringId expected_codec = context_.storage->InternString("avc1.42c029");
+  for (uint32_t row : {0u, 1u, 3u, 4u}) {
+    EXPECT_EQ((*table_)[row].display_name(), expected_name);
+    EXPECT_EQ((*table_)[row].codec_string(), expected_codec);
+  }
+  // Display 1 has no codec_config yet and stays untouched.
+  EXPECT_EQ((*table_)[2].display_name(), std::nullopt);
+  EXPECT_EQ((*table_)[2].codec_string(), std::nullopt);
 }
 
 }  // namespace

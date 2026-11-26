@@ -32,8 +32,12 @@ ANDROID_VIDEO_FRAMES_TABLE = Table(
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('display_id', CppInt32()),
-        C('display_name', CppOptional(CppString())),
-        C('codec_string', CppOptional(CppString())),
+        C('display_name',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('codec_string',
+          CppOptional(CppString()),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('frame_number', CppInt64()),
         C('codec', CppOptional(CppInt32())),
         C('is_key_frame', CppOptional(CppInt32())),
@@ -42,6 +46,8 @@ ANDROID_VIDEO_FRAMES_TABLE = Table(
         C('frame_timeline_vsync_id',
           CppOptional(CppInt64()),
           cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('source_width', CppOptional(CppInt32()), cpp_access=CppAccess.READ),
+        C('source_height', CppOptional(CppInt32()), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -52,8 +58,11 @@ ANDROID_VIDEO_FRAMES_TABLE = Table(
         group='Android',
         columns={
             'ts': 'Timestamp of the frame capture.',
-            'display_id': 'Identifies the source display. The UI groups '
-                          'frames into per-display tracks by this value.',
+            'display_id': 'Logical id (DisplayManager id) of the source '
+                          'display, the same id space as '
+                          '__intrinsic_android_motion_events.display_id. The '
+                          'UI groups frames into per-display tracks by this '
+                          'value.',
             'display_name': 'Human-readable display name; set on '
                             'codec_config rows and propagated to all rows of '
                             'the same display_id.',
@@ -75,6 +84,14 @@ ANDROID_VIDEO_FRAMES_TABLE = Table(
                 'packets by matching pts_us to their present_time_us. NULL if '
                 'no composite matches, or if the matching composites have '
                 'different vsync ids.',
+            'source_width':
+                'Logical width, in pixels, of the source display when this '
+                'frame was captured. The picture shows this area scaled to '
+                'fit, preserving aspect ratio and centred. NULL if the packet '
+                'did not carry it (older traces).',
+            'source_height':
+                'Logical height, in pixels, of the source display when this '
+                'frame was captured. NULL if the packet did not carry it.',
         }))
 
 # Keep this list sorted.

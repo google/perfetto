@@ -4286,6 +4286,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/freezer.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/garbage_collection.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/input.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/input_video.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
@@ -4313,6 +4314,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/user_list.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/video_frames.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/wakeups.sql",
     ],
 )

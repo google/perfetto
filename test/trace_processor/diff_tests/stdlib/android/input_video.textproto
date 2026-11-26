@@ -1,0 +1,2683 @@
+# Synthetic trace for android.input_video: display video frames (with
+# source size and vsync links), frame timeline, input event tracing (motion +
+# window dispatch events) and the atrace input slices that
+# android_input_events is built from.
+#
+# Clocks: BOOTTIME (trace time) = MONOTONIC + 1 ms.
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks { clock_id: 6 timestamp: 1000000 }
+    clocks { clock_id: 3 timestamp: 0 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+packet {
+  process_tree {
+    processes { pid: 1000 ppid: 1 cmdline: "system_server" }
+    processes { pid: 2000 ppid: 1 cmdline: "com.example.app" }
+    processes { pid: 3000 ppid: 1 cmdline: "com.android.launcher3" }
+    processes { pid: 500 ppid: 1 cmdline: "/system/bin/surfaceflinger" }
+    threads { tid: 1001 tgid: 1000 name: "InputReader" }
+    threads { tid: 1002 tgid: 1000 name: "InputDispatcher" }
+    threads { tid: 2000 tgid: 2000 name: "example.app" }
+    threads { tid: 3000 tgid: 3000 name: "droid.launcher3" }
+  }
+  trusted_packet_sequence_id: 1
+  timestamp: 1000000
+}
+packet {
+  timestamp: 80000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    codec: CODEC_H264
+    codec_config: "\x00\x00\x00\x01\x67\x42"
+    display_name: "Built-in Screen"
+    codec_string: "avc1.42c029"
+    source_width: 1080
+    source_height: 2400
+  }
+}
+packet {
+  timestamp: 94000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 1
+    codec: CODEC_H264
+    is_key_frame: true
+    pts_us: 90000
+    au_data: "\x00\x00\x00\x01\x41\x01"
+    source_width: 1080
+    source_height: 2400
+  }
+}
+packet {
+  timestamp: 91000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 5990
+    present_time_us: 90000
+  }
+}
+packet {
+  timestamp: 114000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 2
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 110000
+    au_data: "\x00\x00\x00\x01\x41\x02"
+    source_width: 1080
+    source_height: 2400
+  }
+}
+packet {
+  timestamp: 111000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6000
+    present_time_us: 110000
+  }
+}
+packet {
+  timestamp: 124000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 3
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 120000
+    au_data: "\x00\x00\x00\x01\x41\x03"
+    source_width: 1080
+    source_height: 2400
+  }
+}
+packet {
+  timestamp: 121000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6001
+    present_time_us: 120000
+  }
+}
+packet {
+  timestamp: 144000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 4
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 140000
+    au_data: "\x00\x00\x00\x01\x41\x04"
+    source_width: 2400
+    source_height: 1080
+  }
+}
+packet {
+  timestamp: 141000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6003
+    present_time_us: 140000
+  }
+}
+packet {
+  timestamp: 155000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 5
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 151000
+    au_data: "\x00\x00\x00\x01\x41\x05"
+  }
+}
+packet {
+  timestamp: 165000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 6
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 161000
+    au_data: "\x00\x00\x00\x01\x41\x06"
+    source_width: 2400
+    source_height: 1080
+  }
+}
+packet {
+  timestamp: 162000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6007
+    present_time_us: 161000
+  }
+}
+packet {
+  timestamp: 194000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 7
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 190000
+    au_data: "\x00\x00\x00\x01\x41\x07"
+    source_width: 2400
+    source_height: 1080
+  }
+}
+packet {
+  timestamp: 191000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6010
+    present_time_us: 190000
+  }
+}
+packet {
+  timestamp: 219000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 8
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 215000
+    au_data: "\x00\x00\x00\x01\x41\x08"
+    source_width: 2400
+    source_height: 1080
+  }
+}
+packet {
+  timestamp: 216000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6013
+    present_time_us: 215000
+  }
+}
+packet {
+  timestamp: 244000000
+  trusted_packet_sequence_id: 2
+  [com.android.internal.FrameworksBaseTracePacket.video_frame] {
+    display_id: 0
+    frame_number: 9
+    codec: CODEC_H264
+    is_key_frame: false
+    pts_us: 240000
+    au_data: "\x00\x00\x00\x01\x41\x09"
+    source_width: 2400
+    source_height: 1080
+  }
+}
+packet {
+  timestamp: 241000000
+  trusted_packet_sequence_id: 3
+  [com.android.internal.FrameworksNativeTracePacket.virtual_display_composite] {
+    display_id: 11529215046068469761
+    vsync_id: 6020
+    present_time_us: 240000
+  }
+}
+packet {
+  timestamp: 100200000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 4097
+        event_time_nanos: 99000000
+        down_time_nanos: 99000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 100.0 }
+          axis_value { axis: 1 value: 200.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 100250000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 4097
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 100260000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 4097
+        vsync_id: 7000
+        window_id: 0
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 110000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_display_frame_start {
+      cookie: 102
+      token: 6001
+      pid: 500
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 125000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 102 } }
+}
+packet {
+  timestamp: 108000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_surface_frame_start {
+      cookie: 103
+      token: 5001
+      display_frame_token: 6001
+      pid: 2000
+      layer_name: "TX - com.example.app/com.example.app.MainActivity#0"
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 116000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 103 } }
+}
+packet {
+  timestamp: 130200000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 4098
+        event_time_nanos: 129000000
+        down_time_nanos: 129000000
+        source: 4098
+        action: 1
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 101.0 }
+          axis_value { axis: 1 value: 201.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 130250000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 4098
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 134000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_display_frame_start {
+      cookie: 104
+      token: 6005
+      pid: 500
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 148000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 104 } }
+}
+packet {
+  timestamp: 132000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_surface_frame_start {
+      cookie: 105
+      token: 5003
+      display_frame_token: 6005
+      pid: 2000
+      layer_name: "TX - com.example.app/com.example.app.MainActivity#0"
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 140000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 105 } }
+}
+packet {
+  timestamp: 165000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 8193
+        event_time_nanos: 163000000
+        down_time_nanos: 163000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 300.0 }
+          axis_value { axis: 1 value: 400.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 165050000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 8193
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 400.0 y_in_display: 780.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 170000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 8194
+        event_time_nanos: 168000000
+        down_time_nanos: 168000000
+        source: 4098
+        action: 261
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 300.0 }
+          axis_value { axis: 1 value: 400.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+        pointer {
+          pointer_id: 1
+          tool_type: 1
+          axis_value { axis: 0 value: 500.0 }
+          axis_value { axis: 1 value: 600.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 170050000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 8194
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 400.0 y_in_display: 780.0 }
+        dispatched_pointer { pointer_id: 1 x_in_display: 600.0 y_in_display: 580.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 175000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 8195
+        event_time_nanos: 173000000
+        down_time_nanos: 173000000
+        source: 4098
+        action: 2
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 310.0 }
+          axis_value { axis: 1 value: 410.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+        pointer {
+          pointer_id: 1
+          tool_type: 1
+          axis_value { axis: 0 value: 510.0 }
+          axis_value { axis: 1 value: 610.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 175050000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 8195
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 410.0 y_in_display: 770.0 }
+        dispatched_pointer { pointer_id: 1 x_in_display: 610.0 y_in_display: 570.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 180000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 8196
+        event_time_nanos: 178000000
+        down_time_nanos: 178000000
+        source: 4098
+        action: 6
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 310.0 }
+          axis_value { axis: 1 value: 410.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+        pointer {
+          pointer_id: 1
+          tool_type: 1
+          axis_value { axis: 0 value: 510.0 }
+          axis_value { axis: 1 value: 610.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 180050000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 8196
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 410.0 y_in_display: 770.0 }
+        dispatched_pointer { pointer_id: 1 x_in_display: 610.0 y_in_display: 570.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 185000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 8197
+        event_time_nanos: 183000000
+        down_time_nanos: 183000000
+        source: 4098
+        action: 1
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 1
+          tool_type: 1
+          axis_value { axis: 0 value: 510.0 }
+          axis_value { axis: 1 value: 610.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 185050000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 8197
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 1 x_in_display: 610.0 y_in_display: 570.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 191200000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 20481
+        event_time_nanos: 190000000
+        down_time_nanos: 190000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 2 value: 0.5 }
+          axis_value { axis: 1 value: 800.0 }
+          axis_value { axis: 0 value: 700.0 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 191250000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 20481
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 202000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_display_frame_start {
+      cookie: 106
+      token: 6012
+      pid: 500
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 230000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 106 } }
+}
+packet {
+  timestamp: 200000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_surface_frame_start {
+      cookie: 107
+      token: 5010
+      display_frame_token: 6012
+      pid: 2000
+      layer_name: "TX - com.example.app/com.example.app.MainActivity#0"
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 208000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 107 } }
+}
+packet {
+  timestamp: 219000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_display_frame_start {
+      cookie: 108
+      token: 6014
+      pid: 500
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 247000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 108 } }
+}
+packet {
+  timestamp: 201000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_surface_frame_start {
+      cookie: 109
+      token: 5010
+      display_frame_token: 6014
+      pid: 2000
+      layer_name: "TX - com.example.app/com.example.app.Popup#1"
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 209000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 109 } }
+}
+packet {
+  timestamp: 230200000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 3221262337
+        event_time_nanos: 229000000
+        down_time_nanos: 229000000
+        source: 4098
+        action: 0
+        device_id: -1
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 120.0 }
+          axis_value { axis: 1 value: 220.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 230250000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 3221262337
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 220.0 y_in_display: 960.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 235000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_display_frame_start {
+      cookie: 110
+      token: 6020
+      pid: 500
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 245000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 110 } }
+}
+packet {
+  timestamp: 232000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] {
+    actual_surface_frame_start {
+      cookie: 111
+      token: 5020
+      display_frame_token: 6020
+      pid: 2000
+      layer_name: "TX - com.example.app/com.example.app.MainActivity#0"
+      present_type: PRESENT_ON_TIME
+      on_time_finish: true
+      gpu_composition: false
+      jank_type: 1
+      prediction_type: PREDICTION_VALID
+    }
+  }
+}
+packet {
+  timestamp: 238000000
+  trusted_packet_sequence_id: 4
+  [com.android.internal.FrameworksNativeTracePacket.frame_timeline_event] { frame_end { cookie: 111 } }
+}
+packet {
+  timestamp: 250200000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 28673
+        event_time_nanos: 249000000
+        down_time_nanos: 249000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 50.0 }
+          axis_value { axis: 1 value: 60.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 250210000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 1073770498
+        event_time_nanos: 249000000
+        down_time_nanos: 249000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 50.0 }
+          axis_value { axis: 1 value: 60.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 250250000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 1073770498
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 60.0 y_in_display: 1030.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 250220000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 1073770499
+        event_time_nanos: 249000000
+        down_time_nanos: 249000000
+        source: 4098
+        action: 4
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 50.0 }
+          axis_value { axis: 1 value: 60.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 250260000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 1073770499
+        vsync_id: 7000
+        window_id: 20
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 60.0 y_in_display: 1030.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 260000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 1073770500
+        event_time_nanos: 258000000
+        down_time_nanos: 258000000
+        source: 4098
+        action: 3
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 50.0 }
+          axis_value { axis: 1 value: 60.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 261000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 1073770501
+        event_time_nanos: 259000000
+        down_time_nanos: 259000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 55.0 }
+          axis_value { axis: 1 value: 65.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 270200000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 32769
+        event_time_nanos: 269000000
+        down_time_nanos: 269000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 20.0 }
+          axis_value { axis: 1 value: 30.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 270250000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 32769
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 30.0 y_in_display: 1060.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 270210000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 32770
+        event_time_nanos: 269000000
+        down_time_nanos: 269000000
+        source: 4098
+        action: 261
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 20.0 }
+          axis_value { axis: 1 value: 30.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+        pointer {
+          pointer_id: 1
+          tool_type: 1
+          axis_value { axis: 0 value: 900.0 }
+          axis_value { axis: 1 value: 40.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 270260000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 32770
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 0 x_in_display: 30.0 y_in_display: 1060.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 270220000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 1073774595
+        event_time_nanos: 269000000
+        down_time_nanos: 269000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 1
+          tool_type: 1
+          axis_value { axis: 0 value: 900.0 }
+          axis_value { axis: 1 value: 40.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 270270000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 1073774595
+        vsync_id: 7000
+        window_id: 30
+        resolved_flags: 0
+        dispatched_pointer { pointer_id: 1 x_in_display: 40.0 y_in_display: 180.0 }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 195000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event_redacted {
+        event_id: 12289
+        event_time_nanos: 193000000
+        down_time_nanos: 193000000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 }
+          axis_value { axis: 1 }
+        }
+      }
+    }
+  }
+}
+packet {
+  timestamp: 195050000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_window_dispatch_event_redacted {
+        event_id: 12289
+        vsync_id: 7000
+        window_id: 10
+        resolved_flags: 0
+      }
+    }
+  }
+}
+packet {
+  timestamp: 196000000
+  trusted_packet_sequence_id: 5
+  [com.android.internal.FrameworksNativeWinscopeTracePacket.winscope_extensions] {
+    [com.android.internal.FrameworksNativeWinscopeExtensions.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 16385
+        event_time_nanos: 194500000
+        down_time_nanos: 194500000
+        source: 4098
+        action: 0
+        device_id: 4
+        display_id: 2
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value { axis: 0 value: 10.0 }
+          axis_value { axis: 1 value: 20.0 }
+          axis_value { axis: 2 value: 0.5 }
+        }
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100100000
+      pid: 1001
+      print { buf: "B|1000|UnwantedInteractionBlocker::notifyMotion(id=0x1001, eventTime=99100000)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100150000
+      pid: 1001
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100300000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity, id=0x1001)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100305000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100310000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=abc123 com.example.app/com.example.app.MainActivity, action=DOWN)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100315000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x1, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100325000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100330000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100335000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100340000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100400000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=[Gesture Monitor] swipe-up, id=0x1001)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100405000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=[Gesture Monitor] swipe-up)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100410000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=[Gesture Monitor] swipe-up, action=DOWN)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100415000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=[Gesture Monitor] swipe-up, seq=0x2, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100425000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100430000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100435000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100440000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100500000
+      pid: 2000
+      print { buf: "B|2000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x1, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100510000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100600000
+      pid: 2000
+      print { buf: "B|2000|dispatchInputEvent MotionEvent DOWN deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100600000
+      pid: 3000
+      print { buf: "B|3000|receiveMessage(inputChannel=[Gesture Monitor] swipe-up, seq=0x2, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100610000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100610000
+      pid: 2000
+      print { buf: "B|2000|deliverInputEvent src=0x1002 eventTimeNano=100100000 id=0x1001\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100700000
+      pid: 3000
+      print { buf: "B|3000|dispatchInputEvent MotionEvent DOWN deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100910000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101000000
+      pid: 2000
+      print { buf: "B|2000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x1, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101010000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101100000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101100000
+      pid: 3000
+      print { buf: "B|3000|sendMessage(inputChannel=[Gesture Monitor] swipe-up, seq=0x2, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101110000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101200000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101200000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x1, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101210000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101300000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=[Gesture Monitor] swipe-up, seq=0x2, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 101310000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 108000000
+      pid: 2000
+      print { buf: "B|2000|Choreographer#doFrame 5001\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 110000000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130100000
+      pid: 1001
+      print { buf: "B|1000|UnwantedInteractionBlocker::notifyMotion(id=0x1002, eventTime=129100000)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130150000
+      pid: 1001
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130300000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity, id=0x1002)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130305000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130310000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=abc123 com.example.app/com.example.app.MainActivity, action=UP)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130315000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x3, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130325000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130330000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130335000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130340000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130500000
+      pid: 2000
+      print { buf: "B|2000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x3, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130510000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130600000
+      pid: 2000
+      print { buf: "B|2000|dispatchInputEvent MotionEvent UP deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130610000
+      pid: 2000
+      print { buf: "B|2000|deliverInputEvent src=0x1002 eventTimeNano=130100000 id=0x1002\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 130910000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 131000000
+      pid: 2000
+      print { buf: "B|2000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x3, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 131010000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 131100000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 131200000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x3, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 131210000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 132000000
+      pid: 2000
+      print { buf: "B|2000|Choreographer#doFrame 5003\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 134000000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191100000
+      pid: 1001
+      print { buf: "B|1000|UnwantedInteractionBlocker::notifyMotion(id=0x5001, eventTime=190100000)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191150000
+      pid: 1001
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191300000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity, id=0x5001)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191305000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191310000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=abc123 com.example.app/com.example.app.MainActivity, action=DOWN)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191315000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x10, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191325000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191330000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191335000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191340000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191500000
+      pid: 2000
+      print { buf: "B|2000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x10, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191510000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191600000
+      pid: 2000
+      print { buf: "B|2000|dispatchInputEvent MotionEvent DOWN deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191610000
+      pid: 2000
+      print { buf: "B|2000|deliverInputEvent src=0x1002 eventTimeNano=191100000 id=0x5001\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 191910000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 192000000
+      pid: 2000
+      print { buf: "B|2000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x10, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 192010000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 192100000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 192200000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x10, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 192210000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 200000000
+      pid: 2000
+      print { buf: "B|2000|Choreographer#doFrame 5010\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 202000000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230300000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity, id=0xc0009001)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230305000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230310000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=abc123 com.example.app/com.example.app.MainActivity, action=DOWN)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230315000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x18, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230325000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230330000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230335000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230340000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230500000
+      pid: 2000
+      print { buf: "B|2000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x18, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230510000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230600000
+      pid: 2000
+      print { buf: "B|2000|dispatchInputEvent MotionEvent DOWN deviceId=-1 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230610000
+      pid: 2000
+      print { buf: "B|2000|deliverInputEvent src=0x1002 eventTimeNano=229000000 id=0xc0009001\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 230910000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 231000000
+      pid: 2000
+      print { buf: "B|2000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x18, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 231010000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 231100000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 231200000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x18, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 231210000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 232000000
+      pid: 2000
+      print { buf: "B|2000|Choreographer#doFrame 5020\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 234000000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250300000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity, id=0x40007002)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250305000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=abc123 com.example.app/com.example.app.MainActivity)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250310000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=abc123 com.example.app/com.example.app.MainActivity, action=DOWN)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250315000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x20, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250325000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250330000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250335000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250340000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250500000
+      pid: 2000
+      print { buf: "B|2000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x20, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250510000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 250600000
+      pid: 2000
+      print { buf: "B|2000|dispatchInputEvent MotionEvent DOWN deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251000000
+      pid: 2000
+      print { buf: "B|2000|sendMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x20, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251010000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251100000
+      pid: 2000
+      print { buf: "E|2000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251200000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=abc123 com.example.app/com.example.app.MainActivity, seq=0x20, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251210000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251500000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=def456 com.android.launcher3/Outside, id=0x40007003)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251505000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=def456 com.android.launcher3/Outside)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251510000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=def456 com.android.launcher3/Outside, action=OUTSIDE)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251515000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=def456 com.android.launcher3/Outside, seq=0x21, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251525000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251530000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251535000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251540000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251700000
+      pid: 3000
+      print { buf: "B|3000|receiveMessage(inputChannel=def456 com.android.launcher3/Outside, seq=0x21, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251710000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 251800000
+      pid: 3000
+      print { buf: "B|3000|dispatchInputEvent MotionEvent OUTSIDE deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 252200000
+      pid: 3000
+      print { buf: "B|3000|sendMessage(inputChannel=def456 com.android.launcher3/Outside, seq=0x21, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 252210000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 252300000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 252400000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=def456 com.android.launcher3/Outside, seq=0x21, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 252410000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270300000
+      pid: 1002
+      print { buf: "B|1000|enqueueDispatchEntryAndStartDispatchCycleLocked(inputChannel=ghi789 com.android.launcher3/Second, id=0x40008003)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270305000
+      pid: 1002
+      print { buf: "B|1000|startDispatchCycleLocked(inputChannel=ghi789 com.android.launcher3/Second)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270310000
+      pid: 1002
+      print { buf: "B|1000|publishMotionEvent(inputChannel=ghi789 com.android.launcher3/Second, action=DOWN)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270315000
+      pid: 1002
+      print { buf: "B|1000|sendMessage(inputChannel=ghi789 com.android.launcher3/Second, seq=0x30, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270325000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270330000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270335000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270340000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270500000
+      pid: 3000
+      print { buf: "B|3000|receiveMessage(inputChannel=ghi789 com.android.launcher3/Second, seq=0x30, type=MOTION)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270510000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 270600000
+      pid: 3000
+      print { buf: "B|3000|dispatchInputEvent MotionEvent DOWN deviceId=4 source=0x1002, historySize=0\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 271000000
+      pid: 3000
+      print { buf: "B|3000|sendMessage(inputChannel=ghi789 com.android.launcher3/Second, seq=0x30, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 271010000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 271100000
+      pid: 3000
+      print { buf: "E|3000\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 271200000
+      pid: 1002
+      print { buf: "B|1000|receiveMessage(inputChannel=ghi789 com.android.launcher3/Second, seq=0x30, type=FINISHED)\n" }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 271210000
+      pid: 1002
+      print { buf: "E|1000\n" }
+    }
+  }
+}

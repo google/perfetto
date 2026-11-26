@@ -388,6 +388,24 @@ class TraceStorage {
     return mutable_table<tables::AndroidInputEventDispatchTable>();
   }
 
+  const tables::AndroidMotionEventPointerTable&
+  android_motion_event_pointer_table() const {
+    return table<tables::AndroidMotionEventPointerTable>();
+  }
+  tables::AndroidMotionEventPointerTable*
+  mutable_android_motion_event_pointer_table() {
+    return mutable_table<tables::AndroidMotionEventPointerTable>();
+  }
+
+  const tables::AndroidInputEventDispatchPointerTable&
+  android_input_event_dispatch_pointer_table() const {
+    return table<tables::AndroidInputEventDispatchPointerTable>();
+  }
+  tables::AndroidInputEventDispatchPointerTable*
+  mutable_android_input_event_dispatch_pointer_table() {
+    return mutable_table<tables::AndroidInputEventDispatchPointerTable>();
+  }
+
   const tables::AndroidJobSchedulerPendingReasonsTrackEventTable&
   android_job_scheduler_pending_reasons_track_event_table() const {
     return table<tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();

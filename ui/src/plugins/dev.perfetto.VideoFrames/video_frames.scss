@@ -72,14 +72,72 @@
       justify-content: center;
     }
 
+    // Fills the bounded section; the preview and the touch overlay are
+    // stacked in it, sharing the same box.
+    .pf-video-frame-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
     // Within the bounded section, fill the box and letterbox the decoded
     // frame to preserve aspect ratio. The canvas *buffer* stays native
     // resolution (set in drawFrame); this only controls displayed size.
     .pf-video-frame-preview {
+      box-sizing: border-box;
       width: 100%;
       height: 100%;
       max-width: 100%;
       object-fit: contain;
     }
+
+    // The touch overlay: same box and buffer size as the preview, so the
+    // two scale identically. Transparent, and lets clicks through.
+    .pf-video-frame-touches {
+      position: absolute;
+      inset: 0;
+      border-color: transparent;
+      pointer-events: none;
+    }
   }
+
+  // The details column scrolls when the input list outgrows the panel.
+  .pf-grid-layout-column {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+// The window name after a process in the input section, to tell apart a
+// process's windows without competing with the process name.
+.pf-video-frame-channel {
+  color: var(--pf-color-text-muted);
+}
+
+// Legend of the touch overlay, shown in the "Show touches" tooltip.
+.pf-video-frame-legend {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 4px 12px;
+  margin-top: 6px;
+  max-width: 280px;
+}
+
+.pf-video-frame-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+// Sized here; the buffer is scaled for the device pixel ratio when drawn.
+.pf-video-frame-legend__glyph {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.pf-video-frame-legend__note {
+  grid-column: 1 / -1;
+  color: var(--pf-color-text-muted);
 }

@@ -308,3 +308,27 @@ class AndroidInputEvent(TestSuite):
         6
         30
         """))
+
+  # Pointer coordinates are decoded at parse time. This trace was recorded on a
+  # rotated display: the dispatches carry the logical (x/y_in_display)
+  # coordinates, which differ from the physical ones on the event.
+  def test_motion_event_pointers(self):
+    return DiffTestBlueprint(
+        trace=Path('input_event_trace.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.input;
+        SELECT
+          event_id, ts, event_ts, action_masked, pointer_index, pointer_id,
+          tool_type, raw_x, raw_y, x, y, is_redacted
+        FROM android_motion_event_pointers
+        ORDER BY ts, event_id, pointer_index;
+        """,
+        out=Csv("""
+        "event_id","ts","event_ts","action_masked","pointer_index","pointer_id","tool_type","raw_x","raw_y","x","y","is_redacted"
+        330184796,674772186549222,674772177421873,0,0,0,1,431.000000,624.000000,1936.000000,431.000000,0
+        1327679296,674772186549222,674772177421873,4,0,0,1,431.000000,624.000000,1936.000000,431.000000,0
+        557261353,674772207730130,674772202917873,2,0,0,1,431.000000,624.000000,1936.000000,431.000000,0
+        106022695,674772213523384,674772210422873,2,0,0,1,431.000000,624.000000,1936.000000,431.000000,0
+        313395000,674772222900174,674772219698873,2,0,0,1,431.000000,624.000000,1936.000000,431.000000,0
+        436499943,674772227946073,674772226558873,1,0,0,1,431.000000,624.000000,1936.000000,431.000000,0
+        """))
