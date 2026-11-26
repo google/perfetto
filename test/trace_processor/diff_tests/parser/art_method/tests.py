@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import DataPath
+from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
@@ -73,7 +74,7 @@ class ArtMethodParser(TestSuite):
 
   def test_art_method_v2_smoke(self):
     return DiffTestBlueprint(
-        trace=DataPath('art-method-v2.trace'),
+        trace=Path('art_method_v2.py'),
         query="""
           INCLUDE PERFETTO MODULE slices.with_context;
 
@@ -83,8 +84,24 @@ class ArtMethodParser(TestSuite):
         """,
         out=Csv('''
           "ts","dur","name","thread_name","pathname","line_number"
-          1100000,400000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
-          1200000,100000,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
+          165000100000,10000000000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
+          165000200000,100000,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
+        '''))
+
+  def test_art_method_v2_thread_cpu(self):
+    return DiffTestBlueprint(
+        trace=Path('art_method_v2_thread_cpu.py'),
+        query="""
+          INCLUDE PERFETTO MODULE slices.with_context;
+
+          SELECT ts, dur, name, thread_name, extract_arg(arg_set_id, 'pathname') AS pathname
+          FROM thread_slice
+          ORDER BY ts ASC
+        """,
+        out=Csv('''
+          "ts","dur","name","thread_name","pathname"
+          170000000000,142402,"android.app.ProfilerInfo.closeFd: ()V","main","ProfilerInfo.java"
+          170000050000,70000,"android.os.ParcelFileDescriptor.close: ()V","main","ParcelFileDescriptor.java"
         '''))
 
   def test_art_method_track_type(self):
@@ -112,7 +129,7 @@ class ArtMethodParser(TestSuite):
 
   def test_art_method_v2_track_type(self):
     return DiffTestBlueprint(
-        trace=DataPath('art-method-v2.trace'),
+        trace=Path('art_method_v2.py'),
         query="""
           SELECT DISTINCT t.type, t.name, thread.name as thread_name
           FROM track t

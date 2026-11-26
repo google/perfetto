@@ -10,6 +10,9 @@ Unreleased:
      and `authoritative_trigger` packets, reporting the effective trigger
      mode of the session.
   Trace Processor:
+   * Fixed ART method v2 traces producing shifted/overflowed timestamps due to
+     missing `start_tsc` subtraction, `int64_t` scaling overflow, `thread-cpu`
+     clock scaling (`tsc_frequency == 1`), and the 2-byte summary length header.
    * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
      one call failed (e.g. an interrupted query), until they were redefined.
    * Fixed `InterruptQuery()` (e.g. Ctrl-C in `trace_processor_shell`) being
