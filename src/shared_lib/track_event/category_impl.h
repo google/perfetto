@@ -18,6 +18,7 @@
 #define SRC_SHARED_LIB_TRACK_EVENT_CATEGORY_IMPL_H_
 
 #include <atomic>
+#include <cstddef>
 
 #include "perfetto/public/abi/track_event_abi.h"
 
@@ -25,6 +26,8 @@ struct PerfettoTeCategoryImpl {
   std::atomic<bool> flag{false};
   std::atomic<uint8_t> instances{0};
   PerfettoTeCategoryDescriptor* desc = nullptr;
+  // Byte length of `desc->name` without NUL (0 if null), cached at creation.
+  size_t name_size = 0;
   uint64_t cat_iid = 0;
   PerfettoTeCategoryImplCallback cb = nullptr;
   void* cb_user_arg = nullptr;

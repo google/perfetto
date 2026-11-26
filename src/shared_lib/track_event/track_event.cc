@@ -16,6 +16,8 @@
 
 #include "perfetto/public/abi/track_event_abi.h"
 
+#include <string.h>
+
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track.h"
@@ -59,6 +61,7 @@ struct PerfettoTeCategoryImpl* PerfettoTeCategoryImplCreate(
     struct PerfettoTeCategoryDescriptor* desc) {
   auto* cat = new PerfettoTeCategoryImpl;
   cat->desc = desc;
+  cat->name_size = desc && desc->name ? strlen(desc->name) : 0;
 
   perfetto::shlib::GlobalState::Instance().RegisterCategory(cat);
   return cat;
@@ -88,4 +91,9 @@ uint64_t PerfettoTeCategoryImplGetIid(struct PerfettoTeCategoryImpl* cat) {
 void PerfettoTeCategoryImplDestroy(struct PerfettoTeCategoryImpl* cat) {
   perfetto::shlib::GlobalState::Instance().UnregisterCategory(cat);
   delete cat;
+}
+
+uint32_t PerfettoTeCategoryImplGetEventFormats(
+    struct PerfettoTeCategoryImpl* cat) {
+  return perfetto::shlib::GlobalState::GetEventFormats(cat);
 }

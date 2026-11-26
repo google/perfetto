@@ -184,6 +184,7 @@ perfetto_cc_library(
         ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
         ":src_shared_lib_track_event_intern_map",
+        ":src_shared_lib_track_event_raw_proto_fields",
         ":src_shared_lib_track_event_track_event",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
@@ -2483,6 +2484,15 @@ perfetto_filegroup(
     srcs = [
         "src/shared_lib/track_event/intern_map.cc",
         "src/shared_lib/track_event/intern_map.h",
+    ],
+)
+
+# GN target: //src/shared_lib/track_event:raw_proto_fields
+perfetto_filegroup(
+    name = "src_shared_lib_track_event_raw_proto_fields",
+    srcs = [
+        "src/shared_lib/track_event/raw_proto_fields.cc",
+        "src/shared_lib/track_event/raw_proto_fields.h",
     ],
 )
 
