@@ -152,6 +152,9 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   // Controlled open state for the toolbar "Add Node" popup menu.
   let addMenuOpen = false;
 
+  // Suppress undo history entries when auto-layout repositions nodes.
+  let suppressHistoryOnMove = false;
+
   function getFlatNodes(): GraphIndex {
     return flattenNodes(getState().store.nodes);
   }
@@ -232,16 +235,29 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   const canUndo = () => getState().canUndo();
   const canRedo = () => getState().canRedo();
 
-  const updateNode = (
-    nodeId: string,
-    updates: Partial<Omit<RootNodeData, 'id'>>,
-  ) => {
-    getState().updateNode(nodeId, updates);
-  };
-
   const removeNode = (nodeId: string) => {
     getState().removeNode(nodeId);
   };
+
+  function flushPendingLayout() {
+    if (!graphApi) return;
+    const pending = getState().consumePendingLayout();
+    if (!pending) return;
+    requestAnimationFrame(() => {
+      if (!graphApi) return;
+      if (pending.autoLayout) {
+        suppressHistoryOnMove = true;
+        try {
+          graphApi.autoLayout();
+        } finally {
+          suppressHistoryOnMove = false;
+        }
+      }
+      if (pending.recenter) {
+        graphApi.recenter();
+      }
+    });
+  }
 
   // --- Clipboard support ---
 
@@ -568,6 +584,8 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       const {store, selectedNodeIds, pinnedNodeId} = state;
       const materializationDialect = state.dialect;
 
+      flushPendingLayout();
+
       // Get table names from SqlModules, falling back to a basic list
       const tableNames = sqlModules
         ? sqlModules.listTablesNames().sort()
@@ -739,6 +757,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         toolbarItems,
         onReady: (api: NodeGraphApi) => {
           graphApi = api;
+          flushPendingLayout();
         },
         onCopy: () => copySelectedNodes(),
         onPaste: () => pasteNodes(),
@@ -769,7 +788,11 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
           });
         },
         onNodeMove: (nodeId: string, x: number, y: number) => {
-          updateNode(nodeId, {x, y});
+          getState().updateNode(
+            nodeId,
+            {x, y},
+            {skipHistory: suppressHistoryOnMove},
+          );
         },
         onNodeRemove: (nodeId: string) => {
           removeNode(nodeId);
