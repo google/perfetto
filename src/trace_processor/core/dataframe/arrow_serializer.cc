@@ -97,13 +97,15 @@ void Append(std::vector<uint8_t>* output, const void* data, size_t size) {
 }
 
 void AppendU32(std::vector<uint8_t>* output, uint32_t value) {
+  value = base::HostToLE(value);
   Append(output, &value, sizeof(value));
 }
 
 void AppendMessage(std::vector<uint8_t>* output,
                    const std::vector<uint8_t>& metadata,
                    uint32_t padded_size) {
-  MessagePrefix prefix{kContinuation, static_cast<int32_t>(padded_size)};
+  MessagePrefix prefix =
+      HostToLE(MessagePrefix{kContinuation, static_cast<int32_t>(padded_size)});
   Append(output, &prefix, sizeof(prefix));
   Append(output, metadata.data(), metadata.size());
   output->resize(output->size() + padded_size - metadata.size(), 0);
@@ -150,6 +152,12 @@ class BufferedOutput {
       }
     }
     return base::OkStatus();
+  }
+
+  template <typename T>
+  base::Status AppendLE(T value) {
+    value = base::HostToLE(value);
+    return Append(&value, sizeof(value));
   }
 
   base::Status AppendPadding(size_t size) {
@@ -219,6 +227,11 @@ W::Offset BuildUtf8(W& w) {
   return w.EndTable();
 }
 
+W::Offset BuildNull(W& w) {
+  w.StartTable();
+  return w.EndTable();
+}
+
 W::Offset BuildDictionaryEncoding(W& w, int64_t id) {
   auto index_type = BuildInt(w, kDictionaryIndexBits, true);
   w.StartTable();
@@ -231,12 +244,16 @@ W::Offset BuildField(W& w,
                      const std::string& name,
                      StorageType type,
                      bool nullable,
+                     bool all_null,
                      int64_t dictionary_id) {
   uint8_t arrow_type;
   W::Offset type_table;
   W::Offset dictionary;
-  bool has_dictionary = type.Is<core::String>();
-  if (type.Is<core::String>()) {
+  bool has_dictionary = !all_null && type.Is<core::String>();
+  if (all_null) {
+    arrow_type = kTypeNull;
+    type_table = BuildNull(w);
+  } else if (type.Is<core::String>()) {
     arrow_type = kTypeUtf8;
     type_table = BuildUtf8(w);
     dictionary = BuildDictionaryEncoding(w, dictionary_id);
@@ -277,12 +294,10 @@ W::Offset BuildRecordBatch(W& w,
                            uint32_t rows,
                            const std::vector<FieldNode>& nodes,
                            const std::vector<ArrowBuffer>& buffers) {
-  auto buffer_vector =
-      w.WriteVecStruct(buffers.data(), sizeof(ArrowBuffer),
-                       static_cast<uint32_t>(buffers.size()), alignof(int64_t));
-  auto node_vector =
-      w.WriteVecStruct(nodes.data(), sizeof(FieldNode),
-                       static_cast<uint32_t>(nodes.size()), alignof(int64_t));
+  auto buffer_vector = w.WriteVecStruct(
+      buffers.data(), static_cast<uint32_t>(buffers.size()), alignof(int64_t));
+  auto node_vector = w.WriteVecStruct(
+      nodes.data(), static_cast<uint32_t>(nodes.size()), alignof(int64_t));
   w.StartTable();
   w.FieldI64(record_batch_field::kLength, rows);
   w.FieldOffset(record_batch_field::kNodes, node_vector);
@@ -306,11 +321,10 @@ W::Offset BuildFooter(W& w,
                       W::Offset schema,
                       const std::vector<Block>& dictionary_blocks,
                       const Block& block) {
-  auto blocks = w.WriteVecStruct(&block, sizeof(block), kRecordBatchCount,
-                                 alignof(int64_t));
+  auto blocks = w.WriteVecStruct(&block, kRecordBatchCount, alignof(int64_t));
   auto dictionaries = w.WriteVecStruct(
-      dictionary_blocks.data(), sizeof(Block),
-      static_cast<uint32_t>(dictionary_blocks.size()), alignof(int64_t));
+      dictionary_blocks.data(), static_cast<uint32_t>(dictionary_blocks.size()),
+      alignof(int64_t));
   w.StartTable();
   w.FieldI16(footer_field::kVersion, kMetadataV5);
   w.FieldOffset(footer_field::kSchema, schema);
@@ -348,10 +362,10 @@ base::Status WriteUtf8OffsetBuffer(const std::vector<StringPool::Id>& values,
                                    BufferedOutput* output) {
   int32_t offset = 0;
   for (StringPool::Id id : values) {
-    RETURN_IF_ERROR(output->Append(&offset, sizeof(offset)));
+    RETURN_IF_ERROR(output->AppendLE(offset));
     offset += static_cast<int32_t>(pool.Get(id).size());
   }
-  RETURN_IF_ERROR(output->Append(&offset, sizeof(offset)));
+  RETURN_IF_ERROR(output->AppendLE(offset));
   PERFETTO_CHECK(static_cast<uint32_t>(offset) == data_length);
   size_t bytes = static_cast<size_t>(
       Utf8OffsetBufferSize(static_cast<uint32_t>(values.size())));
@@ -364,12 +378,30 @@ base::Status WriteIdBuffer(uint32_t rows,
                            const ArrowSerializer::WriteFn& write) {
   BufferedOutput output(scratch, write);
   for (uint32_t row = 0; row < rows; ++row) {
-    RETURN_IF_ERROR(output.Append(&row, sizeof(row)));
+    RETURN_IF_ERROR(output.AppendLE(row));
   }
   size_t bytes = static_cast<size_t>(rows) * sizeof(uint32_t);
   RETURN_IF_ERROR(
       output.AppendPadding(static_cast<size_t>(AlignToArrow(bytes)) - bytes));
   return output.Finish();
+}
+
+// Writes host-endian |T| storage values as LE logical rows, zeroing nulls.
+template <typename T>
+base::Status ScatterNumeric(uint32_t rows,
+                            const uint8_t* source,
+                            StorageIndexMapper* mapper,
+                            BufferedOutput* output) {
+  for (uint32_t row = 0; row < rows; ++row) {
+    T value{};
+    if (mapper->HasValue(row)) {
+      memcpy(&value,
+             source + static_cast<size_t>(mapper->Take(row)) * sizeof(T),
+             sizeof(T));
+    }
+    RETURN_IF_ERROR(output->AppendLE(value));
+  }
+  return base::OkStatus();
 }
 
 base::Status WriteNumericBuffer(uint32_t rows,
@@ -382,24 +414,25 @@ base::Status WriteNumericBuffer(uint32_t rows,
   size_t bytes = static_cast<size_t>(rows) * element_size;
   size_t padded = static_cast<size_t>(AlignToArrow(bytes));
   const uint8_t* source = NumericData(column.storage);
-  const uint8_t zeros[kArrowAlignment] = {};
-  if (!sparse) {
-    RETURN_IF_ERROR(Emit(write, source, bytes));
-    return Emit(write, zeros, padded - bytes);
+  if constexpr (PERFETTO_IS_LITTLE_ENDIAN()) {
+    if (!sparse) {
+      const uint8_t zeros[kArrowAlignment] = {};
+      RETURN_IF_ERROR(Emit(write, source, bytes));
+      return Emit(write, zeros, padded - bytes);
+    }
   }
 
   // Sparse dataframe storage omits null rows. Arrow numeric arrays do not, so
   // scatter values while streaming logical rows through bounded scratch space.
-  PERFETTO_DCHECK(validity);
+  // Big-endian hosts also take this path for dense columns to byte-swap.
+  PERFETTO_DCHECK(validity || !sparse);
   BufferedOutput output(scratch, write);
-  StorageIndexMapper mapper(validity, sparse);
-  for (uint32_t row = 0; row < rows; ++row) {
-    if (mapper.HasValue(row)) {
-      RETURN_IF_ERROR(output.Append(source + mapper.Take(row) * element_size,
-                                    element_size));
-    } else {
-      RETURN_IF_ERROR(output.Append(zeros, element_size));
-    }
+  StorageIndexMapper mapper(sparse ? validity : nullptr, sparse);
+  if (element_size == sizeof(uint64_t)) {
+    RETURN_IF_ERROR(ScatterNumeric<uint64_t>(rows, source, &mapper, &output));
+  } else {
+    PERFETTO_DCHECK(element_size == sizeof(uint32_t));
+    RETURN_IF_ERROR(ScatterNumeric<uint32_t>(rows, source, &mapper, &output));
   }
   RETURN_IF_ERROR(output.AppendPadding(padded - bytes));
   return output.Finish();
@@ -496,8 +529,16 @@ base::Status ArrowSerializer::PlanBody(const Dataframe& dataframe,
     PreparedColumn prepared{i, dataframe.column_names_[i], nullable, type, 0};
     int64_t null_count = 0;
     if (nullable) {
-      const BitVector& validity = column.null_storage.GetNullBitVector();
-      null_count = CountNulls(plan->rows, validity);
+      null_count =
+          CountNulls(plan->rows, column.null_storage.GetNullBitVector());
+    }
+    if (plan->rows && null_count == plan->rows) {
+      prepared.all_null = true;
+      plan->nodes.push_back({plan->rows, null_count});
+      prepared_columns_.push_back(std::move(prepared));
+      continue;
+    }
+    if (nullable) {
       ASSIGN_OR_RETURN(auto validity_buffer,
                        AddBuffer(ValidityBufferSize(plan->rows), &body_cursor));
       plan->buffers.push_back(validity_buffer);
@@ -539,7 +580,7 @@ base::Status ArrowSerializer::BuildFileFraming(const BodyPlan& plan) {
     fields.reserve(prepared_columns_.size());
     for (const auto& column : prepared_columns_) {
       fields.push_back(BuildField(w, column.name, column.storage_type,
-                                  column.nullable,
+                                  column.nullable, column.all_null,
                                   static_cast<int64_t>(column.dictionary)));
     }
     auto field_vector =
@@ -694,7 +735,7 @@ base::Status ArrowSerializer::WriteDictionaryIndices(
       PERFETTO_CHECK(found);
       index = static_cast<DictionaryIndex>(*found);
     }
-    RETURN_IF_ERROR(output.Append(&index, sizeof(index)));
+    RETURN_IF_ERROR(output.AppendLE(index));
   }
   size_t bytes = static_cast<size_t>(rows) * sizeof(DictionaryIndex);
   RETURN_IF_ERROR(
@@ -709,6 +750,9 @@ base::Status ArrowSerializer::WriteBody(const Dataframe& dataframe,
                                         const WriteFn& write) {
   uint32_t rows = dataframe.row_count();
   for (const auto& prepared : prepared_columns_) {
+    if (prepared.all_null) {
+      continue;
+    }
     const auto& column = *dataframe.columns_[prepared.dataframe_column];
     Nullability nullability = column.null_storage.nullability();
     bool sparse = IsSparse(nullability);

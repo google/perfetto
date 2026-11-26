@@ -102,7 +102,7 @@ protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_de
     gn_utils.HOST_TOOLCHAIN)
 
 default_targets += [
-    '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
+    '//src/trace_processor:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//src/protovm/compiler:protovm_compiler(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
@@ -204,7 +204,7 @@ transitive_proto_filegroups = {
 needs_libfts = [
     '//:perfetto_unittests',
     '//src/trace_processor:trace_processor_shell_lib',
-    '//src/traceconv:traceconv',
+    '//src/trace_processor:traceconv',
 ]
 
 # All module names are prefixed with this string to avoid collisions.

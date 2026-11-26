@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -32,6 +33,7 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -103,37 +105,51 @@ class Reverse final : public Breaker {
 
 Reverse::State::~State() = default;
 
-std::vector<int64_t> DrainValues(const Source& source) {
+std::vector<int64_t> DrainValues(const Source& source,
+                                 const Pipelines& pipelines) {
   std::vector<int64_t> values;
-  RowCursor cursor(source);
+  RowCursor cursor(source, pipelines);
   for (cursor.Open(); !cursor.eof(); cursor.Next()) {
     values.push_back(cursor.Value<int64_t>(0));
   }
+  EXPECT_TRUE(cursor.status().ok());
   return values;
+}
+
+// Ends a pipeline of `input`, with no steps, in `breaker`, and returns the
+// source which serves what it builds.
+std::unique_ptr<Served> EndIn(Pipelines& pipelines,
+                              const Source& input,
+                              std::unique_ptr<Breaker> breaker) {
+  const Breaker& served = *breaker;
+  uint32_t id = pipelines.Add(
+      nullptr, std::make_unique<Pipeline>(input, std::vector<Pipeline::Step>()),
+      std::move(breaker));
+  return std::make_unique<Served>(id, served);
 }
 
 TEST(BreakerTest, ServesOnlyOnceTheWholeInputIsIn) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops));
-
-  std::vector<int64_t> values = DrainValues(reverse);
+  Pipelines pipelines;
+  std::unique_ptr<Served> reverse =
+      EndIn(pipelines, source, std::make_unique<Reverse>());
+  std::vector<int64_t> values = DrainValues(*reverse, pipelines);
   ASSERT_EQ(values.size(), kMaxBatchRows * 2u + 7u);
   EXPECT_EQ(values.front(), kMaxBatchRows * 2 + 6);
   EXPECT_EQ(values.back(), 0);
 }
 
-// The first breaker emits during Finish(). All of those batches must flow
-// into the second before its own Finish() starts emitting.
-TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
+// The first breaker's pipeline ends before the second's starts, which reads
+// all the first serves before serving anything itself.
+TEST(BreakerTest, ConsecutiveBreakersEachEndAPipeline) {
   auto expected = Sequence(kMaxBatchRows * 2 + 7);
   ArraySource source(expected);
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  ops.push_back(std::make_unique<Reverse>(0));
-  Pipeline pipeline(source, std::move(ops));
-  RowCursor cursor(pipeline);
+  Pipelines pipelines;
+  std::unique_ptr<Served> first =
+      EndIn(pipelines, source, std::make_unique<Reverse>());
+  std::unique_ptr<Served> second =
+      EndIn(pipelines, *first, std::make_unique<Reverse>(0));
+  RowCursor cursor(*second, pipelines);
   // Restart while a breaker still has buffered output to serve.
   ASSERT_TRUE(cursor.Open());
   for (int run = 0; run < 2; ++run) {
@@ -144,6 +160,194 @@ TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
     EXPECT_TRUE(cursor.status().ok());
     EXPECT_EQ(values, expected);
   }
+}
+
+TEST(BreakerTest, AFailedInputFailsTheSourceServingIt) {
+  FailingSource source;
+  Pipelines pipelines;
+  std::unique_ptr<Served> reverse =
+      EndIn(pipelines, source, std::make_unique<Reverse>());
+  RowCursor cursor(*reverse, pipelines);
+  EXPECT_FALSE(cursor.Open());
+  EXPECT_EQ(cursor.status().message(), "input broke");
+}
+
+// The sum of column 1 of what it consumes, counting in `builds` how many
+// times it is finalized.
+class Total final : public Sink {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  explicit Total(uint32_t* builds) : builds_(builds) {}
+
+  struct Sum : OperatorState {
+    ~Sum() override;
+    RunValue<int64_t> value{this, 0};
+  };
+
+  void DescribeColumns(StepColumns* out) const override {
+    out->keeps = StepColumns::Keeps::kNone;
+    out->reads = {1};
+  }
+  std::unique_ptr<OperatorState> MakeSinkState(Context&) const override {
+    return std::make_unique<Sum>();
+  }
+  base::Status ConsumeBatch(const RowBatch& in,
+                            OperatorState& state) const override {
+    Sum& sum = state.Cast<Sum>();
+    for (uint32_t row = 0; row < in.size(); ++row) {
+      sum.value += in.Value<int64_t>(1, row);
+    }
+    return base::OkStatus();
+  }
+  base::Status FinalizeSink(OperatorState&) const override {
+    ++*builds_;
+    return base::OkStatus();
+  }
+
+ private:
+  uint32_t* builds_;
+};
+
+Total::Sum::~Sum() = default;
+
+// Replaces column 1 of each batch with sink `total`'s sum.
+class WithTotal final : public Transform {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  explicit WithTotal(uint32_t total) : total_(total) {}
+
+  struct State : OperatorState {
+    State(Context& c, uint32_t total) : context(&c), use(this, total) {}
+    ~State() override;
+    Context* context;
+    PipelineUse use;
+    base::Status status;
+  };
+
+  void DescribeColumns(StepColumns* out) const override { out->reads = {1}; }
+  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
+    return std::make_unique<State>(context, total_);
+  }
+  bool Process(RowBatch& batch, OperatorState& state) const override {
+    State& s = state.Cast<State>();
+    base::StatusOr<OperatorState*> built = s.use.Built(*s.context);
+    if (!built.ok()) {
+      s.status = built.status();
+      return false;
+    }
+    ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
+    int64_t* values = buffer.chunk().Values<int64_t>();
+    std::fill_n(values, kMaxBatchRows, *(*built)->Cast<Total::Sum>().value);
+    batch.SetColumn(1, ColumnView::Reference(StorageType{Int64{}}, values),
+                    std::move(buffer));
+    return true;
+  }
+  base::Status status(const OperatorState& state) const override {
+    return state.Cast<const State>().status;
+  }
+
+ private:
+  uint32_t total_;
+};
+
+WithTotal::State::~State() = default;
+
+TEST(SinkTest, BuildsOnceARunWhenFirstRead) {
+  uint32_t builds = 0;
+  ArraySource summed(Sequence(kMaxBatchRows + 4));
+  Pipelines pipelines;
+  uint32_t total = pipelines.Add(
+      nullptr,
+      std::make_unique<Pipeline>(summed, std::vector<Pipeline::Step>()),
+      std::make_unique<Total>(&builds));
+  ArraySource rows(Sequence(kMaxBatchRows * 2));
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<WithTotal>(total));
+  Pipeline reads(rows, std::move(steps));
+
+  int64_t sum = (kMaxBatchRows + 4) * (kMaxBatchRows + 3) / 2;
+  RowCursor cursor(reads, pipelines);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    uint32_t count = 0;
+    for (cursor.Open(); !cursor.eof(); cursor.Next()) {
+      ASSERT_EQ(cursor.Value<int64_t>(1), sum);
+      ++count;
+    }
+    EXPECT_EQ(count, kMaxBatchRows * 2);
+    // Once a run, however many batches read it.
+    EXPECT_EQ(builds, run);
+  }
+
+  // A step given no rows never reads it, so it is not built.
+  ArraySource none(std::vector<int64_t>{});
+  std::vector<Pipeline::Step> empty_steps;
+  empty_steps.push_back(std::make_unique<WithTotal>(total));
+  Pipeline empty(none, std::move(empty_steps));
+  RowCursor empty_cursor(empty, pipelines);
+  EXPECT_FALSE(empty_cursor.Open());
+  EXPECT_EQ(builds, 2u);
+}
+
+// A transform whose state counts how many times its run was ended.
+class CountEndRuns final : public Transform {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
+
+  explicit CountEndRuns(uint32_t* ends) : ends_(ends) {}
+
+  struct Counter {
+    explicit Counter(uint32_t* e) : ends(e) {}
+    void EndRun() { ++*ends; }
+    uint32_t* ends;
+  };
+
+  struct State : OperatorState {
+    explicit State(uint32_t* ends) : counter(this, ends) {}
+    ~State() override;
+    Held<Counter> counter;
+  };
+
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
+    return std::make_unique<State>(ends_);
+  }
+  bool Process(RowBatch&, OperatorState&) const override { return true; }
+
+ private:
+  uint32_t* ends_;
+};
+
+CountEndRuns::State::~State() = default;
+
+TEST(SinkTest, EndPipelineRunEndsHeldStepsBeforeExhaustion) {
+  uint32_t ends = 0;
+  ArraySource rows(Sequence(kMaxBatchRows * 2));
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<CountEndRuns>(&ends));
+  Pipelines pipelines;
+  uint32_t id = pipelines.Add(
+      nullptr, std::make_unique<Pipeline>(rows, std::move(steps)), nullptr);
+
+  Context context;
+  context.SetPipelines(&pipelines);
+
+  // Pull one batch (leaving the pipeline mid-stream) and end its run early.
+  ASSERT_NE(context.NextBatch(id), nullptr);
+  EXPECT_EQ(ends, 0u);
+  context.EndPipelineRun(id);
+  EXPECT_EQ(ends, 1u);
+
+  // Starting a new run must not end the already-ended run a second time.
+  ASSERT_NE(context.NextBatch(id), nullptr);
+  EXPECT_EQ(ends, 1u);
+  while (context.NextBatch(id) != nullptr) {
+  }
+  EXPECT_EQ(ends, 2u);
 }
 
 }  // namespace

@@ -148,6 +148,13 @@ class MockDs2Callbacks : testing::Mock {
                void* user_arg,
                void* inst_ctx,
                struct PerfettoDsOnFlushArgs* args));
+  MOCK_METHOD(void,
+              WillClearIncrementalState,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx,
+               struct PerfettoDsWillClearIncrementalStateArgs* args));
   MOCK_METHOD(void*,
               OnCreateTls,
               (struct PerfettoDsImpl*,
@@ -905,6 +912,14 @@ class SharedLibDataSourceTest : public testing::Test {
           return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
+    params.will_clear_incremental_state_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           void* user_arg, void* inst_ctx,
+           struct PerfettoDsWillClearIncrementalStateArgs* args) {
+          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+          thiz->ds2_callbacks_.WillClearIncrementalState(
+              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
+        };
     params.on_create_tls_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
@@ -1497,6 +1512,45 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
 }
 
+TEST_F(SharedLibDataSourceTest, WillClearIncrementalStateCallback) {
+  void* const kInstCtx = reinterpret_cast<void*>(0x444);
+  WaitableEvent clear_notification;
+
+  EXPECT_CALL(ds2_callbacks_, OnSetup(data_source_2.impl, _, _, _,
+                                      kDataSource2UserArg, nullptr))
+      .WillOnce(Return(kInstCtx));
+  EXPECT_CALL(ds2_callbacks_,
+              WillClearIncrementalState(data_source_2.impl, _,
+                                        kDataSource2UserArg, kInstCtx, nullptr))
+      .WillRepeatedly([&clear_notification](
+                          struct PerfettoDsImpl*, PerfettoDsInstanceIndex,
+                          void*, void*,
+                          struct PerfettoDsWillClearIncrementalStateArgs*) {
+        PERFETTO_DS_TRACE(data_source_2, ctx) {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+          perfetto_protos_TracePacket_set_timestamp(&trace_packet.msg, 42);
+          PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+        }
+        clear_notification.Notify();
+      });
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  ASSERT_TRUE(clear_notification.WaitForNotification());
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(perfetto_protos_Trace_packet_field_number,
+                       MsgField(Contains(PbField(
+                           perfetto_protos_TracePacket_timestamp_field_number,
+                           VarIntField(42)))))));
+}
+
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
   bool ignored1 = false;
   bool ignored2 = false;
@@ -1904,6 +1958,48 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
   EXPECT_TRUE(std::atomic_load(cat1.enabled));
   EXPECT_FALSE(std::atomic_load(cat2.enabled));
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
+}
+
+// All sessions that record an event share the same timestamp because the clock
+// is read once per event.
+TEST_F(SharedLibTrackEventTest, TrackEventHlSessionsShareTimestamp) {
+  auto first = TracingSession::Builder()
+                   .set_data_source_name("track_event")
+                   .add_enabled_category("cat1")
+                   .set_disable_incremental_timestamps(true)
+                   .Build();
+  auto second = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_disable_incremental_timestamps(true)
+                    .Build();
+  // The first event resets the incremental state, and the second does not.
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event2"));
+  first.StopBlocking();
+  second.StopBlocking();
+  auto collect_timestamps = [](const std::vector<uint8_t>& data,
+                               std::vector<uint64_t>* timestamps) {
+    for (struct PerfettoPbDecoderField packet :
+         IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+      if (IdFieldView(packet,
+                      perfetto_protos_TracePacket_track_event_field_number)
+              .size() == 0) {
+        continue;
+      }
+      IdFieldView timestamp(packet,
+                            perfetto_protos_TracePacket_timestamp_field_number);
+      ASSERT_EQ(timestamp.size(), 1u);
+      timestamps->push_back(timestamp.front().value.integer64);
+    }
+  };
+  std::vector<uint64_t> first_ts;
+  std::vector<uint64_t> second_ts;
+  collect_timestamps(first.ReadBlocking(), &first_ts);
+  collect_timestamps(second.ReadBlocking(), &second_ts);
+  ASSERT_EQ(first_ts.size(), 2u);
+  ASSERT_EQ(second_ts.size(), 2u);
+  EXPECT_EQ(first_ts, second_ts);
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventCategoryCallback) {

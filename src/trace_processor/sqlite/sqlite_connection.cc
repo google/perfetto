@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_db.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_database.h"
@@ -336,6 +337,16 @@ void* SqliteConnection::SetCommitCallback(CommitCallback callback, void* ctx) {
 void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
                                             void* ctx) {
   return sqlite3_rollback_hook(db_.get(), callback, ctx);
+}
+
+void SqliteConnection::SetProgressCallback(int steps,
+                                           ProgressCallback callback,
+                                           void* ctx) {
+  sqlite::db::ProgressHandler(db_.get(), steps, callback, ctx);
+}
+
+void SqliteConnection::Interrupt() {
+  sqlite::db::Interrupt(db_.get());
 }
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,

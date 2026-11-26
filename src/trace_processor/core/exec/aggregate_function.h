@@ -72,7 +72,7 @@ class AggregateInputLoader {
             uint32_t count,
             AggregateInput* out);
 
-  // Ends a run (see RunHeld).
+  // Ends a run (see Held).
   void EndRun() {
     EndRunOf(&values_);
     EndRunOf(&valid_);
@@ -103,7 +103,7 @@ class SeenBytes {
   // groups in all, whose input holds nulls if `nulls`.
   uint8_t* For(uint32_t groups, bool nulls);
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:

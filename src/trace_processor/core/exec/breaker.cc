@@ -27,41 +27,26 @@ namespace perfetto::trace_processor::core::exec {
 Breaker::~Breaker() = default;
 Breaker::State::~State() = default;
 
-std::unique_ptr<OperatorState> Breaker::MakeState(Context& context) const {
+std::unique_ptr<OperatorState> Breaker::MakeSinkState(Context& context) const {
   std::unique_ptr<State> state = CreateState();
   state->context = &context;
   return state;
 }
 
-OpResult Breaker::Execute(const RowBatch& in,
-                          RowBatch& out,
-                          OperatorState& state) const {
-  out.Reset();
-  State& s = state.Cast<State>();
-  return s.status.ok() && Consume(in, s) ? OpResult::kNeedMoreInput
-                                         : OpResult::kError;
+base::Status Breaker::ConsumeBatch(const RowBatch& in,
+                                   OperatorState& state) const {
+  auto& s = state.Cast<State>();
+  if (s.status.ok() && Consume(in, s)) {
+    return base::OkStatus();
+  }
+  return s.status;
 }
 
-OpResult Breaker::Finish(RowBatch& out, OperatorState& state) const {
-  out.Reset();
-  State& s = state.Cast<State>();
-  if (!s.status.ok()) {
-    return OpResult::kError;
+base::Status Breaker::FinalizeSink(OperatorState& state) const {
+  auto& s = state.Cast<State>();
+  if (Finalize(s)) {
+    return base::OkStatus();
   }
-  if (!s.filled) {
-    if (!Finalize(s)) {
-      return OpResult::kError;
-    }
-    s.filled = true;
-  }
-  if (Serve(out, s)) {
-    return OpResult::kHaveMoreOutput;
-  }
-  return s.status.ok() ? OpResult::kNeedMoreInput : OpResult::kError;
-}
-
-base::Status Breaker::status(const OperatorState& state) const {
-  const State& s = state.Cast<const State>();
   return s.status;
 }
 

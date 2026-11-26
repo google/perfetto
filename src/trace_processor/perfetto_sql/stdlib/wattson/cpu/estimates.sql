@@ -153,7 +153,7 @@ SELECT
       coalesce(lut7.static, 0),
       0
     )
-    + static_1d
+    + iif(flags.has_dsu_1d, base.running_static_1d, base.static_1d)
   ) AS static_mw,
   iif(base.suspended, 0, lut0.l3_hit) AS l3_hit,
   iif(base.suspended, 0, lut0.l3_miss) AS l3_miss,

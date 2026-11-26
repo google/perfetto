@@ -119,7 +119,14 @@ RowSource::State::~State() = default;
 class Execution {
  public:
   explicit Execution(const Source& source)
-      : source_(source), state_(source.MakeState(test::TestContext())) {}
+      : source_(source), state_(source.MakeState(context_)) {}
+
+  // As above, for a plan whose other pipelines are `pipelines`.
+  Execution(const Source& source, const Pipelines& pipelines)
+      : source_(source) {
+    context_.SetPipelines(&pipelines);
+    state_ = source.MakeState(context_);
+  }
 
   RowBatch* Next() {
     return source_.GetData(batch_, *state_) ? &batch_ : nullptr;
@@ -129,6 +136,7 @@ class Execution {
 
  private:
   const Source& source_;
+  Context context_;
   std::unique_ptr<OperatorState> state_;
   RowBatch batch_;
 };
@@ -189,18 +197,19 @@ enum class Direction { kChildFirst, kParentFirst };
 constexpr Direction kDirections[] = {Direction::kChildFirst,
                                      Direction::kParentFirst};
 
-Pipeline::Step Order(Direction direction, uint32_t node, uint32_t parent) {
+// Numbers the nodes of `input`, then orders the rows, and drains them.
+Output NumberAndOrder(const Source& input, Direction direction) {
   if (direction == Direction::kChildFirst) {
-    return std::make_unique<TreeChildFirst>(node, parent);
+    // Child first holds every row, so ends the pipeline numbering them.
+    test::AfterBreaker run(input, Number(),
+                           std::make_unique<TreeChildFirst>(3u, 4u));
+    Execution execution(run.pipeline(), run.pipelines());
+    return Drain(&execution);
   }
-  return std::make_unique<TreeParentFirst>(node, parent);
-}
-
-// Numbers the nodes, then orders the rows.
-std::vector<Pipeline::Step> NumberAndOrder(Direction direction) {
   std::vector<Pipeline::Step> ops = Number();
-  ops.push_back(Order(direction, 3, 4));
-  return ops;
+  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+  Pipeline order(input, std::move(ops));
+  return Drain(order);
 }
 
 // Checks that every row is output exactly once, after its parent if parent
@@ -238,8 +247,7 @@ TEST(TreeChildFirstTest, PassesThroughReversesOrSortsTheRows) {
   };
   for (const Case& c : cases) {
     RowSource source(c.rows, 2);
-    Pipeline order(source, NumberAndOrder(Direction::kChildFirst));
-    Output out = Drain(order);
+    Output out = NumberAndOrder(source, Direction::kChildFirst);
     ASSERT_TRUE(out.status.ok()) << out.status.message();
     ExpectOrdered(out, Direction::kChildFirst, c.rows.size());
     if (!c.payload.empty()) {
@@ -256,9 +264,7 @@ TEST(TreeParentFirstTest, RowsLetGoSpanBatches) {
   }
   rows.push_back({0, std::nullopt, 0});
   RowSource source(rows, 1000);
-  Pipeline order(source, NumberAndOrder(Direction::kParentFirst));
-
-  Output out = Drain(order);
+  Output out = NumberAndOrder(source, Direction::kParentFirst);
   ASSERT_TRUE(out.status.ok()) << out.status.message();
   EXPECT_EQ(out.payload.front(), 0);
   ExpectOrdered(out, Direction::kParentFirst, rows.size());
@@ -276,8 +282,7 @@ TEST(TreeOrderTest, AShuffledTreeComesOutInOrder) {
 
   for (Direction direction : kDirections) {
     RowSource source(rows, 256);
-    Pipeline order(source, NumberAndOrder(direction));
-    Output out = Drain(order);
+    Output out = NumberAndOrder(source, direction);
     ASSERT_TRUE(out.status.ok()) << out.status.message();
     ExpectOrdered(out, direction, rows.size());
   }
@@ -299,8 +304,7 @@ TEST(TreeOrderTest, ABadTreeIsReported) {
   for (Direction direction : kDirections) {
     for (const Case& c : cases) {
       RowSource source(c.rows, 2);
-      Pipeline order(source, NumberAndOrder(direction));
-      Output out = Drain(order);
+      Output out = NumberAndOrder(source, direction);
       EXPECT_FALSE(out.status.ok());
       EXPECT_THAT(out.status.message(),
                   testing::HasSubstr(direction == Direction::kChildFirst
@@ -338,10 +342,10 @@ TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
       df.row_count(), ReadDirection::kForwards);
   auto ops = Number();
   ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline pipeline(scan, std::move(ops));
+  test::AfterBreaker order(scan, std::move(ops),
+                           std::make_unique<TreeChildFirst>(3u, 4u));
 
-  Execution run(pipeline);
+  Execution run(order.pipeline(), order.pipelines());
   std::vector<uint32_t> ids;
   while (RowBatch* batch = run.Next()) {
     std::vector<uint32_t> batch_ids = test::ReadColumn<uint32_t>(*batch, 0);

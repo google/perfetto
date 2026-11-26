@@ -19,10 +19,8 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <vector>
 
-#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/core/common/sort_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
@@ -31,17 +29,14 @@ namespace perfetto::trace_processor::core::interpreter {
 
 struct Bytecode;
 
-// String conversion utilities for bytecode arguments.
-base::StackString<32> ArgToString(uint32_t value);
-base::StackString<64> ArgToString(const HandleBase& value);
-base::StackString<64> ArgToString(NonNullOp value);
-base::StackString<64> ArgToString(FilterValueHandle value);
-base::StackString<64> ArgToString(BoundModifier bound);
-base::StackString<64> ArgToString(SortDirection direction);
-base::StackString<64> ArgToString(NullsLocation location);
-void BytecodeFieldToString(std::string_view name,
-                           const char* value,
-                           std::vector<std::string>& fields);
+// Appends "name=value" for a bytecode argument to `fields`, skipping padding.
+void AddField(const char* name, uint32_t value, std::vector<std::string>*);
+void AddField(const char* name, const HandleBase&, std::vector<std::string>*);
+void AddField(const char* name, NonNullOp, std::vector<std::string>*);
+void AddField(const char* name, FilterValueHandle, std::vector<std::string>*);
+void AddField(const char* name, BoundModifier, std::vector<std::string>*);
+void AddField(const char* name, SortDirection, std::vector<std::string>*);
+void AddField(const char* name, NullsLocation, std::vector<std::string>*);
 std::string BytecodeFieldsFormat(const std::vector<std::string>& fields);
 
 // Converts a bytecode instruction to string representation.

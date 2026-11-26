@@ -22,6 +22,16 @@
   overflow: hidden;
 }
 
+// Determinate mode: a fill scaled to the progress fraction. Scaling (rather
+// than setting a width) avoids layout, and the transition smooths updates.
+.pf-linear-progress__fill {
+  position: absolute;
+  inset: 0;
+  background-color: var(--pf-color-accent);
+  transform-origin: left;
+  transition: transform 200ms ease-out;
+}
+
 .pf-linear-progress--anim {
   &:before {
     content: "";

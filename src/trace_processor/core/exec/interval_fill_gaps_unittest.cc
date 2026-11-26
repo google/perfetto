@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -89,7 +90,7 @@ using Row = std::
 
 // Input columns: ts, dur, key, value, group number. Background columns: ts,
 // dur, value.
-IntervalFillGapsSpec MakeSpec(const Source* background, bool keyed) {
+IntervalFillGapsSpec MakeSpec(uint32_t background, bool keyed) {
   IntervalFillGapsSpec spec;
   spec.input.ts_column = 0;
   spec.input.dur_column = 1;
@@ -98,7 +99,7 @@ IntervalFillGapsSpec MakeSpec(const Source* background, bool keyed) {
     spec.input.key_columns = {2};
     spec.input.group_column = 4;
   }
-  spec.background.source = background;
+  spec.background.pipeline = background;
   spec.background.lanes.ts_column = 0;
   spec.background.lanes.dur_column = 1;
   spec.background.retained_columns = {2};
@@ -109,6 +110,24 @@ IntervalFillGapsSpec MakeSpec(const Source* background, bool keyed) {
                   {3, 0, StorageType{Int64{}}, "value"}};
   return spec;
 }
+
+// The operator, streaming its background in as lowering plans it, and the
+// Context it runs in.
+class Fill {
+ public:
+  Fill(const Source& background, bool keyed)
+      : op_(MakeSpec(test::AddStream(pipelines_, background), keyed)) {
+    context_.SetPipelines(&pipelines_);
+  }
+
+  const IntervalFillGaps& op() const { return op_; }
+  Context& context() { return context_; }
+
+ private:
+  Pipelines pipelines_;
+  IntervalFillGaps op_;
+  Context context_;
+};
 
 // Runs `op` over `input` split into batches of `chunk` rows, and returns every
 // output row. Each batch is copied into its own buffers. The input must be
@@ -185,7 +204,8 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
   // being refilled.
   constexpr int64_t kSpans = kMaxBatchRows + 3;
   RowsSource background({{0, 4 * kSpans, 7}});
-  IntervalFillGaps op(MakeSpec(&background, /*keyed=*/true));
+  Fill fill(background, /*keyed=*/true);
+  const IntervalFillGaps& op = fill.op();
 
   std::vector<std::vector<std::optional<int64_t>>> input;
   std::vector<Row> expected;
@@ -205,7 +225,7 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
            std::tie(std::get<0>(b), std::get<2>(b), std::get<1>(b));
   });
 
-  auto state = op.MakeState(test::TestContext());
+  auto state = op.MakeState(fill.context());
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
     state->EndRun();
@@ -215,8 +235,9 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
 
 TEST(IntervalFillGapsTest, OverlappingRowsCoverTheirUnion) {
   RowsSource background({{0, 100, 7}});
-  IntervalFillGaps op(MakeSpec(&background, /*keyed=*/false));
-  auto state = op.MakeState(test::TestContext());
+  Fill fill(background, /*keyed=*/false);
+  const IntervalFillGaps& op = fill.op();
+  auto state = op.MakeState(fill.context());
   // Some rows overlap and some touch. Together they cover [10, 30) and
   // [50, 60).
   std::vector<Row> rows = RunFill(

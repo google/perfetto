@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 // Groups rows by each kind of key the executor supports. The number of
@@ -110,18 +111,10 @@ void BM_GroupBy(benchmark::State& state) {
   keys = shape == kTwoInt64 ? std::vector<uint32_t>{0, 1}
                             : std::vector<uint32_t>{0};
 
-  GroupedSort group_by(GroupedSortSpec{keys, {}});
-  Context context;
-  std::unique_ptr<OperatorState> op_state = group_by.MakeState(context);
-  RowBatch out;
+  test::BreakerRun run(
+      batches, std::make_unique<GroupedSort>(GroupedSortSpec{keys, {}}));
   for (auto _ : state) {
-    for (const RowBatch& batch : batches) {
-      group_by.Execute(batch, out, *op_state);
-    }
-    while (group_by.Finish(out, *op_state) == OpResult::kHaveMoreOutput) {
-      benchmark::DoNotOptimize(out.size());
-    }
-    op_state->EndRun();
+    benchmark::DoNotOptimize(run.Run());
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

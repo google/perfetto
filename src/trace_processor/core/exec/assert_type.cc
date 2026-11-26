@@ -54,7 +54,6 @@ const char* Name(Variant::Type type) {
 
 const char* Name(StorageType type) {
   switch (type.index()) {
-    case StorageType::GetTypeIndex<Id>():
     case StorageType::GetTypeIndex<Uint32>():
     case StorageType::GetTypeIndex<Int32>():
     case StorageType::GetTypeIndex<Int64>():
@@ -140,10 +139,15 @@ bool Fill(const ColumnView& column,
           To* out,
           BitVector* out_validity) {
   out_validity->ClearAllBits();
+  // Locals: the values written could otherwise alias them.
+  const Variant* cells =
+      static_cast<const Variant*>(column.data()) + column.start();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  uint32_t n = selection.size();
   PERFETTO_NO_VECTORIZE_LOOP
-  for (uint32_t i = 0; i < selection.size(); ++i) {
-    uint32_t row = selection[i];
-    Variant cell = column.At<Variant>(row);
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t row = indices ? indices[i] : i;
+    Variant cell = cells[row];
     if (cell.type == Variant::Type::kNull) {
       out[row] = To{};
       continue;
@@ -201,7 +205,7 @@ bool AssertType::Widen(const ColumnView& column,
     return WidenAs<int64_t>(column, selection, exact, chunk.Values<double>(),
                             &chunk.validity);
   }
-  PERFETTO_DCHECK(from.Is<Id>() || from.Is<Uint32>());
+  PERFETTO_DCHECK(from.Is<Uint32>());
   return WidenAs<uint32_t>(column, selection, Cast<uint32_t, double>,
                            chunk.Values<double>(), &chunk.validity);
 }

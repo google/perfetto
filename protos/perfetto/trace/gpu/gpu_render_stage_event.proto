@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// next id: 22
+// next id: 23
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -138,6 +138,11 @@ message GpuRenderStageEvent {
 
   // optional. Compute kernel launch parameters for this event.
   optional ComputeKernelLaunch launch = 21;
+
+  // optional. Producer-defined logical queue (e.g. a CUDA stream) the event was
+  // submitted to. The ID is scoped to the process of the event's graphics
+  // `context`. See GpuTrackDescriptor.logical_queue_id.
+  optional uint64 logical_queue_id = 22;
 
   // DEPRECATED
 

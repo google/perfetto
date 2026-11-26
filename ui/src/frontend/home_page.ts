@@ -62,16 +62,6 @@ export class HomePage implements m.ClassComponent {
         m(Hints),
         m(ChannelSelect),
       ),
-      m(
-        Anchor,
-        {
-          className: 'pf-home-page__privacy',
-          href: 'https://policies.google.com/privacy',
-          target: '_blank',
-          icon: Icons.ExternalLink,
-        },
-        'Privacy policy',
-      ),
     );
   }
 }

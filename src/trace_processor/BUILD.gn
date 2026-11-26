@@ -383,6 +383,15 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
   }
 
+  # trace_processor_shell running its traceconv-compatible CLI.
+  executable("traceconv") {
+    deps = [
+      ":trace_processor_shell_lib",
+      "../../gn:default_deps",
+    ]
+    sources = [ "traceconv_main.cc" ]
+  }
+
   # Shell target which does not link all the extra libraryes linked by
   # trace processor shell (e.g. httpd, libprotobuf etc.). Use for binary size
   # analysis of the trace processor library.
@@ -421,6 +430,14 @@ perfetto_unittest_source_set("top_level_unittests") {
     "importers/systrace:full",
     "util:trace_type",
   ]
+
+  if (enable_perfetto_trace_processor_sqlite) {
+    sources += [ "trace_processor_impl_unittest.cc" ]
+    deps += [
+      ":lib",
+      "sqlite",
+    ]
+  }
 
   if (enable_perfetto_trace_processor_json && !is_win) {
     # export_json_unittest.cc uses base::TempFile, which is not supported on

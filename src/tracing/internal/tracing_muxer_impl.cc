@@ -702,11 +702,13 @@ void TracingMuxerImpl::TracingSessionImpl::Setup(const TraceConfig& cfg,
   if (fd >= 0) {
     base::ignore_result(backend_type_);  // For -Wunused in the amalgamation.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    if (backend_type_ != kInProcessBackend) {
+    // A custom backend (e.g. Chromium's) can carry the file across its own
+    // IPC. The system backend's IPC can't.
+    if (backend_type_ != kInProcessBackend && backend_type_ != kCustomBackend) {
       PERFETTO_FATAL(
           "Passing a file descriptor to TracingSession::Setup() is only "
-          "supported with the kInProcessBackend on Windows. Use "
-          "TracingSession::ReadTrace() instead");
+          "supported with the kInProcessBackend or kCustomBackend on Windows. "
+          "Use TracingSession::ReadTrace() instead");
     }
 #endif
     trace_config->set_write_into_file(true);

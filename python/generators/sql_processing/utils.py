@@ -15,10 +15,6 @@
 from enum import Enum
 from typing import List
 
-# google3 still calls this with the SQL text. Remove it once it uses
-# check_banned_usage().
-from python.generators.sql_processing.utils_legacy import check_banned_patterns
-
 
 def is_internal(name: str) -> bool:
   """Check if a name represents an internal artifact (starts with _)."""

@@ -52,9 +52,14 @@ class Pipeline final : public Source {
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   RowBatch* Next(RowBatch& scratch, OperatorState& state) const override;
+
+  // As Next(): a pipeline outputs batches it holds, so needs no scratch.
+  RowBatch* Next(OperatorState& state) const;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
+  // The last step's rows in place, if it is an operator serving them so.
+  const RowsInPlace* InPlace(const OperatorState& state) const override;
 
   // The pipeline's input.
   const Source& input() const { return source_; }
@@ -172,7 +177,8 @@ class Pipeline final : public Source {
     }
     EndRunsUpTo(segment, s);
   }
-  void EndRunsUpTo(uint32_t segment, State&) const;
+  static void EndRunsUpTo(uint32_t segment, State&);
+  static void EndStateRun(void* state);
   // Records a failure; an ok status records nothing.
   static void Fail(State&, base::Status status);
   static void StepFailed(base::Status status, State&);

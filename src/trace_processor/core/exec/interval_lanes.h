@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
 
 // The input stage shared by the interval operators. Each reads one or more
 // interval inputs: rows with a ts and dur, grouped into lanes by PER columns
@@ -71,11 +72,12 @@ inline void DescribeLaneReads(const IntervalLaneSpec& lanes, StepColumns* out) {
   }
 }
 
-// An interval input read whole from its own source, keeping
-// `retained_columns` of each row, in this order. Any other column is read
-// only for the intervals and is never buffered.
+// An interval input read whole, keeping `retained_columns` of each row, in
+// this order. Any other column is read only for the intervals and is never
+// buffered.
 struct CollectedInputSpec {
-  const Source* source = nullptr;
+  // The plan pipeline streaming it in (see Pipelines).
+  uint32_t pipeline = 0;
   IntervalLaneSpec lanes;
   std::vector<uint32_t> retained_columns;
 };
@@ -98,17 +100,22 @@ class LaneBatch {
   LaneBatch(const RowBatch& batch, const IntervalLaneSpec& spec)
       : ts_(batch, spec.ts_column),
         dur_(batch, spec.dur_column),
-        batch_(&batch),
-        group_column_(spec.group_column),
+        indices_(batch.selection().prefix() ? nullptr
+                                            : batch.selection().indices()),
         keyed_(!spec.key_columns.empty()),
-        forever_(spec.forever) {}
+        forever_(spec.forever) {
+    if (keyed_) {
+      group_ = batch.column(spec.group_column);
+    }
+  }
 
   // The lane of row `row`. Rows without keys are all in lane 0.
   PERFETTO_ALWAYS_INLINE uint32_t lane(uint32_t row) const {
     if (!keyed_) {
       return 0;
     }
-    return lanes_ ? lanes_[row] : batch_->Value<uint32_t>(group_column_, row);
+    return lanes_ ? lanes_[row]
+                  : group_.At<uint32_t>(indices_ ? indices_[row] : row);
   }
 
   // Reads row `row`'s interval [start, end). A row without a ts or dur is
@@ -134,17 +141,23 @@ class LaneBatch {
   }
 
   // Why a row of input `name` could not be read.
-  base::Status Error(Result, const IntervalInputName& name) const;
+  base::Status Error(Result result, const IntervalInputName& name) const {
+    return ErrorOf(result, forever_, name);
+  }
 
  private:
   friend class LaneReader;
 
+  // Static, so that callers' LaneBatch locals do not escape into it.
+  static base::Status ErrorOf(Result, bool forever, const IntervalInputName&);
+
   FlatColumnReader<int64_t> ts_;
   FlatColumnReader<int64_t> dur_;
-  const RowBatch* batch_;
+  const uint16_t* indices_;
+  // A copy, so that it is not reloaded for every row.
+  ColumnView group_;
   // The shared number of each row's lane, if a LaneReader numbered them.
   const uint32_t* lanes_ = nullptr;
-  uint32_t group_column_;
   bool keyed_;
   bool forever_;
 };
@@ -171,7 +184,7 @@ class LaneReader {
 
   // Forgets the last lane read, for a new run.
   void Reset() { last_group_ = kNoGroup; }
-  // Ends a run (see RunHeld).
+  // Ends a run (see Held).
   void EndRun() { Reset(); }
 
  private:
@@ -209,14 +222,14 @@ class CollectedLanes {
   CollectedLanes(const CollectedInputSpec& input, IntervalInputName name)
       : input_(&input), reader_(input.lanes, name) {}
 
-  // Reads every batch of the input's source. Lanes are numbered in `shared`
-  // if given, as LaneReader::Start() does, and by group number otherwise.
-  // Lanes numbered at or above `limit` are dropped. The rows are held in
-  // buffers from `context` where they are packed (see RowStore).
-  base::Status Collect(OperatorState& state,
+  // Reads every batch `input` streams in. Lanes are numbered in `shared` if
+  // given, as LaneReader::Start() does, and by group number otherwise. Lanes
+  // numbered at or above `limit` are dropped. The rows are held in buffers
+  // from `context` where they are packed (see RowStore).
+  base::Status Collect(PipelineUse& input,
                        Context& context,
                        GroupTable* shared,
-                       uint32_t limit = std::numeric_limits<uint32_t>::max());
+                       uint32_t limit);
 
   uint32_t size() const { return static_cast<uint32_t>(ranges_.size()); }
   Lane lane(uint32_t i) const {
@@ -241,7 +254,7 @@ class CollectedLanes {
   const LaneReader& reader() const { return reader_; }
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:
@@ -262,8 +275,7 @@ class CollectedLanes {
   std::vector<std::pair<uint32_t, uint32_t>> by_number_;
   RowStore rows_;
 
-  // Scratch: the current batch, and the part of it kept.
-  RowBatch batch_;
+  // Scratch: the part of a batch kept.
   RowBatch retained_;
 };
 
@@ -295,7 +307,7 @@ class LaneKeys {
   void Gather(RowBatch* out, base::Span<const uint32_t> handles, Context&);
 
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
  private:
@@ -318,7 +330,7 @@ class BoundsColumns {
   void AddTsTo(RowBatch* out) const;
   void AddDurTo(RowBatch* out) const;
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   int64_t* ts = nullptr;

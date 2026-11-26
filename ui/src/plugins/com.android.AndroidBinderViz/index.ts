@@ -19,12 +19,19 @@ import {
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
+import {NUM} from '../../trace_processor/query_result';
 import {BinderSliceDetailsPanel} from './details_panel';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidBinderViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const res = await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.binder;
+      SELECT COUNT(*) AS cnt FROM android_binder_txns
+    `);
+    if (res.firstRow({cnt: NUM}).cnt === 0) return;
+
     // Build the server and client trees concurrently so the trace engine isn't
     // left idle between the two sides' query streams. Attach after both finish,
     // server first: the root tracks carry no sortOrder, so addChildInOrder falls

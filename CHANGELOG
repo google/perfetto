@@ -12,6 +12,9 @@ Unreleased:
   Trace Processor:
    * Fixed PerfettoSQL `RETURNS TABLE` functions failing on every call after
      one call failed (e.g. an interrupted query), until they were redefined.
+   * Fixed `InterruptQuery()` (e.g. Ctrl-C in `trace_processor_shell`) being
+     lost when it arrived between two statements of a query, which let the
+     rest of the query run to the end.
    * Fixed `heap_graph_object.root_distance` always being `-1` for
      `android.java_hprof` heap graphs (regression introduced in v59.0).
    * Fixed `android.cujs` jank CUJ frame metrics (e.g.
@@ -32,6 +35,9 @@ Unreleased:
      `track.source_arg_set_id` under `custom_dimension_display_name.<name>`.
    * The Python `TraceProcessor` now supports `metric()` over `remote` Unix
      socket sessions.
+   * `arrow_tar` and `perfetto` exports now write columns which are null in
+     every row with the Arrow Null type, which stores no data. On large
+     traces this makes exports up to 23% smaller.
    * Python query results can now be converted to typed Arrow tables with
      `as_arrow_table()`, and implement the Arrow PyCapsule interface so they
      can be passed straight to pyarrow, polars and DuckDB.
@@ -39,6 +45,12 @@ Unreleased:
      `android.memory.heap_graph.shortest_path_tree`, exposing each reachable
      Java heap object's shortest strong-reference path parent, depth and
      subtree sizes from GC roots.
+   * Fixed Fuchsia trace (FXT) strings with NUL bytes inside their declared
+     length (e.g. trailing NUL padding) not matching string equality filters.
+     Such strings are now truncated at the first NUL byte.
+   * Fixed Breakpad symbolization of Chrome traces: Chrome's 33-character
+     module IDs were hex-encoded a second time, so `<module_id>.breakpad`
+     symbol files were never found.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.
@@ -55,6 +67,10 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+  Tools:
+    * Removed the standalone `traceconv` binary. The `traceconv` build
+      target now builds `trace_processor_shell` running its
+      traceconv-compatible CLI, so existing invocations keep working.
   Misc:
     * Added s390x cross-compilation support.
 

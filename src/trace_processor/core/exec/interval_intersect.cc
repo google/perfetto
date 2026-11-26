@@ -45,6 +45,7 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/sort.h"
 
@@ -93,7 +94,8 @@ class IntersectState : public OperatorState {
  public:
   ~IntersectState() override;
 
-  std::vector<std::unique_ptr<OperatorState>> operand_states;
+  // Each operand, streamed in through the run's Context.
+  std::vector<std::unique_ptr<PipelineUse>> operand_inputs;
   // What the bounds of the regions served are written in, which no operand
   // owns.
   Context* context = nullptr;
@@ -190,18 +192,25 @@ void NarrowKey(const std::vector<CollectedLanes::Lane>& groups,
         group.intervals.data(), group.intervals.size(),
         IntervalIntersector::DecideMode(group.nonoverlapping, running.size()));
     narrowed.Clear();
-    for (uint32_t r = 0; r < running.size(); ++r) {
+    uint32_t n = running.size();
+    const Ts* starts = running.starts.data();
+    const Ts* ends = running.ends.data();
+    const uint32_t* from = running.RowsOf(0);
+    for (uint32_t r = 0; r < n; ++r, from += count) {
       overlaps.clear();
-      intersector.FindOverlaps(running.starts[r], running.ends[r], overlaps);
-      const uint32_t* from = running.RowsOf(r);
+      intersector.FindOverlaps(starts[r], ends[r], overlaps);
       for (const Interval& overlap : overlaps) {
         narrowed.Push(overlap.start, overlap.end, from)[which] = overlap.id;
       }
     }
     std::swap(running, narrowed);
   }
-  for (uint32_t r = 0; r < running.size(); ++r) {
-    out.Push(running.starts[r], running.ends[r], running.RowsOf(r));
+  uint32_t n = running.size();
+  const Ts* starts = running.starts.data();
+  const Ts* ends = running.ends.data();
+  const uint32_t* from = running.RowsOf(0);
+  for (uint32_t r = 0; r < n; ++r, from += count) {
+    out.Push(starts[r], ends[r], from);
   }
 }
 
@@ -227,7 +236,8 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
   state->gathered.resize(count);
   state->scratch.gather_rows.resize(count);
   for (const CollectedInputSpec& operand : operands_) {
-    state->operand_states.push_back(operand.source->MakeState(context));
+    state->operand_inputs.push_back(
+        std::make_unique<PipelineUse>(state.get(), operand.pipeline));
   }
   return state;
 }
@@ -236,12 +246,7 @@ base::Status IntervalIntersect::status(const OperatorState& state) const {
   return state.Cast<const IntersectState>().status;
 }
 
-void IntervalIntersect::Rewind(OperatorState& state) const {
-  IntersectState& s = state.Cast<IntersectState>();
-  for (uint32_t i = 0; i < operands_.size(); ++i) {
-    Restart(*operands_[i].source, *s.operand_states[i]);
-  }
-}
+void IntervalIntersect::Rewind(OperatorState&) const {}
 
 bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
   IntersectState& s = state.Cast<IntersectState>();
@@ -255,7 +260,7 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
                            ? std::numeric_limits<uint32_t>::max()
                            : s.group_table.size();
-      s.status = s.lanes[i]->Collect(*s.operand_states[i], *s.context,
+      s.status = s.lanes[i]->Collect(*s.operand_inputs[i], *s.context,
                                      &s.group_table, limit);
       if (!s.status.ok()) {
         return false;
@@ -271,8 +276,9 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     }
     std::vector<CollectedLanes::Lane>& lanes = s.scratch.key_lanes;
     lanes.resize(count);
-    for (uint32_t l = 0; l < s.lanes[fewest]->size(); ++l) {
-      uint32_t number = s.lanes[fewest]->lane(l).number;
+    const CollectedLanes& smallest = *s.lanes[fewest];
+    for (uint32_t l = 0, n = smallest.size(); l < n; ++l) {
+      uint32_t number = smallest.lane(l).number;
       bool everywhere = true;
       for (uint32_t i = 0; i < count && everywhere; ++i) {
         if (i == fewest) {
@@ -304,12 +310,13 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
   for (uint32_t i = 0; i < count; ++i) {
     s.scratch.gather_rows[i].resize(serving);
   }
-  for (uint32_t row = 0; row < serving; ++row) {
-    uint32_t at = s.served + row;
-    bounds.ts[row] = static_cast<int64_t>(s.regions.starts[at]);
-    bounds.dur[row] =
-        static_cast<int64_t>(s.regions.ends[at] - s.regions.starts[at]);
-    const uint32_t* from = s.regions.RowsOf(at);
+  uint32_t served = s.served;
+  const Ts* starts = s.regions.starts.data() + served;
+  const Ts* ends = s.regions.ends.data() + served;
+  const uint32_t* from = s.regions.RowsOf(served);
+  for (uint32_t row = 0; row < serving; ++row, from += count) {
+    bounds.ts[row] = static_cast<int64_t>(starts[row]);
+    bounds.dur[row] = static_cast<int64_t>(ends[row] - starts[row]);
     for (uint32_t i = 0; i < count; ++i) {
       s.scratch.gather_rows[i][row] = from[i];
     }

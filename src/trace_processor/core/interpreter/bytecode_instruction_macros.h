@@ -79,7 +79,7 @@ struct TemplatedBytecode2 : Bytecode {
   }
 };
 
-// Macro to define bytecode instruction with 5 fields.
+// Macro to define bytecode instruction with 9 fields.
 #define PERFETTO_DATAFRAME_BYTECODE_IMPL_9(t1, n1, t2, n2, t3, n3, t4, n4, t5, \
                                            n5, t6, n6, t7, n7, t8, n8, t9, n9) \
   enum Field : uint8_t { n1 = 0, n2, n3, n4, n5, n6, n7, n8, n9 };             \
@@ -100,15 +100,15 @@ struct TemplatedBytecode2 : Bytecode {
   }                                                                            \
   std::string ToString() const {                                               \
     std::vector<std::string> fields;                                           \
-    BytecodeFieldToString(#n1, ArgToString(arg<n1>()).c_str(), fields);        \
-    BytecodeFieldToString(#n2, ArgToString(arg<n2>()).c_str(), fields);        \
-    BytecodeFieldToString(#n3, ArgToString(arg<n3>()).c_str(), fields);        \
-    BytecodeFieldToString(#n4, ArgToString(arg<n4>()).c_str(), fields);        \
-    BytecodeFieldToString(#n5, ArgToString(arg<n5>()).c_str(), fields);        \
-    BytecodeFieldToString(#n6, ArgToString(arg<n6>()).c_str(), fields);        \
-    BytecodeFieldToString(#n7, ArgToString(arg<n7>()).c_str(), fields);        \
-    BytecodeFieldToString(#n8, ArgToString(arg<n8>()).c_str(), fields);        \
-    BytecodeFieldToString(#n9, ArgToString(arg<n9>()).c_str(), fields);        \
+    AddField(#n1, arg<n1>(), &fields);                                         \
+    AddField(#n2, arg<n2>(), &fields);                                         \
+    AddField(#n3, arg<n3>(), &fields);                                         \
+    AddField(#n4, arg<n4>(), &fields);                                         \
+    AddField(#n5, arg<n5>(), &fields);                                         \
+    AddField(#n6, arg<n6>(), &fields);                                         \
+    AddField(#n7, arg<n7>(), &fields);                                         \
+    AddField(#n8, arg<n8>(), &fields);                                         \
+    AddField(#n9, arg<n9>(), &fields);                                         \
     return BytecodeFieldsFormat(fields);                                       \
   }                                                                            \
   static void UnusedForWarningSuppresssion()

@@ -15,7 +15,9 @@
 import {
   DriveClient,
   gdriveOpenLink,
+  gdriveViewLink,
   isValidDriveId,
+  parseGDriveLink,
   parseGDriveStateParam,
 } from './drive_client';
 
@@ -351,6 +353,77 @@ describe('gdriveOpenLink', () => {
   });
 });
 
+describe('parseGDriveLink', () => {
+  test.each([
+    [
+      'standard view link',
+      'https://drive.google.com/file/d/file_123/view?usp=sharing',
+      {fileId: 'file_123', resourceKey: undefined},
+    ],
+    [
+      'view link with resourcekey',
+      'https://drive.google.com/file/d/file_123/view?resourcekey=0-key_9&usp=sharing',
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+    [
+      'account-indexed /u/0/ link',
+      'https://drive.google.com/u/0/file/d/file_123/view?resourcekey=0-key_9',
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+    [
+      'docs.google.com file link',
+      'https://docs.google.com/file/d/file_123/view',
+      {fileId: 'file_123', resourceKey: undefined},
+    ],
+    [
+      'open?id= link',
+      'https://drive.google.com/open?id=file_123&resourcekey=0-key_9',
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+    [
+      'uc?id= link',
+      'https://drive.google.com/uc?id=file_123&export=download',
+      {fileId: 'file_123', resourceKey: undefined},
+    ],
+    [
+      'Perfetto Google Drive deep link',
+      gdriveOpenLink('https://ui.perfetto.dev', 'file_123', '0-key_9'),
+      {fileId: 'file_123', resourceKey: '0-key_9'},
+    ],
+  ])('parses %s', (_name, link, expected) => {
+    expect(parseGDriveLink(`  ${link}  `)).toEqual({ok: true, value: expected});
+  });
+
+  test.each([
+    ['empty string', ''],
+    ['not a URL', 'not a url'],
+    ['non-Drive host', 'https://example.com/file/d/file_123/view'],
+    ['Drive folder link', 'https://drive.google.com/drive/folders/folder_123'],
+    ['missing id param', 'https://drive.google.com/open?foo=bar'],
+    ['invalid file ID', 'https://drive.google.com/open?id=bad/id'],
+    [
+      'invalid resource key',
+      'https://drive.google.com/file/d/file_123/view?resourcekey=bad/key',
+    ],
+  ])('rejects %s', (_name, input) => {
+    expect(parseGDriveLink(input).ok).toBe(false);
+  });
+});
+
+describe('gdriveViewLink', () => {
+  test('builds a Drive link from the file ID', () => {
+    expect(gdriveViewLink('file_123')).toBe(
+      'https://drive.google.com/file/d/file_123/view',
+    );
+  });
+
+  test('includes the resource key if given', () => {
+    expect(gdriveViewLink('file_123', '0-key_9')).toBe(
+      'https://drive.google.com/file/d/file_123/view?resourcekey=0-key_9',
+    );
+  });
+});
+
 describe('DriveClient.openFile', () => {
   const fetchMock = vi.fn();
 
@@ -385,13 +458,21 @@ describe('DriveClient.openFile', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  test("returns the file's contents", async () => {
-    fetchMock.mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
+  test("returns the file's contents as a TraceStream", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: {'Content-Length': '3'},
+      }),
+    );
     const client = await createClient();
     const result = await client.openFile('token', 'file123');
 
     expect(result.ok).toBe(true);
-    expect(Array.from(new Uint8Array(result.value!))).toEqual([1, 2, 3]);
+    const chunk = await result.value!.readChunk();
+    expect(Array.from(chunk.data)).toEqual([1, 2, 3]);
+    expect(chunk.eof).toBe(true);
+    expect(chunk.bytesRead).toBe(3);
+    expect(chunk.bytesTotal).toBe(3);
   });
 
   // The flows offer the file picker when access is denied, so this mapping
@@ -427,16 +508,28 @@ describe('DriveClient.openFile', () => {
     });
   });
 
-  test('reports a failure to read the body as an error, without rejecting', async () => {
-    const failure = new Error('connection lost');
-    const body = new ReadableStream({
-      start: (controller) => controller.error(failure),
+  test('streams multi-chunk responses with Content-Length progress metadata', async () => {
+    const chunk1 = new Uint8Array([1, 2, 3]);
+    const chunk2 = new Uint8Array([4, 5]);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(chunk1);
+        controller.enqueue(chunk2);
+        controller.close();
+      },
     });
-    fetchMock.mockResolvedValue(new Response(body));
+    fetchMock.mockResolvedValue(
+      new Response(body, {headers: {'Content-Length': '5'}}),
+    );
     const client = await createClient();
     const result = await client.openFile('token', 'file123');
 
-    expect(result).toMatchObject({ok: false, error: {type: 'error'}});
+    expect(result.ok).toBe(true);
+    const chunk = await result.value!.readChunk();
+    expect(Array.from(chunk.data)).toEqual([1, 2, 3, 4, 5]);
+    expect(chunk.eof).toBe(true);
+    expect(chunk.bytesRead).toBe(5);
+    expect(chunk.bytesTotal).toBe(5);
   });
 
   test('sends the token to Google only, and only in a header', async () => {
@@ -949,5 +1042,370 @@ describe('DriveClient.uploadFile', () => {
         await client.uploadFile('token', TRACE, 'folder1', 'n'),
       ).toMatchObject({ok: false, error: {type: 'error', cause: failure}});
     });
+  });
+});
+
+describe('DriveClient.getPermissions', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(
+      Response.json({
+        permissions: [
+          {
+            id: 'p1',
+            type: 'user',
+            role: 'owner',
+            emailAddress: 'alice@example.com',
+            displayName: 'Alice',
+          },
+          {
+            id: 'p2',
+            type: 'domain',
+            role: 'reader',
+            domain: 'example.com',
+            allowFileDiscovery: true,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('requests fields=permissions with supportsAllDrives=true and parses permissions', async () => {
+    const client = await createClient();
+    const result = await client.getPermissions(
+      'secret-token',
+      'file123',
+      'rk-1',
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          id: 'p1',
+          type: 'user',
+          role: 'owner',
+          emailAddress: 'alice@example.com',
+          displayName: 'Alice',
+        },
+        {
+          id: 'p2',
+          type: 'domain',
+          role: 'reader',
+          domain: 'example.com',
+          allowFileDiscovery: true,
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions');
+    expect(url.searchParams.get('fields')).toBe(
+      'permissions(id,type,role,emailAddress,displayName,domain,allowFileDiscovery)',
+    );
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(request.headers.get('X-Goog-Drive-Resource-Keys')).toBe(
+      'file123/rk-1',
+    );
+  });
+
+  test('reports HTTP 403 as access_denied', async () => {
+    fetchMock.mockResolvedValue(new Response(null, {status: 403}));
+    const client = await createClient();
+    const result = await client.getPermissions('token', 'file123');
+
+    expect(result).toMatchObject({ok: false, error: {type: 'access_denied'}});
+  });
+});
+
+describe('DriveClient.openSharingDialog', () => {
+  function appendShareDialogIframe(): HTMLDivElement {
+    const dialogEl = document.createElement('div');
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://drive.google.com/sharing/share?id=file123';
+    dialogEl.appendChild(iframe);
+    document.body.appendChild(dialogEl);
+    return dialogEl;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  test('resolves when the injected share iframe is removed', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = appendShareDialogIframe();
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let settled = false;
+    const promise = client.openSharingDialog('token', 'file123').then((res) => {
+      settled = true;
+      return res;
+    });
+
+    // Wait a microtask for MutationObserver to observe the added iframe.
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    dialogEl!.remove();
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('resolves when the share dialog wrapper is hidden', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = appendShareDialogIframe();
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let settled = false;
+    const promise = client.openSharingDialog('token', 'file123').then((res) => {
+      settled = true;
+      return res;
+    });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    dialogEl!.setAttribute('aria-hidden', 'true');
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('ignores unrelated iframes added and removed while open', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = appendShareDialogIframe();
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let settled = false;
+    const promise = client.openSharingDialog('token', 'file123').then((res) => {
+      settled = true;
+      return res;
+    });
+
+    const unrelated = document.createElement('iframe');
+    unrelated.src = 'https://docs.google.com/picker';
+    document.body.appendChild(unrelated);
+    await Promise.resolve();
+    unrelated.remove();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    dialogEl!.remove();
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('resolves and tears down observer when signal aborts', async () => {
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              // Simulate heuristic miss: no iframe ever appears.
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    const controller = new AbortController();
+    let settled = false;
+    const promise = client
+      .openSharingDialog('token', 'file123', {signal: controller.signal})
+      .then((res) => {
+        settled = true;
+        return res;
+      });
+
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    controller.abort();
+    expect(await promise).toEqual({ok: true});
+  });
+
+  test('supersedes previous observer when called again', async () => {
+    let dialogEl: HTMLDivElement | undefined;
+    vi.stubGlobal('gapi', {
+      drive: {
+        share: {
+          ShareClient: class {
+            setOAuthToken() {}
+            setItemIds() {}
+            showSettingsDialog() {
+              dialogEl = appendShareDialogIframe();
+            }
+          },
+        },
+      },
+    });
+
+    const client = await createClient();
+    let firstSettled = false;
+    const first = client.openSharingDialog('token', 'file123').then((res) => {
+      firstSettled = true;
+      return res;
+    });
+
+    await Promise.resolve();
+    expect(firstSettled).toBe(false);
+
+    // Calling again tears down and resolves the first observer.
+    const second = client.openSharingDialog('token', 'file123');
+    expect(await first).toEqual({ok: true});
+
+    await Promise.resolve();
+    dialogEl!.remove();
+    expect(await second).toEqual({ok: true});
+  });
+});
+
+describe('DriveClient.createPermission', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({id: 'p1'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('posts permission payload with supportsAllDrives=true', async () => {
+    const client = await createClient();
+    const payload = {
+      type: 'domain',
+      domain: '00gjdgxs4cdk4oe.audience.googledomains.com',
+      role: 'reader',
+      allowFileDiscovery: true,
+    } as const;
+    const result = await client.createPermission(
+      'secret-token',
+      'file123',
+      payload,
+    );
+
+    expect(result).toEqual({ok: true});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(request.method).toBe('POST');
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions');
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(await request.json()).toEqual(payload);
+  });
+
+  test('reports HTTP 403 as access_denied with Drive error message', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({error: {message: 'Forbidden by policy'}}, {status: 403}),
+    );
+    const client = await createClient();
+    const result = await client.createPermission('token', 'file123', {
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: true,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {type: 'access_denied', cause: 'Forbidden by policy'},
+    });
+  });
+});
+
+describe('DriveClient.updatePermission', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(Response.json({id: 'p1'}));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('patches permission payload with supportsAllDrives=true', async () => {
+    const client = await createClient();
+    const payload = {role: 'reader', allowFileDiscovery: false};
+    const result = await client.updatePermission(
+      'secret-token',
+      'file123',
+      'perm456',
+      payload,
+    );
+
+    expect(result).toEqual({ok: true});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [input, init] = fetchMock.mock.calls[0]!;
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    expect(request.method).toBe('PATCH');
+    expect(url.pathname).toBe('/drive/v3/files/file123/permissions/perm456');
+    expect(url.searchParams.get('supportsAllDrives')).toBe('true');
+    expect(request.headers.get('Authorization')).toBe('Bearer secret-token');
+    expect(await request.json()).toEqual(payload);
+  });
+
+  test('rejects empty permissionId without touching the network', async () => {
+    const client = await createClient();
+    const result = await client.updatePermission('token', 'file123', '', {
+      allowFileDiscovery: false,
+    });
+
+    expect(result).toMatchObject({ok: false, error: {type: 'invalid_id'}});
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

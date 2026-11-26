@@ -13,19 +13,27 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
 import type {App} from '../../../public/app';
 import {
   alertConnectFailed,
   alertDownloadFailed,
   alertPickerFailed,
+  renderSearchableBugLink,
 } from '../dialogs';
-import type {DriveClient} from '../google/drive_client';
-import {parseGDriveStateParam} from '../google/drive_client';
+import type {
+  DriveClient,
+  GDriveOpenFileRequest,
+  PickerResult,
+} from '../google/drive_client';
+import {gdriveViewLink, parseGDriveStateParam} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
+import {Anchor} from '../../../widgets/anchor';
 import {promptModal} from '../../../widgets/modal';
 import type {Setting} from '../../../public/settings';
 import {Checkbox} from '../../../widgets/checkbox';
 import {gdriveTraceArgs} from '../trace_args';
+import {makeGDriveTraceFileGetter} from './trace_file_getter';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -45,7 +53,24 @@ export async function openFileFromDeeplink(
     // Failed to parse state parameter; ignore.
     return;
   }
-  const {fileId, resourceKey} = parsed.value;
+
+  await openFileById(app, oauth, drive, parsed.value, hideAuthDialogSetting, {
+    onAuthenticated: removeStateParamFromUrl,
+  });
+}
+
+// Opens a specific Google Drive file given its file ID and optional resource
+// key. Authorizes access via the Drive picker if the app does not yet have
+// permission to read the file.
+export async function openFileById(
+  app: App,
+  oauth: GoogleOAuthClient,
+  drive: DriveClient,
+  file: GDriveOpenFileRequest,
+  hideAuthDialogSetting: Setting<boolean>,
+  opts?: {onAuthenticated?: () => void},
+) {
+  const {fileId, resourceKey} = file;
 
   // Authenticate with the oauth client and obtain an access token. Nothing was
   // clicked to get here, so the browser may block Google's popup. If it does,
@@ -66,17 +91,14 @@ export async function openFileFromDeeplink(
   }
   const oauthToken = auth.value;
 
-  // We are committed to opening this file now, so consume the 'state' query
-  // param. The router will append ?local_cache_key=xxx to the hash once the
-  // trace finishes loading, so that a reload reopens the trace from the
-  // browser's cache rather than from Drive.
-  removeStateParamFromUrl();
+  opts?.onAuthenticated?.();
 
-  // Attempt to download the file and look up its name in parallel.
+  // Attempt to open the file and look up its name in parallel.
   const [fileMetaResult, initialDownloadResult] = await Promise.all([
     drive.getMeta(oauthToken, fileId, resourceKey),
     drive.openFile(oauthToken, fileId, resourceKey),
   ]);
+
   let fileName = fileMetaResult.ok ? fileMetaResult.value.name : undefined;
   // Remember the file's resource key, for links to it. The deep link carries
   // it when Drive's "Open with" made it; otherwise Drive reports it.
@@ -99,11 +121,23 @@ export async function openFileFromDeeplink(
 
     // Show the file picker containing just the file that we are trying to
     // access. All the user needs to do is click on this file to authorize it.
-    const picked = await drive.requestFileAccess(oauthToken, fileId);
-    if (!picked.ok) {
-      if (picked.error.type === 'cancelled') return;
-      await alertPickerFailed(picked.error);
-      return;
+    // If the user cancels (e.g. because the picker was empty for a link-only
+    // file they haven't opened in Drive yet), explain what happened with a
+    // direct link to open the file in Google Drive and an option to retry.
+    let picked: PickerResult;
+    while (true) {
+      picked = await drive.requestFileAccess(oauthToken, fileId);
+      if (picked.ok) break;
+      if (picked.error.type !== 'cancelled') {
+        await alertPickerFailed(picked.error);
+        return;
+      }
+      const retryChoice = await fileNotShownInPickerPrompt(
+        fileId,
+        knownResourceKey,
+        app.policy.googlerOnlyFeatures,
+      );
+      if (retryChoice !== 'retry') return;
     }
 
     // The picker reports the name of the file just authorized, which saves
@@ -111,7 +145,7 @@ export async function openFileFromDeeplink(
     fileName = picked.value.name;
     knownResourceKey ??= picked.value.resourceKey;
 
-    // Try the download again.
+    // Try opening the file again.
     fileDownloadResult = await drive.openFile(oauthToken, fileId, resourceKey);
   }
 
@@ -122,15 +156,16 @@ export async function openFileFromDeeplink(
 
   fileName ??= 'Google Drive file';
 
-  app.openTraceFromBuffer({
-    buffer: fileDownloadResult.value,
+  app.openTraceFromStream(fileDownloadResult.value, {
     title: fileName,
-    fileName: fileName,
-    // ACL-protected Drive traces must not be re-uploaded to the public
-    // perfetto-ui-data GCS bucket via permalinks or crash reports.
-    shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(fileId, knownResourceKey),
+    getTraceFile: makeGDriveTraceFileGetter(
+      oauth,
+      drive,
+      fileId,
+      knownResourceKey,
+    ),
   });
 }
 
@@ -184,6 +219,42 @@ async function authAccessToFilePrompt(hideAuthDialogSetting: Setting<boolean>) {
     ],
     buttons: [
       {text: 'Authorize File Access', value: 'authorize', primary: true},
+      {text: 'Cancel', value: 'cancel'},
+    ],
+  });
+}
+
+async function fileNotShownInPickerPrompt(
+  fileId: string,
+  resourceKey?: string,
+  googlerOnlyFeatures?: boolean,
+) {
+  return await promptModal({
+    key: 'GoogleDrivePickerCancelled',
+    title: "Didn't see the file in the picker?",
+    content: [
+      m(
+        'p',
+        'Google Drive hides link-shared files from the picker until you have opened them at least once (or if you do not yet have access to the file).',
+      ),
+      m('p', [
+        'Try ',
+        m(
+          Anchor,
+          {
+            href: gdriveViewLink(fileId, resourceKey),
+            target: '_blank',
+            rel: 'noopener',
+            icon: Icons.ExternalLink,
+          },
+          'opening this file in Google Drive',
+        ),
+        ' first, then click Try Again.',
+      ]),
+      renderSearchableBugLink(googlerOnlyFeatures),
+    ],
+    buttons: [
+      {text: 'Try Again', value: 'retry', primary: true},
       {text: 'Cancel', value: 'cancel'},
     ],
   });

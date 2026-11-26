@@ -13,10 +13,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import struct
+
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, Zip
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+
+
+def _pad_words(data: bytes) -> bytes:
+  rem = len(data) % 8
+  return data if rem == 0 else data + b'\x00' * (8 - rem)
+
+
+# Builds a minimal FXT trace with one inline-named process and one
+# string-record-named process, both with trailing NULs inside their declared
+# lengths. Zip is used below because it is the blueprint type that accepts raw
+# bytes without checking a binary fixture into test/data.
+def _fxt_nul_padded_trace() -> bytes:
+  str_proc = b'str_proc\x00\x00\x00\x00'
+  inline_proc = b'inline_proc\x00'
+  buf = bytearray()
+  # Magic number record (type 0, metadata 4, trace info 0).
+  buf.extend(struct.pack('<Q', 0x0016547846040010))
+  # String record (type 2, size 3 words, index 1, len 12).
+  buf.extend(
+      struct.pack('<Q', 2 | (3 << 4) | (1 << 16) | (len(str_proc) << 32)))
+  buf.extend(_pad_words(str_proc))
+  # Kernel object: process pid=100 with inline NUL-padded name (size 4 words).
+  buf.extend(
+      struct.pack(
+          '<QQ', 7 | (4 << 4) | (1 << 16) | ((0x8000 | len(inline_proc)) << 24),
+          100))
+  buf.extend(_pad_words(inline_proc))
+  # Kernel object: process pid=101 with string-table name index=1 (size 2).
+  buf.extend(struct.pack('<QQ', 7 | (2 << 4) | (1 << 16) | (1 << 24), 101))
+  return bytes(buf)
 
 
 class Fuchsia(TestSuite):
@@ -291,3 +323,26 @@ class Fuchsia(TestSuite):
         trace=DataPath('fuchsia_trace_sched_with_waker.fxt'),
         query=Path('fuchsia_critical_path.sql'),
         out=Path('fuchsia_critical_path.out'))
+
+  # Strings whose declared length includes NUL bytes must match both pushed-down
+  # dataframe filters and SQLite-evaluated expressions.
+  def test_fuchsia_nul_padded_strings(self):
+    return DiffTestBlueprint(
+        trace=Zip({'trace.fxt': _fxt_nul_padded_trace()}),
+        query="""
+        SELECT 'pushed_down' AS mode, name
+        FROM process
+        WHERE name IN ('inline_proc', 'str_proc')
+        UNION ALL
+        SELECT 'sqlite' AS mode, name
+        FROM process
+        WHERE name || '' IN ('inline_proc', 'str_proc')
+        ORDER BY mode, name;
+        """,
+        out=Csv("""
+        "mode","name"
+        "pushed_down","inline_proc"
+        "pushed_down","str_proc"
+        "sqlite","inline_proc"
+        "sqlite","str_proc"
+        """))
