@@ -28,7 +28,8 @@
   display: inline-block;
   width: 1em;
   height: 1em;
-  border: solid 0.16em var(--pf-color-border);
+  border: solid 0.16em
+    color-mix(in srgb, var(--pf-color-interactive-base) 16%, transparent);
   border-top: solid 0.16em var(--pf-color-primary);
   border-radius: 50%;
   animation: pf-spinner-rotation 0.65s infinite linear;

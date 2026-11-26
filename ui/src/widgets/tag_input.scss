@@ -26,6 +26,7 @@
   border-radius: $border-radius;
   padding: var(--pf-padding-input-y) var(--pf-padding-input-x);
   background: var(--pf-color-background-input);
+  box-shadow: var(--pf-shadow-inset);
   gap: var(--pf-space-xs);
 
   &__left-icon {
@@ -55,6 +56,7 @@
   // The gentle hover effect indicates this component is interactive
   &:hover {
     border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:focus-within {

@@ -74,7 +74,7 @@
   padding: 0 4px;
 
   // Override scrollbar colors for the sidebar's dark background.
-  scrollbar-color: var(--pf-sidebar-border) var(--pf-sidebar-surface);
+  scrollbar-color: var(--pf-sidebar-scrollbar) var(--pf-sidebar-surface);
   &::-webkit-scrollbar {
     width: 0.5em;
   }
@@ -83,7 +83,7 @@
     border-radius: 2px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--pf-sidebar-border);
+    background: var(--pf-sidebar-scrollbar);
     border-radius: 2px;
   }
 
@@ -173,7 +173,11 @@ li.pf-sidebar__item {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
-  border-color: var(--pf-sidebar-border);
+  border-color: color-mix(
+    in srgb,
+    var(--pf-sidebar-on-surface) 22%,
+    transparent
+  );
   border-top-color: var(--pf-sidebar-on-surface);
 }
 

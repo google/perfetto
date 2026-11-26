@@ -62,11 +62,13 @@
   grid-template-columns: 34px auto max-content;
   border-radius: $border-radius;
   background-color: var(--pf-color-background-input);
-  border: solid 1px var(--pf-color-border-secondary);
+  border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-inset);
   line-height: 34px;
 
   &:hover {
-    border-color: var(--pf-color-border);
+    border-color: var(--pf-color-border-strong);
+    background-color: var(--pf-color-background-input-hover);
   }
 
   &:focus-within {

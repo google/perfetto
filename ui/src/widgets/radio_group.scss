@@ -22,8 +22,9 @@
   gap: var(--pf-space-xxs);
   padding: var(--pf-space-xxs);
   border-radius: $border-radius-medium;
-  border: 1px solid var(--pf-color-border-secondary);
+  border: 1px solid var(--pf-color-border);
   background: var(--pf-color-background-sunken);
+  box-shadow: var(--pf-shadow-inset);
   user-select: none;
 
   &[disabled] {

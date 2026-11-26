@@ -73,7 +73,8 @@
     &.pf-loading > .pf-tree-left > .pf-tree-gutter {
       &::after {
         content: "";
-        border: solid 1px var(--pf-color-border);
+        border: solid 1px
+          color-mix(in srgb, var(--pf-color-interactive-base) 16%, transparent);
         border-top: solid 1px var(--pf-color-primary);
         animation: pf-spinner-rotation 1s infinite linear;
         width: 8px;

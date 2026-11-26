@@ -26,6 +26,7 @@
   outline: none; // Disable the default outline
   background: var(--pf-color-background-input);
   border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-inset);
   border-radius: $border-radius;
 
   input {
@@ -85,6 +86,7 @@
   // The gentle hover effect indicates this component is interactive
   &:hover {
     border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:focus-within {

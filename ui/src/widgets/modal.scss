@@ -261,11 +261,13 @@
   margin-bottom: var(--pf-space-m);
   width: 100%;
   background: var(--pf-color-background-input);
+  box-shadow: var(--pf-shadow-inset);
   color: inherit;
   outline: none;
 
   &:hover {
     border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:focus {

@@ -24,6 +24,7 @@
   outline: none; // Disable the default outline
   border: solid 1px var(--pf-color-border);
   background: var(--pf-color-background-input);
+  box-shadow: var(--pf-shadow-inset);
   color: inherit;
   border-radius: $border-radius;
   padding: var(--pf-padding-input-y) var(--pf-padding-input-x);
@@ -35,6 +36,7 @@
 
   &:hover {
     border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:focus {

@@ -25,6 +25,7 @@
   gap: var(--pf-space-s);
   background: var(--pf-color-background-input);
   border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-inset);
   border-radius: $border-radius;
 
   &__input {
@@ -57,6 +58,7 @@
   // The gentle hover effect indicates this component is interactive
   &:hover {
     border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:has(.pf-text-input__input:focus) {
