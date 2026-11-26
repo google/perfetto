@@ -41,18 +41,38 @@
   }
 }
 
+@keyframes pf-popup-exit {
+  from {
+    opacity: 1;
+    translate: 0px 0px;
+  }
+  to {
+    opacity: 0;
+    translate: var(--pf-popup-enter-x, 0px) var(--pf-popup-enter-y, -4px);
+  }
+}
+
 .pf-popup {
   background: var(--pf-color-background-elevated);
   border: solid 1px var(--pf-color-border);
   border-radius: $border-radius-medium;
   box-shadow: $box-shadow-2;
   max-width: 350px; // Sensible default width for most popups
-  // Uses standalone `translate` (not `transform`) so the entrance glide
+  // Uses standalone `translate` (not `transform`) so the entrance/exit glide
   // composes cleanly with Popper.js's inline `transform: translate3d(...)`.
   animation: pf-popup-enter var(--pf-anim-fast) var(--pf-anim-easing-enter);
 
+  &--closing {
+    pointer-events: none;
+    animation: pf-popup-exit 80ms var(--pf-anim-easing-exit) forwards;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     animation: none;
+
+    &.pf-popup--closing {
+      animation: none;
+    }
   }
 
   &[data-popper-placement^="top"] {

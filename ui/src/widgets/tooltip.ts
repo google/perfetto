@@ -19,7 +19,7 @@ import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {ensureExists} from '../base/assert';
-import {PopupPosition} from './popup';
+import {animatePopupExit, PopupPosition} from './popup';
 import type {ExtendedModifiers} from './popper_utils';
 
 export interface TooltipAttrs {
@@ -65,6 +65,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
   private triggerElement?: Element;
   private tooltipElement?: HTMLElement;
   private popper?: Instance;
+  private readonly exitingPoppers = new WeakMap<HTMLElement, Instance>();
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly TOOLTIP_REF = 'tooltip';
@@ -137,13 +138,41 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
       onContentUpdate: () => {
         this.popper?.update();
       },
-      onContentUnmount: () => {
-        if (this.tooltipElement) {
-          onTooltipUnMount(this.tooltipElement);
+      onBeforeContentUnmount: (dom: HTMLElement) => {
+        const tooltipElement = findRef(dom, Tooltip.TOOLTIP_REF);
+        if (
+          tooltipElement !== undefined &&
+          tooltipElement === this.tooltipElement
+        ) {
+          if (this.popper !== undefined) {
+            this.exitingPoppers.set(dom, this.popper);
+            this.popper = undefined;
+          }
+          this.tooltipElement = undefined;
         }
-        this.popper?.destroy();
-        this.popper = undefined;
-        this.tooltipElement = undefined;
+        if (tooltipElement instanceof HTMLElement) {
+          return animatePopupExit(tooltipElement);
+        }
+        return undefined;
+      },
+      onContentUnmount: (dom: HTMLElement) => {
+        const exitingPopper = this.exitingPoppers.get(dom);
+        if (exitingPopper !== undefined) {
+          this.exitingPoppers.delete(dom);
+          exitingPopper.destroy();
+        }
+        const tooltipElement = findRef(dom, Tooltip.TOOLTIP_REF);
+        if (
+          tooltipElement !== undefined &&
+          tooltipElement === this.tooltipElement
+        ) {
+          this.popper?.destroy();
+          this.popper = undefined;
+          this.tooltipElement = undefined;
+        }
+        if (tooltipElement instanceof HTMLElement) {
+          onTooltipUnMount(tooltipElement);
+        }
       },
     };
 
