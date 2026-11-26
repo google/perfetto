@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/scoped_file.h"
+
 namespace perfetto {
 
 class CpuFreqInfo {
@@ -44,8 +46,11 @@ class CpuFreqInfo {
   // frequencies_index_[cpu] points to first frequency in frequencies_. Includes
   // a guard at the end.
   std::vector<size_t> frequencies_index_;
-  // Placeholder for CPU current frequency, refresh in ReadCpuCurrFreq()
+  // Placeholder for CPU current frequency, refresh in ReadCpuCurrFreq().
   std::vector<uint32_t> cpu_curr_freq_;
+  // Persistent read-only FDs for scaling_cur_freq, lazily opened in
+  // ReadCpuCurrFreq().
+  std::vector<base::ScopedFile> cpu_curr_freq_fds_;
 
   std::string ReadFile(std::string path);
 };
