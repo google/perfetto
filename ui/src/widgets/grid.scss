@@ -222,6 +222,10 @@ $indent-guide-offset: 12px;
     flex: 0 0 auto;
 
     .pf-grid__row {
+      &--alt {
+        background-color: var(--pf-color-background-alt);
+      }
+
       &:hover {
         background-color: var(--pf-color-background-hover);
       }
