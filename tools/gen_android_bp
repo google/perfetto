@@ -435,9 +435,8 @@ additional_args = {
         # Propagates to perfetto_trace_lib_framework_java via shared defaults.
         ('host_supported', True),
         # On host the module_current classpath doesn't expose
-        # dalvik.annotation.optimization, dalvik.system.VMRuntime or
-        # android.system.SystemCleaner; the stubs library defined in
-        # Android.bp.extras provides them.
+        # dalvik.annotation.optimization or android.system.SystemCleaner;
+        # the stubs library defined in Android.bp.extras provides them.
         ('host', {
             'libs': {'perfetto_trace_lib_host_stubs'}
         }),

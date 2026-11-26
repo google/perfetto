@@ -16,39 +16,65 @@
 
 package dev.perfetto.sdk;
 
-import dalvik.system.VMRuntime;
+import java.lang.reflect.Method;
 
 /**
- * Allocates byte arrays that the garbage collector never moves.
+ * Allocates byte arrays that the GC never moves, so native code can read them by address without a
+ * JNI copy.
  *
- * <p>Native code can read such an array by address with no JNI copy. The arrays come from ART's
- * {@link VMRuntime}, a module-lib API restricted to boot classpath code (Android platform builds of
- * this SDK).
+ * <p>The arrays come from ART's {@code dalvik.system.VMRuntime}, which is only available to code on
+ * the Android boot classpath. We look up its methods with reflection so this file compiles against
+ * the public Android SDK and desktop JDKs without stubs. Outside the boot classpath, calls fall
+ * back to null and 0.
  */
 final class NonMovableByteArrays {
-  private static final boolean AVAILABLE = isAvailable();
+  private static final class VmRuntime {
+    final Object mInstance;
+    final Method mNewNonMovableArray;
+    final Method mAddressOf;
+
+    VmRuntime(Object instance, Method newNonMovableArray, Method addressOf) {
+      mInstance = instance;
+      mNewNonMovableArray = newNonMovableArray;
+      mAddressOf = addressOf;
+    }
+  }
+
+  private static final VmRuntime sRuntime = resolve();
 
   private NonMovableByteArrays() {}
 
-  // Decided once per process so a JVM without VMRuntime does not make tracing throw.
-  private static boolean isAvailable() {
+  // Resolve once per process. Check the class loader before touching VMRuntime so apps and
+  // desktop JVMs return null without triggering hidden-API lookups.
+  private static VmRuntime resolve() {
     if (NonMovableByteArrays.class.getClassLoader() != Object.class.getClassLoader()) {
-      return false;
+      return null;
     }
     try {
-      VMRuntime.getRuntime();
-      return true;
-    } catch (LinkageError | RuntimeException notArt) {
-      return false;
+      Class<?> vmRuntimeClass = Class.forName("dalvik.system.VMRuntime");
+      Object instance = vmRuntimeClass.getMethod("getRuntime").invoke(null);
+      if (instance == null) {
+        return null;
+      }
+      return new VmRuntime(
+          instance,
+          vmRuntimeClass.getMethod("newNonMovableArray", Class.class, int.class),
+          vmRuntimeClass.getMethod("addressOf", Object.class));
+    } catch (ReflectiveOperationException | LinkageError | RuntimeException notArt) {
+      return null;
     }
   }
 
   /** Returns a non-movable array of {@code size} bytes, or null if unavailable. */
   static byte[] allocate(int size) {
-    if (!AVAILABLE) {
+    if (sRuntime == null) {
       return null;
     }
-    return (byte[]) VMRuntime.getRuntime().newNonMovableArray(byte.class, size);
+    try {
+      return (byte[]) sRuntime.mNewNonMovableArray.invoke(sRuntime.mInstance, byte.class, size);
+    } catch (ReflectiveOperationException e) {
+      return null;
+    }
   }
 
   /**
@@ -56,9 +82,13 @@ final class NonMovableByteArrays {
    * unavailable. The address stays valid while the array is reachable.
    */
   static long addressOf(byte[] array) {
-    if (!AVAILABLE) {
+    if (sRuntime == null) {
       return 0;
     }
-    return VMRuntime.getRuntime().addressOf(array);
+    try {
+      return (Long) sRuntime.mAddressOf.invoke(sRuntime.mInstance, array);
+    } catch (ReflectiveOperationException e) {
+      return 0;
+    }
   }
 }
