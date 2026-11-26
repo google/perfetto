@@ -107,6 +107,18 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
+perfetto_py_binary(
+    name = "gen_skill_bundle_py",
+    srcs = ["tools/gen_skill_bundle.py"],
+    main = "tools/gen_skill_bundle.py",
+    python_version = "PY3",
+)
+
+perfetto_filegroup(
+    name = "ai_skills_perfetto",
+    srcs = glob(["ai/skills/perfetto/**"]),
+)
+
 exports_files(
     ["ui/src/assets/favicon.png"],
     visibility = PERFETTO_CONFIG.public_visibility,
