@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 // Generic list with y-overflow, move me to a common file if we want to reuse.
 .pf-list {
   overflow-y: auto;
@@ -26,35 +28,48 @@
   flex-direction: column;
   align-items: stretch;
   width: 280px;
+
   & > .pf-search-bar {
-    margin-bottom: 8px;
+    margin-bottom: var(--pf-space-m);
     display: flex;
     & > .pf-search-box {
       flex-grow: 1;
     }
   }
+
   .pf-multiselect-item {
     display: block; // Put each item on a new line
-    margin-top: 5px;
+    padding: var(--pf-space-xxs) var(--pf-space-xs);
+    border-radius: $border-radius;
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
   }
+
   .pf-multiselect-header {
     align-items: baseline;
     display: flex;
     position: sticky;
     top: 0;
-    font-size: 1em;
-    background-color: var(--pf-color-background);
+    background-color: var(--pf-color-background-elevated);
     z-index: 1;
-    font-size: 0.75em;
-    border-bottom: solid 1px var(--pf-color-border);
-    padding-bottom: 2px;
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--pf-color-text-muted);
+    border-bottom: solid 1px var(--pf-color-border-secondary);
+    padding-bottom: var(--pf-space-xs);
+    margin-bottom: var(--pf-space-xs);
     min-width: max-content;
     & > span {
       margin-right: auto;
     }
   }
+
   .pf-multiselect-container {
     position: relative;
-    margin-bottom: 16px;
+    margin-bottom: var(--pf-space-l);
   }
 }

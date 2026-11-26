@@ -55,7 +55,7 @@
     }
 
     &:hover {
-      background-color: color_hover(transparent);
+      background-color: var(--pf-color-background-hover);
       .pf-query-history__item-buttons {
         visibility: visible;
       }

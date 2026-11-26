@@ -18,15 +18,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px;
+  padding: var(--pf-space-xl) var(--pf-space-l);
   user-select: none;
   margin: auto;
   justify-content: center;
   color: var(--pf-color-text-muted);
 
   &__main-icon {
-    font-size: 5em; // Size of the icon is relative to the font size.
-    margin-bottom: 12px;
+    font-size: 4.5em; // Size of the icon is relative to the font size.
+    margin-bottom: var(--pf-space-l);
+    color: var(--pf-color-text-hint);
+    opacity: 0.65;
   }
 
   // Limit width to the size of the container and use no wrap & elipsis to
@@ -43,7 +45,8 @@
   &__title {
     text-align: center;
     font-weight: 500;
-    margin-bottom: 8px;
+    color: var(--pf-color-text-secondary);
+    margin-bottom: var(--pf-space-m);
   }
 
   &__content {

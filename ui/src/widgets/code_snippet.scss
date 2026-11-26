@@ -15,29 +15,32 @@
 @use "../assets/theme" as *;
 
 .pf-code-snippet {
-  background-color: var(--pf-color-background-secondary);
+  background-color: var(--pf-color-background-sunken);
   border: 1px solid var(--pf-color-border);
-  border-radius: $border-radius-large;
+  border-radius: $border-radius-medium;
   overflow: hidden;
 
   .pf-code-snippet-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 4px;
-    padding-left: 12px;
-    border-bottom: 1px solid var(--pf-color-border);
+    padding: var(--pf-space-xs) var(--pf-space-xs) var(--pf-space-xs)
+      var(--pf-space-l);
+    background-color: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border-secondary);
   }
 
   .pf-code-snippet-language {
     font-size: var(--pf-font-size-s);
+    font-weight: 500;
     color: var(--pf-color-text-secondary);
   }
 
   pre {
     margin: 0;
-    padding: 12px;
+    padding: var(--pf-space-l);
     overflow-x: auto;
     font-size: var(--pf-font-size-s);
+    line-height: 1.5;
   }
 }

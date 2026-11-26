@@ -208,7 +208,7 @@ $indent-guide-offset: 12px;
     position: sticky;
     top: 0;
     z-index: 1; // Ensure header is above body rows when scrolling.
-    background: var(--pf-color-background);
+    background: var(--pf-color-background-secondary);
     font-weight: 500;
   }
 
@@ -223,7 +223,7 @@ $indent-guide-offset: 12px;
 
     .pf-grid__row {
       &:hover {
-        background-color: color_hover(transparent);
+        background-color: var(--pf-color-background-hover);
       }
       border-bottom: $border-2;
     }

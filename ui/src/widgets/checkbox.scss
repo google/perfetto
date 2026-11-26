@@ -54,7 +54,7 @@ $switch-slide-distance: 0.75em;
   }
 
   &.pf-disabled {
-    opacity: 0.5;
+    opacity: 0.45;
     pointer-events: none;
     cursor: not-allowed;
   }
@@ -69,10 +69,11 @@ $switch-slide-distance: 0.75em;
 
   // 'Check' style checkbox
   &__box--check {
+    @include interactive-transition;
     aspect-ratio: 1;
     border-radius: $border-radius;
-    border: solid 1px currentColor;
-    background: none;
+    border: solid 1px var(--pf-color-border-strong);
+    background: var(--pf-color-background-input);
     position: relative;
   }
 
@@ -83,10 +84,15 @@ $switch-slide-distance: 0.75em;
     height: 100%;
     color: var(--pf-color-text-on-primary);
     opacity: 0;
+    transform: scale(0.75);
+    transition:
+      opacity var(--pf-anim-fast) var(--pf-anim-easing),
+      transform var(--pf-anim-fast) var(--pf-anim-easing-enter);
   }
 
   &:hover .pf-checkbox__box--check {
-    background: color_hover(transparent);
+    border-color: var(--pf-color-primary);
+    background: var(--pf-color-primary-subtle);
   }
 
   input:checked + .pf-checkbox__box--check {
@@ -94,12 +100,24 @@ $switch-slide-distance: 0.75em;
     background: var(--pf-color-primary);
   }
 
+  &:hover input:checked + .pf-checkbox__box--check {
+    background: color-hover-surface(
+      var(--pf-color-primary),
+      var(--pf-color-interactive-base)
+    );
+    border-color: color-hover-surface(
+      var(--pf-color-primary),
+      var(--pf-color-interactive-base)
+    );
+  }
+
   input:checked + .pf-checkbox__box--check .pf-checkbox__tick {
     opacity: 1;
+    transform: scale(1);
   }
 
   &__box--switch {
-    // Slice distance + thumb width
+    // Slide distance + thumb width
     width: $switch-slide-distance + $switch-height;
     height: $switch-height;
     position: relative;
@@ -110,12 +128,12 @@ $switch-slide-distance: 0.75em;
       display: block;
       position: absolute;
       inset: 0;
-      border-radius: 100px;
-      background: var(--pf-color-border);
-      border: solid $switch-border-width var(--pf-color-border);
+      border-radius: var(--pf-radius-pill);
+      background: var(--pf-color-border-strong);
+      border: solid $switch-border-width var(--pf-color-border-strong);
       transition:
-        border $anim-timing,
-        background $anim-timing;
+        border-color $anim-timing,
+        background-color $anim-timing;
     }
 
     // The :after element forms the "thumb" of the switch
@@ -128,13 +146,14 @@ $switch-slide-distance: 0.75em;
       bottom: 0;
       width: $switch-height;
       height: $switch-height;
-      background: white;
+      background: var(--pf-color-switch-thumb);
       box-sizing: border-box;
       border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
       transition:
-        border $anim-timing,
+        border-color $anim-timing,
         left $anim-timing;
-      border: solid $switch-border-width var(--pf-color-border);
+      border: solid $switch-border-width var(--pf-color-border-strong);
     }
   }
 
@@ -145,9 +164,6 @@ $switch-slide-distance: 0.75em;
 
   input:checked + .pf-checkbox__box--switch:after {
     border-color: var(--pf-color-primary);
-  }
-
-  input:checked + .pf-checkbox__box--switch:after {
     left: $switch-slide-distance;
   }
 }

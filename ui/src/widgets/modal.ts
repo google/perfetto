@@ -85,7 +85,8 @@ export interface ModalButton {
 export class Modal implements m.ClassComponent<ModalAttrs> {
   onbeforeremove(vnode: m.VnodeDOM<ModalAttrs>) {
     const removePromise = defer<void>();
-    vnode.dom.addEventListener('animationend', () => {
+    vnode.dom.addEventListener('animationend', (e: Event) => {
+      if (e.target !== vnode.dom) return;
       m.redraw();
       removePromise.resolve();
     });

@@ -25,11 +25,11 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin: 4px 0;
+  padding: var(--pf-space-xs);
 
   .pf-menu-divider {
-    border-bottom: solid 1px var(--pf-color-border);
-    margin: 5px 0 5px 0;
+    border-bottom: solid 1px var(--pf-color-border-secondary);
+    margin: var(--pf-space-xs) var(--pf-space-xs);
   }
 
   // Remove duplicate dividers and dividers at the start or end of the menu
@@ -39,33 +39,32 @@
     display: none;
   }
 
-  // Remove a menu divider if it directly follows another divider
-  .pf-menu-divider + .pf-menu-divider {
-    display: none;
-  }
-
   .pf-menu-title {
     font-family: var(--pf-font-compact);
-    font-weight: bolder;
+    font-weight: 600;
     font-size: var(--pf-font-size-xs);
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--pf-color-text-muted);
-    padding: 6px 8px 3px 8px;
+    padding: var(--pf-space-s) var(--pf-padding-menu-item-x) var(--pf-space-xxs);
     user-select: none;
   }
 }
 
 .pf-menu-item {
+  @include interactive-transition;
   font-family: var(--pf-font-compact);
   user-select: none;
   text-align: left;
-  padding: 6px 10px;
+  padding: var(--pf-padding-menu-item-y) var(--pf-padding-menu-item-x);
+  border-radius: $border-radius;
   white-space: nowrap;
   min-width: max-content;
-  line-height: 1;
+  line-height: 1.15;
   cursor: pointer;
 
   display: grid;
+  align-items: center;
   grid-template-columns: auto 1fr auto;
   grid-template-areas: "left-icon label right-icon";
 
@@ -75,30 +74,44 @@
 
   &__left-icon {
     grid-area: left-icon;
-    margin-right: 6px; // Make some room between the icon and label
+    margin-right: var(
+      --pf-space-s
+    ); // Make some room between the icon and label
+    color: var(--pf-color-text-muted);
   }
 
   &__right-icon {
     grid-area: right-icon;
-    margin-left: 6px; // Make some room between the icon and label
+    margin-left: var(--pf-space-m); // Make some room between the icon and label
+    color: var(--pf-color-text-muted);
   }
 
   &:hover {
-    background: color_hover(transparent);
+    background: var(--pf-color-background-hover);
+
+    .pf-menu-item__left-icon,
+    .pf-menu-item__right-icon {
+      color: var(--pf-color-text);
+    }
   }
 
   &:active,
   &.pf-active {
-    background: color_active(transparent);
+    background: var(--pf-color-background-active);
   }
 
   &[disabled] {
-    color: var(--pf-color-text-muted);
-    background: unset;
+    color: var(--pf-color-text-disabled);
+    background: transparent;
     cursor: not-allowed;
+
+    .pf-menu-item__left-icon,
+    .pf-menu-item__right-icon {
+      color: var(--pf-color-text-disabled);
+    }
   }
 
   &:focus-visible {
-    @include focus;
+    @include focus-inset;
   }
 }

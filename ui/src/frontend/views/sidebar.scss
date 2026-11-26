@@ -103,13 +103,14 @@ li.pf-sidebar__item {
 
   a,
   button {
+    @include interactive-transition;
     color: inherit;
     text-decoration: none;
     display: flex;
     align-items: center;
-    padding: 6px 8px;
+    padding: var(--pf-space-s) var(--pf-space-m);
     border-radius: $border-radius;
-    gap: 8px;
+    gap: var(--pf-space-m);
     width: 100%;
     font: inherit;
     background: none;
@@ -123,6 +124,10 @@ li.pf-sidebar__item {
 
     &:active {
       background: color-active-surface(transparent, currentColor);
+    }
+
+    &:focus-visible {
+      @include focus-inset;
     }
 
     &[disabled] {

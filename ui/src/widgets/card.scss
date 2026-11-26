@@ -18,17 +18,19 @@ $border-radius: $border-radius-medium;
 
 @layer pf-widgets {
   .pf-card {
-    padding: 12px 16px;
+    background: var(--pf-color-background-elevated);
+    padding: var(--pf-padding-container-m) var(--pf-padding-container-l);
     box-shadow: $box-shadow-1;
     border-radius: $border-radius;
     border: solid 1px var(--pf-color-border);
 
     &.pf-interactive {
-      transition: $anim-timing;
+      @include interactive-transition(var(--pf-anim-normal));
       cursor: pointer;
 
       &:hover {
-        box-shadow: $box-shadow-3;
+        box-shadow: $box-shadow-2;
+        border-color: var(--pf-color-border-strong);
       }
     }
   }
@@ -36,23 +38,25 @@ $border-radius: $border-radius-medium;
   .pf-card-stack {
     display: flex;
     flex-direction: column;
+    background: var(--pf-color-background-elevated);
     border: solid 1px var(--pf-color-border);
     border-radius: $border-radius;
     box-shadow: $box-shadow-1;
     overflow: hidden;
 
     > .pf-card:not(:last-child) {
-      border-bottom: 1px solid var(--pf-color-border);
+      border-bottom: 1px solid var(--pf-color-border-secondary);
     }
 
     > .pf-card {
+      background: transparent;
       border-radius: unset;
       border: unset;
       box-shadow: unset;
     }
 
     > .pf-card.pf-interactive:hover {
-      background-color: color_hover(transparent);
+      background-color: var(--pf-color-background-hover);
       box-shadow: unset;
     }
 
@@ -60,7 +64,7 @@ $border-radius: $border-radius-medium;
       flex-direction: row;
 
       > .pf-card:not(:last-child) {
-        border-right: 1px solid var(--pf-color-border);
+        border-right: 1px solid var(--pf-color-border-secondary);
         border-bottom: unset;
       }
     }

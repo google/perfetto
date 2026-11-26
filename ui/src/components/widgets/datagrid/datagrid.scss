@@ -155,9 +155,10 @@
     display: flex;
     flex-direction: column;
     flex: none;
-    margin-top: -4px;
-    padding: 6px;
-    border-bottom: solid 1px var(--pf-color-border);
+    margin: calc(-1 * var(--pf-space-xs)) calc(-1 * var(--pf-space-xs))
+      var(--pf-space-xs);
+    padding: var(--pf-space-s);
+    border-bottom: solid 1px var(--pf-color-border-secondary);
   }
 
   &__list {
@@ -174,8 +175,10 @@
     display: flex;
     flex-direction: column;
     flex: none;
-    border-top: solid 1px var(--pf-color-border);
-    padding-top: 4px;
+    margin: var(--pf-space-xs) calc(-1 * var(--pf-space-xs))
+      calc(-1 * var(--pf-space-xs));
+    padding: var(--pf-space-xs);
+    border-top: solid 1px var(--pf-color-border-secondary);
   }
 }
 

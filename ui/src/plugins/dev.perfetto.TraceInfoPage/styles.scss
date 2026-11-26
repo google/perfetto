@@ -25,8 +25,9 @@
   &__inner {
     width: 95%;
     max-width: 1400px;
-    background: var(--pf-color-background);
-    border-radius: $border-radius-large * 3;
+    background: var(--pf-color-background-elevated);
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: $border-radius-large;
     box-shadow: $box-shadow-1;
     overflow: hidden;
   }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 .pf-settings-shell {
   overflow: auto;
   height: 100%;
@@ -19,13 +21,14 @@
   &__header {
     position: sticky;
     top: 0;
-    padding-bottom: 10px;
-    padding-top: 12px;
+    padding-bottom: var(--pf-space-l);
+    padding-top: var(--pf-space-l);
     z-index: 1;
     background-color: var(--pf-color-background);
+    transition: box-shadow var(--pf-anim-fast) var(--pf-anim-easing);
 
     &--stuck {
-      box-shadow: 0px 2px 5px var(--pf-color-box-shadow);
+      box-shadow: $box-shadow-1;
     }
   }
 
@@ -33,18 +36,20 @@
     max-width: 900px;
     min-width: 300px;
     margin-inline: auto;
-    padding-inline: 8px;
+    padding-inline: var(--pf-space-m);
   }
 
   &__content {
-    margin-block: 16px;
+    margin-block: var(--pf-space-xl);
   }
 
   &__title {
-    font-size: var(--pf-font-size-xl);
-    font-weight: 500;
-    padding-bottom: 12px;
-    padding-top: 24px;
+    font-size: var(--pf-font-size-l);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--pf-color-text-secondary);
+    padding-bottom: var(--pf-space-l);
+    padding-top: var(--pf-space-xxl);
     text-transform: uppercase;
   }
 }
@@ -53,22 +58,22 @@
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: start;
-  gap: 16px;
+  gap: var(--pf-space-xl);
 
   &.pf-intent-primary {
-    border-left: solid 5px var(--pf-color-primary);
+    border-left: solid 3px var(--pf-color-primary);
   }
 
   &.pf-intent-success {
-    border-left: solid 5px var(--pf-color-success);
+    border-left: solid 3px var(--pf-color-success);
   }
 
   &.pf-intent-warning {
-    border-left: solid 5px var(--pf-color-warning);
+    border-left: solid 3px var(--pf-color-warning);
   }
 
   &.pf-intent-danger {
-    border-left: solid 5px var(--pf-color-danger);
+    border-left: solid 3px var(--pf-color-danger);
   }
 
   &:hover {

@@ -12,18 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 .pf-accordion {
   display: flex;
   flex-direction: column;
 }
 
 .pf-accordion__item {
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+
   > summary {
+    @include interactive-transition;
     list-style: none;
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 6px 8px;
+    gap: var(--pf-space-s);
+    padding: var(--pf-space-m) var(--pf-space-l);
+    font-weight: 500;
     cursor: pointer;
     background: var(--pf-color-background-secondary);
     position: sticky;
@@ -31,7 +37,10 @@
     z-index: 1;
 
     &:hover {
-      background: color_hover(transparent);
+      background: color-hover-surface(
+        var(--pf-color-background-secondary),
+        var(--pf-color-interactive-base)
+      );
     }
 
     // Remove the default WebKit disclosure triangle.
@@ -40,8 +49,7 @@
     }
 
     &:focus-visible {
-      outline: 2px solid var(--pf-color-accent);
-      outline-offset: -2px;
+      @include focus-inset;
     }
   }
 
@@ -64,9 +72,9 @@
     height: 0;
     overflow: hidden;
     transition:
-      height 0.2s ease,
-      opacity 0.2s ease,
-      content-visibility 0.2s allow-discrete;
+      height var(--pf-anim-slow) var(--pf-anim-easing),
+      opacity var(--pf-anim-slow) var(--pf-anim-easing),
+      content-visibility var(--pf-anim-slow) allow-discrete;
   }
 
   &[open]::details-content {
@@ -83,7 +91,7 @@
   color: var(--pf-color-text-muted);
   display: flex;
   align-items: center;
-  transition: transform 0.2s ease;
+  transition: transform var(--pf-anim-normal) var(--pf-anim-easing);
 }
 
 .pf-accordion__header-content {
@@ -95,6 +103,6 @@
 }
 
 .pf-accordion__content {
-  padding: 8px 16px 16px 16px;
+  padding: var(--pf-space-m) var(--pf-space-xl) var(--pf-space-xl);
   background: var(--pf-color-background);
 }

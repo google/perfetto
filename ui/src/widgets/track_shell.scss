@@ -186,7 +186,7 @@
 
     &-popup {
       position: absolute;
-      border-radius: 2px;
+      border-radius: $border-radius;
       background: transparent;
       color: transparent;
       text-overflow: unset;
@@ -198,8 +198,8 @@
     }
 
     &:hover &-popup--visible {
-      box-shadow: 1px 1px 2px 2px var(--pf-color-box-shadow);
-      background: var(--pf-color-background);
+      box-shadow: $box-shadow-1;
+      background: var(--pf-color-background-elevated);
       color: var(--pf-color-text);
     }
   }

@@ -17,15 +17,16 @@
 // Select field styled to look similar to a text input with a thin underline.
 // Inspired by matherial design.
 .pf-select {
+  @include interactive-transition;
   display: inline;
   font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
-  border: solid 1px var(--pf-color-border-secondary);
-  background: var(--pf-color-void);
+  border: solid 1px var(--pf-color-border);
+  background: var(--pf-color-background-input);
   color: inherit;
   border-radius: $border-radius;
-  padding: 2px;
+  padding: var(--pf-padding-input-y) var(--pf-padding-input-x);
   cursor: pointer;
 
   // Very opinionated min width for a select input
@@ -33,15 +34,15 @@
   min-width: 80px;
 
   &:hover {
-    border-color: var(--pf-color-border);
+    border-color: var(--pf-color-border-strong);
   }
 
   &:focus {
-    border-color: var(--pf-color-primary);
+    @include input-focus;
   }
 
   &[disabled] {
-    opacity: 0.5;
+    opacity: 0.45;
     pointer-events: none;
     cursor: not-allowed;
   }

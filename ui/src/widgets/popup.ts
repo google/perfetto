@@ -403,7 +403,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         {name: 'preventOverflow', options: {padding: 8}},
         // Don't let the arrow reach the end of the popup, which looks odd when
         // the popup has rounded corners
-        {name: 'arrow', options: {padding: 2}},
+        {name: 'arrow', options: {padding: 6}},
         ...matchWidthModifier,
       ],
     };

@@ -200,7 +200,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
           },
         },
         {name: 'preventOverflow', options: {padding: 8}},
-        {name: 'arrow', options: {padding: 2}},
+        {name: 'arrow', options: {padding: 6}},
       ],
     };
 

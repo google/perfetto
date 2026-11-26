@@ -15,41 +15,60 @@
 @use "../assets/theme" as *;
 
 .pf-callout {
-  @mixin color-theme($base-color) {
-    color: $base-color;
-    background: color-mix(in srgb, $base-color 15%, transparent);
+  @mixin color-theme($text-color, $subtle-bg, $border-color) {
+    color: $text-color;
+    background: $subtle-bg;
+    border-color: $border-color;
   }
 
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   background: var(--pf-color-background-secondary);
-  border-radius: $border-radius;
-  padding: 4px 6px;
-  border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
-  gap: 0.2em;
+  border-radius: $border-radius-medium;
+  padding: var(--pf-space-m) var(--pf-space-l);
+  border: solid 1px var(--pf-color-border);
+  gap: var(--pf-space-m);
+  line-height: 1.45;
 
   & > .pf-left-icon {
-    margin-left: -0.2em;
-    align-items: baseline;
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
   &__content {
     flex: 1;
+    min-width: 0;
   }
 
   &.pf-intent-primary {
-    @include color-theme(var(--pf-color-primary));
+    @include color-theme(
+      var(--pf-color-primary-text),
+      var(--pf-color-primary-subtle),
+      var(--pf-color-primary-border)
+    );
   }
 
   &.pf-intent-danger {
-    @include color-theme(var(--pf-color-danger));
+    @include color-theme(
+      var(--pf-color-danger-text),
+      var(--pf-color-danger-subtle),
+      var(--pf-color-danger-border)
+    );
   }
 
   &.pf-intent-success {
-    @include color-theme(var(--pf-color-success));
+    @include color-theme(
+      var(--pf-color-success-text),
+      var(--pf-color-success-subtle),
+      var(--pf-color-success-border)
+    );
   }
 
   &.pf-intent-warning {
-    @include color-theme(var(--pf-color-warning));
+    @include color-theme(
+      var(--pf-color-warning-text),
+      var(--pf-color-warning-subtle),
+      var(--pf-color-warning-border)
+    );
   }
 }

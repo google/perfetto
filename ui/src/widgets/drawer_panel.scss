@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 .pf-drawer-panel {
   height: 100%;
   display: flex;
@@ -28,22 +30,21 @@
   }
 
   &__handle {
-    gap: 2px;
+    gap: var(--pf-space-xxs);
     background-color: var(--pf-color-background-secondary);
     border-top: 1px solid var(--pf-color-border);
     cursor: row-resize;
     display: flex;
-    align-items: baseline;
-    padding-inline: 2px;
+    padding-inline: var(--pf-space-xs);
     align-items: center;
     touch-action: none;
   }
 
   &__tabs {
-    padding-inline: 3px; // Leave some space for the drop shadow
+    padding-inline: var(--pf-space-xs); // Leave some space for the drop shadow
     display: flex;
     overflow: hidden;
-    font-size: 14px;
+    font-size: var(--pf-font-size-m);
 
     // Align tabs to the bottom of the handle & overlap the drawer border so
     // that the active tab looks like it is part of the drawer.
@@ -66,7 +67,7 @@
   &__drawer {
     flex-shrink: 0;
     overflow: auto;
-    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
+    box-shadow: $box-shadow-1;
     border-top: 1px solid var(--pf-color-border);
   }
 }
