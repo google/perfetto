@@ -34,7 +34,15 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
   private static defaultFlamegraphSetting: Setting<boolean>;
+  private static hasExternalHost = false;
   private readonly session: HeapDumpExplorerSession;
+
+  // Called by a host plugin (e.g. dev.perfetto.Memscope) during onActivate()
+  // when it embeds HeapDumpPage inside a unified page and takes ownership of
+  // the /heapdump route, sidebar entry, and initial-page suggestion.
+  static claimStandaloneHost(): void {
+    HeapDumpExplorerPlugin.hasExternalHost = true;
+  }
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -103,9 +111,10 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
         session.openFlamegraph({pathHashes, isDominator, upid, ts}),
       );
 
-    // When Memscope is enabled, it hosts HeapDumpPage inside the unified Memory
-    // workbench and owns the single sidebar entry, routing, and initial page.
-    if (ctx.plugins.isPluginEnabled('dev.perfetto.Memscope')) {
+    // When an external host plugin (dev.perfetto.Memscope) claimed hosting in
+    // onActivate(), it embeds HeapDumpPage in the unified Memory workbench and
+    // owns the /heapdump route alias, sidebar entry, and initial-page choice.
+    if (HeapDumpExplorerPlugin.hasExternalHost) {
       return;
     }
 
