@@ -1695,6 +1695,30 @@ TEST_F(TraceProcessorPerfettoExportTest, PerfettoExportSchemaMismatchRejected) {
 }
 
 TEST_F(TraceProcessorPerfettoExportTest,
+       PerfettoExportDenseVsSparseNullabilityMismatchRejected) {
+  std::string tar = *tar_;
+
+  // Corrupt the manifest: change a sparse column's nullability to dense_null.
+  // Pad with JSON spaces after the colon so the tar entry size stays unchanged.
+  constexpr std::string_view kNeedle =
+      "\"nullability\":\"sparse_null_popcount_always\"";
+  size_t pos = tar.find(kNeedle);
+  ASSERT_NE(pos, std::string::npos);
+  std::string replacement = "\"nullability\":\"dense_null\"";
+  replacement.insert(14, kNeedle.size() - replacement.size(), ' ');
+  ASSERT_EQ(replacement.size(), kNeedle.size());
+  tar.replace(pos, kNeedle.size(), replacement);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  auto status = ParsePerfettoExport(reimport.get(), tar);
+  EXPECT_THAT(status, IsError());
+  EXPECT_NE(status.message().find("schema mismatch"), std::string::npos)
+      << status.message();
+  EXPECT_NE(status.message().find("nullability"), std::string::npos)
+      << status.message();
+}
+
+TEST_F(TraceProcessorPerfettoExportTest,
        PerfettoExportVersionMismatchRejected) {
   std::string tar = *tar_;
 
