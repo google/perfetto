@@ -14,8 +14,9 @@
 
 @use "../common" as c;
 .pf-memscope-inset {
-  padding: 12px 16px;
-  border: 0.5px solid var(--pf-col-border);
+  padding: var(--pf-padding-container-m) var(--pf-padding-container-l);
+  border: 1px solid var(--pf-col-border);
   border-radius: c.$memscope-section-radius;
   background: var(--pf-col-inset);
+  box-shadow: var(--pf-shadow-inset);
 }

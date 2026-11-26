@@ -20,9 +20,10 @@
 // page's panel rhythm.
 
 .pf-memscope-callout {
-  @mixin color-theme($base-color) {
-    color: $base-color;
-    background: color-mix(in srgb, $base-color 15%, transparent);
+  @mixin color-theme($text-color, $subtle-bg, $border-color) {
+    color: $text-color;
+    background: $subtle-bg;
+    border-color: $border-color;
   }
 
   display: flex;
@@ -30,7 +31,7 @@
   gap: 10px;
   padding: 10px 14px;
   background: var(--pf-color-background-secondary);
-  border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
+  border: solid 1px var(--pf-color-border);
   border-radius: c.$memscope-section-radius;
   font-size: var(--pf-font-size-s);
 
@@ -44,18 +45,34 @@
   }
 
   &.pf-intent-primary {
-    @include color-theme(var(--pf-color-primary));
+    @include color-theme(
+      var(--pf-color-primary-text),
+      var(--pf-color-primary-subtle),
+      var(--pf-color-primary-border)
+    );
   }
 
   &.pf-intent-danger {
-    @include color-theme(var(--pf-color-danger));
+    @include color-theme(
+      var(--pf-color-danger-text),
+      var(--pf-color-danger-subtle),
+      var(--pf-color-danger-border)
+    );
   }
 
   &.pf-intent-success {
-    @include color-theme(var(--pf-color-success));
+    @include color-theme(
+      var(--pf-color-success-text),
+      var(--pf-color-success-subtle),
+      var(--pf-color-success-border)
+    );
   }
 
   &.pf-intent-warning {
-    @include color-theme(var(--pf-color-warning));
+    @include color-theme(
+      var(--pf-color-warning-text),
+      var(--pf-color-warning-subtle),
+      var(--pf-color-warning-border)
+    );
   }
 }

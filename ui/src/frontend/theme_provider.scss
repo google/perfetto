@@ -173,65 +173,65 @@
   &--dark {
     color-scheme: dark;
 
-    // Surfaces (lifted slightly above the dark border floor so recessed
-    // dark seams read crisply against both primary and elevated surfaces).
-    --pf-color-void: #191c22;
-    --pf-color-background: #23272f;
-    --pf-color-background-secondary: #2b303a;
-    --pf-color-background-tertiary: #363c48;
-    --pf-color-background-elevated: #2f3540;
-    --pf-color-background-sunken: #1c2027;
-    --pf-color-background-input: #1b1f26;
-    --pf-color-background-input-hover: #1f242c;
-    --pf-color-background-alt: #1e2229;
+    // Surfaces (deep cool-slate ladder with headroom above dark borders so
+    // recessed seams read crisply against both primary and elevated surfaces).
+    --pf-color-void: #13161b;
+    --pf-color-background: #1c2027;
+    --pf-color-background-secondary: #232831;
+    --pf-color-background-tertiary: #2e3440;
+    --pf-color-background-elevated: #262c36;
+    --pf-color-background-sunken: #15181f;
+    --pf-color-background-input: #14171d;
+    --pf-color-background-input-hover: #181c24;
+    --pf-color-background-alt: #181b22;
     --pf-color-background-hover: rgba(226, 234, 244, 0.065);
     --pf-color-background-active: rgba(226, 234, 244, 0.12);
-    --pf-color-background-selected: rgba(114, 156, 230, 0.16);
-    --pf-color-backdrop: rgba(8, 10, 14, 0.68);
+    --pf-color-background-selected: rgba(108, 151, 227, 0.16);
+    --pf-color-backdrop: rgba(6, 8, 12, 0.72);
 
     // Text
     --pf-color-interactive-base: #e6edf5;
-    --pf-color-text: #e4e9ef;
-    --pf-color-text-secondary: #bcc5d0;
-    --pf-color-text-muted: #95a0ad;
-    --pf-color-text-hint: #7a8594;
-    --pf-color-text-disabled: #636d7b;
+    --pf-color-text: #e2e7ee;
+    --pf-color-text-secondary: #b8c1cd;
+    --pf-color-text-muted: #909ba9;
+    --pf-color-text-hint: #748090;
+    --pf-color-text-disabled: #5e6876;
 
     // Borders (darker than surfaces for crisp, machined recessed seams)
-    --pf-color-border: #101318;
-    --pf-color-border-secondary: #181b21;
-    --pf-color-border-strong: #07090c;
+    --pf-color-border: #0a0c10;
+    --pf-color-border-secondary: #12151b;
+    --pf-color-border-strong: #040507;
 
     // Elevation & chrome (dark shadows paired with a subtle top edge highlight
     // so elevated surfaces stay distinct inside dark borders)
-    --pf-color-box-shadow: rgba(0, 0, 0, 0.55);
+    --pf-color-box-shadow: rgba(0, 0, 0, 0.6);
     --pf-shadow-1:
-      inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.45),
-      0 1px 3px rgba(0, 0, 0, 0.3);
+      inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.5),
+      0 1px 3px rgba(0, 0, 0, 0.35);
     --pf-shadow-2:
       inset 0 1px 0 rgba(255, 255, 255, 0.06),
-      0 6px 18px -2px rgba(0, 0, 0, 0.6), 0 2px 6px -1px rgba(0, 0, 0, 0.4);
+      0 6px 18px -2px rgba(0, 0, 0, 0.65), 0 2px 6px -1px rgba(0, 0, 0, 0.45);
     --pf-shadow-3:
       inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 18px 40px -4px rgba(0, 0, 0, 0.75), 0 6px 16px -2px rgba(0, 0, 0, 0.5);
-    --pf-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.32);
-    --pf-color-scrollbar: #454e5e;
-    --pf-color-control-track: #16191f;
+      0 18px 40px -4px rgba(0, 0, 0, 0.78), 0 6px 16px -2px rgba(0, 0, 0, 0.52);
+    --pf-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.38);
+    --pf-color-scrollbar: #3f4857;
+    --pf-color-control-track: #12151a;
     --pf-color-switch-thumb: #eef2f7;
 
     // Neutral & interactive accents
-    --pf-color-neutral: #8c96a4;
-    --pf-color-accent: #6294ec;
+    --pf-color-neutral: #86909e;
+    --pf-color-accent: #5c8fea;
     --pf-color-text-on-accent: #0c1320;
     --pf-color-focus-ring: color-mix(
       in srgb,
       var(--pf-color-accent) 36%,
       transparent
     );
-    --pf-color-highlight: #614e12;
+    --pf-color-highlight: #5e4b10;
 
     // Semantic intents
-    --pf-color-primary: #729ce6;
+    --pf-color-primary: #6c97e3;
     --pf-color-text-on-primary: #0d1421;
     --pf-color-primary-subtle: color-mix(
       in srgb,
@@ -243,9 +243,9 @@
       var(--pf-color-primary) 36%,
       transparent
     );
-    --pf-color-primary-text: #96b8f2;
+    --pf-color-primary-text: #92b5f0;
 
-    --pf-color-danger: #e67575;
+    --pf-color-danger: #e37070;
     --pf-color-text-on-danger: #1f0c0c;
     --pf-color-danger-subtle: color-mix(
       in srgb,
@@ -257,9 +257,9 @@
       var(--pf-color-danger) 36%,
       transparent
     );
-    --pf-color-danger-text: #f29999;
+    --pf-color-danger-text: #f09595;
 
-    --pf-color-success: #63c28a;
+    --pf-color-success: #5fc087;
     --pf-color-text-on-success: #0b1c12;
     --pf-color-success-subtle: color-mix(
       in srgb,
@@ -271,9 +271,9 @@
       var(--pf-color-success) 36%,
       transparent
     );
-    --pf-color-success-text: #84d6a5;
+    --pf-color-success-text: #81d4a2;
 
-    --pf-color-warning: #e8b14d;
+    --pf-color-warning: #e6ad47;
     --pf-color-text-on-warning: #1f1606;
     --pf-color-warning-subtle: color-mix(
       in srgb,
@@ -285,7 +285,7 @@
       var(--pf-color-warning) 36%,
       transparent
     );
-    --pf-color-warning-text: #f3c875;
+    --pf-color-warning-text: #f2c570;
 
     // Chart color palette for data visualization (brighter for dark mode)
     --pf-chart-color-1: #5e97f6; // Lighter Blue
@@ -300,8 +300,8 @@
     // Foreground color for text/icons drawn on top of any --pf-chart-color-*.
     --pf-chart-color-on: #1a1a1a;
 
-    --pf-color-track-summary-collapsed: #282d36;
-    --pf-color-track-summary-expanded: #363d4a;
+    --pf-color-track-summary-collapsed: #222730;
+    --pf-color-track-summary-expanded: #303744;
     --pf-color-track-summary-expanded-text: #e6ebf0;
     --pf-color-timeline-overlay: #e6ebf0;
 

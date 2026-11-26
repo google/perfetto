@@ -16,11 +16,9 @@
 .pf-memscope-billboard {
   padding: 10px 14px;
   border-radius: c.$memscope-section-radius;
-  border: 0.5px solid var(--pf-col-border);
+  border: 1px solid var(--pf-col-border);
   background: var(--pf-col-surface);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--pf-shadow-1);
 }
 
 // A card holding Billboard.Sections lays them out as equal-width columns.
