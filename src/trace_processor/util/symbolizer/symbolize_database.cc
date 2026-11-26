@@ -947,6 +947,7 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
       SymbolizePendingAddresses(groups, env, symbolizer.get(), &mappings,
                                 &result.symbols);
     }
+    result.debuginfod.warnings += config.debuginfod.ima_policy_warning;
   }
   result.debuginfod.warnings += config.debuginfod.llvm_opts_warning;
   if (unresolved)

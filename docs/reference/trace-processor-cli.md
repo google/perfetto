@@ -81,16 +81,19 @@ configuration, so pass `--debuginfod` when starting the server.
 
 Setting URLs alone does not enable downloads; a configured `DEBUGINFOD_URLS`
 without `--debuginfod` produces a warning when symbolization leaves frames
-unresolved. Local symbol paths and Breakpad
-files are searched first and only build IDs that are still unresolved are
-fetched, from the cache and then from each server in order. Downloaded files
-are checked against the requested build ID and published to the cache
-atomically. There is no automatic eviction. `DEBUGINFOD_URLS` and
-`LLVM_SYMBOLIZER_OPTS` are removed from the `llvm-symbolizer` environment so
-it cannot download on its own. The summary counts downloads, cache hits,
-build IDs no server had, and failed lookups, and names servers that could not
-be reached; `--verbose` lists every server tried for each mapping with the
-reason it did not help.
+unresolved. Perfetto accepts `ima:enforcing` and `ima:ignore` tokens in the
+URL list but does not perform IMA signature verification. A regular warning
+is emitted when debuginfod is used with a server under `ima:enforcing`.
+
+Local symbol paths and Breakpad files are searched first and only build IDs
+that are still unresolved are fetched, from the cache and then from each
+server in order. Downloaded files are checked against the requested build ID
+and published to the cache atomically. There is no automatic eviction.
+`DEBUGINFOD_URLS` and `LLVM_SYMBOLIZER_OPTS` are removed from the
+`llvm-symbolizer` environment so it cannot download on its own. The summary
+counts downloads, cache hits, build IDs no server had, and failed lookups, and
+names servers that could not be reached; `--verbose` lists every server tried
+for each mapping with the reason it did not help.
 
 ## {#subcommands} Commands
 
