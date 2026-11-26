@@ -520,39 +520,48 @@ public class PerfettoEventFormatTest {
 
   @Test
   public void invalidRawProtoEventsAreDroppedWithoutDebugChecks() throws Exception {
-    // RAW_PROTO-only drops invalid raw-proto events in release mode.
-    PerfettoTrace.Session onlyRawProto = start(RAW_PROTO, false);
-    emitInvalidRawProtoEventsInReleaseMode();
-    Decoded rawProtoOnly = decode(onlyRawProto.close());
-    assertEquals(1, rawProtoOnly.events.size());
-    assertEquals("after", rawProtoOnly.events.get(0).getName());
-
-    // Mixed sessions fall back to EXTRAS so EXTRAS sessions do not lose the event.
-    PerfettoTrace.Session extras = start(EXTRAS, false);
-    PerfettoTrace.Session rawProto = start(RAW_PROTO, false);
-    emitInvalidRawProtoEventsInReleaseMode();
-    for (PerfettoTrace.Session session : new PerfettoTrace.Session[] {extras, rawProto}) {
-      Decoded trace = decode(session.close());
-      assertEquals(3, trace.events.size());
-      assertEquals("oversized", trace.events.get(0).getName());
-      assertEquals("parent_write", trace.events.get(1).getName());
-      assertEquals("after", trace.events.get(2).getName());
-    }
-  }
-
-  private static void emitInvalidRawProtoEventsInReleaseMode() {
-    PerfettoTrackEventBuilder.newEvent(3, CATEGORY, /* isDebug= */ false)
+    PerfettoTrace.Session session = start(RAW_PROTO, false);
+    PerfettoTrackEventBuilder.newEvent(TYPE_INSTANT, CATEGORY, /* isDebug= */ false)
         .setEventName("oversized")
         .addArg("huge", "x".repeat(1024 * 1024))
         .emit();
+    emitParentWriteDuringNestedInReleaseMode();
+    PerfettoTrace.instant(CATEGORY, "after").emit();
+
+    Decoded trace = decode(session.close());
+    assertEquals(1, trace.events.size());
+    assertEquals("after", trace.events.get(0).getName());
+  }
+
+  @Test
+  public void mixedFormatsFallBackToExtrasOnRawProtoFailure() throws Exception {
+    PerfettoTrace.Session extras = start(EXTRAS, false);
+    PerfettoTrace.Session rawProto = start(RAW_PROTO, false);
+    emitParentWriteDuringNestedInReleaseMode();
+    PerfettoTrace.instant(CATEGORY, "after").emit();
+
+    for (PerfettoTrace.Session session : new PerfettoTrace.Session[] {extras, rawProto}) {
+      Decoded trace = decode(session.close());
+      assertEquals(2, trace.events.size());
+      TrackEvent fallback = trace.events.get(0);
+      assertEquals("parent_write", fallback.getName());
+      List<ByteString> nested = payloads(fallback.toByteString(), 1000);
+      assertEquals(1, nested.size());
+      assertEquals(List.of(ByteString.copyFromUtf8("nested")), payloads(nested.get(0), 1));
+      assertEquals(
+          List.of(ByteString.copyFromUtf8("parent")), payloads(fallback.toByteString(), 1001));
+      assertEquals("after", trace.events.get(1).getName());
+    }
+  }
+
+  private static void emitParentWriteDuringNestedInReleaseMode() {
     PerfettoTrackEventBuilder root =
-        PerfettoTrackEventBuilder.newEvent(3, CATEGORY, /* isDebug= */ false)
+        PerfettoTrackEventBuilder.newEvent(TYPE_INSTANT, CATEGORY, /* isDebug= */ false)
             .setEventName("parent_write");
     PerfettoTrackEventBuilder proto = root.beginProto();
     proto.beginNested(1000).addField(1, "nested");
-    proto.addField(1001, "parent"); // Not supported while the nested field is open.
+    proto.addField(1001, "parent"); // Valid in EXTRAS, invalid while nested is open in RAW_PROTO.
     proto.endProto().emit();
-    PerfettoTrace.instant(CATEGORY, "after").emit();
   }
 
   @Test
@@ -578,6 +587,32 @@ public class PerfettoEventFormatTest {
     }
   }
 
+  // Reads Frame.function_name from raw wire bytes.
+  // Protobuf-lite turns non-UTF-8 bytes (like 0xE9) into U+FFFD during parseFrom().
+  private static List<List<ByteString>> rawCallstackFunctionNames(byte[] trace)
+      throws IOException {
+    List<List<ByteString>> result = new ArrayList<>();
+    for (ByteString packet : payloads(ByteString.copyFrom(trace), Trace.PACKET_FIELD_NUMBER)) {
+      for (ByteString event : payloads(packet, TracePacket.TRACK_EVENT_FIELD_NUMBER)) {
+        List<ByteString> callstacks = payloads(event, TrackEvent.CALLSTACK_FIELD_NUMBER);
+        if (callstacks.isEmpty()) {
+          continue;
+        }
+        List<ByteString> names = new ArrayList<>();
+        for (ByteString callstack : callstacks) {
+          for (ByteString frame :
+              payloads(callstack, TrackEvent.InlineCallstack.FRAMES_FIELD_NUMBER)) {
+            List<ByteString> fn =
+                payloads(frame, TrackEvent.InlineCallstack.Frame.FUNCTION_NAME_FIELD_NUMBER);
+            names.add(fn.isEmpty() ? ByteString.EMPTY : fn.get(0));
+          }
+        }
+        result.add(names);
+      }
+    }
+    return result;
+  }
+
   private static void emitCallstacks(StackTraceElement[] stack) {
     PerfettoTrace.expensiveDebugCallStack(CATEGORY, "stack", stack).emit();
     PerfettoTrace.expensiveDebugCallStack(CATEGORY, "weighted_stack", stack, 2.5).emit();
@@ -595,20 +630,26 @@ public class PerfettoEventFormatTest {
     };
     String[] names = {
         "com.example.Reader.read", ".", "left", "Class.method", "\u00e9.?.method??", "lone?.tail?"};
+    List<ByteString> expectedNames = new ArrayList<>();
+    for (int i = names.length - 1; i >= 0; --i) {
+      expectedNames.add(ByteString.copyFrom(names[i], StandardCharsets.ISO_8859_1));
+    }
     for (boolean v2 : new boolean[] {false, true}) {
       PerfettoTrace.Session baseline = start(EXTRAS, v2);
       emitCallstacks(stack);
-      Decoded expected = decode(baseline.close());
+      byte[] baselineBytes = baseline.close();
+      Decoded expected = decode(baselineBytes);
       assertEquals(2, expected.events.size());
       assertEquals(stack.length, expected.events.get(0).getCallstack().getFramesCount());
-      for (int i = 0; i < names.length; ++i) {
-        assertEquals(ByteString.copyFrom(names[names.length - 1 - i], StandardCharsets.ISO_8859_1),
-            expected.events.get(0).getCallstack().getFrames(i).getFunctionNameBytes());
-      }
+      assertEquals(
+          List.of(expectedNames, expectedNames), rawCallstackFunctionNames(baselineBytes));
 
       PerfettoTrace.Session onlyRawProto = start(RAW_PROTO, v2);
       emitCallstacks(stack);
-      assertEquals(expected.events, decode(onlyRawProto.close()).events);
+      byte[] rawProtoBytes = onlyRawProto.close();
+      assertEquals(expected.events, decode(rawProtoBytes).events);
+      assertEquals(
+          List.of(expectedNames, expectedNames), rawCallstackFunctionNames(rawProtoBytes));
 
       PerfettoTrace.Session extras = start(EXTRAS, v2);
       PerfettoTrace.Session rawProto = start(RAW_PROTO, v2);
