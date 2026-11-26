@@ -60,6 +60,7 @@ class ArtMethodV2Tokenizer : public ChunkedTraceReader {
   base::StatusOr<bool> ParseThreadOrMethodInfo(bool is_method);
   void ParseMethod(uint64_t id, const std::string& str);
   base::StatusOr<bool> ParseTraceEntries();
+  base::StatusOr<bool> ParseSummary();
   void PushRecord(uint32_t tid,
                   uint32_t action,
                   uint64_t method_id,
@@ -72,7 +73,6 @@ class ArtMethodV2Tokenizer : public ChunkedTraceReader {
   bool header_parsed_ = false;
   bool is_dual_clock_ = false;
   bool trace_complete_ = false;
-  bool is_parsing_summary_ = false;
   int64_t ts_ = 0;
   uint64_t start_tsc_ = 0;
   uint64_t tsc_frequency_ = 0;

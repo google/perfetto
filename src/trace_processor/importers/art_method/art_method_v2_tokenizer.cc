@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,6 +33,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
@@ -108,6 +110,29 @@ std::string ConstructPathname(base::StringView class_name,
   return pathname.ToStdString();
 }
 
+// Converts a raw TSC counter value to nanoseconds relative to `start_tsc`
+// without overflowing 64-bit integer multiplication.
+int64_t ScaleTscDeltaToNs(uint64_t raw_tsc,
+                          uint64_t start_tsc,
+                          uint64_t tsc_frequency) {
+  constexpr uint64_t kNsPerSec = 1000000000ULL;
+  bool negative = raw_tsc < start_tsc;
+  uint64_t delta = negative ? (start_tsc - raw_tsc) : (raw_tsc - start_tsc);
+  uint64_t secs = delta / tsc_frequency;
+  uint64_t rem = delta % tsc_frequency;
+  uint64_t rem_ns;
+  if (tsc_frequency <= std::numeric_limits<uint64_t>::max() / kNsPerSec) {
+    rem_ns = (rem * kNsPerSec) / tsc_frequency;
+  } else {
+    rem_ns = static_cast<uint64_t>(static_cast<double>(rem) *
+                                   static_cast<double>(kNsPerSec) /
+                                   static_cast<double>(tsc_frequency));
+  }
+  uint64_t total_ns = secs * kNsPerSec + rem_ns;
+  return negative ? static_cast<int64_t>(0ULL - total_ns)
+                  : static_cast<int64_t>(total_ns);
+}
+
 }  // namespace
 
 ArtMethodV2Tokenizer::ArtMethodV2Tokenizer(TraceProcessorContext* ctx)
@@ -128,41 +153,14 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
     header_parsed_ = true;
   }
 
-  if (trace_complete_) {
-    return base::ErrStatus("ART Method V2 trace: extra data after summary");
-  }
-
   for (;;) {
-    if (is_parsing_summary_) {
-      auto it = reader_.GetIterator();
-      size_t avail = reader_.avail();
-      if (avail > 0) {
-        auto summary_opt = it.MaybeRead(avail);
-        if (summary_opt) {
-          std::string_view new_data(
-              reinterpret_cast<const char*>(summary_opt->data()), avail);
-
-          // To optimize the search for "*end" across streaming chunks, we only
-          // search the newly appended data. We back up by 3 characters into the
-          // old data in case the "*end" string was split exactly across two
-          // chunks.
-          size_t search_start = summary_.size() >= 3 ? summary_.size() - 3 : 0;
-          summary_.append(new_data);
-
-          if (summary_.find("*end", search_start) != std::string::npos) {
-            trace_complete_ = true;
-            is_parsing_summary_ = false;
-          }
-          reader_.PopFrontUntil(it.file_offset());
-        }
-      }
-      return base::OkStatus();
-    }
-
     auto it = reader_.GetIterator();
     auto header_opt = it.MaybeRead(1);
     if (!header_opt) {
       return base::OkStatus();
+    }
+    if (trace_complete_) {
+      return base::ErrStatus("ART Method V2 trace: extra data after summary");
     }
     uint8_t entry_header = header_opt->data()[0];
 
@@ -179,10 +177,7 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
         break;
       }
       case kSummary: {
-        is_parsing_summary_ = true;
-        auto summary_opt = it.MaybeRead(1);
-        reader_.PopFrontUntil(it.file_offset());
-        has_more = true;
+        ASSIGN_OR_RETURN(has_more, ParseSummary());
         break;
       }
       default: {
@@ -362,22 +357,27 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
     uint8_t event_type = curr_timestamp_action_value & kTraceActionMask;
 
     if (is_dual_clock_) {
-      // In dual clock mode, the second timestamp is Thread CPU time.
-      // We just skip over it.
-      int64_t dummy = 0;
-      const uint8_t* next_ptr_dual =
-          DecodeSignedLeb128(current_buffer_ptr, buffer_end, &dummy);
+      // In dual clock mode, the second timestamp is a ULEB128 Thread CPU time
+      // delta. We just skip over it.
+      uint64_t dummy = 0;
+      const uint8_t* next_ptr_dual = protozero::proto_utils::ParseVarInt(
+          current_buffer_ptr, buffer_end, &dummy);
       if (next_ptr_dual == current_buffer_ptr) {
         break;
       }
       current_buffer_ptr = next_ptr_dual;
     }
 
-    // The first timestamp is the Wall time.
-    // Shift out action bits to get actual timestamp diff in nanoseconds.
-    int64_t ts = static_cast<int64_t>(curr_timestamp_action_value >> 2);
-    if (tsc_frequency_ > 0) {
-      ts = ts * 1000000000LL / static_cast<int64_t>(tsc_frequency_);
+    // Shift out action bits to get the raw timestamp.
+    uint64_t raw_ts = curr_timestamp_action_value >> 2;
+    int64_t ts;
+    if (tsc_frequency_ > 1) {
+      ts = ScaleTscDeltaToNs(raw_ts, start_tsc_, tsc_frequency_);
+    } else {
+      // ART writes tsc_frequency == 1 for thread-cpu-only v2 traces, where
+      // record timestamps are already nanoseconds starting at 0 rather than
+      // raw TSC counters relative to start_tsc_.
+      ts = static_cast<int64_t>(raw_ts);
     }
 
     int64_t method_id;
@@ -413,6 +413,30 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
     PushRecord(thread_id, event_type, static_cast<uint64_t>(method_id), ts);
   }
 
+  reader_.PopFrontUntil(it.file_offset());
+  return true;
+}
+
+base::StatusOr<bool> ArtMethodV2Tokenizer::ParseSummary() {
+  auto it = reader_.GetIterator();
+  auto header_opt = it.MaybeRead(1 + 2);
+  if (!header_opt) {
+    return false;
+  }
+  uint16_t length =
+      static_cast<uint16_t>(ReadNumber(header_opt->data() + 1, 2));
+  if (length == 0) {
+    return base::ErrStatus("ART Method V2 trace: summary missing *end marker");
+  }
+  auto summary_opt = it.MaybeRead(length);
+  if (!summary_opt) {
+    return false;
+  }
+  summary_.assign(reinterpret_cast<const char*>(summary_opt->data()), length);
+  if (summary_.find("*end") == std::string::npos) {
+    return base::ErrStatus("ART Method V2 trace: summary missing *end marker");
+  }
+  trace_complete_ = true;
   reader_.PopFrontUntil(it.file_offset());
   return true;
 }
