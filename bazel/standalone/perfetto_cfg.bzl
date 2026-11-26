@@ -64,6 +64,7 @@ PERFETTO_CONFIG = struct(
             "@perfetto_maven//:junit_junit",
             "@perfetto_maven//:com_google_truth_truth",
             "@perfetto_maven//:androidx_test_ext_junit",
+            "@com_google_protobuf//:protobuf_javalite",
         ],
 
         error_prone_annotations = [
