@@ -15,6 +15,13 @@
 import {binaryDecode} from '../base/string_utils';
 import {ChromeTracingController} from './chrome_tracing_controller';
 
+// externally_connectable match patterns can't restrict the port, so the
+// localhost and 127.0.0.1 entries in the manifest let any page served from any
+// local port connect and record a browser-wide trace via chrome.debugger.
+// Check the sender here too. Localhost is only trusted when the extension is
+// loaded unpacked, i.e. when someone is working on the UI locally.
+const PERFETTO_UI_ORIGIN = 'https://ui.perfetto.dev';
+
 let chromeTraceController: ChromeTracingController | undefined = undefined;
 
 enableOnlyOnPerfettoHost();
@@ -23,9 +30,31 @@ enableOnlyOnPerfettoHost();
 // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
 if (globalThis.chrome) {
   chrome.runtime.onConnectExternal.addListener((port) => {
+    if (!isAllowedSender(port.sender)) {
+      port.disconnect();
+      return;
+    }
     chromeTraceController = new ChromeTracingController(port);
     port.onMessage.addListener(onUIMessage);
   });
+}
+
+function isAllowedSender(sender?: chrome.runtime.MessageSender): boolean {
+  const origin = sender?.origin;
+  if (origin === undefined) return false;
+  if (origin === PERFETTO_UI_ORIGIN) return true;
+
+  // Store installs get an update_url added to their manifest, unpacked ones
+  // don't.
+  const isUnpacked = chrome.runtime.getManifest().update_url === undefined;
+  if (!isUnpacked) return false;
+  let hostname: string;
+  try {
+    hostname = new URL(origin).hostname;
+  } catch {
+    return false;
+  }
+  return hostname === 'localhost' || hostname === '127.0.0.1';
 }
 
 function onUIMessage(
