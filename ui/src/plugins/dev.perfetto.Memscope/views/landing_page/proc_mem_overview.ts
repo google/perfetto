@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Gate} from '../../../../base/mithril_utils';
 import {AsyncMemo} from '../../../../base/async_memo';
 import {Time, type time} from '../../../../base/time';
 import {ProportionBar} from '../../../../components/widgets/charts/proportion_bar';
@@ -24,13 +23,11 @@ import {
   NUM,
   STR,
 } from '../../../../trace_processor/query_result';
-import {TabStrip} from '../../../../widgets/tab_strip';
+import type {NavView} from '../../../com.android.HeapDumpExplorer/nav_state';
 import {Inset} from '../../components/inset';
-import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
 import {deltaColor, formatDelta} from './mem_format';
 import {type MemSelection, nearestByTs} from './selection';
-import {SmapsDetail} from './smaps_detail';
 import {SMAPS_CATEGORIES, SMAPS_CATEGORY_CASE_SQL} from './smaps_categories';
 import {BitmapsSection} from './summary/bitmaps_section';
 import {CompositionTimeline} from './summary/composition_timeline';
@@ -41,16 +38,17 @@ import {TraceOverview} from './summary/trace_overview';
 
 // Sample count and observed time span of one capture source (smaps / heapprofd)
 // for a process. spanS is undefined when there are fewer than two samples.
-interface SourceFacts {
+export interface SourceFacts {
   readonly samples: number;
   readonly spanS?: number;
 }
 
-// The terse facts the header capture strip shows for the selected process: its
-// name and a per-source summary. Each source is loaded with a cheap aggregate
-// query rather than pulling every row.
-interface CaptureInfo {
+// The terse facts the header telemetry strip and scope lens bar show for the
+// selected process: its name and a per-source summary. Each source is loaded
+// with a cheap aggregate query rather than pulling every row.
+export interface CaptureInfo {
   readonly processName: string;
+  readonly pid: number;
   readonly smaps: SourceFacts;
   readonly dumps: number;
   readonly hasBitmaps: boolean;
@@ -107,77 +105,42 @@ async function loadGrowthData(
   return Array.from(byTs.values());
 }
 
-export type MemoryOverviewTab = 'summary' | 'smaps';
+export type MemoryScope = 'overview' | 'smaps' | 'heap';
 
 export interface ProcessMemDetailsAttrs {
   readonly trace: Trace;
   readonly upid: number;
-  readonly tab: MemoryOverviewTab;
-  readonly onTabChange: (tab: MemoryOverviewTab) => void;
+  readonly capture?: CaptureInfo;
+  readonly selection?: MemSelection;
+  readonly onSelect: (selection: MemSelection) => void;
+  readonly onInspectSmaps?: () => void;
+  readonly onOpenJavaHeap?: (
+    ts: time,
+    view: NavView,
+    params?: Record<string, unknown>,
+  ) => void;
 }
 
 export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
-  // The capture-strip facts: process name + per-source sample counts. Its own
-  // slot keyed by (trace, upid) so it reloads when the selected process changes.
-  private readonly captureSlot = new AsyncMemo<CaptureInfo>();
   // Whole-trace per-snapshot smaps breakdown for the growth bar (keyed by
   // upid; independent of the page's snapshot selection).
   private readonly growthSlot = new AsyncMemo<GrowthSnapshot[]>();
-  // The page-wide snapshot selection, driven by the composition timeline and
-  // shared with the other summary sections as they're added.
-  private selection?: MemSelection;
 
   onremove() {
-    this.captureSlot.dispose();
     this.growthSlot.dispose();
   }
 
   view({attrs}: m.Vnode<ProcessMemDetailsAttrs>) {
-    const {trace, upid, tab, onTabChange} = attrs;
-    let capture: CaptureInfo | undefined;
-    let error: string | undefined;
-    try {
-      capture = this.captureSlot.use({
-        key: {traceId: trace.traceInfo.uuid, upid},
-        compute: () => loadCaptureInfo(trace, upid),
-      }).data;
-    } catch (e) {
-      error = String(e);
-    }
+    const {
+      trace,
+      upid,
+      capture,
+      selection,
+      onSelect,
+      onInspectSmaps,
+      onOpenJavaHeap,
+    } = attrs;
 
-    const smapsMissing = capture !== undefined && capture.smaps.samples === 0;
-    const activeTab = smapsMissing ? 'summary' : tab;
-
-    // Both tab bodies stay mounted and are toggled with a Gate (display:none
-    // when hidden) rather than conditionally rendered, so switching tabs doesn't
-    // remount each tab's components and re-run their data loads.
-    return [
-      error !== undefined && m('p.pf-error', `Error: ${error}`),
-      error === undefined && this.renderCaptureStrip(trace, capture),
-      error === undefined &&
-        this.renderTabs(activeTab, smapsMissing, onTabChange),
-      error === undefined &&
-        m(
-          Gate,
-          {open: activeTab === 'summary'},
-          // SubPage gives its direct children the cascading fade-up entrance
-          // animation (.pf-memscope-subpage > *), matching the rest of the page.
-          m(SubPage, ...this.renderSummarySections(trace, upid, capture)),
-        ),
-      error === undefined &&
-        m(
-          Gate,
-          {open: activeTab === 'smaps'},
-          m(SubPage, m(SmapsDetail, {trace, upid})),
-        ),
-    ];
-  }
-
-  private renderSummarySections(
-    trace: Trace,
-    upid: number,
-    capture?: CaptureInfo,
-  ): m.Child[] {
     // Keep the headline billboards pinned to the top. Once the lightweight
     // capture query completes, move empty detail sections below sections with
     // data while preserving the normal order within each group. Keys ensure
@@ -188,6 +151,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     const dumpsAvailable = capture === undefined || capture.dumps > 0;
     const bitmapsAvailable = capture === undefined || capture.hasBitmaps;
     const nativeAvailable = capture === undefined || capture.native.samples > 0;
+
     const sections = [
       {
         hasData: timelineAvailable,
@@ -195,13 +159,13 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'composition',
           trace,
           upid,
-          selection: this.selection,
-          onSelect: (s: MemSelection) => (this.selection = s),
+          selection,
+          onSelect,
           belowChart: this.renderGrowthBar(
             trace,
             upid,
-            this.selection?.sel,
-            this.selection?.base,
+            selection?.sel,
+            selection?.base,
           ),
         }),
       },
@@ -211,8 +175,9 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'memory-map',
           trace,
           upid,
-          selTs: this.selection?.sel,
-          baseTs: this.selection?.base,
+          selTs: selection?.sel,
+          baseTs: selection?.base,
+          onInspectSmaps,
         }),
       },
       {
@@ -221,8 +186,9 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'java',
           trace,
           upid,
-          selTs: this.selection?.sel,
-          baseTs: this.selection?.base,
+          selTs: selection?.sel,
+          baseTs: selection?.base,
+          onOpenJavaHeap,
         }),
       },
       {
@@ -231,8 +197,12 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'bitmaps',
           trace,
           upid,
-          selTs: this.selection?.sel,
-          baseTs: this.selection?.base,
+          selTs: selection?.sel,
+          baseTs: selection?.base,
+          onOpenBitmapsGallery:
+            onOpenJavaHeap !== undefined
+              ? (ts: time) => onOpenJavaHeap(ts, 'bitmaps')
+              : undefined,
         }),
       },
       {
@@ -241,56 +211,17 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
           key: 'native',
           trace,
           upid,
-          selTs: this.selection?.sel,
-          baseTs: this.selection?.base,
+          selTs: selection?.sel,
+          baseTs: selection?.base,
         }),
       },
     ];
     sections.sort((a, b) => Number(b.hasData) - Number(a.hasData));
-    return [
+
+    return m(
+      SubPage,
       m(TraceOverview, {key: 'trace-overview', trace, upid}),
       ...sections.map((section) => section.content),
-    ];
-  }
-
-  private renderTabs(
-    activeTab: MemoryOverviewTab,
-    smapsMissing: boolean,
-    onTabChange: (tab: MemoryOverviewTab) => void,
-  ): m.Children {
-    const tabs: {
-      key: MemoryOverviewTab;
-      label: string;
-      icon: string;
-      disabled?: boolean;
-    }[] = [
-      {key: 'summary', label: 'Summary', icon: 'description'},
-      {
-        key: 'smaps',
-        label: 'Smaps Detail',
-        icon: 'table_rows',
-        disabled: smapsMissing,
-      },
-    ];
-    return m(
-      TabStrip,
-      {variant: 'underline'},
-      tabs.map((t) =>
-        m(
-          TabStrip.Tab,
-          {
-            key: t.key,
-            active: t.key === activeTab,
-            disabled: t.disabled,
-            icon: t.icon,
-            title: t.disabled
-              ? 'No smaps data available for this process'
-              : undefined,
-            onclick: () => onTabChange(t.key),
-          },
-          t.label,
-        ),
-      ),
     );
   }
 
@@ -309,10 +240,12 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       compute: () => loadGrowthData(trace, upid),
     }).data;
     if (snaps === undefined || snaps.length < 2) return undefined;
-    const firstSnap = snaps[0]!;
-    const lastSnap = snaps[snaps.length - 1]!;
+    const firstSnap = snaps[0];
+    const lastSnap = snaps[snaps.length - 1];
+    if (firstSnap === undefined || lastSnap === undefined) return undefined;
     // Selected endpoint (nearest snapshot), or the latest when unselected.
-    const sel = selTs !== undefined ? nearestByTs(snaps, selTs)! : lastSnap;
+    const sel =
+      (selTs !== undefined ? nearestByTs(snaps, selTs) : undefined) ?? lastSnap;
     // Baseline endpoint: an explicit baseline (when diffing), otherwise the
     // first snapshot so a single selection reads as "growth up to here".
     const resolvedBase =
@@ -376,69 +309,6 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       }),
     ]);
   }
-
-  // Header capture strip: trace identity plus one colored dot + terse facts
-  // per source (smaps / java_hprof / heapprofd), for the selected process. The
-  // trace title/duration are known immediately; `info` is undefined while its
-  // query is in flight, in which case the per-process facts render as "…" so
-  // the strip is laid out from first paint rather than popping in.
-  private renderCaptureStrip(trace: Trace, info?: CaptureInfo): m.Children {
-    const durationS = Number(trace.traceInfo.end - trace.traceInfo.start) / 1e9;
-    const loading = info === undefined;
-
-    const sourceFacts = (f: SourceFacts): string | undefined =>
-      f.samples > 0
-        ? `${f.samples} samples` +
-          (f.spanS !== undefined ? ` over ${f.spanS.toFixed(1)}s` : '')
-        : undefined;
-
-    const sources: {key: string; label: string; facts?: string}[] = [
-      {key: 'smaps', label: 'smaps', facts: info && sourceFacts(info.smaps)},
-      {
-        key: 'dump',
-        label: 'java_hprof',
-        facts: info && (info.dumps > 0 ? `${info.dumps} dumps` : undefined),
-      },
-      {
-        key: 'native',
-        label: 'heapprofd',
-        facts: info && sourceFacts(info.native),
-      },
-    ];
-
-    return m(Panel, {className: 'pf-memscope-capture'}, [
-      m('.pf-memscope-capture__identity', [
-        m('span.pf-memscope-capture__process', info?.processName ?? '…'),
-        m('span', `${trace.traceInfo.traceTitle} - ${durationS.toFixed(1)}s`),
-      ]),
-      m(
-        '.pf-memscope-capture__sources',
-        sources.map((s) =>
-          m(
-            'span.pf-memscope-capture__source',
-            {
-              // Only dim a source once we know it has no data; while loading
-              // we don't yet know, so leave it at full strength.
-              className:
-                !loading && s.facts === undefined
-                  ? 'pf-memscope-capture__source--empty'
-                  : undefined,
-            },
-            [
-              m(
-                `span.pf-memscope-capture__dot.pf-memscope-capture__dot--${s.key}`,
-              ),
-              m('span.pf-memscope-capture__label', s.label),
-              m(
-                'span.pf-memscope-capture__facts',
-                loading ? '…' : (s.facts ?? 'none'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ]);
-  }
 }
 
 // Turns a `(count, min_ts, max_ts)` aggregate into the terse source facts used
@@ -457,9 +327,10 @@ function makeSourceFacts(
 }
 
 // Loads all source availability in one lightweight query. Besides powering the
-// capture strip, these facts let the summary put empty sections last without
-// waiting for every section's full data query.
-async function loadCaptureInfo(
+// unified header telemetry strip and scope lens bar, these facts let the
+// summary put empty sections last without waiting for every section's full
+// data query.
+export async function loadCaptureInfo(
   trace: Trace,
   upid: number,
 ): Promise<CaptureInfo> {
@@ -474,14 +345,16 @@ async function loadCaptureInfo(
       FROM heap_profile_allocation WHERE upid = ${upid}
     )
     SELECT
-      coalesce((SELECT name FROM process WHERE upid = ${upid}), '<unknown>')
-        AS pname,
+      coalesce(
+        (SELECT COALESCE(cmdline, name) FROM process WHERE upid = ${upid}),
+        '<unknown>'
+      ) AS pname,
+      coalesce((SELECT pid FROM process WHERE upid = ${upid}), 0) AS pid,
       smaps.n AS smaps_n,
       smaps.min_ts AS smaps_min_ts,
       smaps.max_ts AS smaps_max_ts,
       (
-        SELECT COUNT(*) FROM heap_profile_events
-        WHERE upid = ${upid} AND type = 'java_heap_graph'
+        SELECT COUNT(*) FROM heap_graph WHERE upid = ${upid}
       ) AS dumps,
       EXISTS(
         SELECT 1
@@ -499,6 +372,7 @@ async function loadCaptureInfo(
   `);
   const row = res.firstRow({
     pname: STR,
+    pid: NUM,
     smaps_n: NUM,
     smaps_min_ts: LONG_NULL,
     smaps_max_ts: LONG_NULL,
@@ -510,6 +384,7 @@ async function loadCaptureInfo(
   });
   return {
     processName: row.pname,
+    pid: row.pid,
     smaps: makeSourceFacts(row.smaps_n, row.smaps_min_ts, row.smaps_max_ts),
     dumps: row.dumps,
     hasBitmaps: row.has_bitmaps !== 0,

@@ -12,6 +12,446 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// ---------------------------------------------------------------------------
+// Unified Memory Explorer shell (sticky header + scope lens bar + adaptive body)
+// ---------------------------------------------------------------------------
+.pf-memscope-unified {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pf-memscope-unified__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-memscope-scroll-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pf-memscope-heap-canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-memscope-unified__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.pf-memscope-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+// Unified fixed header: two rows (Subject & Telemetry + Scope Zoom Lens Bar).
+.pf-memscope-header {
+  flex: none;
+  background: var(--pf-col-surface);
+  border-bottom: 1px solid var(--pf-col-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  z-index: 2;
+}
+
+.pf-memscope-header__top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--pf-col-border) 55%, transparent);
+}
+
+.pf-memscope-header__subject {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pf-memscope-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
+    color: var(--pf-color-primary);
+
+    .pf-icon {
+      font-size: 18px;
+    }
+  }
+
+  &__title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--pf-color-text);
+  }
+
+  &__badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--pf-col-inset);
+    border: 1px solid var(--pf-col-border);
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memscope-header__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--pf-col-border);
+  flex-shrink: 0;
+}
+
+.pf-memscope-proc-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 380px;
+  padding: 5px 10px 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--pf-col-border);
+  background: var(--pf-col-base);
+  color: var(--pf-color-text);
+  font: inherit;
+  font-size: var(--pf-font-size-s);
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+
+  &:hover {
+    border-color: var(--pf-color-primary);
+    background: var(--pf-col-surface);
+  }
+
+  &__name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__pid {
+    flex-shrink: 0;
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--pf-col-inset);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__caret {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: var(--pf-color-text-muted);
+    margin-left: -2px;
+  }
+}
+
+.pf-memscope-proc-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 240px;
+
+  &__main {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  &__name {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__pid {
+    font-family: var(--pf-font-monospace);
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-memscope-header__telemetry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pf-memscope-telemetry-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--pf-col-base);
+  border: 1px solid color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+
+  &--empty {
+    opacity: 0.48;
+  }
+
+  &__label {
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  &__facts {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-memscope-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.pf-memscope-header__feedback {
+  font-size: var(--pf-font-size-s);
+}
+
+// Row 2: Scope Zoom Lens Bar
+.pf-memscope-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 16px;
+  background: color-mix(in srgb, var(--pf-col-base) 55%, var(--pf-col-surface));
+}
+
+.pf-memscope-scope-ladder {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  &__chevron {
+    font-size: 16px;
+    color: var(--pf-color-text-hint);
+    opacity: 0.6;
+    user-select: none;
+  }
+}
+
+.pf-memscope-scope-lens {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--pf-color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--pf-col-surface) 75%, transparent);
+    border-color: color-mix(in srgb, var(--pf-col-border) 80%, transparent);
+    color: var(--pf-color-text);
+  }
+
+  &--active {
+    background: var(--pf-col-surface);
+    border-color: color-mix(
+      in srgb,
+      var(--pf-color-primary) 55%,
+      var(--pf-col-border)
+    );
+    color: var(--pf-color-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: -1px;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+      background: var(--pf-color-primary);
+    }
+
+    .pf-memscope-scope-lens__icon {
+      color: var(--pf-color-primary);
+    }
+
+    .pf-memscope-scope-lens__label {
+      color: var(--pf-color-text);
+    }
+  }
+
+  &--disabled,
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+
+  &__icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  &__label {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+  }
+
+  &__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+}
+
+.pf-memscope-scope-bar__context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.pf-memscope-dump-bar {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  &__icon {
+    font-size: 15px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pf-color-text-muted);
+    margin-right: 2px;
+  }
+
+  &__single {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text);
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--pf-col-surface);
+    border: 1px solid var(--pf-col-border);
+  }
+
+  .pf-chip {
+    padding: 3px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-memscope-window-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--pf-color-primary) 10%,
+    var(--pf-col-surface)
+  );
+  border: 1px solid color-mix(in srgb, var(--pf-color-primary) 35%, transparent);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text);
+
+  .pf-icon {
+    font-size: 14px;
+    color: var(--pf-color-primary);
+  }
+}
+
 // Header capture strip: process identity + per-source capture facts. Layout
 // only - the raised-card chrome comes from the Panel this class is applied to.
 .pf-memscope-capture {

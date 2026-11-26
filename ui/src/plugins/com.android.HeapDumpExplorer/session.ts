@@ -75,6 +75,7 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 export class HeapDumpExplorerSession {
   private _dumps: ReadonlyArray<HeapDump> = [];
   private readonly _counts = new Map<string, number>();
+  private hrefBuilder: (sub: string | undefined) => string = makeHref;
 
   // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
   // with the dumps.
@@ -92,6 +93,10 @@ export class HeapDumpExplorerSession {
     private readonly storage: Storage<HdeState>,
   ) {}
 
+  setHrefBuilder(builder: (sub: string | undefined) => string): void {
+    this.hrefBuilder = builder;
+  }
+
   private edit(
     fn: (draft: {-readonly [K in keyof HdeState]: HdeState[K]}) => void,
   ): void {
@@ -108,6 +113,42 @@ export class HeapDumpExplorerSession {
 
   get dumps(): ReadonlyArray<HeapDump> {
     return this._dumps;
+  }
+
+  getDumpsForProcess(upid: number): ReadonlyArray<HeapDump> {
+    return this._dumps.filter((d) => d.upid === upid);
+  }
+
+  selectDumpForProcess(upid: number, preferredTs?: time): HeapDump | undefined {
+    const procDumps = this.getDumpsForProcess(upid);
+    if (procDumps.length === 0) return undefined;
+
+    let chosen: HeapDump | undefined;
+    if (preferredTs !== undefined) {
+      chosen = procDumps[0];
+      let bestDist =
+        chosen !== undefined
+          ? Math.abs(Number(chosen.ts - preferredTs))
+          : Infinity;
+      for (let i = 1; i < procDumps.length; i++) {
+        const candidate = procDumps[i];
+        if (candidate === undefined) continue;
+        const dist = Math.abs(Number(candidate.ts - preferredTs));
+        if (dist < bestDist) {
+          bestDist = dist;
+          chosen = candidate;
+        }
+      }
+    } else if (this.activeDump !== null && this.activeDump.upid === upid) {
+      chosen = this.activeDump;
+    } else {
+      chosen = procDumps[procDumps.length - 1];
+    }
+
+    if (chosen !== undefined && chosen !== this.activeDump) {
+      this.switchToDump(chosen);
+    }
+    return chosen;
   }
 
   get activeDump(): HeapDump | null {
@@ -186,7 +227,7 @@ export class HeapDumpExplorerSession {
     this.edit((s) => {
       s.nav = sub;
     });
-    this.trace.navigate(makeHref(sub));
+    this.trace.navigate(this.hrefBuilder(sub));
   }
 
   navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
@@ -213,7 +254,7 @@ export class HeapDumpExplorerSession {
     });
     // Replace the current URL instead of navigating to avoid creating a new
     // history entry and creating a navigation trap.
-    location.replace(makeHref(sub));
+    location.replace(this.hrefBuilder(sub));
   }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
