@@ -1,6 +1,7 @@
 grpcio==1.76.0
 pandas==2.3.3
 protobuf==6.33.5
+types-protobuf==6.32.1.20260221
 pyarrow==25.0.0
 yapf==0.40.2
 brotli==1.2.1

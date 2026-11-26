@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses as dc
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
@@ -213,7 +213,7 @@ class TraceProcessor:
 
     if trace or file_path:
       try:
-        self._parse_trace(trace if trace else file_path)
+        self._parse_trace(cast(TraceReference, trace if trace else file_path))
       except TraceProcessorException as ex:
         self.close()
         raise ex
@@ -311,9 +311,9 @@ class TraceProcessor:
     if response.error:
       raise TraceProcessorException(response.error)
 
-    metrics = self.protos.TraceMetrics()
-    metrics.ParseFromString(response.metrics)
-    return metrics
+    trace_metrics = self.protos.TraceMetrics()
+    trace_metrics.ParseFromString(response.metrics)
+    return trace_metrics
 
   def export(self, output_path: str, export_format: str):
     """Exports the contents of Trace Processor.
