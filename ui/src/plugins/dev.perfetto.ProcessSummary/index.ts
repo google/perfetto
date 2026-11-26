@@ -22,6 +22,11 @@ import {
   STR,
 } from '../../trace_processor/query_result';
 import ThreadPlugin from '../dev.perfetto.Thread';
+import TrackDimensionsPlugin from '../dev.perfetto.TrackDimensions';
+import {
+  getCustomDimensionChips,
+  getProcessCustomDimensions,
+} from '../dev.perfetto.TrackDimensions/custom_dimensions';
 import {
   type Config,
   SLICE_TRACK_SUMMARY_KIND,
@@ -32,7 +37,7 @@ import {
 // groups.
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ProcessSummary';
-  static readonly dependencies = [ThreadPlugin];
+  static readonly dependencies = [ThreadPlugin, TrackDimensionsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
@@ -40,6 +45,9 @@ export default class implements PerfettoPlugin {
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
+    const dimensions = ctx.plugins
+      .getPlugin(TrackDimensionsPlugin)
+      .getCustomDimensions();
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
 
@@ -144,6 +152,14 @@ export default class implements PerfettoPlugin {
       // See https://source.android.com/docs/core/runtime/boot-image-profiles
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
+
+      if (upid !== null) {
+        chips.push(
+          ...getCustomDimensionChips(
+            getProcessCustomDimensions(dimensions, upid),
+          ),
+        );
+      }
 
       const config: Config = {
         pidForColor,

@@ -37,6 +37,13 @@ import {z} from 'zod';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ThreadPlugin from '../dev.perfetto.Thread';
 import ProcessSummaryPlugin from '../dev.perfetto.ProcessSummary';
+import TrackDimensionsPlugin from '../dev.perfetto.TrackDimensions';
+import {
+  type CustomDimension,
+  getCustomDimensionChips,
+  getCustomDimensions,
+  getProcessCustomDimensions,
+} from '../dev.perfetto.TrackDimensions/custom_dimensions';
 import {
   type Config as SliceTrackSummaryConfig,
   SLICE_TRACK_SUMMARY_KIND,
@@ -62,6 +69,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     TraceProcessorTrackPlugin,
     ThreadPlugin,
     ProcessSummaryPlugin,
+    TrackDimensionsPlugin,
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
@@ -168,6 +176,15 @@ export default class TrackEventPlugin implements PerfettoPlugin {
     const trackIdToTrackNode = new Map<number, TrackNode>();
 
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
+    const dimensions = ctx.plugins
+      .getPlugin(TrackDimensionsPlugin)
+      .getCustomDimensions();
+    // Dimensions shown by each node and its ancestors, keyed like
+    // trackIdToTrackNode, so children can omit the ones they inherit.
+    const trackIdToShownDimensions = new Map<
+      number,
+      ReadonlyArray<CustomDimension>
+    >();
 
     for (; it.valid(); it.next()) {
       const {
@@ -329,14 +346,28 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         hasChildren,
       );
       const isGlobalRoot = parentId === null && upid === null && utid === null;
+      // Tracks without a parent track live in their process group (if any),
+      // which shows the dimensions of the process root tracks.
+      const inheritedDimensions =
+        parentId !== null
+          ? (trackIdToShownDimensions.get(parentId) ?? [])
+          : upid !== null
+            ? getProcessCustomDimensions(dimensions, upid)
+            : [];
+      const ownDimensions = getCustomDimensions(dimensions, trackIds);
       const node = new TrackNode({
         name: trackName,
         sortOrder: isGlobalRoot ? 0 : orderId,
         isSummary: hasData === 0,
         uri,
+        chips: getCustomDimensionChips(ownDimensions, inheritedDimensions),
       });
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0]!, node);
+      trackIdToShownDimensions.set(trackIds[0]!, [
+        ...inheritedDimensions,
+        ...ownDimensions,
+      ]);
     }
 
     ctx.selection.registerAreaSelectionTab(
