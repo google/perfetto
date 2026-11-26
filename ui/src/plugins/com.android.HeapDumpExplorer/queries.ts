@@ -266,6 +266,107 @@ export async function getPotentiallyMergedClasses(
   return names;
 }
 
+export async function getDuplicateBitmaps(
+  engine: Engine,
+  activeDump: HeapDump,
+): Promise<DuplicateBitmapGroup[]> {
+  const dumpFilter = dumpFilterSql(activeDump, 'o');
+  // Duplicate bitmaps grouped by pixel content hash. Each bitmap's compressed
+  // DumpData buffer is hashed to detect true content duplicates rather than
+  // just matching on dimensions.
+  const dupRes = await engine.query(`
+    SELECT
+      o.id,
+      MAX(CASE WHEN f.field_name GLOB '*mWidth' THEN f.int_value END) AS w,
+      MAX(CASE WHEN f.field_name GLOB '*mHeight' THEN f.int_value END) AS h,
+      MAX(CASE WHEN f.field_name GLOB '*mNativePtr' THEN f.long_value END)
+        AS native_ptr,
+      o.self_size + o.native_size AS total_bytes
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+    LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
+    WHERE o.reachable != 0
+      AND ${dumpFilter}
+      AND (c.name = 'android.graphics.Bitmap'
+        OR c.deobfuscated_name = 'android.graphics.Bitmap')
+    GROUP BY o.id
+    HAVING w IS NOT NULL AND h IS NOT NULL
+  `);
+
+  const bitmapInfos: Array<{
+    id: number;
+    w: number;
+    h: number;
+    totalBytes: number;
+    nativePtr: bigint | null;
+  }> = [];
+  for (
+    const it = dupRes.iter({
+      id: NUM,
+      w: NUM,
+      h: NUM,
+      native_ptr: LONG_NULL,
+      total_bytes: NUM,
+    });
+    it.valid();
+    it.next()
+  ) {
+    bitmapInfos.push({
+      id: it.id,
+      w: it.w,
+      h: it.h,
+      totalBytes: it.total_bytes,
+      nativePtr: it.native_ptr === null ? null : toNativePtr(it.native_ptr),
+    });
+  }
+
+  const hashInputs = bitmapInfos
+    .filter((b) => b.nativePtr !== null)
+    .map((b) => ({objectId: b.id, nativePtr: b.nativePtr!}));
+  const hashes =
+    hashInputs.length > 0
+      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
+      : new Map<number, string>();
+
+  const hashGroups = new Map<
+    string,
+    {w: number; h: number; cnt: number; total: number; min: number}
+  >();
+  for (const b of bitmapInfos) {
+    const hash = hashes.get(b.id);
+    if (!hash) continue;
+    const existing = hashGroups.get(hash);
+    if (existing) {
+      existing.cnt++;
+      existing.total += b.totalBytes;
+      existing.min = Math.min(existing.min, b.totalBytes);
+    } else {
+      hashGroups.set(hash, {
+        w: b.w,
+        h: b.h,
+        cnt: 1,
+        total: b.totalBytes,
+        min: b.totalBytes,
+      });
+    }
+  }
+  const duplicateBitmaps: DuplicateBitmapGroup[] = [];
+  for (const [key, g] of hashGroups) {
+    if (g.cnt < 2) continue;
+    duplicateBitmaps.push({
+      groupKey: key,
+      width: g.w,
+      height: g.h,
+      count: g.cnt,
+      totalBytes: g.total,
+      wastedBytes: g.total - g.min,
+    });
+  }
+  duplicateBitmaps.sort((a, b) => b.wastedBytes - a.wastedBytes);
+  return duplicateBitmaps;
+}
+
 export async function getOverview(
   engine: Engine,
   activeDump: HeapDump,
@@ -344,104 +445,9 @@ export async function getOverview(
     heaps.push({name: it.heap, java: it.java, native_: it.native_});
   }
 
-  // Duplicate bitmaps grouped by pixel content hash. Each bitmap's compressed
-  // DumpData buffer is hashed to detect true content duplicates rather than
-  // just matching on dimensions. Skipped for proto heap graphs (no HPROF data).
-  const dupRes = hasPrimitives
-    ? await engine.query(`
-    SELECT
-      o.id,
-      MAX(CASE WHEN f.field_name GLOB '*mWidth' THEN f.int_value END) AS w,
-      MAX(CASE WHEN f.field_name GLOB '*mHeight' THEN f.int_value END) AS h,
-      MAX(CASE WHEN f.field_name GLOB '*mNativePtr' THEN f.long_value END)
-        AS native_ptr,
-      o.self_size + o.native_size AS total_bytes
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
-    WHERE o.reachable != 0
-      AND ${dumpFilter}
-      AND (c.name = 'android.graphics.Bitmap'
-        OR c.deobfuscated_name = 'android.graphics.Bitmap')
-    GROUP BY o.id
-    HAVING w IS NOT NULL AND h IS NOT NULL
-  `)
-    : null;
-
-  // Collect bitmap info and compute content hashes.
-  const bitmapInfos: Array<{
-    id: number;
-    w: number;
-    h: number;
-    totalBytes: number;
-    nativePtr: bigint | null;
-  }> = [];
-  if (dupRes !== null) {
-    for (
-      const it = dupRes.iter({
-        id: NUM,
-        w: NUM,
-        h: NUM,
-        native_ptr: LONG_NULL,
-        total_bytes: NUM,
-      });
-      it.valid();
-      it.next()
-    ) {
-      bitmapInfos.push({
-        id: it.id,
-        w: it.w,
-        h: it.h,
-        totalBytes: it.total_bytes,
-        nativePtr: it.native_ptr === null ? null : toNativePtr(it.native_ptr),
-      });
-    }
-  }
-
-  const hashInputs = bitmapInfos
-    .filter((b) => b.nativePtr !== null)
-    .map((b) => ({objectId: b.id, nativePtr: b.nativePtr!}));
-  const hashes =
-    hashInputs.length > 0
-      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
-      : new Map<number, string>();
-
-  const hashGroups = new Map<
-    string,
-    {w: number; h: number; cnt: number; total: number; min: number}
-  >();
-  for (const b of bitmapInfos) {
-    const hash = hashes.get(b.id);
-    if (!hash) continue;
-    const existing = hashGroups.get(hash);
-    if (existing) {
-      existing.cnt++;
-      existing.total += b.totalBytes;
-      existing.min = Math.min(existing.min, b.totalBytes);
-    } else {
-      hashGroups.set(hash, {
-        w: b.w,
-        h: b.h,
-        cnt: 1,
-        total: b.totalBytes,
-        min: b.totalBytes,
-      });
-    }
-  }
-  const duplicateBitmaps: DuplicateBitmapGroup[] = [];
-  for (const [key, g] of hashGroups) {
-    if (g.cnt < 2) continue;
-    duplicateBitmaps.push({
-      groupKey: key,
-      width: g.w,
-      height: g.h,
-      count: g.cnt,
-      totalBytes: g.total,
-      wastedBytes: g.total - g.min,
-    });
-  }
-  duplicateBitmaps.sort((a, b) => b.wastedBytes - a.wastedBytes);
+  const duplicateBitmaps = hasPrimitives
+    ? await getDuplicateBitmaps(engine, activeDump)
+    : [];
 
   // Duplicate strings grouped by value. Only available for HPROF dumps
   // which populate heap_graph_object_data.value_string.

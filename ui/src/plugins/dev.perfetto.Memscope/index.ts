@@ -117,7 +117,10 @@ export default class MemscopePlugin implements PerfettoPlugin {
     const bestUpid = await getBestProcess(trace.engine);
 
     // Keep HDE internal tab & drill-down URLs inside /memory/<upid>/heap/...
+    // and default embedded HDE straight to Flamegraph since Overview summary
+    // facts live in dedicated sections above.
     if (hdeSession !== undefined) {
+      hdeSession.setDefaultViewOverride('flamegraph');
       hdeSession.setHrefBuilder((sub) => {
         const activeUpid = hdeSession.activeDump?.upid ?? bestUpid;
         if (activeUpid === undefined) {

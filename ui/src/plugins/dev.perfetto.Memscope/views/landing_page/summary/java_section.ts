@@ -25,6 +25,8 @@ import type {NavView} from '../../../../com.android.HeapDumpExplorer/nav_state';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
+import {Inset} from '../../../components/inset';
+import {ProportionBar} from '../../../../../components/widgets/charts/proportion_bar';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Intent} from '../../../../../widgets/common';
 import {
@@ -79,9 +81,24 @@ interface DumpStats {
   readonly reachableHeapSize: number;
   readonly reachableNativeSize: number;
   readonly reachableObjCount: number;
+  readonly classCount: number;
   // heap_graph.id, used to select the dump on the HeapProfile track.
   readonly eventId: number;
 }
+
+// Reachable bytes per ART heap space (app, zygote, image, default) at a dump.
+interface ArtHeapSpace {
+  readonly name: string;
+  readonly javaBytes: number;
+  readonly nativeBytes: number;
+}
+
+const ART_HEAP_COLORS: Record<string, string> = {
+  app: '#f4b400',
+  zygote: '#4285f4',
+  image: '#34a853',
+  default: '#9aa0a6',
+};
 
 // One app-side owner of a (library) class's instances: the nearest app class up
 // the dominator chain, and the bytes of that class attributed to it.
@@ -95,6 +112,8 @@ interface JavaData {
   readonly dumps: DumpStats[];
   // Top classes per dump, keyed by dump ts (raw bigint).
   readonly classesByTs: ReadonlyMap<bigint, ClassAggRow[]>;
+  // Reachable bytes per ART heap space, keyed by dump ts.
+  readonly heapsByTs: ReadonlyMap<bigint, ReadonlyArray<ArtHeapSpace>>;
   // App-side retainers per class (last dump): the distinct nearest app-side
   // dominators of a library class's instances, each with the bytes attributed
   // to it, largest first. A class held through several owners gets several
@@ -121,6 +140,21 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
     it.next()
   ) {
     eventIdByTs.set(it.ts, it.event_id);
+  }
+
+  const classCountByTs = new Map<bigint, number>();
+  const classCountRes = await trace.engine.query(`
+    SELECT graph_sample_ts AS ts, COUNT(DISTINCT type_id) AS classes
+    FROM heap_graph_object
+    WHERE upid = ${upid}
+    GROUP BY graph_sample_ts
+  `);
+  for (
+    const it = classCountRes.iter({ts: LONG, classes: NUM});
+    it.valid();
+    it.next()
+  ) {
+    classCountByTs.set(it.ts, it.classes);
   }
 
   const dumps: DumpStats[] = [];
@@ -155,12 +189,49 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
       reachableHeapSize: it.reachable_heap_size,
       reachableNativeSize: it.reachable_native_size,
       reachableObjCount: it.reachable_obj_count,
+      classCount: classCountByTs.get(it.ts) ?? 0,
       eventId: eventIdByTs.get(it.ts) ?? -1,
     });
   }
   const classesByTs = new Map<bigint, ClassAggRow[]>();
+  const heapsByTs = new Map<bigint, ArtHeapSpace[]>();
   if (dumps.length === 0) {
-    return {dumps, classesByTs, retainerOf: new Map(), artByTs: []};
+    return {dumps, classesByTs, heapsByTs, retainerOf: new Map(), artByTs: []};
+  }
+
+  // Reachable bytes per ART heap space (app / zygote / image / default).
+  const heapRes = await trace.engine.query(`
+    SELECT
+      graph_sample_ts AS ts,
+      ifnull(heap_type, 'default') AS heap,
+      CAST(ifnull(SUM(self_size), 0) AS INT) AS java_bytes,
+      CAST(ifnull(SUM(native_size), 0) AS INT) AS native_bytes
+    FROM heap_graph_object
+    WHERE upid = ${upid} AND reachable != 0
+    GROUP BY graph_sample_ts, heap
+    ORDER BY graph_sample_ts ASC, (java_bytes + native_bytes) DESC
+  `);
+  for (
+    const it = heapRes.iter({
+      ts: LONG,
+      heap: STR,
+      java_bytes: NUM,
+      native_bytes: NUM,
+    });
+    it.valid();
+    it.next()
+  ) {
+    if (it.java_bytes + it.native_bytes <= 0) continue;
+    let list = heapsByTs.get(it.ts);
+    if (list === undefined) {
+      list = [];
+      heapsByTs.set(it.ts, list);
+    }
+    list.push({
+      name: it.heap,
+      javaBytes: it.java_bytes,
+      nativeBytes: it.native_bytes,
+    });
   }
 
   // Top classes (per the three orderings) at every dump, so picking any
@@ -238,7 +309,7 @@ async function loadJavaData(trace: Trace, upid: number): Promise<JavaData> {
   const retainerOf = await loadRetainers(trace, upid);
   const artByTs = await loadArtByTs(trace, upid);
 
-  return {dumps, classesByTs, retainerOf, artByTs};
+  return {dumps, classesByTs, heapsByTs, retainerOf, artByTs};
 }
 
 // For each library class at the latest dump, the app-side classes that dominate
@@ -699,11 +770,11 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
             }),
           attrs.onOpenJavaHeap !== undefined &&
             m(Button, {
-              label: 'Inspect Heap',
+              label: 'Inspect Classes',
               icon: 'account_tree',
               variant: ButtonVariant.Outlined,
               compact: true,
-              onclick: () => attrs.onOpenJavaHeap?.(cur.ts, 'overview'),
+              onclick: () => attrs.onOpenJavaHeap?.(cur.ts, 'classes'),
             }),
           showInTimelineLink(
             trace,
@@ -762,6 +833,20 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
                       cur.totalObjCount - cur.reachableObjCount
                     ).toLocaleString()} unreach`,
               },
+              ...(cur.classCount > 0
+                ? [
+                    {
+                      label: 'Classes',
+                      value: cur.classCount.toLocaleString(),
+                      sub: comparing
+                        ? deltaText(
+                            cur.classCount - baseStats.classCount,
+                            `Δ ${formatCountDelta(cur.classCount - baseStats.classCount)} vs baseline`,
+                          )
+                        : 'distinct loaded types',
+                    },
+                  ]
+                : []),
             ]),
             statCard([
               {
@@ -819,6 +904,7 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
                 }
               : {}),
           }),
+          this.renderArtHeapSpaces(data.heapsByTs.get(cur.ts) ?? []),
           m('.pf-memscope-tables', [
             retainedRows.length > 0 &&
               topTable({
@@ -842,5 +928,37 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
         ]),
       ),
     );
+  }
+
+  private renderArtHeapSpaces(heaps: ReadonlyArray<ArtHeapSpace>): m.Children {
+    if (heaps.length === 0) return null;
+    const total = heaps.reduce((s, h) => s + h.javaBytes + h.nativeBytes, 0);
+    if (total <= 0) return null;
+    const fallbackColors = ['#9aa0a6', '#ab47bc', '#26a69a', '#ec407a'];
+    return m(Inset, {className: 'pf-memscope-growth'}, [
+      m(
+        '.pf-memscope-growth__label',
+        `Reachable bytes by ART heap (${formatBytes(total)})`,
+      ),
+      m(ProportionBar, {
+        segments: heaps.map((h, i) => {
+          const sum = h.javaBytes + h.nativeBytes;
+          const color =
+            ART_HEAP_COLORS[h.name.toLowerCase()] ??
+            fallbackColors[i % fallbackColors.length] ??
+            '#9aa0a6';
+          const value =
+            h.nativeBytes > 0
+              ? `${formatBytes(sum)} (${formatBytes(h.javaBytes)} Java + ${formatBytes(h.nativeBytes)} native)`
+              : formatBytes(sum);
+          return {
+            label: h.name,
+            weight: sum,
+            color,
+            value,
+          };
+        }),
+      }),
+    ]);
   }
 }

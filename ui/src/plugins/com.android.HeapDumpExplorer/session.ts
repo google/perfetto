@@ -76,6 +76,7 @@ export class HeapDumpExplorerSession {
   private _dumps: ReadonlyArray<HeapDump> = [];
   private readonly _counts = new Map<string, number>();
   private hrefBuilder: (sub: string | undefined) => string = makeHref;
+  private defaultViewOverride?: DefaultNavView;
 
   // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
   // with the dumps.
@@ -97,6 +98,10 @@ export class HeapDumpExplorerSession {
     this.hrefBuilder = builder;
   }
 
+  setDefaultViewOverride(view: DefaultNavView | undefined): void {
+    this.defaultViewOverride = view;
+  }
+
   private edit(
     fn: (draft: {-readonly [K in keyof HdeState]: HdeState[K]}) => void,
   ): void {
@@ -108,6 +113,9 @@ export class HeapDumpExplorerSession {
   }
 
   get defaultView(): DefaultNavView {
+    if (this.defaultViewOverride !== undefined) {
+      return this.defaultViewOverride;
+    }
     return this.defaultFlamegraph.get() ? 'flamegraph' : 'overview';
   }
 

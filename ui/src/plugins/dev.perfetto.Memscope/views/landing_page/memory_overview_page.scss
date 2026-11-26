@@ -69,6 +69,21 @@
     background: var(--pf-col-border);
   }
 
+  &__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--pf-font-size-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+
+    .pf-icon {
+      font-size: 14px;
+      color: var(--pf-color-text-hint);
+    }
+  }
+
   &__trace {
     font-size: var(--pf-font-size-xs);
     color: var(--pf-color-text-muted);
@@ -77,6 +92,18 @@
 
   &__feedback {
     font-size: var(--pf-font-size-s);
+  }
+}
+
+.pf-memtl-oome-panel {
+  border-color: color-mix(
+    in srgb,
+    var(--pf-color-danger) 45%,
+    var(--pf-col-border)
+  );
+
+  .pf-memscope-panel__header h2 {
+    color: var(--pf-color-danger);
   }
 }
 

@@ -56,7 +56,10 @@ function instanceTabKey(objId: number): string {
   return `${INSTANCE_KEY_PREFIX}${objId}`;
 }
 
-function activeTabKey(session: HeapDumpExplorerSession): string {
+function activeTabKey(
+  session: HeapDumpExplorerSession,
+  hasOverviewTab: boolean,
+): string {
   const tabs = session.flamegraphTabs;
   if (session.nav.view === 'flamegraph-objects' && tabs.length > 0) {
     const active = session.activeFlamegraph;
@@ -74,6 +77,9 @@ function activeTabKey(session: HeapDumpExplorerSession): string {
   if (objId !== null) {
     return instanceTabKey(objId);
   }
+  if (!hasOverviewTab && session.nav.view === 'overview') {
+    return 'flamegraph';
+  }
   return session.nav.view;
 }
 
@@ -89,7 +95,11 @@ function buildTabs(
   state: NavState,
   potentiallyMergedClasses: ReadonlySet<string>,
   embedded: boolean,
-): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
+): {
+  tabs: TabsTab[];
+  actions: Map<string, TabActions>;
+  hasOverviewTab: boolean;
+} {
   const {engine, trace} = session;
   const navigateWithTabs = session.navigateWithTabs.bind(session);
   const clearNavParam = session.clearNavParam.bind(session);
@@ -97,20 +107,30 @@ function buildTabs(
   const hideHint = hideExplanationSetting.get();
   const actions = new Map<string, TabActions>();
 
+  // In embedded mode, process info, ART heap breakdown, OOME details, and
+  // duplicate bitmaps live in dedicated sections above. Keep the tab only when
+  // HPROF field values exist (for Duplicate Strings / Primitive Arrays), placed
+  // after the primary inspection views so the explorer opens straight into
+  // Flamegraph.
+  const hasOverviewTab = !embedded || session.hasFieldValues;
+
+  const overviewTab: TabsTab = {
+    key: 'overview',
+    title: embedded ? 'Duplicates' : 'Overview',
+    content: m(OverviewView, {
+      engine,
+      activeDump,
+      hasFieldValues: session.hasFieldValues,
+      navigate: navigateWithTabs,
+      showDefaultChangedHint: !embedded && session.autoNavigated && !hideHint,
+      onBackToTimeline: () => trace.navigate('#!/viewer'),
+      onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
+      embedded,
+    }),
+  };
+
   const tabs: TabsTab[] = [
-    {
-      key: 'overview',
-      title: 'Overview',
-      content: m(OverviewView, {
-        engine,
-        activeDump,
-        hasFieldValues: session.hasFieldValues,
-        navigate: navigateWithTabs,
-        showDefaultChangedHint: !embedded && session.autoNavigated && !hideHint,
-        onBackToTimeline: () => trace.navigate('#!/viewer'),
-        onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
-      }),
-    },
+    ...(!embedded ? [overviewTab] : []),
     {
       key: 'flamegraph',
       title: 'Flamegraph',
@@ -212,6 +232,7 @@ function buildTabs(
         onStateChange: session.setCallstackPanelState.bind(session),
       }),
     },
+    ...(embedded && hasOverviewTab ? [overviewTab] : []),
   ];
 
   // Static tab keys are view names.
@@ -271,7 +292,11 @@ function buildTabs(
 
   // Lazy: a view only mounts (and runs its queries) once its tab is first
   // opened, rather than every view loading when the page opens.
-  return {tabs: tabs.map((t) => ({...t, lazy: true})), actions};
+  return {
+    tabs: tabs.map((t) => ({...t, lazy: true})),
+    actions,
+    hasOverviewTab,
+  };
 }
 
 function processLabel(d: HeapDump): string {
@@ -351,7 +376,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
       compute: () =>
         queries.getPotentiallyMergedClasses(session.engine, active),
     });
-    const {tabs, actions} = buildTabs(
+    const {tabs, actions, hasOverviewTab} = buildTabs(
       session,
       active,
       session.nav,
@@ -370,7 +395,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
           key: tabsKey,
           tabs,
           variant: embedded ? 'underline' : 'card',
-          activeTabKey: activeTabKey(session),
+          activeTabKey: activeTabKey(session, hasOverviewTab),
           onTabChange: (key: string) => actions.get(key)?.select(),
           onTabClose: (key: string) => actions.get(key)?.close?.(),
         }),

@@ -20,6 +20,7 @@ import {Time, type time} from '../../../../base/time';
 import {formatDuration} from '../../../../components/time_utils';
 import type {Setting} from '../../../../public/settings';
 import type {Trace} from '../../../../public/trace';
+import {LONG, NUM_NULL} from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../../widgets/button';
 import {Chip} from '../../../../widgets/chip';
@@ -32,8 +33,17 @@ import {HeapDumpPage} from '../../../com.android.HeapDumpExplorer/heap_dump_page
 import type {NavView} from '../../../com.android.HeapDumpExplorer/nav_state';
 import type {HeapDumpExplorerSession} from '../../../com.android.HeapDumpExplorer/session';
 import type {HeapDump} from '../../../com.android.HeapDumpExplorer/types';
+import {
+  loadOomeDetails,
+  OOME_DETAILS_TITLE,
+  type OomeDetails,
+  renderOomeDetailsGrid,
+} from '../../../dev.perfetto.HeapProfile/oome_callstack_common';
 import {Callout} from '../../components/callout';
+import {ColorChip} from '../../components/color_chip';
 import {Panel} from '../../components/panel';
+import {oomBucketLabel, oomScoreBucket} from '../../process_data';
+import {formatBytes} from './mem_format';
 import {MemoryTimelineHero} from './memory_timeline_hero';
 import {type CaptureInfo, loadCaptureInfo} from './proc_mem_overview';
 import {
@@ -97,9 +107,79 @@ function formatOffsetSec(trace: Trace, ts: time): string {
   return `${(Number(Time.diff(ts, trace.traceInfo.start)) / 1e9).toFixed(1)}s`;
 }
 
+function formatUptimeShort(ns: number): string {
+  const secs = Math.max(0, ns) / 1e9;
+  if (secs < 60) return `${secs.toFixed(0)}s`;
+  const mins = secs / 60;
+  if (mins < 60) return `${Math.floor(mins)}m ${Math.round(secs % 60)}s`;
+  return `${Math.floor(mins / 60)}h ${Math.round(mins % 60)}m`;
+}
+
+interface ProcessHeaderMeta {
+  readonly uptimeNs?: number;
+  readonly oomScoreAdj?: number;
+  readonly dmabufRssSize?: number;
+  readonly oome?: OomeDetails;
+  readonly oomeDumpTs?: time;
+}
+
+async function loadProcessHeaderMeta(
+  trace: Trace,
+  upid: number,
+): Promise<ProcessHeaderMeta> {
+  try {
+    await trace.engine.query(
+      'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;',
+    );
+    const res = await trace.engine.query(`
+      SELECT
+        s.graph_sample_ts AS dump_ts,
+        s.process_uptime AS uptime,
+        s.oom_score_adj AS oom_score_adj,
+        s.dmabuf_rss_size AS dmabuf_rss_size,
+        s.is_out_of_memory_error AS is_oome
+      FROM android_heap_graph_stats s
+      WHERE s.upid = ${upid}
+      ORDER BY s.graph_sample_ts DESC
+      LIMIT 1
+    `);
+    const it = res.iter({
+      dump_ts: LONG,
+      uptime: NUM_NULL,
+      oom_score_adj: NUM_NULL,
+      dmabuf_rss_size: NUM_NULL,
+      is_oome: NUM_NULL,
+    });
+    if (!it.valid()) return {};
+    const dumpTs = Time.fromRaw(it.dump_ts);
+    const uptimeNs = it.uptime ?? undefined;
+    const oomScoreAdj = it.oom_score_adj ?? undefined;
+    const dmabufRssSize = it.dmabuf_rss_size ?? undefined;
+    const isOome = it.is_oome !== null && it.is_oome !== 0;
+    let oome: OomeDetails | undefined;
+    if (isOome) {
+      try {
+        oome = await loadOomeDetails(trace.engine, dumpTs);
+      } catch {
+        // OOME module or table unavailable.
+      }
+    }
+    return {
+      uptimeNs,
+      oomScoreAdj,
+      dmabufRssSize,
+      oome,
+      oomeDumpTs: oome !== undefined ? dumpTs : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAttrs> {
   private readonly procsSlot = new AsyncMemo<ProcWithMem>();
   private readonly captureSlot = new AsyncMemo<CaptureInfo>();
+  private readonly headerMetaSlot = new AsyncMemo<ProcessHeaderMeta>();
   private readonly selectionByUpid = new Map<number, MemSelection>();
   private heapExpanded = false;
   private lastFocusedSubpage?: string;
@@ -107,6 +187,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
   onremove() {
     this.procsSlot.dispose();
     this.captureSlot.dispose();
+    this.headerMetaSlot.dispose();
   }
 
   onupdate({attrs}: m.VnodeDOM<MemoryOverviewPageAttrs>) {
@@ -176,6 +257,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
 
     let capture: CaptureInfo | undefined;
     let captureError: string | undefined;
+    let headerMeta: ProcessHeaderMeta | undefined;
     if (validUpid !== undefined) {
       try {
         capture = this.captureSlot.use({
@@ -185,6 +267,10 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       } catch (e) {
         captureError = String(e);
       }
+      headerMeta = this.headerMetaSlot.use({
+        key: {traceId: trace.traceInfo.uuid, upid: validUpid},
+        compute: () => loadProcessHeaderMeta(trace, validUpid),
+      }).data;
     }
 
     const procDumps =
@@ -302,7 +388,12 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
                   baseTs: currentSelection?.base,
                   onOpenBitmapsGallery:
                     procDumps.length > 0
-                      ? (ts: time) => handleOpenJavaHeap(ts, 'bitmaps')
+                      ? (ts: time, filterKey?: string) =>
+                          handleOpenJavaHeap(
+                            ts,
+                            'bitmaps',
+                            filterKey !== undefined ? {filterKey} : undefined,
+                          )
                       : undefined,
                 }),
               ),
@@ -353,13 +444,14 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
 
     return m('.pf-memscope-page.pf-memtl-page', [
       m('.pf-memscope-page__content.pf-memtl-page__content', [
-        // Compact Top Subject Header
+        // Compact Top Subject Header (with process uptime, OOM score, DMA-BUF)
         this.renderTopBar(
           trace,
           procs,
           selectedProc,
           validUpid,
           capture,
+          headerMeta,
           onUpidChange,
         ),
 
@@ -369,6 +461,13 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
           openByDefault,
           hideDefaultChangedHint,
         ),
+
+        headerMeta?.oome !== undefined &&
+          this.renderOomeBanner(
+            headerMeta.oome,
+            headerMeta.oomeDumpTs,
+            procDumps.length > 0 ? handleOpenJavaHeap : undefined,
+          ),
 
         captureError !== undefined && m('p.pf-error', `Error: ${captureError}`),
 
@@ -425,11 +524,16 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     selectedProc: ProcMemStat | undefined,
     validUpid: number | undefined,
     capture: CaptureInfo | undefined,
+    headerMeta: ProcessHeaderMeta | undefined,
     onUpidChange: (upid: number) => void,
   ): m.Children {
     const procName = selectedProc?.procName ?? capture?.processName ?? '…';
     const pid = selectedProc?.pid ?? capture?.pid;
     const durationS = Number(trace.traceInfo.end - trace.traceInfo.start) / 1e9;
+    const oomBucket =
+      headerMeta?.oomScoreAdj !== undefined
+        ? oomScoreBucket(headerMeta.oomScoreAdj)
+        : undefined;
 
     return m('header.pf-memtl-topbar', [
       m('.pf-memtl-topbar__left', [
@@ -465,6 +569,34 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
             }),
           ),
         ),
+        headerMeta?.uptimeNs !== undefined &&
+          m(
+            'span.pf-memtl-topbar__meta',
+            {title: 'Process uptime at heap dump'},
+            [
+              m(Icon, {icon: 'schedule'}),
+              `Uptime ${formatUptimeShort(headerMeta.uptimeNs)}`,
+            ],
+          ),
+        headerMeta?.oomScoreAdj !== undefined &&
+          oomBucket !== undefined &&
+          m(
+            'span.pf-memtl-topbar__meta',
+            {title: `OOM adjustment score: ${headerMeta.oomScoreAdj}`},
+            [
+              m(
+                ColorChip,
+                {color: oomBucket.color},
+                `${oomBucketLabel(oomBucket)} (${headerMeta.oomScoreAdj})`,
+              ),
+            ],
+          ),
+        headerMeta?.dmabufRssSize !== undefined &&
+          headerMeta.dmabufRssSize > 0 &&
+          m('span.pf-memtl-topbar__meta', {title: 'DMA-BUF RSS at heap dump'}, [
+            m(Icon, {icon: 'developer_board'}),
+            `DMA-BUF ${formatBytes(headerMeta.dmabufRssSize)}`,
+          ]),
         m(
           'span.pf-memtl-topbar__trace',
           `${trace.traceInfo.traceTitle} · ${durationS.toFixed(1)}s`,
@@ -490,6 +622,37 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
         ),
       ]),
     ]);
+  }
+
+  private renderOomeBanner(
+    oome: OomeDetails,
+    dumpTs: time | undefined,
+    onOpenJavaHeap:
+      | ((ts: time, view: NavView, params?: Record<string, unknown>) => void)
+      | undefined,
+  ): m.Children {
+    const grid = renderOomeDetailsGrid(oome);
+    if (grid === undefined) return undefined;
+    return m(
+      Panel,
+      {className: 'pf-memtl-oome-panel'},
+      m(Panel.Header, {
+        title: OOME_DETAILS_TITLE,
+        subtitle: 'Heap dump triggered by an OutOfMemoryError',
+        controls:
+          dumpTs !== undefined &&
+          onOpenJavaHeap !== undefined &&
+          m(Button, {
+            label: 'Inspect OOME Callstack',
+            icon: 'bug_report',
+            variant: ButtonVariant.Outlined,
+            intent: Intent.Danger,
+            compact: true,
+            onclick: () => onOpenJavaHeap(dumpTs, 'callstack'),
+          }),
+      }),
+      m(Panel.Body, grid),
+    );
   }
 
   private renderStickyJumpBar(

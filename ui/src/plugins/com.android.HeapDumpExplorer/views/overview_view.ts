@@ -238,6 +238,10 @@ interface OverviewViewAttrs {
   readonly showDefaultChangedHint: boolean;
   readonly onBackToTimeline: () => void;
   readonly onDismissDefaultChangedHint: () => void;
+  // When embedded inside the unified Memory page, process metadata, ART heap
+  // breakdown, OOME details, and duplicate bitmaps are already promoted to
+  // dedicated page sections, so only unique HDE duplicate tables are shown.
+  readonly embedded?: boolean;
 }
 export function OverviewView(): m.Component<OverviewViewAttrs> {
   // Loaded here rather than up front, so it's only computed if the overview is
@@ -256,6 +260,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
         showDefaultChangedHint,
         onBackToTimeline,
         onDismissDefaultChangedHint,
+        embedded = false,
       } = vnode.attrs;
       const {data: overview} = overviewMemo.use({
         key: {upid: activeDump.upid, ts: activeDump.ts},
@@ -292,7 +297,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
       return m(
         DetailsShell,
         {
-          title: 'Overview',
+          title: embedded ? 'Duplicate Strings & Arrays' : 'Overview',
           fillHeight: true,
           className: 'pf-hde-tab--padded',
         },
@@ -322,64 +327,77 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               )
             : null,
 
-          m('.pf-hde-card.pf-hde-mb-4', [
-            m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
-            m(Grid, {
-              columns: [
-                {key: 'property', header: m(GridHeaderCell, 'Property')},
-                {key: 'value', header: m(GridHeaderCell, 'Value')},
-              ],
-              rowData: removeFalsyValues([
-                infoRow('Process', processLabel),
-                overview.processUptime !== null &&
-                  infoRow('Uptime', Duration.format(overview.processUptime)),
-                overview.oomBucket !== null &&
-                  infoRow(
-                    'OOM score',
-                    `${overview.oomBucket} (${overview.oomScore})`,
-                  ),
-                infoRow('Classes', overview.classCount.toLocaleString()),
-                infoRow(
-                  'Reachable instances',
-                  overview.reachableInstanceCount.toLocaleString(),
+          !embedded
+            ? m('.pf-hde-card.pf-hde-mb-4', [
+                m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
+                m(Grid, {
+                  columns: [
+                    {key: 'property', header: m(GridHeaderCell, 'Property')},
+                    {key: 'value', header: m(GridHeaderCell, 'Value')},
+                  ],
+                  rowData: removeFalsyValues([
+                    infoRow('Process', processLabel),
+                    overview.processUptime !== null &&
+                      infoRow(
+                        'Uptime',
+                        Duration.format(overview.processUptime),
+                      ),
+                    overview.oomBucket !== null &&
+                      infoRow(
+                        'OOM score',
+                        `${overview.oomBucket} (${overview.oomScore})`,
+                      ),
+                    infoRow('Classes', overview.classCount.toLocaleString()),
+                    infoRow(
+                      'Reachable instances',
+                      overview.reachableInstanceCount.toLocaleString(),
+                    ),
+                    infoRow(
+                      'Unreachable instances',
+                      overview.unreachableInstanceCount.toLocaleString(),
+                    ),
+                    overview.anonRssAndSwapSize !== null &&
+                      infoRow(
+                        'Anon RSS + Swap',
+                        fmtSize(Number(overview.anonRssAndSwapSize)),
+                      ),
+                    overview.dmabufRssSize !== null &&
+                      infoRow(
+                        'DMA Buffer RSS',
+                        fmtSize(Number(overview.dmabufRssSize)),
+                      ),
+                  ]),
+                }),
+              ])
+            : null,
+          !embedded
+            ? m('.pf-hde-card', [
+                m(
+                  'h3',
+                  {class: 'pf-hde-sub-heading'},
+                  'Bytes Retained by Heap',
                 ),
-                infoRow(
-                  'Unreachable instances',
-                  overview.unreachableInstanceCount.toLocaleString(),
-                ),
-                overview.anonRssAndSwapSize !== null &&
-                  infoRow(
-                    'Anon RSS + Swap',
-                    fmtSize(Number(overview.anonRssAndSwapSize)),
-                  ),
-                overview.dmabufRssSize !== null &&
-                  infoRow(
-                    'DMA Buffer RSS',
-                    fmtSize(Number(overview.dmabufRssSize)),
-                  ),
-              ]),
-            }),
-          ]),
-          m('.pf-hde-card', [
-            m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
-            m(DataGrid, {
-              schema: HEAP_SCHEMA,
-              data: heapRows,
-              initialColumns: [
-                {id: 'heap', field: 'heap'},
-                {id: 'java_size', field: 'java_size', aggregate: 'SUM'},
-                {id: 'native_size', field: 'native_size', aggregate: 'SUM'},
-                {id: 'total_size', field: 'total_size', aggregate: 'SUM'},
-              ],
-            }),
-          ]),
-          overview.oome !== undefined
+                m(DataGrid, {
+                  schema: HEAP_SCHEMA,
+                  data: heapRows,
+                  initialColumns: [
+                    {id: 'heap', field: 'heap'},
+                    {id: 'java_size', field: 'java_size', aggregate: 'SUM'},
+                    {id: 'native_size', field: 'native_size', aggregate: 'SUM'},
+                    {id: 'total_size', field: 'total_size', aggregate: 'SUM'},
+                  ],
+                }),
+              ])
+            : null,
+          !embedded && overview.oome !== undefined
             ? m('.pf-hde-card.pf-hde-mt-4', [
                 m('h3', {class: 'pf-hde-sub-heading'}, OOME_DETAILS_TITLE),
                 renderOomeDetailsGrid(overview.oome),
               ])
             : null,
-          overview.duplicateBitmaps && overview.duplicateBitmaps.length > 0
+          !embedded &&
+          overview.duplicateBitmaps &&
+          overview.duplicateBitmaps.length > 0
             ? renderDuplicateSection(
                 'Duplicate Bitmaps',
                 overview.duplicateBitmaps.length,
@@ -406,7 +424,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : hasFieldValues
+            : !embedded && hasFieldValues
               ? m(
                   '.pf-hde-card.pf-hde-mt-4.pf-hde-mb-4',
                   m(

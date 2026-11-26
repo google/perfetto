@@ -22,6 +22,8 @@ import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
+import * as hdeQueries from '../../../../com.android.HeapDumpExplorer/queries';
+import type {DuplicateBitmapGroup} from '../../../../com.android.HeapDumpExplorer/types';
 import {
   LONG,
   NUM,
@@ -266,15 +268,18 @@ export interface BitmapsSectionAttrs {
   // The page-wide selection (by ts). Undefined → latest dump.
   readonly selTs?: time;
   readonly baseTs?: time;
-  // Jump to the inline Java Heap Explorer section on Bitmaps.
-  readonly onOpenBitmapsGallery?: (ts: time) => void;
+  // Jump to the inline Java Heap Explorer section on Bitmaps (optionally
+  // filtered to a duplicate-pixel group key).
+  readonly onOpenBitmapsGallery?: (ts: time, filterKey?: string) => void;
 }
 
 export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
   private readonly slot = new AsyncMemo<BitmapsData>();
+  private readonly dupSlot = new AsyncMemo<readonly DuplicateBitmapGroup[]>();
 
   onremove() {
     this.slot.dispose();
+    this.dupSlot.dispose();
   }
 
   view({attrs}: m.Vnode<BitmapsSectionAttrs>): m.Children {
@@ -306,6 +311,32 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
     const baseDump =
       baseTs !== undefined ? nearestByTs(data.dumps, baseTs) : undefined;
     const comparing = baseDump !== undefined && baseDump.ts !== cur.ts;
+
+    // Content-hash duplicate bitmaps (available on HPROF dumps with field
+    // values). Shares the exact query implementation with HDE.
+    const duplicateGroups =
+      this.dupSlot.use({
+        key: {
+          traceId: trace.traceInfo.uuid,
+          upid,
+          dumpTs: cur.ts.toString(),
+        },
+        compute: async () => {
+          const hasFields = await hdeQueries.hasFieldValues(trace.engine);
+          if (!hasFields) return [];
+          return hdeQueries.getDuplicateBitmaps(trace.engine, {
+            upid,
+            ts: cur.ts,
+            processName: null,
+            pid: null,
+          });
+        },
+        retainOn: ['dumpTs'],
+      }).data ?? [];
+    const totalDupWasted = duplicateGroups.reduce(
+      (s, g) => s + g.wastedBytes,
+      0,
+    );
     const groups = data.groupsByTs.get(cur.ts) ?? [];
     const baseGroups = comparing
       ? (data.groupsByTs.get(baseDump.ts) ?? [])
@@ -494,6 +525,14 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
                     : 'share of heap + native',
                 },
               ]),
+            duplicateGroups.length > 0 &&
+              statCard([
+                {
+                  label: 'Duplicate waste',
+                  value: formatBytes(totalDupWasted),
+                  sub: `${duplicateGroups.length} identical pixel ${duplicateGroups.length === 1 ? 'group' : 'groups'}`,
+                },
+              ]),
           ]),
           hasDims &&
             m('.pf-memscope-tables', [
@@ -518,6 +557,31 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
                 rows: dimRows(byCount),
               }),
             ]),
+          duplicateGroups.length > 0 &&
+            topTable({
+              title: 'Duplicate bitmaps (identical pixel data)',
+              cols: [
+                {label: 'Dimensions'},
+                {label: 'Copies', num: true},
+                {label: 'Total', num: true},
+                {label: 'Wasted', num: true},
+              ],
+              rows: duplicateGroups.slice(0, 8).map((g) => [
+                `${g.width}×${g.height}`,
+                attrs.onOpenBitmapsGallery !== undefined
+                  ? m(
+                      Anchor,
+                      {
+                        onclick: () =>
+                          attrs.onOpenBitmapsGallery?.(cur.ts, g.groupKey),
+                      },
+                      g.count.toLocaleString(),
+                    )
+                  : g.count.toLocaleString(),
+                formatBytes(g.totalBytes),
+                formatBytes(g.wastedBytes),
+              ]),
+            }),
         ]),
       ),
     );
