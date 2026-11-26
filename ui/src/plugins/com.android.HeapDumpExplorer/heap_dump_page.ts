@@ -37,9 +37,12 @@ import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 import * as queries from './queries';
 
-interface HeapDumpPageAttrs {
+export interface HeapDumpPageAttrs {
   readonly session: HeapDumpExplorerSession;
   readonly subpage: string | undefined;
+  // When embedded inside a host page that owns process/dump selection, hide the
+  // standalone dump selector bar.
+  readonly hideDumpSelector?: boolean;
 }
 
 const FG_KEY_PREFIX = 'fg-';
@@ -318,7 +321,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   }
 
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
-    const {session, subpage} = attrs;
+    const {session, subpage, hideDumpSelector} = attrs;
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
     session.syncFlamegraphTabFromNav();
@@ -327,7 +330,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     if (active === null) {
       return m(
         '.pf-hde-page',
-        renderDumpSelector(session),
+        !hideDumpSelector && renderDumpSelector(session),
         m('.pf-hde-loading', m(Spinner, {easing: true})),
       );
     }
@@ -349,7 +352,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
 
     return m(
       '.pf-hde-page',
-      renderDumpSelector(session),
+      !hideDumpSelector && renderDumpSelector(session),
       m(
         'main',
         {class: 'pf-hde-page__tabs'},
