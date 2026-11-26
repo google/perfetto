@@ -114,25 +114,33 @@ class TraceSorter {
   bool SetSortingMode(SortingMode sorting_mode);
 
   void ExtractEventsForced() {
-    BumpAllocator::AllocId end_id = token_buffer_.PastTheEndAllocId();
-    SortAndExtractEventsUntilAllocId(end_id);
+    SortAndExtractEventsUntilAllocId(token_buffer_.PastTheEndAllocId());
     PERFETTO_CHECK(blocks_.empty());
 
-    alloc_id_for_extraction_ = end_id;
-    flushes_since_extraction_ = 0;
+    BumpAllocator::AllocId end_id = token_buffer_.PastTheEndAllocId();
+    latest_read_end_ = end_id;
+    read_end_at_last_flush_ = end_id;
+    eligible_read_end_ = end_id;
+    last_extraction_limit_ = end_id;
   }
 
-  void NotifyFlushEvent() { flushes_since_extraction_++; }
+  void NotifyFlushEvent() {
+    eligible_read_end_ = read_end_at_last_flush_;
+    read_end_at_last_flush_ = latest_read_end_;
+  }
 
   void NotifyReadBufferEvent() {
-    if (sorting_mode_ == SortingMode::kFullSort ||
-        flushes_since_extraction_ < 2) {
+    if (sorting_mode_ == SortingMode::kFullSort) {
       return;
     }
-
-    SortAndExtractEventsUntilAllocId(alloc_id_for_extraction_);
-    alloc_id_for_extraction_ = token_buffer_.PastTheEndAllocId();
-    flushes_since_extraction_ = 0;
+    if (eligible_read_end_ > last_extraction_limit_) {
+      SortAndExtractEventsUntilAllocId(eligible_read_end_);
+      // Draining all events can advance the allocator to a new chunk.
+      last_extraction_limit_ = blocks_.empty()
+                                   ? token_buffer_.PastTheEndAllocId()
+                                   : eligible_read_end_;
+    }
+    latest_read_end_ = token_buffer_.PastTheEndAllocId();
   }
 
   int64_t max_timestamp() const { return append_max_ts_; }
@@ -291,14 +299,14 @@ class TraceSorter {
   // being sorted.
   TraceTokenBuffer token_buffer_;
 
-  // The AllocId until which events should be extracted. Set based
-  // on the AllocId in |OnReadBuffer|.
-  BumpAllocator::AllocId alloc_id_for_extraction_ =
-      token_buffer_.PastTheEndAllocId();
+  // The latest read checkpoint and its snapshots from the last two flushes.
+  // A checkpoint is eligible for extraction only after two subsequent flushes.
+  BumpAllocator::AllocId latest_read_end_{};
+  BumpAllocator::AllocId read_end_at_last_flush_{};
+  BumpAllocator::AllocId eligible_read_end_{};
 
-  // The number of flushes which have happened since the last incremental
-  // extraction.
-  uint32_t flushes_since_extraction_ = 0;
+  // Avoid sorting again when the eligible checkpoint has not advanced.
+  BumpAllocator::AllocId last_extraction_limit_{};
 
   // max(e.ts for e appended to the sorter)
   int64_t append_max_ts_ = 0;
