@@ -72,11 +72,13 @@ final class PerfettoTrackEventExtra {
       int fieldsSize, int nameSize);
 
   // Checked path (@FastNative) for copied buffers or mixed EXTRAS + RAW_PROTO
-  // events (when `extras != 0`). Reads in place if `address != 0`, else copies
-  // `size` bytes from `buffer`. Returns false without emitting if invalid.
+  // events. 
+  // `formats` is a PERFETTO_TE_EVENT_FORMAT_* bitmask.
+  // Reads in place if `address != 0`, else copies `size` bytes from `buffer`.
+  // Returns false if validation failed.
   @FastNative
-  static native boolean native_emit_with_formats(int type, long category, long extras, long track,
-      byte[] buffer, long address, int fieldsSize, int nameSize, int size);
+  static native boolean native_emit_with_formats(int type, long category, int formats, long extras,
+      long track, byte[] buffer, long address, int fieldsSize, int nameSize, int size);
 
   /** Represents a native pointer to a Perfetto C SDK struct. E.g. PerfettoTeHlExtra. */
   interface PerfettoPointer {

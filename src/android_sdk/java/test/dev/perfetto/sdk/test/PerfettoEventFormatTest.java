@@ -520,8 +520,27 @@ public class PerfettoEventFormatTest {
 
   @Test
   public void invalidRawProtoEventsAreDroppedWithoutDebugChecks() throws Exception {
+    // RAW_PROTO-only drops invalid raw-proto events in release mode.
+    PerfettoTrace.Session onlyRawProto = start(RAW_PROTO, false);
+    emitInvalidRawProtoEventsInReleaseMode();
+    Decoded rawProtoOnly = decode(onlyRawProto.close());
+    assertEquals(1, rawProtoOnly.events.size());
+    assertEquals("after", rawProtoOnly.events.get(0).getName());
+
+    // Mixed sessions fall back to EXTRAS so EXTRAS sessions do not lose the event.
     PerfettoTrace.Session extras = start(EXTRAS, false);
     PerfettoTrace.Session rawProto = start(RAW_PROTO, false);
+    emitInvalidRawProtoEventsInReleaseMode();
+    for (PerfettoTrace.Session session : new PerfettoTrace.Session[] {extras, rawProto}) {
+      Decoded trace = decode(session.close());
+      assertEquals(3, trace.events.size());
+      assertEquals("oversized", trace.events.get(0).getName());
+      assertEquals("parent_write", trace.events.get(1).getName());
+      assertEquals("after", trace.events.get(2).getName());
+    }
+  }
+
+  private static void emitInvalidRawProtoEventsInReleaseMode() {
     PerfettoTrackEventBuilder.newEvent(3, CATEGORY, /* isDebug= */ false)
         .setEventName("oversized")
         .addArg("huge", "x".repeat(1024 * 1024))
@@ -534,11 +553,6 @@ public class PerfettoEventFormatTest {
     proto.addField(1001, "parent"); // Not supported while the nested field is open.
     proto.endProto().emit();
     PerfettoTrace.instant(CATEGORY, "after").emit();
-    for (PerfettoTrace.Session session : new PerfettoTrace.Session[] {extras, rawProto}) {
-      Decoded trace = decode(session.close());
-      assertEquals(1, trace.events.size());
-      assertEquals("after", trace.events.get(0).getName());
-    }
   }
 
   @Test
@@ -830,11 +844,11 @@ public class PerfettoEventFormatTest {
       int size) throws Exception {
     Method method = Class.forName("dev.perfetto.sdk.PerfettoTrackEventExtra")
                         .getDeclaredMethod("native_emit_with_formats", int.class, long.class,
-                            long.class, long.class, byte[].class, long.class, int.class,
+                            int.class, long.class, long.class, byte[].class, long.class, int.class,
                             int.class, int.class);
     method.setAccessible(true);
-    return (Boolean) method.invoke(
-        null, type, CATEGORY.getPtr(), 0L, 0L, buffer, 0L, fieldsSize, nameSize, size);
+    return (Boolean) method.invoke(null, type, CATEGORY.getPtr(), /* formats= */ 2, 0L, 0L, buffer,
+        0L, fieldsSize, nameSize, size);
   }
 
   @Test
@@ -878,14 +892,20 @@ public class PerfettoEventFormatTest {
       PerfettoTrackEventBuilder proto = root.beginProto();
       proto.beginNested(1000).addField(1, "stale-nested");
       // Fails the raw-proto event because its nested field is still open.
-      // Release mode drops the whole event instead of throwing.
+      // RAW_PROTO-only drops it, while mixed mode falls back to EXTRAS.
       proto.addField(1001, "parent");
       root.emit();
       PerfettoTrace.instant(CATEGORY, "next").addArg("value", 1L).emit();
+      boolean hasExtras = selection.length > 1;
       for (PerfettoTrace.Session session : sessions) {
         Decoded trace = decode(session.close());
-        assertEquals(1, trace.events.size());
-        TrackEvent next = trace.events.get(0);
+        if (hasExtras) {
+          assertEquals(2, trace.events.size());
+          assertEquals("failed", trace.events.get(0).getName());
+        } else {
+          assertEquals(1, trace.events.size());
+        }
+        TrackEvent next = trace.events.get(trace.events.size() - 1);
         assertEquals("next", next.getName());
         assertEquals(1, next.getDebugAnnotationsCount());
         assertTrue(payloads(next.toByteString(), 1000).isEmpty());

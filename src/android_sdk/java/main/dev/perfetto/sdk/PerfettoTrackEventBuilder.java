@@ -20,6 +20,7 @@ import com.google.errorprone.annotations.CompileTimeConstant;
 
 import java.lang.ref.Reference;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
@@ -83,6 +84,7 @@ public final class PerfettoTrackEventBuilder {
   private PerfettoNativeMemoryCleaner mNativeMemoryCleaner;
   private static final PerfettoNativeMemoryCleaner.AllocationStats sNativeAllocationStats =
       new AllocationStats();
+  private static final AtomicBoolean sLoggedDroppedInternedField = new AtomicBoolean(false);
 
   private static final class ObjectsPool {
     public final Pool<Field> mFieldPool;
@@ -294,8 +296,8 @@ public final class PerfettoTrackEventBuilder {
           address, event.fieldsSize(), event.nameSize());
     } else {
       ok = PerfettoTrackEventExtra.native_emit_with_formats(mTraceType, mCategory.getPtr(),
-          /* extras= */ 0, mTrackPtr, buffer, /* address= */ 0, event.fieldsSize(),
-          event.nameSize(), event.size());
+          EVENT_FORMAT_RAW_PROTO, /* extras= */ 0, mTrackPtr, buffer, /* address= */ 0,
+          event.fieldsSize(), event.nameSize(), event.size());
     }
 
     // Keep `buffer` reachable while native code reads it by raw address.
@@ -307,14 +309,17 @@ public final class PerfettoTrackEventBuilder {
 
   private void emitRawProtoAndExtras() {
     if (!prepareRawProtoForEmit()) {
+      // Fall back to native_emit so EXTRAS sessions still receive the event.
+      PerfettoTrackEventExtra.native_emit(
+          mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
       return;
     }
     PerfettoRawProtoEvent event = mRawProto;
     byte[] buffer = event.buffer();
 
     boolean ok = PerfettoTrackEventExtra.native_emit_with_formats(mTraceType, mCategory.getPtr(),
-        mExtra.getPtr(), mTrackPtr, buffer, event.bufferAddress(), event.fieldsSize(),
-        event.nameSize(), event.size());
+        EVENT_FORMAT_EXTRAS | EVENT_FORMAT_RAW_PROTO, mExtra.getPtr(), mTrackPtr, buffer,
+        event.bufferAddress(), event.fieldsSize(), event.nameSize(), event.size());
 
     Reference.reachabilityFence(buffer);
     if (!ok) {
@@ -942,7 +947,8 @@ public final class PerfettoTrackEventBuilder {
     if (!mIsCategoryEnabled || !isProtoBuilder()) {
       return this;
     }
-    if (buildsRawProtoEvent() && internedTypeId != 0) {
+    if (buildsRawProtoEvent() && internedTypeId != 0 && !sLoggedDroppedInternedField.get()
+        && sLoggedDroppedInternedField.compareAndSet(false, true)) {
       System.err.println(
           "PerfettoTrackEventBuilder: addFieldWithInterning() requires useExtrasFormat() "
               + "for RAW_PROTO sessions, dropping interned field " + id);

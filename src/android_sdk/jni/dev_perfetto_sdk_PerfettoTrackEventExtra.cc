@@ -672,6 +672,7 @@ static jboolean dev_perfetto_sdk_PerfettoTrackEventExtra_emit_with_formats(
     jclass,
     jint type,
     jlong cat_ptr,
+    jint formats,
     jlong extras_ptr,
     jlong track_ptr,
     jbyteArray buffer,
@@ -714,7 +715,7 @@ static jboolean dev_perfetto_sdk_PerfettoTrackEventExtra_emit_with_formats(
     ok = sdk_for_jni::trace_event_with_formats(
         type, category->get(),
         reinterpret_cast<const char*>(bytes + fields_size),
-        static_cast<size_t>(name_size),
+        static_cast<size_t>(name_size), static_cast<uint32_t>(formats),
         toPointer<sdk_for_jni::Extra>(extras_ptr), bytes,
         static_cast<size_t>(fields_size),
         toPointer<PerfettoTeHlExtra>(track_ptr));
@@ -775,7 +776,7 @@ static const JNINativeMethod gExtraMethods[] = {
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit},
     {"native_emit_raw_proto", "(IJJJII)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_raw_proto},
-    {"native_emit_with_formats", "(IJJJ[BJIII)Z",
+    {"native_emit_with_formats", "(IJIJJ[BJIII)Z",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_with_formats}};
 
 static const JNINativeMethod gProtoMethods[] = {

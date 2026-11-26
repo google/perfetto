@@ -67,9 +67,10 @@ void trace_event(int type,
                  Extra* extra);
 
 /**
- * @brief Emits a raw-proto event to RAW_PROTO sessions and, when `extras` is
- * non-null, its EXTRAS representation to EXTRAS sessions.
+ * @brief Emits an event to the sessions matching `formats`
+ * (PERFETTO_TE_EVENT_FORMAT_* bits).
  * @param name Event name (`name_size` bytes, no NUL terminator required).
+ * @param formats PERFETTO_TE_EVENT_FORMAT_* bitmask built by the caller.
  * @param extras Null, or the EXTRAS payload.
  * @param raw_proto_fields Serialized TrackEvent fields.
  * @param track Null (default track) or a RAW_PROTO track extra.
@@ -79,6 +80,7 @@ bool trace_event_with_formats(int type,
                               const PerfettoTeCategory* cat,
                               const char* name,
                               size_t name_size,
+                              uint32_t formats,
                               Extra* extras,
                               const void* raw_proto_fields,
                               size_t raw_proto_fields_size,

@@ -58,6 +58,7 @@ bool trace_event_with_formats(int type,
                               const PerfettoTeCategory* perfettoTeCategory,
                               const char* name,
                               size_t name_size,
+                              uint32_t formats,
                               Extra* extras,
                               const void* raw_proto_fields,
                               size_t raw_proto_fields_size,
@@ -68,10 +69,8 @@ bool trace_event_with_formats(int type,
     name_size = 0;
   }
 
-  uint32_t formats = PERFETTO_TE_EVENT_FORMAT_RAW_PROTO;
   PerfettoTeHlExtra* const* extra_data = nullptr;
   if (extras) {
-    formats |= PERFETTO_TE_EVENT_FORMAT_EXTRAS;
     extras->push_extra(nullptr);
     extra_data = extras->get();
   }
