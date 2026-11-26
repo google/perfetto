@@ -409,10 +409,11 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
             ),
 
             // Headline Process Billboards
-            m(TraceOverview, {key: 'trace-overview', trace, upid: validUpid}),
+            m(TraceOverview, {trace, upid: validUpid}),
 
-            // Flowing Reactive Subsections
-            ...flowSections.map((s) => s.content),
+            // Flowing Reactive Subsections (own keyed fragment so sections keep
+            // state when reordered once capture availability resolves).
+            flowSections.map((s) => s.content),
           ],
       ]),
     ]);
