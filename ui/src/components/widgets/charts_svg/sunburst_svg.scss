@@ -1,0 +1,280 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-sunburst {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.pf-sunburst__crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-size: var(--pf-font-size-xs, 12px);
+}
+
+.pf-sunburst__crumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pf-sunburst__crumb-sep {
+  font-size: 15px;
+  color: var(--pf-color-text-hint);
+}
+
+.pf-sunburst__crumb {
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 500;
+  color: var(--pf-color-primary);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--pf-color-background-secondary);
+  }
+
+  &--current {
+    color: var(--pf-color-text);
+    font-weight: 600;
+    cursor: default;
+  }
+}
+
+.pf-sunburst__layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px 36px;
+}
+
+.pf-sunburst__chart {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-sunburst__svg {
+  display: block;
+  user-select: none;
+  overflow: visible;
+}
+
+.pf-sunburst__slice {
+  transition:
+    opacity 0.14s ease,
+    filter 0.14s ease;
+
+  &--clickable {
+    cursor: pointer;
+  }
+
+  &--dimmed {
+    opacity: 0.34;
+  }
+
+  &--hovered {
+    filter: brightness(1.09);
+  }
+}
+
+.pf-sunburst__arc {
+  stroke: var(--pf-col-surface, var(--pf-color-background));
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.pf-sunburst__arc-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.pf-sunburst__center {
+  &--back {
+    cursor: pointer;
+
+    &:hover .pf-sunburst__center-bg {
+      fill: var(--pf-col-inset, var(--pf-color-background-secondary));
+    }
+  }
+}
+
+.pf-sunburst__center-bg {
+  fill: var(--pf-col-surface, var(--pf-color-background));
+  transition: fill 0.12s ease;
+}
+
+.pf-sunburst__center-name {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--pf-color-text-muted);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.pf-sunburst__center-value {
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  fill: var(--pf-color-text);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.pf-sunburst__center-sub {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  fill: var(--pf-color-primary);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+// Synchronized side breakdown legend
+.pf-sunburst__legend {
+  flex: 1 1 320px;
+  min-width: 260px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-sunburst__legend-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-sunburst__legend-children {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 16px;
+  margin-left: 5px;
+  border-left: 1px solid var(--pf-col-border, var(--pf-color-border));
+}
+
+.pf-sunburst__legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--pf-color-text);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  transition: background-color 0.1s ease;
+
+  &--zoomable {
+    cursor: pointer;
+  }
+
+  &--parent {
+    font-size: var(--pf-font-size-s, 13px);
+
+    .pf-sunburst__legend-name {
+      font-weight: 600;
+    }
+  }
+
+  &--child {
+    font-size: var(--pf-font-size-xs, 12px);
+    color: var(--pf-color-text-muted);
+    padding-block: 3px;
+  }
+
+  &--active,
+  &:hover {
+    background: var(--pf-col-base, var(--pf-color-background-secondary));
+    color: var(--pf-color-text);
+  }
+}
+
+.pf-sunburst__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+
+  &--sm {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+}
+
+.pf-sunburst__legend-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-sunburst__legend-val {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text);
+}
+
+.pf-sunburst__legend-pct {
+  flex-shrink: 0;
+  width: 44px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-sunburst-tooltip {
+  &__name {
+    font-weight: 600;
+    font-size: var(--pf-font-size-s, 12px);
+    color: var(--pf-color-text, rgb(0 0 0 / 85%));
+  }
+
+  &__value {
+    margin-top: 2px;
+    font-size: var(--pf-font-size-xs, 11px);
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted, rgb(0 0 0 / 60%));
+  }
+
+  &__desc {
+    margin-top: 6px;
+    max-width: 280px;
+    white-space: normal;
+    font-size: var(--pf-font-size-xs, 11px);
+    line-height: 1.4;
+    color: var(--pf-color-text-muted, rgb(0 0 0 / 60%));
+  }
+}

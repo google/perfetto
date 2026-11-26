@@ -22,9 +22,9 @@ import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import {
-  FlamegraphChart,
-  type FlamegraphChartSegment,
-} from '../../../../../components/widgets/charts/flamegraph_chart';
+  SunburstSvg,
+  type SunburstSegment,
+} from '../../../../../components/widgets/charts_svg/sunburst_svg';
 import type {Trace} from '../../../../../public/trace';
 import {SMAPS_TRACK_KIND} from '../../../../../public/track_kinds';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
@@ -141,7 +141,7 @@ interface MemExtras {
 // the whole tree (and its baseline diff) on each one is wasted work. In compare
 // mode each block carries its Δ vs the baseline snapshot's tree.
 interface MemTreeResult {
-  readonly tree: FlamegraphChartSegment;
+  readonly tree: SunburstSegment;
 }
 
 interface MemoryMapData {
@@ -307,15 +307,14 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
             m(
               'span.pf-memscope-memmap__section-hint',
               comparing
-                ? 'block widths from the later snapshot - hover for Δ vs baseline'
-                : 'absolute resident memory - hover a block for details',
+                ? 'slice angles from the later snapshot - hover for Δ vs baseline, click a slice to zoom'
+                : 'absolute resident memory - hover a slice for details, click to zoom',
             ),
           ]),
           tree !== undefined
-            ? m(FlamegraphChart, {
+            ? m(SunburstSvg, {
                 data: tree,
                 formatValue: formatBytes,
-                hideRoot: true,
               })
             : m('.pf-memscope-placeholder', 'Building memory map…'),
         ]),
@@ -477,7 +476,7 @@ function buildMemTree(
   snap: MemSnapshot,
   extras: MemExtras,
   baseByLabel?: Map<string, number>,
-): FlamegraphChartSegment {
+): SunburstSegment {
   const get = (key: string) => snap.byCategory.get(key);
   const resSwap = (r?: CategoryBytes) => (r ? r.rss + r.swap : 0);
 
@@ -513,12 +512,12 @@ function buildMemTree(
     label: string,
     bytes: number,
     color: string,
-    children: FlamegraphChartSegment[] = [],
-  ): FlamegraphChartSegment => {
+    children: SunburstSegment[] = [],
+  ): SunburstSegment => {
     const share = total > 0 ? ((bytes / total) * 100).toFixed(1) : '0';
     const tip: m.Children = [
-      m('.pf-flamechart-tooltip__name', label),
-      m('.pf-flamechart-tooltip__value', `${formatBytes(bytes)} - ${share}%`),
+      m('.pf-sunburst-tooltip__name', label),
+      m('.pf-sunburst-tooltip__value', `${formatBytes(bytes)} - ${share}%`),
     ];
     const baseBytes = baseByLabel?.get(label);
     if (baseBytes !== undefined) {
@@ -528,7 +527,7 @@ function buildMemTree(
     }
     const info = MEMMAP_BLOCK_INFO[label];
     if (info !== undefined) {
-      tip.push(m('.pf-flamechart-tooltip__desc', info));
+      tip.push(m('.pf-sunburst-tooltip__desc', info));
     }
     return {name: label, value: bytes, cssColor: color, children, tooltip: tip};
   };
@@ -596,7 +595,7 @@ function buildMemTree(
 // Flattens a region tree to a label → bytes map, for diffing one snapshot's
 // tree against another's (labels are unique across the tree).
 function flattenMemTree(
-  seg: FlamegraphChartSegment,
+  seg: SunburstSegment,
   out: Map<string, number>,
 ): Map<string, number> {
   out.set(seg.name, seg.value);
