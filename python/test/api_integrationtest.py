@@ -29,6 +29,7 @@ from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import FailureHandling
 from perfetto.batch_trace_processor.api import Metadata
 from perfetto.batch_trace_processor.api import TraceListReference
+from perfetto.common.query_result_iterator import HAS_POLARS
 from perfetto.common.query_result_iterator import HAS_PYARROW
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
@@ -336,6 +337,15 @@ class TestApi(unittest.TestCase):
         execute_failure_handling=FailureHandling.INCREMENT_STAT)
     _ = btp.query('select * from sl')
     self.assertEqual(btp.stats().execute_failures, 1)
+
+  @unittest.skipUnless(HAS_POLARS, 'polars not installed')
+  def test_btp_query_and_flatten_polars_failure_increment_stat(self):
+    btp = create_batch_tp(
+        traces=example_android_trace_path(),
+        execute_failure_handling=FailureHandling.INCREMENT_STAT)
+    df = btp.query_and_flatten_polars('select * from sl')
+    self.assertEqual(btp.stats().execute_failures, 1)
+    self.assertTrue(df.is_empty())
 
   def test_btp_query_failure_message(self):
     btp = create_batch_tp(
