@@ -16,12 +16,10 @@
 
 #include "src/traceconv/trace_to_json.h"
 
-#include <stdio.h>
+#include <cstddef>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/progress_reporter.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
 
@@ -34,20 +32,21 @@ const char kTraceFooter[] = R"(,
   "controllerTraceDataKey": "systraceController"
 })";
 
-class TraceWriterOutputWriter final
-    : public trace_processor::json::OutputWriter {
+class TraceWriterExportOutput final
+    : public trace_processor::TraceProcessor::ExportOutput {
  public:
-  explicit TraceWriterOutputWriter(TraceWriter* writer) : writer_(writer) {}
+  explicit TraceWriterExportOutput(TraceWriter* writer) : writer_(writer) {}
 
-  base::Status AppendString(const std::string& value) override {
-    if (value.empty()) {
+  base::Status Write(const void* data, size_t size) override {
+    if (size == 0) {
       return base::OkStatus();
     }
+    const auto* bytes = static_cast<const char*>(data);
     if (has_trailing_byte_) {
       writer_->Write(&trailing_byte_, 1);
     }
-    writer_->Write(value.data(), value.size() - 1);
-    trailing_byte_ = value.back();
+    writer_->Write(bytes, size - 1);
+    trailing_byte_ = bytes[size - 1];
     has_trailing_byte_ = true;
     return base::OkStatus();
   }
@@ -67,8 +66,9 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
   auto& progress = base::ProgressReporter::GetInstance();
   progress.Update("Converting userspace events");
 
-  TraceWriterOutputWriter output(writer);
-  base::Status status = trace_processor::json::ExportJson(tp, &output);
+  TraceWriterExportOutput output(writer);
+  base::Status status =
+      tp->Export(trace_processor::TraceProcessor::ExportFormat::kJson, &output);
   progress.Clear();
   if (!status.ok()) {
     PERFETTO_ELOG("Could not convert userspace events: %s", status.c_message());

@@ -27,6 +27,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class TraceProcessor;
 class TraceProcessorStorage;
 
 namespace json {
@@ -55,6 +56,18 @@ ExportJson(TraceProcessorStorage*,
            ArgumentFilterPredicate = nullptr,
            MetadataFilterPredicate = nullptr,
            LabelFilterPredicate = nullptr);
+
+// TraceProcessorImpl inherits non-virtually from both TraceProcessor and
+// TraceProcessorStorageImpl, so implicitly upcasting TraceProcessor* to
+// TraceProcessorStorage* produces a pointer at the wrong offset for
+// ExportJson's internal cast to TraceProcessorStorageImpl*. Callers holding a
+// TraceProcessor* should use TraceProcessor::Export(ExportFormat::kJson, ...)
+// instead.
+base::Status ExportJson(TraceProcessor*,
+                        OutputWriter*,
+                        ArgumentFilterPredicate = nullptr,
+                        MetadataFilterPredicate = nullptr,
+                        LabelFilterPredicate = nullptr) = delete;
 
 }  // namespace json
 }  // namespace trace_processor

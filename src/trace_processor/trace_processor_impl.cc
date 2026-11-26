@@ -50,6 +50,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/core/plugin/plugin.h"
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
@@ -1258,6 +1259,24 @@ base::Status TraceProcessorImpl::Export(ExportFormat format,
     auto reset_attach =
         base::OnScopeExit([conn] { conn->SetAttachCreateWriteEnabled(false); });
     return ExportSqliteDatabase(this, file_system, *path);
+  }
+  if (format == ExportFormat::kJson) {
+    class ExportOutputWriter final : public json::OutputWriter {
+     public:
+      explicit ExportOutputWriter(ExportOutput* out) : out_(out) {}
+
+      base::Status AppendString(const std::string& s) override {
+        if (s.empty()) {
+          return base::OkStatus();
+        }
+        return out_->Write(s.data(), s.size());
+      }
+
+     private:
+      ExportOutput* out_;
+    };
+    ExportOutputWriter writer(output);
+    return json::ExportJson(context()->storage.get(), &writer);
   }
   return trace_export::WriteExport(
       plugin_dataframes_, context()->storage->string_pool(), format, output);

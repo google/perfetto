@@ -188,6 +188,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_processor_impl.h",
     ]
     deps = [
+      ":export_json",
       ":io",
       ":metatrace",
       ":storage_minimal",

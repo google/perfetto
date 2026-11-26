@@ -71,6 +71,8 @@ Unreleased:
     * Fixed the area selection slice flamegraph dropping slices which had not
       ended by the end of the trace, along with all their descendants. This
       left the flamegraph empty for ART method traces.
+    * Fixed `Convert to .json` and `Switch to legacy UI` crashing with a Wasm
+      out-of-bounds memory access in `traceconv.wasm` (regression since v58).
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
