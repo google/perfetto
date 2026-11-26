@@ -15,35 +15,48 @@
 import './styles.scss';
 import m from 'mithril';
 import {z} from 'zod';
+import type {time} from '../../base/time';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
-import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
-import HeapDumpExplorerPlugin from '../com.android.HeapDumpExplorer';
-import {ConnectionPage} from './views/connection';
-import {Dashboard} from './views/dashboard';
-import {LiveSession} from './sessions/live_session';
-import {MemoryOverviewPage} from './views/landing_page/memory_overview_page';
 import {NUM} from '../../trace_processor/query_result';
 import {EmptyState} from '../../widgets/empty_state';
-import type {MemoryOverviewTab} from './views/landing_page/proc_mem_overview';
+import HeapDumpExplorerPlugin from '../com.android.HeapDumpExplorer';
+import type {NavView} from '../com.android.HeapDumpExplorer/nav_state';
+import type {HeapDump} from '../com.android.HeapDumpExplorer/types';
+import HeapProfilePlugin, {
+  traceHasTimelineData,
+} from '../dev.perfetto.HeapProfile';
+import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
+import {LiveSession} from './sessions/live_session';
+import {ConnectionPage} from './views/connection';
+import {Dashboard} from './views/dashboard';
+import {MemoryOverviewPage} from './views/landing_page/memory_overview_page';
+import type {MemoryWorkbenchSection} from './views/landing_page/proc_mem_overview';
 import {getBestProcess} from './views/landing_page/proc_mem_stats';
+
+const MEMORY_PAGE_ROOT = '/memory';
 
 export default class MemscopePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
-    'Live memory profiler for Android/Linux devices';
-  static readonly dependencies = [RecordPageV2, HeapDumpExplorerPlugin];
+    'Live memory profiler and unified Memory Workbench (process overview, ' +
+    'smaps VMAs, native allocations, and Java heap dump explorer)';
+  static readonly dependencies = [
+    RecordPageV2,
+    HeapProfilePlugin,
+    HeapDumpExplorerPlugin,
+  ];
   private static openByDefaultSetting: Setting<boolean>;
   private static hideDefaultChangedHintSetting: Setting<boolean>;
 
   static onActivate(app: App) {
     MemscopePlugin.openByDefaultSetting = app.settings.register({
       id: 'dev.perfetto.OpenMemoryOverviewByDefault',
-      name: 'Open Memory Overview by default',
+      name: 'Open Memory by default',
       description:
-        'Open traces containing smaps snapshots in Memory Overview instead ' +
+        'Open traces containing smaps snapshots in Memory Workbench instead ' +
         'of the timeline.',
       schema: z.boolean(),
       defaultValue: true,
@@ -51,10 +64,10 @@ export default class MemscopePlugin implements PerfettoPlugin {
 
     MemscopePlugin.hideDefaultChangedHintSetting = app.settings.register({
       id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
-      name: 'Hide Memory Overview default-page explanation',
+      name: 'Hide Memory default-page explanation',
       description:
-        'Do not show the explanation that Memory Overview is the default ' +
-        'page for traces containing smaps snapshots.',
+        'Do not show the explanation that Memory Workbench is the default ' +
+        'page for traces containing smaps snapshots or heap dumps.',
       schema: z.boolean(),
       defaultValue: false,
       headless: true,
@@ -97,132 +110,306 @@ export default class MemscopePlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    const pageRoot = '/memoryoverview';
     const openByDefault = MemscopePlugin.openByDefaultSetting;
     const hideDefaultChangedHint = MemscopePlugin.hideDefaultChangedHintSetting;
-    const availability = await this.getMemoryOverviewAvailability(trace);
-    const autoNavigated = openByDefault.get() && availability.hasSmapsSnapshots;
+    const availability = await this.getMemoryAvailability(trace);
+    const hdePlugin = trace.plugins.getPlugin(HeapDumpExplorerPlugin);
+    const hdeSession = hdePlugin.hasHeapDumps()
+      ? hdePlugin.getSession()
+      : undefined;
     const bestUpid = await getBestProcess(trace.engine);
 
-    trace.pages.registerPage({
-      route: pageRoot,
-      render: (subpage) => {
-        const {parsed, redirect} = resolveMemoryOverviewRoute(
-          subpage,
-          bestUpid,
-          pageRoot,
-        );
-        if (redirect !== undefined) {
-          return redirect;
-        }
+    const defaultSection: MemoryWorkbenchSection =
+      !availability.hasSmapsSnapshots &&
+      !availability.hasNativeProfiles &&
+      availability.hasHeapDumps
+        ? 'heap'
+        : 'overview';
 
-        return m(MemoryOverviewPage, {
-          trace,
-          upid: parsed.upid,
-          tab: parsed.tab,
-          autoNavigated,
-          hdeAvailable: availability.hasHeapDumps,
-          openByDefault,
-          hideDefaultChangedHint,
-          onUpidChange: (newUpid) => {
-            trace.navigate(
-              `#!${pageRoot}/${formatMemoryOverviewSubpage(newUpid, parsed.tab)}`,
-            );
-          },
-          onTabChange: (tab) => {
-            if (parsed.upid !== undefined) {
-              trace.navigate(
-                `#!${pageRoot}/${formatMemoryOverviewSubpage(parsed.upid, tab)}`,
-              );
+    // Route internal Heap Dump Explorer navigations into /memory/<upid>/heap/...
+    if (hdeSession !== undefined) {
+      hdeSession.setHrefBuilder((sub) => {
+        const activeUpid = hdeSession.activeDump?.upid ?? bestUpid;
+        if (activeUpid === undefined) {
+          return sub ? `#!/heapdump/${sub}` : '#!/heapdump';
+        }
+        return `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(activeUpid, 'heap', sub)}`;
+      });
+    }
+
+    let autoNavigated = false;
+    const hdeRestored = hdePlugin.wasRestoredFromPermalink();
+    if (hdeRestored && hdeSession !== undefined) {
+      const targetUpid = hdeSession.activeDump?.upid ?? bestUpid;
+      if (targetUpid !== undefined) {
+        const sub = hdeSession.navPath || undefined;
+        trace.initialPage.suggest(
+          `${MEMORY_PAGE_ROOT}/${formatMemorySubpage(targetUpid, 'heap', sub)}`,
+          600,
+        );
+      }
+    } else if (openByDefault.get() && availability.hasSmapsSnapshots) {
+      autoNavigated = true;
+      trace.initialPage.suggest(MEMORY_PAGE_ROOT, 500);
+    } else if (
+      availability.hasHeapDumps &&
+      HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
+      !(await traceHasTimelineData(trace))
+    ) {
+      autoNavigated = true;
+      const targetUpid = hdeSession?.activeDump?.upid ?? bestUpid;
+      const route =
+        targetUpid !== undefined
+          ? `${MEMORY_PAGE_ROOT}/${formatMemorySubpage(targetUpid, 'heap')}`
+          : MEMORY_PAGE_ROOT;
+      trace.initialPage.suggest(route, 200);
+    }
+
+    const renderWorkbench = (parsed: MemorySubpage): m.Children => {
+      const upid = parsed.upid;
+      const section = parsed.section;
+
+      if (
+        section === 'heap' &&
+        upid !== undefined &&
+        !Number.isNaN(upid) &&
+        hdeSession !== undefined &&
+        hdeSession.activeDump?.upid !== upid
+      ) {
+        hdeSession.selectDumpForProcess(upid);
+      }
+
+      return m(MemoryOverviewPage, {
+        trace,
+        upid,
+        section,
+        hdeSession,
+        hdeSubpage: section === 'heap' ? parsed.hdeSubpage : undefined,
+        autoNavigated,
+        openByDefault,
+        hideDefaultChangedHint,
+        onUpidChange: (newUpid) => {
+          let nextSection = section;
+          let nextHdeSubpage: string | undefined;
+          if (section === 'heap' && hdeSession !== undefined) {
+            const matched = hdeSession.selectDumpForProcess(newUpid);
+            if (matched === undefined) {
+              nextSection = 'overview';
+            } else {
+              nextHdeSubpage = hdeSession.navPath || undefined;
             }
-          },
+          }
+          trace.navigate(
+            `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(newUpid, nextSection, nextHdeSubpage)}`,
+          );
+        },
+        onSelectSection: (nextSection) => {
+          if (upid === undefined || Number.isNaN(upid)) return;
+          let nextHdeSubpage: string | undefined;
+          if (nextSection === 'heap' && hdeSession !== undefined) {
+            hdeSession.selectDumpForProcess(upid);
+            nextHdeSubpage = hdeSession.navPath || undefined;
+          }
+          trace.navigate(
+            `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(upid, nextSection, nextHdeSubpage)}`,
+          );
+        },
+        onSelectHeapView: (view: NavView, preferredTs?: time) => {
+          if (
+            upid === undefined ||
+            Number.isNaN(upid) ||
+            hdeSession === undefined
+          ) {
+            return;
+          }
+          hdeSession.selectDumpForProcess(upid, preferredTs);
+          hdeSession.navigate(view);
+        },
+        onSelectDump: (dump: HeapDump, jumpToHeap: boolean) => {
+          if (hdeSession === undefined) return;
+          hdeSession.selectDump(dump);
+          if (jumpToHeap || section === 'heap') {
+            const sub = hdeSession.navPath || undefined;
+            trace.navigate(
+              `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(dump.upid, 'heap', sub)}`,
+            );
+          }
+        },
+        onOpenJavaHeap: (
+          ts: time,
+          view: NavView,
+          params?: Record<string, unknown>,
+        ) => {
+          if (
+            upid === undefined ||
+            Number.isNaN(upid) ||
+            hdeSession === undefined
+          ) {
+            return;
+          }
+          hdeSession.selectDumpForProcess(upid, ts);
+          hdeSession.navigateWithTabs(view, params);
+        },
+      });
+    };
+
+    const renderFromMemoryRoute = (subpage: string | undefined): m.Children => {
+      const {parsed, redirect} = resolveMemoryRoute(
+        subpage,
+        bestUpid,
+        defaultSection,
+        MEMORY_PAGE_ROOT,
+      );
+      if (redirect !== undefined) {
+        return redirect;
+      }
+      return renderWorkbench(parsed);
+    };
+
+    trace.pages.registerPage({
+      route: MEMORY_PAGE_ROOT,
+      render: renderFromMemoryRoute,
+    });
+
+    // Legacy /memoryoverview alias.
+    trace.pages.registerPage({
+      route: '/memoryoverview',
+      render: renderFromMemoryRoute,
+    });
+
+    // Legacy /heapdump alias (bookmarks, permalinks, HeapProfile timeline drill-down).
+    trace.pages.registerPage({
+      route: '/heapdump',
+      render: (subpage) => {
+        const upid = hdeSession?.activeDump?.upid ?? bestUpid;
+        if (upid === undefined) {
+          return m(EmptyState, {
+            icon: 'memory',
+            title: 'No processes with memory data in this trace',
+          });
+        }
+        const cleanedSubpage = subpage?.startsWith('/')
+          ? subpage.slice(1)
+          : subpage;
+        return renderWorkbench({
+          upid,
+          section: 'heap',
+          hdeSubpage: cleanedSubpage || undefined,
         });
       },
     });
 
-    if (availability.hasSmapsSnapshots || availability.hasHeapDumps) {
+    if (
+      availability.hasSmapsSnapshots ||
+      availability.hasHeapDumps ||
+      availability.hasNativeProfiles
+    ) {
       trace.sidebar.addMenuItem({
         section: 'current_trace',
         sortOrder: 25,
-        text: 'Memory Overview',
-        href: `#!${pageRoot}`,
+        text: 'Memory',
+        href: `#!${MEMORY_PAGE_ROOT}`,
         icon: 'memory',
         badge: 'preview',
       });
     }
-
-    if (autoNavigated) {
-      // Make this page appear before the heap dump explorer page.
-      trace.initialPage.suggest(pageRoot, 500);
-    }
   }
 
-  private async getMemoryOverviewAvailability(trace: Trace): Promise<{
+  private async getMemoryAvailability(trace: Trace): Promise<{
     readonly hasSmapsSnapshots: boolean;
     readonly hasHeapDumps: boolean;
+    readonly hasNativeProfiles: boolean;
   }> {
     const result = await trace.engine.query(`
       SELECT
         EXISTS(SELECT 1 FROM profiler_smaps) AS hasSmapsSnapshots,
-        EXISTS(SELECT 1 FROM heap_graph) AS hasHeapDumps
+        EXISTS(SELECT 1 FROM heap_graph) AS hasHeapDumps,
+        EXISTS(SELECT 1 FROM heap_profile_allocation) AS hasNativeProfiles
     `);
     const row = result.firstRow({
       hasSmapsSnapshots: NUM,
       hasHeapDumps: NUM,
+      hasNativeProfiles: NUM,
     });
     return {
       hasSmapsSnapshots: row.hasSmapsSnapshots !== 0,
       hasHeapDumps: row.hasHeapDumps !== 0,
+      hasNativeProfiles: row.hasNativeProfiles !== 0,
     };
   }
 }
 
-interface MemoryOverviewSubpage {
+interface MemorySubpage {
   readonly upid?: number;
-  readonly tab: MemoryOverviewTab;
+  readonly section: MemoryWorkbenchSection;
+  readonly hdeSubpage?: string;
 }
 
-function parseMemoryOverviewSubpage(subpage?: string): MemoryOverviewSubpage {
+function parseMemorySubpage(
+  subpage: string | undefined,
+  defaultSection: MemoryWorkbenchSection,
+): MemorySubpage {
   if (!subpage) {
-    return {tab: 'summary'};
+    return {section: defaultSection};
   }
   const parts = subpage.split('/').filter((x) => x !== '');
-  if (parts.length === 0) {
-    return {tab: 'summary'};
+  const first = parts[0];
+  if (first === undefined) {
+    return {section: defaultSection};
   }
-  const upid = parseInt(parts[0]!, 10);
-  const tab = parts[1] === 'smaps' ? 'smaps' : 'summary';
+  const upid = parseInt(first, 10);
+  const secPart = parts[1];
+  let section: MemoryWorkbenchSection;
+  let hdeSubpage: string | undefined;
+  if (secPart === 'smaps') {
+    section = 'smaps';
+  } else if (secPart === 'native') {
+    section = 'native';
+  } else if (secPart === 'heap') {
+    section = 'heap';
+    const rest = parts.slice(2).join('/');
+    hdeSubpage = rest !== '' ? rest : undefined;
+  } else if (secPart === 'overview' || secPart === 'summary') {
+    section = 'overview';
+  } else {
+    section = defaultSection;
+  }
   return {
     upid: Number.isNaN(upid) ? Number.NaN : upid,
-    tab,
+    section,
+    hdeSubpage,
   };
 }
 
-function formatMemoryOverviewSubpage(
+function formatMemorySubpage(
   upid: number,
-  tab?: MemoryOverviewTab,
+  section: MemoryWorkbenchSection,
+  hdeSubpage?: string,
 ): string {
-  if (tab === 'summary') {
-    return `${upid}`;
+  if (section === 'overview') {
+    return `${upid}/overview`;
   }
-
-  if (tab !== undefined) {
-    return `${upid}/${tab}`;
+  if (section === 'smaps') {
+    return `${upid}/smaps`;
   }
-  return `${upid}`;
+  if (section === 'native') {
+    return `${upid}/native`;
+  }
+  return hdeSubpage ? `${upid}/heap/${hdeSubpage}` : `${upid}/heap`;
 }
 
-function resolveMemoryOverviewRoute(
+function resolveMemoryRoute(
   subpage: string | undefined,
   bestUpid: number | undefined,
+  defaultSection: MemoryWorkbenchSection,
   pageRoot: string,
-): {parsed: MemoryOverviewSubpage; redirect?: m.Children} {
-  const parsed = parseMemoryOverviewSubpage(subpage);
+): {parsed: MemorySubpage; redirect?: m.Children} {
+  const parsed = parseMemorySubpage(subpage, defaultSection);
 
   if (parsed.upid === undefined) {
     if (bestUpid !== undefined) {
       location.replace(
-        `#!${pageRoot}/${formatMemoryOverviewSubpage(bestUpid, parsed.tab)}`,
+        `#!${pageRoot}/${formatMemorySubpage(bestUpid, parsed.section, parsed.hdeSubpage)}`,
       );
       return {
         parsed,
@@ -234,7 +421,10 @@ function resolveMemoryOverviewRoute(
     }
     return {
       parsed,
-      redirect: m(EmptyState, 'No processes with memory in this trace'),
+      redirect: m(EmptyState, {
+        icon: 'memory',
+        title: 'No processes with memory data in this trace',
+      }),
     };
   }
 

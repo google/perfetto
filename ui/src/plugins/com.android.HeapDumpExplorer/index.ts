@@ -35,6 +35,8 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly dependencies = [HeapProfilePlugin];
   private static defaultFlamegraphSetting: Setting<boolean>;
   private readonly session: HeapDumpExplorerSession;
+  private _hasHeapDumps = false;
+  private _restoredFromPermalink = false;
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -76,6 +78,22 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     );
   }
 
+  getSession(): HeapDumpExplorerSession {
+    return this.session;
+  }
+
+  hasHeapDumps(): boolean {
+    return this._hasHeapDumps;
+  }
+
+  wasRestoredFromPermalink(): boolean {
+    return this._restoredFromPermalink;
+  }
+
+  selectDumpForProcess(upid: number, preferredTs?: time): boolean {
+    return this.session.selectDumpForProcess(upid, preferredTs) !== undefined;
+  }
+
   // Change which heap dump we're looking at from another plugin
   updateHeadDump(upid: number, ts: time): void {
     const dump = this.session.dumps.find((d) => d.upid === upid && d.ts === ts);
@@ -89,8 +107,23 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
+    this._hasHeapDumps = true;
     const session = this.session;
     const restored = await session.loadDumps();
+    this._restoredFromPermalink = restored;
+
+    ctx.plugins
+      .getPlugin(HeapProfilePlugin)
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
+      );
+
+    // When the Memory Workbench (Memscope) plugin is active, it embeds the
+    // Heap Dump Explorer lenses directly in the unified scope rail and owns
+    // the single Memory sidebar entry and routing (including #!/heapdump).
+    if (ctx.plugins.isPluginEnabled('dev.perfetto.Memscope')) {
+      return;
+    }
 
     ctx.pages.registerPage({
       route: '/heapdump',
@@ -109,12 +142,6 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       session.autoNavigated = true;
       ctx.initialPage.suggest('/heapdump', 100);
     }
-
-    ctx.plugins
-      .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
-        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
-      );
 
     ctx.sidebar.addMenuItem({
       section: 'current_trace',
