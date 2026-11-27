@@ -27,6 +27,12 @@ Unreleased:
    * Fixed `android_jank_cuj_layer_name` returning `NULL` for CUJs without
      `DrawFrame` slices, which made their timeline metrics count the frames of
      all layers.
+   * Fixed `android_sysui_jank_cujs` (and `android_jank_latency_cujs` and
+     `android_cuj_blocking_calls`) dropping jank CUJs, or truncating them to
+     a few frames, when their `Choreographer#doFrame`s have no `DrawFrame` or
+     no actual frame timeline slice (e.g. WM Shell transitions that only
+     apply SurfaceControl transactions). CUJ boundaries now cover every
+     `Choreographer#doFrame` of the CUJ.
    * Fixed `android_frames_layers.layer_id` for layer names with more than one
      `#`.
    * The `trace_trigger` metadata is now taken from the
