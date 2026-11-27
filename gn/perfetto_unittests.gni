@@ -86,7 +86,6 @@ if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
   _profiling_unittests_targets += [
     "src/profiling/common:unittests",
     "src/profiling/unwind:unittests",
-    "src/profiling/unwind/libunwindstack:unittests",
   ]
 }
 

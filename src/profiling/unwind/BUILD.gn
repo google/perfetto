@@ -55,6 +55,17 @@ source_set("proc_pid_maps") {
   sources = [ "proc_pid_maps.h" ]
 }
 
+_use_libunwind = perfetto_unwinder_backend == "libunwind" && is_linux &&
+                 !is_android && current_cpu == "x64"
+
+group("unwind_backend") {
+  if (_use_libunwind) {
+    public_deps = [ "libunwind" ]
+  } else {
+    public_deps = [ "libunwindstack" ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
@@ -62,6 +73,11 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]
+  if (_use_libunwind) {
+    deps += [ "libunwind:unittests" ]
+  } else {
+    deps += [ "libunwindstack:unittests" ]
+  }
   sources = [ "proc_pid_maps_unittest.cc" ]
 }
 
@@ -70,12 +86,12 @@ if (enable_perfetto_benchmarks && enable_perfetto_traced_perf &&
   source_set("benchmarks") {
     testonly = true
     deps = [
+      ":unwind_backend",
       ":unwind_engine",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
       "../../../src/base",
       "../perf:unwinding",
-      "libunwindstack",
     ]
     sources = [ "unwind_benchmark.cc" ]
   }
