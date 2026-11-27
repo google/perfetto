@@ -62,6 +62,7 @@ public final class PerfettoTrackEventBuilder {
     public final Pool<Proto> mProtoPool;
     public final Pool<Flow> mFlowPool;
     public final Pool<Flow> mTerminatingFlowPool;
+    public boolean mHasBytesFields;
 
     public ObjectsPool(int capacity) {
       mFieldPool = new Pool<>(capacity);
@@ -77,6 +78,7 @@ public final class PerfettoTrackEventBuilder {
       mProtoPool.reset();
       mFlowPool.reset();
       mTerminatingFlowPool.reset();
+      mHasBytesFields = false;
     }
   }
 
@@ -201,10 +203,13 @@ public final class PerfettoTrackEventBuilder {
     mIsBuilt = true;
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
-    for (int i = 0, size = mPendingPointers.size(); i < size; i++) {
-      PerfettoPointer ptr = mPendingPointers.get(i);
-      if (ptr instanceof Field) {
-        ((Field) ptr).releaseBytes();
+    if (mObjectsPool.mHasBytesFields) {
+      mObjectsPool.mHasBytesFields = false;
+      for (int i = 0, size = mPendingPointers.size(); i < size; i++) {
+        PerfettoPointer ptr = mPendingPointers.get(i);
+        if (ptr instanceof Field) {
+          ((Field) ptr).releaseBytes();
+        }
       }
     }
     mPendingPointers.clear();
@@ -768,6 +773,9 @@ public final class PerfettoTrackEventBuilder {
     }
     Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
     field.setValueBytes(id, val);
+    if (val != null && val.length > 0) {
+      mObjectsPool.mHasBytesFields = true;
+    }
     addFieldToContainer(field);
     return this;
   }
