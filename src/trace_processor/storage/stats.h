@@ -84,6 +84,14 @@ namespace perfetto::trace_processor::stats {
       "trace-start dump (DUMP_REASON_START). Counted at most once per pid "    \
       "per importer; see trace_import_logs for the source, pid, process_name " \
       "and start_seq_id."),                                                    \
+  F(android_process_state_invalid_start_ts,                                    \
+                                          kSingle,  kNotice,   kAnalysis, Scope::kMachineAndTrace,      \
+      "system_server reported an invalid Android process-state or freezer "    \
+      "start time (negative CLOCK_BOOTTIME or later than the event or "        \
+      "snapshot reporting it), so it was ignored. Only the earliest state "    \
+      "change or died event per process reads prev_proc_state_start_ns. See "  \
+      "trace_import_logs for the reason, source, field, pid, upid, event_ts, " \
+      "start_ns and (for after_event) start_ts."),                           \
   F(deobfuscate_location_parse_error,     kSingle,  kError,    kAnalysis, Scope::kGlobal,          ""), \
   F(energy_breakdown_missing_values,      kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(energy_descriptor_invalid,            kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \

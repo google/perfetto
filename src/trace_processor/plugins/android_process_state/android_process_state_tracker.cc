@@ -28,8 +28,11 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -42,24 +45,39 @@ namespace perfetto::trace_processor::android_process_state {
 namespace {
 namespace fb = com::android::internal::pbzero;
 
-// Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
-// proc_state_start_ns, frozen_start_ns) to trace time. Values <= 0 mean
-// unknown. Also returns std::nullopt if the conversion fails (the clock tracker
-// records a stat in that case) or if the start is after |event_ts|, the trace
-// time of the event reporting it, as a state can't start after it is reported.
-std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
-                                          int64_t boottime_ns,
-                                          int64_t event_ts) {
-  if (boottime_ns <= 0) {
-    return std::nullopt;
-  }
-  std::optional<int64_t> start_ts = clock_tracker->ToTraceTime(
-      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
-      boottime_ns);
-  if (start_ts && *start_ts > event_ts) {
-    return std::nullopt;
-  }
-  return start_ts;
+// Records the android_process_state_invalid_start_ts stat and an import log
+// with details of a dropped negative or post-event start time.
+void RecordInvalidStartTs(TraceProcessorContext* context,
+                          int64_t event_ts,
+                          const char* reason,
+                          const char* source,
+                          const char* field,
+                          UniquePid upid,
+                          int64_t start_ns,
+                          std::optional<int64_t> start_ts) {
+  TraceStorage* storage = context->storage.get();
+  int64_t pid = storage->process_table()[upid].pid();
+  context->import_logs_tracker->RecordParserLog(
+      stats::android_process_state_invalid_start_ts, event_ts,
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(storage->InternString("reason"),
+                        Variadic::String(storage->InternString(reason)));
+        inserter.AddArg(storage->InternString("source"),
+                        Variadic::String(storage->InternString(source)));
+        inserter.AddArg(storage->InternString("field"),
+                        Variadic::String(storage->InternString(field)));
+        inserter.AddArg(storage->InternString("pid"), Variadic::Integer(pid));
+        inserter.AddArg(storage->InternString("upid"),
+                        Variadic::Integer(static_cast<int64_t>(upid)));
+        inserter.AddArg(storage->InternString("event_ts"),
+                        Variadic::Integer(event_ts));
+        inserter.AddArg(storage->InternString("start_ns"),
+                        Variadic::Integer(start_ns));
+        if (start_ts.has_value()) {
+          inserter.AddArg(storage->InternString("start_ts"),
+                          Variadic::Integer(*start_ts));
+        }
+      });
 }
 }  // namespace
 
@@ -110,10 +128,36 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
+std::optional<int64_t> AndroidProcessStateTracker::StartNsToTraceTime(
+    int64_t event_ts,
+    const char* source,
+    const char* field,
+    UniquePid upid,
+    int64_t boottime_ns) {
+  if (boottime_ns == 0) {
+    return std::nullopt;
+  }
+  if (boottime_ns < 0) {
+    RecordInvalidStartTs(context_, event_ts, "negative", source, field, upid,
+                         boottime_ns, /*start_ts=*/std::nullopt);
+    return std::nullopt;
+  }
+  std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
+      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      boottime_ns);
+  if (start_ts && *start_ts > event_ts) {
+    RecordInvalidStartTs(context_, event_ts, "after_event", source, field, upid,
+                         boottime_ns, start_ts);
+    return std::nullopt;
+  }
+  return start_ts;
+}
+
 template <typename Decoder>
 void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
     int64_t ts,
     UniquePid upid,
+    const char* source,
     const Decoder& event) {
   EarliestDelta& earliest = earliest_prev_[upid];
   if (ts >= earliest.ts) {
@@ -136,8 +180,8 @@ void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
     prev.process_group = static_cast<int32_t>(event.prev_process_group());
   }
   if (event.has_prev_proc_state_start_ns()) {
-    prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                       event.prev_proc_state_start_ns(), ts);
+    prev.start_ts = StartNsToTraceTime(ts, source, "prev_proc_state_start_ns",
+                                       upid, event.prev_proc_state_start_ns());
   }
 }
 
@@ -152,7 +196,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   UniquePid upid = *opt_upid;
 
-  UpdateInitialStateFromDelta(ts, upid, p);
+  UpdateInitialStateFromDelta(ts, upid, "process_state_changed", p);
 
   // Insert the change row.
   tables::AndroidProcessStateTable::Row row;
@@ -213,7 +257,7 @@ void AndroidProcessStateTracker::ParseProcessStateDied(
   if (!opt_upid) {
     return;
   }
-  UpdateInitialStateFromDelta(ts, *opt_upid, p);
+  UpdateInitialStateFromDelta(ts, *opt_upid, "process_state_died", p);
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -253,8 +297,8 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
     if (rec.has_proc_state_start_ns()) {
-      v.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                      rec.proc_state_start_ns(), ts);
+      v.start_ts = StartNsToTraceTime(ts, "process_dump", "proc_state_start_ns",
+                                      v.upid, rec.proc_state_start_ns());
     }
     process_dump_[v.upid] = v;
   }
@@ -281,12 +325,14 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   // system_server writes these unconditionally (a freeze carries
   // unfrozen_start_ns, an unfreeze frozen_start_ns), so 0 means unknown.
   if (evt.has_unfrozen_start_ns()) {
-    row.unfrozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                               evt.unfrozen_start_ns(), ts);
+    row.unfrozen_start_ts =
+        StartNsToTraceTime(ts, "freezer_event", "unfrozen_start_ns", *opt_upid,
+                           evt.unfrozen_start_ns());
   }
   if (evt.has_frozen_start_ns()) {
-    row.frozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                             evt.frozen_start_ns(), ts);
+    row.frozen_start_ts =
+        StartNsToTraceTime(ts, "freezer_event", "frozen_start_ns", *opt_upid,
+                           evt.frozen_start_ns());
   }
   if (evt.has_unfreeze_reason()) {
     row.unfreeze_reason =
@@ -311,12 +357,13 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
     FreezerStateValues v;
     v.upid = *opt_upid;
     if (rec.has_unfrozen_start_ns()) {
-      v.unfrozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                               rec.unfrozen_start_ns(), ts);
+      v.unfrozen_start_ts =
+          StartNsToTraceTime(ts, "freezer_dump", "unfrozen_start_ns", v.upid,
+                             rec.unfrozen_start_ns());
     }
     if (rec.has_frozen_start_ns()) {
-      v.frozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
-                                             rec.frozen_start_ns(), ts);
+      v.frozen_start_ts = StartNsToTraceTime(
+          ts, "freezer_dump", "frozen_start_ns", v.upid, rec.frozen_start_ns());
     }
     // An unfrozen process in the dump has unfrozen_dur_ms and, on newer
     // producers, a positive unfrozen_start_ns; a frozen one has the frozen_*
