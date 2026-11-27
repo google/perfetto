@@ -73,6 +73,11 @@ operating system and the hardware.
 
 If Perfetto helped you understand a system better, that story belongs here.
 
+We've just published our first tracing adventure
+[Finding and fixing Android memory leaks with Perfetto, SQL, and AI agents](/blog/hunting-android-memory-leaks)
+and more will follow soon.
+Enjoy the read!
+
 ### Engineering posts
 
 Perfetto is also an interesting piece of software to build, and we want to talk
