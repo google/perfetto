@@ -33,6 +33,7 @@ import {ChatSession} from './chat_session';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
+import {registerSkillTools} from './skill_tools';
 import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
 import {registerWebMCPTools} from './webmcp';
@@ -102,6 +103,7 @@ export default class IntellettoPlugin
   constructor(private readonly trace: Trace) {
     registerCoreTools(this.tools, this.trace);
     registerTimelineTools(this.tools, this.trace);
+    registerSkillTools(this.tools, this.trace.skills, this.trace.engine);
     registerCoreContextProviders(this.context, this.trace);
   }
 
@@ -135,7 +137,12 @@ export default class IntellettoPlugin
       title: 'Intelletto',
       icon: 'psychology',
       render: () => {
-        this.session ??= new ChatSession(gateway, this.tools, this.context);
+        this.session ??= new ChatSession(
+          gateway,
+          this.tools,
+          this.context,
+          trace.skills,
+        );
         return m(ChatPanel, {
           gateway,
           session: this.session,

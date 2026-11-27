@@ -34,8 +34,13 @@ import {
 } from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {HSLColor} from '../../base/color';
+import {createAggregationTab} from '../../components/aggregation_adapter';
 import {makeColorScheme} from '../../components/colorizer';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
+import {
+  LMK_TRACK_KIND,
+  LmkSelectionAggregator,
+} from './lmk_selection_aggregator';
 
 const KSWAPD_COLOR = makeColorScheme(new HSLColor('#2196F3')); // Blue 500
 
@@ -324,10 +329,12 @@ export default class MemoryViz implements PerfettoPlugin {
       const uri = `${MemoryViz.id}#lmk.${bucket}`;
       ctx.tracks.registerTrack({
         uri,
+        tags: {kinds: [LMK_TRACK_KIND]},
         description: `Low Memory Killer events for processes in the '${bucket}' OOM adjustment bucket.`,
         renderer: SliceTrack.create({
           trace: ctx,
           uri,
+          rootTableName: tableName,
           dataset: new SourceDataset({
             src: tableName,
             schema: {
@@ -347,6 +354,10 @@ export default class MemoryViz implements PerfettoPlugin {
       });
       lmkGroup.addChildInOrder(new TrackNode({uri, name: bucket}));
     }
+
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new LmkSelectionAggregator(ctx, tableName)),
+    );
 
     return lmkGroup;
   }

@@ -447,6 +447,7 @@ Env-var overrides:
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
     generateStdlibDocs();
+    generateUiSkills();
 
     const tsProjects = ['ui', 'ui/src/service_worker'];
     if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
@@ -671,6 +672,24 @@ function compileProtos() {
 function generateStdlibDocs() {
   const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_metadata_json.py');
   addTask(exec, [cmd, ['--out', pjoin(cfg.outDistDir, 'stdlib_docs.json')]]);
+}
+
+// The UI bundle of the agent skills in ai/skills/, which in-UI agents
+// (dev.perfetto.Intelletto) read one file at a time. See
+// ai/skills/CONTRIBUTING.md.
+function generateUiSkills() {
+  const cmd = pjoin(ROOT_DIR, 'tools/gen_skill_bundle.py');
+  const args = [
+    '--skill',
+    pjoin(ROOT_DIR, 'ai/skills/perfetto'),
+    '--adapter',
+    pjoin(ROOT_DIR, 'ai/skills/perfetto/environment-references/ui.md'),
+    '--layout',
+    'index',
+    '--out',
+    pjoin(cfg.outDistDir, 'ai_skills'),
+  ];
+  addTask(exec, [cmd, args]);
 }
 
 function updateSymlinks() {

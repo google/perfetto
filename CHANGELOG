@@ -54,6 +54,10 @@ Unreleased:
    * Fixed Breakpad symbolization of Chrome traces: Chrome's 33-character
      module IDs were hex-encoded a second time, so `<module_id>.breakpad`
      symbol files were never found.
+   * Fixed Python `BatchTraceProcessor.query_and_flatten_polars()` and
+     `execute_and_flatten_polars()` crashing when a query failed with
+     `execute_failure_handling=FailureHandling.INCREMENT_STAT`. Failed traces
+     are now skipped.
   UI:
     * AndroidInputLifecycle arrows are now drawn as soon as an input slice is
       selected, with the latency grid in an "Input Lifecycle" details tab.
@@ -70,6 +74,10 @@ Unreleased:
   SDK:
     * Android Java SDK: events started while another event is being built on
       the same thread are no longer dropped.
+    * TracingSession::StartBlocking() and SetOnStartCallback() now rely solely
+      on TYPE_ALL_DATA_SOURCES_STARTED instead of TYPE_DATA_SOURCES_INSTANCES,
+      fixing hangs when a data source unregisters or disconnects during start
+      (requires an Android 11+ tracing service).
   Tools:
     * Removed the standalone `traceconv` binary. The `traceconv` build
       target now builds `trace_processor_shell` running its

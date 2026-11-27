@@ -52,6 +52,7 @@ import type {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 import type {Embedder} from './embedder/embedder';
 import {createEmbedder} from './embedder/create_embedder';
+import {createBuiltinSkillSource, SkillManagerImpl} from './skill_manager';
 
 // localStorage key for the internal-user answer saved on the previous visit.
 const IS_INTERNAL_USER_KEY = 'isInternalUser';
@@ -66,6 +67,7 @@ function derivePolicy(isInternalUser: boolean): Policy {
       ? 'https://goto.google.com/perfetto-ui-bug'
       : 'https://github.com/google/perfetto/issues/new',
     googlerOnlyFeatures: isInternalUser,
+    defaultPlugins: isInternalUser ? ['dev.perfetto.GoogleDrive'] : [],
   };
 }
 
@@ -106,6 +108,7 @@ export class AppImpl implements App {
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
   readonly taskTracker = new TaskTrackerImpl();
+  readonly skills = new SkillManagerImpl(createBuiltinSkillSource());
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
@@ -179,7 +182,10 @@ export class AppImpl implements App {
       hidden: this.initialRouteArgs.hideSidebar,
     });
     this.embedder = createEmbedder();
-    this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
+    this.plugins = new PluginManagerImpl([
+      ...this.embedder.defaultPlugins,
+      ...this.policy.defaultPlugins,
+    ]);
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,

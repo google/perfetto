@@ -20,7 +20,7 @@ import os
 import socket
 import stat
 import tempfile
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 from urllib import request
 
 from perfetto.prebuilts.manifests.trace_processor_shell import TRACE_PROCESSOR_SHELL_MANIFEST
@@ -52,7 +52,7 @@ class PlatformDelegate:
       # Default: use the trace_processor version pinned to (and shipped with)
       # this package. The actual binary is downloaded and verified against the
       # pinned SHA-256 on first use, then cached under ~/.local/share/perfetto.
-      return get_perfetto_prebuilt(TRACE_PROCESSOR_SHELL_MANIFEST)
+      return cast(str, get_perfetto_prebuilt(TRACE_PROCESSOR_SHELL_MANIFEST))
 
     # Opt-in: fetch the latest trace_processor regardless of the pinned version.
     tp_path = os.path.join(tempfile.gettempdir(), 'trace_processor_python_api')

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any
+
 from google.protobuf import descriptor_pb2
 from google.protobuf import message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
@@ -41,11 +43,12 @@ class ProtoFactory:
     for f_desc_pb2 in metrics_file_desc_set_pb2.file:
       self.descriptor_pool.Add(f_desc_pb2)
 
-    def create_message_factory(message_type):
+    def create_message_factory(message_type: str) -> Any:
       message_desc = self.descriptor_pool.FindMessageTypeByName(message_type)
       if hasattr(message_factory, 'GetMessageClass'):
         return message_factory.GetMessageClass(message_desc)
       # AOSP is stil using the old libprotobuf to create message classes.
+      # pyrefly: ignore[missing-attribute]
       return message_factory.MessageFactory().GetPrototype(message_desc)
 
     # Create proto messages to correctly communicate with the RPC API by sending

@@ -157,6 +157,11 @@ public final class PerfettoTrace {
       return native_get_event_formats(ptr);
     }
 
+    // Final version of getPtr() so the builder avoids virtual dispatch.
+    final long nativePtr() {
+      return mPtr;
+    }
+
     /** Whether the category is registered or not. */
     public boolean isRegistered() {
       return mIsRegistered;
@@ -422,11 +427,11 @@ public final class PerfettoTrace {
    */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(
       Category category, String eventName, StackTraceElement[] stackTrace) {
-    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
-        return PerfettoTrace.instant(category, eventName);
+    PerfettoTrackEventBuilder event = PerfettoTrace.instant(category, eventName);
+    if (!event.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+      return event;
     }
-    return writeCallStack(PerfettoTrace.instant(category, eventName).beginProto(), stackTrace)
-        .endProto();
+    return writeCallStack(event.beginProto(), stackTrace).endProto();
   }
 
   /**
@@ -437,12 +442,13 @@ public final class PerfettoTrace {
    */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(
       Category category, String eventName, StackTraceElement[] stackTrace, double callstackWeight) {
-    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
-        return PerfettoTrace.instant(category, eventName);
+    PerfettoTrackEventBuilder event = PerfettoTrace.instant(category, eventName);
+    if (!event.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+      return event;
     }
     final long FIELD_TRACK_EVENT_CALLSTACK_WEIGHT = 57L;
-    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
-        .beginProto().addField(FIELD_TRACK_EVENT_CALLSTACK_WEIGHT, callstackWeight);
+    PerfettoTrackEventBuilder builder =
+        event.beginProto().addField(FIELD_TRACK_EVENT_CALLSTACK_WEIGHT, callstackWeight);
     return writeCallStack(builder, stackTrace).endProto();
   }
 

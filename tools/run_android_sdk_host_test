@@ -177,11 +177,11 @@ def CompileBench(jdk_home, jars, sdk_jar):
   return jar
 
 
-def RunBench(jdk_home, sdk_jar, bench_jar, bench_args):
+def RunBench(jdk_home, jars, sdk_jar, bench_jar, bench_args):
   env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
   Run([os.path.join(jdk_home, 'bin/java')] + BENCH_JVM_FLAGS + [
       '-Djava.library.path=' + OUT_DIR, '-cp',
-      Classpath(sdk_jar, bench_jar), BENCH_CLASS
+      Classpath(sdk_jar, bench_jar, *jars), BENCH_CLASS
   ] + bench_args,
       env=env)
 
@@ -203,7 +203,7 @@ def main():
   sdk_jar = CompileSdk(jdk_home, jars, java_protos)
   if args.benchmark is not None:
     bench_jar = CompileBench(jdk_home, jars, sdk_jar)
-    RunBench(jdk_home, sdk_jar, bench_jar, args.benchmark)
+    RunBench(jdk_home, jars, sdk_jar, bench_jar, args.benchmark)
     return
   test_jar = CompileTest(jdk_home, jars, sdk_jar)
   RunTests(jdk_home, jars, sdk_jar, test_jar)
