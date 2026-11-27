@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
-#include "perfetto/ext/base/status_macros.h"
+#include <cstdint>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/compute.h"
@@ -30,14 +32,12 @@
 #include "src/trace_processor/perfetto_sql/pipeline/operations/join.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/limit.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/projection.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_key_paths.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 
 namespace perfetto::trace_processor::pipeline {
-
 namespace {
 
 constexpr const OperationRegistration* kOperations[] = {
@@ -55,24 +55,18 @@ constexpr const OperationRegistration* kOperations[] = {
     &GraphTree::kRegistration,
     &Limit::kRegistration,
     &Join::kRegistration,
-    &projection::kSelect,
-    &projection::kExtend,
-    &projection::kDrop,
-    &projection::kRename,
-    &projection::kSet,
-    &projection::kAs,
 };
 
 }  // namespace
 
-PlanOperation* OperationRegistration::Encoding::Make(core::Arena* arena) const {
+PlanOperation* OperationRegistration::Make(core::Arena* arena) const {
   return make_(arena);
 }
 
 const OperationRegistration* FindOperationByTag(uint8_t tag) {
   const OperationRegistration* found = nullptr;
   for (const auto* registration : kOperations) {
-    if (registration->encoding() && registration->encoding()->tag() == tag) {
+    if (registration->tag() == tag) {
       // Operations sharing a tag would read each other's payloads.
       PERFETTO_CHECK(!found);
       found = registration;
@@ -81,18 +75,7 @@ const OperationRegistration* FindOperationByTag(uint8_t tag) {
   return found;
 }
 
-const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
-  for (const auto* registration : kOperations) {
-    if (registration->syntax() == syntax) {
-      return registration;
-    }
-  }
-  return nullptr;
-}
-
 base::Status RunBoundPasses(BoundPlan* bound, const LoweringContext& context) {
-  // A node's inputs come before it, so a rewrite at a node sees all that is
-  // below it as final, and nothing above it has been planned yet.
   bound->planned.resize(bound->plan.nodes().size());
   for (PlanNodeId id = 0; id < bound->planned.size(); ++id) {
     bound->plan.nodes()[id].operation().Rewrite(bound, id, context);

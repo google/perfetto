@@ -30,12 +30,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
-#include "src/perfetto_sql/analysis/relation.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -53,18 +49,15 @@
 #include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_key.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
-#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
-#include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-namespace analysis = ::perfetto::perfetto_sql::analysis;
 using core::StorageType;
 
 namespace {
@@ -81,14 +74,6 @@ std::vector<uint32_t> SparseColumns(const Bindings::Dataframe& data) {
     }
   }
   return sparse;
-}
-
-bool IsSubpipeline(Compiler* c, const SyntaqlitePerfettoPipeSource& n) {
-  if (!syntaqlite_node_is_present(n.select)) {
-    return false;
-  }
-  const auto* node = Node<SyntaqliteNode>(c->parser(), n.select);
-  return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPELINE;
 }
 
 bool HoldsNoValues(const dataframe::Column& column, uint32_t rows) {
@@ -142,144 +127,9 @@ class TableStamp {
   std::string data_;
 };
 
-std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
-                                       std::string_view name) {
-  const std::vector<std::string>& names = dataframe.column_names();
-  for (uint32_t i = 0; i < names.size(); ++i) {
-    if (names[i] == name && !dataframe::IsHiddenColumn(names[i])) {
-      return i;
-    }
-  }
-  return std::nullopt;
-}
-
 }  // namespace
 
-constexpr OperationRegistration Scan::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE, &BuildPlan,
-    OperationRegistration::Encoding{0, &MakeOperation<Scan>}};
-
-base::Status Scan::BuildPlan(Compiler* c, uint32_t from) {
-  const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), from);
-  ASSIGN_OR_RETURN(Builder::ScanResult relation, Scan::BuildRelation(c, from));
-  c->SetRoot(relation.relation);
-  for (NamedColumn& column : relation.columns) {
-    c->Append(std::move(column), from);
-  }
-  if (std::optional<NameId> qualifier = Scan::SourceQualifier(c, *n)) {
-    c->AddAlias(*qualifier, 0);
-  }
-  return base::OkStatus();
-}
-
-base::StatusOr<Builder::ScanResult> Scan::BuildRelation(Compiler* c,
-                                                        uint32_t source) {
-  const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), source);
-  if (IsSubpipeline(c, *n)) {
-    ASSIGN_OR_RETURN(Builder::ScanResult sub, c->CompileSubpipeline(n->select));
-    RETURN_IF_ERROR(Scan::CheckSourceNames(c, sub.columns, source));
-    return sub;
-  }
-  Builder::ScanResult out;
-  if (const dataframe::Dataframe* dataframe =
-          Scan::FindDirectDataframe(c, *n)) {
-    // Hidden from SELECT * in SQLite, so hidden here too.
-    std::vector<Builder::TableColumn> columns;
-    const std::vector<std::string>& names = dataframe->column_names();
-    for (uint32_t i = 0; i < names.size(); ++i) {
-      if (!dataframe::IsHiddenColumn(names[i])) {
-        columns.push_back({c->Name(names[i]), i});
-      }
-    }
-    out = c->builder().ScanTable(*dataframe,
-                                 SpanText(c->parser(), n->table_name), columns);
-  } else {
-    ASSIGN_OR_RETURN(analysis::RelationLineage lineage,
-                     Scan::AnalyzeSource(c, source));
-    std::vector<Builder::TableColumn> columns;
-    if (const dataframe::Dataframe* renamed =
-            Scan::FindRenamedDataframe(c, lineage, &columns)) {
-      out = c->builder().ScanTable(*renamed, *lineage.row_origin(), columns);
-    } else {
-      std::vector<Builder::SqlColumn> sql_cols;
-      sql_cols.reserve(lineage.columns().size());
-      for (const analysis::ColumnLineage& col : lineage.columns()) {
-        PlanType type = PlanType::Unknown();
-        if (std::optional<analysis::ColumnType> traced = col.type()) {
-          StorageType storage = sql_schema::ToStorageType(*traced);
-          // An Id only means something in the table it indexes: read through
-          // SQL, it is a plain number.
-          if (storage.Is<core::Id>()) {
-            storage = core::Uint32{};
-          }
-          type = storage;
-        }
-        sql_cols.push_back({c->Name(col.output_name), type});
-      }
-      out = c->builder().ScanSql(c->SourceForNode(source).sql(), sql_cols);
-    }
-  }
-  RETURN_IF_ERROR(Scan::CheckSourceNames(c, out.columns, source));
-  return out;
-}
-
-const dataframe::Dataframe* Scan::FindDirectDataframe(
-    Compiler* c,
-    const SyntaqlitePerfettoPipeSource& n) {
-  // Only an unqualified table name is read directly; anything else goes to
-  // SQLite. An alias only renames the qualifier, so it does not matter here.
-  bool table_name =
-      !syntaqlite_node_is_present(n.select) && !IsSpanPresent(n.schema);
-  if (!table_name) {
-    return nullptr;
-  }
-  const dataframe::Dataframe* dataframe =
-      c->catalog().FindDataframe(SpanText(c->parser(), n.table_name));
-  // Columns can only be shared out of a dataframe which has stopped changing.
-  return dataframe && dataframe->finalized() ? dataframe : nullptr;
-}
-
-std::optional<NameId> Scan::SourceQualifier(
-    Compiler* c,
-    const SyntaqlitePerfettoPipeSource& n) {
-  // As in SQLite, an alias replaces the table name.
-  if (syntaqlite_node_is_present(n.alias)) {
-    const auto* alias = Node<SyntaqliteName>(c->parser(), n.alias);
-    return c->Name(alias->ident_name.source);
-  }
-  if (!syntaqlite_node_is_present(n.select)) {
-    return c->Name(n.table_name);
-  }
-  return std::nullopt;
-}
-
-base::Status Scan::CheckSourceNames(Compiler* c,
-                                    base::Span<const NamedColumn> columns,
-                                    uint32_t at) {
-  for (size_t i = 0; i < columns.size(); ++i) {
-    for (size_t j = 0; j < i; ++j) {
-      if (c->Same(columns[j].name, columns[i].name)) {
-        return c->Expected(at,
-                           "distinct column names, but there are two named '" +
-                               c->Text(columns[j].name) + "'");
-      }
-    }
-  }
-  for (size_t i = 0; i < columns.size(); ++i) {
-    const std::string& name = c->Text(columns[i].name);
-    // An expression is only named by its alias.
-    if (name.empty()) {
-      return c->Expected(at, "every column to have a name, but column " +
-                                 std::to_string(i + 1) +
-                                 " has none: give it one with AS");
-    }
-    if (!sql_argument::IsValidColumnName(base::StringView(name))) {
-      return c->Expected(at, "every column to have a valid name, but '" + name +
-                                 "' is not one: give it one with AS");
-    }
-  }
-  return base::OkStatus();
-}
+constexpr OperationRegistration Scan::kRegistration{0, &MakeOperation<Scan>};
 
 Bindings::Dataframe Scan::BindingFor(const dataframe::Dataframe& dataframe,
                                      const ScanDataframe& data) {
@@ -330,58 +180,6 @@ void Scan::Bind(BoundPlan* bound,
   const auto& scan = bound->plan.nodes()[node].Cast<Scan>();
   bound->bindings.dataframes[node] =
       BindingFor(dataframe, std::get<Scan::Dataframe>(scan.source_));
-}
-
-base::StatusOr<analysis::RelationLineage> Scan::AnalyzeSource(Compiler* c,
-                                                              uint32_t from) {
-  // The columns come from semantic analysis alone: the SQL is only run where
-  // the pipeline is written, which is the only place everything it reads is
-  // in scope.
-  const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), from);
-  if (IsSpanPresent(n->schema)) {
-    return c->Err(from, Compiler::Error::kUnsupported,
-                  "reading a relation whose columns cannot be worked out",
-                  " (a schema-qualified table)");
-  }
-  analysis::RelationAnalyzer analyzer(c->catalog());
-  base::StatusOr<analysis::RelationLineage> lineage =
-      syntaqlite_node_is_present(n->select)
-          ? analyzer.AnalyzeQuery({c->parser(), n->select})
-          : analyzer.AnalyzeRelation({c->parser(), from},
-                                     SpanText(c->parser(), n->table_name));
-  if (!lineage.ok()) {
-    return c->Err(from, Compiler::Error::kUnsupported,
-                  "reading a relation whose columns cannot be worked out",
-                  " (" + lineage.status().message() + ")");
-  }
-  return lineage;
-}
-
-const dataframe::Dataframe* Scan::FindRenamedDataframe(
-    Compiler* c,
-    const analysis::RelationLineage& lineage,
-    std::vector<Builder::TableColumn>* columns) {
-  std::optional<std::string_view> origin = lineage.row_origin();
-  if (!origin) {
-    return nullptr;
-  }
-  const dataframe::Dataframe* dataframe = c->catalog().FindDataframe(*origin);
-  // As for a table read directly, the dataframe must have stopped changing.
-  if (!dataframe || !dataframe->finalized()) {
-    return nullptr;
-  }
-  for (const analysis::ColumnLineage& column : lineage.columns()) {
-    if (column.origins.size() != 1) {
-      return nullptr;
-    }
-    std::optional<uint32_t> i =
-        FindScanColumn(*dataframe, column.origins[0].column_name);
-    if (!i) {
-      return nullptr;
-    }
-    columns->push_back({c->Name(column.output_name), *i});
-  }
-  return dataframe;
 }
 
 std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
@@ -692,7 +490,7 @@ base::Status Scan::BindDataframeArgs(
       }
     } else {
       const std::string& name = plan.names().text(column.name);
-      std::optional<uint32_t> i = FindScanColumn(*dataframe, name);
+      std::optional<uint32_t> i = FindNonHiddenColumn(*dataframe, name);
       if (!i) {
         return base::ErrStatus(
             "Pipeline: dataframe argument %u has no column '%s'", arg->index,

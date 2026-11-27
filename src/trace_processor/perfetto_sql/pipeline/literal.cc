@@ -17,21 +17,16 @@
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 
 #include <cstdint>
-#include <optional>
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/param_value.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -79,67 +74,27 @@ struct LiteralFetcher : core::ValueFetcher {
   uint32_t at = 0;
 };
 
-// The text of 'it''s' is it's: the span keeps the quotes and doubles them.
-std::string StringLiteralText(const std::string& source) {
-  PERFETTO_CHECK(source.size() >= 2 && source.front() == '\'' &&
-                 source.back() == '\'');
-  return base::ReplaceAll(source.substr(1, source.size() - 2), "''", "'");
-}
-
 }  // namespace
 
-base::StatusOr<Literal> CompileLiteral(Compiler* c, uint32_t expr) {
-  SyntaqliteParser* p = c->parser();
-  const auto* node = Node<SyntaqliteNode>(p, expr);
-  bool negate = false;
-  if (node->tag == SYNTAQLITE_NODE_UNARY_EXPR &&
-      node->unary_expr.op == SYNTAQLITE_UNARY_OP_MINUS) {
-    negate = true;
-    node = Node<SyntaqliteNode>(p, node->unary_expr.operand);
+std::optional<std::string> CheckLiteralTypes(core::Op op,
+                                             base::Span<const Literal> literals,
+                                             core::StorageType type) {
+  if (literals.size() == 1 && literals[0].is_given()) {
+    return std::nullopt;
   }
-  if (node->tag != SYNTAQLITE_NODE_LITERAL) {
-    return c->Unsupported(expr, "a value other than a literal");
+  if (op.IsAnyOf<core::NullOp>() || op.IsAnyOf<core::OnlyStringOp>()) {
+    return std::nullopt;
   }
-  const SyntaqliteLiteral& literal = node->literal;
-  std::string text = SpanText(p, literal.source);
-  Literal out;
-  switch (static_cast<int>(literal.literal_type)) {
-    case SYNTAQLITE_LITERAL_TYPE_INTEGER: {
-      std::optional<int64_t> value = base::StringToInt64(text);
-      if (!value && base::StartsWith(base::ToLower(text), "0x")) {
-        std::optional<uint64_t> bits = base::StringToUInt64(text.substr(2), 16);
-        if (bits) {
-          value = static_cast<int64_t>(*bits);
-        }
-      }
-      if (!value) {
-        return c->Unsupported(expr, "a number which does not fit an integer");
-      }
-      out.type = Literal::Type::kInt64;
-      out.int_value =
-          negate ? static_cast<int64_t>(0ull - static_cast<uint64_t>(*value))
-                 : *value;
-      break;
+  bool string_column = type.Is<core::String>();
+  for (const Literal& literal : literals) {
+    if (string_column != literal.is_string()) {
+      return std::string(string_column ? "a string to compare with a string "
+                                         "column, but got a number"
+                                       : "a number to compare with a numeric "
+                                         "column, but got a string");
     }
-    case SYNTAQLITE_LITERAL_TYPE_FLOAT: {
-      std::optional<double> value = base::StringToDouble(text);
-      if (!value) {
-        return c->Unsupported(expr, "a malformed number");
-      }
-      out.type = Literal::Type::kDouble;
-      out.double_value = negate ? -*value : *value;
-      break;
-    }
-    case SYNTAQLITE_LITERAL_TYPE_STRING:
-      if (negate) {
-        return c->Unsupported(expr, "a negated string");
-      }
-      out = c->builder().StringLiteral(StringLiteralText(text));
-      break;
-    default:
-      return c->Unsupported(expr, "a literal other than a number or string");
   }
-  return out;
+  return std::nullopt;
 }
 
 ex::ParamValue CastLiterals(const core::Op& op,

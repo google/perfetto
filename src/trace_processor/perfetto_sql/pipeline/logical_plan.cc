@@ -16,14 +16,47 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/core/common/storage_types.h"
 
 namespace perfetto::trace_processor::pipeline {
+
+std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
+  if (a.is_null()) {
+    return b;
+  }
+  if (b.is_null()) {
+    return a;
+  }
+  if (a.is_unknown() && b.is_unknown()) {
+    return a;
+  }
+  if (a.is_unknown() || b.is_unknown()) {
+    const PlanType& known = a.is_unknown() ? b : a;
+    if (known.storage()->IsAnyOf<core::IntegerType>()) {
+      return PlanType(core::Int64{});
+    }
+    return known;
+  }
+  core::StorageType x = *a.storage();
+  core::StorageType y = *b.storage();
+  if (x == y) {
+    return a;
+  }
+  if (x.Is<core::String>() || y.Is<core::String>()) {
+    return std::nullopt;
+  }
+  if (x.Is<core::Double>() || y.Is<core::Double>()) {
+    return PlanType(core::Double{});
+  }
+  return PlanType(core::Int64{});
+}
 
 // A plan has tens of names, so a scan beats a hash table, in code as in time.
 NameId NameTable::Intern(std::string_view text) {

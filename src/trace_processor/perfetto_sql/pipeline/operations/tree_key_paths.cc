@@ -16,19 +16,12 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_key_paths.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/tree_key_paths.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -36,43 +29,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 constexpr OperationRegistration TreeKeyPaths::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_TREE_KEY_PATHS, &BuildPlan,
-    OperationRegistration::Encoding{12, &MakeOperation<TreeKeyPaths>}};
-
-base::Status TreeKeyPaths::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("TREE KEY PATHS");
-  const auto* n = Node<SyntaqlitePerfettoTreeKeyPaths>(c->parser(), stage);
-
-  ASSIGN_OR_RETURN(ColumnId node_column, c->Resolve(c->Name("id"), stage));
-  ASSIGN_OR_RETURN(ColumnId parent_column,
-                   c->Resolve(c->Name("parent_id"), stage));
-
-  std::vector<ColumnId> keys;
-  const auto* list =
-      Node<SyntaqlitePerfettoPipeColumnList>(c->parser(), n->columns);
-  for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
-    uint32_t item_id = syntaqlite_list_child_id(list, i);
-    const auto* item = Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-    std::optional<NameId> qualifier;
-    if (IsSpanPresent(item->qualifier)) {
-      qualifier = c->Name(item->qualifier);
-    }
-    ASSIGN_OR_RETURN(ColumnId key,
-                     c->Resolve(qualifier, c->Name(item->name), item_id));
-    if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
-      keys.push_back(key);
-    }
-  }
-
-  NameId path_name = c->Name(n->key_name);
-  NameId parent_path_name = c->Name(n->parent_key_name);
-  auto built = c->builder().TreeKeyPaths(c->root(), node_column, parent_column,
-                                         keys, path_name, parent_path_name);
-  c->SetRoot(built.relation);
-  c->Append(NamedColumn{path_name, built.path}, stage);
-  c->Append(NamedColumn{parent_path_name, built.parent_path}, stage);
-  return base::OkStatus();
-}
+    12, &MakeOperation<TreeKeyPaths>};
 
 std::optional<uint32_t> TreeKeyPaths::Prune(std::vector<bool>* needed) {
   // As with TREE ACCUMULATE, unread outputs skip the stage and its checks.

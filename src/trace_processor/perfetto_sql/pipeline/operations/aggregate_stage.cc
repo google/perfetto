@@ -16,21 +16,13 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -38,67 +30,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 constexpr OperationRegistration AggregateStage::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE, &BuildPlan,
-    OperationRegistration::Encoding{5, &MakeOperation<AggregateStage>}};
-
-base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("AGGREGATE");
-  const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
-
-  std::vector<ColumnId> group_keys;
-  std::vector<std::pair<NamedColumn, uint32_t>> keys;
-  if (syntaqlite_node_is_present(n->group_by)) {
-    const auto* list =
-        Node<SyntaqlitePerfettoPipeColumnList>(c->parser(), n->group_by);
-    for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
-      uint32_t item_id = syntaqlite_list_child_id(list, i);
-      const auto* item =
-          Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-      std::optional<NameId> qualifier;
-      if (IsSpanPresent(item->qualifier)) {
-        qualifier = c->Name(item->qualifier);
-      }
-      NameId name = c->Name(item->name);
-      ASSIGN_OR_RETURN(ColumnId key, c->Resolve(qualifier, name, item_id));
-      if (IsSpanPresent(item->alias)) {
-        name = c->Name(item->alias);
-      }
-      // Groups once by each column, but outputs one column per item listed.
-      if (std::find(group_keys.begin(), group_keys.end(), key) ==
-          group_keys.end()) {
-        group_keys.push_back(key);
-      }
-      keys.push_back({NamedColumn{name, key}, item_id});
-    }
-  }
-
-  std::vector<Builder::AggregateItem> agg_items;
-  std::vector<uint32_t> agg_nodes;
-  const auto* list =
-      Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
-  for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
-    uint32_t agg_id = syntaqlite_list_child_id(list, i);
-    const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
-    agg_items.push_back(
-        {c->Name(agg->name), resolved.function, resolved.column});
-    agg_nodes.push_back(agg_id);
-  }
-
-  auto built = c->builder().Aggregate(c->root(), group_keys, agg_items);
-  c->SetRoot(built.relation);
-
-  // Only the keys and aggregates are visible after this stage.
-  c->ReplaceRow({});
-  c->ClearAliases();
-  for (auto& [column, node] : keys) {
-    c->Append(std::move(column), node);
-  }
-  for (size_t i = 0; i < agg_items.size(); ++i) {
-    c->Append(NamedColumn{agg_items[i].name, built.columns[i]}, agg_nodes[i]);
-  }
-  return base::OkStatus();
-}
+    5, &MakeOperation<AggregateStage>};
 
 std::optional<uint32_t> AggregateStage::Prune(std::vector<bool>* needed) {
   PruneAggregates(&aggregates_, needed);

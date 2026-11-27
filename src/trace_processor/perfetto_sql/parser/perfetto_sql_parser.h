@@ -28,8 +28,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
+#include "src/trace_processor/perfetto_sql/pipesql/translator.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -157,7 +157,7 @@ class PerfettoSqlParser {
   // varies between sources sharing one parser, not between catalogs.
   explicit PerfettoSqlParser(
       const base::FlatHashMap<std::string, Macro>& macros,
-      const pipeline::Catalog& catalog,
+      const pipesql::Catalog& catalog,
       bool pipelines_allowed);
 
   // Rebinds to a fresh source; keeps the syntaqlite parser instance.

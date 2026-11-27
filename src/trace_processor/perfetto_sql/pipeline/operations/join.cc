@@ -19,18 +19,11 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <utility>
 #include <vector>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/join.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -38,133 +31,7 @@ namespace perfetto::trace_processor::pipeline {
 
 namespace ex = core::exec;
 
-constexpr OperationRegistration Join::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_JOIN, &BuildPlan,
-    OperationRegistration::Encoding{13, &MakeOperation<Join>}};
-
-namespace {
-
-using JoinNode = SyntaqlitePerfettoPipeJoin;
-
-// Adds the right side's columns to the row, under the right side's alias.
-// With USING, the right side's copy of the column is only reachable through
-// the alias, so the bare name keeps referring to the input's column.
-base::StatusOr<Builder::ScanResult> AppendRelation(
-    Compiler* c,
-    const JoinNode& n,
-    std::optional<NameId> using_name,
-    std::vector<ColumnId>* outputs) {
-  const auto* source =
-      Node<SyntaqlitePerfettoPipeSource>(c->parser(), n.operand);
-  std::optional<NameId> alias = Scan::SourceQualifier(c, *source);
-  if (alias && c->FindAlias(*alias)) {
-    return c->Expected(n.operand, "a different alias for each relation");
-  }
-  ASSIGN_OR_RETURN(Builder::ScanResult relation,
-                   Scan::BuildRelation(c, n.operand));
-  // Sized up front: push_back() would inline its growth code here.
-  size_t first = c->row().size();
-  outputs->resize(relation.columns.size());
-  for (size_t i = 0; i < relation.columns.size(); ++i) {
-    const NamedColumn& column = relation.columns[i];
-    c->Append(column, n.operand,
-              using_name && c->Same(column.name, *using_name));
-    (*outputs)[i] = column.id;
-  }
-  if (alias) {
-    c->AddAlias(*alias, first);
-  }
-  return relation;
-}
-
-bool HasColumn(const std::vector<NamedColumn>& columns, ColumnId id) {
-  for (const NamedColumn& column : columns) {
-    if (column.id == id) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Finds the probe and build keys from `ON a = b` or `USING (col)`.
-base::Status ResolveKeys(Compiler* c,
-                         const Builder::ScanResult& relation,
-                         uint32_t match,
-                         std::optional<NameId> using_name,
-                         ColumnId* probe_key,
-                         ColumnId* build_key) {
-  if (using_name) {
-    ASSIGN_OR_RETURN(*probe_key, c->Resolve(*using_name, match));
-    std::optional<ColumnId> right =
-        c->FindColumn(relation.columns, *using_name);
-    if (!right) {
-      return c->Expected(match, "a column of each side to be equal");
-    }
-    *build_key = *right;
-    return base::OkStatus();
-  }
-  const auto* eq = Node<SyntaqliteBinaryExpr>(c->parser(), match);
-  if (eq->tag != SYNTAQLITE_NODE_BINARY_EXPR ||
-      eq->op != SYNTAQLITE_BINARY_OP_EQ) {
-    return c->Unsupported(
-        match, "a JOIN condition other than one column equal to another");
-  }
-  ASSIGN_OR_RETURN(ColumnId a, c->ResolveColumnExpr(eq->left));
-  ASSIGN_OR_RETURN(ColumnId b, c->ResolveColumnExpr(eq->right));
-  bool a_right = HasColumn(relation.columns, a);
-  if (a_right == HasColumn(relation.columns, b)) {
-    return c->Expected(match, "a column of each side to be equal");
-  }
-  *probe_key = a_right ? b : a;
-  *build_key = a_right ? a : b;
-  return base::OkStatus();
-}
-
-}  // namespace
-
-base::Status Join::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("JOIN");
-  const auto& n = *Node<JoinNode>(c->parser(), stage);
-  bool has_on = syntaqlite_node_is_present(n.on_expr);
-  bool has_using = syntaqlite_node_is_present(n.using_columns);
-  if (!has_on && !has_using) {
-    return c->Expected(stage, "ON or USING to say which rows match");
-  }
-  bool left = n.join_type == SYNTAQLITE_JOIN_TYPE_LEFT;
-  if (!left && n.join_type != SYNTAQLITE_JOIN_TYPE_INNER) {
-    return c->Unsupported(stage, "a JOIN other than an INNER or LEFT one");
-  }
-  uint32_t match = n.on_expr;
-  std::optional<NameId> using_name;
-  if (!has_on) {
-    const auto* list =
-        Node<SyntaqlitePerfettoPipeNameList>(c->parser(), n.using_columns);
-    if (syntaqlite_list_count(list) != 1) {
-      return c->Unsupported(n.using_columns, "a JOIN on more than one column");
-    }
-    match = syntaqlite_list_child_id(list, 0);
-    using_name =
-        c->Name(Node<SyntaqlitePerfettoPipeName>(c->parser(), match)->name);
-  }
-  Builder::Relation input = c->root();
-  std::vector<ColumnId> outputs;
-  ASSIGN_OR_RETURN(Builder::ScanResult relation,
-                   AppendRelation(c, n, using_name, &outputs));
-  ColumnId probe_key = 0;
-  ColumnId build_key = 0;
-  RETURN_IF_ERROR(
-      ResolveKeys(c, relation, match, using_name, &probe_key, &build_key));
-  PlanType type = c->ColumnType(probe_key);
-  if (type.storage() && !(type.Is<core::Uint32>() || type.Is<core::Int32>() ||
-                          type.Is<core::Int64>())) {
-    return c->Expected(match, "an integer key");
-  }
-  c->SetRoot(c->builder().Join(
-      input, relation.relation,
-      left ? ex::JoinSpec::Kind::kLeft : ex::JoinSpec::Kind::kInner, probe_key,
-      build_key, outputs));
-  return base::OkStatus();
-}
+constexpr OperationRegistration Join::kRegistration{13, &MakeOperation<Join>};
 
 std::optional<uint32_t> Join::Prune(std::vector<bool>* needed) {
   outputs_.RemoveIf([&](ColumnId c) { return !(*needed)[c]; });

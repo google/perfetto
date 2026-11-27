@@ -55,8 +55,6 @@ class TreeAccumulate final : public PlanOperation {
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
 
-  static base::Status BuildPlan(Compiler*, uint32_t);
-
   // Whether this fold, directly on `below`, can run before it instead: they
   // walk the same tree in opposite directions and this reads none of
   // `below`'s outputs.

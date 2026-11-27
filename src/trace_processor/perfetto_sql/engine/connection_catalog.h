@@ -24,13 +24,13 @@
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipesql/translator.h"
 
 namespace perfetto::trace_processor {
 
-// Adapts a connection to semantic analysis and pipeline compilation. Each
+// Adapts a connection to semantic analysis and PipeSQL translation. Each
 // dataframe is served as a typed leaf relation and as a dataframe.
-class ConnectionCatalog final : public pipeline::Catalog {
+class ConnectionCatalog final : public pipesql::Catalog {
  public:
   explicit ConnectionCatalog(PerfettoSqlConnection*);
 

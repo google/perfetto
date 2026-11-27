@@ -18,49 +18,21 @@
 
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-constexpr OperationRegistration OrderBy::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY, &BuildPlan,
-    OperationRegistration::Encoding{4, &MakeOperation<OrderBy>}};
+constexpr OperationRegistration OrderBy::kRegistration{4,
+                                                       &MakeOperation<OrderBy>};
 
 void OrderBy::AddToPlan(LogicalPlan* plan, const std::vector<SortKey>& keys) {
   OrderBy order;
   order.keys_ = plan->arena().CopySpan<SortKey>(keys);
   plan->AddNode(order, {plan->root()});
-}
-
-base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("ORDER BY");
-  const auto* n = Node<SyntaqlitePerfettoPipeOrderBy>(c->parser(), stage);
-  const auto* terms =
-      Node<SyntaqlitePerfettoPipeOrderTermList>(c->parser(), n->terms);
-
-  std::vector<SortKey> keys;
-  for (uint32_t i = 0; i < syntaqlite_list_count(terms); ++i) {
-    uint32_t term_id = syntaqlite_list_child_id(terms, i);
-    const auto* term =
-        Node<SyntaqlitePerfettoPipeOrderTerm>(c->parser(), term_id);
-    ASSIGN_OR_RETURN(ColumnId id, c->ResolveColumnExpr(term->expr));
-    keys.push_back({id, term->sort_order == SYNTAQLITE_SORT_ORDER_DESC});
-  }
-  PERFETTO_DCHECK(!keys.empty());
-  c->SetRoot(c->builder().OrderBy(c->root(), std::move(keys)));
-  return base::OkStatus();
 }
 
 std::optional<uint32_t> OrderBy::Prune(std::vector<bool>* needed) {

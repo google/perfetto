@@ -174,37 +174,6 @@ void SetUnreadColumns(uint32_t source_columns,
 
 }  // namespace
 
-std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
-  if (a.is_null()) {
-    return b;
-  }
-  if (b.is_null()) {
-    return a;
-  }
-  if (a.is_unknown() && b.is_unknown()) {
-    return a;
-  }
-  if (a.is_unknown() || b.is_unknown()) {
-    const PlanType& known = a.is_unknown() ? b : a;
-    if (known.storage()->IsAnyOf<core::IntegerType>()) {
-      return PlanType(core::Int64{});
-    }
-    return known;
-  }
-  core::StorageType x = *a.storage();
-  core::StorageType y = *b.storage();
-  if (x == y) {
-    return a;
-  }
-  if (x.Is<core::String>() || y.Is<core::String>()) {
-    return std::nullopt;
-  }
-  if (x.Is<core::Double>() || y.Is<core::Double>()) {
-    return PlanType(core::Double{});
-  }
-  return PlanType(core::Int64{});
-}
-
 Lowering::Lowering(PlanLowering* plan) : plan_(plan) {}
 
 Lowering::~Lowering() = default;

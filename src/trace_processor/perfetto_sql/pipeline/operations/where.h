@@ -93,8 +93,6 @@ class Where final : public PlanOperation {
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
 
-  static base::Status BuildPlan(Compiler*, uint32_t);
-
   const OperationRegistration& registration() const override;
 
   core::ArenaSpan<WherePredicate> predicates_;

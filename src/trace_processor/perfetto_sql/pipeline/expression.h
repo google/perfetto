@@ -28,15 +28,12 @@
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
-struct SyntaqliteIsExpr;
-
 namespace perfetto::trace_processor {
 class StringPool;
 }  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::pipeline {
 
-class Compiler;
 class LogicalPlan;
 struct OutputProperties;
 class PlanCodec;
@@ -58,16 +55,6 @@ struct Expr {
   core::ArenaSpan<core::exec::ExprStep> nodes;
   core::ArenaSpan<Literal> literals;
 };
-
-// Whether the IS at AST node `expr` is IS NULL rather than IS NOT NULL.
-// Anything else is refused.
-base::StatusOr<bool> CompileIsNull(Compiler*,
-                                   uint32_t expr,
-                                   const SyntaqliteIsExpr& node);
-
-// Compiles the expression at AST node `expr` against the row in scope, into
-// the plan's arena.
-base::Status CompileExpr(Compiler*, uint32_t expr, Expr* out);
 
 // The type of `expr`, checked as far as the column types known in `plan`
 // allow. Unknown if it reads a column of unknown type. A failure names what

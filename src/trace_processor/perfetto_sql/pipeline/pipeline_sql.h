@@ -18,63 +18,24 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PIPELINE_SQL_H_
 
 #include <cstdint>
-#include <functional>
 #include <string>
 
-#include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
-#include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
-#include "src/trace_processor/sqlite/sql_source.h"
-
-struct SyntaqliteParser;
-
 namespace perfetto::trace_processor::pipeline {
-
-// -----------------------------------------------------------------------------
-// PipeSQL compilation entry point
-// -----------------------------------------------------------------------------
-
-// Maps a syntaqlite AST node ID to its SqlSource span for compiler
-// diagnostics.
-using NodeSourceFn = std::function<SqlSource(uint32_t node)>;
-
-// Compiles a parsed PipeSQL pipeline AST node into a PreparedStatement via
-// `pipeline::Builder`, resolving sources and column names against `catalog`.
-// Runs while the parse tree is alive so unsupported queries fail at parse time.
-//
-// `pipeline` is a SYNTAQLITE_NODE_PERFETTO_PIPELINE node ID.
-base::StatusOr<PreparedStatement> Compile(SyntaqliteParser* parser,
-                                          uint32_t pipeline,
-                                          const NodeSourceFn& source,
-                                          const Catalog& catalog);
-
-// -----------------------------------------------------------------------------
-// SQLite intrinsic function names
-// -----------------------------------------------------------------------------
 
 // Maximum number of output columns supported by the `__intrinsic_pipeline`
 // SQLite table function.
 inline constexpr uint32_t kMaxPipelineColumns = 256;
 
-// The table function which runs a serialized statement. It outputs at most
-// kMaxPipelineColumns columns.
+// Table function that runs a serialized PreparedStatement.
 inline constexpr char kPipelineFunction[] = "__intrinsic_pipeline";
 
-// The aggregate which builds a dataframe of a relation's rows, for a pipeline
-// to read: `__intrinsic_dataframe_agg('a,b', a, b)`.
+// Aggregate function that materializes a SQL subquery into a dataframe.
 inline constexpr char kDataframeAggFunction[] = "__intrinsic_dataframe_agg";
 
-// The function which gathers the dataframes a pipeline reads into the one
-// argument the table function takes them in:
-// `__intrinsic_dataframes((SELECT ...), (SELECT ...))`.
+// Function that packs hoisted dataframe inputs into a single argument.
 inline constexpr char kDataframesFunction[] = "__intrinsic_dataframes";
 
-// -----------------------------------------------------------------------------
-// SQL quoting
-// -----------------------------------------------------------------------------
-
 std::string QuoteIdentifier(const std::string& name);
-
 std::string QuoteString(const std::string& text);
 
 }  // namespace perfetto::trace_processor::pipeline

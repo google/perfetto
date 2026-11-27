@@ -36,9 +36,8 @@
 #include "src/perfetto_sql/intrinsic_macro_expansion.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
-#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
-#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
+#include "src/trace_processor/perfetto_sql/pipesql/translator.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -391,17 +390,17 @@ base::Status CheckPipelinePositions(SyntaqliteParser* p,
   return base::OkStatus();
 }
 
-base::StatusOr<pipeline::PreparedStatement> CompilePipeline(
+base::StatusOr<pipeline::PreparedStatement> TranslatePipeline(
     SyntaqliteParser* p,
     const RewriteTree& rb,
-    const pipeline::Catalog* catalog,
+    const pipesql::Catalog* catalog,
     uint32_t pipeline_id) {
   if (!catalog) {
     return NodeSource(rb, pipeline_id)
         .AddTraceback(0, base::ErrStatus("Pipelines are not enabled; set "
                                          "`PERFETTO PRAGMA pipelines = 1`"));
   }
-  return pipeline::Compile(
+  return pipesql::Translate(
       p, pipeline_id, [&rb](uint32_t node) { return NodeSource(rb, node); },
       *catalog);
 }
@@ -409,20 +408,20 @@ base::StatusOr<pipeline::PreparedStatement> CompilePipeline(
 base::StatusOr<PerfettoSqlParser::CreateTable::Body> ParseCreateTableBody(
     SyntaqliteParser* p,
     const RewriteTree& rb,
-    const pipeline::Catalog* catalog,
+    const pipesql::Catalog* catalog,
     const SyntaqliteCreatePerfettoTableStmt& n) {
   using Body = PerfettoSqlParser::CreateTable::Body;
   if (!IsPipeline(p, n.select)) {
     return Body(NodeSource(rb, n.select));
   }
-  ASSIGN_OR_RETURN(auto plan, CompilePipeline(p, rb, catalog, n.select));
+  ASSIGN_OR_RETURN(auto plan, TranslatePipeline(p, rb, catalog, n.select));
   return Body(std::move(plan));
 }
 
 base::StatusOr<Statement> ParseCreateTable(
     SyntaqliteParser* p,
     const RewriteTree& rb,
-    const pipeline::Catalog* catalog,
+    const pipesql::Catalog* catalog,
     const SyntaqliteCreatePerfettoTableStmt& n) {
   if (syntaqlite_node_is_present(n.table_impl)) {
     const auto* impl_node = static_cast<const SyntaqlitePerfettoTableImpl*>(
@@ -585,7 +584,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
                                          const RewriteTree& rb,
                                          const SqlSource& stmt,
                                          uint32_t stmt_doc_offset,
-                                         const pipeline::Catalog* catalog,
+                                         const pipesql::Catalog* catalog,
                                          uint32_t root,
                                          const SyntaqliteNode* node) {
   // Cast to int to suppress -Wswitch-enum: we intentionally handle only
@@ -615,7 +614,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
       return ParsePragma(p, node->perfetto_pragma_stmt);
     case SYNTAQLITE_NODE_PERFETTO_PIPELINE: {
       ASSIGN_OR_RETURN(pipeline::PreparedStatement pipeline_stmt,
-                       CompilePipeline(p, rb, catalog, root));
+                       TranslatePipeline(p, rb, catalog, root));
       return Statement(PerfettoSqlParser::Pipeline{std::move(pipeline_stmt)});
     }
     case SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT:
@@ -640,7 +639,7 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 
 struct PerfettoSqlParser::Impl {
   Impl(const base::FlatHashMap<std::string, Macro>& m,
-       const pipeline::Catalog& c,
+       const pipesql::Catalog& c,
        bool allowed)
       : source(SqlSource::FromTraceProcessorImplementation("")),
         macros(m),
@@ -722,7 +721,7 @@ struct PerfettoSqlParser::Impl {
   SyntaqliteParser* synq;
   SqlSource source;
   const base::FlatHashMap<std::string, Macro>& macros;
-  const pipeline::Catalog* catalog;
+  const pipesql::Catalog* catalog;
   // Whether the SQL being read may use a pipeline. Set per source, so one
   // parser serves both the standard library and user SQL.
   bool pipelines_allowed;
@@ -789,7 +788,7 @@ bool PerfettoSqlParser::Impl::Next(
 
 PerfettoSqlParser::PerfettoSqlParser(
     const base::FlatHashMap<std::string, Macro>& macros,
-    const pipeline::Catalog& catalog,
+    const pipesql::Catalog& catalog,
     bool pipelines_allowed)
     : impl_(std::make_unique<Impl>(macros, catalog, pipelines_allowed)) {}
 

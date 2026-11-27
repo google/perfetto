@@ -35,6 +35,7 @@ source_set("parser") {
     "../../util:sql_argument",
     "../pipeline",
     "../pipeline:plan",
+    "../pipesql",
   ]
   cflags = [
     "-Wno-old-style-cast",

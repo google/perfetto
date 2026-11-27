@@ -22,6 +22,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 source_set("pipeline") {
   sources = [
     "builder.cc",
+    "builder.h",
     "operation_registry.cc",
   ]
   deps = [
@@ -34,19 +35,21 @@ source_set("pipeline") {
     "../../core/util",
     "operations",
   ]
+  assert_no_deps = [
+    "../../../perfetto_sql/analysis",
+    "../../../perfetto_sql/syntaqlite",
+    "../../sqlite",
+  ]
 }
 
 source_set("plan") {
   sources = [
     "aggregate.cc",
     "aggregate.h",
-    "builder.h",
     "catalog.cc",
     "catalog.h",
     "column_pruning.cc",
     "column_pruning.h",
-    "compiler.cc",
-    "compiler.h",
     "expression.cc",
     "expression.h",
     "iterator.cc",
@@ -73,13 +76,15 @@ source_set("plan") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
-    "../../../perfetto_sql/analysis",
-    "../../../perfetto_sql/syntaqlite",
     "../../containers",
     "../../core/common",
     "../../core/dataframe",
     "../../core/exec",
     "../../core/util",
+  ]
+  assert_no_deps = [
+    "../../../perfetto_sql/analysis",
+    "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
   ]
 }
@@ -97,6 +102,7 @@ source_set("test_catalog") {
     "../../core/dataframe",
     "../../sqlite",
     "../engine",
+    "../pipesql",
     "../schema",
     "operations",
   ]

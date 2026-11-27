@@ -18,10 +18,8 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATION_REGISTRY_H_
 
 #include <cstdint>
-#include <optional>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::core {
 class Arena;
@@ -29,65 +27,32 @@ class Arena;
 
 namespace perfetto::trace_processor::pipeline {
 
-class Compiler;
 class PlanOperation;
 struct BoundPlan;
 struct LoweringContext;
 
-// Entry points which need no operation instance: building a plan from an AST
-// and reconstructing it from bytes. Each registration is a static singleton;
-// its address also identifies a payload's concrete type without RTTI.
+// Static descriptor for a concrete PlanOperation: identifies its type without
+// RTTI (by singleton address) and reconstructs it from its wire tag.
 class OperationRegistration {
  public:
-  using BuildPlanFn = base::Status (*)(Compiler*, uint32_t);
   using MakeFn = PlanOperation* (*)(core::Arena*);
 
-  class Encoding {
-   public:
-    constexpr Encoding(uint8_t tag, MakeFn make) : tag_(tag), make_(make) {}
+  constexpr OperationRegistration(uint8_t tag, MakeFn make)
+      : tag_(tag), make_(make) {}
 
-    // An empty operation of this kind in `arena`, for a reader to fill in.
-    PlanOperation* Make(core::Arena* arena) const;
-
-    uint8_t tag() const { return tag_; }
-
-   private:
-    // Explicit wire identifier, independent of registration order.
-    uint8_t tag_;
-    MakeFn make_;
-  };
-
-  constexpr OperationRegistration(uint32_t syntax,
-                                  BuildPlanFn build_plan,
-                                  std::optional<Encoding> encoding)
-      : syntax_(syntax), build_plan_(build_plan), encoding_(encoding) {}
-
-  base::Status BuildPlan(Compiler* compiler, uint32_t node) const {
-    return build_plan_(compiler, node);
-  }
-
-  uint32_t syntax() const { return syntax_; }
-  const std::optional<Encoding>& encoding() const { return encoding_; }
+  // An empty operation of this kind in `arena`, for a reader to fill in.
+  PlanOperation* Make(core::Arena* arena) const;
+  uint8_t tag() const { return tag_; }
 
  private:
-  // Syntaqlite node tag identifying the source or stage syntax.
-  uint32_t syntax_;
-
-  // Resolves an AST node, updating compiler scope and the logical plan.
-  // The integer is an AST node ID, not a logical plan node ID.
-  BuildPlanFn build_plan_;
-
-  // Projections only change compiler scope and have no encoded plan payload.
-  std::optional<Encoding> encoding_;
+  uint8_t tag_;
+  MakeFn make_;
 };
 
 const OperationRegistration* FindOperationByTag(uint8_t tag);
-const OperationRegistration* FindOperationBySyntax(uint32_t syntax);
 
-// Plans a bound plan before it is lowered, with what binding found:
-// reorders, merges or drops nodes. Each pass is defined beside the operation
-// it rewrites; this runs them in order. Also fills in `bound->planned`, which
-// lowering needs.
+// Runs rewrite and input-planning passes over `bound`, populating
+// `bound->planned` before lowering.
 base::Status RunBoundPasses(BoundPlan* bound, const LoweringContext& context);
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -18,9 +18,11 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LITERAL_H_
 
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
 
-#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/param_value.h"
@@ -31,7 +33,6 @@ class StringPool;
 
 namespace perfetto::trace_processor::pipeline {
 
-class Compiler;
 class PlanCodec;
 
 // A value written in a query: a number or a string; an external literal, a
@@ -94,9 +95,12 @@ struct Literal {
   std::string_view text;
 };
 
-// Reads the number, optionally negated, or string at `expr`. A string is made
-// in the plan's arena.
-base::StatusOr<Literal> CompileLiteral(Compiler*, uint32_t expr);
+// Checks that `literals` match the kind of a column of storage `type` when
+// compared via `op`. Returns a short expected-value description on mismatch,
+// or nullopt if valid (or if `op` does not compare values, or a given param).
+std::optional<std::string> CheckLiteralTypes(core::Op op,
+                                             base::Span<const Literal> literals,
+                                             core::StorageType type);
 
 // Casts the `count` literals `op` compares with for a column of storage `type`,
 // as the dataframe's filters cast them.

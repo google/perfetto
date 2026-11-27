@@ -16,22 +16,13 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -39,67 +30,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 constexpr OperationRegistration IntervalFlatten::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN, &BuildPlan,
-    OperationRegistration::Encoding{3, &MakeOperation<IntervalFlatten>}};
-
-base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("INTERVAL FLATTEN");
-  const auto* n = Node<SyntaqlitePerfettoIntervalFlatten>(c->parser(), stage);
-
-  NameId ts = c->Name("ts");
-  NameId dur = c->Name("dur");
-  ASSIGN_OR_RETURN(ColumnId ts_col, c->Resolve(ts, stage));
-  ASSIGN_OR_RETURN(ColumnId dur_col, c->Resolve(dur, stage));
-
-  std::vector<ColumnId> per_keys;
-  std::vector<std::pair<NamedColumn, uint32_t>> keys;
-  if (syntaqlite_node_is_present(n->per)) {
-    const auto* per =
-        Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per);
-    for (uint32_t i = 0; i < syntaqlite_list_count(per); ++i) {
-      uint32_t col_id = syntaqlite_list_child_id(per, i);
-      NameId name =
-          c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
-      ASSIGN_OR_RETURN(ColumnId key, c->Resolve(name, col_id));
-      // Groups once by each column, but outputs one column per item listed.
-      if (std::find(per_keys.begin(), per_keys.end(), key) == per_keys.end()) {
-        per_keys.push_back(key);
-      }
-      keys.push_back({NamedColumn{name, key}, col_id});
-    }
-  }
-
-  std::vector<Builder::AggregateItem> agg_items;
-  std::vector<uint32_t> agg_nodes;
-  const auto* list =
-      Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
-  for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
-    uint32_t agg_id = syntaqlite_list_child_id(list, i);
-    const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
-    agg_items.push_back(
-        {c->Name(agg->name), aggregate.function, aggregate.column});
-    agg_nodes.push_back(agg_id);
-  }
-
-  auto built = c->builder().IntervalFlatten(c->root(), ts_col, dur_col,
-                                            per_keys, agg_items);
-  c->SetRoot(built.relation);
-
-  // The rows collapse, so the row is only what each segment holds.
-  c->ReplaceRow({});
-  c->ClearAliases();
-  c->Append({ts, built.ts}, stage);
-  c->Append({dur, built.dur}, stage);
-  for (auto& [column, node] : keys) {
-    c->Append(std::move(column), node);
-  }
-  for (size_t i = 0; i < agg_items.size(); ++i) {
-    c->Append(NamedColumn{agg_items[i].name, built.aggregates[i]},
-              agg_nodes[i]);
-  }
-  return base::OkStatus();
-}
+    3, &MakeOperation<IntervalFlatten>};
 
 std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
   auto& flatten = *this;

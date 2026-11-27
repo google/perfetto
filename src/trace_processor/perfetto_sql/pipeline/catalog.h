@@ -17,24 +17,29 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_CATALOG_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_CATALOG_H_
 
+#include <cstdint>
+#include <optional>
 #include <string_view>
 
-#include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-// Lookup interface the compiler uses to resolve what a pipeline reads: the
-// relations semantic analysis can describe, and the dataframes a pipeline can
-// read directly.
-class Catalog : public perfetto_sql::analysis::Catalog {
+// Lookup interface for named dataframes referenced by Builder::ScanTable.
+class Catalog {
  public:
-  ~Catalog() override;
+  virtual ~Catalog();
 
   // Dataframe registered as `name`, or null.
   virtual const dataframe::Dataframe* FindDataframe(
       std::string_view name) const = 0;
 };
+
+// Returns the index of the non-hidden column named `name` in `dataframe`, or
+// nullopt if none matches.
+std::optional<uint32_t> FindNonHiddenColumn(
+    const dataframe::Dataframe& dataframe,
+    std::string_view name);
 
 }  // namespace perfetto::trace_processor::pipeline
 

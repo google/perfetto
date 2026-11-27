@@ -30,11 +30,11 @@ namespace perfetto::trace_processor::pipeline {
 class Lowering;
 class PlanNode;
 
-// `|> [INNER | LEFT] JOIN rel ON a = b` or `... USING (c)`. Joins each input
-// row to the row of `rel` with the same key. For now the join must be on a
-// single column, and `rel`'s keys must be consecutive, as a table's ids are.
+// Joins each input row to the row of the build relation with the same key.
+// For now the join must be on a single column, and the build relation's keys
+// must be consecutive, as a table's ids are.
 //
-// The node has two children: the input, then a scan of `rel`.
+// The node has two children: the input, then the build relation.
 class Join final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
@@ -47,13 +47,12 @@ class Join final : public PlanOperation {
   OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
-  static base::Status BuildPlan(Compiler*, uint32_t);
   const OperationRegistration& registration() const override;
 
   bool left_ = false;
   ColumnId probe_key_ = 0;
   ColumnId build_key_ = 0;
-  // The columns of `rel` to output. They come after the input's columns.
+  // The columns of the build relation to output, after the input's columns.
   core::ArenaSpan<ColumnId> outputs_;
 };
 

@@ -26,17 +26,13 @@
 #include <vector>
 
 #include "perfetto/ext/base/span.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/where.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
-
-struct SyntaqlitePerfettoPipeSource;
 
 namespace perfetto::trace_processor::core::exec {
 class Source;
@@ -45,10 +41,6 @@ class Source;
 namespace perfetto::trace_processor::core::dataframe {
 class Dataframe;
 }  // namespace perfetto::trace_processor::core::dataframe
-
-namespace perfetto::perfetto_sql::analysis {
-class RelationLineage;
-}  // namespace perfetto::perfetto_sql::analysis
 
 namespace perfetto::trace_processor::pipeline {
 
@@ -115,15 +107,6 @@ struct ScanSearch {
 class Scan final : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
-
-  // Builds the plan for what a source reads: a dataframe or SQL.
-  static base::StatusOr<Builder::ScanResult> BuildRelation(Compiler*,
-                                                           uint32_t source);
-
-  // The name a source's columns can be qualified with, if it has one.
-  static std::optional<NameId> SourceQualifier(
-      Compiler*,
-      const SyntaqlitePerfettoPipeSource& n);
 
   // Adds a scan reading `columns` of `dataframe`, which is registered as
   // `name`, to `plan` as its root, its columns named as the dataframe's.
@@ -202,33 +185,10 @@ class Scan final : public PlanOperation {
                                  StringPool*,
                                  Bindings*) const override;
 
-  static base::Status BuildPlan(Compiler*, uint32_t);
-
-  // The finalized dataframe a source names, if it can be read without SQLite.
-  static const dataframe::Dataframe* FindDirectDataframe(
-      Compiler*,
-      const SyntaqlitePerfettoPipeSource& n);
-
-  // Fails unless every column of a source has a name a pipeline can use.
-  // Crossing from SQL into a pipeline needs proper names, as creating a
-  // PERFETTO TABLE does.
-  static base::Status CheckSourceNames(Compiler*,
-                                       base::Span<const NamedColumn> columns,
-                                       uint32_t at);
   static Bindings::Dataframe BindingFor(const dataframe::Dataframe& dataframe,
                                         const ScanDataframe& data);
   static PlanType ColumnTypeFor(const dataframe::Dataframe& dataframe,
                                 uint32_t index);
-  // The columns of a source read through SQLite.
-  static base::StatusOr<perfetto_sql::analysis::RelationLineage> AnalyzeSource(
-      Compiler*,
-      uint32_t from);
-  // The finalized dataframe a source keeps the rows of, if it only chooses
-  // and renames that dataframe's columns, which are added to `columns`.
-  static const dataframe::Dataframe* FindRenamedDataframe(
-      Compiler*,
-      const perfetto_sql::analysis::RelationLineage& lineage,
-      std::vector<Builder::TableColumn>* columns);
 
   // Sets a source answering `search_`.
   void LowerSearch(Lowering*,

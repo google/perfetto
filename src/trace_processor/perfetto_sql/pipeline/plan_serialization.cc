@@ -112,14 +112,13 @@ void SerializeContents(PlanCodec& c) {
     uint8_t tag = 0;
     core::ArenaSpan<PlanNodeId> children;
     if (!c.reading()) {
-      tag = plan.nodes()[i].operation().registration().encoding()->tag();
+      tag = plan.nodes()[i].operation().registration().tag();
       children = plan.nodes()[i].children();
     }
     c.Pod(&tag);
     c.Vec(&children);
     if (c.reading()) {
-      plan.AddNode(FindOperationByTag(tag)->encoding()->Make(&plan.arena()),
-                   children);
+      plan.AddNode(FindOperationByTag(tag)->Make(&plan.arena()), children);
     }
     plan.nodes()[i].operation().Serialize(c);
   }

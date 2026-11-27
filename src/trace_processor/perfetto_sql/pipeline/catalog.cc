@@ -16,8 +16,28 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "src/trace_processor/core/dataframe/dataframe.h"
+
 namespace perfetto::trace_processor::pipeline {
 
 Catalog::~Catalog() = default;
+
+std::optional<uint32_t> FindNonHiddenColumn(
+    const dataframe::Dataframe& dataframe,
+    std::string_view name) {
+  const std::vector<std::string>& names = dataframe.column_names();
+  for (uint32_t i = 0; i < names.size(); ++i) {
+    if (names[i] == name && !dataframe::IsHiddenColumn(names[i])) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
 
 }  // namespace perfetto::trace_processor::pipeline

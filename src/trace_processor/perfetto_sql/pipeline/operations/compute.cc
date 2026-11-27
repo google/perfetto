@@ -18,13 +18,10 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
@@ -33,13 +30,8 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-constexpr OperationRegistration Compute::kRegistration{
-    std::numeric_limits<uint32_t>::max(), &BuildPlan,
-    OperationRegistration::Encoding{10, &MakeOperation<Compute>}};
-
-base::Status Compute::BuildPlan(Compiler*, uint32_t) {
-  PERFETTO_FATAL("Compute has no syntax");
-}
+constexpr OperationRegistration Compute::kRegistration{10,
+                                                       &MakeOperation<Compute>};
 
 std::optional<uint32_t> Compute::Prune(std::vector<bool>* needed) {
   items_.RemoveIf([&](const Item& item) { return !(*needed)[item.output]; });

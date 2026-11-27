@@ -19,19 +19,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -39,44 +32,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 constexpr OperationRegistration TreeAccumulate::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE, &BuildPlan,
-    OperationRegistration::Encoding{1, &MakeOperation<TreeAccumulate>}};
-
-base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("TREE ACCUMULATE");
-  const auto* n = Node<SyntaqlitePerfettoTreeAccumulate>(c->parser(), stage);
-
-  TreeDirection direction =
-      n->direction == SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN
-          ? TreeDirection::kDown
-          : TreeDirection::kUp;
-  ASSIGN_OR_RETURN(ColumnId node_column, c->Resolve(c->Name("id"), stage));
-  ASSIGN_OR_RETURN(ColumnId parent_column,
-                   c->Resolve(c->Name("parent_id"), stage));
-
-  std::vector<Builder::AggregateItem> agg_items;
-  std::vector<uint32_t> agg_nodes;
-  const auto* list =
-      Node<SyntaqlitePerfettoAggregateList>(c->parser(), n->aggregates);
-  uint32_t count = syntaqlite_list_count(list);
-  for (uint32_t i = 0; i < count; i++) {
-    uint32_t agg_id = syntaqlite_list_child_id(list, i);
-    const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
-    agg_items.push_back(
-        {c->Name(agg->name), aggregate.function, aggregate.column});
-    agg_nodes.push_back(agg_id);
-  }
-  auto built = c->builder().TreeAccumulate(c->root(), direction, node_column,
-                                           parent_column, agg_items);
-  c->SetRoot(built.relation);
-  // All expressions see the input scope. Add this stage's columns only after
-  // resolving every aggregate; duplicate names are ambiguous on lookup.
-  for (size_t i = 0; i < agg_items.size(); ++i) {
-    c->Append(NamedColumn{agg_items[i].name, built.columns[i]}, agg_nodes[i]);
-  }
-  return base::OkStatus();
-}
+    1, &MakeOperation<TreeAccumulate>};
 
 std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   PruneAggregates(&aggregates_, needed);

@@ -21,10 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/status.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/exec/distinct.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -32,30 +29,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 constexpr OperationRegistration Distinct::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT, &BuildPlan,
-    OperationRegistration::Encoding{7, &MakeOperation<Distinct>}};
-
-base::Status Distinct::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("DISTINCT");
-  // Other columns have no single value per output row, so they are dropped.
-  std::vector<ColumnId> keys;
-  std::vector<Compiler::RowColumn> row;
-  std::vector<std::pair<ColumnId, ColumnId>> kept;
-  for (const Compiler::RowColumn& column : c->row()) {
-    if (!column.qualified_only) {
-      keys.push_back(column.column.id);
-      row.push_back(column);
-      kept.emplace_back(column.column.id, column.column.id);
-    }
-  }
-  if (keys.size() > ex::Distinct::kMaxColumns) {
-    return c->Unsupported(stage, "a row of more than 64 columns");
-  }
-  c->ReplaceRow(std::move(row));
-  c->ReplaceAliasColumns(kept);
-  c->SetRoot(c->builder().Distinct(c->root(), keys));
-  return base::OkStatus();
-}
+    7, &MakeOperation<Distinct>};
 
 std::optional<uint32_t> Distinct::Prune(std::vector<bool>* needed) {
   for (ColumnId column : columns_) {

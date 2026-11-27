@@ -133,6 +133,10 @@ struct SortKey {
   uint8_t pad_[3] = {};
 };
 
+// Returns the type that both `a` and `b` convert to without loss, or nullopt
+// if one is a string and the other a number.
+std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b);
+
 }  // namespace perfetto::trace_processor::pipeline
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_TYPES_H_

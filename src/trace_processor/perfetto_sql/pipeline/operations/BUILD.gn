@@ -38,8 +38,6 @@ source_set("operations") {
     "limit.h",
     "order_by.cc",
     "order_by.h",
-    "projection.cc",
-    "projection.h",
     "scan.cc",
     "scan.h",
     "tree_accumulate.cc",
@@ -53,16 +51,15 @@ source_set("operations") {
     "..:plan",
     "../../../../../gn:default_deps",
     "../../../../base",
-    "../../../../base/regex",
-    "../../../../perfetto_sql/analysis",
-    "../../../../perfetto_sql/syntaqlite",
     "../../../containers",
     "../../../core/common",
     "../../../core/dataframe",
     "../../../core/exec",
     "../../../core/util",
+  ]
+  assert_no_deps = [
+    "../../../../perfetto_sql/analysis",
+    "../../../../perfetto_sql/syntaqlite",
     "../../../sqlite",
-    "../../../util:sql_argument",
-    "../../schema",
   ]
 }

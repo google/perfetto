@@ -48,7 +48,6 @@ class GraphTree final : public PlanOperation {
   OutputProperties Derive(DeriveContext&) const override;
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
-  static base::Status BuildPlan(Compiler*, uint32_t);
   const OperationRegistration& registration() const override;
 
   core::exec::GraphTreeSpec::Kind kind_ = core::exec::GraphTreeSpec::Kind::kBfs;

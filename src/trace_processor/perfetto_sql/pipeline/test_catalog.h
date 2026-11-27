@@ -39,10 +39,10 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
-#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/prepared_statement.h"
+#include "src/trace_processor/perfetto_sql/pipesql/translator.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -52,7 +52,7 @@ namespace perfetto::trace_processor::pipeline {
 
 // Catalog over dataframes built by the test. SQLite does not know about them.
 // Anything else is looked up in `connection` (if given) and is untyped.
-class TestCatalog : public Catalog {
+class TestCatalog : public pipesql::Catalog {
  public:
   explicit TestCatalog(StringPool* pool, SqliteConnection* connection = nullptr)
       : pool_(pool), connection_(connection) {}

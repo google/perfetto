@@ -159,13 +159,6 @@ std::unique_ptr<PhysicalPlan> Lower(BoundPlan*, const LoweringContext&);
 // Lowering
 // -----------------------------------------------------------------------------
 
-// Returns the type that both `a` and `b` convert to without loss. Returns
-// nullopt if one is a string and the other a number.
-//
-// A column of unknown type is checked at runtime to hold the other side's
-// type. For integers the check uses Int64, so it accepts any integer.
-std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b);
-
 class PlanLowering;
 
 // A step of a pipeline being lowered. A breaker ends the pipeline it is in,

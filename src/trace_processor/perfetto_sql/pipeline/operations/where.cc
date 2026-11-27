@@ -22,21 +22,11 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/span.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/exec/filter.h"
-#include "src/trace_processor/core/exec/param_value.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
-#include "src/trace_processor/perfetto_sql/pipeline/expression.h"
 #include "src/trace_processor/perfetto_sql/pipeline/literal.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
@@ -46,10 +36,6 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 namespace {
-
-static constexpr char kOperators[] =
-    "an operator other than =, !=, <, <=, >, >=, GLOB, REGEXP, IN, BETWEEN "
-    "and IS [NOT] NULL";
 
 // The value `p` compares with, if whoever runs the plan gives it: an external
 // literal or a bound param.
@@ -61,188 +47,16 @@ const Literal* GivenOf(const WherePredicate& p,
   return &literals[p.first_literal];
 }
 
-// What comparing `literals` by `op` should compare with to suit a column of
-// storage `type`, if a literal is a string where the column holds numbers, or
-// the other way around. GLOB, REGEXP and IS [NOT] NULL do not compare values,
-// and a given value has none yet.
-std::optional<std::string> LiteralMismatch(core::Op op,
-                                           base::Span<const Literal> literals,
-                                           core::StorageType type) {
-  if (literals.size() == 1 && literals[0].is_given()) {
-    return std::nullopt;
-  }
-  if (op.IsAnyOf<core::NullOp>() || op.IsAnyOf<core::OnlyStringOp>()) {
-    return std::nullopt;
-  }
-  bool string_column = type.Is<core::String>();
-  for (const Literal& literal : literals) {
-    if (string_column != literal.is_string()) {
-      return std::string(string_column ? "a string to compare with a string "
-                                         "column, but got a number"
-                                       : "a number to compare with a numeric "
-                                         "column, but got a string");
-    }
-  }
-  return std::nullopt;
-}
-
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
                                            base::Span<const Literal> literals,
                                            core::StorageType type) {
-  return LiteralMismatch(
+  return CheckLiteralTypes(
       p.op,
       base::Span<const Literal>(
           literals.data() + p.first_literal,
           literals.data() + p.first_literal + p.literal_count),
       type);
 }
-
-// Parses a WHERE condition into a list of Builder::WhereConditions.
-class Parser {
- public:
-  Parser(Compiler* c, std::vector<Builder::WhereCondition>* conditions)
-      : c_(c), conditions_(conditions) {}
-
-  base::Status Condition(uint32_t expr) {
-    const auto* node = Node<SyntaqliteNode>(c_->parser(), expr);
-    if (node->tag == SYNTAQLITE_NODE_BINARY_EXPR &&
-        node->binary_expr.op == SYNTAQLITE_BINARY_OP_AND) {
-      RETURN_IF_ERROR(Condition(node->binary_expr.left));
-      return Condition(node->binary_expr.right);
-    }
-    switch (static_cast<int>(node->tag)) {
-      case SYNTAQLITE_NODE_BINARY_EXPR:
-        return Comparison(expr, node->binary_expr);
-      case SYNTAQLITE_NODE_LIKE_EXPR:
-        return Like(expr, node->like_expr);
-      case SYNTAQLITE_NODE_IN_EXPR:
-        return In(expr, node->in_expr);
-      case SYNTAQLITE_NODE_IS_EXPR:
-        return Is(expr, node->is_expr);
-      case SYNTAQLITE_NODE_BETWEEN_EXPR:
-        return Between(expr, node->between_expr);
-      default:
-        return c_->Unsupported(expr, "a condition other than column OP value");
-    }
-  }
-
- private:
-  base::Status Comparison(uint32_t expr, const SyntaqliteBinaryExpr& node) {
-    std::optional<core::Op> op = ComparisonOp(node.op);
-    if (!op) {
-      return c_->Unsupported(expr, kOperators);
-    }
-    ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
-    return Add(expr, column, *op, {&node.right, &node.right + 1});
-  }
-
-  base::Status Like(uint32_t expr, const SyntaqliteLikeExpr& node) {
-    core::Op op = core::Glob{};
-    switch (static_cast<int>(node.keyword)) {
-      case SYNTAQLITE_LIKE_KEYWORD_GLOB:
-        break;
-      case SYNTAQLITE_LIKE_KEYWORD_REGEXP:
-        op = core::Regex{};
-        break;
-      default:
-        return c_->Unsupported(expr, kOperators);
-    }
-    if (node.negated) {
-      return c_->Unsupported(expr,
-                             op.Is<core::Glob>() ? "NOT GLOB" : "NOT REGEXP");
-    }
-    ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    RETURN_IF_ERROR(Add(expr, column, op, {&node.pattern, &node.pattern + 1}));
-    const Literal& pattern = conditions_->back().values.back();
-    if (op.Is<core::Regex>() && pattern.is_string()) {
-      // As the SQL function is, a pattern which does not compile is an error.
-      base::StatusOr<base::Regex> regex = base::Regex::Create(pattern.text);
-      if (!regex.ok()) {
-        return c_->Expected(
-            node.pattern, std::string("a regular expression which compiles: ") +
-                              regex.status().c_message());
-      }
-    }
-    return base::OkStatus();
-  }
-
-  base::Status In(uint32_t expr, const SyntaqliteInExpr& node) {
-    if (node.negated) {
-      return c_->Unsupported(expr, "NOT IN");
-    }
-    const auto* source = Node<SyntaqliteNode>(c_->parser(), node.source);
-    if (node.bare_source || source->tag != SYNTAQLITE_NODE_EXPR_LIST) {
-      return c_->Unsupported(expr, "IN other than a list of literals");
-    }
-    ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    const SyntaqliteExprList& list = source->expr_list;
-    return Add(expr, column, core::In{},
-               {list.children, list.children + list.count});
-  }
-
-  base::Status Is(uint32_t expr, const SyntaqliteIsExpr& node) {
-    ASSIGN_OR_RETURN(bool null, CompileIsNull(c_, expr, node));
-    ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.left));
-    core::Op op = null ? core::Op(core::IsNull{}) : core::Op(core::IsNotNull{});
-    return Add(expr, column, op, {});
-  }
-
-  base::Status Between(uint32_t expr, const SyntaqliteBetweenExpr& node) {
-    if (node.negated) {
-      return c_->Unsupported(expr, "NOT BETWEEN");
-    }
-    ASSIGN_OR_RETURN(ColumnId column, c_->ResolveColumnExpr(node.operand));
-    RETURN_IF_ERROR(Add(expr, column, core::Ge{}, {&node.low, &node.low + 1}));
-    return Add(expr, column, core::Le{}, {&node.high, &node.high + 1});
-  }
-
-  base::Status Add(uint32_t at,
-                   ColumnId column,
-                   core::Op op,
-                   base::Span<const uint32_t> exprs) {
-    Builder::WhereCondition cond;
-    cond.column = column;
-    cond.op = op;
-    cond.values.reserve(exprs.size());
-    for (uint32_t expr : exprs) {
-      ASSIGN_OR_RETURN(Literal literal, CompileLiteral(c_, expr));
-      cond.values.push_back(literal);
-    }
-    if (std::optional<core::StorageType> type =
-            c_->ColumnType(column).storage()) {
-      if (std::optional<std::string> mismatch =
-              LiteralMismatch(op, cond.values, *type)) {
-        return c_->Expected(at, *mismatch);
-      }
-    }
-    conditions_->push_back(std::move(cond));
-    return base::OkStatus();
-  }
-
-  static std::optional<core::Op> ComparisonOp(SyntaqliteBinaryOp op) {
-    switch (static_cast<int>(op)) {
-      case SYNTAQLITE_BINARY_OP_EQ:
-      case SYNTAQLITE_BINARY_OP_EQ_DOUBLE:
-        return core::Eq{};
-      case SYNTAQLITE_BINARY_OP_NE:
-      case SYNTAQLITE_BINARY_OP_NE_ANGLE:
-        return core::Ne{};
-      case SYNTAQLITE_BINARY_OP_LT:
-        return core::Lt{};
-      case SYNTAQLITE_BINARY_OP_LE:
-        return core::Le{};
-      case SYNTAQLITE_BINARY_OP_GT:
-        return core::Gt{};
-      case SYNTAQLITE_BINARY_OP_GE:
-        return core::Ge{};
-      default:
-        return std::nullopt;
-    }
-  }
-
-  Compiler* c_;
-  std::vector<Builder::WhereCondition>* conditions_;
-};
 
 // The type a column of no known type is converted to, for Filter to read it:
 // the type its literals have. Strings win, as SQL compares a number with a
@@ -298,19 +112,7 @@ PlannedParam PlanValue(const WherePredicate& p,
 
 }  // namespace
 
-constexpr OperationRegistration Where::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE, &BuildPlan,
-    OperationRegistration::Encoding{8, &MakeOperation<Where>}};
-
-base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
-  c->SetOperation("WHERE");
-  const auto* n = Node<SyntaqlitePerfettoPipeWhere>(c->parser(), stage);
-  std::vector<Builder::WhereCondition> conditions;
-  Parser parser(c, &conditions);
-  RETURN_IF_ERROR(parser.Condition(n->condition));
-  c->SetRoot(c->builder().Where(c->root(), std::move(conditions)));
-  return base::OkStatus();
-}
+constexpr OperationRegistration Where::kRegistration{8, &MakeOperation<Where>};
 
 void Where::AddToPlan(LogicalPlan* plan,
                       const std::vector<WherePredicate>& predicates,

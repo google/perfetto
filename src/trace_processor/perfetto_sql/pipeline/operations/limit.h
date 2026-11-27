@@ -49,8 +49,6 @@ class Limit final : public PlanOperation {
   void Lower(Lowering*, const PlanNode&) const override;
   void Serialize(PlanCodec&) override;
 
-  static base::Status BuildPlan(Compiler*, uint32_t);
-
   const OperationRegistration& registration() const override;
 
   int64_t count_ = -1;

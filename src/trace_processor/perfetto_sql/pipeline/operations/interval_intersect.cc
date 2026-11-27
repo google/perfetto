@@ -19,23 +19,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
@@ -43,111 +34,7 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 constexpr OperationRegistration IntervalIntersect::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan,
-    OperationRegistration::Encoding{2, &MakeOperation<IntervalIntersect>}};
-
-base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
-  c->SetOperation("INTERVAL INTERSECTION");
-  const auto* n =
-      Node<SyntaqlitePerfettoIntervalIntersection>(c->parser(), node);
-  const auto* list =
-      Node<SyntaqlitePerfettoPipeSourceList>(c->parser(), n->operands);
-  uint32_t count = syntaqlite_list_count(list);
-  if (count < 2) {
-    return c->Expected(node, "at least two relations to intersect");
-  }
-  const SyntaqlitePerfettoPerColumnList* per =
-      syntaqlite_node_is_present(n->per)
-          ? Node<SyntaqlitePerfettoPerColumnList>(c->parser(), n->per)
-          : nullptr;
-  // A PER column listed again adds nothing to the grouping.
-  std::vector<std::pair<NameId, uint32_t>> per_columns;
-  for (uint32_t k = 0; per && k < syntaqlite_list_count(per); k++) {
-    uint32_t col_id = syntaqlite_list_child_id(per, k);
-    NameId name =
-        c->Name(Node<SyntaqlitePerfettoPerColumn>(c->parser(), col_id)->name);
-    if (std::none_of(per_columns.begin(), per_columns.end(),
-                     [&](const auto& p) { return c->Same(p.first, name); })) {
-      per_columns.emplace_back(name, col_id);
-    }
-  }
-
-  NameId ts_name = c->Name("ts");
-  NameId dur_name = c->Name("dur");
-
-  std::vector<Builder::IntervalOperand> operands;
-  struct OperandScope {
-    NameId alias;
-    uint32_t source_id;
-    std::vector<NamedColumn> columns;
-  };
-  std::vector<OperandScope> scopes;
-  for (uint32_t i = 0; i < count; i++) {
-    uint32_t source_id = syntaqlite_list_child_id(list, i);
-    const auto* source =
-        Node<SyntaqlitePerfettoPipeSource>(c->parser(), source_id);
-    std::optional<NameId> alias = Scan::SourceQualifier(c, *source);
-    if (!alias) {
-      return c->Expected(source_id,
-                         "an alias for the relation, as in `(...) AS x`");
-    }
-    if (std::any_of(scopes.begin(), scopes.end(), [&](const OperandScope& s) {
-          return c->Same(s.alias, *alias);
-        })) {
-      return c->Expected(source_id, "a different alias for each relation");
-    }
-    ASSIGN_OR_RETURN(Builder::ScanResult relation,
-                     Scan::BuildRelation(c, source_id));
-    std::optional<ColumnId> ts = c->FindColumn(relation.columns, ts_name);
-    std::optional<ColumnId> dur = c->FindColumn(relation.columns, dur_name);
-    if (!ts || !dur) {
-      return c->Expected(source_id, c->Text(*alias) + " to have a " +
-                                        (ts ? "dur" : "ts") + " column");
-    }
-    Builder::IntervalOperand operand;
-    operand.relation = relation.relation;
-    operand.ts = *ts;
-    operand.dur = *dur;
-    for (const auto& [name, col_id] : per_columns) {
-      std::optional<ColumnId> key = c->FindColumn(relation.columns, name);
-      if (!key) {
-        return c->Expected(col_id, c->Text(*alias) + " to have a " +
-                                       c->Text(name) + " column");
-      }
-      operand.keys.push_back(*key);
-    }
-    operand.carried.reserve(relation.columns.size());
-    for (const NamedColumn& column : relation.columns) {
-      operand.carried.push_back(column.id);
-    }
-    operands.push_back(std::move(operand));
-    scopes.push_back({*alias, source_id, std::move(relation.columns)});
-  }
-
-  auto built = c->builder().IntervalIntersect(operands);
-  c->SetRoot(built.relation);
-  c->Append({ts_name, built.ts}, node);
-  c->Append({dur_name, built.dur}, node);
-  // Every operand column is carried, reachable through the operand's alias
-  // and, for most, by its bare name too. The region's ts and dur are what
-  // a bare ts and dur mean, so an operand's own are found only through its
-  // alias. A PER column holds the same value in every operand, so only the
-  // first operand's is found by its bare name.
-  for (uint32_t i = 0; i < scopes.size(); ++i) {
-    const OperandScope& s = scopes[i];
-    const Builder::IntervalOperand& op = operands[i];
-    size_t first = c->row().size();
-    for (const NamedColumn& column : s.columns) {
-      bool is_key =
-          std::find(op.keys.begin(), op.keys.end(), column.id) != op.keys.end();
-      bool is_bound = column.id == op.ts || column.id == op.dur;
-      c->Append(column, s.source_id,
-                /*qualified_only=*/is_bound || (is_key && i != 0));
-    }
-    c->AddAlias(s.alias, first);
-  }
-  return base::OkStatus();
-}
+    2, &MakeOperation<IntervalIntersect>};
 
 std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
   // An intersection passes on only the operand columns used after it, but
