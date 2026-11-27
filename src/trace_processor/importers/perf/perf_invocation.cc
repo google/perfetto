@@ -171,7 +171,7 @@ bool PerfInvocation::ReadEventId(const perf_event_header& header,
                                  const TraceBlobView& payload,
                                  uint64_t& id) const {
   const PerfEventAttr& first = *attrs_by_id_.GetIterator().value();
-  Reader reader(payload.copy());
+  Reader reader(payload.copy(), byte_order_);
 
   if (header.type != PERF_RECORD_SAMPLE) {
     PERFETTO_CHECK(first.id_offset_from_end().has_value());

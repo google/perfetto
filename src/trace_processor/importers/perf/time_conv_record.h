@@ -19,6 +19,8 @@
 
 #include <cstdint>
 
+#include "src/trace_processor/importers/perf/reader.h"
+
 namespace perfetto::trace_processor::perf_importer {
 
 struct TimeConvRecord {
@@ -43,6 +45,15 @@ struct TimeConvRecord {
     return time_zero + quot * time_mult + ((rem * time_mult) >> time_shift);
   }
 };
+
+inline TimeConvRecord ByteSwap(TimeConvRecord v) {
+  v.time_shift = ByteSwap(v.time_shift);
+  v.time_mult = ByteSwap(v.time_mult);
+  v.time_zero = ByteSwap(v.time_zero);
+  v.time_cycles = ByteSwap(v.time_cycles);
+  v.time_mask = ByteSwap(v.time_mask);
+  return v;
+}
 
 }  // namespace perfetto::trace_processor::perf_importer
 

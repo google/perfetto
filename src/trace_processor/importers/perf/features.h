@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/reader.h"
 
 namespace perfetto ::trace_processor {
 class TraceBlobView;
@@ -76,6 +77,7 @@ enum Id : uint8_t {
 
 struct BuildId {
   static base::Status Parse(TraceBlobView,
+                            ByteOrder,
                             std::function<base::Status(BuildId)> cb);
   int32_t pid;
   std::string build_id;
@@ -83,7 +85,7 @@ struct BuildId {
 };
 
 struct HeaderGroupDesc {
-  static base::Status Parse(TraceBlobView, HeaderGroupDesc& out);
+  static base::Status Parse(TraceBlobView, ByteOrder, HeaderGroupDesc& out);
   struct Entry {
     std::string string;
     uint32_t leader_idx;
@@ -94,6 +96,7 @@ struct HeaderGroupDesc {
 
 struct EventDescription {
   static base::Status Parse(TraceBlobView,
+                            ByteOrder,
                             std::function<base::Status(EventDescription)> cb);
   perf_event_attr attr;
   std::string event_string;
@@ -125,11 +128,12 @@ struct SimpleperfMetaInfo {
 };
 
 base::Status ParseSimpleperfFile2(TraceBlobView,
+                                  ByteOrder,
                                   std::function<void(TraceBlobView)> cb);
 
-base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView);
+base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView, ByteOrder);
 
-base::StatusOr<std::string> ParseOsRelease(TraceBlobView);
+base::StatusOr<std::string> ParseOsRelease(TraceBlobView, ByteOrder);
 
 }  // namespace perf_importer::feature
 

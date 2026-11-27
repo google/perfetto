@@ -23,7 +23,7 @@
 namespace perfetto::trace_processor::perf_importer {
 
 base::Status AuxtraceInfoRecord::Parse(const Record& record) {
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
 
   if (!reader.Read(type) || !reader.Read(reserved) ||
       !reader.ReadBlob(payload, static_cast<uint32_t>(reader.size_left()))) {

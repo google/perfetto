@@ -101,6 +101,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   ParsingState parsing_state_ = ParsingState::kParseHeader;
 
   PerfFile::Header header_;
+  ByteOrder byte_order_ = ByteOrder::kLittleEndian;
   base::FlatSet<uint8_t> feature_ids_;
   PerfFile::Section feature_headers_section_;
   // Sections for the features present in the perf file sorted by descending

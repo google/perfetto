@@ -85,12 +85,13 @@ bool ParseString(Reader& reader, std::string& out) {
 
 bool ParseBuildId(const perf_event_header& header,
                   TraceBlobView blob,
+                  ByteOrder order,
                   BuildId& out) {
-  Reader reader(std::move(blob));
+  Reader reader(std::move(blob), order);
 
   BuildIdRecord build_id;
 
-  if (!reader.Read(out.pid) || !reader.Read(build_id) ||
+  if (!reader.Read(out.pid) || !reader.Read(&build_id, sizeof(build_id)) ||
       !reader.ReadStringUntilEndOrNull(out.filename)) {
     return false;
   }
@@ -153,8 +154,9 @@ base::Status ParseSimpleperfMetaInfoEntry(
 
 // static
 base::Status BuildId::Parse(TraceBlobView bytes,
+                            ByteOrder order,
                             std::function<base::Status(BuildId)> cb) {
-  Reader reader(std::move(bytes));
+  Reader reader(std::move(bytes), order);
   while (reader.size_left() != 0) {
     perf_event_header header;
     TraceBlobView payload;
@@ -172,7 +174,7 @@ base::Status BuildId::Parse(TraceBlobView bytes,
     }
 
     BuildId build_id;
-    if (!ParseBuildId(header, std::move(payload), build_id)) {
+    if (!ParseBuildId(header, std::move(payload), order, build_id)) {
       return base::ErrStatus(
           "Failed to parse feature BuildId. Could not read entry.");
     }
@@ -214,8 +216,9 @@ base::Status SimpleperfMetaInfo::Parse(const TraceBlobView& bytes,
 // static
 base::Status EventDescription::Parse(
     TraceBlobView bytes,
+    ByteOrder order,
     std::function<base::Status(EventDescription)> cb) {
-  Reader reader(std::move(bytes));
+  Reader reader(std::move(bytes), order);
   uint32_t nr;
   uint32_t attr_size;
   if (!reader.Read(nr) || !reader.Read(attr_size)) {
@@ -242,8 +245,9 @@ base::Status EventDescription::Parse(
 }
 
 base::Status ParseSimpleperfFile2(TraceBlobView bytes,
+                                  ByteOrder order,
                                   std::function<void(TraceBlobView)> cb) {
-  Reader reader(std::move(bytes));
+  Reader reader(std::move(bytes), order);
   while (reader.size_left() != 0) {
     uint32_t len;
     if (!reader.Read(len)) {
@@ -260,8 +264,10 @@ base::Status ParseSimpleperfFile2(TraceBlobView bytes,
 }
 
 // static
-base::Status HeaderGroupDesc::Parse(TraceBlobView bytes, HeaderGroupDesc& out) {
-  Reader reader(std::move(bytes));
+base::Status HeaderGroupDesc::Parse(TraceBlobView bytes,
+                                    ByteOrder order,
+                                    HeaderGroupDesc& out) {
+  Reader reader(std::move(bytes), order);
   uint32_t nr;
   if (!reader.Read(nr)) {
     return base::ErrStatus("Failed to parse header for HEADER_GROUP_DESC");
@@ -279,8 +285,9 @@ base::Status HeaderGroupDesc::Parse(TraceBlobView bytes, HeaderGroupDesc& out) {
   return base::OkStatus();
 }
 
-base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes) {
-  Reader reader(std::move(bytes));
+base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes,
+                                                      ByteOrder order) {
+  Reader reader(std::move(bytes), order);
   uint32_t nr;
   if (!reader.Read(nr)) {
     return base::ErrStatus("Failed to parse nr for CMDLINE");
@@ -297,8 +304,9 @@ base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes) {
   return args;
 }
 
-base::StatusOr<std::string> ParseOsRelease(TraceBlobView bytes) {
-  Reader reader(std::move(bytes));
+base::StatusOr<std::string> ParseOsRelease(TraceBlobView bytes,
+                                           ByteOrder order) {
+  Reader reader(std::move(bytes), order);
   std::string str;
   if (!ParseString(reader, str)) {
     return base::ErrStatus("Failed to parse string for OS_RELEASE");

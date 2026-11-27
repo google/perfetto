@@ -26,6 +26,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/perf_invocation.h"
+#include "src/trace_processor/importers/perf/reader.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -65,6 +66,10 @@ struct Sample {
 
   base::Status Parse(int64_t trace_ts, const Record& record);
 };
+
+inline Sample::PidTid ByteSwap(Sample::PidTid v) {
+  return {ByteSwap(v.pid), ByteSwap(v.tid)};
+}
 
 }  // namespace perfetto::trace_processor::perf_importer
 

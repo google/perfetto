@@ -60,6 +60,7 @@ constexpr bool kIsSupportedEndianType =
 // Reverses the byte order of an integer or floating-point value.
 template <typename T>
 inline T ByteSwap(T x) {
+  static_assert(kIsSupportedEndianType<T>, "Unsupported type");
   if constexpr (sizeof(T) == 2) {
     uint16_t u;
     memcpy(&u, &x, sizeof(u));

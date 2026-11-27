@@ -18,7 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_AUXTRACE_RECORD_H_
 
 #include <cstdint>
+
 #include "perfetto/base/status.h"
+#include "src/trace_processor/importers/perf/reader.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -37,6 +39,17 @@ struct AuxtraceRecord {
 
   base::Status Parse(const Record& record);
 };
+
+inline AuxtraceRecord ByteSwap(AuxtraceRecord v) {
+  v.size = ByteSwap(v.size);
+  v.offset = ByteSwap(v.offset);
+  v.reference = ByteSwap(v.reference);
+  v.idx = ByteSwap(v.idx);
+  v.tid = ByteSwap(v.tid);
+  v.cpu = ByteSwap(v.cpu);
+  v.reserved = ByteSwap(v.reserved);
+  return v;
+}
 
 }  // namespace perfetto::trace_processor::perf_importer
 

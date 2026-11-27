@@ -33,7 +33,7 @@ base::Status SampleId::ParseFromRecord(const Record& record) {
     return base::OkStatus();
   }
 
-  Reader reader(record.payload.copy());
+  Reader reader(record.payload.copy(), record.session->byte_order());
 
   size_t size = record.attr->sample_id_size();
   if (size > record.payload.size()) {
