@@ -16,11 +16,11 @@ import './menu.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
-import type {HTMLAttrs} from './common';
+import type {HTMLAnchorAttrs, HTMLAttrs} from './common';
 import {Icon} from './icon';
 import {Popup, type PopupAttrs, PopupPosition} from './popup';
 
-export interface MenuItemAttrs extends HTMLAttrs {
+export interface MenuItemAttrs extends HTMLAnchorAttrs {
   // Text to display on the menu button.
   readonly label: m.Children;
   // Optional left icon.
@@ -61,6 +61,8 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
       rightIcon = 'chevron_right',
       closePopupOnClick = false,
       onChange,
+      href: _href,
+      target: _target,
       ...rest
     } = attrs;
 
@@ -91,25 +93,49 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
       active,
       closePopupOnClick = true,
       className,
+      href,
+      target,
+      onclick,
       ...htmlAttrs
     } = attrs;
 
     const classes = classNames(
       active && 'pf-active',
+      disabled && 'pf-disabled',
       !disabled && closePopupOnClick && Popup.DISMISS_POPUP_GROUP_CLASS,
       className,
     );
+
+    const content = [
+      icon && m(Icon, {className: 'pf-menu-item__left-icon', icon}),
+      m('.pf-menu-item__label', label),
+      rightIcon &&
+        m(Icon, {className: 'pf-menu-item__right-icon', icon: rightIcon}),
+    ];
+
+    if (href !== undefined) {
+      return m(
+        'a.pf-menu-item',
+        {
+          ...htmlAttrs,
+          'className': classes,
+          'href': disabled ? undefined : href,
+          'target': disabled ? undefined : target,
+          'aria-disabled': disabled ? 'true' : undefined,
+          'onclick': disabled ? undefined : onclick,
+        },
+        content,
+      );
+    }
 
     return m(
       'button.pf-menu-item' + (disabled ? '[disabled]' : ''),
       {
         ...htmlAttrs,
         className: classes,
+        onclick,
       },
-      icon && m(Icon, {className: 'pf-menu-item__left-icon', icon}),
-      m('.pf-menu-item__label', label),
-      rightIcon &&
-        m(Icon, {className: 'pf-menu-item__right-icon', icon: rightIcon}),
+      content,
     );
   }
 }

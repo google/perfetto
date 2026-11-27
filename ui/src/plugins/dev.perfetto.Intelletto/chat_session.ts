@@ -13,13 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import type {SkillInfo, SkillManager} from '../../public/skills';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
-import {Agent} from './agent';
+import {Agent, type AgentEvent} from './agent';
 import type {ContextRegistry} from './context';
 import type {ToolRegistry} from './tools';
-import {listSkillsForPrompt, skillsPromptSection} from './skill_tools';
-import {SYSTEM_PROMPT} from './system_prompt';
+
+const CANCELLED_TEXT = '(turn cancelled)';
 
 /** A single line in the conversation transcript. */
 export interface ChatLine {
@@ -42,17 +41,8 @@ export interface ChatLine {
  * The UI renders from this and calls its methods; there is no other state.
  */
 export class ChatSession {
-  /**
-   * The assembled system prompt in use for this conversation - kept so the
-   * "show system prompt" inspector displays exactly what the agent sends. It
-   * is final once the skill index has loaded (before the first turn runs).
-   */
-  systemPrompt: string;
-
   /** The conversation transcript, in display order. */
   lines: ChatLine[] = [];
-  /** The current (uncommitted) text in the input box. */
-  input = '';
   /** True while a turn is in flight. */
   loading = false;
   /** Total tokens reported by the most recent turn, if any. */
@@ -61,60 +51,121 @@ export class ChatSession {
   /** Context items the user has toggled off for the next prompt. */
   readonly excludedContext = new Set<string>();
 
-  // Resolves once the skill index is in the system prompt.
-  private readonly agent: Promise<Agent>;
+  private readonly agent: Agent;
   private abort?: AbortController;
   // Messages typed while a turn was in flight. The agent polls this at the top
   // of each tool-use round; anything still queued when the turn ends starts a
   // fresh turn. Cancelling drops the queue.
   private pendingFollowUps: string[] = [];
 
+  /** Follow-up messages queued while a turn is in flight, in FIFO order. */
+  get queuedFollowUps(): readonly string[] {
+    return this.pendingFollowUps;
+  }
+
+  /** Remove a queued follow-up at the given index. */
+  removeQueuedFollowUp(index: number): void {
+    if (index < 0 || index >= this.pendingFollowUps.length) return;
+    this.pendingFollowUps.splice(index, 1);
+  }
+
+  /**
+   * Promote a queued follow-up to the front of the queue and interrupt the
+   * in-flight turn so it runs immediately.
+   */
+  sendQueuedFollowUpNow(index: number, model: ModelPath): void {
+    const [text] = this.pendingFollowUps.splice(index, 1);
+    if (text === undefined) return;
+    if (this.loading) {
+      this.pendingFollowUps.unshift(text);
+      this.abort?.abort();
+    } else {
+      void this.send(text, model);
+    }
+  }
+
+  /** Toggle whether a context item is excluded from the next prompt. */
+  toggleContext(id: string): void {
+    if (this.excludedContext.has(id)) {
+      this.excludedContext.delete(id);
+    } else {
+      this.excludedContext.add(id);
+    }
+  }
+
   /**
    * @param gateway - The LLM gateway used to drive the agent.
    * @param tools - The registry of tools available to the agent.
-   * @param context - The registry supplying per-turn context items and, at
-   *     construction, the payload-format descriptions folded into the system
-   *     prompt.
-   * @param skills - The skills whose index goes into the system prompt.
+   * @param context - The registry supplying per-turn context items.
+   * @param systemPrompt - The assembled system prompt sent on every request.
    */
   constructor(
     gateway: LlmGateway,
     tools: ToolRegistry,
     private readonly context: ContextRegistry,
-    skills: SkillManager,
+    systemPrompt: string,
   ) {
-    // The context providers' invariant payload-format descriptions and the
-    // skill index are folded into the system prompt once per conversation -
-    // per-turn payloads stay data-only.
-    this.systemPrompt = assembleSystemPrompt(context, []);
-    this.agent = listSkillsForPrompt(skills).then((list) => {
-      this.systemPrompt = assembleSystemPrompt(context, list);
-      return new Agent(gateway, tools, this.systemPrompt);
-    });
-    this.lines = [];
+    this.agent = new Agent(gateway, tools, systemPrompt);
   }
 
   /**
-   * Submit the current input. If a turn is already running the text is queued
-   * as a follow-up; otherwise it starts a new turn (and drains any follow-ups
-   * queued while it runs). No-op on empty input.
+   * Submit a user message. If a turn is already running the text is queued as a
+   * follow-up; otherwise it starts a new turn (and drains any follow-ups queued
+   * while it runs). No-op on empty input.
    */
-  async send(model: ModelPath): Promise<void> {
-    const text = this.input.trim();
+  async send(message: string, model: ModelPath): Promise<void> {
+    const text = message.trim();
     if (text === '') return;
 
-    this.input = '';
-    this.lines.push({role: 'user', text});
-
     if (this.loading) {
-      // Typed mid-turn: queue it as a follow-up. The running turn picks it up
-      // at its next tool-use round, or the loop below starts a new turn with
-      // it once the current one finishes.
+      // Typed mid-turn: hold it in the follow-up queue until the running turn
+      // picks it up at its next tool-use round, or until the loop below starts
+      // a new turn with it once the current one finishes.
       this.pendingFollowUps.push(text);
       return;
     }
 
-    let next: string | undefined = text;
+    await this.drainTurns(text, model);
+  }
+
+  /**
+   * True when the most recent turn ended in an outright request failure (not
+   * a user cancellation) and the agent history can re-send that request.
+   */
+  get canRetry(): boolean {
+    if (this.loading || !this.agent.canRetry()) return false;
+    for (let i = this.lines.length - 1; i >= 0; i--) {
+      const line = this.lines[i];
+      if (line === undefined || line.role === 'spacer') continue;
+      return line.role === 'error' && line.text !== CANCELLED_TEXT;
+    }
+    return false;
+  }
+
+  /**
+   * Retry the latest failed turn without re-adding the user message. Drops the
+   * trailing error banner before re-sending. No-op if nothing failed or a turn
+   * is already running.
+   */
+  async retry(model: ModelPath): Promise<void> {
+    if (!this.canRetry) return;
+
+    while (this.lines[this.lines.length - 1]?.role === 'spacer') {
+      this.lines.pop();
+    }
+    if (this.lines[this.lines.length - 1]?.role === 'error') {
+      this.lines.pop();
+    }
+
+    await this.drainTurns(undefined, model);
+  }
+
+  private async drainTurns(
+    firstPrompt: string | undefined,
+    model: ModelPath,
+  ): Promise<void> {
+    await this.runTurn(firstPrompt, model);
+    let next = this.pendingFollowUps.shift();
     while (next !== undefined) {
       await this.runTurn(next, model);
       next = this.pendingFollowUps.shift();
@@ -128,7 +179,7 @@ export class ChatSession {
   cancel(): void {
     this.abort?.abort();
     this.pendingFollowUps = [];
-    this.lines.push({role: 'error', text: '(turn cancelled)'});
+    this.lines.push({role: 'error', text: CANCELLED_TEXT});
   }
 
   private appendAi(text: string) {
@@ -140,30 +191,51 @@ export class ChatSession {
     }
   }
 
-  private async runTurn(text: string, model: ModelPath): Promise<void> {
-    // Fold in any non-excluded context as a preamble the model can see.
-    const context = this.context
-      .buildContextItems()
-      .filter((c) => !this.excludedContext.has(c.id));
-    const prompt =
-      context.length === 0
-        ? text
-        : `Context for this question:\n${context
-            .map((c) => `- ${c.label}: ${c.payload}`)
-            .join('\n')}\n\nQuestion: ${text}`;
+  private async runTurn(
+    text: string | undefined,
+    model: ModelPath,
+  ): Promise<void> {
+    const dequeueFollowUp = (): string | undefined => {
+      const followUp = this.pendingFollowUps.shift();
+      if (followUp !== undefined) {
+        this.lines.push({role: 'user', text: followUp});
+        m.redraw();
+      }
+      return followUp;
+    };
 
+    let prompt: string | undefined;
+    if (text !== undefined) {
+      this.lines.push({role: 'user', text});
+
+      // Fold in any non-excluded context as a preamble the model can see.
+      const context = this.context
+        .buildContextItems()
+        .filter((c) => !this.excludedContext.has(c.id));
+      prompt =
+        context.length === 0
+          ? text
+          : `Context for this question:\n${context
+              .map((c) => `- ${c.label}: ${c.payload}`)
+              .join('\n')}\n\nQuestion: ${text}`;
+    }
+
+    const abort = new AbortController();
+    this.abort = abort;
     this.loading = true;
-    this.abort = new AbortController();
     m.redraw();
 
     try {
-      const agent = await this.agent;
-      for await (const evt of agent.sendMessage(
-        prompt,
-        model,
-        this.abort.signal,
-        () => this.pendingFollowUps.shift(),
-      )) {
+      const stream: AsyncGenerator<AgentEvent, void, void> =
+        prompt === undefined
+          ? this.agent.retry(model, abort.signal, dequeueFollowUp)
+          : this.agent.sendMessage(
+              prompt,
+              model,
+              abort.signal,
+              dequeueFollowUp,
+            );
+      for await (const evt of stream) {
         switch (evt.type) {
           case 'text':
             this.appendAi(evt.text);
@@ -201,40 +273,23 @@ export class ChatSession {
             }
             break;
           case 'error':
-            this.lines.push({role: 'error', text: evt.message});
+            this.lines.push({
+              role: 'error',
+              text: evt.message || 'Unknown error',
+            });
             break;
         }
         m.redraw();
       }
       this.lines.push({role: 'spacer', text: ''});
     } catch (e) {
-      this.lines.push({role: 'error', text: `Something went wrong: ${e}`});
+      if (!abort.signal.aborted) {
+        this.lines.push({role: 'error', text: `Something went wrong: ${e}`});
+      }
     } finally {
       this.loading = false;
       this.abort = undefined;
       m.redraw();
     }
   }
-}
-
-// The assembled system prompt: the application brief, the context providers'
-// payload-format descriptions (already sorted by provider id) and the skill
-// index (sorted by name), so the result is byte-identical across turns and the
-// cached prefix survives. Sampled once per conversation; providers and skills
-// added mid-conversation take effect on the next one.
-function assembleSystemPrompt(
-  context: ContextRegistry,
-  skills: ReadonlyArray<SkillInfo>,
-): string {
-  const parts = [SYSTEM_PROMPT];
-  const descriptions = context.descriptions();
-  if (descriptions.length > 0) {
-    parts.push(
-      'Context payload formats (for the context preamble on user messages):',
-      ...descriptions,
-    );
-  }
-  const skillsSection = skillsPromptSection(skills);
-  if (skillsSection !== undefined) parts.push(skillsSection);
-  return parts.join('\n\n');
 }

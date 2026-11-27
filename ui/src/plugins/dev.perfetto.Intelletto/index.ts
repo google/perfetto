@@ -16,11 +16,16 @@ import {z} from 'zod';
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {Setting} from '../../public/settings';
+import type {SkillInfo} from '../../public/skills';
 import type {ZodRawShape} from 'zod';
 import type {PerfettoPlugin, PluginStatus} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
-import LlmPlugin from '../dev.perfetto.Llm';
-import type {ModelPath} from '../dev.perfetto.Llm/gateway';
+import LlmPlugin, {LLM_PROVIDER_SETTING_ID} from '../dev.perfetto.Llm';
+import type {
+  LlmGateway,
+  ModelDetails,
+  ModelPath,
+} from '../dev.perfetto.Llm/gateway';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
 import type {
@@ -33,12 +38,14 @@ import {ChatSession} from './chat_session';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {ContextRegistry, registerCoreContextProviders} from './context';
 import {registerCoreTools} from './core_tools';
-import {registerSkillTools} from './skill_tools';
+import {registerSkillTools, skillsPromptSection} from './skill_tools';
+import {SYSTEM_PROMPT} from './system_prompt';
 import {registerTimelineTools} from './timeline_tools';
 import {ToolRegistry} from './tools';
 import {registerWebMCPTools} from './webmcp';
 
 const SIDE_PANEL_URI = 'dev.perfetto.Intelletto#Chat';
+const EMPTY_SET: ReadonlySet<string> = new Set();
 
 /**
  * The assistant plugin. Trace-scoped: one instance (and one tool registry) per
@@ -65,6 +72,9 @@ export default class IntellettoPlugin
   // assistant. Headless (hidden from settings page) — changed via the sidebar
   // dropdown. Survives page reloads and is shared across all traces.
   private static selectedModelSetting: Setting<ModelPath | undefined>;
+  private static skills?: ReadonlyArray<SkillInfo>;
+  private static skillsPromise: Promise<ReadonlyArray<SkillInfo>> =
+    Promise.resolve([]);
 
   static onActivate(app: App): void {
     IntellettoPlugin.selectedModelSetting = app.settings.register({
@@ -82,6 +92,23 @@ export default class IntellettoPlugin
       defaultValue: undefined,
       headless: true,
     });
+
+    // Kick off skill index loading immediately so it's ready by the time the
+    // user opens the panel, and redraw once loaded so isLoadingSkills clears.
+    IntellettoPlugin.skills = undefined;
+    IntellettoPlugin.skillsPromise = app.skills
+      .list()
+      .then(
+        (list) => {
+          IntellettoPlugin.skills = list;
+          return list;
+        },
+        () => {
+          IntellettoPlugin.skills = [];
+          return [];
+        },
+      )
+      .finally(() => m.redraw());
   }
 
   // The shared tool registry for this trace. Core tools plus any contributed by
@@ -137,21 +164,65 @@ export default class IntellettoPlugin
       title: 'Intelletto',
       icon: 'psychology',
       render: () => {
-        this.session ??= new ChatSession(
-          gateway,
-          this.tools,
-          this.context,
-          trace.skills,
+        const skills = IntellettoPlugin.skills;
+        const session =
+          skills !== undefined
+            ? this.getOrCreateSession(gateway, skills)
+            : undefined;
+        const models = gateway
+          .listModels()
+          .filter((rm) => rm.model.roles.includes('agentic'));
+        const selectedModel = getValidModel(
+          IntellettoPlugin.selectedModelSetting.get(),
+          models,
         );
         return m(ChatPanel, {
-          gateway,
-          session: this.session,
-          context: this.context,
-          selectedModelSetting: IntellettoPlugin.selectedModelSetting,
-          onNewSession: () => {
+          isAgentRunning: session?.loading ?? false,
+          isLoadingSkills: skills === undefined,
+          totalTokens: session?.totalTokens,
+          onCancel: () => session?.cancel(),
+          onRetry:
+            session?.canRetry === true && selectedModel !== undefined
+              ? () => {
+                  void session.retry(selectedModel);
+                }
+              : undefined,
+          conversation: session?.lines ?? [],
+          onSendMessage: (msg) => {
+            if (selectedModel === undefined) return;
+            if (session !== undefined) {
+              void session.send(msg, selectedModel);
+            } else {
+              void IntellettoPlugin.skillsPromise.then((loadedSkills) => {
+                void this.getOrCreateSession(gateway, loadedSkills).send(
+                  msg,
+                  selectedModel,
+                );
+              });
+            }
+          },
+          conversations: [],
+          activeConversationId: undefined,
+          onOpenConversation: () => {},
+          onNewConversation: () => {
             this.session?.cancel();
             this.session = undefined;
           },
+          pendingMessages: session?.queuedFollowUps ?? [],
+          onDeletePendingMsg: (index) => session?.removeQueuedFollowUp(index),
+          onSendPendingMsgNow: (index) => {
+            if (selectedModel !== undefined) {
+              session?.sendQueuedFollowUpNow(index, selectedModel);
+            }
+          },
+          contextItems: this.context.buildContextItems(),
+          excludedContextIds: session?.excludedContext ?? EMPTY_SET,
+          onToggleContext: (id) => session?.toggleContext(id),
+          models,
+          selectedModel,
+          onSelectModel: (model) =>
+            IntellettoPlugin.selectedModelSetting.set(model),
+          configureModelsHref: `#!/settings/${encodeURIComponent(LLM_PROVIDER_SETTING_ID)}`,
         });
       },
     });
@@ -172,6 +243,62 @@ export default class IntellettoPlugin
     const webmcpController = registerWebMCPTools(this.tools);
     trace.trash.defer(() => webmcpController?.abort());
   }
+
+  private getOrCreateSession(
+    gateway: LlmGateway,
+    skills: ReadonlyArray<SkillInfo>,
+  ): ChatSession {
+    return (this.session ??= new ChatSession(
+      gateway,
+      this.tools,
+      this.context,
+      assembleSystemPrompt(this.context, skills),
+    ));
+  }
+}
+
+// The assembled system prompt: the application brief, the context providers'
+// payload-format descriptions (already sorted by provider id) and the skill
+// index (sorted by name), so the result is byte-identical across turns and the
+// cached prefix survives. Sampled once per conversation; providers and skills
+// added mid-conversation take effect on the next one.
+function assembleSystemPrompt(
+  context: ContextRegistry,
+  skills: ReadonlyArray<SkillInfo>,
+): string {
+  const parts = [SYSTEM_PROMPT];
+  const descriptions = context.descriptions();
+  if (descriptions.length > 0) {
+    parts.push(
+      'Context payload formats (for the context preamble on user messages):',
+      ...descriptions,
+    );
+  }
+  const skillsSection = skillsPromptSection(skills);
+  if (skillsSection !== undefined) parts.push(skillsSection);
+  return parts.join('\n\n');
+}
+
+// Given a currently selected model path and the list of available agentic
+// models, return either the selected model if it still exists, or the first
+// available model otherwise.
+function getValidModel(
+  model: ModelPath | undefined,
+  models: readonly ModelDetails[],
+): ModelPath | undefined {
+  if (model !== undefined) {
+    const found = models.find(
+      (m) => m.model.id === model.modelId && m.provider.id === model.providerId,
+    );
+    if (found !== undefined) {
+      return model;
+    }
+  }
+  const first = models[0];
+  if (first !== undefined) {
+    return {providerId: first.provider.id, modelId: first.model.id};
+  }
+  return undefined;
 }
 
 // Re-export the public API types so dependents can import them from the plugin

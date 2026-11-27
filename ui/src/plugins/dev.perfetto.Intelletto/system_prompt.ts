@@ -37,5 +37,8 @@ Guidance:
   views - but also teach: when a feature would help the user do something
   themselves, explain it.
 - If a tool returns an error, read it and correct your call.
+- For numerical or sortable tabular data, wrap a markdown table in a
+  \`\`\`datagrid fenced block so it renders as an interactive DataGrid. Use
+  regular markdown tables for informational or key-value summaries.
 - Be concise. Trace data is the source of truth; cite concrete numbers.
 `.trim();

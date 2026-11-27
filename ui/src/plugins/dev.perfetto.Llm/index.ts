@@ -27,8 +27,11 @@ import {PROVIDERS_SETTING_SCHEMA, type ProvidersSetting} from './config';
 import {LlmGateway} from './gateway';
 import {LlmSettings} from './settings_ui';
 
+export const PLUGIN_ID = 'dev.perfetto.Llm';
+export const LLM_PROVIDER_SETTING_ID = `${PLUGIN_ID}#Providers`;
+
 export default class LlmPlugin implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.Llm';
+  static readonly id = PLUGIN_ID;
   static readonly description =
     'Common LLM gateway. Owns Protocol/Provider/Model configuration and ' +
     'exposes LLM capabilities to other plugins (e.g. the Intelletto ' +
@@ -51,7 +54,7 @@ export default class LlmPlugin implements PerfettoPlugin {
     // configurable directly from the settings page via the custom renderer
     // below, which is driven off each protocol's declared credential fields.
     LlmPlugin.providersSetting = app.settings.register({
-      id: `${LlmPlugin.id}#Providers`,
+      id: LLM_PROVIDER_SETTING_ID,
       name: 'LLM providers',
       description:
         'LLM providers available to the assistant and other LLM features. ' +

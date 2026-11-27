@@ -47,7 +47,7 @@ function main() {
   const fixtureName = params.get('fixture');
   let theme: 'light' | 'dark' =
     params.get('theme') === 'dark' ? 'dark' : 'light';
-  let showGuides = params.get('guides') === '1';
+  let showGuides = params.get('guides') !== '0';
   const args: Record<string, string> = {};
   for (const [key, value] of params) {
     if (key === 'fixture' || key === 'theme' || key === 'guides') continue;
@@ -65,7 +65,7 @@ function main() {
   const hrefFor = (name: string) => {
     const next = new URLSearchParams({fixture: name});
     if (theme === 'dark') next.set('theme', 'dark');
-    if (showGuides) next.set('guides', '1');
+    if (!showGuides) next.set('guides', '0');
     return `?${next}`;
   };
   const updateSearchParam = (key: string, value: string | undefined) => {
@@ -88,7 +88,7 @@ function main() {
   };
   const setShowGuides = (enabled: boolean) => {
     showGuides = enabled;
-    updateSearchParam('guides', enabled ? '1' : undefined);
+    updateSearchParam('guides', enabled ? undefined : '0');
   };
 
   // Called on every redraw: mithril vnodes must not be reused across renders.

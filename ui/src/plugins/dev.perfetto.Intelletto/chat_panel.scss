@@ -27,15 +27,19 @@
     border-bottom: 1px solid var(--pf-color-border);
   }
 
-  &__model {
+  &__header-spacer {
     flex: 1;
-    min-width: 0;
   }
 
-  &__no-model {
-    flex: 1;
-    color: var(--pf-color-text-muted);
-    font-style: italic;
+  &__conversations {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 220px;
+
+    .pf-button__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   &__conversation {
@@ -62,9 +66,15 @@
   &__msg {
     margin-bottom: 1rem;
     max-width: 90%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0.5rem 1rem;
     border-radius: 12px;
     line-height: 1.5;
+
+    p {
+      margin-block: 10px 2px;
+    }
 
     &-role {
       font-weight: bold;
@@ -72,9 +82,46 @@
       margin-bottom: 4px;
     }
 
+    &-text {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+
+      // Keep any code blocks nested inside lists/blockquotes horizontally
+      // scrollable within the message bubble too.
+      pre {
+        overflow-x: auto;
+        max-width: 100%;
+      }
+
+      // Informational markdown tables rendered as plain HTML.
+      table {
+        border-collapse: collapse;
+        margin: 6px 0;
+        font-size: 0.9em;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+
+        th,
+        td {
+          border: 1px solid var(--pf-color-border);
+          padding: 4px 8px;
+          text-align: left;
+        }
+
+        th {
+          font-weight: 600;
+          background-color: var(--pf-color-background);
+        }
+      }
+    }
+
     &--ai {
       background-color: var(--pf-color-background-secondary);
       align-self: flex-start;
+      border-top-left-radius: 2px;
     }
 
     &--user {
@@ -82,6 +129,7 @@
       color: var(--pf-color-text-on-primary);
       align-self: flex-end;
       margin-left: auto;
+      border-top-right-radius: 2px;
     }
 
     &--error {
@@ -113,6 +161,24 @@
       margin: 0;
       padding: 0;
     }
+  }
+
+  &__retry {
+    margin-top: 6px;
+  }
+
+  // A markdown table from the model, shown as a DataGrid.
+  &__table {
+    margin: 4px 0;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  &__code {
+    margin: 4px 0;
+    background-color: var(--pf-color-background);
+    color: var(--pf-color-text);
   }
 
   &__tool {
@@ -166,61 +232,93 @@
     font-size: 0.95em;
   }
 
+  &__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid var(--pf-color-border);
+  }
+
+  &__queued {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__queued-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border-radius: 10px;
+    border: 1px dashed
+      color-mix(in srgb, var(--pf-color-primary) 50%, var(--pf-color-border));
+    background: color-mix(in srgb, var(--pf-color-primary) 8%, transparent);
+    font-size: 0.9em;
+    line-height: 1.4;
+    min-width: 0;
+  }
+
+  &__queued-label {
+    flex-shrink: 0;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--pf-color-primary);
+  }
+
+  &__queued-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--pf-color-text);
+  }
+
+  &__queued-action,
+  &__queued-remove {
+    flex-shrink: 0;
+  }
+
   &__context {
     flex-shrink: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    padding: 4px 0.5rem;
-    border-top: 1px solid var(--pf-color-border);
   }
 
   &__context-chip {
     cursor: pointer;
     user-select: none;
-    font-size: 0.8em;
-    padding: 1px 6px;
-    border-radius: 8px;
+    font-size: 0.78em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--pf-color-border-secondary);
     background-color: var(--pf-color-background-secondary);
+    color: var(--pf-color-text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    transition:
+      opacity 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+
+    &:hover {
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+    }
 
     &--off {
-      opacity: 0.5;
+      opacity: 0.45;
+      text-decoration: line-through;
     }
-  }
-
-  &__system-prompt {
-    margin: 0;
-    max-width: 70vw;
-    max-height: 60vh;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: var(--pf-font-monospace);
-    font-size: 0.9em;
-  }
-
-  &__tokens {
-    font-size: 0.8em;
-    color: var(--pf-color-text-muted);
-    white-space: nowrap;
   }
 
   &__input {
     flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    padding: 0.5rem;
-    border-top: 1px solid var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
     box-sizing: border-box;
-    gap: 4px;
-
-    .pf-text-input {
-      flex: 1;
-    }
   }
 }

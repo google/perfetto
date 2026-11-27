@@ -39,21 +39,6 @@ export function skillsPromptSection(
   ].join('\n');
 }
 
-/**
- * The skills for the system prompt, or none if they cannot be listed. A slow
- * index is left out by the skill manager, so this does not block the
- * conversation.
- */
-export async function listSkillsForPrompt(
-  skills: SkillManager,
-): Promise<ReadonlyArray<SkillInfo>> {
-  try {
-    return await skills.list();
-  } catch {
-    return [];
-  }
-}
-
 /** Registers load_skill, read_skill_file and run_skill_sql. */
 export function registerSkillTools(
   reg: ToolRegistry,
