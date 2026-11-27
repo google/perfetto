@@ -45,6 +45,10 @@ class ConstraintClass(Generic[_T]):
 
 
 Constraint = Union[_T, ConstraintClass[_T]]
+# Not used in this repo, but part of the public API: external resolvers
+# (e.g. Google-internal ones) use it in their __init__ type hints and inspect
+# its structure at runtime via get_type_hints().
+ConstraintWithList = Union[Constraint[_T], Constraint[List[_T]]]
 
 
 class TraceUriResolver:
