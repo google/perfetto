@@ -57,17 +57,19 @@ ExportJson(TraceProcessorStorage*,
            MetadataFilterPredicate = nullptr,
            LabelFilterPredicate = nullptr);
 
+// Exports the trace loaded in TraceProcessor to json, applying argument,
+// metadata and label filtering using the callbacks.
 // TraceProcessorImpl inherits non-virtually from both TraceProcessor and
-// TraceProcessorStorageImpl, so implicitly upcasting TraceProcessor* to
-// TraceProcessorStorage* produces a pointer at the wrong offset for
-// ExportJson's internal cast to TraceProcessorStorageImpl*. Callers holding a
-// TraceProcessor* should use TraceProcessor::Export(ExportFormat::kJson, ...)
-// instead.
-base::Status ExportJson(TraceProcessor*,
-                        OutputWriter*,
-                        ArgumentFilterPredicate = nullptr,
-                        MetadataFilterPredicate = nullptr,
-                        LabelFilterPredicate = nullptr) = delete;
+// TraceProcessorStorageImpl, so passing a TraceProcessor* to the
+// TraceProcessorStorage* overload above would cast from the wrong base
+// subobject offset. Note: the argument must be a local TraceProcessor created
+// via TraceProcessor::CreateInstance() (not a RemoteTraceProcessor).
+base::Status PERFETTO_EXPORT_COMPONENT
+ExportJson(TraceProcessor*,
+           OutputWriter*,
+           ArgumentFilterPredicate = nullptr,
+           MetadataFilterPredicate = nullptr,
+           LabelFilterPredicate = nullptr);
 
 }  // namespace json
 }  // namespace trace_processor

@@ -314,10 +314,6 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
     // unrecognized members. It cannot be loaded back into Trace Processor; use
     // kPerfetto for that.
     kArrowTar,
-
-    // Legacy Chrome Trace Event JSON format (userspace events only; does not
-    // include ftrace/systrace data).
-    kJson,
   };
 
   class PERFETTO_EXPORT_COMPONENT ExportOutput {
