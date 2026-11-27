@@ -1,0 +1,7 @@
+# ninja log v6
+582	595	1787745089891266291	obj/gn/standalone/libc++/deps.stamp	abe4b91fe37b62a9
+582	595	1787745089891608499	obj/gn/standalone/sanitizers/deps.stamp	6160ec758aa22bd0
+583	596	1787745089892023166	obj/include/perfetto/public/protozero.stamp	5df7cec9a0da629f
+582	602	1787745089891832416	obj/include/perfetto/public/abi/base.stamp	2e5cce6baeb9709d
+583	603	1787745089892234041	obj/protos/perfetto/protovm/source_set.stamp	d3d8696e11a4f20d
+588	604	1787745089897396958	obj/protos/perfetto/config/ftrace/source_set.stamp	1c492a141c485ec5

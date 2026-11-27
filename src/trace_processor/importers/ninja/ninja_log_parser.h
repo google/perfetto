@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_NINJA_NINJA_LOG_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_NINJA_NINJA_LOG_PARSER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -36,14 +37,20 @@ std::unique_ptr<TraceImporterBase> CreateNinjaLogImporter();
 // This class parses Ninja's (the build system, ninja-build.org) build logs and
 // turns them into traces. A ninja log typically contains the logs of >1 ninja
 // invocation. We map those as follows:
-// - For each ninja invocation we create one process in the trace (from the UI
-//   perspective a process is a group of tracks).
+// - The timestamps of the invocations do not overlap: each invocation is
+//   shifted past the end of the previous one, so the trace reads as the build
+//   history of that output directory.
 // - Within each invocation we work out the parallelism from the time stamp and
-//   create one thread for each concurrent stream of jobs.
-// Caveat: this works only if ninja didn't recompact the logs. Once recompaction
-// happens (can be forced via ninja -t recompact) there is no way to identify
-// the boundaries of each build (recompaction deletes, for each hash, all but
-// the most recent timestamp and rewrites the log).
+//   create one "Worker N" track for each concurrent stream of jobs. Tracks are
+//   reused across invocations, so their number stays close to the -j level
+//   rather than growing with the number of builds in the log.
+// - A "Builds" track has one slice per invocation, and an "Active jobs"
+//   counter track has the number of jobs running at each moment.
+// Once ninja recompacts the log (on its own, or via ninja -t recompact) the
+// boundaries of the builds that were in it are gone: recompaction deletes, for
+// each output, all but the most recent entry and rewrites the log. Those
+// entries are dropped if builds were appended after them, and shown as a
+// single build otherwise.
 class NinjaLogParser : public ChunkedTraceReader {
  public:
   explicit NinjaLogParser(TraceProcessorContext*);
@@ -70,8 +77,14 @@ class NinjaLogParser : public ChunkedTraceReader {
     std::string names;
   };
 
+  base::Status ParseLines(size_t size);
+  size_t CountRecompactedLines() const;
+
   TraceProcessorContext* const ctx_;
   bool header_parsed_ = false;
+
+  // One entry per line of the log, in the order and with the timestamps of
+  // the log.
   std::vector<Job> jobs_;
   std::vector<char> log_;
 };

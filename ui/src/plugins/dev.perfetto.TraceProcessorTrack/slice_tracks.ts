@@ -30,6 +30,13 @@ interface SliceTrackTypeSchema {
   readonly topLevelGroup: 'PROCESS' | 'THREAD' | StandardGroup | undefined;
 
   /**
+   * Optional position of the track among its siblings: a track with a lower
+   * value goes first. When absent, the track is ordered like any other track
+   * of its kind.
+   */
+  readonly sortOrder?: number;
+
+  /**
    * Optional function to customize the display name of the track.
    *
    * This function is called during track registration to transform the raw
@@ -375,5 +382,16 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     type: 'pixel_fwtp_slices',
     topLevelGroup: 'HARDWARE',
     group: 'Pixel Firmware',
+  },
+  {
+    type: 'ninja_builds',
+    topLevelGroup: undefined,
+    group: undefined,
+    sortOrder: 0,
+  },
+  {
+    type: 'ninja_worker',
+    topLevelGroup: undefined,
+    group: undefined,
   },
 ];

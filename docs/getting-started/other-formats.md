@@ -1017,12 +1017,32 @@ occasionally adding fields.
   `.ninja_log` files.
   - Each build step recorded in the `.ninja_log` is typically imported as a
     distinct slice into the `slice` table.
-  - To visualize these build steps on a timeline, Perfetto synthesizes
-    process and thread information: all build steps are grouped under a
-    single "Build" process, with "Worker" tracks inferred from overlapping
-    timestamps to represent concurrency.
+  - To visualize these build steps on a timeline, Perfetto infers the
+    concurrency of the build from overlapping timestamps and draws each
+    concurrent stream of build steps on a track of its own, named "Worker 1",
+    "Worker 2" and so on. These are tracks of type `ninja_worker` and belong to
+    no process or thread: a `.ninja_log` does not say which ninja job slot ran
+    a build step.
+  - A "Builds" track has one slice per build in the log, so a build can be
+    told apart from the next one and selected as a whole, and an "Active jobs"
+    counter track has the number of build steps running at each moment.
   - The timestamps (start and end times) are converted from milliseconds to
     nanoseconds for consistency within Perfetto.
+  - Log format versions 5 to 7 are read. ninja bumped the version to v6 in
+    1.12 and to v7 in 1.13 without changing the layout of a log line; a
+    version outside that range is rejected rather than guessed at.
+  - A `.ninja_log` accumulates the logs of every build run in that output
+    directory, and each build restarts its timestamps from zero. Builds are
+    laid one after the other on the timeline rather than on top of each other,
+    so the number of worker tracks stays close to the build's `-j`
+    level instead of growing with the number of builds in the log.
+  - ninja recompacts the log from time to time (and on `ninja -t recompact`):
+    it keeps only the last entry of each output and rewrites them in no
+    particular order, which loses the boundaries of the builds they came from.
+    If builds were appended after a recompaction, only those builds are
+    imported and the number of dropped entries is reported in the
+    `ninja_recompacted_entries_skipped` stat. If the whole log is recompacted,
+    its entries are imported as a single build.
   - This allows the build process to be visualized in the Perfetto UI, showing
     the duration and concurrency of various compilation, linking, and other
     build tasks, which can be very helpful for understanding the build's

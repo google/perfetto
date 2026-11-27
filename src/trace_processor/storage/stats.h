@@ -705,6 +705,10 @@ namespace perfetto::trace_processor::stats {
   F(compact_sched_waking_skipped,         kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace, ""), \
   F(empty_chrome_metadata,                kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(ninja_parse_errors,                   kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
+  F(ninja_recompacted_entries_skipped,    kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "Count of ninja log entries dropped because they were written by a "     \
+      "recompaction of the log, which loses the boundaries of the builds "     \
+      "they belong to. Only the builds appended after them are imported."),    \
   F(perf_cpu_lost_records,                kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "Count of perf samples lost due to kernel buffer overruns. The trace "   \
       "is missing information, but it's not known which processes are "        \
