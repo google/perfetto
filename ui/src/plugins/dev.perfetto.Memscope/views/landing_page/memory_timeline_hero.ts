@@ -48,8 +48,7 @@ interface NativeSnap {
 
 interface RssPoint {
   readonly ts: time;
-  readonly totalRssSwap: number;
-  readonly anonSwap?: number;
+  readonly anonSwapBytes: number;
 }
 
 interface HeroTimelineData {
@@ -59,7 +58,6 @@ interface HeroTimelineData {
   readonly rssPoints: ReadonlyArray<RssPoint>;
   readonly rssPlotPoints: ReadonlyArray<RssPoint>;
   readonly rssMaxBytes: number;
-  readonly hasAnonSplit: boolean;
 }
 
 const MAX_RSS_BUCKETS = 360;
@@ -108,10 +106,10 @@ function downsampleRssPoints(
       minPt = pt;
       maxPt = pt;
     } else {
-      if (minPt === undefined || pt.totalRssSwap < minPt.totalRssSwap) {
+      if (minPt === undefined || pt.anonSwapBytes < minPt.anonSwapBytes) {
         minPt = pt;
       }
-      if (maxPt === undefined || pt.totalRssSwap > maxPt.totalRssSwap) {
+      if (maxPt === undefined || pt.anonSwapBytes > maxPt.anonSwapBytes) {
         maxPt = pt;
       }
     }
@@ -150,11 +148,9 @@ async function loadRssCounterSeries(
   readonly rssPoints: ReadonlyArray<RssPoint>;
   readonly rssPlotPoints: ReadonlyArray<RssPoint>;
   readonly rssMaxBytes: number;
-  readonly hasAnonSplit: boolean;
 }> {
   const rssPoints: RssPoint[] = [];
   let rssMaxBytes = 0;
-  let hasAnonSplit = false;
 
   try {
     const res = await trace.engine.query(`
@@ -165,48 +161,24 @@ async function loadRssCounterSeries(
       FROM counter c
       JOIN process_counter_track t ON c.track_id = t.id
       WHERE t.upid = ${upid}
-        AND t.name IN (
-          'mem.rss.anon',
-          'mem.rss.file',
-          'mem.rss.shmem',
-          'mem.swap',
-          'mem.rss'
-        )
+        AND t.name IN ('mem.rss.anon', 'mem.swap')
       ORDER BY c.ts ASC
     `);
 
-    let anon: number | undefined;
-    let file: number | undefined;
-    let shmem: number | undefined;
-    let swap: number | undefined;
-    let totalRss: number | undefined;
+    let anon = 0;
+    let swap = 0;
     let curTs: bigint | undefined;
 
     const emit = (tsRaw: bigint) => {
-      const hasSplit =
-        anon !== undefined || file !== undefined || shmem !== undefined;
-      const rss = hasSplit
-        ? (anon ?? 0) + (file ?? 0) + (shmem ?? 0)
-        : (totalRss ?? 0);
-      const totalRssSwap = Math.max(0, rss + (swap ?? 0));
-      const anonSwap =
-        anon !== undefined ? Math.max(0, anon + (swap ?? 0)) : undefined;
-      if (anonSwap !== undefined && anonSwap < totalRssSwap) {
-        hasAnonSplit = true;
-      }
-      if (totalRssSwap > rssMaxBytes) rssMaxBytes = totalRssSwap;
+      const anonSwapBytes = Math.max(0, anon + swap);
+      if (anonSwapBytes > rssMaxBytes) rssMaxBytes = anonSwapBytes;
       const prev = rssPoints[rssPoints.length - 1];
-      if (
-        prev !== undefined &&
-        prev.totalRssSwap === totalRssSwap &&
-        prev.anonSwap === anonSwap
-      ) {
+      if (prev !== undefined && prev.anonSwapBytes === anonSwapBytes) {
         return;
       }
       rssPoints.push({
         ts: Time.fromRaw(tsRaw),
-        totalRssSwap,
-        anonSwap,
+        anonSwapBytes,
       });
     };
 
@@ -220,22 +192,10 @@ async function loadRssCounterSeries(
       }
       curTs = it.ts;
       const v = Math.max(0, it.val);
-      switch (it.name) {
-        case 'mem.rss.anon':
-          anon = v;
-          break;
-        case 'mem.rss.file':
-          file = v;
-          break;
-        case 'mem.rss.shmem':
-          shmem = v;
-          break;
-        case 'mem.swap':
-          swap = v;
-          break;
-        case 'mem.rss':
-          totalRss = v;
-          break;
+      if (it.name === 'mem.rss.anon') {
+        anon = v;
+      } else if (it.name === 'mem.swap') {
+        swap = v;
       }
     }
     if (curTs !== undefined) {
@@ -250,7 +210,6 @@ async function loadRssCounterSeries(
       rssPoints: [],
       rssPlotPoints: [],
       rssMaxBytes: 0,
-      hasAnonSplit: false,
     };
   }
 
@@ -258,7 +217,6 @@ async function loadRssCounterSeries(
     rssPoints,
     rssPlotPoints: downsampleRssPoints(rssPoints),
     rssMaxBytes,
-    hasAnonSplit,
   };
 }
 
@@ -472,7 +430,6 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const rssPoints = data?.rssPoints ?? [];
     const rssPlotPoints = data?.rssPlotPoints ?? [];
     const rssMaxBytes = data?.rssMaxBytes ?? 0;
-    const hasAnonSplit = data?.hasAnonSplit ?? false;
     const hasRss = rssPlotPoints.length > 0 && rssMaxBytes > 0;
     const totalSamples = smaps.length + procDumps.length + nativeSnaps.length;
 
@@ -569,34 +526,21 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         : rssPoints[rssPoints.length - 1];
     const liveRssDelta =
       liveBaseRss !== undefined && liveSelRss !== undefined
-        ? liveSelRss.totalRssSwap - liveBaseRss.totalRssSwap
+        ? liveSelRss.anonSwapBytes - liveBaseRss.anonSwapBytes
         : undefined;
     const liveHeaderDelta = liveSmapsDelta ?? liveRssDelta;
 
-    // Precompute SVG paths for RSS + Swap counter curves.
-    const rssTotalPaths = hasRss
+    // Precompute SVG path for RSS Anon + Swap counter curve.
+    const rssPaths = hasRss
       ? buildStepPaths(
           rssPlotPoints.map((p) => ({
             x: xOfTs(p.ts),
-            y: yOfRss(p.totalRssSwap),
+            y: yOfRss(p.anonSwapBytes),
           })),
           rssPlotBottom,
           PAD_X + plotW,
         )
       : undefined;
-    const rssAnonPaths =
-      hasRss && hasAnonSplit
-        ? buildStepPaths(
-            rssPlotPoints
-              .filter((p) => p.anonSwap !== undefined)
-              .map((p) => ({
-                x: xOfTs(p.ts),
-                y: yOfRss(p.anonSwap ?? 0),
-              })),
-            rssPlotBottom,
-            PAD_X + plotW,
-          )
-        : undefined;
 
     // X-axis ticks (5–9 clean intervals).
     const xTickCount = Math.max(4, Math.min(9, Math.floor(plotW / 115)));
@@ -804,7 +748,6 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     };
 
     const gradId = `pf-memtl-rss-grad-${upid}`;
-    const anonGradId = `pf-memtl-anon-grad-${upid}`;
 
     return m(
       Panel,
@@ -834,9 +777,10 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                   ondblclick: () => onSelect(undefined),
                 },
                 [
-                  // Gradient definitions for optional RSS + Swap counter graph
+                  // Gradient definition for optional RSS Anon + Swap counter graph
                   hasRss &&
-                    m('defs', [
+                    m(
+                      'defs',
                       m(
                         'linearGradient',
                         {id: gradId, x1: '0', y1: '0', x2: '0', y2: '1'},
@@ -844,7 +788,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                           m('stop', {
                             'offset': '0%',
                             'stop-color': '#7c4dff',
-                            'stop-opacity': '0.22',
+                            'stop-opacity': '0.24',
                           }),
                           m('stop', {
                             'offset': '100%',
@@ -853,28 +797,11 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                           }),
                         ],
                       ),
-                      hasAnonSplit &&
-                        m(
-                          'linearGradient',
-                          {id: anonGradId, x1: '0', y1: '0', x2: '0', y2: '1'},
-                          [
-                            m('stop', {
-                              'offset': '0%',
-                              'stop-color': '#5c6bc0',
-                              'stop-opacity': '0.24',
-                            }),
-                            m('stop', {
-                              'offset': '100%',
-                              'stop-color': '#5c6bc0',
-                              'stop-opacity': '0.04',
-                            }),
-                          ],
-                        ),
-                    ]),
+                    ),
 
-                  // Optional full-width RSS + Swap counter graph
+                  // Optional full-width RSS Anon + Swap counter graph
                   hasRss &&
-                    rssTotalPaths !== undefined &&
+                    rssPaths !== undefined &&
                     m('g.pf-memtl__rss-band', [
                       m('rect.pf-memtl__track-bg', {
                         x: PAD_X,
@@ -890,22 +817,11 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         y2: (rssPlotTop + rssPlotBottom) / 2,
                       }),
                       m('path.pf-memtl__rss-area', {
-                        d: rssTotalPaths.area,
+                        d: rssPaths.area,
                         fill: `url(#${gradId})`,
                       }),
-                      rssAnonPaths !== undefined &&
-                        rssAnonPaths.line !== '' &&
-                        m('g', [
-                          m('path.pf-memtl__rss-area', {
-                            d: rssAnonPaths.area,
-                            fill: `url(#${anonGradId})`,
-                          }),
-                          m('path.pf-memtl__rss-line--anon', {
-                            d: rssAnonPaths.line,
-                          }),
-                        ]),
                       m('path.pf-memtl__rss-line', {
-                        d: rssTotalPaths.line,
+                        d: rssPaths.line,
                       }),
                       m(
                         'text.pf-memtl__rss-ytick',
@@ -1208,16 +1124,8 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         hoverRss !== undefined &&
                         m('circle.pf-memtl__rss-dot', {
                           cx: hoverX,
-                          cy: yOfRss(hoverRss.totalRssSwap),
+                          cy: yOfRss(hoverRss.anonSwapBytes),
                           r: 4,
-                        }),
-                      hasRss &&
-                        hasAnonSplit &&
-                        hoverRss?.anonSwap !== undefined &&
-                        m('circle.pf-memtl__rss-dot--anon', {
-                          cx: hoverX,
-                          cy: yOfRss(hoverRss.anonSwap),
-                          r: 3,
                         }),
                     ]),
 
@@ -1243,13 +1151,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                 hasRss &&
                   m('span.pf-memtl__legend-item', [
                     m('span.pf-memtl__legend-line.pf-memtl__legend-line--rss'),
-                    'RSS + Swap',
-                  ]),
-                hasRss &&
-                  hasAnonSplit &&
-                  m('span.pf-memtl__legend-item', [
-                    m('span.pf-memtl__legend-line.pf-memtl__legend-line--anon'),
-                    'Anon + Swap',
+                    'RSS Anon + Swap',
                   ]),
                 m(
                   'span.pf-memtl__legend-item',
@@ -1304,10 +1206,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                   hoverRss !== undefined &&
                     m(
                       'span.pf-memtl__hud-rss',
-                      `RSS+Swap: ${formatBytes(hoverRss.totalRssSwap)}` +
-                        (hasAnonSplit && hoverRss.anonSwap !== undefined
-                          ? ` (Anon+Swap ${formatBytes(hoverRss.anonSwap)})`
-                          : ''),
+                      `RSS Anon + Swap: ${formatBytes(hoverRss.anonSwapBytes)}`,
                     ),
                   hoverSnap !== undefined &&
                     m(
@@ -1359,7 +1258,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       onClear,
     } = opts;
 
-    const latestTotal = liveSelSnap?.total ?? liveSelRss?.totalRssSwap;
+    const latestTotal = liveSelSnap?.total ?? liveSelRss?.anonSwapBytes;
     const latestTs = liveSelSnap?.ts ?? liveSelRss?.ts;
 
     return m('.pf-memtl__status-controls', [

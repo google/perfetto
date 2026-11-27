@@ -123,15 +123,6 @@
   stroke-width: 1.75;
   stroke-linejoin: round;
   pointer-events: none;
-
-  &--anon {
-    fill: none;
-    stroke: #5c6bc0;
-    stroke-width: 1.25;
-    stroke-dasharray: 3 2;
-    stroke-linejoin: round;
-    pointer-events: none;
-  }
 }
 
 .pf-memtl__rss-dot {
@@ -139,13 +130,6 @@
   stroke: var(--pf-col-surface);
   stroke-width: 1.75;
   pointer-events: none;
-
-  &--anon {
-    fill: #5c6bc0;
-    stroke: var(--pf-col-surface);
-    stroke-width: 1.5;
-    pointer-events: none;
-  }
 }
 
 // Track lanes
@@ -426,10 +410,6 @@
 
   &--rss {
     border-top: 2px solid #7c4dff;
-  }
-
-  &--anon {
-    border-top: 2px dashed #5c6bc0;
   }
 }
 
