@@ -21,6 +21,7 @@ import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, type RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import type {TrackNode, Workspace} from '../../public/workspace';
+import type {TrackSetting} from '../../public/track';
 import type {App} from '../../public/app';
 import type {Setting} from '../../public/settings';
 import {Time} from '../../base/time';
@@ -197,6 +198,80 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           nameOrPath,
         );
         matchingTracks.forEach((track) => track.expand());
+      },
+    });
+
+    // Changes a per-track setting (the ones in the track's "Settings" menu) on
+    // all tracks matching a regex. Settings are matched by name, e.g. for
+    // counter tracks:
+    //   'Chart height'    -> 1, 2, 4, 8, 16, 32
+    //   'Y-axis range'    -> all, viewport  ("Zoom on scroll")
+    //   'Y-axis display'  -> zero, minmax, log
+    //   'Y-axis rounding' -> strict, human_readable
+    //   'Y Mode'          -> value, delta, rate
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.SetTrackSettingByRegex',
+      name: 'Set track setting by regex',
+      callback: async (
+        regexArg: unknown,
+        settingNameArg: unknown,
+        valueArg: unknown,
+        nameOrPathArg: unknown,
+      ) => {
+        const regex = await getRegexFromArgOrPrompt(
+          ctx,
+          regexArg,
+          'Enter regex pattern to match track names...',
+        );
+        if (!regex) return;
+
+        const nameOrPath = await getNameOrPathFromArgOrPrompt(
+          ctx,
+          nameOrPathArg,
+        );
+        if (!nameOrPath) return;
+
+        // Collect the settings of all matching tracks, including pinned-only
+        // ones (e.g. debug tracks), once per track.
+        const workspace = ctx.currentWorkspace;
+        const nodes = [
+          ...findTracksMatchingRegex(workspace, regex, nameOrPath),
+          ...workspace.pinnedTracks.filter((node) =>
+            regex.test(
+              nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name,
+            ),
+          ),
+        ];
+        const uris = new Set(nodes.map((node) => node.uri).filter(exists));
+        const settings = [...uris].flatMap(
+          (uri) => ctx.tracks.getTrack(uri)?.renderer.settings ?? [],
+        );
+
+        const settingName =
+          typeof settingNameArg === 'string'
+            ? settingNameArg
+            : await ctx.omnibox.prompt('Choose a setting...', {
+                values: [...new Set(settings.map((s) => s.descriptor.name))],
+                getName: (x) => x,
+              });
+        if (!settingName) return;
+
+        const value =
+          typeof valueArg === 'string'
+            ? valueArg
+            : await ctx.omnibox.prompt(`Enter value for '${settingName}'...`);
+        if (value === undefined) return;
+
+        const target = settingName.toLowerCase();
+        for (const setting of settings) {
+          if (setting.descriptor.name.toLowerCase() !== target) continue;
+          const parsed = parseTrackSettingValue(setting, value);
+          if (parsed === undefined) {
+            console.error(`Invalid value '${value}' for '${settingName}'`);
+            return;
+          }
+          setting.update(parsed);
+        }
       },
     });
 
@@ -600,6 +675,31 @@ function findTracksMatchingRegex(
   };
   workspace.tracks.children.forEach(visit);
   return matches;
+}
+
+// Converts a string to the type of the setting's current value. Returns
+// undefined if the conversion fails, or if the descriptor documents its allowed
+// values as a comma separated list (e.g. '1, 2, 4') and `str` is not in it.
+function parseTrackSettingValue(setting: TrackSetting, str: string): unknown {
+  const allowed = setting.descriptor.description
+    .split(',')
+    .map((s) => s.trim());
+  if (allowed.includes(String(setting.value)) && !allowed.includes(str)) {
+    return undefined;
+  }
+
+  switch (typeof setting.value) {
+    case 'number': {
+      const n = Number(str);
+      return str.trim() === '' || isNaN(n) ? undefined : n;
+    }
+    case 'boolean':
+      if (str === 'true') return true;
+      if (str === 'false') return false;
+      return undefined;
+    default:
+      return str;
+  }
 }
 
 // Copy tracks with their ancestor hierarchy preserved

@@ -79,6 +79,35 @@ const COMMAND_TEST_CASES: CommandTestCase[] = [
     traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with system_server tracks - path filtering
     testName: 'dev.perfetto.CollapseTracksByRegex with path filtering',
   },
+  {
+    id: 'dev.perfetto.SetTrackSettingByRegex',
+    args: ['^Test Counter$', 'Chart height', '4'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with counter data
+    before: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      await trace.commands.runCommand(
+        'dev.perfetto.AddDebugCounterTrack',
+        'select ts, value from counter limit 100',
+        'Test Counter',
+      );
+    },
+  },
+  {
+    id: 'dev.perfetto.SetTrackSettingByRegex',
+    args: ['Test Counter', 'Y-axis display', 'log', 'path'],
+    traceFile: 'api34_startup_cold.perfetto-trace', // Android trace with counter data - path filtering
+    testName: 'dev.perfetto.SetTrackSettingByRegex with path filtering',
+    before: async () => {
+      const trace = self.app.trace;
+      if (!trace) throw new Error('No trace loaded');
+      await trace.commands.runCommand(
+        'dev.perfetto.AddDebugCounterTrack',
+        'select ts, value from counter limit 100',
+        'Test Counter',
+      );
+    },
+  },
 
   // Debug track commands
   {
