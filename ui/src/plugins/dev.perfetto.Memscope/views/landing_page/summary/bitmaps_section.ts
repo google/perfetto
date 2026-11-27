@@ -32,6 +32,7 @@ import {
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
 import {Anchor} from '../../../../../widgets/anchor';
+import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Intent} from '../../../../../widgets/common';
 import {
   deltaText,
@@ -265,6 +266,8 @@ export interface BitmapsSectionAttrs {
   // The page-wide selection (by ts). Undefined → latest dump.
   readonly selTs?: time;
   readonly baseTs?: time;
+  // Jump in-place to the Java Heap Bitmaps gallery for the active dump.
+  readonly onOpenBitmapsGallery?: (ts: time) => void;
 }
 
 export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
@@ -415,18 +418,27 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        controls: m(
-          Anchor,
-          {
-            href: heapDumpBitmapsHref(),
-            onclick: () =>
-              trace.plugins
-                .getPlugin(HeapDumpExplorerPlugin)
-                .updateHeadDump(upid, cur.ts),
-            icon: Icons.UpdateSelection,
-          },
-          'Open in Heap Dump Explorer',
-        ),
+        controls:
+          attrs.onOpenBitmapsGallery !== undefined
+            ? m(Button, {
+                label: 'Inspect Bitmap Gallery',
+                icon: 'photo_library',
+                variant: ButtonVariant.Outlined,
+                compact: true,
+                onclick: () => attrs.onOpenBitmapsGallery?.(cur.ts),
+              })
+            : m(
+                Anchor,
+                {
+                  href: heapDumpBitmapsHref(),
+                  onclick: () =>
+                    trace.plugins
+                      .getPlugin(HeapDumpExplorerPlugin)
+                      .updateHeadDump(upid, cur.ts),
+                  icon: Icons.UpdateSelection,
+                },
+                'Open in Heap Dump Explorer',
+              ),
       }),
       m(
         Panel.Body,

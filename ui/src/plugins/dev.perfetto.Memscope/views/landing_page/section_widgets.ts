@@ -143,15 +143,34 @@ export function classNameCell(
   full: string,
   retainers?: ReadonlyArray<{name: string; bytes: number}>,
   onclick?: () => void,
+  onSelectClass?: (className: string) => void,
 ): m.Child {
   const vias = (retainers ?? []).filter((r) => r.name !== full);
   // With one owner the byte count just echoes the row's retained size, so omit
   // it; with several, the split is the whole point, so show each owner's bytes.
   const showBytes = vias.length > 1;
+  const makeLinkHandler = (cls: string) => (e: MouseEvent) => {
+    if (
+      onSelectClass !== undefined &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.shiftKey &&
+      e.button === 0
+    ) {
+      e.preventDefault();
+      onSelectClass(cls);
+      return;
+    }
+    onclick?.();
+  };
   return m('.pf-memscope-classcell', [
     m(
       'a.pf-memscope-classname',
-      {href: heapDumpClassHref(full), title: full, onclick},
+      {
+        href: heapDumpClassHref(full),
+        title: full,
+        onclick: makeLinkHandler(full),
+      },
       shortClassName(full),
     ),
     ...vias.map((r) =>
@@ -162,7 +181,10 @@ export function classNameCell(
           '↳ via ',
           m(
             'a.pf-memscope-classcell__vialink',
-            {href: heapDumpClassHref(r.name), onclick},
+            {
+              href: heapDumpClassHref(r.name),
+              onclick: makeLinkHandler(r.name),
+            },
             shortClassName(r.name),
           ),
           showBytes ? ` - ${formatBytes(r.bytes)}` : '',

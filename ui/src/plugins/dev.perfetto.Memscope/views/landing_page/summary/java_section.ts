@@ -21,9 +21,11 @@ import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
 import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
+import type {NavView} from '../../../../com.android.HeapDumpExplorer/nav_state';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
+import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Intent} from '../../../../../widgets/common';
 import {
   deltaText,
@@ -441,6 +443,12 @@ export interface JavaSectionAttrs {
   // The page-wide selection (by ts). Undefined → latest dump.
   readonly selTs?: time;
   readonly baseTs?: time;
+  // Jump in-place to any Java Heap lens for the selected dump.
+  readonly onOpenJavaHeap?: (
+    ts: time,
+    view: NavView,
+    params?: Record<string, unknown>,
+  ) => void;
 }
 
 export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
@@ -595,10 +603,16 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
-          trace.plugins
-            .getPlugin(HeapDumpExplorerPlugin)
-            .updateHeadDump(upid, cur.ts),
+        classNameCell(
+          c.typeName,
+          data.retainerOf.get(c.typeName),
+          () =>
+            trace.plugins
+              .getPlugin(HeapDumpExplorerPlugin)
+              .updateHeadDump(upid, cur.ts),
+          attrs.onOpenJavaHeap !== undefined
+            ? (cls) => attrs.onOpenJavaHeap?.(cur.ts, 'objects', {cls})
+            : undefined,
         ),
         withDelta(
           c.reachableObjCount.toLocaleString(),
@@ -675,6 +689,22 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       m(Panel.Header, {
         title: TITLE,
         controls: [
+          attrs.onOpenJavaHeap !== undefined &&
+            m(Button, {
+              label: 'Flamegraph',
+              icon: 'local_fire_department',
+              variant: ButtonVariant.Minimal,
+              compact: true,
+              onclick: () => attrs.onOpenJavaHeap?.(cur.ts, 'flamegraph'),
+            }),
+          attrs.onOpenJavaHeap !== undefined &&
+            m(Button, {
+              label: 'Explore Java Heap',
+              icon: 'account_tree',
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: () => attrs.onOpenJavaHeap?.(cur.ts, 'overview'),
+            }),
           showInTimelineLink(
             trace,
             findProcessTrack(trace, upid, (k) => k === 'java_heap_graph')?.uri,

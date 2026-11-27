@@ -12,6 +12,162 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// ---------------------------------------------------------------------------
+// Memory Workbench shell (left scope rail + contextual topbar + canvas)
+// ---------------------------------------------------------------------------
+.pf-memwb {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pf-memwb__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-memwb-topbar {
+  flex: none;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 14px;
+  background: var(--pf-col-surface);
+  border-bottom: 1px solid var(--pf-col-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  z-index: 2;
+
+  &__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    min-width: 0;
+  }
+}
+
+.pf-memwb-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: var(--pf-font-size-s);
+  min-width: 0;
+
+  &__sep {
+    font-size: 16px;
+    color: var(--pf-color-text-hint);
+    opacity: 0.7;
+  }
+
+  &__link {
+    border: none;
+    background: transparent;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font: inherit;
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--pf-col-base);
+      color: var(--pf-color-text);
+    }
+  }
+
+  &__tag {
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, #2196f3 12%, var(--pf-col-base));
+    border: 1px solid color-mix(in srgb, #2196f3 30%, var(--pf-col-border));
+    color: var(--pf-color-text);
+  }
+
+  &__current {
+    font-weight: 600;
+    color: var(--pf-color-text);
+    padding: 2px 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.pf-memwb-pin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--pf-color-primary) 10%,
+    var(--pf-col-base)
+  );
+  border: 1px solid color-mix(in srgb, var(--pf-color-primary) 35%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text);
+}
+
+.pf-memwb__canvas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-memwb__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.pf-memwb__heap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-memwb__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.pf-memwb-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 // Header capture strip: process identity + per-source capture facts. Layout
 // only - the raised-card chrome comes from the Panel this class is applied to.
 .pf-memscope-capture {
