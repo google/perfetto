@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_PROTOLOG_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_PROTOLOG_PARSER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -38,7 +39,8 @@ class ProtoLogParser {
   void ParseProtoLogMessage(PacketSequenceStateGeneration* sequence_state,
                             protozero::ConstBytes,
                             int64_t timestamp);
-  void ParseAndAddViewerConfigToMessageDecoder(protozero::ConstBytes);
+  void ParseAndAddViewerConfigToMessageDecoder(protozero::ConstBytes,
+                                               size_t packet_offset);
 
  private:
   void PopulateReservedRowWithMessage(tables::ProtoLogTable::Id table_row_id,
@@ -58,6 +60,7 @@ class ProtoLogParser {
   const StringId log_level_error_string_id_;
   const StringId log_level_wtf_string_id_;
   const StringId log_level_unknown_string_id_;
+  const StringId duplicate_bytes_key_id_;
 };
 }  // namespace perfetto::trace_processor
 

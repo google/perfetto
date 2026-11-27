@@ -32,22 +32,16 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-// The output type of a key column. Id columns become Uint32.
-StorageType KeyType(const ColumnView& column) {
-  if (column.kind() == ColumnView::Kind::kSequence || column.type().Is<Id>()) {
-    return StorageType{Uint32{}};
-  }
-  return column.type();
-}
-
 template <typename T>
 void WriteValues(const GroupTable& groups,
                  uint32_t k,
                  uint32_t first,
                  uint32_t count,
                  T* out) {
+  const int64_t* key = groups.group_row(first) + 1 + k;
+  uint64_t stride = groups.row_stride();
   for (uint32_t i = 0; i < count; ++i) {
-    out[i] = static_cast<T>(groups.Key(first + i, k));
+    out[i] = static_cast<T>(key[i * stride]);
   }
 }
 
@@ -138,7 +132,7 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     }
     if (s.key_types.empty()) {
       for (uint32_t column : spec_.key_columns) {
-        s.key_types.push_back(KeyType(in.column(column)));
+        s.key_types.push_back(in.column(column).type());
       }
     }
   }

@@ -16,6 +16,10 @@
 
 #include "perfetto/public/abi/track_event_abi.h"
 
+#include <string.h>
+
+#include <mutex>
+
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track.h"
@@ -38,11 +42,23 @@ void ResetTrackEventTls() {
 }  // namespace perfetto::shlib
 
 void PerfettoTeInit(void) {
+  // Data source registration must not run concurrently, and registering twice
+  // is an error. Serialize callers and skip the work if the track_event data
+  // source is already registered. This also covers re-initialization after
+  // ResetForTesting(), which clears the registration.
+  static std::mutex* mu = new std::mutex();
+  std::lock_guard<std::mutex> lock(*mu);
+  if (perfetto::shlib::TrackEvent::GetType()->static_state()->index !=
+      perfetto::internal::kMaxDataSources) {
+    return;
+  }
+  // Set the uuid before registering the data source: once registered, trace
+  // events can be emitted (and read the uuid) at any time.
+  perfetto_te_process_track_uuid =
+      perfetto::internal::TrackRegistry::ComputeProcessUuid();
   perfetto::DataSourceDescriptor dsd = perfetto::shlib::GlobalState::Instance()
                                            .GenerateDescriptorFromCategories();
   perfetto::shlib::TrackEvent::Init(dsd);
-  perfetto_te_process_track_uuid =
-      perfetto::internal::TrackRegistry::ComputeProcessUuid();
 }
 
 struct PerfettoTeTimestamp PerfettoTeGetTimestamp(void) {
@@ -59,6 +75,7 @@ struct PerfettoTeCategoryImpl* PerfettoTeCategoryImplCreate(
     struct PerfettoTeCategoryDescriptor* desc) {
   auto* cat = new PerfettoTeCategoryImpl;
   cat->desc = desc;
+  cat->name_size = desc && desc->name ? strlen(desc->name) : 0;
 
   perfetto::shlib::GlobalState::Instance().RegisterCategory(cat);
   return cat;
@@ -88,4 +105,9 @@ uint64_t PerfettoTeCategoryImplGetIid(struct PerfettoTeCategoryImpl* cat) {
 void PerfettoTeCategoryImplDestroy(struct PerfettoTeCategoryImpl* cat) {
   perfetto::shlib::GlobalState::Instance().UnregisterCategory(cat);
   delete cat;
+}
+
+uint32_t PerfettoTeCategoryImplGetEventFormats(
+    struct PerfettoTeCategoryImpl* cat) {
+  return perfetto::shlib::GlobalState::GetEventFormats(cat);
 }

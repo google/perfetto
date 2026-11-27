@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -82,13 +83,17 @@ dataframe::Dataframe BuildTree(uint32_t rows,
   return df;
 }
 
-void Run(benchmark::State& state, const Source& source, uint32_t rows) {
+void Run(benchmark::State& state,
+         const Source& source,
+         uint32_t rows,
+         const Pipelines* pipelines) {
   // Before every batch and state, which hold its buffers.
   Context context;
+  context.SetPipelines(pipelines);
   std::unique_ptr<OperatorState> run = source.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
-    source.Rewind(*run);
+    Restart(source, *run);
     while (source.GetData(out, *run)) {
       benchmark::DoNotOptimize(out.column(2).data());
     }
@@ -111,7 +116,7 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   Pipeline pipeline(scan, std::move(ops));
-  Run(state, pipeline, rows);
+  Run(state, pipeline, rows, nullptr);
 }
 
 void BM_TreeParentFirst(benchmark::State& state) {
@@ -125,7 +130,7 @@ void BM_TreeParentFirst(benchmark::State& state) {
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
   Pipeline pipeline(scan, std::move(ops));
-  Run(state, pipeline, rows);
+  Run(state, pipeline, rows, nullptr);
 }
 
 void BM_TreeChildFirst(benchmark::State& state) {
@@ -137,9 +142,15 @@ void BM_TreeChildFirst(benchmark::State& state) {
                      ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  ops.push_back(std::make_unique<TreeChildFirst>(2, 3));
-  Pipeline order(scan, std::move(ops));
-  Run(state, order, rows);
+  // A plan ends the pipeline in the breaker, and serves it to the next.
+  Pipelines pipelines;
+  auto child_first = std::make_unique<TreeChildFirst>(2, 3);
+  const TreeChildFirst& breaker = *child_first;
+  uint32_t id =
+      pipelines.Add(nullptr, std::make_unique<Pipeline>(scan, std::move(ops)),
+                    std::move(child_first));
+  Served order(id, breaker);
+  Run(state, order, rows, &pipelines);
 }
 
 void Arrivals(benchmark::internal::Benchmark* b) {

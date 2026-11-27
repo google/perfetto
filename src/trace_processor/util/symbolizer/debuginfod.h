@@ -47,6 +47,7 @@ struct DebuginfodConfig {
   // they would have changed: one that looked up frames, and for
   // |disabled_warning| left some of them unresolved.
   std::string llvm_opts_warning;
+  std::string ima_policy_warning;
   std::string disabled_warning;
 };
 

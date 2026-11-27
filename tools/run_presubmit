@@ -1013,6 +1013,26 @@ def CheckExtensionManifests(changed_files: List[str]) -> List[str]:
   return []
 
 
+def CheckSkillBundle(changed_files: List[str]) -> List[str]:
+  tool_rel_path = 'tools/gen_skill_bundle_unittest.py'
+  tool = os.path.join(REPO_ROOT, tool_rel_path)
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          'ai/skills/*', 'tools/gen_skill_bundle.py', tool_rel_path,
+          'tools/release/build_ai_agents.py'
+      ])
+  if not files_to_check_list:
+    return []
+  try:
+    run_command([sys.executable, tool], cwd=REPO_ROOT)
+  except FileNotFoundError:
+    return [f'Tool not found: {tool}']
+  except subprocess.CalledProcessError as e:
+    return [f'{tool} failed:\n{e.stdout or ""}\n{e.stderr or ""}'.rstrip()]
+  return []
+
+
 def CheckUiImports(changed_files: List[str]) -> List[str]:
   tool_rel_path = 'tools/check_imports'
   tool = os.path.join(REPO_ROOT, tool_rel_path)
@@ -1046,6 +1066,23 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
         f'Bad patterns detected in ui/ sources.'
         f' Please run python {tool_rel_path} and fix violations manually.'
     ]
+  return []
+
+
+def CheckPythonTypes(changed_files: list[str]) -> list[str]:
+  if not filter_files(changed_files, files_to_check=['python/*']):
+    return []
+  py = os.path.join(REPO_ROOT, '.venv',
+                    'Scripts/python.exe' if IS_WIN else 'bin/python')
+  if not os.path.exists(py):
+    return [f'Cannot find {py}. Run tools/install-build-deps']
+  try:
+    # Pin the interpreter, or an activated venv/conda env would win.
+    run_command([py, '-m', 'pyrefly', 'check', '--python-interpreter-path', py],
+                cwd=os.path.join(REPO_ROOT, 'python'),
+                encoding='utf-8')
+  except subprocess.CalledProcessError as e:
+    return [f'pyrefly failed:\n{e.stdout}{e.stderr}']
   return []
 
 
@@ -1120,12 +1157,14 @@ def main():
       (CheckTestData, [changed_files
                       ]),  # Doesn't need specific files list but pass anyway
       (CheckAmalgamatedPythonTools, [changed_files]),
+      (CheckPythonTypes, [changed_files]),
       (CheckChromeStdlib, [changed_files]),  # Checks commit msg
       (CheckShellIncludeViolations, [changed_files]),
       (CheckAbsolutePathsInGn, [changed_files]),
       (CheckUiImports, [changed_files]),
       (CheckUiRatchet, [changed_files]),
       (CheckExtensionManifests, [changed_files]),
+      (CheckSkillBundle, [changed_files]),
   ]
 
   with ThreadPoolExecutor() as executor:

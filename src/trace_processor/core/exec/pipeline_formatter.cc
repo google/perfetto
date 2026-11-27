@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
 #include "src/trace_processor/core/exec/empty_source.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/graph_tree.h"
@@ -152,9 +153,6 @@ std::string Aggregates(const std::vector<AggregateCall>& calls) {
 }
 
 std::string TypeName(const StorageType& type) {
-  if (type.Is<Id>()) {
-    return "Id";
-  }
   if (type.Is<Uint32>()) {
     return "Uint32";
   }
@@ -236,8 +234,19 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
 
 }  // namespace
 
-std::string PipelineFormatter::Format(const Pipeline& pipeline) {
-  std::string out = SourceString(pipeline.input());
+std::string PipelineFormatter::Format(const Pipeline& pipeline,
+                                      const Pipelines* pipelines) {
+  const Source& input = pipeline.input();
+  std::string out;
+  if (pipelines && input.Is<Served>()) {
+    const auto& served = static_cast<const Served&>(input);
+    const Pipelines::Entry& entry = (*pipelines)[served.id()];
+    const Pipeline& before = *entry.pipeline;
+    out = Format(before, pipelines) + " | " + BreakerString(served.breaker()) +
+          " / Served";
+  } else {
+    out = SourceString(input);
+  }
   for (const Pipeline::Step& step : pipeline.steps()) {
     out += " | ";
     if (const auto* transform =
@@ -282,6 +291,10 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   }
   if (source.Is<Pipeline>()) {
     return "Pipeline";
+  }
+  if (source.Is<Served>()) {
+    return BreakerString(static_cast<const Served&>(source).breaker()) +
+           " / Served";
   }
   if (source.Is<SortedScan>()) {
     return static_cast<const SortedScan&>(source).direction_ ==
@@ -328,6 +341,10 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     }
     return "Filter(" + out + ")";
   }
+  if (transform.Is<Expand>()) {
+    return "Expand(" + Columns(static_cast<const Expand&>(transform).columns_) +
+           ")";
+  }
   if (transform.Is<NullColumn>()) {
     const auto& null = static_cast<const NullColumn&>(transform);
     return "NullColumn(" + Column(null.column_) + " as " +
@@ -366,29 +383,6 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
   if (op.Is<CombineBatches>()) {
     return "CombineBatches";
   }
-  if (op.Is<Sort>()) {
-    const auto& sort = static_cast<const Sort&>(op);
-    return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
-  }
-  if (op.Is<TopK>()) {
-    const auto& top = static_cast<const TopK&>(op);
-    return "TopK(" + Keys(top.spec_.keys) + "; " +
-           std::to_string(top.spec_.count) + Unread(top.unread_) + ")";
-  }
-  if (op.Is<GroupedSort>()) {
-    const auto& sort = static_cast<const GroupedSort&>(op);
-    const GroupedSortSpec& spec = sort.spec_;
-    std::string out = "GroupedSort(" + Columns(spec.groups);
-    if (!spec.keys.empty()) {
-      out += "; " + Keys(spec.keys);
-    }
-    return out + Unread(sort.unread_) + ")";
-  }
-  if (op.Is<HashAggregate>()) {
-    const HashAggregateSpec& spec = static_cast<const HashAggregate&>(op).spec_;
-    return "HashAggregate(keys: " + Columns(spec.key_columns) + "; " +
-           Aggregates(spec.aggregates) + ")";
-  }
   if (op.Is<IntervalFillGaps>()) {
     const IntervalFillGapsSpec& spec =
         static_cast<const IntervalFillGaps&>(op).spec_;
@@ -413,17 +407,45 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
     }
     return out + ")";
   }
-  if (op.Is<TreeChildFirst>()) {
-    const auto& order = static_cast<const TreeChildFirst&>(op);
-    return "TreeChildFirst(" + Column(order.node_column_) + ", " +
-           Column(order.parent_column_) + Unread(order.unread_) + ")";
-  }
   if (op.Is<TreeParentFirst>()) {
     const auto& order = static_cast<const TreeParentFirst&>(op);
     return "TreeParentFirst(" + Column(order.node_column_) + ", " +
            Column(order.parent_column_) + Unread(order.unread_) + ")";
   }
   return "Operator";
+}
+
+std::string PipelineFormatter::BreakerString(const Breaker& breaker) {
+  if (breaker.Is<Sort>()) {
+    const auto& sort = static_cast<const Sort&>(breaker);
+    return "Sort(" + Keys(sort.spec_.keys) + Unread(sort.unread_) + ")";
+  }
+  if (breaker.Is<TopK>()) {
+    const auto& top = static_cast<const TopK&>(breaker);
+    return "TopK(" + Keys(top.spec_.keys) + "; " +
+           std::to_string(top.spec_.count) + Unread(top.unread_) + ")";
+  }
+  if (breaker.Is<GroupedSort>()) {
+    const auto& sort = static_cast<const GroupedSort&>(breaker);
+    const GroupedSortSpec& spec = sort.spec_;
+    std::string out = "GroupedSort(" + Columns(spec.groups);
+    if (!spec.keys.empty()) {
+      out += "; " + Keys(spec.keys);
+    }
+    return out + Unread(sort.unread_) + ")";
+  }
+  if (breaker.Is<HashAggregate>()) {
+    const HashAggregateSpec& spec =
+        static_cast<const HashAggregate&>(breaker).spec_;
+    return "HashAggregate(keys: " + Columns(spec.key_columns) + "; " +
+           Aggregates(spec.aggregates) + ")";
+  }
+  if (breaker.Is<TreeChildFirst>()) {
+    const auto& order = static_cast<const TreeChildFirst&>(breaker);
+    return "TreeChildFirst(" + Column(order.node_column_) + ", " +
+           Column(order.parent_column_) + Unread(order.unread_) + ")";
+  }
+  return "Breaker";
 }
 
 }  // namespace perfetto::trace_processor::core::exec

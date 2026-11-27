@@ -12,12 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defineConfig} from '@playwright/test';
+import {defineConfig, type PlaywrightTestConfig} from '@playwright/test';
 import * as os from 'os';
 
 const isCi = Boolean(process.env.CI);
 const outDir = process.env.OUT_DIR ?? '../out/ui';
 const isRebaseline = process.argv.includes('--update-snapshots');
+
+const chromiumUse: PlaywrightTestConfig['use'] = {
+  headless: true,
+  viewport: {width: 1920, height: 1080},
+  launchOptions: {
+    args: [
+      '--headless',
+      '--disable-accelerated-2d-canvas',
+      '--disable-font-subpixel-positioning',
+      '--ignore-gpu-blocklist', // Allow llvmpipe software rendering
+      '--use-angle=gl',
+      '--disable-lcd-text',
+      '--disable-spell-checking',
+      '--font-render-hinting=none',
+      '--force-device-scale-factor=1',
+      '--hide-scrollbars',
+      '--enable-skia-renderer',
+      '--js-flags=--random-seed=1',
+    ],
+  },
+  ignoreHTTPSErrors: true,
+  trace: 'off',
+  screenshot: 'on',
+  video: 'off',
+};
 
 export default defineConfig({
   timeout: 60_000,
@@ -73,30 +98,17 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: {
-        headless: true,
-        viewport: {width: 1920, height: 1080},
-        launchOptions: {
-          args: [
-            '--headless',
-            '--disable-accelerated-2d-canvas',
-            '--disable-font-subpixel-positioning',
-            '--ignore-gpu-blocklist', // Allow llvmpipe software rendering
-            '--use-angle=gl',
-            '--disable-lcd-text',
-            '--disable-spell-checking',
-            '--font-render-hinting=none',
-            '--force-device-scale-factor=1',
-            '--hide-scrollbars',
-            '--enable-skia-renderer',
-            '--js-flags=--random-seed=1',
-          ],
-        },
-        ignoreHTTPSErrors: true,
-        trace: 'off',
-        screenshot: 'on',
-        video: 'off',
-      },
+      use: chromiumUse,
+    },
+    {
+      // Component tests: drive single widgets mounted in isolation via
+      // component_harness.html. Requires `ui/build --enable-component-harness`.
+      // Uses {testFilePath} rather than {testFileName} because colocated
+      // *.ctest.ts files share basenames across plugins/widgets.
+      name: 'components',
+      testMatch: '**/*.ctest.ts',
+      snapshotPathTemplate: '{snapshotDir}/components/{testFilePath}/{arg}{ext}',
+      use: chromiumUse,
     },
   ],
 

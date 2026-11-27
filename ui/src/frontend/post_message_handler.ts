@@ -325,7 +325,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
       case 'stream':
         AppImpl.instance.openTraceFromStream(
           new TraceReadableStream(postedTrace.stream, postedTrace.bytesTotal),
-          postedTrace.title,
+          {title: postedTrace.title},
           appState,
         );
         break;

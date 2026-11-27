@@ -35,26 +35,40 @@ class ColumnView {
  public:
   enum class Kind : uint8_t {
     kFlat,
-    // No storage: the value is where it would be stored.
+    // No storage: the value is where it would be stored. Always Uint32.
     kSequence,
     // `data()` is a Variant array and `type()` is meaningless.
     kVariant,
+    // Values only for the rows `validity()` has set, stored in row order: a
+    // row's value is at the count of set bits before it (see popcount()). Only
+    // Expand reads one.
+    kSparse,
   };
 
   ColumnView() = default;
 
+  // Id is only a storage type for searching a sorted scan: a column read is
+  // Uint32, and one with no storage is a Sequence().
   static ColumnView Reference(StorageType type,
                               const void* data,
                               const BitVector* validity = nullptr,
                               uint32_t start = 0) {
+    PERFETTO_DCHECK(!type.Is<Id>());
     ColumnView view;
     view.type_ = type;
     view.kind_ = Kind::kFlat;
-    if (type.Is<Id>()) {
-      PERFETTO_DCHECK(data == nullptr);
-      view.kind_ = Kind::kSequence;
-    }
     view.data_ = data;
+    view.validity_ = validity;
+    view.start_ = start;
+    return view;
+  }
+
+  // A Uint32 column whose value at each row is where it would be stored, as a
+  // dataframe's id column is. `validity` is null when no row is null.
+  static ColumnView Sequence(const BitVector* validity, uint32_t start) {
+    ColumnView view;
+    view.type_ = Uint32{};
+    view.kind_ = Kind::kSequence;
     view.validity_ = validity;
     view.start_ = start;
     return view;
@@ -66,6 +80,22 @@ class ColumnView {
     view.kind_ = Kind::kVariant;
     view.data_ = data;
     view.start_ = start;
+    return view;
+  }
+
+  // A sparse column, as a dataframe stores it. `data` is null for an Id
+  // column, whose values are their positions in storage. `popcount[w]` is how
+  // many bits of `validity` are set before word `w`.
+  static ColumnView Sparse(StorageType type,
+                           const void* data,
+                           const BitVector* validity,
+                           const uint32_t* popcount) {
+    ColumnView view;
+    view.type_ = type;
+    view.kind_ = Kind::kSparse;
+    view.data_ = data;
+    view.validity_ = validity;
+    view.popcount_ = popcount;
     return view;
   }
 
@@ -85,7 +115,7 @@ class ColumnView {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T At(uint32_t row) const {
     uint32_t index = start_ + row;
-    // Only Id columns are sequences, and they are read as uint32_t.
+    // Sequences are Uint32, so are only read as uint32_t.
     if constexpr (std::is_same_v<T, uint32_t>) {
       if (kind_ == Kind::kSequence) {
         return index;
@@ -93,6 +123,7 @@ class ColumnView {
     } else {
       PERFETTO_DCHECK(kind_ != Kind::kSequence);
     }
+    PERFETTO_DCHECK(kind_ != Kind::kSparse);
     return static_cast<const T*>(data_)[index];
   }
 
@@ -101,18 +132,29 @@ class ColumnView {
     return !validity_ || validity_->is_set(start_ + row);
   }
 
-  // The values the window is onto.
-  const void* data() const { return data_; }
+  // The values the window is onto, one per row. Not for a kSparse column.
+  const void* data() const {
+    PERFETTO_DCHECK(kind_ != Kind::kSparse);
+    return data_;
+  }
+
+  // The values of a kSparse column, and its popcount.
+  const void* sparse_data() const {
+    PERFETTO_DCHECK(kind_ == Kind::kSparse);
+    return data_;
+  }
+  const uint32_t* popcount() const { return popcount_; }
 
   // Which stored values are there, or null when they all are.
   const BitVector* validity() const { return validity_; }
 
  private:
   Kind kind_ = Kind::kFlat;
-  StorageType type_{Id{}};
+  StorageType type_{Uint32{}};
   uint32_t start_ = 0;
   const void* data_ = nullptr;
   const BitVector* validity_ = nullptr;
+  const uint32_t* popcount_ = nullptr;
 };
 
 // Whether `column` is a flat column of type `Tag`, which is what
@@ -134,12 +176,13 @@ struct ColumnShape {
   StorageType type;
 };
 
-// Whether two batches' views of a column can be combined. An implicit Id and
-// a stored Uint32 hold the same values: gathering turns one into the other.
+// Whether two batches' views of a column can be combined. A sequence and a
+// stored Uint32 hold the same values: gathering turns one into the other.
 inline bool SameLogicalType(const ColumnShape& a, const ColumnShape& b) {
   auto is_uint32 = [](const ColumnShape& shape) {
-    return shape.kind != ColumnView::Kind::kVariant &&
-           (shape.type.Is<Id>() || shape.type.Is<Uint32>());
+    return (shape.kind == ColumnView::Kind::kFlat ||
+            shape.kind == ColumnView::Kind::kSequence) &&
+           shape.type.Is<Uint32>();
   };
   if (is_uint32(a) && is_uint32(b)) {
     return true;

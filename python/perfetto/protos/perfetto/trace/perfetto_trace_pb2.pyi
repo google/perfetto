@@ -5044,7 +5044,7 @@ class TestConfig(_message.Message):
     def __init__(self, message_count: _Optional[int] = ..., max_messages_per_second: _Optional[int] = ..., seed: _Optional[int] = ..., message_size: _Optional[int] = ..., send_batch_on_register: bool = ..., dummy_fields: _Optional[_Union[TestConfig.DummyFields, _Mapping]] = ...) -> None: ...
 
 class TrackEventConfig(_message.Message):
-    __slots__ = ("disabled_categories", "enabled_categories", "disabled_tags", "enabled_tags", "disable_incremental_timestamps", "timestamp_unit_multiplier", "filter_debug_annotations", "enable_thread_time_sampling", "thread_time_subsampling_ns", "filter_dynamic_event_names")
+    __slots__ = ("disabled_categories", "enabled_categories", "disabled_tags", "enabled_tags", "disable_incremental_timestamps", "timestamp_unit_multiplier", "filter_debug_annotations", "enable_thread_time_sampling", "thread_time_subsampling_ns", "filter_dynamic_event_names", "experimental_raw_proto_events")
     DISABLED_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     ENABLED_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     DISABLED_TAGS_FIELD_NUMBER: _ClassVar[int]
@@ -5055,6 +5055,7 @@ class TrackEventConfig(_message.Message):
     ENABLE_THREAD_TIME_SAMPLING_FIELD_NUMBER: _ClassVar[int]
     THREAD_TIME_SUBSAMPLING_NS_FIELD_NUMBER: _ClassVar[int]
     FILTER_DYNAMIC_EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
+    EXPERIMENTAL_RAW_PROTO_EVENTS_FIELD_NUMBER: _ClassVar[int]
     disabled_categories: _containers.RepeatedScalarFieldContainer[str]
     enabled_categories: _containers.RepeatedScalarFieldContainer[str]
     disabled_tags: _containers.RepeatedScalarFieldContainer[str]
@@ -5065,7 +5066,8 @@ class TrackEventConfig(_message.Message):
     enable_thread_time_sampling: bool
     thread_time_subsampling_ns: int
     filter_dynamic_event_names: bool
-    def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., thread_time_subsampling_ns: _Optional[int] = ..., filter_dynamic_event_names: bool = ...) -> None: ...
+    experimental_raw_proto_events: bool
+    def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., thread_time_subsampling_ns: _Optional[int] = ..., filter_dynamic_event_names: bool = ..., experimental_raw_proto_events: bool = ...) -> None: ...
 
 class DataSourceConfig(_message.Message):
     __slots__ = ("name", "target_buffer", "target_buffer_name", "trace_duration_ms", "prefer_suspend_clock_for_duration", "stop_timeout_ms", "enable_extra_guardrails", "session_initiator", "tracing_session_id", "buffer_exhausted_policy", "priority_boost", "protovm_config", "supports_tracing_v2", "experimental_tracing_v2", "ftrace_config", "inode_file_config", "process_stats_config", "sys_stats_config", "heapprofd_config", "java_hprof_config", "android_power_config", "android_log_config", "gpu_counter_config", "android_game_intervention_list_config", "packages_list_config", "perf_event_config", "vulkan_memory_config", "track_event_config", "android_polled_state_config", "android_system_property_config", "statsd_tracing_config", "system_info_config", "frozen_ftrace_config", "chrome_config", "v8_config", "interceptor_config", "network_packet_trace_config", "surfaceflinger_layers_config", "surfaceflinger_transactions_config", "android_sdk_sysprop_guard_config", "etw_config", "protolog_config", "android_input_event_config", "pixel_modem_config", "windowmanager_config", "chromium_system_metrics", "kernel_wakelocks_config", "gpu_renderstages_config", "chromium_histogram_samples", "app_wakelocks_config", "cpu_per_uid_config", "user_list_config", "inputmethod_config", "android_aflags_config", "journald_config", "display_video_config", "chromium_stack_sampling_profiler", "chromium_sampling_heap_profiler", "android_process_state_config", "process_smaps_config", "qnx_config", "cgroup_config", "legacy_config", "for_testing")

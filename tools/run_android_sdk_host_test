@@ -17,9 +17,10 @@
 Companion to tools/run_android_test (which runs the same test under ART on a
 device or emulator). Uses the JDK pointed to by $JAVA_HOME, the Maven jars
 landed by `tools/install-build-deps --java-sdk`, and the host stubs in
-src/android_sdk/java/host_stubs/ to compile the perfetto Java SDK and the
-PerfettoTraceTest suite for host. Links against the libperfetto_jni.so the
-gn+ninja pipeline produces and runs the JUnit suite.
+src/android_sdk/java/host_stubs/ to compile the perfetto Java SDK and its
+PerfettoTraceTest, PerfettoEventFormatTest and PerfettoRawProtoEventTest suites
+for host. Links against the libperfetto_jni.so the gn+ninja pipeline produces
+and runs the JUnit suites.
 
 Use --benchmark to run benchmarks and forward subsequent arguments, e.g.
 `--benchmark --filter=instant --reps=5`.
@@ -45,7 +46,11 @@ OUT_DIR = os.path.join(ROOT_DIR, 'out/android_sdk_host_test')
 JAVA_PROTOS_TARGET = 'src/android_sdk/java/test:perfetto_test_java_protos'
 JAVA_PROTOS_DIR = 'gen/src/android_sdk/java/test'
 
-TEST_CLASS = 'dev.perfetto.sdk.test.PerfettoTraceTest'
+TEST_CLASSES = [
+    'dev.perfetto.sdk.test.PerfettoTraceTest',
+    'dev.perfetto.sdk.test.PerfettoEventFormatTest',
+    'dev.perfetto.sdk.PerfettoRawProtoEventTest',
+]
 BENCH_CLASS = 'dev.perfetto.sdk.bench.PerfettoTraceBenchmark'
 
 # Fix heap size and GC settings for comparisons across builds.
@@ -153,11 +158,12 @@ def CompileTest(jdk_home, jars, sdk_jar):
 def RunTests(jdk_home, jars, sdk_jar, test_jar):
   env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
   Run([
-      os.path.join(jdk_home,
-                   'bin/java'), '-Djava.library.path=' + OUT_DIR, '-cp',
-      Classpath(sdk_jar, test_jar, *jars), 'org.junit.runner.JUnitCore',
-      TEST_CLASS
-  ],
+      os.path.join(jdk_home, 'bin/java'),
+      '-Djava.library.path=' + OUT_DIR,
+      '-cp',
+      Classpath(sdk_jar, test_jar, *jars),
+      'org.junit.runner.JUnitCore',
+  ] + TEST_CLASSES,
       env=env)
 
 
@@ -171,11 +177,11 @@ def CompileBench(jdk_home, jars, sdk_jar):
   return jar
 
 
-def RunBench(jdk_home, sdk_jar, bench_jar, bench_args):
+def RunBench(jdk_home, jars, sdk_jar, bench_jar, bench_args):
   env = dict(os.environ, LD_LIBRARY_PATH=OUT_DIR)
   Run([os.path.join(jdk_home, 'bin/java')] + BENCH_JVM_FLAGS + [
       '-Djava.library.path=' + OUT_DIR, '-cp',
-      Classpath(sdk_jar, bench_jar), BENCH_CLASS
+      Classpath(sdk_jar, bench_jar, *jars), BENCH_CLASS
   ] + bench_args,
       env=env)
 
@@ -197,7 +203,7 @@ def main():
   sdk_jar = CompileSdk(jdk_home, jars, java_protos)
   if args.benchmark is not None:
     bench_jar = CompileBench(jdk_home, jars, sdk_jar)
-    RunBench(jdk_home, sdk_jar, bench_jar, args.benchmark)
+    RunBench(jdk_home, jars, sdk_jar, bench_jar, args.benchmark)
     return
   test_jar = CompileTest(jdk_home, jars, sdk_jar)
   RunTests(jdk_home, jars, sdk_jar, test_jar)

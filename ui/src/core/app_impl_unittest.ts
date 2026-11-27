@@ -23,6 +23,8 @@ function policyFor(isInternalUser: boolean): Policy {
     bugReportUrl: isInternalUser
       ? 'https://goto.google.com/perfetto-ui-bug'
       : 'https://github.com/google/perfetto/issues/new',
+    googlerOnlyFeatures: isInternalUser,
+    defaultPlugins: isInternalUser ? ['dev.perfetto.GoogleDrive'] : [],
   };
 }
 

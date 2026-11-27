@@ -17,3 +17,5 @@ class com.android.internal.dev.perfetto.sdk.PerfettoTrace.Category
     method native_unregister ignore
     method native_is_enabled ignore
     method isEnabled ignore # return false
+    method native_get_event_formats ignore
+    method getEventFormats ignore # return 0

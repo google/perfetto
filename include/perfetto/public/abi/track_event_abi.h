@@ -29,6 +29,11 @@
 extern "C" {
 #endif
 
+// Registers the track_event data source. Must be called after
+// PerfettoProducerInit() and before tracing starts.
+//
+// It is ok to call this function multiple times and from multiple threads: only
+// the first call has an effect.
 PERFETTO_SDK_EXPORT void PerfettoTeInit(void);
 
 // The attributes of a single category.
@@ -73,6 +78,24 @@ PERFETTO_SDK_EXPORT void PerfettoTePublishCategories(void);
 // The pointer is valid until the category is destroyed.
 PERFETTO_SDK_EXPORT PERFETTO_ATOMIC(bool) *
     PerfettoTeCategoryImplGetEnabled(struct PerfettoTeCategoryImpl*);
+
+// EXPERIMENTAL (not ABI-stable), for Perfetto language bindings.
+// Bitmask flags for the event input format selected per tracing session.
+// * EXTRAS (default): PerfettoTeHlExtra arrays, interned names.
+// * RAW_PROTO: caller-serialized TrackEvent protobuf fields, inline names
+//   (selected via TrackEventConfig.experimental_raw_proto_events).
+// PerfettoTeHlEmitImpl() ignores this setting and emits events to every
+// session.
+#define PERFETTO_TE_EVENT_FORMAT_EXTRAS 1u
+#define PERFETTO_TE_EVENT_FORMAT_RAW_PROTO 2u
+
+// EXPERIMENTAL (not ABI-stable).
+// Returns the PERFETTO_TE_EVENT_FORMAT_* bits active for `cat`, or 0 if
+// disabled or NULL.
+// Bindings read this before building an event so they know which format(s) to
+// build. Sessions can change before emit, so emit checks each session again.
+PERFETTO_SDK_EXPORT uint32_t
+PerfettoTeCategoryImplGetEventFormats(struct PerfettoTeCategoryImpl* cat);
 
 // Called when a data source instance is created (if `created` is true) or
 // destroyed (if `created` is false) with a registered category enabled.

@@ -852,6 +852,10 @@ namespace perfetto::trace_processor::stats {
   F(winscope_protolog_param_mismatch,                                          \
                                           kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
       "Message had mismatching parameters!"),                                  \
+  F(winscope_protolog_viewer_config_duplicates,                                \
+                                          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+      "ProtoLogViewerConfig packets containing duplicate MessageData or "      \
+      "Group entries. See trace_import_logs for duplicate payload bytes."),    \
   F(winscope_viewcapture_parse_errors,                                         \
                                           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "ViewCapture packet has unknown fields, which results in some "          \

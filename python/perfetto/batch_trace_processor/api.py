@@ -19,7 +19,7 @@ import dataclasses as dc
 import time
 from enum import Enum
 import multiprocessing
-from typing import Any, Callable, Dict, Tuple, List, Optional
+from typing import Any, Callable, Dict, Tuple, List, Optional, final
 
 import pandas as pd
 
@@ -52,6 +52,11 @@ TraceListReference = registry.TraceListReference
 Metadata = Dict[str, str]
 
 MAX_LOAD_WORKERS = 32
+
+
+@final
+class _QueryFailed:
+  """Returned in place of the result of a query that failed."""
 
 
 # Enum encoding how errors while loading/querying traces in BatchTraceProcessor
@@ -110,6 +115,8 @@ class BatchTraceProcessor:
       for df in dfs:
         print(df)
   """
+
+  tps_and_metadata: Optional[list[tuple[TraceProcessor, Metadata]]]
 
   class Observer(abc.ABC):
     """Observer that can be used to provide side-channel information about
@@ -362,6 +369,7 @@ class BatchTraceProcessor:
       (tp, metadata) = pair
       return self._execute_handling_failure(fn, tp, metadata)
 
+    assert self.tps_and_metadata is not None
     return list(self.query_executor.map(wrapped, self.tps_and_metadata))
 
   def execute_and_flatten(
@@ -392,6 +400,7 @@ class BatchTraceProcessor:
         df[key] = value
       return df
 
+    assert self.tps_and_metadata is not None
     df = pd.concat(
         list(self.query_executor.map(wrapped, self.tps_and_metadata)))
     return df.reset_index(drop=True)
@@ -423,16 +432,22 @@ class BatchTraceProcessor:
     def wrapped(pair: Tuple[TraceProcessor, Metadata]):
       (tp, metadata) = pair
       start = time.time()
-      df = self._execute_handling_failure(fn, tp, metadata)
+      df = self._execute_handling_failure(
+          fn, tp, metadata, on_failure=_QueryFailed)
       end = time.time()
       if self.observer:
         self.observer.trace_processed(metadata, end - start)
+      if isinstance(df, _QueryFailed):
+        return df
       for key, value in metadata.items():
         df = df.with_columns(pl.lit(value).alias(key))
       return df
 
-    return pl.concat(
-        list(self.query_executor.map(wrapped, self.tps_and_metadata)))
+    assert self.tps_and_metadata is not None
+    results = list(self.query_executor.map(wrapped, self.tps_and_metadata))
+    # Skip failed traces, as pl.concat requires matching schemas.
+    dfs = [df for df in results if not isinstance(df, _QueryFailed)]
+    return pl.DataFrame() if results and not dfs else pl.concat(dfs)
 
   def close(self):
     """Closes this batch trace processor instance.
@@ -483,8 +498,11 @@ class BatchTraceProcessor:
       self._stats.load_failures += 1
       return None
 
-  def _execute_handling_failure(self, fn: Callable[[TraceProcessor], Any],
-                                tp: TraceProcessor, metadata: Metadata):
+  def _execute_handling_failure(self,
+                                fn: Callable[[TraceProcessor], Any],
+                                tp: TraceProcessor,
+                                metadata: Metadata,
+                                on_failure: Callable[[], Any] = pd.DataFrame):
     try:
       return fn(tp)
     except TraceProcessorException as ex:
@@ -492,7 +510,7 @@ class BatchTraceProcessor:
           FailureHandling.RAISE_EXCEPTION:
         raise TraceProcessorException(f'{metadata} {ex}') from None
       self._stats.execute_failures += 1
-      return pd.DataFrame()
+      return on_failure()
 
   def __enter__(self):
     return self

@@ -17,8 +17,8 @@
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
 
 #include <cstdint>
+#include <cstring>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -31,43 +31,50 @@
 
 namespace perfetto::trace_processor::core::interpreter {
 
-base::StackString<32> ArgToString(uint32_t value) {
-  return base::StackString<32>("%u", value);
-}
+namespace {
 
-base::StackString<64> ArgToString(const HandleBase& value) {
-  return base::StackString<64>("Register(%u)", value.index);
-}
-
-base::StackString<64> ArgToString(NonNullOp value) {
-  return base::StackString<64>("NonNullOp(%u)", value.index());
-}
-
-base::StackString<64> ArgToString(FilterValueHandle value) {
-  return base::StackString<64>("FilterValue(%u)", value.index);
-}
-
-base::StackString<64> ArgToString(BoundModifier bound) {
-  return base::StackString<64>("BoundModifier(%u)", bound.index());
-}
-
-base::StackString<64> ArgToString(SortDirection direction) {
-  return base::StackString<64>("SortDirection(%u)",
-                               static_cast<uint32_t>(direction));
-}
-
-base::StackString<64> ArgToString(NullsLocation location) {
-  return base::StackString<64>("NullsLocation(%u)", location.index());
-}
-
-void BytecodeFieldToString(std::string_view name,
-                           const char* value,
-                           std::vector<std::string>& fields) {
-  if (name.compare(0, 3, "pad") == 0) {
+void AddFormatted(const char* name,
+                  const char* label,
+                  uint32_t value,
+                  std::vector<std::string>* fields) {
+  if (strncmp(name, "pad", 3) == 0) {
     return;
   }
-  base::StackString<64> str("%.*s=%s", int(name.size()), name.data(), value);
-  fields.push_back(str.ToStdString());
+  if (label) {
+    fields->push_back(
+        base::StackString<64>("%s=%s(%u)", name, label, value).ToStdString());
+  } else {
+    fields->push_back(
+        base::StackString<64>("%s=%u", name, value).ToStdString());
+  }
+}
+
+}  // namespace
+
+void AddField(const char* name, uint32_t v, std::vector<std::string>* f) {
+  AddFormatted(name, nullptr, v, f);
+}
+void AddField(const char* name,
+              const HandleBase& v,
+              std::vector<std::string>* f) {
+  AddFormatted(name, "Register", v.index, f);
+}
+void AddField(const char* name, NonNullOp v, std::vector<std::string>* f) {
+  AddFormatted(name, "NonNullOp", v.index(), f);
+}
+void AddField(const char* name,
+              FilterValueHandle v,
+              std::vector<std::string>* f) {
+  AddFormatted(name, "FilterValue", v.index, f);
+}
+void AddField(const char* name, BoundModifier v, std::vector<std::string>* f) {
+  AddFormatted(name, "BoundModifier", v.index(), f);
+}
+void AddField(const char* name, SortDirection v, std::vector<std::string>* f) {
+  AddFormatted(name, "SortDirection", static_cast<uint32_t>(v), f);
+}
+void AddField(const char* name, NullsLocation v, std::vector<std::string>* f) {
+  AddFormatted(name, "NullsLocation", v.index(), f);
 }
 
 std::string BytecodeFieldsFormat(const std::vector<std::string>& fields) {
@@ -79,19 +86,27 @@ std::string BytecodeFieldsFormat(const std::vector<std::string>& fields) {
 }
 
 std::string ToString(const Bytecode& op) {
-#define PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING(...)            \
-  case base::variant_index<BytecodeVariant, __VA_ARGS__>(): {      \
-    __VA_ARGS__ typed_op;                                          \
-    typed_op.option = op.option;                                   \
-    typed_op.args_buffer = op.args_buffer;                         \
-    return std::string(#__VA_ARGS__) + ": " + typed_op.ToString(); \
-  }
+  // One string rather than an array of pointers, which would need relocations.
+#define PERFETTO_DATAFRAME_BYTECODE_NAME(...) #__VA_ARGS__ "\0"
+  static constexpr char kNames[] =
+      PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_NAME);
+#undef PERFETTO_DATAFRAME_BYTECODE_NAME
+#define PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING(...)      \
+  case base::variant_index<BytecodeVariant, __VA_ARGS__>():  \
+    fields = static_cast<const __VA_ARGS__&>(op).ToString(); \
+    break;
+  std::string fields;
   switch (op.option) {
     PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING)
     default:
       PERFETTO_FATAL("Unknown opcode %u", op.option);
   }
 #undef PERFETTO_DATAFRAME_BYTECODE_CASE_TO_STRING
+  const char* name = kNames;
+  for (uint32_t i = 0; i < op.option; ++i) {
+    name += strlen(name) + 1;
+  }
+  return std::string(name) + ": " + fields;
 }
 
 }  // namespace perfetto::trace_processor::core::interpreter

@@ -640,6 +640,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   }
 
   // Stage 4: prepare the connection for queries.
+  // An interrupt which arrived while the trace was loading must not stop the
+  // prelude, whose failure is fatal.
+  engine_->ClearInterrupt();
   IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -663,6 +666,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
+  engine_->ClearInterrupt();
 
   uint32_t sql_stats_row =
       context()->storage->mutable_sql_stats()->RecordQueryBegin(
@@ -681,6 +685,11 @@ std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
   PERFETTO_CHECK(offset);
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
+  // Only the first statement starts a new query: an interrupt which arrived
+  // between two statements of this query must still stop the next one.
+  if (*offset == 0) {
+    engine_->ClearInterrupt();
+  }
 
   // Offsets are relative to the normalized SQL: since the normalization is
   // deterministic, an offset returned by one call stays valid when the same
@@ -888,10 +897,7 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  if (!engine_->sqlite_connection()->db())
-    return;
-  query_interrupted_.store(true);
-  sqlite3_interrupt(engine_->sqlite_connection()->db());
+  engine_->Interrupt();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {

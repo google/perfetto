@@ -118,6 +118,18 @@ export async function downloadTrace(trace: TraceImpl) {
         types: filePickerAcceptTypes,
       },
     });
+  } else if (src.type === 'STREAM' && src.getTraceFile !== undefined) {
+    const fileName =
+      src.title !== undefined && src.title !== ''
+        ? src.title
+        : `trace${TRACE_SUFFIX}`;
+    download({
+      content: await trace.getTraceFile(),
+      fileName,
+      filePicker: {
+        types: filePickerAcceptTypes,
+      },
+    });
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }

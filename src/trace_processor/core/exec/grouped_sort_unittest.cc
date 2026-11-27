@@ -42,43 +42,38 @@ struct Output {
   base::Status status;
 };
 
-Output Drain(const Source& source) {
-  std::unique_ptr<OperatorState> state = source.MakeState(test::TestContext());
-  RowBatch batch;
+// Runs `grouped_sort` over `source`, as a plan runs it.
+Output Drain(const Source& source, std::unique_ptr<GroupedSort> grouped_sort) {
+  test::AfterBreaker run(source, {}, std::move(grouped_sort));
   Output out;
-  while (source.GetData(batch, *state)) {
+  out.status = run.Drain([&out](const RowBatch& batch) {
     for (uint32_t id : test::ReadColumn<uint32_t>(batch, 0)) {
       out.ids.push_back(id);
     }
     for (uint32_t group : test::ReadColumn<uint32_t>(batch, 2)) {
       out.groups.push_back(group);
     }
-  }
-  out.status = source.status(*state);
+  });
   return out;
 }
 
 // A GroupedSort that groups by `column` and sorts each group by `keys`.
-std::vector<Pipeline::Step> GroupOn(uint32_t column,
-                                    std::vector<SortKey> keys = {}) {
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<GroupedSort>(
-      GroupedSortSpec{{column}, std::move(keys)}));
-  return ops;
+std::unique_ptr<GroupedSort> GroupOn(uint32_t column,
+                                     std::vector<SortKey> keys = {}) {
+  return std::make_unique<GroupedSort>(
+      GroupedSortSpec{{column}, std::move(keys)});
 }
 
 // Groups come out in the order they are first seen. Rows within a group keep
 // their input order, or are sorted by the keys if there are any.
 TEST(GroupedSortTest, GroupsInOrderOfFirstRow) {
   test::ArraySource source({7, 3, 7, 5, 3, 7});
-  Pipeline grouped(source, GroupOn(1));
-  Output out = Drain(grouped);
+  Output out = Drain(source, GroupOn(1));
   ASSERT_TRUE(out.status.ok()) << out.status.message();
   EXPECT_THAT(out.ids, ElementsAre(0, 2, 5, 1, 4, 3));
   EXPECT_THAT(out.groups, ElementsAre(0, 0, 0, 1, 1, 2));
 
-  Pipeline sorted(source, GroupOn(1, {{0, /*descending=*/true}}));
-  out = Drain(sorted);
+  out = Drain(source, GroupOn(1, {{0, /*descending=*/true}}));
   ASSERT_TRUE(out.status.ok()) << out.status.message();
   EXPECT_THAT(out.ids, ElementsAre(5, 2, 0, 4, 1, 3));
   EXPECT_THAT(out.groups, ElementsAre(0, 0, 0, 1, 1, 2));

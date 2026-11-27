@@ -524,6 +524,122 @@ void BM_Shlib_TeLlCustomProto(benchmark::State& state) {
 
 }  // namespace
 
+// Replays the native side of Java SDK events on the v2 trace writer to compare
+// EXTRAS vs checked WithFormats and fast-path RAW_PROTO.
+namespace java_bench {
+namespace {
+
+enum class Event { kInstant, kCounter, kBeginEnd };
+enum class Path { kExtras, kWithFormats, kRawProto };
+
+TracingSession StartJavaSession(bool raw_proto) {
+  return TracingSession::Builder()
+      .set_data_source_name("track_event")
+      .add_enabled_category("*")
+      .set_v2_probability(100)
+      .set_raw_proto_events(raw_proto)
+      .Build();
+}
+
+// counter_value = 42.
+constexpr uint8_t kCounterFields[] = {0xF0, 0x01, 0x2A};
+
+void EmitRawProto(Path path,
+                  int32_t type,
+                  const char* name,
+                  size_t name_size,
+                  const uint8_t* fields,
+                  size_t fields_size,
+                  PerfettoTeHlExtra* track) {
+  if (path == Path::kRawProto) {
+    PerfettoTeHlEmitRawProtoImpl(benchmark_cat.impl, type, name, name_size,
+                                 fields, fields_size, track);
+    return;
+  }
+  PerfettoTeHlEmitWithFormatsImpl(benchmark_cat.impl, type, name, name_size,
+                                  PERFETTO_TE_EVENT_FORMAT_RAW_PROTO, nullptr,
+                                  fields, fields_size, track);
+}
+
+template <Event kEvent, Path kPath>
+void BM_Shlib_Java(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      StartJavaSession(/*raw_proto=*/kPath != Path::kExtras);
+  // A registered counter track, like the Java SDK's CounterTrack.
+  PerfettoTeRegisteredTrack registered_counter_track;
+  PerfettoTeCounterTrackRegister(&registered_counter_track, "raw_bench_counter",
+                                 PerfettoTeProcessTrackUuid(),
+                                 /*is_name_static=*/true);
+  PerfettoTeHlExtraRegisteredTrack counter_track{
+      {PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK},
+      &registered_counter_track.impl};
+  PerfettoTeHlExtraCounterInt64 counter{
+      {PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64}, 42};
+
+  while (state.KeepRunning()) {
+    if (kPath == Path::kExtras) {
+      if (kEvent == Event::kInstant) {
+        PerfettoTeHlExtra* extras[] = {nullptr};
+        PerfettoTeHlEmitImpl(benchmark_cat.impl, PERFETTO_TE_TYPE_INSTANT,
+                             "instant", extras);
+      } else if (kEvent == Event::kCounter) {
+        PerfettoTeHlExtra* extras[] = {&counter_track.header, &counter.header,
+                                       nullptr};
+        PerfettoTeHlEmitImpl(benchmark_cat.impl, PERFETTO_TE_TYPE_COUNTER,
+                             nullptr, extras);
+      } else {
+        PerfettoTeHlExtra* extras[] = {nullptr};
+        PerfettoTeHlEmitImpl(benchmark_cat.impl, PERFETTO_TE_TYPE_SLICE_BEGIN,
+                             "beginEnd", extras);
+        PerfettoTeHlEmitImpl(benchmark_cat.impl, PERFETTO_TE_TYPE_SLICE_END,
+                             nullptr, extras);
+      }
+    } else {
+      if (kEvent == Event::kInstant) {
+        EmitRawProto(kPath, PERFETTO_TE_TYPE_INSTANT, "instant", 7, nullptr, 0,
+                     nullptr);
+      } else if (kEvent == Event::kCounter) {
+        EmitRawProto(kPath, PERFETTO_TE_TYPE_COUNTER, nullptr, 0,
+                     kCounterFields, sizeof(kCounterFields),
+                     &counter_track.header);
+      } else {
+        EmitRawProto(kPath, PERFETTO_TE_TYPE_SLICE_BEGIN, "beginEnd", 8,
+                     nullptr, 0, nullptr);
+        EmitRawProto(kPath, PERFETTO_TE_TYPE_SLICE_END, nullptr, 0, nullptr, 0,
+                     nullptr);
+      }
+    }
+    benchmark::ClobberMemory();
+  }
+  PerfettoTeRegisteredTrackUnregister(&registered_counter_track);
+}
+
+}  // namespace
+}  // namespace java_bench
+
+using java_bench::BM_Shlib_Java;
+using java_bench::Event;
+using java_bench::Path;
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kInstant, Path::kExtras)
+    ->Name("BM_Shlib_JavaV2_Instant_Extras");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kInstant, Path::kWithFormats)
+    ->Name("BM_Shlib_JavaV2_Instant_WithFormats");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kCounter, Path::kExtras)
+    ->Name("BM_Shlib_JavaV2_Counter_Extras");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kCounter, Path::kWithFormats)
+    ->Name("BM_Shlib_JavaV2_Counter_WithFormats");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kBeginEnd, Path::kExtras)
+    ->Name("BM_Shlib_JavaV2_BeginEnd_Extras");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kBeginEnd, Path::kWithFormats)
+    ->Name("BM_Shlib_JavaV2_BeginEnd_WithFormats");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kInstant, Path::kRawProto)
+    ->Name("BM_Shlib_JavaV2_Instant_RawProto");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kCounter, Path::kRawProto)
+    ->Name("BM_Shlib_JavaV2_Counter_RawProto");
+BENCHMARK_TEMPLATE2(BM_Shlib_Java, Event::kBeginEnd, Path::kRawProto)
+    ->Name("BM_Shlib_JavaV2_BeginEnd_RawProto");
+
 BENCHMARK(BM_Shlib_DataSource_Disabled);
 BENCHMARK(BM_Shlib_DataSource_DifferentPacketSize)->Range(1, 1000);
 BENCHMARK(BM_Shlib_TeDisabled);

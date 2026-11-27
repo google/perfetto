@@ -29,4 +29,11 @@ export interface Policy {
 
   // Where bug reports are filed, e.g. the GitHub issue tracker.
   readonly bugReportUrl: string;
+
+  // Enable features that are restricted to or only relevant to Googlers.
+  readonly googlerOnlyFeatures: boolean;
+
+  // Additional plugins enabled by default under this policy (on top of the
+  // embedder's defaultPlugins).
+  readonly defaultPlugins: ReadonlyArray<string>;
 }

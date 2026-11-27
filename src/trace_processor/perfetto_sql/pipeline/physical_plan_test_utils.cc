@@ -16,11 +16,13 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan_test_utils.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/pipeline_formatter.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -28,10 +30,18 @@ namespace perfetto::trace_processor::pipeline {
 std::string PhysicalPlanToString(const PhysicalPlan& plan) {
   using core::exec::PipelineFormatter;
   std::string out;
-  for (const auto& side : plan.side_pipelines()) {
-    out += "side: " + PipelineFormatter::Format(*side) + "\n";
+  // A breaker's pipeline is shown where the next reads it.
+  const core::exec::Pipelines& pipelines = plan.pipelines();
+  for (uint32_t i = 0; i < pipelines.size(); ++i) {
+    if (pipelines[i].sink) {
+      continue;
+    }
+    const auto& side =
+        static_cast<const core::exec::Pipeline&>(*pipelines[i].pipeline);
+    out += "side: " + PipelineFormatter::Format(side, &pipelines) + "\n";
   }
-  return out + "main: " + PipelineFormatter::Format(plan.pipeline());
+  return out +
+         "main: " + PipelineFormatter::Format(plan.pipeline(), &pipelines);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

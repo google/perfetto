@@ -21,7 +21,7 @@ import dalvik.annotation.optimization.FastNative;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Holds extras to be passed to Perfetto track events in {@link PerfettoTrace}.
+ * Holds native extras for {@link PerfettoTrace} track events and declares the JNI emit methods.
  *
  * @hide
  */
@@ -63,6 +63,22 @@ final class PerfettoTrackEventExtra {
 
   @FastNative
   public static native void native_emit(int type, long tag, String name, long ptr);
+
+  // RAW_PROTO-only fast path (@CriticalNative, no copy, debug-only validation).
+  // `address` points to a non-movable byte[] containing [0, fieldsSize) fields
+  // followed by `nameSize` event name bytes, kept reachable by the caller.
+  @CriticalNative
+  static native void native_emit_raw_proto(int type, long category, long track, long address,
+      int fieldsSize, int nameSize);
+
+  // Checked path (@FastNative) for copied buffers or mixed EXTRAS + RAW_PROTO
+  // events. 
+  // `formats` is a PERFETTO_TE_EVENT_FORMAT_* bitmask.
+  // Reads in place if `address != 0`, else copies `size` bytes from `buffer`.
+  // Returns false if validation failed.
+  @FastNative
+  static native boolean native_emit_with_formats(int type, long category, int formats, long extras,
+      long track, byte[] buffer, long address, int fieldsSize, int nameSize, int size);
 
   /** Represents a native pointer to a Perfetto C SDK struct. E.g. PerfettoTeHlExtra. */
   interface PerfettoPointer {

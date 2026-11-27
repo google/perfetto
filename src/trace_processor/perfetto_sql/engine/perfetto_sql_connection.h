@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_CONNECTION_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -306,6 +307,14 @@ class PerfettoSqlConnection {
                                       int argc,
                                       typename Function::Context* ctx,
                                       bool deterministic = true);
+
+  // Stops the statements running now, with SQLITE_INTERRUPT, and every
+  // statement which starts afterwards, until ClearInterrupt(). Can be called
+  // from another thread, or from a signal handler.
+  void Interrupt();
+
+  // Forgets an earlier Interrupt(), e.g. when a new query starts.
+  void ClearInterrupt();
 
   SqliteConnection* sqlite_connection() { return connection_.get(); }
 
@@ -644,6 +653,10 @@ class PerfettoSqlConnection {
       fn_registry_;
 
   std::unique_ptr<SqliteConnection> connection_;
+  // Set by Interrupt(), which can run on another thread or in a signal
+  // handler, and read by the progress handler installed on |connection_|.
+  // Cleared by ClearInterrupt().
+  std::atomic<bool> interrupted_{false};
   // Passed to every parser, for compiling pipelines.
   std::unique_ptr<ConnectionCatalog> catalog_;
   // Stamps the pipeline plans this connection writes into SQL.

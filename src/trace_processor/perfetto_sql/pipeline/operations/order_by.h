@@ -38,6 +38,9 @@ class OrderBy : public PlanOperation {
  public:
   static const OperationRegistration kRegistration;
 
+  // Adds an ORDER BY of `keys` above the root of `plan`.
+  static void AddToPlan(LogicalPlan* plan, std::vector<SortKey> keys);
+
  private:
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;

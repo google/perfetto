@@ -191,6 +191,27 @@ typedef void (*PerfettoDsOnFlushCb)(struct PerfettoDsImpl*,
                                     void* inst_ctx,
                                     struct PerfettoDsOnFlushArgs* args);
 
+// Opaque handle used to perform operations from the
+// PerfettoDsWillClearIncrementalStateCb callback.
+struct PerfettoDsWillClearIncrementalStateArgs;
+
+// Called when the tracing service requests clearing incremental state for a
+// data source instance (e.g. periodically via
+// TraceConfig.incremental_state_config.clear_period_ms). `user_arg` is the
+// value passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
+// PerfettoDsOnSetupCb. `args` is currently unused (nullptr) and reserved for
+// future extensions.
+//
+// Can be called from any thread (outside a trace point, so emitting trace
+// packets from this callback is allowed). Blocking this for too long is not a
+// good idea and can cause deadlocks.
+typedef void (*PerfettoDsWillClearIncrementalStateCb)(
+    struct PerfettoDsImpl*,
+    PerfettoDsInstanceIndex inst_id,
+    void* user_arg,
+    void* inst_ctx,
+    struct PerfettoDsWillClearIncrementalStateArgs* args);
+
 // Creates custom state (either thread local state or incremental state) for
 // instance `inst_id`. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg().
@@ -225,6 +246,10 @@ PERFETTO_SDK_EXPORT void PerfettoDsSetOnDestroyCallback(struct PerfettoDsImpl*,
 
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl*,
                                                       PerfettoDsOnFlushCb);
+
+PERFETTO_SDK_EXPORT void PerfettoDsSetWillClearIncrementalStateCallback(
+    struct PerfettoDsImpl*,
+    PerfettoDsWillClearIncrementalStateCb);
 
 // Callbacks for custom per instance thread local state.
 //

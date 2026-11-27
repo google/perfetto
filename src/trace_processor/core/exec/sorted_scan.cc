@@ -85,7 +85,7 @@ SortedScan::State::~State() = default;
 
 std::unique_ptr<OperatorState> SortedScan::MakeState(Context& context) const {
   auto state = std::make_unique<State>();
-  state->reader.Init(columns_, context);
+  state->reader.Init(columns_);
   state->context = &context;
   return state;
 }
@@ -152,9 +152,8 @@ Range SortedSearches::FindIdEq(const Context& context, Range rows) const {
   Range range = rows;
   const ParamValue& cast = context.params().b[searches_[0].param];
   if (PERFETTO_LIKELY(cast.value.validity == CastFilterValueResult::kValid)) {
-    filter::IdEqualRange(
-        base::unchecked_get<CastFilterValueResult::Id>(cast.value.value).value,
-        range);
+    filter::IdEqualRange(base::unchecked_get<uint32_t>(cast.value.value),
+                         range);
   } else if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
     range.e = range.b;
   }

@@ -17,6 +17,7 @@ import {assertExists, assertNonEmpty} from '../../../base/assert';
 import {defer} from '../../../base/deferred';
 import {loadScript} from '../../../base/dom_utils';
 import {errResult, okResult, type Result} from '../../../base/result';
+import type {TraceChunk, TraceStream} from '../../../public/stream';
 import {loadGapiModules} from './gapi';
 
 // The Google API loader script, loaded once by DriveClient.create().
@@ -81,6 +82,40 @@ const FILE_META_SCHEMA = z.object({
   name: z.string(),
   resourceKey: OPTIONAL_RESOURCE_KEY,
 });
+
+const DRIVE_PERMISSION_SCHEMA = z.object({
+  id: z.string(),
+  type: z.enum(['user', 'group', 'domain', 'anyone']),
+  role: z.string(),
+  emailAddress: z.string().optional(),
+  displayName: z.string().optional(),
+  domain: z.string().optional(),
+  allowFileDiscovery: z.boolean().optional(),
+});
+
+const FILE_PERMISSIONS_SCHEMA = z.object({
+  permissions: z.array(DRIVE_PERMISSION_SCHEMA).default([]),
+});
+
+export type DriveFilePermission = z.infer<typeof DRIVE_PERMISSION_SCHEMA>;
+
+export type DriveCreatePermission =
+  | {
+      readonly type: 'domain';
+      readonly domain: string;
+      readonly role: string;
+      readonly allowFileDiscovery: boolean;
+    }
+  | {
+      readonly type: 'anyone';
+      readonly role: string;
+      readonly allowFileDiscovery: boolean;
+    };
+
+export interface DriveUpdatePermission {
+  readonly role?: string;
+  readonly allowFileDiscovery?: boolean;
+}
 
 // The resource key (from the "Open with" state payload) is required to access
 // some link-shared files the user has not opened before. Drive expects it in
@@ -277,9 +312,180 @@ function postWithProgress(
   return deferred;
 }
 
+const STREAM_CHUNK_SIZE = 32 * 1024 * 1024;
+
+// Streams a fetch Response body into TraceProcessor in chunks of up to 32 MB
+// (matching TraceHttpStream), avoiding buffering the entire trace in JS memory.
+class ResponseTraceStream implements TraceStream {
+  private readonly bytesTotal: number;
+  private readonly reader?: ReadableStreamDefaultReader<Uint8Array>;
+  private bytesRead = 0;
+  private done = false;
+
+  constructor(private readonly response: Response) {
+    const contentLength = Number(response.headers.get('Content-Length') ?? 0);
+    this.bytesTotal =
+      Number.isFinite(contentLength) && contentLength > 0 ? contentLength : 0;
+    this.reader = response.body?.getReader();
+  }
+
+  async readChunk(): Promise<TraceChunk> {
+    if (this.reader === undefined) {
+      if (this.done) {
+        return {
+          data: new Uint8Array(),
+          eof: true,
+          bytesRead: this.bytesRead,
+          bytesTotal: this.bytesTotal,
+        };
+      }
+      this.done = true;
+      const buf = await this.response.arrayBuffer();
+      const data = new Uint8Array(buf);
+      this.bytesRead = data.byteLength;
+      return {
+        data,
+        eof: true,
+        bytesRead: this.bytesRead,
+        bytesTotal: this.bytesTotal || data.byteLength,
+      };
+    }
+
+    let eof = false;
+    let chunkBytes = 0;
+    const chunks: Uint8Array[] = [];
+
+    while (!eof && chunkBytes < STREAM_CHUNK_SIZE) {
+      const res = await this.reader.read();
+      if (res.value !== undefined) {
+        chunks.push(res.value);
+        chunkBytes += res.value.byteLength;
+      }
+      eof = res.done;
+    }
+
+    let data: Uint8Array;
+    if (chunks.length === 0) {
+      data = new Uint8Array();
+    } else if (chunks.length === 1) {
+      data = chunks[0]!;
+    } else {
+      data = new Uint8Array(chunkBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+    }
+
+    this.bytesRead += data.byteLength;
+    if (eof) {
+      this.reader.releaseLock();
+    }
+    return {
+      data,
+      eof,
+      bytesRead: this.bytesRead,
+      bytesTotal: this.bytesTotal,
+    };
+  }
+}
+
+// URL prefixes allowed for gapi.drive.share.ShareClient iframes (matching the
+// CSP frame-src allowlist in ui/src/frontend/index.ts). ShareClient does not
+// accept a container element and always mounts directly under document.body, so
+// we filter by iframe src to avoid matching unrelated iframes on the page.
+const DRIVE_SHARE_IFRAME_PREFIXES = [
+  'https://drive.google.com/sharing/',
+  'https://drive.google.com/drivesharing/',
+] as const;
+
+function isDriveShareIframe(iframe: HTMLIFrameElement): boolean {
+  return DRIVE_SHARE_IFRAME_PREFIXES.some((prefix) =>
+    iframe.src.startsWith(prefix),
+  );
+}
+
+// Google's ShareClient hides its closed dialog with `aria-hidden="true"` on a
+// wrapper (without always setting `display: none` or removing the iframe).
+function isShareDialogIframeVisible(iframe: HTMLIFrameElement): boolean {
+  return (
+    isDriveShareIframe(iframe) &&
+    iframe.isConnected &&
+    iframe.closest('[aria-hidden="true"]') === null
+  );
+}
+
+function findVisibleShareDialogIframes(): Set<HTMLIFrameElement> {
+  return new Set(
+    Array.from(document.querySelectorAll('iframe')).filter((f) =>
+      isShareDialogIframeVisible(f),
+    ),
+  );
+}
+// Hack: Google's gapi.drive.share.ShareClient API does not expose any callback
+// or event when the user closes the sharing dialog. To detect dismissal so we
+// can refresh permissions, we watch document.body with a MutationObserver for
+// the share iframe injected (or made visible) by ShareClient and invoke
+// `onClose` once that iframe is removed or hidden. Returns a cleanup function
+// that disconnects the observer.
+function observeSharingDialogClose(
+  initiallyVisibleIframes: ReadonlySet<HTMLIFrameElement>,
+  onClose: () => void,
+): () => void {
+  if (
+    typeof document === 'undefined' ||
+    document.body === null ||
+    typeof MutationObserver === 'undefined'
+  ) {
+    return () => {};
+  }
+
+  let dialogIframe: HTMLIFrameElement | undefined;
+  let finished = false;
+
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    observer.disconnect();
+  };
+
+  const check = () => {
+    if (finished) return;
+    if (dialogIframe === undefined) {
+      for (const iframe of findVisibleShareDialogIframes()) {
+        if (!initiallyVisibleIframes.has(iframe)) {
+          dialogIframe = iframe;
+          break;
+        }
+      }
+      return;
+    }
+    if (!isShareDialogIframeVisible(dialogIframe)) {
+      cleanup();
+      onClose();
+    }
+  };
+
+  const observer = new MutationObserver(() => {
+    check();
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['src', 'style', 'class', 'hidden', 'aria-hidden'],
+  });
+
+  return cleanup;
+}
+
 // Talks to Google Drive: shows its file and folder pickers and sharing dialog,
 // and downloads and uploads files.
 export class DriveClient {
+  private cancelSharingDialogObserver?: () => void;
+
   private constructor(private readonly config: DriveClientConfig) {}
 
   // Loads everything the client needs and returns a ready-to-use client:
@@ -333,19 +539,60 @@ export class DriveClient {
     return this.picker(oauthToken, {view, title: 'Select folder'});
   }
 
-  // Opens Drive's sharing settings dialog for a file. The drive-share module
-  // it needs is loaded by create(). Never throws.
-  openSharingDialog(
+  // Opens Drive's sharing settings dialog for a file, resolving once the
+  // dialog is closed (or when `opts.signal` aborts, or when another
+  // openSharingDialog() call supersedes this one). The drive-share module it
+  // needs is loaded by create(). Never rejects.
+  async openSharingDialog(
     oauthToken: string,
     fileId: string,
-  ): Result<void, SharingDialogError> {
+    opts?: {readonly signal?: AbortSignal},
+  ): Promise<Result<void, SharingDialogError>> {
+    // Tear down any previous observer so at most one MutationObserver is ever
+    // attached to document.body at a time.
+    this.cancelSharingDialogObserver?.();
+
+    const closed = defer<void>();
+    let cleanupObserver: (() => void) | undefined;
+    const signal = opts?.signal;
+    const finish = () => {
+      cleanupObserver?.();
+      cleanupObserver = undefined;
+      signal?.removeEventListener('abort', finish);
+      if (this.cancelSharingDialogObserver === finish) {
+        this.cancelSharingDialogObserver = undefined;
+      }
+      closed.resolve();
+    };
+
     try {
+      // HACK: Google's ShareClient API has no onClose callback or event when
+      // the user dismisses the sharing dialog. Snapshot currently visible
+      // iframes before opening it so observeSharingDialogClose() can spot the
+      // new share iframe and resolve the promise when it is removed or hidden.
+      const initiallyVisibleIframes =
+        typeof document !== 'undefined' && document.body !== null
+          ? findVisibleShareDialogIframes()
+          : undefined;
+      if (initiallyVisibleIframes !== undefined && !signal?.aborted) {
+        this.cancelSharingDialogObserver = finish;
+        signal?.addEventListener('abort', finish, {once: true});
+        cleanupObserver = observeSharingDialogClose(
+          initiallyVisibleIframes,
+          finish,
+        );
+      } else {
+        finish();
+      }
+
       const shareClient = new gapi.drive.share.ShareClient();
       shareClient.setOAuthToken(oauthToken);
       shareClient.setItemIds([fileId]);
       shareClient.showSettingsDialog();
+      await closed;
       return okResult();
     } catch (e) {
+      finish();
       return errResult({type: 'error', cause: e});
     }
   }
@@ -390,21 +637,19 @@ export class DriveClient {
     return parseUploadedFile(responseText);
   }
 
-  // Downloads a file's contents. Never rejects.
+  // Opens a file's contents as a TraceStream. Never rejects.
   async openFile(
     oauthToken: string,
     fileId: string,
     resourceKey?: string,
-  ): Promise<Result<ArrayBuffer, DriveError>> {
-    // 'alt=media' asks for the file's contents rather than its metadata. The
-    // response is read straight into an ArrayBuffer, avoiding extra copies of
-    // large traces.
+  ): Promise<Result<TraceStream, DriveError>> {
+    // 'alt=media' asks for the file's contents rather than its metadata.
     return this.fetchFileResult(
       oauthToken,
       fileId,
       {alt: 'media'},
       resourceKey,
-      async (response) => okResult(await response.arrayBuffer()),
+      async (response) => okResult(new ResponseTraceStream(response)),
     );
   }
 
@@ -427,6 +672,131 @@ export class DriveClient {
         return okResult(meta.data);
       },
     );
+  }
+
+  // Fetches the permissions on a Drive file via the permissions.list endpoint
+  // (which works for Shared Drives and returns 403 when the caller cannot view
+  // permissions). Never rejects.
+  async getPermissions(
+    oauthToken: string,
+    fileId: string,
+    resourceKey?: string,
+  ): Promise<Result<ReadonlyArray<DriveFilePermission>, DriveError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    if (resourceKey !== undefined && !isValidDriveId(resourceKey)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive resource key',
+      });
+    }
+    try {
+      const url = new URL(
+        `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      );
+      url.searchParams.set(
+        'fields',
+        'permissions(id,type,role,emailAddress,displayName,domain,allowFileDiscovery)',
+      );
+      url.searchParams.set('supportsAllDrives', 'true');
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${oauthToken}`,
+          ...resourceKeyHeaders(fileId, resourceKey),
+        },
+      });
+      if (!response.ok) {
+        return errResult(httpDriveError(response.status));
+      }
+      const parsed = FILE_PERMISSIONS_SCHEMA.safeParse(await response.json());
+      if (!parsed.success) {
+        return errResult({type: 'error', cause: parsed.error});
+      }
+      return okResult(parsed.data.permissions);
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
+  }
+
+  // Creates a permission on a Drive file. Never rejects.
+  async createPermission(
+    oauthToken: string,
+    fileId: string,
+    permission: DriveCreatePermission,
+  ): Promise<Result<void, DriveError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    return this.mutatePermission(
+      oauthToken,
+      'POST',
+      `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions`,
+      permission,
+    );
+  }
+
+  // Updates an existing permission on a Drive file in place (e.g. toggling
+  // `allowFileDiscovery` in either direction). Never rejects.
+  async updatePermission(
+    oauthToken: string,
+    fileId: string,
+    permissionId: string,
+    permission: DriveUpdatePermission,
+  ): Promise<Result<void, DriveError>> {
+    if (!isValidDriveId(fileId)) {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive file ID',
+      });
+    }
+    if (permissionId === '') {
+      return errResult({
+        type: 'invalid_id',
+        cause: 'Invalid Google Drive permission ID',
+      });
+    }
+    return this.mutatePermission(
+      oauthToken,
+      'PATCH',
+      `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}/permissions/${encodeURIComponent(permissionId)}`,
+      permission,
+    );
+  }
+
+  private async mutatePermission(
+    oauthToken: string,
+    method: 'POST' | 'PATCH',
+    endpoint: string,
+    body: DriveCreatePermission | DriveUpdatePermission,
+  ): Promise<Result<void, DriveError>> {
+    try {
+      const url = new URL(endpoint);
+      url.searchParams.set('supportsAllDrives', 'true');
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${oauthToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const responseText = await response.text().catch(() => '');
+        const reason = driveErrorMessage(responseText);
+        const err = httpDriveError(response.status);
+        return errResult(reason !== undefined ? {...err, cause: reason} : err);
+      }
+      return okResult();
+    } catch (error) {
+      return errResult({type: 'error', cause: error});
+    }
   }
 
   // Sends an authenticated GET for a file to the Drive REST API and parses the
@@ -614,4 +984,78 @@ export function gdriveOpenLink(
     state.resourceKeys = {[fileId]: resourceKey};
   }
   return `${origin}/?state=${encodeURIComponent(JSON.stringify(state))}`;
+}
+
+const DRIVE_FILE_PATH_RE = /^(?:\/u\/\d+)?\/file\/d\/([^/]+)/;
+const DRIVE_ID_QUERY_PATH_RE = /^(?:\/u\/\d+)?\/(?:open|uc)\/?$/;
+
+// Extracts a file ID (and optional resource key) from a Google Drive file URL
+// or a Perfetto Google Drive deep link.
+export function parseGDriveLink(input: string): Result<GDriveOpenFileRequest> {
+  const trimmed = input.trim();
+  if (trimmed === '') {
+    return errResult('Enter a Google Drive link');
+  }
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return errResult('Enter a valid URL');
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return errResult('Enter a valid Google Drive link');
+  }
+
+  const stateParam = url.searchParams.get('state');
+  if (stateParam !== null) {
+    const fromState = parseGDriveStateParam(stateParam);
+    if (fromState.ok) {
+      return fromState;
+    }
+  }
+
+  const host = url.hostname.toLowerCase();
+  if (host !== 'drive.google.com' && host !== 'docs.google.com') {
+    return errResult('Enter a Google Drive file link');
+  }
+
+  let fileId: string | undefined;
+  const pathMatch = DRIVE_FILE_PATH_RE.exec(url.pathname);
+  if (pathMatch?.[1] !== undefined) {
+    try {
+      fileId = decodeURIComponent(pathMatch[1]);
+    } catch {
+      return errResult('Invalid file ID');
+    }
+  } else if (DRIVE_ID_QUERY_PATH_RE.test(url.pathname)) {
+    fileId = url.searchParams.get('id') ?? undefined;
+  }
+
+  if (fileId === undefined || !isValidDriveId(fileId)) {
+    return errResult('Could not find a valid file ID in this link');
+  }
+
+  const resourceKey =
+    url.searchParams.get('resourcekey') ??
+    url.searchParams.get('resourceKey') ??
+    undefined;
+  if (resourceKey !== undefined && !isValidDriveId(resourceKey)) {
+    return errResult('Invalid resource key');
+  }
+
+  return okResult({fileId, resourceKey});
+}
+
+// Builds a direct link to open a file in Google Drive, including its resource
+// key when known.
+export function gdriveViewLink(fileId: string, resourceKey?: string): string {
+  const url = new URL(
+    `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`,
+  );
+  if (resourceKey !== undefined) {
+    url.searchParams.set('resourcekey', resourceKey);
+  }
+  return url.toString();
 }

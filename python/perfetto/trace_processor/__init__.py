@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from perfetto.trace_processor.api import TraceProcessor
-from perfetto.trace_processor.api import TraceProcessorConfig
-from perfetto.trace_processor.api import TraceProcessorException
-from perfetto.trace_processor.http import TraceProcessorHttp
-from perfetto.trace_processor.api import TraceReference
+from perfetto.trace_processor.api import TraceProcessor as TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorConfig as TraceProcessorConfig
+from perfetto.trace_processor.api import TraceProcessorException as TraceProcessorException
+from perfetto.trace_processor.http import TraceProcessorHttp as TraceProcessorHttp
+from perfetto.trace_processor.api import TraceReference as TraceReference

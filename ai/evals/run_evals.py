@@ -688,9 +688,6 @@ def compute_indicators(tr: Dict[str, Any],
           skills,
       'read_skill_files':
           skill_file_refs,
-      'read_setup_md':
-          any(r.endswith('setup.md') for r in reads)
-          or any('setup.md' in c for c in bash),
       'read_querying_md':
           any(r.endswith('querying.md') for r in reads)
           or any('querying.md' in c for c in bash),
@@ -915,7 +912,6 @@ def _rate(xs):
 
 RATE_KEYS = [
     ('skill_invoked_rate', 'skill_invoked'),
-    ('read_setup_rate', 'read_setup_md'),
     ('read_querying_rate', 'read_querying_md'),
     ('warm_session_rate', 'used_warm_session'),
     ('downloaded_tp_rate', 'downloaded_tp'),
@@ -994,7 +990,6 @@ METRICS = [
     ('missing_name_errors_mean', 'missing table/col errors', False),
     ('missing_name_recovery_rate', 'fixed on next call', True),
     ('skill_invoked_rate', 'skill invoked', True),
-    ('read_setup_rate', 'read setup.md', True),
     ('read_querying_rate', 'read querying.md', True),
     ('warm_session_rate', 'warm session', True),
     ('downloaded_tp_rate', 'downloaded tp', True),

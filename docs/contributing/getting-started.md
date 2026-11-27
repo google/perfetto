@@ -108,6 +108,14 @@ Please note our project follows the [Google C++ style](https://google.github.io/
 
 #### External contributors
 
+Before submitting a pull request, external contributors **must** first discuss the proposed changes and potential fixes with maintainers by opening or commenting on a [GitHub issue](https://github.com/google/perfetto/issues), unless the change is an obvious bugfix that does not require architectural or design discussion.
+
+We expect the discussion to be held by a human who can articulate the use-case or problem they are trying to solve, engage in a constructive tradeoff discussion, and — most importantly — take ownership and responsibility for the final end-to-end testing of the PR.
+We reserve the right to close PRs if we think the discussion is held by or redirected to an AI agent.
+In such cases, we would much prefer that you file a feature request or bug report articulating your use-case and let us deal with AI agents ourselves.
+
+Automated tests are not a substitute for testing your change yourself — if a change affects the UI, visualizations, or hardware/OS behavior, you must build and verify it manually (on real hardware where relevant).
+
 Please contribute the same way as you would to any other GitHub repository.
 A good explanation of how to do it can be found [here](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project).
 
