@@ -17175,6 +17175,19 @@ filegroup {
     ],
 }
 
+// GN: //src/profiling/unwind:proc_pid_maps
+filegroup {
+    name: "perfetto_src_profiling_unwind_proc_pid_maps",
+}
+
+// GN: //src/profiling/unwind:unittests
+filegroup {
+    name: "perfetto_src_profiling_unwind_unittests",
+    srcs: [
+        "src/profiling/unwind/proc_pid_maps_unittest.cc",
+    ],
+}
+
 // GN: //src/profiling/unwind:unwind_core
 filegroup {
     name: "perfetto_src_profiling_unwind_unwind_core",
@@ -25102,6 +25115,8 @@ cc_test {
         ":perfetto_src_profiling_smaps_unittests",
         ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
         ":perfetto_src_profiling_unwind_libunwindstack_unittests",
+        ":perfetto_src_profiling_unwind_proc_pid_maps",
+        ":perfetto_src_profiling_unwind_unittests",
         ":perfetto_src_profiling_unwind_unwind_core",
         ":perfetto_src_profiling_unwind_unwind_engine",
         ":perfetto_src_profiling_unwind_unwind_types",

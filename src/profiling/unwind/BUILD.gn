@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 # Header-only register types and local register capture. Kept free of compiled
 # code so heapprofd_client can depend on it without pulling in the engine.
@@ -46,6 +47,22 @@ source_set("unwind_engine") {
     "unwind_engine.cc",
     "unwind_engine.h",
   ]
+}
+
+source_set("proc_pid_maps") {
+  public_deps = [ "../../base" ]
+  deps = [ "../../../gn:default_deps" ]
+  sources = [ "proc_pid_maps.h" ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":proc_pid_maps",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+  ]
+  sources = [ "proc_pid_maps_unittest.cc" ]
 }
 
 if (enable_perfetto_benchmarks && enable_perfetto_traced_perf &&
