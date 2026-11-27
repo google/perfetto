@@ -1,0 +1,13 @@
+[package]
+edition = "2024"
+name = "perfetto-trace-processor"
+version = "0.1.0"
+description = "Rust bindings for Perfetto's Trace Processor"
+license = "Apache-2.0"
+homepage = "https://www.perfetto.dev"
+repository = "https://github.com/google/perfetto"
+publish = false
+
+[dependencies]
+memmap2 = "0.9"
+perfetto-trace-processor-sys = { path = "../perfetto-trace-processor-sys", version = "0.1.0" }
