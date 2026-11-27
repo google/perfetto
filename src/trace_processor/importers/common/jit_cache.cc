@@ -31,6 +31,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -52,10 +53,8 @@ std::pair<FrameId, bool> JitCache::JittedFunction::InternFrame(
 
   FrameId frame_id =
       context->storage->mutable_stack_profile_frame_table()
-          ->Insert(
-              {context->storage->jit_code_table()[jit_code_id_].function_name(),
-               frame_key.mapping_id, static_cast<int64_t>(frame_key.rel_pc),
-               symbol_set_id_})
+          ->Insert({function_name_, frame_key.mapping_id,
+                    static_cast<int64_t>(frame_key.rel_pc), symbol_set_id_})
           .id;
   interned_frames_.Insert(frame_key, frame_id);
 
@@ -82,7 +81,7 @@ tables::JitCodeTable::Id JitCache::LoadCode(
   std::optional<uint32_t> symbol_set_id;
   if (source_location.has_value()) {
     // TODO(carlscab): Remove duplication via new SymbolTracker class
-    symbol_set_id = context_->storage->symbol_table().row_count();
+    symbol_set_id = context_->storage->mutable_symbol_table()->row_count();
     context_->storage->mutable_symbol_table()->Insert(
         {*symbol_set_id, function_name, source_location->file_name,
          source_location->line_number});
@@ -102,7 +101,7 @@ tables::JitCodeTable::Id JitCache::LoadCode(
         (*jit_code_table)[entry.second.jit_code_id()].set_estimated_delete_ts(
             timestamp);
       },
-      code_range, jit_code_id, symbol_set_id);
+      code_range, jit_code_id, function_name, symbol_set_id);
 
   return jit_code_id;
 }

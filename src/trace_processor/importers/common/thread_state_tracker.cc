@@ -27,8 +27,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-using RowReference = tables::ThreadStateTable::RowReference;
-
 ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
     : storage_(context->storage.get()),
       context_(context),
@@ -45,8 +43,7 @@ void ThreadStateTracker::PushSchedSwitchEvent(int64_t event_ts,
   // we lost data and should close the slice accordingly.
   bool data_loss_cond =
       HasPreviousRowNumbersForUtid(prev_utid) &&
-      !IsRunning(RowNumToRef(prev_row_numbers_for_thread_[prev_utid]->last_row)
-                     .state());
+      !IsRunning(prev_row_numbers_for_thread_[prev_utid]->last_state);
   ClosePendingState(event_ts, prev_utid, data_loss_cond);
   AddOpenState(event_ts, prev_utid, prev_state);
 
@@ -73,13 +70,13 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
     return;
   }
 
-  auto last_row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
+  const RelatedRows& last = *prev_row_numbers_for_thread_[utid];
 
   // Occasionally, it is possible to get a waking event for a thread
   // which is already in a runnable state. When this happens (or if the thread
   // is running), we just ignore the waking event. See b/186509316 for details
   // and an example on when this happens. Only blocked events can be waken up.
-  if (!IsBlocked(last_row_ref.state())) {
+  if (!IsBlocked(last.last_state)) {
     // If we receive a waking event while we are not blocked, we ignore this
     // in the |thread_state| table but we track in the |sched_wakeup| table.
     // The |thread_state_id| in |sched_wakeup| is the current running/runnable
@@ -89,8 +86,7 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
             ? std::make_optional(CommonFlagsToIrqContext(*common_flags))
             : std::nullopt;
     storage_->mutable_spurious_sched_wakeup_table()->Insert(
-        {event_ts, prev_row_numbers_for_thread_[utid]->last_row.row_number(),
-         irq_context, utid, waker_utid});
+        {event_ts, last.last_row.row_number(), irq_context, utid, waker_utid});
     return;
   }
 
@@ -122,7 +118,7 @@ void ThreadStateTracker::PushBlockedReason(
   if (!blocked_row_number.has_value())
     return;
 
-  auto row_reference = RowNumToRef(blocked_row_number.value());
+  auto row_reference = WriteRow(blocked_row_number.value());
   if (io_wait.has_value()) {
     row_reference.set_io_wait(*io_wait);
   }
@@ -156,16 +152,16 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   }
 
   if (waker_utid.has_value() && HasPreviousRowNumbersForUtid(*waker_utid)) {
-    auto waker_row =
-        RowNumToRef(prev_row_numbers_for_thread_[*waker_utid]->last_row);
+    const RelatedRows& waker_row = *prev_row_numbers_for_thread_[*waker_utid];
 
     // We expect all wakers to be Running. But there are 2 cases where this
     // might not be true:
     // 1. At the start of a trace the 'waker CPU' has not yet started
     // emitting events.
     // 2. Data loss.
-    if (IsRunning(waker_row.state())) {
-      row.waker_id = std::make_optional(waker_row.id());
+    if (IsRunning(waker_row.last_state)) {
+      row.waker_id = std::make_optional(
+          tables::ThreadStateTable::Id{waker_row.last_row.row_number()});
     }
   }
 
@@ -175,16 +171,19 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
     prev_row_numbers_for_thread_.resize(utid + 1);
   }
 
-  if (!prev_row_numbers_for_thread_[utid].has_value()) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
+  auto& related = prev_row_numbers_for_thread_[utid];
+  if (!related.has_value()) {
+    related = RelatedRows{std::nullopt, row_num, ts, state};
   }
 
   if (IsRunning(state)) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
+    related = RelatedRows{std::nullopt, row_num, ts, state};
   } else if (IsBlocked(state)) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{row_num, row_num};
+    related = RelatedRows{row_num, row_num, ts, state};
   } else /* if (IsRunnable(state)) */ {
-    prev_row_numbers_for_thread_[utid]->last_row = row_num;
+    related->last_row = row_num;
+    related->last_ts = ts;
+    related->last_state = state;
   }
 }
 
@@ -203,13 +202,13 @@ void ThreadStateTracker::ClosePendingState(int64_t end_ts,
                                            UniqueTid utid,
                                            bool data_loss) {
   // Discard close if there is no open state to close.
-  auto row_ref = GetLastRowRef(utid);
-  if (!row_ref)
+  RelatedRows* last = GetLastRow(utid);
+  if (!last)
     return;
 
   // Update the duration only for states without data loss.
   if (!data_loss) {
-    row_ref->set_dur(end_ts - row_ref->ts());
+    WriteRow(last->last_row).set_dur(end_ts - last->last_ts);
   }
 }
 
@@ -219,7 +218,7 @@ void ThreadStateTracker::PushThreadState(int64_t ts,
                                          std::optional<uint16_t> cpu) {
   ClosePendingState(ts, utid, false /*data_loss*/);
 
-  if (auto row_ref = GetLastRowRef(utid); row_ref && ts == row_ref->ts()) {
+  if (RelatedRows* last = GetLastRow(utid); last && ts == last->last_ts) {
     // Detected two thread state event changes at the same time.
     context_->stats_tracker->IncrementStats(
         stats::generic_task_state_invalid_order);
@@ -235,26 +234,25 @@ void ThreadStateTracker::UpdatePendingState(
     std::optional<UniqueTid> waker_utid,
     std::optional<uint16_t> common_flags) {
   // Discard update if there is no open state to close.
-  auto row_ref = GetLastRowRef(utid);
-  if (!row_ref)
+  RelatedRows* last = GetLastRow(utid);
+  if (!last)
     return;
 
-  row_ref->set_state(state);
+  auto row = WriteRow(last->last_row);
+  last->last_state = state;
+  row.set_state(state);
   if (cpu)
-    row_ref->set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
+    row.set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
   if (waker_utid)
-    row_ref->set_waker_utid(*waker_utid);
+    row.set_waker_utid(*waker_utid);
   if (common_flags.has_value()) {
-    row_ref->set_irq_context(CommonFlagsToIrqContext(*common_flags));
+    row.set_irq_context(CommonFlagsToIrqContext(*common_flags));
   }
 }
 
 StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
-  auto row_ref = GetLastRowRef(utid);
-  if (!row_ref)
-    return kNullStringId;
-
-  return row_ref->state();
+  RelatedRows* last = GetLastRow(utid);
+  return last ? last->last_state : kNullStringId;
 }
 
 bool ThreadStateTracker::IsRunning(StringId state) {
@@ -267,14 +265,6 @@ bool ThreadStateTracker::IsRunnable(StringId state) {
 
 bool ThreadStateTracker::IsBlocked(StringId state) {
   return !(IsRunnable(state) || IsRunning(state));
-}
-
-PERFETTO_ALWAYS_INLINE
-std::optional<RowReference> ThreadStateTracker::GetLastRowRef(UniqueTid utid) {
-  if (!HasPreviousRowNumbersForUtid(utid))
-    return std::nullopt;
-
-  return RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
 }
 
 }  // namespace trace_processor

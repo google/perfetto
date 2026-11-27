@@ -307,7 +307,11 @@ GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
               dataframe::Eq{},
               {},
           },
-      })) {
+      })),
+      callsite_cursor_(
+          context->storage->stack_profile_callsite_table().CreateIdCursor()),
+      frame_cursor_(
+          context->storage->stack_profile_frame_table().CreateIdCursor()) {
   // Make sure the empty function always gets id 0 which will be ignored
   // when writing the proto file.
   functions_.insert(
@@ -426,22 +430,14 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
   protozero::PackedVarInt& location_ids =
       cached_location_ids_[{callsite_id, annotated}];
 
-  const auto& cs_table = context_.storage->stack_profile_callsite_table();
-
-  auto start_ref = cs_table[callsite_id];
-
-  location_ids.Append(WriteLocationIfNeeded(
-      start_ref.frame_id(), annotated ? annotations_.GetAnnotation(start_ref)
-                                      : CallsiteAnnotation::kNone));
-
-  std::optional<CallsiteId> parent_id = start_ref.parent_id();
-  while (parent_id) {
-    auto parent_ref = cs_table[*parent_id];
+  for (std::optional<CallsiteId> id = callsite_id; id;) {
+    callsite_cursor_.SeekToId(*id);
+    FrameId frame_id = callsite_cursor_.frame_id();
+    std::optional<CallsiteId> parent_id = callsite_cursor_.parent_id();
     location_ids.Append(WriteLocationIfNeeded(
-        parent_ref.frame_id(), annotated
-                                   ? annotations_.GetAnnotation(parent_ref)
-                                   : CallsiteAnnotation::kNone));
-    parent_id = parent_ref.parent_id();
+        frame_id, annotated ? annotations_.GetAnnotation(*id)
+                            : CallsiteAnnotation::kNone));
+    id = parent_id;
   }
 
   return location_ids;
@@ -455,8 +451,8 @@ uint64_t GProfileBuilder::WriteLocationIfNeeded(FrameId frame_id,
     return it->second;
   }
 
-  const auto& frames = context_.storage->stack_profile_frame_table();
-  auto frame = frames[key.frame_id];
+  auto& frame = frame_cursor_;
+  frame.SeekToId(key.frame_id);
 
   const auto& mappings = context_.storage->stack_profile_mapping_table();
   auto mapping = mappings[frame.mapping()];
@@ -511,7 +507,7 @@ void GProfileBuilder::WriteLocations() {
 }
 
 std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
-    const tables::StackProfileFrameTable::ConstRowReference& frame,
+    const tables::StackProfileFrameTable::ConstCursor& frame,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
   std::vector<Line> lines;
@@ -536,7 +532,7 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
 }
 
 std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
-    const tables::StackProfileFrameTable::ConstRowReference& frame,
+    const tables::StackProfileFrameTable::ConstCursor& frame,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
   // Execute the equivalent of the SQL logic in callstacks/stack_profile.sql,
@@ -729,7 +725,7 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
 }
 
 int64_t GProfileBuilder::GetNameForFrame(
-    const tables::StackProfileFrameTable::ConstRowReference& frame,
+    const tables::StackProfileFrameTable::ConstCursor& frame,
     CallsiteAnnotation annotation) {
   NullTermStringView system_name = context_.storage->GetString(frame.name());
   int64_t name = kEmptyStringIndex;
@@ -751,12 +747,12 @@ int64_t GProfileBuilder::GetNameForFrame(
 }
 
 int64_t GProfileBuilder::GetSystemNameForFrame(
-    const tables::StackProfileFrameTable::ConstRowReference& frame) {
+    const tables::StackProfileFrameTable::ConstCursor& frame) {
   return string_table_.InternString(frame.name());
 }
 
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
-    const tables::StackProfileFrameTable::ConstRowReference& frame,
+    const tables::StackProfileFrameTable::ConstCursor& frame,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
   AnnotatedFrameId key{frame.id(), annotation};

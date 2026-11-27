@@ -33,20 +33,21 @@ SymbolTracker::~SymbolTracker() = default;
 
 void SymbolTracker::OnEventsFullyExtracted() {
   const StringId kEmptyString = context_->storage->InternString("");
-  for (auto frame = context_->storage->mutable_stack_profile_frame_table()
-                        ->IterateRows();
-       frame; ++frame) {
+  context_->storage->FlushEventTables();
+  auto frame =
+      context_->storage->mutable_stack_profile_frame_table()->CreateCursor();
+  for (frame.Execute(); !frame.Eof(); frame.Next()) {
     if (frame.name() != kNullStringId && frame.name() != kEmptyString) {
       continue;
     }
-    if (!TrySymbolizeFrame(frame.ToRowReference())) {
-      SymbolizeKernelFrame(frame.ToRowReference());
+    if (!TrySymbolizeFrame(frame)) {
+      SymbolizeKernelFrame(frame);
     }
   }
 }
 
 void SymbolTracker::SymbolizeKernelFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
+    tables::StackProfileFrameTable::Cursor& frame) {
   const auto mapping = mapping_table_[frame.mapping()];
   uint64_t address = static_cast<uint64_t>(frame.rel_pc()) +
                      static_cast<uint64_t>(mapping.start());
@@ -59,7 +60,7 @@ void SymbolTracker::SymbolizeKernelFrame(
 }
 
 bool SymbolTracker::TrySymbolizeFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
+    tables::StackProfileFrameTable::Cursor& frame) {
   const auto mapping = mapping_table_[frame.mapping()];
   auto* file = dsos_.Find(mapping.name());
   if (!file) {

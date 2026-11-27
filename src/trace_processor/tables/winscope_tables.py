@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
@@ -30,6 +31,7 @@ from python.generators.trace_processor_table.public import CppDouble
 WINSCOPE_RECT_TABLE = Table(
     python_module=__file__,
     class_name='WinscopeRectTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_winscope_rect',
     columns=[
         C('x', CppDouble()),
@@ -50,6 +52,7 @@ WINSCOPE_RECT_TABLE = Table(
 WINSCOPE_TRANSFORM_TABLE = Table(
     python_module=__file__,
     class_name='WinscopeTransformTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_winscope_transform',
     columns=[
         C('dsdx', CppDouble()),
@@ -74,6 +77,7 @@ WINSCOPE_TRANSFORM_TABLE = Table(
 WINSCOPE_TRACE_RECT_TABLE = Table(
     python_module=__file__,
     class_name='WinscopeTraceRectTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_winscope_trace_rect',
     columns=[
         C('rect_id', CppTableId(WINSCOPE_RECT_TABLE)),
@@ -115,6 +119,7 @@ WINSCOPE_TRACE_RECT_TABLE = Table(
 INPUTMETHOD_CLIENTS_TABLE = Table(
     python_module=__file__,
     class_name='InputMethodClientsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_inputmethod_clients',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
@@ -142,6 +147,7 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
 INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     python_module=__file__,
     class_name='InputMethodManagerServiceTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_inputmethod_manager_service',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
@@ -169,6 +175,7 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
 INPUTMETHOD_SERVICE_TABLE = Table(
     python_module=__file__,
     class_name='InputMethodServiceTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_inputmethod_service',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
@@ -196,6 +203,7 @@ INPUTMETHOD_SERVICE_TABLE = Table(
 SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayersSnapshotTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_surfaceflinger_layers_snapshot',
     wrapping_sql_view=WrappingSqlView('surfaceflinger_layers_snapshot'),
     columns=[
@@ -236,6 +244,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
 SURFACE_FLINGER_DISPLAY_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerDisplayTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_surfaceflinger_display',
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
@@ -266,6 +275,7 @@ SURFACE_FLINGER_DISPLAY_TABLE = Table(
 SURFACE_FLINGER_LAYER_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayerTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_surfaceflinger_layer',
     wrapping_sql_view=WrappingSqlView('surfaceflinger_layer'),
     columns=[
@@ -339,6 +349,7 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
 WINSCOPE_FILL_REGION_TABLE = Table(
     python_module=__file__,
     class_name='WinscopeFillRegionTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_winscope_fill_region',
     columns=[
         C('trace_rect_id', CppTableId(WINSCOPE_TRACE_RECT_TABLE)),
@@ -357,6 +368,7 @@ WINSCOPE_FILL_REGION_TABLE = Table(
 SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_surfaceflinger_transactions',
     wrapping_sql_view=WrappingSqlView('surfaceflinger_transactions'),
     columns=[
@@ -388,6 +400,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
 SURFACE_FLINGER_TRANSACTION_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_surfaceflinger_transaction',
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_TRANSACTIONS_TABLE)),
@@ -439,6 +452,7 @@ SURFACE_FLINGER_TRANSACTION_TABLE = Table(
 SURFACE_FLINGER_TRANSACTION_FLAG_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionFlagTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_surfaceflinger_transaction_flag',
     columns=[
         C('flags_id', CppOptional(CppUint32())),
@@ -457,6 +471,7 @@ SURFACE_FLINGER_TRANSACTION_FLAG_TABLE = Table(
 VIEWCAPTURE_TABLE = Table(
     python_module=__file__,
     class_name='ViewCaptureTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_viewcapture',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
@@ -496,6 +511,7 @@ VIEWCAPTURE_TABLE = Table(
 VIEWCAPTURE_VIEW_TABLE = Table(
     python_module=__file__,
     class_name='ViewCaptureViewTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_viewcapture_view',
     columns=[
         C('snapshot_id', CppTableId(VIEWCAPTURE_TABLE)),
@@ -729,6 +745,7 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
 WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionParticipantsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_window_manager_shell_transition_participants',
     columns=[
         C('transition_id', CppInt64()),
@@ -776,6 +793,7 @@ WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE = Table(
 WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionProtosTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_window_manager_shell_transition_protos',
     columns=[
         C(
@@ -802,6 +820,7 @@ WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
 WINDOW_MANAGER_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_windowmanager',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
@@ -845,6 +864,7 @@ WINDOW_MANAGER_TABLE = Table(
 WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerWindowContainerTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_windowmanager_windowcontainer',
     columns=[
         C('snapshot_id', CppTableId(WINDOW_MANAGER_TABLE)),
@@ -932,6 +952,7 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
 PROTOLOG_TABLE = Table(
     python_module=__file__,
     class_name='ProtoLogTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_protolog',
     wrapping_sql_view=WrappingSqlView('protolog'),
     columns=[

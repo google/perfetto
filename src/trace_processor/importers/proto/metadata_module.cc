@@ -224,7 +224,7 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
       });
   if (slice_id && trigger.has_flow_id() &&
       context_->flow_tracker->IsActive(trigger.flow_id())) {
-    context_->flow_tracker->End(*slice_id, trigger.flow_id(),
+    context_->flow_tracker->End(*slice_id, ts, trigger.flow_id(),
                                 /* close_flow = */ true);
   }
 

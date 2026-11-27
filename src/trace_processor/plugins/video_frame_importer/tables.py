@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt32
@@ -25,6 +26,7 @@ from python.generators.trace_processor_table.public import TableDoc
 ANDROID_VIDEO_FRAMES_TABLE = Table(
     python_module=__file__,
     class_name='AndroidVideoFramesTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_video_frames',
     columns=[
         C('ts',

@@ -41,6 +41,7 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/event_table_backend.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/variadic.h"
@@ -1154,14 +1155,26 @@ class TraceStorage {
   T* mutable_table() {
     constexpr size_t idx = tables::TableIndex<T>::kValue;
     return reinterpret_cast<T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+        &tables_storage_[idx * dataframe::kTableSlotSize]);
   }
   template <typename T>
   const T& table() const {
     constexpr size_t idx = tables::TableIndex<T>::kValue;
     return *reinterpret_cast<const T*>(
-        &tables_storage_[idx * sizeof(dataframe::Dataframe)]);
+        &tables_storage_[idx * dataframe::kTableSlotSize]);
   }
+
+  // Sends the sealed rows of every event table to `backend`. Must be called
+  // before any row is inserted.
+  void SetEventTableBackend(
+      std::unique_ptr<dataframe::EventTableBackend> backend);
+  dataframe::EventTableBackend* event_table_backend() {
+    return event_table_backend_;
+  }
+
+  // Brings the sealed rows of event tables up to date, so that cursors over
+  // them see every write.
+  void FlushEventTables() { event_table_backend_->Flush(); }
 
  private:
   using StringHash = uint64_t;
@@ -1198,10 +1211,13 @@ class TraceStorage {
   // Indexed by heap_graph_object_data.array_data_id
   std::vector<HprofArrayBlob> hprof_array_blobs_;
 
-  // Aligned storage for all table dataframes.
-  alignas(
-      dataframe::Dataframe) char tables_storage_[tables::kTableCount *
-                                                 sizeof(dataframe::Dataframe)];
+  std::unique_ptr<dataframe::EventTableBackend> owned_event_table_backend_;
+  dataframe::EventTableBackend* event_table_backend_ =
+      dataframe::DefaultEventTableBackend();
+
+  // Aligned storage for all tables.
+  alignas(dataframe::Dataframe) char tables_storage_[tables::kTableCount *
+                                                     dataframe::kTableSlotSize];
 
   // The below array allow us to map between enums and their string
   // representations.

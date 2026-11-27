@@ -232,16 +232,15 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     auto rc = kStart;
     // Close the previous sched slice
     if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
+      context_->sched_event_tracker->ClosePendingSlice(pending_sched, ts,
                                                        kNullStringId);
       InsertPendingStateInfoForTid(pending_sched->last_utid, *pending_sched);
       rc = kStartWithPending;
     }
     // Start a new sched slice for the new task.
-    auto new_slice_idx =
-        context_->sched_event_tracker->AddStartSlice(cpu, ts, utid, prio);
+    context_->sched_event_tracker->AddStartSlice(pending_sched, cpu, ts, utid,
+                                                 prio);
 
-    pending_sched->pending_slice_storage_idx = new_slice_idx;
     pending_sched->last_pid = tid;
     pending_sched->last_utid = utid;
     pending_sched->last_prio = prio;
@@ -250,7 +249,7 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   // Close the pending slice if applicable
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max() &&
       tid == pending_sched->last_pid) {
-    context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
+    context_->sched_event_tracker->ClosePendingSlice(pending_sched, ts,
                                                      state_string_id);
     // Clear the pending slice
     *pending_sched = SchedEventState::PendingSchedInfo();
@@ -261,13 +260,9 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   // the timestamp of the previous context switch.
   auto hanging_sched = GetPendingStateInfoForTid(utid);
   if (hanging_sched.has_value()) {
-    auto sched_slice_idx = hanging_sched->pending_slice_storage_idx;
-    auto close_ts =
-        context_->sched_event_tracker->GetEndTimestampForPendingSlice(
-            sched_slice_idx);
-    if (ts == close_ts) {
+    if (ts == hanging_sched->pending_slice_end_ts) {
       context_->sched_event_tracker->SetEndStateForPendingSlice(
-          sched_slice_idx, state_string_id);
+          *hanging_sched, state_string_id);
       RemovePendingStateInfoForTid(utid);
       return kUpdateEndState;
     }

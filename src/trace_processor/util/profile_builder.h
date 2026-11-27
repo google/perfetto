@@ -291,7 +291,7 @@ class GProfileBuilder {
       bool annotated);
 
   std::vector<Line> GetLinesForJitFrame(
-      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      const tables::StackProfileFrameTable::ConstCursor& frame,
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
@@ -301,16 +301,16 @@ class GProfileBuilder {
       uint64_t mapping_id);
 
   std::vector<Line> GetLines(
-      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      const tables::StackProfileFrameTable::ConstCursor& frame,
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
   int64_t GetNameForFrame(
-      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      const tables::StackProfileFrameTable::ConstCursor& frame,
       CallsiteAnnotation annotation);
 
   int64_t GetSystemNameForFrame(
-      const tables::StackProfileFrameTable::ConstRowReference& frame);
+      const tables::StackProfileFrameTable::ConstCursor& frame);
 
   uint64_t WriteLocationIfNeeded(FrameId frame_id,
                                  CallsiteAnnotation annotation);
@@ -326,7 +326,7 @@ class GProfileBuilder {
                                  uint64_t mapping_id);
 
   uint64_t WriteFunctionIfNeeded(
-      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      const tables::StackProfileFrameTable::ConstCursor& frame,
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
@@ -389,6 +389,8 @@ class GProfileBuilder {
   tables::V8InternalCodeTable::ConstCursor v8_internal_code_cursor_;
   tables::JitCodeTable::ConstCursor jit_code_cursor_;
   tables::SymbolTable::ConstCursor symbol_cursor_;
+  tables::StackProfileCallsiteTable::ConstCursor callsite_cursor_;
+  tables::StackProfileFrameTable::ConstCursor frame_cursor_;
 
   // Helpers to map TraceProcessor rows to already written Profile entities
   // (their ids).

@@ -41,14 +41,13 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                                                int64_t timestamp,
                                                double value,
                                                UniqueTid utid) {
-  const auto& counter = context_->storage->counter_table();
   auto opt_id = PushCounter(
       timestamp, value, kInvalidTrackId, [this, utid](ArgsInserter& inserter) {
         inserter.AddArg(thread_arg_key_, Variadic::UnsignedInteger(utid));
       });
   if (opt_id) {
     PendingUpidResolutionCounter pending;
-    pending.row = counter[*opt_id].ToRowNumber().row_number();
+    pending.row = opt_id->value;
     pending.utid = utid;
     pending.counter = pcounter;
     pending_upid_resolution_counter_.emplace_back(pending);
@@ -76,10 +75,10 @@ std::optional<CounterId> EventTracker::PushCounter(
 }
 
 void EventTracker::FlushPendingEvents() {
-  const auto& thread_table = context_->storage->thread_table();
   for (const auto& pending_counter : pending_upid_resolution_counter_) {
     UniqueTid utid = pending_counter.utid;
-    std::optional<UniquePid> upid = thread_table[utid].upid();
+    std::optional<UniquePid> upid =
+        context_->storage->thread_table()[utid].upid();
 
     // If we still don't know which process this thread belongs to, fall back
     // onto creating a thread counter track. It's too late to drop data

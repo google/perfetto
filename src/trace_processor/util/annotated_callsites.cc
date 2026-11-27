@@ -37,7 +37,11 @@ AnnotatedCallsites::AnnotatedCallsites(const TraceProcessorContext* context)
       // all comparisons, instead we initialize the member to std::nullopt and
       // the string comparisons will all fail.
       art_jni_trampoline_(
-          context->storage->string_pool().GetId("art_jni_trampoline")) {}
+          context->storage->string_pool().GetId("art_jni_trampoline")),
+      callsite_cursor_(
+          context->storage->stack_profile_callsite_table().CreateIdCursor()),
+      frame_cursor_(
+          context->storage->stack_profile_frame_table().CreateIdCursor()) {}
 
 AnnotatedCallsites::State AnnotatedCallsites::GetState(
     std::optional<CallsiteId> id) {
@@ -49,16 +53,16 @@ AnnotatedCallsites::State AnnotatedCallsites::GetState(
     return it->second;
   }
 
-  State state =
-      Get(context_.storage->stack_profile_callsite_table()[*id]).first;
+  State state = Get(*id).first;
   states_.emplace(*id, state);
   return state;
 }
 
 std::pair<AnnotatedCallsites::State, CallsiteAnnotation>
-AnnotatedCallsites::Get(
-    const tables::StackProfileCallsiteTable::ConstRowReference& callsite) {
-  State state = GetState(callsite.parent_id());
+AnnotatedCallsites::Get(CallsiteId callsite) {
+  callsite_cursor_.SeekToId(callsite);
+  FrameId frame_id = callsite_cursor_.frame_id();
+  State state = GetState(callsite_cursor_.parent_id());
 
   // Keep immediate callee of a JNI trampoline, but keep tagging all
   // successive libart frames as common.
@@ -76,8 +80,8 @@ AnnotatedCallsites::Get(
   // TODO(rsavitski): consider detecting standard JNI upcall entrypoints -
   // _JNIEnv::Call*. These are sometimes inlined into other DSOs, so erasing
   // only the libart frames does not clean up all of the JNI-related frames.
-  auto frame =
-      context_.storage->stack_profile_frame_table()[callsite.frame_id()];
+  auto& frame = frame_cursor_;
+  frame.SeekToId(frame_id);
   // art_jni_trampoline_ could be std::nullopt if the string does not exist in
   // the StringPool, but that also means no frame will ever have that name.
   if (art_jni_trampoline_.has_value() &&

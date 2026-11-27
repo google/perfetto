@@ -40,11 +40,17 @@ namespace perfetto::trace_processor {
 // This avoids creating a new cursor for each lookup.
 class PerfCounterExtractor {
  public:
-  explicit PerfCounterExtractor(
-      const tables::ProfilerCounterSetTable& profiler_counter_set_table)
-      : cursor_(profiler_counter_set_table.CreateCursor({dataframe::FilterSpec{
-            tables::ProfilerCounterSetTable::ColumnIndex::counter_set_id, 0,
-            dataframe::Eq{}, std::nullopt}})) {}
+  explicit PerfCounterExtractor(const TraceStorage& storage)
+      : sample(storage.profiler_sample_table().CreateIdCursor()),
+        counter(storage.counter_table().CreateIdCursor()),
+        cursor_(storage.profiler_counter_set_table().CreateCursor(
+            {dataframe::FilterSpec{
+                tables::ProfilerCounterSetTable::ColumnIndex::counter_set_id, 0,
+                dataframe::Eq{}, std::nullopt}})) {}
+
+  // Read samples and counters by id.
+  tables::ProfilerSampleTable::ConstCursor sample;
+  tables::CounterTable::ConstCursor counter;
 
   // Sets up the cursor for the given counter_set_id and executes the query.
   void SetCounterSetId(uint32_t counter_set_id) {
@@ -66,9 +72,7 @@ class PerfCounterExtractor {
 
 // Context constructor - defined here where PerfCounterExtractor is complete.
 PerfCounterForSampleFunction::Context::Context(TraceStorage* s)
-    : storage(s),
-      extractor(std::make_unique<PerfCounterExtractor>(
-          s->profiler_counter_set_table())) {}
+    : storage(s), extractor(std::make_unique<PerfCounterExtractor>(*s)) {}
 
 // Context destructor - must be defined here where PerfCounterExtractor is
 // complete.
@@ -112,7 +116,9 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
         ctx, "__intrinsic_perf_counter_for_sample: invalid sample id");
   }
 
-  auto counter_set_id = profiler_sample_table[sample_id].counter_set_id();
+  auto& sample = user_data->extractor->sample;
+  sample.SeekToId(tables::ProfilerSampleTable::Id{sample_id});
+  auto counter_set_id = sample.counter_set_id();
   if (!counter_set_id.has_value()) {
     // No counter set for this sample.
     return;
@@ -142,7 +148,9 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
     }
 
     // Get the track for this counter.
-    TrackId track_id = counter_table[counter_id.value].track_id();
+    auto& counter = user_data->extractor->counter;
+    counter.SeekToId(counter_id);
+    TrackId track_id = counter.track_id();
     if (track_id.value >= track_table.row_count()) {
       continue;
     }
@@ -150,7 +158,7 @@ void PerfCounterForSampleFunction::Step(sqlite3_context* ctx,
     // Compare string IDs directly (O(1) instead of string comparison).
     if (track_table[track_id.value].name() == *counter_name_id) {
       // Found matching counter, return its value.
-      double value = counter_table[counter_id.value].value();
+      double value = counter.value();
       return sqlite::result::Double(ctx, value);
     }
   }

@@ -168,17 +168,18 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
     return OnFailure(base::ErrStatus("callsite with id %" PRId64 " not found",
                                      arguments[0].AsLong()));
   }
-  auto start_ref = cs_table[*start_id];
+  auto cs_ref = cs_table.CreateIdCursor();
+  cs_ref.SeekToId(*start_id);
 
   // Iteratively walk the parent_id chain to construct the list of callstack
   // entries, each pointing at a frame.
   std::vector<CallsiteTable::RowNumber> cs_rows;
-  cs_rows.push_back(start_ref.ToRowNumber());
-  std::optional<CallsiteId> maybe_parent_id = start_ref.parent_id();
+  cs_rows.push_back(cs_ref.ToRowNumber());
+  std::optional<CallsiteId> maybe_parent_id = cs_ref.parent_id();
   while (maybe_parent_id) {
-    auto parent_ref = cs_table[*maybe_parent_id];
-    cs_rows.push_back(parent_ref.ToRowNumber());
-    maybe_parent_id = parent_ref.parent_id();
+    cs_ref.SeekToId(*maybe_parent_id);
+    cs_rows.push_back(cs_ref.ToRowNumber());
+    maybe_parent_id = cs_ref.parent_id();
   }
 
   // Walk the callsites root-to-leaf, annotating:
@@ -215,9 +216,10 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
   State annotation_state = State::kInitial;
 
   std::vector<StringPool::Id> annotations_reversed;
+  auto frame_ref = f_table.CreateIdCursor();
   for (auto it = cs_rows.rbegin(); it != cs_rows.rend(); ++it) {
-    auto cs_ref = it->ToRowReference(cs_table);
-    auto frame_ref = f_table[cs_ref.frame_id()];
+    cs_ref.SeekToId(CallsiteId{it->row_number()});
+    frame_ref.SeekToId(cs_ref.frame_id());
     auto map_ref = m_table[frame_ref.mapping()];
 
     // Keep immediate callee of a JNI trampoline, but keep tagging all
@@ -308,7 +310,7 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
   PERFETTO_DCHECK(cs_rows.size() == annotations_reversed.size());
   size_t row_idx = 0;
   for (auto it = cs_rows.begin(); it != cs_rows.end(); ++it, ++row_idx) {
-    auto cs_ref = it->ToRowReference(cs_table);
+    cs_ref.SeekToId(CallsiteId{it->row_number()});
     table_.Insert(tables::ExperimentalAnnotatedCallstackTable::Row{
         cs_ref.id(), cs_ref.depth(), cs_ref.parent_id(), cs_ref.frame_id(),
         annotations_reversed[annotations_reversed.size() - 1 - row_idx]});

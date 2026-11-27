@@ -14,6 +14,7 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C, CppAccessDuration
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
@@ -28,6 +29,7 @@ from src.trace_processor.tables.slice_tables import SLICE_TABLE
 FLOW_TABLE = Table(
     python_module=__file__,
     class_name='FlowTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_flow',
     wrapping_sql_view=WrappingSqlView('flow'),
     columns=[

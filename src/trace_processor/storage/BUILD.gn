@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 source_set("storage") {
   sources = [
+    "import_storage.h",
     "metadata.h",
     "stats.h",
     "stats_types.h",
@@ -30,5 +32,17 @@ source_set("storage") {
     "../containers",
     "../core/dataframe",
     "../types",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "event_table_unittest.cc" ]
+  deps = [
+    ":storage",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../core/dataframe",
+    "../tables",
   ]
 }

@@ -14,6 +14,7 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
@@ -39,6 +40,7 @@ from src.trace_processor.tables.track_tables import TRACK_TABLE
 PROFILER_SMAPS_TABLE = Table(
     python_module=__file__,
     class_name='ProfilerSmapsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_profiler_smaps',
     wrapping_sql_view=WrappingSqlView('profiler_smaps'),
     columns=[
@@ -345,6 +347,7 @@ STACK_PROFILE_MAPPING_TABLE = Table(
 STACK_PROFILE_FRAME_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileFrameTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_stack_profile_frame',
     wrapping_sql_view=WrappingSqlView('stack_profile_frame'),
     columns=[
@@ -413,6 +416,7 @@ STACK_PROFILE_FRAME_TABLE = Table(
 STACK_PROFILE_CALLSITE_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileCallsiteTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_stack_profile_callsite',
     wrapping_sql_view=WrappingSqlView('stack_profile_callsite'),
     columns=[
@@ -599,6 +603,7 @@ PROFILER_COUNTER_SET_TABLE = Table(
 PROFILER_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='ProfilerSampleTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_profiler_sample',
     columns=[
         C(
@@ -678,6 +683,7 @@ PROFILER_SAMPLE_TABLE = Table(
 CHROME_STACK_SAMPLE_EXTRAS_TABLE = Table(
     python_module=__file__,
     class_name='ChromeStackSampleExtrasTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_chrome_stack_sample_extras',
     columns=[
         C(
@@ -828,6 +834,7 @@ HEAP_GRAPH_JAVA_OOME_DETAILS_TABLE = Table(
 SYMBOL_TABLE = Table(
     python_module=__file__,
     class_name='SymbolTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_stack_profile_symbol',
     wrapping_sql_view=WrappingSqlView('stack_profile_symbol'),
     columns=[
@@ -904,6 +911,7 @@ SYMBOL_TABLE = Table(
 HEAP_PROFILE_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_heap_profile',
     wrapping_sql_view=WrappingSqlView('heap_profile'),
     columns=[
@@ -944,6 +952,7 @@ HEAP_PROFILE_TABLE = Table(
 HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_heap_profile_allocation',
     wrapping_sql_view=WrappingSqlView('heap_profile_allocation'),
     columns=[
@@ -1087,6 +1096,9 @@ HEAP_GRAPH_CLASS_TABLE = Table(
                 by optimization (e.g. R8 class merging).''',
         }))
 
+# TODO(lalitm): the heap graph object, data, reference, primitive and thread
+# callsite tables are only metadata tables because heap graph import reads
+# them back. Rewrite it so that they can be event tables.
 HEAP_GRAPH_OBJECT_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphObjectTable',
@@ -1406,6 +1418,7 @@ HEAP_GRAPH_PRIMITIVE_TABLE = Table(
 AGGREGATE_PROFILE_TABLE = Table(
     python_module=__file__,
     class_name='AggregateProfileTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_aggregate_profile',
     columns=[
         C('scope', CppString()),
@@ -1433,6 +1446,7 @@ AGGREGATE_PROFILE_TABLE = Table(
 AGGREGATE_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='AggregateSampleTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_aggregate_sample',
     columns=[
         C('aggregate_profile_id', CppTableId(AGGREGATE_PROFILE_TABLE)),
@@ -1502,6 +1516,7 @@ VULKAN_DEBUG_NAMES_TABLE = Table(
 VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
     python_module=__file__,
     class_name='VulkanMemoryAllocationsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_vulkan_memory_allocations',
     wrapping_sql_view=WrappingSqlView('vulkan_memory_allocations'),
     columns=[

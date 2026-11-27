@@ -39,10 +39,12 @@ tables::SliceTable::Id Insert(tables::SliceTable* table,
   row.ts = ts;
   row.dur = dur;
   row.depth = 0;
+  auto parent = table->CreateIdCursor();
   std::optional<tables::SliceTable::Id> id = parent_id;
   while (id) {
     row.depth++;
-    id = (*table)[id.value().value].parent_id();
+    parent.SeekToId(*id);
+    id = parent.parent_id();
   }
   row.track_id = tables::TrackTable::Id{track_id};
   row.name = name;

@@ -48,8 +48,7 @@ class AnnotatedCallsites {
  public:
   explicit AnnotatedCallsites(const TraceProcessorContext* context);
 
-  CallsiteAnnotation GetAnnotation(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite) {
+  CallsiteAnnotation GetAnnotation(CallsiteId callsite) {
     return Get(callsite).second;
   }
 
@@ -76,14 +75,15 @@ class AnnotatedCallsites {
 
   State GetState(std::optional<CallsiteId> id);
 
-  std::pair<State, CallsiteAnnotation> Get(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
+  std::pair<State, CallsiteAnnotation> Get(CallsiteId callsite);
 
   MapType GetMapType(MappingId id);
   static MapType ClassifyMap(NullTermStringView map);
 
   const TraceProcessorContext& context_;
   const std::optional<StringPool::Id> art_jni_trampoline_;
+  tables::StackProfileCallsiteTable::ConstCursor callsite_cursor_;
+  tables::StackProfileFrameTable::ConstCursor frame_cursor_;
 
   std::unordered_map<MappingId, MapType> map_types_;
   std::unordered_map<CallsiteId, State> states_;

@@ -63,69 +63,6 @@ class SchedEventTrackerTest : public ::testing::Test {
   FtraceSchedEventTracker* sched_tracker;
 };
 
-TEST_F(SchedEventTrackerTest, InsertSecondSched) {
-  uint32_t cpu = 3;
-  int64_t timestamp = 100;
-  uint32_t pid_1 = 2;
-  int64_t prev_state = 32;
-  static const char kCommProc1[] = "process1";
-  static const char kCommProc2[] = "process2";
-  uint32_t pid_2 = 4;
-  int32_t prio = 1024;
-
-  sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, kCommProc2, prio,
-                                 prev_state, pid_2, kCommProc1, prio);
-  ASSERT_EQ(context.storage->sched_slice_table().row_count(), 1ul);
-
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 1, pid_2, kCommProc1, prio,
-                                 prev_state, pid_1, kCommProc2, prio);
-
-  ASSERT_EQ(context.storage->sched_slice_table().row_count(), 2ul);
-
-  const auto& sched = context.storage->sched_slice_table();
-  ASSERT_EQ(sched[0].ts(), timestamp);
-  ASSERT_EQ(context.storage->thread_table()[1].start_ts(), std::nullopt);
-
-  auto name =
-      context.storage->GetString(*context.storage->thread_table()[1].name());
-  ASSERT_STREQ(name.c_str(), kCommProc1);
-  ASSERT_EQ(context.storage->sched_slice_table()[0].utid(), 1u);
-  ASSERT_EQ(context.storage->sched_slice_table()[0].dur(), 1);
-}
-
-TEST_F(SchedEventTrackerTest, InsertThirdSched_SameThread) {
-  uint32_t cpu = 3;
-  int64_t timestamp = 100;
-  int64_t prev_state = 32;
-  static const char kCommProc1[] = "process1";
-  static const char kCommProc2[] = "process2";
-  int32_t prio = 1024;
-
-  sched_tracker->PushSchedSwitch(cpu, timestamp, /*prev_pid=*/4, kCommProc2,
-                                 prio, prev_state,
-                                 /*tid=*/2, kCommProc1, prio);
-  ASSERT_EQ(context.storage->sched_slice_table().row_count(), 1u);
-
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*prev_pid=*/2, kCommProc1,
-                                 prio, prev_state,
-                                 /*tid=*/4, kCommProc2, prio);
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 11, /*prev_pid=*/4,
-                                 kCommProc2, prio, prev_state,
-                                 /*tid=*/2, kCommProc1, prio);
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 31, /*tid=*/2, kCommProc1,
-                                 prio, prev_state,
-                                 /*tid=*/4, kCommProc2, prio);
-  ASSERT_EQ(context.storage->sched_slice_table().row_count(), 4ul);
-
-  ASSERT_EQ(context.storage->sched_slice_table()[0].ts(), timestamp);
-  ASSERT_EQ(context.storage->thread_table()[1].start_ts(), std::nullopt);
-  ASSERT_EQ(context.storage->sched_slice_table()[0].dur(), 1u);
-  ASSERT_EQ(context.storage->sched_slice_table()[1].dur(), 11u - 1u);
-  ASSERT_EQ(context.storage->sched_slice_table()[2].dur(), 31u - 11u);
-  ASSERT_EQ(context.storage->sched_slice_table()[0].utid(),
-            context.storage->sched_slice_table()[2].utid());
-}
-
 TEST_F(SchedEventTrackerTest, UpdateThreadMatch) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;

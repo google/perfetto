@@ -23,12 +23,14 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import TableKind
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 
 LOG_TABLE = Table(
     python_module=__file__,
     class_name="LogTable",
+    kind=TableKind.EVENT,
     sql_name="__intrinsic_logs",
     columns=[
         C("ts", CppInt64(), cpp_access=CppAccess.READ),

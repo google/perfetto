@@ -174,7 +174,7 @@ void ExtractArgFunction::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   if (row == std::numeric_limits<uint32_t>::max()) {
     return;
   }
-  auto rr = storage->arg_table()[row];
+  const auto& rr = user_data->args_cursor.cursor();
   switch (*storage->GetVariadicTypeForId(rr.value_type())) {
     case Variadic::Type::kBool:
     case Variadic::Type::kInt:

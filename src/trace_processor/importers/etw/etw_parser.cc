@@ -284,7 +284,7 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_tid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
+      context_->sched_event_tracker->ClosePendingSlice(pending_sched, ts,
                                                        prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
@@ -293,11 +293,10 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
     }
   }
 
-  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
-      cpu, ts, next_utid, next_prio);
+  context_->sched_event_tracker->AddStartSlice(pending_sched, cpu, ts,
+                                               next_utid, next_prio);
 
   // Finally, update the info for the next sched switch on this CPU.
-  pending_sched->pending_slice_storage_idx = new_slice_idx;
   pending_sched->last_pid = next_tid;
   pending_sched->last_utid = next_utid;
   pending_sched->last_prio = next_prio;

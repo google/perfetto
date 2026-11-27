@@ -156,6 +156,40 @@ class SliceTracker {
     return e.id;
   }
 
+  // What EndAndGetInfo() closed.
+  struct EndedSliceInfo {
+    SliceId id;
+    int64_t ts;
+    std::optional<int64_t> thread_ts;
+    std::optional<int64_t> thread_instruction_count;
+  };
+
+  // As End(), also returning what is known of the slice it closed.
+  template <typename ArgsCb = NoArgsCallback>
+  std::optional<EndedSliceInfo> EndAndGetInfo(int64_t timestamp,
+                                              TrackId track_id,
+                                              StringId category = {},
+                                              StringId raw_name = {},
+                                              ArgsCb args = {}) {
+    EndedSlice e = CompleteSliceBegin(timestamp, track_id, category, raw_name,
+                                      WantsArgs(args));
+    if (!e.id)
+      return std::nullopt;
+    InvokeArgs(e.inserter, args);
+    const SliceInfo& info = e.state.track_info->slice_stack[e.state.stack_idx];
+    EndedSliceInfo ended{info.id, info.ts, info.thread_ts,
+                         info.thread_instruction_count};
+    CompleteSliceFinalize(e.state);
+    return ended;
+  }
+
+  // Sets the thread timestamp and instruction count of `slice_id`, the slice
+  // last begun on `track_id`.
+  void SetThreadCounters(TrackId track_id,
+                         SliceId slice_id,
+                         std::optional<int64_t> thread_ts,
+                         std::optional<int64_t> thread_instruction_count);
+
   // Usually args should be added in the Begin or End args_callback but this
   // method is for the situation where new args need to be added to an
   // in-progress slice.
@@ -175,7 +209,12 @@ class SliceTracker {
 
   void SetOnSliceBeginCallback(OnSliceBeginCallback callback);
 
-  std::optional<SliceId> GetTopmostSliceOnTrack(TrackId track_id) const;
+  // A slice still open, and when it began.
+  struct OpenSlice {
+    SliceId id;
+    int64_t ts;
+  };
+  std::optional<OpenSlice> GetTopmostSliceOnTrack(TrackId track_id) const;
 
  private:
   // Slices which have been opened but haven't been closed yet will be marked
@@ -183,8 +222,16 @@ class SliceTracker {
   static constexpr int64_t kPendingDuration = -1;
 
   // |args| is created lazily if the slice gets args, and committed on pop.
+  // What the tracker needs of an open slice, kept here rather than read back
+  // from the slice table.
   struct SliceInfo {
-    tables::SliceTable::RowNumber row;
+    SliceId id;
+    int64_t ts;
+    int64_t dur;
+    StringId name;
+    StringId category;
+    std::optional<int64_t> thread_ts;
+    std::optional<int64_t> thread_instruction_count;
     std::optional<ArgsInserter> args;
   };
   using SlicesStack = std::vector<SliceInfo>;
@@ -308,10 +355,7 @@ class SliceTracker {
                                                        StringId category);
 
   void StackPop(TrackInfo& track_info);
-  void StackPush(TrackInfo& track_info,
-                 TrackId track_id,
-                 tables::SliceTable::RowNumber row_number,
-                 SliceId id);
+  void StackPush(TrackInfo& track_info, TrackId track_id, SliceInfo info);
 
   // Resolve a track once per event and thread the reference through the call;
   // the map is small and hot so a cross-call last-track cache measured as

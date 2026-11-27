@@ -96,7 +96,7 @@ class VirtualAddressSpace {
   class Builder {
    public:
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
-    void AddMapping(tables::MmapRecordTable::ConstRowReference mmap);
+    void AddMapping(const tables::MmapRecordTable::ConstCursor& mmap);
     VirtualAddressSpace Build() &&;
 
    private:

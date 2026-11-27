@@ -22,6 +22,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
@@ -39,48 +40,41 @@ class SchedEventTracker : public Destructible {
   SchedEventTracker(const SchedEventTracker&) = delete;
   ~SchedEventTracker() override;
 
+  // Opens a scheduling slice for the task just switched to on `cpu`, and makes
+  // it `pending`'s pending slice. Its duration is -1 until it is closed.
   PERFETTO_ALWAYS_INLINE
-  uint32_t AddStartSlice(uint32_t cpu,
-                         int64_t ts,
-                         UniqueTid next_utid,
-                         int32_t next_prio) {
-    // Open a new scheduling slice, corresponding to the task that was
-    // just switched to. Set the duration to -1, to indicate that the event is
-    // not finished. Duration will be updated later after event finish.
+  void AddStartSlice(SchedEventState::PendingSchedInfo* pending,
+                     uint32_t cpu,
+                     int64_t ts,
+                     UniqueTid next_utid,
+                     int32_t next_prio) {
     auto* sched = context_->storage->mutable_sched_slice_table();
     // Get the unique CPU Id over all machines from the CPU table.
     auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
     auto row_and_id = sched->Insert(
         {ts, /* duration */ -1, next_utid, kNullStringId, next_prio, ucpu});
-    SchedId sched_id = row_and_id.id;
-    return (*sched)[sched_id].ToRowNumber().row_number();
+    pending->pending_slice_storage_idx = row_and_id.row;
+    pending->pending_slice_ts = ts;
+    pending->pending_slice_end_ts = -1;
   }
 
   PERFETTO_ALWAYS_INLINE
-  void ClosePendingSlice(uint32_t pending_slice_idx,
+  void ClosePendingSlice(SchedEventState::PendingSchedInfo* pending,
                          int64_t ts,
                          StringId prev_state) {
     auto* slices = context_->storage->mutable_sched_slice_table();
-    auto r = (*slices)[pending_slice_idx];
-    r.set_dur(ts - r.ts());
+    auto r = (*slices)[pending->pending_slice_storage_idx];
+    r.set_dur(ts - pending->pending_slice_ts);
     r.set_end_state(prev_state);
+    pending->pending_slice_end_ts = ts;
   }
 
   PERFETTO_ALWAYS_INLINE
-  int64_t GetEndTimestampForPendingSlice(uint32_t pending_slice_idx) {
+  void SetEndStateForPendingSlice(
+      const SchedEventState::PendingSchedInfo& pending,
+      StringId prev_state) {
     auto* slices = context_->storage->mutable_sched_slice_table();
-    auto r = (*slices)[pending_slice_idx];
-    if (r.dur() < 0)
-      return -1;
-    return r.ts() + r.dur();
-  }
-
-  PERFETTO_ALWAYS_INLINE
-  void SetEndStateForPendingSlice(uint32_t pending_slice_idx,
-                                  StringId prev_state) {
-    auto* slices = context_->storage->mutable_sched_slice_table();
-    auto r = (*slices)[pending_slice_idx];
-    r.set_end_state(prev_state);
+    (*slices)[pending.pending_slice_storage_idx].set_end_state(prev_state);
   }
 
  private:

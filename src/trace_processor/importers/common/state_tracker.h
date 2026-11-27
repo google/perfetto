@@ -49,10 +49,11 @@ class StateTracker {
 
  private:
   struct ActiveState {
-    ActiveState(tables::StateTable::RowNumber r, StringId v)
-        : row(r), value(v) {}
+    ActiveState(tables::StateTable::Id i, int64_t t, StringId v)
+        : id(i), ts(t), value(v) {}
 
-    tables::StateTable::RowNumber row;
+    tables::StateTable::Id id;
+    int64_t ts;
     StringId value;
     // Args for this state's row, committed when the ActiveState is destroyed.
     std::optional<ArgsInserter> args_inserter;

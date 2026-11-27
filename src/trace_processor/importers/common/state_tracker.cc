@@ -34,20 +34,20 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
 
   auto* active = active_states_.Find(track_id);
   if (active) {
-    auto ref = active->row.ToRowReference(states);
+    tables::StateTable::Id id = active->id;
     if (active->value == value_id) {
       // Reuse the inserter so args from repeated updates merge into one set.
       if (args_callback) {
         if (!active->args_inserter) {
-          active->args_inserter = context_->args_tracker->AddArgsTo(ref.id());
+          active->args_inserter = context_->args_tracker->AddArgsTo(id);
         }
         args_callback(*active->args_inserter);
       }
-      return ref.id();
+      return id;
     }
 
     // Different state: close active one
-    ref.set_dur(timestamp - ref.ts());
+    (*states)[id].set_dur(timestamp - active->ts);
     active_states_.Erase(track_id);
   }
 
@@ -60,20 +60,17 @@ std::optional<tables::StateTable::Id> StateTracker::UpdateState(
         category_id.is_null() ? std::nullopt : std::make_optional(category_id);
     row.value = value_id;
 
-    auto id_and_row = states->Insert(row);
-    auto ref = (*states)[id_and_row.row];
-
-    ActiveState active_state(tables::StateTable::RowNumber(id_and_row.row),
-                             value_id);
+    tables::StateTable::Id id = states->Insert(row).id;
+    ActiveState active_state(id, timestamp, value_id);
 
     if (args_callback) {
-      active_state.args_inserter = context_->args_tracker->AddArgsTo(ref.id());
+      active_state.args_inserter = context_->args_tracker->AddArgsTo(id);
       args_callback(*active_state.args_inserter);
     }
 
     active_states_.Insert(track_id, std::move(active_state));
 
-    return ref.id();
+    return id;
   }
 
   return std::nullopt;

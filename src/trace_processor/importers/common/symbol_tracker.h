@@ -46,10 +46,10 @@ class SymbolTracker {
   base::FlatHashMap<StringId, Dso>& dsos() { return dsos_; }
 
  private:
-  void SymbolizeKernelFrame(tables::StackProfileFrameTable::RowReference frame);
+  void SymbolizeKernelFrame(tables::StackProfileFrameTable::Cursor& frame);
 
   // Returns true it the frame was symbolized.
-  bool TrySymbolizeFrame(tables::StackProfileFrameTable::RowReference frame);
+  bool TrySymbolizeFrame(tables::StackProfileFrameTable::Cursor& frame);
 
   TraceProcessorContext* const context_;
 

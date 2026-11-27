@@ -45,14 +45,15 @@ bool GetAncestors(const T& table,
                   typename T::Id starting_id,
                   std::vector<typename T::RowNumber>& row_numbers_accumulator,
                   base::Status&) {
-  auto start_ref = table[starting_id];
+  auto ref = table.CreateIdCursor();
+  ref.SeekToId(starting_id);
 
   // It's important we insert directly into |row_numbers_accumulator| and not
   // overwrite it because we expect the existing elements in
   // |row_numbers_accumulator| to be preserved.
-  auto maybe_parent_id = start_ref.parent_id();
+  auto maybe_parent_id = ref.parent_id();
   while (maybe_parent_id) {
-    auto ref = table[*maybe_parent_id];
+    ref.SeekToId(*maybe_parent_id);
     row_numbers_accumulator.emplace_back(ref.ToRowNumber());
     // Update the loop variable by looking up the next parent_id.
     maybe_parent_id = ref.parent_id();
@@ -99,8 +100,9 @@ bool Ancestor::SliceCursor::Run(const std::vector<SqlValue>& arguments) {
     case Type::kStackProfileCallsite:
       PERFETTO_FATAL("Unreachable");
   }
+  auto ref = slice_table.CreateIdCursor();
   for (const auto& ancestor_row : ancestors_) {
-    auto ref = ancestor_row.ToRowReference(slice_table);
+    ref.SeekToId(tables::SliceTable::Id{ancestor_row.row_number()});
     table_.Insert(tables::SliceSubsetTable::Row{
         ref.id(),
         ref.ts(),
@@ -146,8 +148,10 @@ bool Ancestor::StackProfileCursor::Run(const std::vector<SqlValue>& arguments) {
   if (!GetAncestors(callsite, *id, ancestors_, status_)) {
     return false;
   }
+  auto ref = callsite.CreateIdCursor();
   for (const auto& ancestor_row : ancestors_) {
-    auto ref = ancestor_row.ToRowReference(callsite);
+    ref.SeekToId(
+        tables::StackProfileCallsiteTable::Id{ancestor_row.row_number()});
     table_.Insert(tables::AncestorStackProfileCallsiteTable::Row{
         ref.id(),
         ref.depth(),

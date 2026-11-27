@@ -14,6 +14,7 @@
 """Contains tables for state tracks."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
@@ -29,6 +30,7 @@ from src.trace_processor.tables.track_tables import TRACK_TABLE
 STATE_TABLE = Table(
     python_module=__file__,
     class_name='StateTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_state',
     columns=[
         C(

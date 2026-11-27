@@ -16,6 +16,7 @@ Contains tables related to perf data ingestion.
 """
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
@@ -35,6 +36,7 @@ from src.trace_processor.tables.etm_tables import FILE_TABLE
 SPE_RECORD_TABLE = Table(
     python_module=__file__,
     class_name='SpeRecordTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_spe_record',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
@@ -106,6 +108,7 @@ SPE_RECORD_TABLE = Table(
 MMAP_RECORD = Table(
     python_module=__file__,
     class_name='MmapRecordTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_mmap_record',
     columns=[
         C(

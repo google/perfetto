@@ -50,6 +50,8 @@ class SystraceSerializer {
   const TraceStorage* storage_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
   tables::ArgTable::ConstCursor cursor_;
+  tables::ArgTable::ConstCursor arg_cursor_;
+  tables::FtraceEventTable::ConstCursor raw_cursor_;
   base::DynamicStringWriter line_writer_;
 };
 

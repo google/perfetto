@@ -28,7 +28,6 @@
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_fwd.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -104,8 +103,11 @@ class ArgsTracker {
     }
   };
 
-  ArgsInserter Bind(dataframe::Dataframe* df,
-                    uint32_t col,
+  // Writes an arg set id into one row of the table behind a writer.
+  using WriteArgSetIdFn = void (*)(void* writer, uint32_t row, ArgSetId);
+
+  ArgsInserter Bind(void* writer,
+                    WriteArgSetIdFn write,
                     uint32_t row,
                     uint32_t id);
 
@@ -207,8 +209,8 @@ class ArgsInserter {
   friend class ArgsTracker;
 
   ArgsInserter(ArgsTracker* tracker,
-               dataframe::Dataframe* dataframe,
-               uint32_t col,
+               void* writer,
+               ArgsTracker::WriteArgSetIdFn write,
                uint32_t row,
                uint32_t id);
 
@@ -219,29 +221,33 @@ class ArgsInserter {
   // Non-null iff this inserter owns a pooled buffer; both are nulled on move.
   ArgsTracker* tracker_ = nullptr;
   ArgsTracker::ArgsBuffer* buffer_ = nullptr;
-  dataframe::Dataframe* df_ = nullptr;
-  uint32_t col_ = 0;
+  void* writer_ = nullptr;
+  ArgsTracker::WriteArgSetIdFn write_ = nullptr;
   uint32_t row_ = 0;
   uint32_t id_ = 0;
 };
 
 template <typename Id>
 ArgsInserter ArgsTracker::AddArgsTo(Id id) {
-  using Table = typename Id::Table;
-  return AddArgsTo(storage_->mutable_table<Table>(), id);
+  return AddArgsTo(storage_->mutable_table<typename Id::Table>(), id);
 }
 
 template <typename T>
 ArgsInserter ArgsTracker::AddArgsTo(T* table, typename T::Id id) {
-  uint32_t row = (*table)[id].ToRowNumber().row_number();
-  return Bind(&table->dataframe(), T::ColumnIndex::arg_set_id, row, id.value);
+  return Bind(
+      table,
+      [](void* t, uint32_t row, ArgSetId set_id) {
+        static_cast<T*>(t)->template SetCell<T::ColumnIndex::arg_set_id>(
+            row, set_id);
+      },
+      id.value, id.value);
 }
 
-inline ArgsInserter ArgsTracker::Bind(dataframe::Dataframe* df,
-                                      uint32_t col,
+inline ArgsInserter ArgsTracker::Bind(void* writer,
+                                      WriteArgSetIdFn write,
                                       uint32_t row,
                                       uint32_t id) {
-  return ArgsInserter(this, df, col, row, id);
+  return ArgsInserter(this, writer, write, row, id);
 }
 
 }  // namespace perfetto::trace_processor

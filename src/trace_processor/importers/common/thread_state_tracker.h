@@ -122,10 +122,16 @@ class ThreadStateTracker : public Destructible {
            prev_row_numbers_for_thread_[utid].has_value();
   }
 
-  std::optional<tables::ThreadStateTable::RowReference> GetLastRowRef(
-      UniqueTid utid);
+  struct RelatedRows;
 
-  tables::ThreadStateTable::RowReference RowNumToRef(
+  // Returns the thread's last row, or null if it has none.
+  RelatedRows* GetLastRow(UniqueTid utid) {
+    return HasPreviousRowNumbersForUtid(utid)
+               ? &*prev_row_numbers_for_thread_[utid]
+               : nullptr;
+  }
+
+  tables::ThreadStateTable::RowReference WriteRow(
       tables::ThreadStateTable::RowNumber row_number) {
     return row_number.ToRowReference(storage_->mutable_thread_state_table());
   }
@@ -137,9 +143,12 @@ class ThreadStateTracker : public Destructible {
   StringId running_string_id_;
   StringId runnable_string_id_;
 
+  // The thread's last rows, with what the tracker needs of the last one.
   struct RelatedRows {
     std::optional<tables::ThreadStateTable::RowNumber> last_blocked_row;
     tables::ThreadStateTable::RowNumber last_row;
+    int64_t last_ts;
+    StringId last_state;
   };
 
   std::vector<std::optional<RelatedRows>> prev_row_numbers_for_thread_;

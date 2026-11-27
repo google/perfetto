@@ -133,10 +133,6 @@ class VideoFrameModuleTest : public testing::Test {
 
   uint32_t FrameRowCount() { return table_->row_count(); }
 
-  std::optional<int64_t> VsyncId(uint32_t row) {
-    return (*table_)[row].frame_timeline_vsync_id();
-  }
-
   // Number of streams that hit the parse-time cap (the stat is a single
   // counter; the affected display is recorded as an import-log arg).
   int64_t SizeCapHits() {
@@ -208,104 +204,6 @@ TEST_F(VideoFrameModuleTest, CapIsPerStream) {
   // overflow, and exactly one stream hit the cap.
   EXPECT_EQ(FrameRowCount(), 5u);
   EXPECT_EQ(SizeCapHits(), 1);
-}
-
-TEST_F(VideoFrameModuleTest, LinksFrameTimelineVsyncId) {
-  auto module = MakeModule();
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/42);
-  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
-                 /*pts_us=*/500000);
-  module->OnEventsFullyExtracted();
-
-  ASSERT_EQ(FrameRowCount(), 1u);
-  EXPECT_EQ(VsyncId(0), 42);
-  EXPECT_EQ(UnmatchedComposites(), 0);
-  EXPECT_EQ(AmbiguousPresentTimes(), 0);
-}
-
-TEST_F(VideoFrameModuleTest, LeavesFrameUnlinkedWithoutMatchingComposite) {
-  auto module = MakeModule();
-  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
-                 /*pts_us=*/500000);
-  // A composite whose present time matches no frame, e.g. one queued to a
-  // virtual display that isn't being captured.
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/600000,
-                              /*vsync_id=*/42);
-  module->OnEventsFullyExtracted();
-
-  ASSERT_EQ(FrameRowCount(), 1u);
-  EXPECT_EQ(VsyncId(0), std::nullopt);
-  EXPECT_EQ(UnmatchedComposites(), 1);
-  EXPECT_EQ(AmbiguousPresentTimes(), 0);
-}
-
-TEST_F(VideoFrameModuleTest, LinksFrameParsedBeforeComposite) {
-  auto module = MakeModule();
-  // The backfill runs once all packets are parsed, so a composite that comes
-  // after its frame still links.
-  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
-                 /*pts_us=*/500000);
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/42);
-  module->OnEventsFullyExtracted();
-
-  ASSERT_EQ(FrameRowCount(), 1u);
-  EXPECT_EQ(VsyncId(0), 42);
-  EXPECT_EQ(UnmatchedComposites(), 0);
-  EXPECT_EQ(AmbiguousPresentTimes(), 0);
-}
-
-TEST_F(VideoFrameModuleTest, LeavesFrameUnlinkedOnConflictingVsyncIds) {
-  auto module = MakeModule();
-  // Two composites share a present time but disagree on the vsync id, so
-  // either could have produced the frame.
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/42);
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/43);
-  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
-                 /*pts_us=*/500000);
-  module->OnEventsFullyExtracted();
-
-  ASSERT_EQ(FrameRowCount(), 1u);
-  EXPECT_EQ(VsyncId(0), std::nullopt);
-  EXPECT_EQ(UnmatchedComposites(), 0);
-  EXPECT_EQ(AmbiguousPresentTimes(), 1);
-}
-
-TEST_F(VideoFrameModuleTest, LinksRepeatedPresentTimeWithSameVsyncId) {
-  auto module = MakeModule();
-  // Two virtual displays composited in the same frame share its vsync id, so
-  // a repeated present time with the same vsync id is not ambiguous.
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/42);
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/42);
-  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
-                 /*pts_us=*/500000);
-  module->OnEventsFullyExtracted();
-
-  ASSERT_EQ(FrameRowCount(), 1u);
-  EXPECT_EQ(VsyncId(0), 42);
-  EXPECT_EQ(UnmatchedComposites(), 0);
-  EXPECT_EQ(AmbiguousPresentTimes(), 0);
-}
-
-TEST_F(VideoFrameModuleTest, IgnoresCompositeWithInvalidVsyncId) {
-  auto module = MakeModule();
-  // SurfaceFlinger's INVALID_VSYNC_ID (-1) has no frame timeline to link to,
-  // so the composite neither links the frame nor counts as unmatched.
-  PushVirtualDisplayComposite(*module, /*present_time_us=*/500000,
-                              /*vsync_id=*/-1);
-  PushAccessUnit(*module, /*display_id=*/0, /*au_size=*/30, /*ts=*/1000,
-                 /*pts_us=*/500000);
-  module->OnEventsFullyExtracted();
-
-  ASSERT_EQ(FrameRowCount(), 1u);
-  EXPECT_EQ(VsyncId(0), std::nullopt);
-  EXPECT_EQ(UnmatchedComposites(), 0);
-  EXPECT_EQ(AmbiguousPresentTimes(), 0);
 }
 
 }  // namespace

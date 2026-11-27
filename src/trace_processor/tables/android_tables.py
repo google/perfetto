@@ -14,6 +14,7 @@
 """Contains tables for relevant for Android."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
@@ -126,6 +127,7 @@ ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
 ANDROID_DUMPSTATE_TABLE = Table(
     python_module=__file__,
     class_name='AndroidDumpstateTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_dumpstate',
     wrapping_sql_view=WrappingSqlView('android_dumpstate'),
     columns=[
@@ -158,6 +160,7 @@ ANDROID_DUMPSTATE_TABLE = Table(
 ANDROID_MOTION_EVENTS_TABLE = Table(
     python_module=__file__,
     class_name='AndroidMotionEventsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_motion_events',
     columns=[
         C('event_id', CppUint32()),
@@ -210,6 +213,7 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
 ANDROID_KEY_EVENTS_TABLE = Table(
     python_module=__file__,
     class_name='AndroidKeyEventsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_key_events',
     columns=[
         C('event_id', CppUint32()),
@@ -265,6 +269,7 @@ ANDROID_KEY_EVENTS_TABLE = Table(
 ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
     python_module=__file__,
     class_name='AndroidInputEventDispatchTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_input_event_dispatch',
     columns=[
         C('event_id', CppUint32()),
@@ -372,6 +377,7 @@ ANDROID_AFLAGS_TABLE = Table(
 ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE = Table(
     python_module=__file__,
     class_name="AndroidJobSchedulerTrackEventTable",
+    kind=TableKind.EVENT,
     sql_name="__intrinsic_android_job_scheduler_track_events",
     columns=[
         C("ts", CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
@@ -645,6 +651,7 @@ ANDROID_JOB_SCHEDULER_TRACK_EVENT_TABLE = Table(
 ANDROID_JOB_SCHEDULER_PENDING_REASONS_TRACK_EVENT_TABLE = Table(
     python_module=__file__,
     class_name='AndroidJobSchedulerPendingReasonsTrackEventTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_job_scheduler_pending_reasons_track_events',
     columns=[
         C('slice_id',

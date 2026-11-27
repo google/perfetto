@@ -18,6 +18,7 @@ for any serious business just yet""
 """
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
@@ -179,6 +180,7 @@ V8_JS_FUNCTION = Table(
 V8_JS_CODE = Table(
     python_module=__file__,
     class_name='V8JsCodeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_v8_js_code',
     columns=[
         C('jit_code_id', CppOptional(CppTableId(JIT_CODE_TABLE))),
@@ -227,6 +229,7 @@ V8_JS_CODE = Table(
 V8_INTERNAL_CODE = Table(
     python_module=__file__,
     class_name='V8InternalCodeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_v8_internal_code',
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
@@ -267,6 +270,7 @@ V8_INTERNAL_CODE = Table(
 V8_WASM_CODE = Table(
     python_module=__file__,
     class_name='V8WasmCodeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_v8_wasm_code',
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
@@ -313,6 +317,7 @@ V8_WASM_CODE = Table(
 V8_REGEXP_CODE = Table(
     python_module=__file__,
     class_name='V8RegexpCodeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_v8_regexp_code',
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),

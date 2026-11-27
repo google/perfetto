@@ -18,6 +18,7 @@ for any serious business just yet""
 """
 
 from python.generators.trace_processor_table.public import Alias
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import Column as C
@@ -35,6 +36,7 @@ from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
 JIT_CODE_TABLE = Table(
     python_module=__file__,
     class_name='JitCodeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_jit_code',
     columns=[
         C(
@@ -85,6 +87,7 @@ JIT_CODE_TABLE = Table(
 JIT_FRAME_TABLE = Table(
     python_module=__file__,
     class_name='JitFrameTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_jit_frame',
     columns=[
         C(
