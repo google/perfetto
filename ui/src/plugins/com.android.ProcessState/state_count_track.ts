@@ -15,14 +15,14 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
-import {Duration, Time} from '../../base/time';
+import {Time} from '../../base/time';
 import {CounterTrack} from '../../components/tracks/counter_track';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {Timestamp} from '../../components/widgets/timestamp';
 import type {TrackEventDetailsPanel} from '../../public/details_panel';
 import type {TrackEventSelection} from '../../public/selection';
 import type {Trace} from '../../public/trace';
-import type {TrackMouseEvent} from '../../public/track';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, type Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -40,46 +40,42 @@ export interface CountSource {
 
 /** Concurrency counter for one state; clicking it lists the processes in it. */
 export class ProcessStateCountTrack extends CounterTrack {
+  private readonly dataset: SourceDataset;
+
   constructor(
     trace: Trace,
     uri: string,
     private readonly source: CountSource,
   ) {
+    const dataset = new SourceDataset({
+      schema: {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        value: NUM,
+      },
+      select: {
+        id: 'id',
+        ts: 'ts',
+        dur: 'dur',
+        value: 'concurrency',
+      },
+      src: source.concurrencyTable,
+      filter: {
+        col: 'state',
+        eq: source.state,
+      },
+    });
     super({
       trace,
       uri,
-      sqlSource: `
-        SELECT ts, concurrency AS value
-        FROM ${source.concurrencyTable}
-        WHERE state = ${sqliteString(source.state)}
-      `,
+      sqlSource: dataset.query({ts: LONG, value: NUM}),
     });
+    this.dataset = dataset;
   }
 
-  onMouseClick({x, timescale}: TrackMouseEvent): boolean {
-    const ts = timescale.pxToHpTime(x).toTime('floor');
-    this.engine
-      .query(
-        `
-        SELECT id FROM ${this.source.concurrencyTable}
-        WHERE state = ${sqliteString(this.source.state)} AND ts <= ${ts}
-        ORDER BY ts DESC LIMIT 1
-      `,
-      )
-      .then((result) => {
-        const it = result.iter({id: NUM});
-        if (it.valid()) this.trace.selection.selectTrackEvent(this.uri, it.id);
-      });
-    return true;
-  }
-
-  async getSelectionDetails(id: number) {
-    const row = (
-      await this.engine.query(`
-        SELECT ts, dur FROM ${this.source.concurrencyTable} WHERE id = ${id}
-      `)
-    ).firstRow({ts: LONG, dur: LONG});
-    return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
+  override getDataset(): SourceDataset {
+    return this.dataset;
   }
 
   detailsPanel(): TrackEventDetailsPanel {

@@ -27,8 +27,10 @@ import {
   AtomicTaskQueue,
 } from '../../base/async_memo';
 import {Icons} from '../../base/semantic_icons';
-import {type duration, type time, Time} from '../../base/time';
+import {Duration, type duration, type time, Time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
+import type {TrackEventDetailsPanel} from '../../public/details_panel';
+import type {TrackEventDetails} from '../../public/selection';
 import type {Trace} from '../../public/trace';
 import type {
   TrackMouseEvent,
@@ -37,7 +39,13 @@ import type {
   TrackSetting,
   TrackSettingDescriptor,
 } from '../../public/track';
-import {NUM} from '../../trace_processor/query_result';
+import {SourceDataset} from '../../trace_processor/dataset';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+} from '../../trace_processor/query_result';
 import {
   createPerfettoTable,
   createVirtualTable,
@@ -45,6 +53,7 @@ import {
 import {MenuItem} from '../../widgets/menu';
 import {checkerboardExcept} from '../checkerboard';
 import {BufferedBounds} from './buffered_bounds';
+import {CounterDetailsPanel} from './counter_details_panel';
 import {RangeSharer} from './range_sharer';
 
 export type ChartHeightSize = 1 | 2 | 4 | 8 | 16 | 32;
@@ -276,6 +285,12 @@ export interface CounterTrackAttrs {
   /** Optional end timestamp past which the counter stops rendering. */
   readonly endTs?: time;
 
+  /**
+   * Set if sqlSource also exposes a unique `id` for each sample. Samples can
+   * then be selected by clicking them, and stepped through with ',' and '.'.
+   */
+  readonly selectable?: boolean;
+
   /** Optional lifecycle callback, called once before the first render. */
   onInit?(): Promise<void>;
 }
@@ -295,6 +310,7 @@ export class CounterTrack implements TrackRenderer {
   private readonly getSqlSource: () => string;
   private readonly rangeSharer: RangeSharer;
   private readonly onInitFn?: () => Promise<void>;
+  private readonly selectable: boolean;
 
   // Mutable display settings (changed via the settings menu)
   protected yMode: YMode;
@@ -334,6 +350,7 @@ export class CounterTrack implements TrackRenderer {
       yOverrideMinimum,
       yRangeSharingKey,
       endTs,
+      selectable = false,
       onInit,
     } = attrs;
     this.trace = trace;
@@ -353,6 +370,7 @@ export class CounterTrack implements TrackRenderer {
     this.endTs = endTs;
     this.rangeSharer = RangeSharer.getRangeSharer(trace);
     this.onInitFn = onInit;
+    this.selectable = selectable;
   }
 
   // -- Static factory methods --
@@ -632,6 +650,113 @@ export class CounterTrack implements TrackRenderer {
       (v, unit) => `${v.toLocaleString()}${unit}`,
     );
     return m('.pf-track__tooltip', text);
+  }
+
+  // The samples with their ids (at least `id` and `ts`), for selection and
+  // ',' / '.'. Subclasses override this to provide their own.
+  getDataset(): SourceDataset | undefined {
+    if (!this.selectable) return undefined;
+    return new SourceDataset({
+      schema: {id: NUM, ts: LONG, value: NUM},
+      src: this.sqlSource,
+    });
+  }
+
+  onMouseClick({x, timescale}: TrackMouseEvent): boolean {
+    const dataset = this.getDataset();
+    if (dataset === undefined || !dataset.implements({id: NUM, ts: LONG})) {
+      return false;
+    }
+    const time = timescale.pxToHpTime(x).toTime('floor');
+    if (this.endTs !== undefined && time >= this.endTs) {
+      return false;
+    }
+    this.engine
+      .query(
+        `
+        SELECT id
+        FROM (${dataset.query({id: NUM, ts: LONG})})
+        WHERE ts <= ${time}
+        ORDER BY ts DESC
+        LIMIT 1
+      `,
+      )
+      .then((result) => {
+        const row = result.maybeFirstRow({id: NUM});
+        if (row !== undefined) {
+          this.trace.selection.selectTrackEvent(this.uri, row.id);
+        }
+      });
+    return true;
+  }
+
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const dataset = this.getDataset();
+    if (dataset === undefined || !dataset.implements({id: NUM, ts: LONG})) {
+      return undefined;
+    }
+
+    if (dataset.implements({dur: LONG})) {
+      const res = await this.engine.query(`
+        SELECT ts, dur
+        FROM (${dataset.query({id: NUM, ts: LONG, dur: LONG})})
+        WHERE id = ${id}
+      `);
+      const row = res.maybeFirstRow({ts: LONG, dur: LONG});
+      if (row === undefined) return undefined;
+      return {ts: Time.fromRaw(row.ts), dur: Duration.fromRaw(row.dur)};
+    }
+
+    // Without a dur column, a sample lasts until the next one.
+    const res = await this.engine.query(`
+      WITH
+        src AS (${dataset.query({id: NUM, ts: LONG})}),
+        cur AS (SELECT ts AS leftTs FROM src WHERE id = ${id})
+      SELECT
+        leftTs,
+        (
+          SELECT ts
+          FROM src
+          WHERE ts > cur.leftTs
+          ORDER BY ts ASC
+          LIMIT 1
+        ) AS rightTs
+      FROM cur
+    `);
+    const row = res.maybeFirstRow({leftTs: LONG, rightTs: LONG_NULL});
+    if (row === undefined) return undefined;
+    const ts = Time.fromRaw(row.leftTs);
+    // The last sample lasts until endTs, if any; otherwise it did not end.
+    const end = row.rightTs !== null ? Time.fromRaw(row.rightTs) : this.endTs;
+    return {ts, dur: end !== undefined ? end - ts : -1n};
+  }
+
+  detailsPanel(): TrackEventDetailsPanel | undefined {
+    const dataset = this.getDataset();
+    const schema = {id: NUM, ts: LONG, value: NUM};
+    if (dataset === undefined || !dataset.implements(schema)) {
+      return undefined;
+    }
+    const query = dataset.implements({arg_set_id: NUM_NULL})
+      ? dataset.query({...schema, arg_set_id: NUM_NULL})
+      : `SELECT *, NULL AS arg_set_id FROM (${dataset.query(schema)})`;
+    return new CounterDetailsPanel(
+      this.trace,
+      this.getTrackName(),
+      this.unit,
+      this.rateUnit,
+      query,
+    );
+  }
+
+  protected getTrackName(): string {
+    // Some tracks, like debug tracks, exist only as pinned tracks.
+    const ws = this.trace.currentWorkspace;
+    const node =
+      ws.getTrackByUri(this.uri) ?? ws.pinnedTracksNode.getTrackByUri(this.uri);
+    return node?.name ?? this.uri;
   }
 
   // -- Private methods --
