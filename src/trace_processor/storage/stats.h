@@ -1133,7 +1133,9 @@ namespace perfetto::trace_processor::stats {
       "are synthesized by trace processor and cannot be redefined: the "       \
       "dimension is ignored. This is a bug in the trace producer."),           \
   F(track_descriptor_shared_thread_custom_dimensions, kSingle, kError, kAnalysis, Scope::kMachineAndTrace, \
-      "A TrackDescriptor with thread set declared custom dimensions without "  \
+      "A TrackDescriptor with thread set declared custom dimensions (or "      \
+      "dimensions of a TrackDescriptor extension, such as the gpu of a "       \
+      "GpuTrackDescriptor) without "                                           \
       "disallow_merging_with_system_tracks=true. This flag is required for "   \
       "custom declarations on any descriptor with thread set; the "            \
       "declarations are ignored. Set disallow_merging_with_system_tracks "     \
@@ -1141,8 +1143,13 @@ namespace perfetto::trace_processor::stats {
   F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor declared a dimension which it already inherits "      \
       "from a parent_uuid ancestor, or declares twice, with a *different* "    \
-      "value. The inherited (or first declared) value is kept and the other "  \
-      "one is ignored. This is a bug in the trace producer."),                 \
+      "value. This includes the dimensions from TrackDescriptor extensions, "  \
+      "such as the gpu of a GpuTrackDescriptor. The inherited (or first "      \
+      "declared) value is kept and the other one is ignored. This is a bug "   \
+      "in the trace producer."),                                               \
+  F(track_descriptor_invalid_gpu_id,            kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A GpuTrackDescriptor declared a negative gpu_id. The gpu_id is "       \
+      "ignored. This is a bug in the trace producer."),                        \
   F(track_descriptor_invalid_child_ordering,    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor specified an invalid or unrecognized value for "      \
       "child_tracks_ordering. The descriptor is ignored. This is a bug in "    \

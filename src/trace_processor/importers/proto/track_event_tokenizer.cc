@@ -48,8 +48,10 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
+#include "src/trace_processor/importers/proto/typed_proto_field.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -175,14 +177,20 @@ bool ParseTrackDimensions(
     }
     reservation->dimensions.push_back(out);
   }
-  if (reservation->dimensions.empty()) {
-    return true;
-  }
+  return true;
+}
 
-  // Dimensions are part of the track identity, so they are normalized: sorted
-  // by name, so that the declaration order doesn't matter, and without
-  // repeated names. A name declared more than once keeps its first value.
+// Dimensions are part of the track identity, so they are normalized: sorted
+// by name, so that the declaration order doesn't matter, and without repeated
+// names. A name declared more than once keeps its first value.
+void NormalizeTrackDimensions(
+    TrackEventTracker::DescriptorTrackReservation* reservation,
+    std::vector<size_t>* errors) {
+  using Reservation = TrackEventTracker::DescriptorTrackReservation;
   auto& dims = reservation->dimensions;
+  if (dims.empty()) {
+    return;
+  }
   StableSortByKey(
       dims.begin(), dims.end(),
       [](const Reservation::Dimension& d) { return d.name.raw_id(); });
@@ -199,7 +207,6 @@ bool ParseTrackDimensions(
   }
   dims.resize(kept);
   reservation->dimensions_hash = Reservation::HashDimensions(dims);
-  return true;
 }
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
@@ -231,11 +238,13 @@ TrackEventData NewTrackEventData(
 TrackEventTokenizer::TrackEventTokenizer(
     ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context,
-    TrackEventTracker* track_event_tracker)
+    TrackEventTracker* track_event_tracker,
+    TrackEventExtensionParserContext* extension_parser_context)
     : context_(context),
       keep_track_event_packets_(context->config.analyze_trace_proto_content),
       track_event_tracker_(track_event_tracker),
       module_context_(module_context),
+      extension_parser_context_(extension_parser_context),
       v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(context)),
       v8_stream_(context->sorter->CreateStream(
           std::make_unique<V8Sink>(v8_tracker_.get()))),
@@ -274,8 +283,9 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     const TokenizePacketArgs& args) {
   using TrackDescriptorProto = protos::pbzero::TrackDescriptor;
   using Reservation = TrackEventTracker::DescriptorTrackReservation;
-  TrackDescriptorProto::Decoder track(
-      args.field.Cast<protos::pbzero::TracePacket::kTrackDescriptor>());
+  protozero::ConstBytes track_bytes =
+      args.field.Cast<protos::pbzero::TracePacket::kTrackDescriptor>();
+  TrackDescriptorProto::Decoder track(track_bytes);
 
   Reservation reservation;
 
@@ -382,19 +392,35 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
+  TrackDescriptorFieldContext extensions;
+  extensions.uuid = track.uuid();
+  extensions.sequence_state = args.state.get();
+  ParseTrackDescriptorExtensions(track_bytes, &extensions);
+  std::vector<size_t> dimension_errors = std::move(extensions.errors);
+
   bool unsupported_thread_dimensions =
-      track.has_thread() && track.has_dimensions() &&
+      track.has_thread() &&
+      (track.has_dimensions() || !extensions.dimensions.empty()) &&
       !track.disallow_merging_with_system_tracks();
-  std::vector<size_t> dimension_errors;
   if (unsupported_thread_dimensions) {
     dimension_errors.push_back(
         stats::track_descriptor_shared_thread_custom_dimensions);
-  } else if (track.has_dimensions() &&
-             !ParseTrackDimensions(context_, args.state.get(), track,
-                                   &reservation, &dimension_errors)) {
-    RecordTokenizationErrorWithTrackUuid(
-        stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
-    return ModuleResult::Handled();
+  } else {
+    if (track.has_dimensions() &&
+        !ParseTrackDimensions(context_, args.state.get(), track, &reservation,
+                              &dimension_errors)) {
+      RecordTokenizationErrorWithTrackUuid(
+          stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
+      return ModuleResult::Handled();
+    }
+    for (const TrackDescriptorDimension& dim : extensions.dimensions) {
+      Reservation::Dimension out;
+      out.name = dim.name;
+      out.arg_key = dim.name;
+      out.int_value = dim.value;
+      reservation.dimensions.push_back(out);
+    }
+    NormalizeTrackDimensions(&reservation, &dimension_errors);
   }
   // Producers re-emit their descriptors (e.g. on every incremental state
   // clear), so the errors of the dimensions are only recorded for the first
@@ -553,6 +579,22 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
 }  // namespace perfetto::trace_processor
+
+void TrackEventTokenizer::ParseTrackDescriptorExtensions(
+    protozero::ConstBytes track,
+    TrackDescriptorFieldContext* descriptor) {
+  const auto& parsers = extension_parser_context_->descriptor_parsers_by_field;
+  if (parsers.size() == 0) {
+    return;
+  }
+  protozero::ProtoDecoder decoder(track);
+  for (protozero::Field field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (TrackEventExtensionParser* const* parser = parsers.Find(field.id())) {
+      (*parser)->OnTrackDescriptorField(TypedProtoField(field), descriptor);
+    }
+  }
+}
 
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     const TokenizePacketArgs& args) {

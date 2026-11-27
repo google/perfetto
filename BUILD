@@ -538,6 +538,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
+        ":src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",
@@ -870,6 +871,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
+        ":src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",
@@ -5208,6 +5210,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/flamegraph/flamegraph_function.cc",
         "src/trace_processor/plugins/flamegraph/flamegraph_function.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/gpu_track_descriptor:gpu_track_descriptor
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
+    srcs = [
+        "src/trace_processor/plugins/gpu_track_descriptor/gpu_track_descriptor.cc",
+        "src/trace_processor/plugins/gpu_track_descriptor/gpu_track_descriptor.h",
     ],
 )
 
@@ -12254,6 +12265,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_flamechart_intrinsics",
         ":src_trace_processor_plugins_flamegraph_flamegraph",
         ":src_trace_processor_plugins_flamegraph_intrinsics",
+        ":src_trace_processor_plugins_gpu_track_descriptor_gpu_track_descriptor",
         ":src_trace_processor_plugins_graph_scan_graph_scan",
         ":src_trace_processor_plugins_graph_traversal_graph_traversal",
         ":src_trace_processor_plugins_graph_traversal_tables",

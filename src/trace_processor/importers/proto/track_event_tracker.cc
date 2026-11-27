@@ -797,6 +797,7 @@ const TrackEventTracker::DimensionVec& TrackEventTracker::ResolveDimensions(
       parent != kDefaultDescriptorTrackUuid) {
     dims = ResolveDimensions(parent);
   }
+  bool conflicting = false;
   for (const auto& dim : state->reservation.dimensions) {
     auto existing =
         std::find_if(dims.begin(), dims.end(),
@@ -807,8 +808,13 @@ const TrackEventTracker::DimensionVec& TrackEventTracker::ResolveDimensions(
                existing->string_value != dim.string_value) {
       // The value which is already there, i.e. the inherited one or the first
       // one declared, wins.
-      RecordTrackError(stats::track_dimension_conflicting_value, uuid);
+      conflicting = true;
     }
+  }
+  // Once per descriptor: a TrackDescriptor extension can contribute several
+  // dimensions for one value (e.g. both the gpu and its ugpu).
+  if (conflicting) {
+    RecordTrackError(stats::track_dimension_conflicting_value, uuid);
   }
   std::sort(dims.begin(), dims.end(), [](const auto& a, const auto& b) {
     return a.name.raw_id() < b.name.raw_id();

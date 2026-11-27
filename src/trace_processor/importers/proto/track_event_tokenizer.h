@@ -49,13 +49,16 @@ namespace trace_processor {
 class TraceProcessorContext;
 class TraceBlobView;
 class TrackEventTracker;
+struct TrackDescriptorFieldContext;
 struct TrackEventData;
+struct TrackEventExtensionParserContext;
 
 class TrackEventTokenizer {
  public:
   explicit TrackEventTokenizer(ProtoImporterModuleContext*,
                                TraceProcessorContext*,
-                               TrackEventTracker*);
+                               TrackEventTracker*,
+                               TrackEventExtensionParserContext*);
 
   ModuleResult TokenizeRangeOfInterestPacket(const TokenizePacketArgs& args);
   ModuleResult TokenizeTrackDescriptorPacket(const TokenizePacketArgs& args);
@@ -63,6 +66,10 @@ class TrackEventTokenizer {
   ModuleResult TokenizeTrackEventPacket(const TokenizePacketArgs& args);
 
  private:
+  // Hands each field of the TrackDescriptor |track| to the parser registered
+  // for it, if any.
+  void ParseTrackDescriptorExtensions(protozero::ConstBytes track,
+                                      TrackDescriptorFieldContext* descriptor);
   void TokenizeThreadDescriptor(PacketSequenceStateGeneration& state,
                                 const protos::pbzero::ThreadDescriptor_Decoder&,
                                 bool use_synthetic_tid);
@@ -97,6 +104,7 @@ class TrackEventTokenizer {
   const bool keep_track_event_packets_;
   TrackEventTracker* const track_event_tracker_;
   ProtoImporterModuleContext* const module_context_;
+  TrackEventExtensionParserContext* const extension_parser_context_;
 
   std::unique_ptr<LegacyV8CpuProfileTracker> v8_tracker_;
   std::unique_ptr<TraceSorter::Stream<LegacyV8CpuProfileEvent>> v8_stream_;

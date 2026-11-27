@@ -75,6 +75,30 @@ struct TrackEventFieldContext {
   }
 };
 
+// A dimension contributed by the parser of an extension of a TrackDescriptor.
+// The importer treats it like the dimensions the producer declares in
+// `TrackDescriptor.dimensions`: it is part of the identity of the track, it is
+// inherited by the parent_uuid descendants of the track, and it becomes an arg
+// of the track's dimensions, keyed by |name|.
+struct TrackDescriptorDimension {
+  StringId name = kNullStringId;
+  int64_t value = 0;
+};
+
+// The TrackDescriptor a field belongs to, and what the parser of the field
+// contributes to it.
+struct TrackDescriptorFieldContext {
+  uint64_t uuid = 0;
+  PacketSequenceStateGeneration* sequence_state = nullptr;
+
+  // Dimensions of the track contributed by the field.
+  std::vector<TrackDescriptorDimension> dimensions;
+  // Errors in the field (stats keys), recorded with the uuid of the track. Like
+  // the errors in `TrackDescriptor.dimensions`, they are recorded only for the
+  // first descriptor of the track, not for its re-emissions.
+  std::vector<size_t> errors;
+};
+
 // Parses the TrackEvent fields it registered for. Every field of an event
 // that the importer does not consume for the row itself is dispatched, in
 // order, to the parser registered for its id and then reflected into the
@@ -96,20 +120,33 @@ class TrackEventExtensionParser {
   virtual Result OnTrackEventField(const TrackEventExtensionField& field,
                                    const TrackEventFieldContext& event);
 
+  // Parses a field of a TrackDescriptor this parser registered for: an
+  // out-of-tree extension of TrackDescriptor (`extensions 1000 to 9999`).
+  // Called when the descriptor is tokenized, before its track is reserved.
+  virtual void OnTrackDescriptorField(const TypedProtoField& field,
+                                      TrackDescriptorFieldContext* descriptor);
+
  protected:
   // Registers this parser as the owner of |field_id| (CHECKs if already
   // owned).
   void RegisterTrackEventExtension(uint32_t field_id);
 
+  // Registers this parser as the owner of the TrackDescriptor field |field_id|
+  // (CHECKs if already owned).
+  void RegisterTrackDescriptorExtension(uint32_t field_id);
+
   TrackEventExtensionParserContext* context_;
 };
 
 // Per-trace registry of TrackEvent field parsers, mirroring
-// ProtoImporterModuleContext: |parsers| owns them and |parsers_by_field| maps
-// each registered field id to its owner.
+// ProtoImporterModuleContext: |parsers| owns them, |parsers_by_field| maps
+// each registered TrackEvent field id to its owner and
+// |descriptor_parsers_by_field| each registered TrackDescriptor field id.
 struct TrackEventExtensionParserContext {
   std::vector<std::unique_ptr<TrackEventExtensionParser>> parsers;
   base::FlatHashMap<uint32_t, TrackEventExtensionParser*> parsers_by_field;
+  base::FlatHashMap<uint32_t, TrackEventExtensionParser*>
+      descriptor_parsers_by_field;
 };
 
 }  // namespace perfetto::trace_processor
