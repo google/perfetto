@@ -125,11 +125,6 @@ struct Args {
   std::vector<Lookup> lookups;
 };
 
-const Args& GetArgs() {
-  static const Args* args = new Args();
-  return *args;
-}
-
 // Shaped like the slice table: an id, ts ascending, a dur, and an indexed
 // track with about eight slices each.
 enum SliceCol : uint32_t { kTs, kDur, kTrack, kSliceId };
@@ -169,11 +164,6 @@ struct Slices {
   std::vector<uint32_t> all_tracks;
   std::vector<uint32_t> rows;
 };
-
-const Slices& GetSlices() {
-  static const Slices* slices = new Slices();
-  return *slices;
-}
 
 // Runs a plan on the executor the way a C++ caller would.
 class ExecLookup {
@@ -238,7 +228,7 @@ std::vector<std::shared_ptr<const dataframe::Column>> Columns(
 // extract_arg: arg_set_id = ? AND key = ?
 
 void BM_ExtractArg_Interpreter(benchmark::State& state) {
-  const Args& a = GetArgs();
+  const Args a;
   dataframe::TypedCursor cursor(
       a.df.get(),
       {{kArgSetId, 0, Eq{}, std::nullopt}, {kKey, 1, Eq{}, std::nullopt}}, {});
@@ -258,8 +248,9 @@ void BM_ExtractArg_Interpreter(benchmark::State& state) {
 BENCHMARK(BM_ExtractArg_Interpreter);
 
 // Runs `scan` reading the arg id and key, with the key filtered after.
-void RunExtractArg(benchmark::State& state, std::unique_ptr<Source> scan) {
-  const Args& a = GetArgs();
+void RunExtractArg(benchmark::State& state,
+                   const Args& a,
+                   std::unique_ptr<Source> scan) {
   std::vector<Pipeline::Step> steps;
   steps.emplace_back(std::make_unique<Filter>(
       std::vector<Filter::Condition>{{1, Eq{}, 1}}, &a.pool));
@@ -279,13 +270,14 @@ void RunExtractArg(benchmark::State& state, std::unique_ptr<Source> scan) {
 }
 
 void BM_ExtractArg_SortedScan(benchmark::State& state) {
-  const Args& a = GetArgs();
-  RunExtractArg(state, std::make_unique<SortedScan>(
-                           Columns(*a.df, {kArgId, kKey}), a.df->row_count(),
-                           std::vector<SortedScan::Search>{
-                               {a.df->shared_column(kArgSetId),
-                                SortedScan::Search::Kind::kSetIdEq, Eq{}, 0}},
-                           &a.pool, ReadDirection::kForwards));
+  const Args a;
+  RunExtractArg(state, a,
+                std::make_unique<SortedScan>(
+                    Columns(*a.df, {kArgId, kKey}), a.df->row_count(),
+                    std::vector<SortedScan::Search>{
+                        {a.df->shared_column(kArgSetId),
+                         SortedScan::Search::Kind::kSetIdEq, Eq{}, 0}},
+                    &a.pool, ReadDirection::kForwards));
 }
 BENCHMARK(BM_ExtractArg_SortedScan);
 
@@ -327,11 +319,6 @@ struct Wide {
   std::vector<uint32_t> rows;
 };
 
-const Wide& GetWide() {
-  static const Wide* wide = new Wide();
-  return *wide;
-}
-
 // The scan lends the nullable columns of the first `k` sparse: lay them out,
 // as lowering would.
 std::vector<Pipeline::Step> SparseExpands(uint32_t k) {
@@ -357,7 +344,7 @@ struct SumCells : dataframe::CellCallback {
 };
 
 void BM_IdEq_Interpreter(benchmark::State& state) {
-  const Wide& w = GetWide();
+  const Wide w;
   auto k = static_cast<uint32_t>(state.range(0));
   dataframe::TypedCursor cursor(w.df.get(),
                                 {{kWideCols, 0, Eq{}, std::nullopt}}, {});
@@ -377,7 +364,7 @@ void BM_IdEq_Interpreter(benchmark::State& state) {
 BENCHMARK(BM_IdEq_Interpreter)->Arg(1)->Arg(16);
 
 void BM_IdEq_SortedScan(benchmark::State& state) {
-  const Wide& w = GetWide();
+  const Wide w;
   auto k = static_cast<uint32_t>(state.range(0));
   std::vector<std::shared_ptr<const dataframe::Column>> cols;
   for (uint32_t c = 0; c < k; ++c) {
@@ -410,7 +397,7 @@ BENCHMARK(BM_IdEq_SortedScan)->Arg(1)->Arg(16);
 // track = ?, through an index, reading every row found
 
 void BM_IndexEq_Interpreter(benchmark::State& state) {
-  const Slices& s = GetSlices();
+  const Slices s;
   dataframe::TypedCursor cursor(s.df.get(), {{kTrack, 0, Eq{}, std::nullopt}},
                                 {});
   uint32_t i = 0;
@@ -426,7 +413,7 @@ void BM_IndexEq_Interpreter(benchmark::State& state) {
 BENCHMARK(BM_IndexEq_Interpreter);
 
 void BM_IndexEq_IndexScan(benchmark::State& state) {
-  const Slices& s = GetSlices();
+  const Slices s;
   ExecLookup lookup(
       std::make_unique<IndexScan>(
           Columns(*s.df, {kSliceId}), s.df->indexes()[0],
@@ -449,7 +436,7 @@ BENCHMARK(BM_IndexEq_IndexScan);
 // rows each range holds.
 
 void BM_TsRange_Interpreter(benchmark::State& state) {
-  const Slices& s = GetSlices();
+  const Slices s;
   auto span = static_cast<uint32_t>(state.range(0));
   dataframe::TypedCursor cursor(
       s.df.get(), {{kTs, 0, Ge{}, std::nullopt}, {kTs, 1, Lt{}, std::nullopt}},
@@ -474,7 +461,7 @@ void BM_TsRange_Interpreter(benchmark::State& state) {
 BENCHMARK(BM_TsRange_Interpreter)->Arg(16)->Arg(65536);
 
 void BM_TsRange_SortedScan(benchmark::State& state) {
-  const Slices& s = GetSlices();
+  const Slices s;
   auto span = static_cast<uint32_t>(state.range(0));
   ExecLookup lookup(std::make_unique<SortedScan>(
                         Columns(*s.df, {kDur}), s.df->row_count(),

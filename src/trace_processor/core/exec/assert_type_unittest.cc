@@ -24,6 +24,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -42,7 +43,7 @@ using testing::ElementsAre;
 struct Asserted {
   Asserted(std::vector<Variant> cells, AssertTypeTarget type)
       : op(0, type, "a"),
-        state(op.MakeState(test::TestContext())),
+        state(op.MakeState(context)),
         values(std::move(cells)) {
     input.AddBorrowedColumn(ColumnView::Variants(values.data()));
     test::Window(&input, 0, static_cast<uint32_t>(values.size()));
@@ -60,6 +61,7 @@ struct Asserted {
     return test::ReadColumn<T>(batch, 0);
   }
 
+  Context context;
   AssertType op;
   std::unique_ptr<OperatorState> state;
   std::vector<Variant> values;
@@ -110,6 +112,7 @@ TEST(AssertTypeTest, AValueTheTypeCannotHoldIsReported) {
   int64_t rounded = (int64_t{1} << 53) + 1;
   double fraction = 1.5;
   uint32_t narrow = 7;
+  Context context;
   struct FlatCase {
     StorageType stored;
     const void* value;
@@ -124,7 +127,7 @@ TEST(AssertTypeTest, AValueTheTypeCannotHoldIsReported) {
             "an integer"},
        }) {
     AssertType op(0, c.type, "a");
-    std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+    std::unique_ptr<OperatorState> state = op.MakeState(context);
     RowBatch batch;
     batch.AddBorrowedColumn(ColumnView::Reference(c.stored, c.value));
     batch.SetRowCount(1);
@@ -137,8 +140,9 @@ TEST(AssertTypeTest, WideningASelectedFlatColumnRemapsValidity) {
   std::vector<uint32_t> values = {7, 8, 9};
   BitVector validity = BitVector::CreateWithSize(3);
   validity.set(1);
+  Context context;
   AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch batch;
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Uint32{}}, values.data(), &validity));

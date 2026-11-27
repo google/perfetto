@@ -27,6 +27,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -125,12 +126,13 @@ class ExpressionTest : public ::testing::Test {
     std::vector<ExprProgram> programs;
     programs.push_back(std::move(program));
     Compute compute(std::move(programs), &pool_);
-    auto state = compute.MakeState(test::TestContext());
+    auto state = compute.MakeState(context_);
     RowBatch out;
     EXPECT_TRUE(test::ProcessCopy(compute, batch_, out, *state));
     return test::ReadNullableColumn<T>(out, out.column_count() - 1);
   }
 
+  Context context_;
   StringPool pool_;
   int64_t numbers_[5] = {10, 20, 0, 40, 50};
   uint32_t unsigned_[5] = {1, 0, 3, 0, 5};
@@ -166,7 +168,7 @@ TEST_F(ExpressionTest, OverflowFails) {
   std::vector<ExprProgram> programs;
   programs.push_back(b.Take());
   Compute compute(std::move(programs), &pool_);
-  auto state = compute.MakeState(test::TestContext());
+  auto state = compute.MakeState(context_);
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(compute, batch_, out, *state));
   EXPECT_THAT(compute.status(*state).message(), HasSubstr("overflow"));

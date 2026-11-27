@@ -168,6 +168,9 @@ class IntervalFlatten : public Operator {
 
     // Scratch for one call.
     CallScratch<AggregateInputLoader> input;
+    // The tree's pushes and the groups finalized, written by each call.
+    CallScratch<FlexVector<GroupMerge>> pushes;
+    CallScratch<FlexVector<uint32_t>> groups;
   };
 
   void AddInterval(State&, uint32_t row, int64_t start, int64_t end) const;

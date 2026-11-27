@@ -41,7 +41,7 @@ namespace ex = core::exec;
 
 using Kind = ex::GraphTreeSpec::Kind;
 
-const OperationRegistration GraphTree::kRegistration{
+constexpr OperationRegistration GraphTree::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_GRAPH_TREE, &BuildPlan,
     OperationRegistration::Encoding{9, &MakeOperation<GraphTree>}};
 

@@ -20,6 +20,7 @@
 #include <limits>
 #include <vector>
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -35,7 +36,8 @@ using Result = LaneBatch::Result;
 
 // A batch of ts, dur, key and group number columns. A dur of `kNull` is null.
 constexpr int64_t kNull = std::numeric_limits<int64_t>::min();
-RowBatch Batch(const std::vector<int64_t>& ts,
+RowBatch Batch(Context& context,
+               const std::vector<int64_t>& ts,
                const std::vector<int64_t>& dur,
                const std::vector<int64_t>& keys,
                const std::vector<uint32_t>& groups) {
@@ -46,7 +48,6 @@ RowBatch Batch(const std::vector<int64_t>& ts,
     }
   }
   RowBatch batch;
-  Context& context = test::TestContext();
   test::AddCopy(context, ts, nullptr, &batch);
   test::AddCopy(context, dur, &valid, &batch);
   test::AddCopy(context, keys, nullptr, &batch);
@@ -66,8 +67,9 @@ IntervalLaneSpec Spec() {
 
 TEST(LaneBatchTest, ReadsEachKindOfRow) {
   IntervalLaneSpec spec = Spec();
+  Context context;
   RowBatch batch =
-      Batch({10, 0, 5, 10, std::numeric_limits<int64_t>::max()},
+      Batch(context, {10, 0, 5, 10, std::numeric_limits<int64_t>::max()},
             {5, 0, kNull, -1, 1}, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0});
   IntervalInputName name{"OP", "operand", 2};
   LaneBatch lanes(batch, spec);
@@ -110,7 +112,8 @@ std::vector<uint32_t> Lanes(LaneReader& reader,
 // two batches.
 TEST(LaneReaderTest, NumbersLanes) {
   IntervalLaneSpec spec = Spec();
-  RowBatch own = Batch({0, 0}, {1, 1}, {7, 3}, {0, 1});
+  Context context;
+  RowBatch own = Batch(context, {0, 0}, {1, 1}, {7, 3}, {0, 1});
   LaneBatch lanes(own, spec);
   EXPECT_EQ(lanes.lane(0), 0u);
   EXPECT_EQ(lanes.lane(1), 1u);
@@ -119,25 +122,27 @@ TEST(LaneReaderTest, NumbersLanes) {
   LaneReader a(spec, {"OP", "a"});
   LaneReader b(spec, {"OP", "b"});
   EXPECT_THAT(
-      Lanes(a, Batch({0, 0, 0}, {1, 1, 1}, {7, 7, 3}, {0, 0, 1}), &table),
+      Lanes(a, Batch(context, {0, 0, 0}, {1, 1, 1}, {7, 7, 3}, {0, 0, 1}),
+            &table),
       ElementsAre(0, 0, 1));
-  EXPECT_THAT(Lanes(a, Batch({0, 0}, {1, 1}, {3, 9}, {1, 2}), &table),
+  EXPECT_THAT(Lanes(a, Batch(context, {0, 0}, {1, 1}, {3, 9}, {1, 2}), &table),
               ElementsAre(1, 2));
   EXPECT_THAT(
-      Lanes(b, Batch({0, 0, 0}, {1, 1, 1}, {9, 4, 7}, {0, 1, 2}), &table),
+      Lanes(b, Batch(context, {0, 0, 0}, {1, 1, 1}, {9, 4, 7}, {0, 1, 2}),
+            &table),
       ElementsAre(2, 3, 0));
 }
 
 // A lane's keys stay readable after the next batch is held if carried.
 TEST(LaneKeysTest, CarriesTheOpenLane) {
-  Context& context = test::TestContext();
+  Context context;
   std::vector<uint32_t> key_columns = {2};
   LaneKeys keys(key_columns);
-  RowBatch first = Batch({0, 0}, {1, 1}, {7, 3}, {0, 1});
+  RowBatch first = Batch(context, {0, 0}, {1, 1}, {7, 3}, {0, 1});
   ASSERT_TRUE(keys.Hold(first, context).ok());
   uint32_t open = keys.Of(1);
   keys.Carry(open);
-  RowBatch second = Batch({0}, {1}, {9}, {2});
+  RowBatch second = Batch(context, {0}, {1}, {9}, {2});
   ASSERT_TRUE(keys.Hold(second, context).ok());
   std::vector<uint32_t> handles = {LaneKeys::kCarried, keys.Of(0)};
   RowBatch out;

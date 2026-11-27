@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
@@ -40,13 +39,6 @@
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec::test {
-
-// A Context for tests which make states themselves, rather than through a
-// RowCursor. Tests run on one thread, so they can share it.
-inline Context& TestContext() {
-  static base::NoDestructor<Context> context;
-  return context.ref();
-}
 
 // Adds to `out` a copy of `values`, present where `validity` says if not
 // null, in a buffer from `context`: how a source refilling its storage each

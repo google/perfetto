@@ -37,7 +37,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration AggregateStage::kRegistration{
+constexpr OperationRegistration AggregateStage::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE, &BuildPlan,
     OperationRegistration::Encoding{5, &MakeOperation<AggregateStage>}};
 

@@ -92,11 +92,6 @@ class Slices {
   dataframe::Dataframe df_;
 };
 
-const Slices& GetSlices() {
-  static const Slices* slices = new Slices();
-  return *slices;
-}
-
 using Value = std::variant<int64_t, std::string>;
 
 struct OneValue : ValueFetcher {
@@ -126,7 +121,7 @@ void RunExecutor(benchmark::State& state,
                  uint32_t column,
                  Op op,
                  const Value& value) {
-  const Slices& s = GetSlices();
+  const Slices s;
   const dataframe::Dataframe& df = s.df();
   Filter filter({{1, op, 0}}, &s.pool());
   DataframeScan scan({df.shared_column(kId), df.shared_column(column)},
@@ -159,7 +154,7 @@ void RunInterpreter(benchmark::State& state,
                     uint32_t column,
                     Op op,
                     const Value& value) {
-  const Slices& s = GetSlices();
+  const Slices s;
   const dataframe::Dataframe& df = s.df();
   std::vector<dataframe::FilterSpec> specs = {{column, 0, op, std::nullopt}};
   auto plan = df.PlanQuery(specs, {}, {}, {}, uint64_t{1} << kId);

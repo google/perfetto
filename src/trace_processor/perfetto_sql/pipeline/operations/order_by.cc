@@ -35,7 +35,7 @@
 
 namespace perfetto::trace_processor::pipeline {
 
-const OperationRegistration OrderBy::kRegistration{
+constexpr OperationRegistration OrderBy::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY, &BuildPlan,
     OperationRegistration::Encoding{4, &MakeOperation<OrderBy>}};
 
