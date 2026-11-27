@@ -339,13 +339,14 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
         thread_id);
   }
 
-  std::vector<uint64_t>& method_stack = thread_it->method_stack;
-
-  // AOSP ART (TraceWriter::FlushEntriesFormatV2 in art/runtime/trace.cc)
-  // leaves the TSC header fields zeroed and encodes every record, entries and
-  // exits alike, as SLEB128(delta of method_ptr | action), then ULEB128(delta
-  // of wall ns since start), then ULEB128(delta of thread cpu ns) when dual
-  // clock. Its wall time is relative to the header timestamp `ts_`.
+  // Earlier, pre-TSC ART V2 layout (Android 15/16 and current public AOSP,
+  // TraceWriter::FlushEntriesFormatV2 in art/runtime/trace.cc). It leaves the
+  // TSC header fields zeroed and encodes every record, entries and exits
+  // alike, as SLEB128(delta of method_ptr | action), then ULEB128(delta of
+  // wall ns since start), then ULEB128(delta of thread cpu ns) when dual
+  // clock. Its wall time is relative to the header timestamp `ts_`. Newer ART
+  // updated the format in place: it populates the TSC fields and omits method
+  // IDs on exits, which the loop below handles.
   if (tsc_frequency_ == 0) {
     uint64_t wall_ns = 0;
     for (uint32_t i = 0; i < num_records; i++) {
@@ -384,6 +385,8 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
     reader_.PopFrontUntil(it.file_offset());
     return true;
   }
+
+  std::vector<uint64_t>& method_stack = thread_it->method_stack;
 
   for (uint32_t i = 0; i < num_records; i++) {
     if (current_buffer_ptr >= buffer_end) {

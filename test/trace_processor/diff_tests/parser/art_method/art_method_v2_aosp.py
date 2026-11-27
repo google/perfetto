@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Writes an ART method trace in the V2 streaming dual-clock layout produced by
-# TraceWriter::FlushEntriesFormatV2() in AOSP art/runtime/trace.cc:
+# Writes an ART method trace in the earlier, pre-TSC V2 streaming dual-clock
+# layout (Android 15/16, TraceWriter::FlushEntriesFormatV2() in
+# art/runtime/trace.cc):
 # each record is SLEB128(delta of method_ptr | action), ULEB128(delta of wall
 # ns since start), ULEB128(delta of thread cpu ns); bytes 14..31 of the header
 # are zero.
