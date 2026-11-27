@@ -434,6 +434,7 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_dataframe_storage",
         ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
@@ -766,6 +767,7 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_dataframe_storage",
         ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
@@ -2622,6 +2624,15 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_dataframe_dataframe",
     srcs = [
+        "src/trace_processor/core/dataframe/typed_cursor.cc",
+        "src/trace_processor/core/dataframe/typed_cursor.h",
+    ],
+)
+
+# GN target: //src/trace_processor/core/dataframe:storage
+perfetto_filegroup(
+    name = "src_trace_processor_core_dataframe_storage",
+    srcs = [
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h",
         "src/trace_processor/core/dataframe/arrow_deserializer.cc",
@@ -2642,8 +2653,6 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/query_plan.h",
         "src/trace_processor/core/dataframe/runtime_dataframe_builder.h",
         "src/trace_processor/core/dataframe/specs.h",
-        "src/trace_processor/core/dataframe/typed_cursor.cc",
-        "src/trace_processor/core/dataframe/typed_cursor.h",
         "src/trace_processor/core/dataframe/types.h",
     ],
 )
@@ -12178,6 +12187,7 @@ perfetto_cc_library(
         ":src_protozero_text_to_proto_text_to_proto",
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
+        ":src_trace_processor_core_dataframe_storage",
         ":src_trace_processor_core_exec_exec",
         ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",

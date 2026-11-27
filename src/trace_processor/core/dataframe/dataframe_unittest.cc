@@ -1946,6 +1946,79 @@ TEST(DataframeTest, TypedCursorInFilterWithIndexDoesNotCorruptIndex) {
   }
 }
 
+TEST(DataframeTest, TypedCursorNullFiltersAndMultiBatchAndSort) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "track", "val"},
+      CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()),
+      CreateTypedColumnSpec(Int64(), SparseNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  constexpr uint32_t kRows = 2500;
+  for (uint32_t i = 0; i < kRows; ++i) {
+    std::optional<int64_t> val;
+    if (i % 3 != 0) {
+      val = static_cast<int64_t>(kRows - i);
+    }
+    df.InsertUnchecked(kSpec, std::monostate(), i % 7, val);
+  }
+  df.Finalize();
+  uint32_t idx_col = 1;
+  auto idx_or = df.BuildIndex(&idx_col, &idx_col + 1);
+  ASSERT_OK(idx_or.status());
+  df = df.AddIndex(std::move(*idx_or));
+
+  // Unfiltered multi-batch scan exercises the contiguous fast path across
+  // multiple batches.
+  {
+    TypedCursor cursor(&df, {}, {});
+    cursor.ExecuteUnchecked();
+    uint32_t expected = 0;
+    for (; !cursor.Eof(); cursor.Next()) {
+      ASSERT_EQ(cursor.RowIndex(), expected++);
+    }
+    EXPECT_EQ(expected, kRows);
+  }
+
+  // IsNull / IsNotNull across multiple batches.
+  {
+    TypedCursor is_null(&df, {FilterSpec{2, 0, IsNull{}, {}}}, {});
+    is_null.ExecuteUnchecked();
+    uint32_t count = 0;
+    for (; !is_null.Eof(); is_null.Next()) {
+      EXPECT_EQ(is_null.RowIndex() % 3, 0u);
+      ++count;
+    }
+    EXPECT_EQ(count, (kRows + 2) / 3);
+
+    TypedCursor is_not_null(&df, {FilterSpec{2, 0, IsNotNull{}, {}}}, {});
+    is_not_null.ExecuteUnchecked();
+    uint32_t non_null_count = 0;
+    for (; !is_not_null.Eof(); is_not_null.Next()) {
+      EXPECT_NE(is_not_null.RowIndex() % 3, 0u);
+      ++non_null_count;
+    }
+    EXPECT_EQ(non_null_count, kRows - count);
+  }
+
+  // Index lookup combined with descending sort on the sorted id column.
+  {
+    TypedCursor cursor(&df, {FilterSpec{1, 0, Eq{}, {}}},
+                       {SortSpec{0, SortDirection::kDescending}});
+    cursor.SetFilterValueUnchecked(0, uint32_t{3});
+    cursor.ExecuteUnchecked();
+    std::vector<uint32_t> rows;
+    for (; !cursor.Eof(); cursor.Next()) {
+      rows.push_back(cursor.RowIndex());
+    }
+    ASSERT_FALSE(rows.empty());
+    EXPECT_TRUE(std::is_sorted(rows.begin(), rows.end(), std::greater<>()));
+    for (uint32_t r : rows) {
+      EXPECT_EQ(r % 7, 3u);
+    }
+  }
+}
+
 TEST(DataframeTest,
      QueryPlanEqualityFilterOnNoDuplicatesColumnEstimatesOneRow) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(

@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -28,17 +29,20 @@
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/util/slab.h"
+
+namespace perfetto::trace_processor::core::exec {
+class RowBatch;
+}  // namespace perfetto::trace_processor::core::exec
 
 namespace perfetto::trace_processor::core::dataframe {
 
 class Dataframe;
 
-// A typed version of `Cursor` which allows typed access and mutation of
-// dataframe cells while iterating over the rows of the dataframe.
+// A typed cursor which allows typed access and mutation of dataframe cells
+// while iterating over the rows of the dataframe.
 class TypedCursor {
  public:
   using FilterValue =
@@ -109,6 +113,8 @@ class TypedCursor {
                     std::move(sort_specs),
                     true) {}
 
+  ~TypedCursor();
+
   TypedCursor(const TypedCursor&) = delete;
   TypedCursor& operator=(const TypedCursor&) = delete;
 
@@ -140,13 +146,7 @@ class TypedCursor {
       uint32_t index,
       const FilterValue* values,
       uint32_t count) {
-    if (PERFETTO_UNLIKELY(NeedsPrepareCursor())) {
-      PrepareCursorInternal();
-    }
-    uint32_t mapped = filter_value_mapping_[index];
-    if (mapped != std::numeric_limits<uint32_t>::max()) {
-      filter_value_list_states_[mapped] = {values, count, 0};
-    }
+    filter_value_list_states_[index] = {values, count, 0};
   }
 
   // Executes the current query plan against the specified filter values and
@@ -154,28 +154,36 @@ class TypedCursor {
   //
   // See `SetFilterValueUnchecked` for details on how to set the filter
   // values.
-  PERFETTO_ALWAYS_INLINE void ExecuteUnchecked();
+  void ExecuteUnchecked();
 
   // Returns the current row index.
   PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const {
-    return cursor_.RowIndex();
+    return is_range_ ? row_ : *pos_;
   }
 
   // Advances the cursor to the next row of results.
-  PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
+  PERFETTO_ALWAYS_INLINE void Next() {
+    if (is_range_) {
+      ++row_;
+    } else {
+      ++pos_;
+    }
+  }
 
   // Returns true if the cursor has reached the end of the result set.
-  PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
+  PERFETTO_ALWAYS_INLINE bool Eof() const {
+    return is_range_ ? row_ == row_end_ : pos_ == end_;
+  }
 
   // Resets the cursor to the initial state. This frees any resources the
   // cursor may have allocated and prepares it for a new query execution.
-  void Reset() { PrepareCursorInternal(); }
+  void Reset();
 
   // Calls `Dataframe:GetCellUnchecked` for the current row and specified
   // column.
   template <size_t C, typename D>
   PERFETTO_ALWAYS_INLINE auto GetCellUnchecked(const D&) const {
-    return dataframe_->GetCellUncheckedInternal<C, D>(cursor_.RowIndex());
+    return dataframe_->GetCellUncheckedInternal<C, D>(RowIndex());
   }
 
   // Calls `Dataframe:SetCellUnchecked` for the current row, specified column
@@ -186,48 +194,45 @@ class TypedCursor {
       const typename D::template column_spec<C>::mutate_type& value) {
     PERFETTO_DCHECK(mutable_);
     const_cast<Dataframe*>(dataframe_)
-        ->SetCellUncheckedInternal<C, D>(cursor_.RowIndex(), value);
+        ->SetCellUncheckedInternal<C, D>(RowIndex(), value);
   }
 
  private:
+  struct ExecState;
+
   TypedCursor(const Dataframe* dataframe,
               std::vector<FilterSpec> filter_specs,
               std::vector<SortSpec> sort_specs,
-              bool mut)
-      : dataframe_(dataframe),
-        filter_specs_(std::move(filter_specs)),
-        sort_specs_(std::move(sort_specs)),
-        mutable_(mut),
-        mutation_columns_(core::Slab<uint32_t>::Alloc(filter_specs_.size() +
-                                                      sort_specs_.size())) {
-    filter_values_.resize(filter_specs_.size());
-    filter_value_list_states_.resize(filter_specs_.size());
-    filter_value_mapping_.resize(filter_specs_.size(),
-                                 std::numeric_limits<uint32_t>::max());
-    uint32_t i = 0;
-    for (const auto& spec : filter_specs_) {
-      mutation_columns_[i++] = spec.col;
-    }
-    for (const auto& spec : sort_specs_) {
-      mutation_columns_[i++] = spec.col;
-    }
-  }
+              bool mut);
+
   template <typename C>
   PERFETTO_ALWAYS_INLINE void SetFilterValueInternal(uint32_t index, C value) {
-    if (PERFETTO_UNLIKELY(NeedsPrepareCursor())) {
-      PrepareCursorInternal();
-    }
-    uint32_t mapped = filter_value_mapping_[index];
-    if (mapped != std::numeric_limits<uint32_t>::max()) {
-      filter_values_[mapped] = value;
-    }
+    filter_values_[index] = value;
+  }
+
+  PERFETTO_ALWAYS_INLINE void SetRange(uint32_t begin, uint32_t end) {
+    is_range_ = true;
+    row_ = begin;
+    row_end_ = end;
+  }
+
+  PERFETTO_ALWAYS_INLINE void SetSlice(const uint32_t* begin,
+                                       const uint32_t* end) {
+    is_range_ = false;
+    pos_ = begin;
+    end_ = end;
   }
 
   PERFETTO_NO_INLINE void PrepareCursorInternal();
+  PERFETTO_NO_INLINE void DrainBatches(exec::RowBatch* first);
 
   bool NeedsPrepareCursor() const {
-    return last_execution_generation_ != dataframe_->replacement_generation_ ||
-           last_execution_mutation_count_ != GetMutations();
+    if (PERFETTO_UNLIKELY(last_execution_generation_ !=
+                          dataframe_->replacement_generation_)) {
+      return true;
+    }
+    return PERFETTO_UNLIKELY(!prepared_finalized_ &&
+                             last_execution_mutation_count_ != GetMutations());
   }
 
   uint64_t GetMutations() const {
@@ -241,11 +246,20 @@ class TypedCursor {
   const Dataframe* dataframe_;
   std::vector<FilterValue> filter_values_;
   std::vector<FilterValueListState> filter_value_list_states_;
-  std::vector<uint32_t> filter_value_mapping_;
   std::vector<FilterSpec> filter_specs_;
   std::vector<SortSpec> sort_specs_;
   bool mutable_;
-  Cursor<Fetcher> cursor_;
+  bool prepared_finalized_ = false;
+  std::unique_ptr<ExecState> exec_;
+
+  // Active iteration state: when `is_range_` is true, rows are `[row_,
+  // row_end_)`; otherwise rows are `[pos_, end_)`. Keeping `is_range_`
+  // invariant across `Next()` allows the compiler to unswitch iteration loops.
+  const uint32_t* pos_ = nullptr;
+  const uint32_t* end_ = nullptr;
+  uint32_t row_ = 0;
+  uint32_t row_end_ = 0;
+  bool is_range_ = true;
 
   core::Slab<uint32_t> mutation_columns_;
   uint64_t last_execution_generation_ = std::numeric_limits<uint64_t>::max();

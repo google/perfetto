@@ -3150,6 +3150,7 @@ cc_test {
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_exec_exec",
         ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_plugin_plugin",
@@ -18227,6 +18228,14 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_dataframe_dataframe",
     srcs: [
+        "src/trace_processor/core/dataframe/typed_cursor.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/dataframe:storage
+filegroup {
+    name: "perfetto_src_trace_processor_core_dataframe_storage",
+    srcs: [
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/core/dataframe/arrow_deserializer.cc",
         "src/trace_processor/core/dataframe/arrow_serializer.cc",
@@ -18234,7 +18243,6 @@ filegroup {
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/logical_plan.cc",
         "src/trace_processor/core/dataframe/query_plan.cc",
-        "src/trace_processor/core/dataframe/typed_cursor.cc",
     ],
 }
 
@@ -22045,6 +22053,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_exec_exec",
         ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_plugin_plugin",
@@ -25148,6 +25157,7 @@ cc_test {
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_common_unittests",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_dataframe_unittests",
         ":perfetto_src_trace_processor_core_exec_exec",
         ":perfetto_src_trace_processor_core_exec_test_utils",
@@ -26355,6 +26365,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_core_common_common",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
+        ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_exec_exec",
         ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_plugin_plugin",

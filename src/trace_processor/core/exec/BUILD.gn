@@ -116,7 +116,7 @@ source_set("exec") {
     "../../util:graph",
     "../../util:sort",
     "../common",
-    "../dataframe",
+    "../dataframe:storage",
     "../util",
   ]
 }
@@ -181,7 +181,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../containers",
     "../common",
-    "../dataframe",
+    "../dataframe:storage",
     "../util",
   ]
 }

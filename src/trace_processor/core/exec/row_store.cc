@@ -50,6 +50,9 @@ base::Status RowStore::Append(const RowBatch& in, OperatorState& owner) {
   PERFETTO_DCHECK(shape_->column_count() == in.column_count());
 #if PERFETTO_DCHECK_IS_ON()
   for (uint32_t c = 0; c < in.column_count(); ++c) {
+    if (stored_column_[c] == kNotHeld) {
+      continue;
+    }
     PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(shape_->column(c)),
                                     ColumnShape::Of(in.column(c))));
   }

@@ -148,6 +148,11 @@ class Planner {
   // Whether the rows are still a contiguous range rather than a materialized
   // list. Strategies which scan a range are only available while this holds.
   bool rows_are_range_ = true;
+
+  // Whether the rows are still ordered by ascending table row index. An index
+  // scan reads in index order rather than table order, so column sort states
+  // no longer guarantee output order after one.
+  bool rows_in_table_order_ = true;
 };
 
 base::Status Planner::Filter(std::vector<FilterSpec>& specs) {
@@ -313,6 +318,7 @@ void Planner::AddIndexFilter(std::vector<FilterSpec>& specs,
     idx.predicates.emplace_back(std::move(p));
   }
   rows_are_range_ = false;
+  rows_in_table_order_ = false;
   plan_.ops.emplace_back(std::move(idx));
 }
 
@@ -374,8 +380,9 @@ void Planner::Sort(const std::vector<SortSpec>& sort_specs) {
   }
 
   // If there's a single sort constraint on a NonNull column that is already
-  // sorted accordingly, the data is in order already.
-  if (sort_specs.size() == 1) {
+  // sorted accordingly and rows are still in table order, the data is in order
+  // already.
+  if (rows_in_table_order_ && sort_specs.size() == 1) {
     const auto& single_spec = sort_specs[0];
     const Column& col = GetColumn(single_spec.col);
     if (col.null_storage.nullability().Is<NonNull>() &&
