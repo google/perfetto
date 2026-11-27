@@ -24,11 +24,13 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <limits>
 #include <type_traits>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -55,7 +57,18 @@ size_t meta_page_size() {
 }  // namespace
 
 SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
-  size_t size_with_meta = size + meta_page_size();
+  const size_t page_size = meta_page_size();
+  const size_t max_size_for_mmap =
+      (std::numeric_limits<size_t>::max() - page_size - kGuardSize) / 2;
+  const uint64_t max_size_for_off =
+      static_cast<uint64_t>(std::numeric_limits<off_t>::max()) - page_size;
+  if (size < page_size || size % page_size || (size & (size - 1)) ||
+      size > max_size_for_mmap ||
+      static_cast<uint64_t>(size) > max_size_for_off) {
+    PERFETTO_ELOG("SharedRingBuffer size is invalid (%zu)", size);
+    return;
+  }
+  size_t size_with_meta = size + page_size;
   base::ScopedFile fd;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   bool is_memfd = false;
@@ -84,6 +97,21 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   PERFETTO_CHECK(fd);
   int res = ftruncate(fd.get(), static_cast<off_t>(size_with_meta));
   PERFETTO_CHECK(res == 0);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Pre-allocate backing pages in the creator (heapprofd) so Linux cgroup v2
+  // charges the ring buffer's shmem folios to heapprofd's memcg rather than
+  // the profiled target process's memcg on first write fault.
+  res = PERFETTO_EINTR(fallocate(fd.get(), /*mode=*/0, /*offset=*/0,
+                                 static_cast<off_t>(size_with_meta)));
+  if (res != 0) {
+    if (errno != EOPNOTSUPP && errno != ENOSYS) {
+      PERFETTO_PLOG("fallocate() failed");
+      return;
+    }
+    PERFETTO_DPLOG("fallocate() unsupported, leaving ring buffer sparse");
+  }
+#endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (is_memfd) {
     res = fcntl(*fd, F_ADD_SEALS, kFDSeals);

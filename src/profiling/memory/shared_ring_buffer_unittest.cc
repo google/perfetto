@@ -16,13 +16,21 @@
 
 #include "src/profiling/memory/shared_ring_buffer.h"
 
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #include <array>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <random>
 #include <thread>
 #include <unordered_map>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -255,6 +263,12 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
 }
 
 TEST(SharedRingBufferTest, InvalidSize) {
+  EXPECT_EQ(SharedRingBuffer::Create(0), std::nullopt);
+  EXPECT_EQ(SharedRingBuffer::Create(base::GetSysPageSize() * 3), std::nullopt);
+  EXPECT_EQ(SharedRingBuffer::Create(std::numeric_limits<size_t>::max()),
+            std::nullopt);
+  EXPECT_EQ(SharedRingBuffer::Create(size_t{1} << (sizeof(size_t) * 8 - 1)),
+            std::nullopt);
   const size_t kBufSize = base::GetSysPageSize() * 4 + 1;
   std::optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
   EXPECT_EQ(wr, std::nullopt);
@@ -273,6 +287,35 @@ TEST(SharedRingBufferTest, EmptyWrite) {
   EXPECT_TRUE(buf);
   wr->EndWrite(std::move(buf));
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST(SharedRingBufferTest, PreallocatesBackingPages) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  {
+    auto probe = base::TempFile::Create(base::TempFile::LinkMode::kUnlinked)
+                     .ValueOrDie();
+    if (PERFETTO_EINTR(fallocate(probe.fd(), /*mode=*/0, /*offset=*/0,
+                                 static_cast<off_t>(base::GetSysPageSize()))) !=
+            0 &&
+        (errno == EOPNOTSUPP || errno == ENOSYS)) {
+      GTEST_SKIP() << "fallocate() unsupported on temp filesystem";
+    }
+  }
+#endif
+  const size_t kBufSize = base::GetSysPageSize() * 16;
+  std::optional<SharedRingBuffer> buf = SharedRingBuffer::Create(kBufSize);
+  ASSERT_TRUE(buf);
+
+  struct stat st = {};
+  ASSERT_EQ(fstat(buf->fd(), &st), 0);
+  const auto expected_size =
+      static_cast<off_t>(kBufSize + base::GetSysPageSize());
+  EXPECT_EQ(st.st_size, expected_size);
+  EXPECT_GE(static_cast<uint64_t>(st.st_blocks) * 512,
+            static_cast<uint64_t>(expected_size));
+}
+#endif
 
 }  // namespace
 }  // namespace profiling
