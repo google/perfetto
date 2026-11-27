@@ -273,6 +273,48 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   ASSERT_EQ(cpu.features(), 0U);
 }
 
+TEST_F(SystemInfoDataSourceTest, CpuInfoX86Hybrid) {
+  const char kMockCpuInfoX86[] = R"(
+processor	: 0
+vendor_id	: GenuineIntel
+model name	: 12th Gen Intel(R) Core(TM) i5-1235U
+
+processor	: 1
+vendor_id	: GenuineIntel
+model name	: 12th Gen Intel(R) Core(TM) i5-1235U
+
+)";
+  auto data_source = GetSystemInfoDataSource();
+  EXPECT_CALL(*data_source, ReadCpuInfo())
+      .WillOnce(Return(base::ParseCpuInfo(kMockCpuInfoX86)));
+
+  EXPECT_CALL(*data_source,
+              ReadFile("/sys/devices/system/cpu/cpu0/cpu_capacity"))
+      .WillOnce(Return(""));
+  EXPECT_CALL(*data_source,
+              ReadFile("/sys/devices/system/cpu/cpu0/acpi_cppc/highest_perf"))
+      .WillOnce(Return("67\n"));
+  EXPECT_CALL(*data_source,
+              ReadFile("/sys/devices/system/cpu/cpu1/cpu_capacity"))
+      .WillOnce(Return(""));
+  EXPECT_CALL(*data_source,
+              ReadFile("/sys/devices/system/cpu/cpu1/acpi_cppc/highest_perf"))
+      .WillOnce(Return("47\n"));
+
+  data_source->Start();
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_cpu_info());
+  auto cpu_info = packet.cpu_info();
+  ASSERT_EQ(cpu_info.cpus_size(), 2);
+  EXPECT_EQ(cpu_info.cpus()[0].processor(),
+            "12th Gen Intel(R) Core(TM) i5-1235U");
+  EXPECT_EQ(cpu_info.cpus()[0].capacity(), 67u);
+  EXPECT_EQ(cpu_info.cpus()[1].processor(),
+            "12th Gen Intel(R) Core(TM) i5-1235U");
+  EXPECT_EQ(cpu_info.cpus()[1].capacity(), 47u);
+}
+
 TEST_F(SystemInfoDataSourceTest, IrqMappingArm) {
   auto data_source = GetSystemInfoDataSource(MakeIrqNamesConfig());
   EXPECT_CALL(*data_source, ReadCpuInfo())
