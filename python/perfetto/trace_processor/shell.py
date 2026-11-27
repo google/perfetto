@@ -152,6 +152,8 @@ class TraceProcessorHttpSubprocess(TraceProcessorHttp):
   and shuts it down in close().
   """
 
+  subprocess: Optional[subprocess.Popen[bytes]]
+
   def __init__(self, config: 'TraceProcessorConfig',
                platform_delegate: PlatformDelegate, protos: ProtoFactory):
     (url, self.subprocess, self._tp_stdout, self._tp_stderr,
