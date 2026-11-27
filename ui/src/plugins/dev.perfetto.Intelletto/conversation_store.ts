@@ -28,7 +28,15 @@ const MODEL_PATH_SCHEMA = z.object({
 });
 
 const CHAT_LINE_SCHEMA = z.object({
-  role: z.enum(['ai', 'user', 'error', 'thought', 'toolcall', 'spacer']),
+  role: z.enum([
+    'ai',
+    'user',
+    'error',
+    'thought',
+    'toolcall',
+    'compaction',
+    'spacer',
+  ]),
   text: z.string(),
   toolArgs: z.unknown().optional(),
   toolResult: z.string().optional(),

@@ -37,6 +37,7 @@ import type {
 } from './api';
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
+import {DEFAULT_MAX_COMPACTION_TOKENS} from './compaction';
 import {ConversationStore} from './conversation_store';
 import {registerDataExplorerTools} from './data_explorer_tools';
 import {
@@ -82,6 +83,7 @@ export default class IntellettoPlugin
   // assistant. Headless (hidden from settings page) — changed via the sidebar
   // dropdown. Survives page reloads and is shared across all traces.
   private static selectedModelSetting: Setting<ModelPath | undefined>;
+  private static compactionTokenLimitSetting: Setting<number>;
   private static skills?: ReadonlyArray<SkillInfo>;
   private static skillsPromise: Promise<ReadonlyArray<SkillInfo>> =
     Promise.resolve([]);
@@ -121,6 +123,7 @@ export default class IntellettoPlugin
       () => assembleSystemPrompt(IntellettoPlugin.getActiveContext(), skills),
       IntellettoPlugin.conversationStore,
       {model: IntellettoPlugin.selectedModelSetting.get()},
+      () => IntellettoPlugin.compactionTokenLimitSetting.get(),
     ));
   }
 
@@ -139,6 +142,16 @@ export default class IntellettoPlugin
         .or(z.undefined()),
       defaultValue: undefined,
       headless: true,
+    });
+    IntellettoPlugin.compactionTokenLimitSetting = app.settings.register({
+      id: `${IntellettoPlugin.id}#CompactionTokenLimit`,
+      name: 'Auto-compaction token cap',
+      description:
+        'Maximum token count before Intelletto automatically compacts older ' +
+        'conversation history (always also capped at 80% of the model context ' +
+        'window). Set to 0 to use only the 80% model context window limit.',
+      schema: z.number().int().min(0),
+      defaultValue: DEFAULT_MAX_COMPACTION_TOKENS,
     });
     // Kick off skill index loading immediately so it's ready by the time the
     // user opens the panel, and redraw once loaded so isLoadingSkills clears.
@@ -206,6 +219,7 @@ export default class IntellettoPlugin
             : storedSummaries;
         return m(ChatPanel, {
           isAgentRunning: session?.loading ?? false,
+          isCompacting: session?.compacting ?? false,
           isLoadingSkills: skills === undefined,
           totalTokens: session?.totalTokens,
           onCancel: () => session?.cancel(),
@@ -249,6 +263,7 @@ export default class IntellettoPlugin
                 ),
               store,
               {stored},
+              () => IntellettoPlugin.compactionTokenLimitSetting.get(),
             );
           },
           onNewConversation: () => {
@@ -257,6 +272,12 @@ export default class IntellettoPlugin
             }
             IntellettoPlugin.session = undefined;
           },
+          onCompactConversation:
+            session?.canCompact === true && selectedModel !== undefined
+              ? () => {
+                  void session.compact(selectedModel);
+                }
+              : undefined,
           onRenameConversation:
             session !== undefined && isStored
               ? (name) => session.rename(name)
