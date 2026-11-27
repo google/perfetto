@@ -37,9 +37,16 @@ import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 import * as queries from './queries';
 
-interface HeapDumpPageAttrs {
+export interface HeapDumpPageAttrs {
   readonly session: HeapDumpExplorerSession;
   readonly subpage: string | undefined;
+  // When embedded inside a host page that owns process/dump selection, hide the
+  // standalone dump selector bar.
+  readonly hideDumpSelector?: boolean;
+  // When embedded inside a host page that owns view switching (e.g. a left
+  // navigation rail), hide the horizontal tab bar while keeping lazy tab
+  // mounting and state retention intact.
+  readonly hideTabBar?: boolean;
 }
 
 const FG_KEY_PREFIX = 'fg-';
@@ -318,7 +325,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   }
 
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
-    const {session, subpage} = attrs;
+    const {session, subpage, hideDumpSelector, hideTabBar} = attrs;
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
     session.syncFlamegraphTabFromNav();
@@ -327,7 +334,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     if (active === null) {
       return m(
         '.pf-hde-page',
-        renderDumpSelector(session),
+        !hideDumpSelector && renderDumpSelector(session),
         m('.pf-hde-loading', m(Spinner, {easing: true})),
       );
     }
@@ -349,7 +356,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
 
     return m(
       '.pf-hde-page',
-      renderDumpSelector(session),
+      !hideDumpSelector && renderDumpSelector(session),
       m(
         'main',
         {class: 'pf-hde-page__tabs'},
@@ -357,6 +364,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
           key: tabsKey,
           tabs,
           activeTabKey: activeTabKey(session),
+          hideTabBar,
           onTabChange: (key: string) => actions.get(key)?.select(),
           onTabClose: (key: string) => actions.get(key)?.close?.(),
         }),

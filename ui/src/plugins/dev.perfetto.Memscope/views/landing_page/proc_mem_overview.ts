@@ -24,7 +24,6 @@ import {
   NUM,
   STR,
 } from '../../../../trace_processor/query_result';
-import {TabStrip} from '../../../../widgets/tab_strip';
 import {Inset} from '../../components/inset';
 import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
@@ -113,7 +112,6 @@ export interface ProcessMemDetailsAttrs {
   readonly trace: Trace;
   readonly upid: number;
   readonly tab: MemoryOverviewTab;
-  readonly onTabChange: (tab: MemoryOverviewTab) => void;
 }
 
 export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttrs> {
@@ -123,6 +121,8 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   // Whole-trace per-snapshot smaps breakdown for the growth bar (keyed by
   // upid; independent of the page's snapshot selection).
   private readonly growthSlot = new AsyncMemo<GrowthSnapshot[]>();
+  // Tabs that have been opened at least once (lazy mount inside Gate).
+  private readonly activatedTabs = new Set<MemoryOverviewTab>();
   // The page-wide snapshot selection, driven by the composition timeline and
   // shared with the other summary sections as they're added.
   private selection?: MemSelection;
@@ -133,7 +133,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
   }
 
   view({attrs}: m.Vnode<ProcessMemDetailsAttrs>) {
-    const {trace, upid, tab, onTabChange} = attrs;
+    const {trace, upid, tab} = attrs;
     let capture: CaptureInfo | undefined;
     let error: string | undefined;
     try {
@@ -147,28 +147,30 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
 
     const smapsMissing = capture !== undefined && capture.smaps.samples === 0;
     const activeTab = smapsMissing ? 'summary' : tab;
+    this.activatedTabs.add(activeTab);
 
-    // Both tab bodies stay mounted and are toggled with a Gate (display:none
-    // when hidden) rather than conditionally rendered, so switching tabs doesn't
-    // remount each tab's components and re-run their data loads.
+    // Both tab bodies stay mounted once activated and are toggled with a Gate
+    // (display:none when hidden) rather than conditionally rendered, so
+    // switching tabs doesn't remount each tab's components and re-run their
+    // data loads.
     return [
       error !== undefined && m('p.pf-error', `Error: ${error}`),
       error === undefined && this.renderCaptureStrip(trace, capture),
       error === undefined &&
-        this.renderTabs(activeTab, smapsMissing, onTabChange),
-      error === undefined &&
         m(
           Gate,
           {open: activeTab === 'summary'},
-          // SubPage gives its direct children the cascading fade-up entrance
-          // animation (.pf-memscope-subpage > *), matching the rest of the page.
-          m(SubPage, ...this.renderSummarySections(trace, upid, capture)),
+          this.activatedTabs.has('summary') &&
+            // SubPage gives its direct children the cascading fade-up entrance
+            // animation (.pf-memscope-subpage > *), matching the rest of the page.
+            m(SubPage, ...this.renderSummarySections(trace, upid, capture)),
         ),
       error === undefined &&
         m(
           Gate,
           {open: activeTab === 'smaps'},
-          m(SubPage, m(SmapsDetail, {trace, upid})),
+          this.activatedTabs.has('smaps') &&
+            m(SubPage, m(SmapsDetail, {trace, upid})),
         ),
     ];
   }
@@ -251,47 +253,6 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       m(TraceOverview, {key: 'trace-overview', trace, upid}),
       ...sections.map((section) => section.content),
     ];
-  }
-
-  private renderTabs(
-    activeTab: MemoryOverviewTab,
-    smapsMissing: boolean,
-    onTabChange: (tab: MemoryOverviewTab) => void,
-  ): m.Children {
-    const tabs: {
-      key: MemoryOverviewTab;
-      label: string;
-      icon: string;
-      disabled?: boolean;
-    }[] = [
-      {key: 'summary', label: 'Summary', icon: 'description'},
-      {
-        key: 'smaps',
-        label: 'Smaps Detail',
-        icon: 'table_rows',
-        disabled: smapsMissing,
-      },
-    ];
-    return m(
-      TabStrip,
-      {variant: 'underline'},
-      tabs.map((t) =>
-        m(
-          TabStrip.Tab,
-          {
-            key: t.key,
-            active: t.key === activeTab,
-            disabled: t.disabled,
-            icon: t.icon,
-            title: t.disabled
-              ? 'No smaps data available for this process'
-              : undefined,
-            onclick: () => onTabChange(t.key),
-          },
-          t.label,
-        ),
-      ),
-    );
   }
 
   // "Where the growth went" bar (rendered below the composition chart): the

@@ -34,7 +34,15 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
   private static defaultFlamegraphSetting: Setting<boolean>;
+  private static hasExternalHost = false;
   private readonly session: HeapDumpExplorerSession;
+
+  // Called by a host plugin (e.g. dev.perfetto.Memscope) during onActivate()
+  // when it embeds HeapDumpPage inside a unified page and takes ownership of
+  // the /heapdump route, sidebar entry, and initial-page suggestion.
+  static claimStandaloneHost(): void {
+    HeapDumpExplorerPlugin.hasExternalHost = true;
+  }
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -76,11 +84,16 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     );
   }
 
-  // Change which heap dump we're looking at from another plugin
-  updateHeadDump(upid: number, ts: time): void {
+  getSession(): HeapDumpExplorerSession {
+    return this.session;
+  }
+
+  // Change which heap dump we're looking at from another plugin without
+  // issuing a competing navigation (the caller handles navigation).
+  selectDump(upid: number, ts: time): void {
     const dump = this.session.dumps.find((d) => d.upid === upid && d.ts === ts);
     if (!dump) return;
-    this.session.selectDump(dump);
+    this.session.setActiveDump(dump);
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -91,6 +104,19 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
 
     const session = this.session;
     const restored = await session.loadDumps();
+
+    ctx.plugins
+      .getPlugin(HeapProfilePlugin)
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
+      );
+
+    // When an external host plugin (dev.perfetto.Memscope) claimed hosting in
+    // onActivate(), it embeds HeapDumpPage in the unified Memory workbench and
+    // owns the /heapdump route alias, sidebar entry, and initial-page choice.
+    if (HeapDumpExplorerPlugin.hasExternalHost) {
+      return;
+    }
 
     ctx.pages.registerPage({
       route: '/heapdump',
@@ -109,12 +135,6 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       session.autoNavigated = true;
       ctx.initialPage.suggest('/heapdump', 100);
     }
-
-    ctx.plugins
-      .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
-        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
-      );
 
     ctx.sidebar.addMenuItem({
       section: 'current_trace',
