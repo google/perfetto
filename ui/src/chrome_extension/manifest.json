@@ -24,10 +24,10 @@
     // content hosted on these domains to record Chrome traces. In particular
     // do not use a wildcard subdomain: an XSS on any other perfetto.dev
     // service would then be able to record a browser-wide trace.
+    // No localhost: the port can't be restricted, so any local page could
+    // connect. Add it back locally if you need it for UI development.
     // NOTE: Remove this comment when publishing the extension in the store.
     "matches": [
-      "*://localhost/*",
-      "*://127.0.0.1/*",
       "https://ui.perfetto.dev/*"
     ]
   }
