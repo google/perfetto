@@ -36,6 +36,7 @@ source_set("art_method") {
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/common:zero",
     "../../../base",
+    "../../../protozero",
     "../../containers",
     "../../importers/common",
     "../../sorter",
