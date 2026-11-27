@@ -17,12 +17,10 @@ import {AsyncMemo} from '../../../../base/async_memo';
 import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Time, type time} from '../../../../base/time';
-import {formatDuration} from '../../../../components/time_utils';
 import type {Trace} from '../../../../public/trace';
 import {LONG, NUM_NULL} from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../../widgets/button';
-import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Icon} from '../../../../widgets/icon';
@@ -83,8 +81,6 @@ export interface MemoryOverviewPageAttrs {
   ) => void;
 }
 
-const MAX_INLINE_DUMP_CHIPS = 4;
-
 interface StaticHdeTreeItem {
   readonly view: NavView;
   readonly label: string;
@@ -100,10 +96,6 @@ const HDE_JAVA_TREE_ITEMS: ReadonlyArray<StaticHdeTreeItem> = [
   {view: 'arrays', label: 'Arrays', icon: 'view_array'},
   {view: 'callstack', label: 'Callstack', icon: 'format_list_numbered'},
 ];
-
-function formatOffsetSec(trace: Trace, ts: time): string {
-  return `${(Number(Time.diff(ts, trace.traceInfo.start)) / 1e9).toFixed(1)}s`;
-}
 
 function formatUptimeShort(ns: number): string {
   const secs = Math.max(0, ns) / 1e9;
@@ -279,20 +271,19 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       } else {
         this.selectionByUpid.set(validUpid, next);
       }
-      // Keep HDE's active dump synchronized with the timeline's target point.
+      // Keep HDE's active dump synchronized with the timeline selection
+      // (resetting back to the latest dump when the selection is cleared).
       if (hdeSession !== undefined && procDumps.length > 0) {
-        hdeSession.selectDumpForProcess(validUpid, next?.sel);
-      }
-    };
-
-    const handleSelectDump = (dump: HeapDump) => {
-      hdeSession?.selectDump(dump);
-      if (validUpid !== undefined) {
-        const cur = this.selectionByUpid.get(validUpid);
-        if (cur?.base !== undefined) {
-          this.selectionByUpid.set(validUpid, {base: cur.base, sel: dump.ts});
-        } else {
-          this.selectionByUpid.set(validUpid, {sel: dump.ts});
+        const targetDump =
+          next !== undefined
+            ? nearestByTs(procDumps, next.sel)
+            : procDumps[procDumps.length - 1];
+        if (targetDump !== undefined) {
+          if (activePage === 'java-hde') {
+            hdeSession.selectDump(targetDump);
+          } else {
+            hdeSession.selectDumpForProcess(validUpid, targetDump.ts);
+          }
         }
       }
     };
@@ -303,7 +294,9 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     ) => {
       if (validUpid === undefined) return;
       if (hdeSession !== undefined && procDumps.length > 0) {
-        hdeSession.selectDumpForProcess(validUpid, currentSelection?.sel);
+        const targetTs =
+          currentSelection?.sel ?? procDumps[procDumps.length - 1]?.ts;
+        hdeSession.selectDumpForProcess(validUpid, targetTs);
         hdeSession.navigateWithTabs(view, params);
       } else {
         onNavigatePage('java-hde', view);
@@ -319,9 +312,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
             activeDump: hdeSession?.activeDump ?? null,
             selection: currentSelection,
             onSelect: handleSelectTimeline,
-            onSelectDump: (dump) => {
-              hdeSession?.selectDump(dump);
-            },
           })
         : undefined;
 
@@ -374,7 +364,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
               onNavigatePage,
               onOpenJavaHeap,
               onOpenHdeView: handleOpenHdeView,
-              onSelectDump: handleSelectDump,
             }),
           ]),
     ]);
@@ -658,7 +647,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       view: NavView,
       params?: Record<string, unknown>,
     ) => void;
-    readonly onSelectDump: (dump: HeapDump) => void;
   }): m.Children {
     const {
       trace,
@@ -672,7 +660,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       onNavigatePage,
       onOpenJavaHeap,
       onOpenHdeView,
-      onSelectDump,
     } = opts;
 
     const isBitmapsGallery =
@@ -718,13 +705,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
             onSummary: () => onNavigatePage('java-bitmaps'),
             onGallery: () => onOpenHdeView('bitmaps'),
           }),
-        this.renderHdeDumpBar(
-          trace,
-          procDumps,
-          hdeSession.activeDump,
-          selection,
-          onSelectDump,
-        ),
         m(HeapDumpContentView, {
           session: hdeSession,
           subpage: hdeSubpage,
@@ -847,77 +827,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
           onclick: opts.onGallery,
         }),
       ]),
-    ]);
-  }
-
-  private renderHdeDumpBar(
-    trace: Trace,
-    procDumps: ReadonlyArray<HeapDump>,
-    activeDump: HeapDump | null,
-    selection: MemSelection | undefined,
-    onSelectDump: (dump: HeapDump) => void,
-  ): m.Children {
-    const baseDump =
-      selection?.base !== undefined
-        ? nearestByTs(procDumps, selection.base)
-        : undefined;
-    const selDump =
-      selection !== undefined
-        ? nearestByTs(procDumps, selection.sel)
-        : (activeDump ?? undefined);
-    const rangeSpansTwoDumps =
-      baseDump !== undefined &&
-      selDump !== undefined &&
-      baseDump.ts !== selDump.ts;
-
-    if (procDumps.length <= 1 && !rangeSpansTwoDumps) {
-      return null;
-    }
-
-    return m('.pf-memtree-subbar.pf-memtree-subbar--dumps', [
-      m('span.pf-memtree-subbar__label', 'Heap dump:'),
-      procDumps.length <= MAX_INLINE_DUMP_CHIPS
-        ? m(
-            '.pf-memtl-heap-card__dump-chips',
-            procDumps.map((d, i) =>
-              m(Chip, {
-                key: `${d.upid}:${d.ts.toString()}`,
-                label: `#${i + 1} · ${formatOffsetSec(trace, d.ts)}`,
-                rounded: true,
-                interactive: true,
-                intent: d === activeDump ? Intent.Primary : Intent.None,
-                onclick: () => onSelectDump(d),
-              }),
-            ),
-          )
-        : m(
-            PopupMenu,
-            {
-              position: PopupPosition.BottomStart,
-              trigger: m(Button, {
-                label:
-                  activeDump !== null
-                    ? `Dump #${procDumps.indexOf(activeDump) + 1}/${procDumps.length} · ${formatOffsetSec(trace, activeDump.ts)}`
-                    : `${procDumps.length} dumps`,
-                icon: 'photo_camera',
-                rightIcon: 'arrow_drop_down',
-                variant: ButtonVariant.Outlined,
-                compact: true,
-              }),
-            },
-            procDumps.map((d, i) =>
-              m(MenuItem, {
-                label: `Dump #${i + 1} — ${formatDuration(trace, Time.diff(d.ts, trace.traceInfo.start))}`,
-                active: d === activeDump,
-                onclick: () => onSelectDump(d),
-              }),
-            ),
-          ),
-      rangeSpansTwoDumps &&
-        m(
-          'span.pf-memtree-subbar__hint',
-          `Showing target Dump #${procDumps.indexOf(selDump) + 1}; see Java → Overview for Δ vs Dump #${procDumps.indexOf(baseDump) + 1}.`,
-        ),
     ]);
   }
 

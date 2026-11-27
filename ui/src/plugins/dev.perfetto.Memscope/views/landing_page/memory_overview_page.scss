@@ -410,18 +410,6 @@
     font-weight: 600;
     color: var(--pf-color-text);
   }
-
-  &__label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--pf-color-text-muted);
-  }
-
-  &__hint {
-    font-size: 11px;
-    color: var(--pf-color-text-muted);
-    margin-left: auto;
-  }
 }
 
 .pf-memtl-page__empty {
@@ -645,13 +633,6 @@
     color: var(--pf-color-text-muted);
     font-variant-numeric: tabular-nums;
   }
-}
-
-.pf-memtl-heap-card__dump-chips {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 .pf-memscope-capture__dot {
