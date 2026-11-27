@@ -173,6 +173,11 @@ constexpr auto kActualBlueprint = TrackCompressor::SliceBlueprint(
     tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
     tracks::StaticNameBlueprint("Actual Timeline"));
 
+constexpr auto kInputBlueprint = TrackCompressor::SliceBlueprint(
+    "android_input_frame_timeline",
+    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+    tracks::StaticNameBlueprint("Input Timeline"));
+
 }  // namespace
 
 FrameTimelineEventParser::FrameTimelineEventParser(
@@ -214,6 +219,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Display frame token")),
       animation_time_millis_id_(
           context->storage->InternString("Animation Time (ms)")),
+      input_latency_millis_id_(
+          context->storage->InternString("Input latency (ms)")),
       present_delay_millis_id_(
           context->storage->InternString("Present Delay (ms)")),
       vsync_resynced_jitter_millis_id_(
@@ -244,6 +251,22 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Addressable unsignaled latch count")),
       latched_fence_state_id_(
           context->storage->InternString("Latched fence state")),
+      input_event_id_id_(context->storage->InternString("Input event ID")),
+      input_expected_deadline_nanos_id_(
+          context->storage->InternString("Input expected deadline (ns)")),
+      input_expected_surface_frame_token_id_(
+          context->storage->InternString("Expected surface frame token")),
+      input_timeline_event_id_flat_key_id_(
+          context->storage->InternString("input_timeline_info.input_event_id")),
+      input_timeline_event_time_flat_key_id_(context->storage->InternString(
+          "input_timeline_info.event_time_nanos")),
+      input_timeline_expected_deadline_flat_key_id_(
+          context->storage->InternString(
+              "input_timeline_info.expected_deadline_nanos")),
+      input_timeline_is_janky_flat_key_id_(
+          context->storage->InternString("input_timeline_info.is_janky")),
+      input_timeline_expected_token_flat_key_id_(context->storage->InternString(
+          "input_timeline_info.expected_surface_frame_token")),
       jank_tag_unspecified_id_(context->storage->InternString("Unspecified")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
@@ -254,7 +277,11 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_sf_stuffing_id_(
           context->storage->InternString("SurfaceFlinger Stuffing")),
       jank_tag_none_perceivable_id_(
-          context->storage->InternString("Non-perceivable Jank")) {}
+          context->storage->InternString("Non-perceivable Jank")),
+      expected_frame_cat_id_(context->storage->InternString("expected_frame")),
+      expected_frame_name_id_(context->storage->InternString("Expected Frame")),
+      actual_frame_cat_id_(context->storage->InternString("actual_frame")),
+      actual_frame_name_id_(context->storage->InternString("Actual Frame")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
                                                               ConstBytes blob) {
@@ -472,13 +499,16 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
 
   TrackId track_id = context_->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  context_->slice_tracker->Begin(
+  std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, name_id, [&](ArgsInserter& inserter) {
         inserter.AddArg(surface_frame_token_id_, Variadic::Integer(token));
         inserter.AddArg(display_frame_token_id_,
                         Variadic::Integer(display_frame_token));
         inserter.AddArg(layer_name_id_, Variadic::String(layer_name_id));
       });
+  if (opt_slice_id) {
+    expected_timeline_slice_map_[upid][token] = *opt_slice_id;
+  }
 }
 
 StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
@@ -510,9 +540,127 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
   return jank_tag;
 }
 
+void FrameTimelineEventParser::InsertInputFlows(UniquePid upid,
+                                                int64_t actual_token,
+                                                int64_t expected_token,
+                                                SliceId input_slice_id,
+                                                SliceId actual_frame_slice_id) {
+  // When the expected frame token reported by FrameTimeline differs from the
+  // actual frame token, emit two flows (one to the expected frame slice and one
+  // to the actual frame slice); otherwise emit a single flow to the actual
+  // frame slice.
+  if (expected_token >= 0 && expected_token != actual_token) {
+    auto exp_slice_it = expected_timeline_slice_map_[upid].find(expected_token);
+    if (exp_slice_it != expected_timeline_slice_map_[upid].end()) {
+      context_->flow_tracker->InsertFlow(input_slice_id, exp_slice_it->second,
+                                         expected_frame_cat_id_,
+                                         expected_frame_name_id_);
+      context_->flow_tracker->InsertFlow(input_slice_id, actual_frame_slice_id,
+                                         actual_frame_cat_id_,
+                                         actual_frame_name_id_);
+      return;
+    }
+  }
+
+  context_->flow_tracker->InsertFlow(input_slice_id, actual_frame_slice_id);
+}
+
+void FrameTimelineEventParser::ParseInputTimelineStart(int64_t timestamp,
+                                                       ConstBytes blob) {
+  ActualSurfaceFrameStartDecoder event(blob);
+  if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
+    return;
+  }
+
+  int64_t cookie = event.cookie();
+  int64_t token = event.token();
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(event.pid()));
+
+  auto it = event.input_timeline_info();
+  if (!it) {
+    return;
+  }
+  FrameTimelineEvent::InputTimelineInfo::Decoder info(*it);
+  if (!info.has_input_event_id()) {
+    return;
+  }
+
+  uint32_t input_event_id = static_cast<uint32_t>(info.input_event_id());
+  int64_t expected_token = info.has_expected_surface_frame_token()
+                               ? info.expected_surface_frame_token()
+                               : token;
+  StringId input_name_id = context_->storage->InternString(
+      base::StringView(std::to_string(input_event_id)));
+
+  // parse input jank tag
+  const std::optional<bool> is_janky_opt =
+      info.has_is_janky() ? std::make_optional(info.is_janky()) : std::nullopt;
+  StringId input_jank_tag;
+  if (event.has_present_type() &&
+      event.present_type() == FrameTimelineEvent::PRESENT_DROPPED) {
+    input_jank_tag = jank_tag_dropped_id_;
+  } else {
+    input_jank_tag =
+        !is_janky_opt.has_value()
+            ? jank_tag_unspecified_id_
+            : (*is_janky_opt ? jank_tag_self_id_ : jank_tag_none_id_);
+  }
+
+  // Input Timeline: Begin at event_time_nanos, closed in ParseFrameEnd when the
+  // matching FrameEnd packet for |cookie| arrives at the frame's actual start
+  // timestamp (mActuals.startTime).
+  cookie_map_[cookie] = std::make_pair(upid, TrackType::kInput);
+  TrackId input_track_id = context_->track_compressor->InternBegin(
+      kInputBlueprint, tracks::Dimensions(upid), cookie);
+  std::optional<SliceId> input_slice_id = context_->slice_tracker->Begin(
+      timestamp, input_track_id, kNullStringId, input_name_id,
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(input_event_id_id_, Variadic::Integer(input_event_id));
+        inserter.AddArg(surface_frame_token_id_, Variadic::Integer(token));
+        if (info.has_expected_surface_frame_token()) {
+          inserter.AddArg(
+              input_expected_surface_frame_token_id_,
+              Variadic::Integer(info.expected_surface_frame_token()));
+        }
+        if (info.has_expected_deadline_nanos()) {
+          inserter.AddArg(input_expected_deadline_nanos_id_,
+                          Variadic::Integer(info.expected_deadline_nanos()));
+        }
+        if (event.has_input_latency_millis()) {
+          inserter.AddArg(input_latency_millis_id_,
+                          Variadic::Real(static_cast<double>(
+                              event.input_latency_millis())));
+        }
+        inserter.AddArg(jank_tag_id_, Variadic::String(input_jank_tag));
+      });
+  if (!input_slice_id) {
+    return;
+  }
+
+  // Input Timeline packets are timestamped at event_time_nanos (before the
+  // frame's ActualSurfaceFrameStart), so queue the slice under |token| until
+  // ParseActualSurfaceFrameStart runs; if the frame slice was already parsed,
+  // connect the flow arrow(s) immediately.
+  auto actual_slice_it = actual_timeline_token_to_slice_[upid].find(token);
+  if (actual_slice_it != actual_timeline_token_to_slice_[upid].end()) {
+    InsertInputFlows(upid, token, expected_token, *input_slice_id,
+                     actual_slice_it->second);
+  } else {
+    pending_input_flows_[upid][token].push_back(
+        PendingInputFlow{*input_slice_id, expected_token});
+  }
+}
+
 void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
                                                             ConstBytes blob) {
   ActualSurfaceFrameStartDecoder event(blob);
+  // Per-input-event start packets (emitted at event_time_nanos without
+  // display_frame_token) begin slices on the Input Timeline track.
+  if (!event.has_display_frame_token() && event.has_input_timeline_info()) {
+    ParseInputTimelineStart(timestamp, blob);
+    return;
+  }
 
   if (!event.has_cookie() || !event.has_token() ||
       !event.has_display_frame_token() || !event.has_pid()) {
@@ -622,6 +770,11 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
           inserter.AddArg(animation_time_millis_id_,
                           Variadic::Real(animation_time_millis));
         }
+        if (event.has_input_latency_millis()) {
+          inserter.AddArg(input_latency_millis_id_,
+                          Variadic::Real(static_cast<double>(
+                              event.input_latency_millis())));
+        }
         inserter.AddArg(present_delay_millis_id_,
                         Variadic::Real(present_delay_millis));
         inserter.AddArg(vsync_resynced_jitter_millis_id_,
@@ -654,10 +807,62 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
               Variadic::String(latched_fence_state_ids_[static_cast<size_t>(
                   event.latched_fence_state())]));
         }
+        // Attach per-input-event timeline metadata to the Actual Timeline
+        // slice.
+        size_t idx = 0;
+        for (auto it = event.input_timeline_info(); it; ++it, ++idx) {
+          FrameTimelineEvent::InputTimelineInfo::Decoder info(*it);
+          std::string prefix =
+              "input_timeline_info[" + std::to_string(idx) + "].";
+          if (info.has_input_event_id()) {
+            StringId key_id = context_->storage->InternString(
+                base::StringView(prefix + "input_event_id"));
+            inserter.AddArg(input_timeline_event_id_flat_key_id_, key_id,
+                            Variadic::Integer(
+                                static_cast<uint32_t>(info.input_event_id())));
+          }
+          if (info.has_event_time_nanos()) {
+            StringId key_id = context_->storage->InternString(
+                base::StringView(prefix + "event_time_nanos"));
+            inserter.AddArg(input_timeline_event_time_flat_key_id_, key_id,
+                            Variadic::Integer(info.event_time_nanos()));
+          }
+          if (info.has_expected_deadline_nanos()) {
+            StringId key_id = context_->storage->InternString(
+                base::StringView(prefix + "expected_deadline_nanos"));
+            inserter.AddArg(input_timeline_expected_deadline_flat_key_id_,
+                            key_id,
+                            Variadic::Integer(info.expected_deadline_nanos()));
+          }
+          if (info.has_is_janky()) {
+            StringId key_id = context_->storage->InternString(
+                base::StringView(prefix + "is_janky"));
+            inserter.AddArg(input_timeline_is_janky_flat_key_id_, key_id,
+                            Variadic::Boolean(info.is_janky()));
+          }
+          if (info.has_expected_surface_frame_token()) {
+            StringId key_id = context_->storage->InternString(
+                base::StringView(prefix + "expected_surface_frame_token"));
+            inserter.AddArg(
+                input_timeline_expected_token_flat_key_id_, key_id,
+                Variadic::Integer(info.expected_surface_frame_token()));
+          }
+        }
       });
 
   if (opt_slice_id) {
     display_token_to_surface_slice_.emplace(display_frame_token, *opt_slice_id);
+    actual_timeline_token_to_slice_[upid][token] = *opt_slice_id;
+    // Connect flow arrows from each Input Timeline slice opened for this frame
+    // to its expected and actual frame slices.
+    auto pending_it = pending_input_flows_[upid].find(token);
+    if (pending_it != pending_input_flows_[upid].end()) {
+      for (const auto& pending : pending_it->second) {
+        InsertInputFlows(upid, token, pending.expected_token,
+                         pending.input_slice_id, *opt_slice_id);
+      }
+      pending_input_flows_[upid].erase(pending_it);
+    }
   }
 }
 
@@ -686,6 +891,10 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
     case TrackType::kActual:
       track_id = context_->track_compressor->InternEnd(
           kActualBlueprint, tracks::Dimensions(it->first), cookie);
+      break;
+    case TrackType::kInput:
+      track_id = context_->track_compressor->InternEnd(
+          kInputBlueprint, tracks::Dimensions(it->first), cookie);
       break;
   }
   context_->slice_tracker->End(timestamp, track_id);
