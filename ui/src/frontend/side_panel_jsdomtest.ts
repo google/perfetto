@@ -14,7 +14,9 @@
 
 import m from 'mithril';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
+import {setOwner} from '../core/ownership';
 import {SidePanelManagerImpl} from '../core/side_panel_manager';
+import type {SidePanelTabDescriptor} from '../public/side_panel';
 import {SidePanelContainer} from './side_panel';
 
 // UiMain, and the SidePanelContainer inside it, remounts whenever the trace or
@@ -77,5 +79,28 @@ describe('SidePanelContainer', () => {
 
     renderSidePanel(sidePanelMgr, 'trace-2');
     expect(sidePanelWidth()).toBe('600px');
+  });
+
+  test("labels each tab's title and content with its owner", () => {
+    const sidePanelMgr = new SidePanelManagerImpl();
+    const tab: SidePanelTabDescriptor = {
+      uri: 'test#tab',
+      title: 'Tab title',
+      render: () => m('.tab-content'),
+    };
+    setOwner(tab, 'com.example.Owner');
+    sidePanelMgr.registerTab(tab);
+    sidePanelMgr.showTab('test#tab');
+
+    renderSidePanel(sidePanelMgr, 'trace-1');
+    const ownerOf = (el: Element | null | undefined) =>
+      el?.closest('[data-plugin]')?.getAttribute('data-plugin');
+    const title = Array.from(container.querySelectorAll('*')).find(
+      (el) => el.childElementCount === 0 && el.textContent === 'Tab title',
+    );
+    expect(ownerOf(title)).toBe('com.example.Owner');
+    expect(ownerOf(container.querySelector('.tab-content'))).toBe(
+      'com.example.Owner',
+    );
   });
 });

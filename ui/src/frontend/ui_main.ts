@@ -25,6 +25,8 @@ import {SidePanelContainer} from './side_panel';
 import {renderStatusBar} from './statusbar';
 import {taskTracker} from './task_tracker';
 import {Topbar} from './topbar';
+import {OWNER_ATTRIBUTE} from '../base/owner_attribute';
+import {CORE_OWNER} from '../core/ownership';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -65,11 +67,15 @@ export class UiMain implements m.ClassComponent {
       m(Sidebar, {app}),
       m(Topbar, {trace}),
       m(LinearProgress, {
+        [OWNER_ATTRIBUTE]: CORE_OWNER,
         className: 'pf-ui-main__loading',
         state: isSomethingLoading ? 'indeterminate' : 'none',
       }),
       m(
         '.pf-ui-main__page-container',
+        // Pages carry their own owner. This covers the space below a page
+        // that doesn't fill the screen.
+        {[OWNER_ATTRIBUTE]: CORE_OWNER},
         m(SidePanelContainer, {
           sidePanelMgr: app.sidePanel,
           pageContent: app.pages.renderPageForCurrentRoute(),

@@ -19,6 +19,13 @@ import type {PageHandler, PageManager} from '../public/page';
 import type {Analytics} from '../public/analytics';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
+import {withOwner} from '../base/owner_attribute';
+
+// A page and the content it rendered.
+interface RenderedPage {
+  readonly handler: PageHandler;
+  readonly content: m.Children;
+}
 
 export class PageManagerImpl implements PageManager {
   private readonly registry = new Registry<PageHandler>((x) => x.route);
@@ -71,20 +78,30 @@ export class PageManagerImpl implements PageManager {
         // is not loaded, fall back on the default route.
         const renderedPage =
           maybeRenderedPage ?? ensureExists(this.renderPageForRoute('/', ''));
-        return [key, renderedPage];
+        return [key, renderedPage] as const;
       })
-      .map(([key, page]) => {
-        return m(Gate, {open: key === route.page}, page);
+      .map(([key, {handler, content}]) => {
+        // Label the page with the owner of the page that was rendered (the
+        // home page, if the route fell back on it).
+        return m(
+          Gate,
+          {open: key === route.page},
+          withOwner(handler.pluginId, content),
+        );
       });
   }
 
   // Will return undefined if either: (1) the route does not exist; (2) the
   // route exists, it requires a trace, but there is no trace loaded.
-  private renderPageForRoute(page: string, subpage: string) {
+  private renderPageForRoute(
+    page: string,
+    subpage: string,
+  ): RenderedPage | undefined {
     const handler = this.registry.tryGet(page);
-    if (handler === undefined) {
+    const content = handler?.render(subpage);
+    if (handler === undefined || content === undefined || content === null) {
       return undefined;
     }
-    return handler.render(subpage);
+    return {handler, content};
   }
 }

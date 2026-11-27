@@ -25,6 +25,8 @@ import {Button} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {Omnibox} from './omnibox';
+import {OWNER_ATTRIBUTE} from '../base/owner_attribute';
+import {CORE_OWNER} from '../core/ownership';
 
 class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
   private tracePopupErrorDismissed = false;
@@ -107,6 +109,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
     return m(
       '.pf-topbar',
       {
+        [OWNER_ATTRIBUTE]: CORE_OWNER,
         className: classNames(
           !app.sidebar.visible && 'pf-topbar--hide-sidebar',
         ),
@@ -114,6 +117,9 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
       m(Omnibox, {trace}),
       m(
         '.pf-topbar__right',
+        // In query mode the omnibox stretches under these buttons. Label them
+        // so they aren't counted as part of the omnibox.
+        {[OWNER_ATTRIBUTE]: CORE_OWNER},
         trace && m(TraceErrorIcon, {trace}),
         renderSidePanelToggle(app.sidePanel),
       ),

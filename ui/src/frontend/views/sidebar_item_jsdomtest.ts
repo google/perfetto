@@ -16,6 +16,7 @@ import m from 'mithril';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
 import {AppImpl} from '../../core/app_impl';
 import {createFakeTraceImpl} from '../../core/fake_trace_impl';
+import {setOwner} from '../../core/ownership';
 import type {SidebarMenuItemInternal} from '../../core/sidebar_manager';
 import {SidebarItem} from './sidebar_item';
 
@@ -93,5 +94,20 @@ describe('SidebarItem', () => {
     url = 'https://example.com/b';
     renderItems([item]);
     expect(href()).toBe('https://example.com/b');
+  });
+
+  test('labels each item with its owner', () => {
+    const item: SidebarMenuItemInternal = {
+      id: 'a',
+      section: 'support',
+      text: 'Owned',
+      action: () => {},
+    };
+    setOwner(item, 'com.example.Owner');
+
+    renderItems([item]);
+    expect(container.querySelector('li')?.getAttribute('data-plugin')).toBe(
+      'com.example.Owner',
+    );
   });
 });

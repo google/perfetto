@@ -26,6 +26,8 @@ import {Animation} from '../animation';
 import {EngineStatusBadge} from './engine_status_badge';
 import {ServiceWorkerStatusBadge} from './service_worker_status_badge';
 import {SidebarSection} from './sidebar_section';
+import {OWNER_ATTRIBUTE} from '../../base/owner_attribute';
+import {CORE_OWNER} from '../../core/ownership';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
@@ -43,6 +45,7 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
     return m(
       'nav.pf-sidebar',
       {
+        [OWNER_ATTRIBUTE]: CORE_OWNER,
         class: sidebar.visible ? undefined : 'pf-sidebar--hidden',
         // 150 here matches --sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
