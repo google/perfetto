@@ -10,7 +10,7 @@ android_blocking_calls_cuj_metric {
       is_kernel_task: false
     }
     ts: 0
-    dur: 18000000
+    dur: 20000000
     blocking_calls {
       name: "DrawFrames"
       cnt: 1
@@ -43,7 +43,7 @@ android_blocking_calls_cuj_metric {
       is_kernel_task: false
     }
     ts: 0
-    dur: 18000000
+    dur: 20000000
     blocking_calls {
       name: "DrawFrames"
       cnt: 1

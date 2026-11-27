@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.cujs.base;
 
+INCLUDE PERFETTO MODULE android.frames.timeline;
+
 INCLUDE PERFETTO MODULE android.surfaceflinger;
 
 INCLUDE PERFETTO MODULE android.cujs.relevant_slices;
@@ -107,9 +109,7 @@ WITH
       ON e.upid = vsync_boundary.upid
       AND e.vsync >= vsync_min
       AND e.vsync <= vsync_max
-    JOIN actual_frame_timeline_slice AS a
-      ON e.upid = a.upid
-      AND e.name = a.name
+    JOIN actual_frame_timeline_slice AS a ON e.upid = a.upid AND e.name = a.name
     GROUP BY
       cuj_id,
       e.vsync,
@@ -222,13 +222,16 @@ WITH
     FROM _android_jank_cuj_main_thread_cuj_boundary AS main_thread_boundary
     JOIN android_jank_cuj AS cuj USING (cuj_id)
     JOIN _android_jank_cuj_vsync_boundary USING (cuj_id)
-    LEFT JOIN actual_frame_timeline_slice AS timeline_slice
+    LEFT JOIN _distinct_layer_actual_timeline_slice_per_process AS timeline_slice
       ON cuj.upid = timeline_slice.upid
       -- Timeline slices for this exact VSYNC might be missing (e.g. if the last
       -- doFrame did not actually produce anything to draw).
       -- In that case we compute the boundary based on the last doFrame and the
       -- CUJ markers.
-      AND vsync_max = CAST(timeline_slice.name AS INTEGER)
+      AND vsync_max = timeline_slice.frame_id
+      -- Scope to the CUJ's tracked layer so unrelated layers at vsync_max do
+      -- not extend ts_end.
+      AND (cuj.layer_id IS NULL OR cuj.layer_id = timeline_slice.layer_id)
     GROUP BY
       cuj_id,
       cuj.upid,

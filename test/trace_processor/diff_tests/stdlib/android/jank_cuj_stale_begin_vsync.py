@@ -67,13 +67,15 @@ def add_actual_surface_frame_events(trace,
                                     dur,
                                     token,
                                     jank=None,
-                                    layer=LAYER):
+                                    layer=LAYER,
+                                    cookie=None):
+  cookie = cookie if cookie is not None else 200000 + token
   jank_type = jank if jank is not None else 1
   present_type = 2 if jank is not None else 1
   on_time_finish = 1 if jank is None else 0
   trace.add_actual_surface_frame_start_event(
       ts=ts,
-      cookie=200000 + token,
+      cookie=cookie,
       token=token,
       display_frame_token=100 + token,
       pid=PID,
@@ -84,7 +86,7 @@ def add_actual_surface_frame_events(trace,
       prediction_type=3,
       layer_name=layer,
       jank_score=0 if jank is None else 1)
-  trace.add_frame_end_event(ts=ts + dur, cookie=200000 + token)
+  trace.add_frame_end_event(ts=ts + dur, cookie=cookie)
 
 
 trace = synth_common.create_trace()
@@ -162,5 +164,15 @@ add_expected_surface_frame_events(
     trace, ts=CUJ_TS_END + 1_000_000_000, dur=16_000_000, token=105)
 add_actual_surface_frame_events(
     trace, ts=CUJ_TS_END + 1_000_000_000, dur=30_000_000, token=105, jank=64)
+
+# A late frame of another layer sharing endVsync (110); must not extend ts_end.
+add_actual_surface_frame_events(
+    trace,
+    ts=CUJ_TS + 16_000_000,
+    dur=500_000_000,
+    token=110,
+    jank=64,
+    layer=OTHER_LAYER,
+    cookie=300110)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
