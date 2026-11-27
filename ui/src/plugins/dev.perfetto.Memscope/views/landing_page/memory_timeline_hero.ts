@@ -1090,11 +1090,6 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         m('polygon.pf-memtl__dump-diamond', {points: pts}),
                         m('polygon.pf-memtl__dump-core', {points: innerPts}),
                         m(
-                          'text.pf-memtl__dump-tag',
-                          {x: x + r + 3.5, y: javaY + 3.5},
-                          `#${i + 1}`,
-                        ),
-                        m(
                           'title',
                           `Java Heap Dump #${i + 1} · t=${secOf(d.ts)}` +
                             (heapBytes !== undefined

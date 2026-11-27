@@ -240,21 +240,8 @@
       fill: color-mix(in srgb, #2196f3 24%, transparent);
     }
 
-    .pf-memtl__dump-tag {
-      font-size: 10px;
-      font-weight: 700;
-      font-family: var(--pf-font-monospace);
-      fill: #2196f3;
-    }
-
-    &.pf-memtl__marker--active {
-      .pf-memtl__dump-diamond {
-        fill: var(--pf-color-primary);
-      }
-
-      .pf-memtl__dump-tag {
-        fill: var(--pf-color-primary);
-      }
+    &.pf-memtl__marker--active .pf-memtl__dump-diamond {
+      fill: var(--pf-color-primary);
     }
   }
 
