@@ -123,6 +123,12 @@ class SqlSource {
   // Returns whether this SqlSource has been rewritten.
   bool IsRewritten() const { return root_.IsRewritten(); }
 
+  // Returns whether this SQL is an internal implementation detail of trace
+  // processor (see |FromTraceProcessorImplementation|).
+  bool IsTraceProcessorImplementation() const {
+    return root_.is_trace_processor_implementation;
+  }
+
  private:
   struct Rewrite;
 
@@ -182,6 +188,9 @@ class SqlSource {
     // applied. Only set for SQL which is executed directly (i.e. not for the
     // SQL replacing part of another statement).
     bool show_expanded_statement = false;
+    // Whether the SQL is an internal implementation detail of trace processor
+    // rather than, e.g., a query, a metric or a module.
+    bool is_trace_processor_implementation = false;
     uint32_t line = 1;
     uint32_t col = 1;
 

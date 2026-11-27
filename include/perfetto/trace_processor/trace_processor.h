@@ -225,9 +225,9 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
 
   // Interrupts all the queries running now: their statements stop with an
   // "interrupted" error, and so does every statement which starts afterwards,
-  // until the next query starts (ExecuteQuery(), or the first statement of
-  // ExecuteNextStatement()). Work run in between, such as computing metrics,
-  // can be stopped too. Typically used by a Ctrl-C handler.
+  // until the next query (ExecuteQuery(), or the first statement of
+  // ExecuteNextStatement()) or metrics computation starts. Typically used by a
+  // Ctrl-C handler.
   virtual void InterruptQuery() = 0;
 
   // Restores Trace Processor to its pristine state. It preserves the built-in

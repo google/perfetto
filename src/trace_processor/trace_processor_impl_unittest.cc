@@ -18,12 +18,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/sqlite/bindings/sqlite_db.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -90,16 +91,20 @@ TEST(TraceProcessorImplTest, InterruptWhileIdleDoesNotAffectNextQuery) {
   EXPECT_TRUE(it.Status().ok()) << it.Status().message();
 }
 
-// An interrupt arriving between two statements of a query, while no statement
-// runs, still stops the next statement. Without SQLite progress callbacks (as
-// in Chromium's SQLite), such an interrupt is still lost.
-TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
-  if (!sqlite::db::kHasProgressHandler) {
-    GTEST_SKIP()
-        << "Needs SQLite progress handlers, which Chromium's SQLite omits";
-  }
+// Computing metrics forgets an earlier interrupt too, as a query does.
+TEST(TraceProcessorImplTest, InterruptWhileIdleDoesNotAffectNextMetric) {
   auto tp = CreateTraceProcessor();
-  std::string sql = std::string("SELECT 1; ") + kLongQuery;
+  tp->InterruptQuery();
+  std::vector<uint8_t> metrics;
+  base::Status status = tp->ComputeMetric({"trace_metadata"}, &metrics);
+  EXPECT_TRUE(status.ok()) << status.message();
+}
+
+// An interrupt arriving between two statements of a query, while no statement
+// runs, stops the next statement before it starts, however short it is.
+TEST(TraceProcessorImplTest, InterruptBetweenStatementsStopsNextStatement) {
+  auto tp = CreateTraceProcessor();
+  std::string sql = "SELECT 1; SELECT 2";
   uint32_t offset = 0;
 
   std::optional<Iterator> first = tp->ExecuteNextStatement(sql, &offset);
