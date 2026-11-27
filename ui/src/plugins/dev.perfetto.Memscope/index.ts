@@ -49,7 +49,6 @@ export default class MemscopePlugin implements PerfettoPlugin {
     HeapDumpExplorerPlugin,
   ];
   private static openByDefaultSetting: Setting<boolean>;
-  private static hideDefaultChangedHintSetting: Setting<boolean>;
 
   static onActivate(app: App) {
     MemscopePlugin.openByDefaultSetting = app.settings.register({
@@ -60,17 +59,6 @@ export default class MemscopePlugin implements PerfettoPlugin {
         'timeline.',
       schema: z.boolean(),
       defaultValue: true,
-    });
-
-    MemscopePlugin.hideDefaultChangedHintSetting = app.settings.register({
-      id: 'dev.perfetto.HideMemoryOverviewDefaultChangedHint',
-      name: 'Hide Memory default-page explanation',
-      description:
-        'Do not show the explanation that Memory is the default page for ' +
-        'traces containing smaps snapshots or heap dumps.',
-      schema: z.boolean(),
-      defaultValue: false,
-      headless: true,
     });
 
     let session: LiveSession | undefined;
@@ -111,7 +99,6 @@ export default class MemscopePlugin implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const openByDefault = MemscopePlugin.openByDefaultSetting;
-    const hideDefaultChangedHint = MemscopePlugin.hideDefaultChangedHintSetting;
     const availability = await this.getMemoryAvailability(trace);
     const hdePlugin = trace.plugins.getPlugin(HeapDumpExplorerPlugin);
     const hdeSession = hdePlugin.hasHeapDumps()
@@ -133,7 +120,6 @@ export default class MemscopePlugin implements PerfettoPlugin {
       });
     }
 
-    let autoNavigated = false;
     const hdeRestored = hdePlugin.wasRestoredFromPermalink();
     if (hdeRestored && hdeSession !== undefined) {
       const targetUpid = hdeSession.activeDump?.upid ?? bestUpid;
@@ -145,14 +131,12 @@ export default class MemscopePlugin implements PerfettoPlugin {
         );
       }
     } else if (openByDefault.get() && availability.hasSmapsSnapshots) {
-      autoNavigated = true;
       trace.initialPage.suggest(MEMORY_PAGE_ROOT, 500);
     } else if (
       availability.hasHeapDumps &&
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
       !(await traceHasTimelineData(trace))
     ) {
-      autoNavigated = true;
       const targetUpid = hdeSession?.activeDump?.upid ?? bestUpid;
       const route =
         targetUpid !== undefined
@@ -178,9 +162,6 @@ export default class MemscopePlugin implements PerfettoPlugin {
         activePage: parsed.page,
         hdeSession,
         hdeSubpage: parsed.hdeSubpage,
-        autoNavigated,
-        openByDefault,
-        hideDefaultChangedHint,
         onUpidChange: (newUpid) => {
           const nextDump = hdeSession?.selectDumpForProcess(newUpid);
           // Preserve the current tree view across process switches, resetting

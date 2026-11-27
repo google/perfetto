@@ -12,78 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Frameless integrated timeline strip sitting flush beneath the process header.
-.pf-memtl-strip {
+// Ultra-compact inline Memory Timeline living directly inside the top bar.
+.pf-memtl-inline {
   display: flex;
-  flex-direction: column;
-  padding: 6px 0 8px;
-  background: var(--pf-col-surface);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
 
-  &--collapsed {
-    padding-bottom: 6px;
-  }
-
-  &__bar {
+  &__loading {
+    flex: 1;
+    height: 44px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    padding: 0 16px;
-    min-height: 26px;
-  }
-
-  &__bar-left {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    min-width: 0;
-  }
-
-  &__eyebrow {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--pf-color-text-muted);
-  }
-
-  &__drag-hint {
+    justify-content: center;
+    border-radius: 6px;
+    background: color-mix(
+      in srgb,
+      var(--pf-col-inset) 55%,
+      var(--pf-col-surface)
+    );
+    border: 1px solid color-mix(in srgb, var(--pf-col-border) 50%, transparent);
     font-size: 11px;
     color: var(--pf-color-text-hint);
   }
 
-  &__loading {
-    padding: 20px 16px;
-    text-align: center;
-    font-size: var(--pf-font-size-s);
-    color: var(--pf-color-text-muted);
+  &__side {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 5px;
+  }
+
+  &__legend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 }
 
 .pf-memtl__status-controls {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-left: auto;
+  gap: 4px;
 }
 
 .pf-memtl__delta-badge,
 .pf-memtl__pin-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 9px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--pf-color-text);
 
   .pf-icon {
-    font-size: 14px;
+    font-size: 13px;
   }
 }
 
@@ -119,7 +109,8 @@
 
 .pf-memtl__canvas-wrap {
   position: relative;
-  width: 100%;
+  flex: 1 1 200px;
+  min-width: 180px;
   user-select: none;
 }
 
@@ -128,21 +119,22 @@
   width: 100%;
   cursor: crosshair;
   touch-action: none;
+  overflow: visible;
 }
 
-// Optional process RSS + Swap counter strip
+// Optional process RSS + Swap sparkline inside the top half of the capsule
 .pf-memtl__rss-band {
   pointer-events: none;
 }
 
-.pf-memtl__rss-hgrid {
-  stroke: color-mix(in srgb, var(--pf-col-border) 38%, transparent);
+.pf-memtl__band-sep {
+  stroke: color-mix(in srgb, var(--pf-col-border) 48%, transparent);
   stroke-width: 1;
-  stroke-dasharray: 2 5;
+  pointer-events: none;
 }
 
 .pf-memtl__rss-ytick {
-  font-size: 10px;
+  font-size: 9px;
   font-family: var(--pf-font-monospace);
   font-variant-numeric: tabular-nums;
   fill: var(--pf-color-text-muted);
@@ -151,6 +143,7 @@
   stroke: color-mix(in srgb, var(--pf-col-inset) 50%, var(--pf-col-surface));
   stroke-width: 3;
   stroke-linejoin: round;
+  opacity: 0.85;
 }
 
 .pf-memtl__rss-area {
@@ -160,7 +153,7 @@
 .pf-memtl__rss-line {
   fill: none;
   stroke: #6366f1;
-  stroke-width: 1.75;
+  stroke-width: 1.5;
   stroke-linejoin: round;
   pointer-events: none;
 }
@@ -168,11 +161,11 @@
 .pf-memtl__rss-dot {
   fill: #6366f1;
   stroke: var(--pf-col-surface);
-  stroke-width: 2;
+  stroke-width: 1.75;
   pointer-events: none;
 }
 
-// Recessed track bands
+// Recessed capsule & sample rails
 .pf-memtl__track {
   &--empty {
     opacity: 0.55;
@@ -180,21 +173,21 @@
 }
 
 .pf-memtl__track-bg {
-  fill: color-mix(in srgb, var(--pf-col-inset) 48%, var(--pf-col-surface));
-  stroke: color-mix(in srgb, var(--pf-col-border) 55%, transparent);
+  fill: color-mix(in srgb, var(--pf-col-inset) 52%, var(--pf-col-surface));
+  stroke: color-mix(in srgb, var(--pf-col-border) 62%, transparent);
   stroke-width: 1;
   pointer-events: none;
 }
 
 .pf-memtl__track-rail {
-  stroke: color-mix(in srgb, var(--pf-col-border) 34%, transparent);
+  stroke: color-mix(in srgb, var(--pf-col-border) 30%, transparent);
   stroke-width: 1;
   stroke-dasharray: 2 5;
   pointer-events: none;
 }
 
 .pf-memtl__track-empty-msg {
-  font-size: 11px;
+  font-size: 10px;
   font-style: italic;
   fill: var(--pf-color-text-hint);
   text-anchor: middle;
@@ -202,28 +195,22 @@
 }
 
 .pf-memtl__vgrid {
-  stroke: color-mix(in srgb, var(--pf-col-border) 32%, transparent);
+  stroke: color-mix(in srgb, var(--pf-col-border) 28%, transparent);
   stroke-width: 1;
   stroke-dasharray: 2 4;
   pointer-events: none;
 }
 
-.pf-memtl__xaxis {
-  stroke: color-mix(in srgb, var(--pf-col-border) 65%, transparent);
-  stroke-width: 1;
-  pointer-events: none;
-}
-
 .pf-memtl__xlabel {
-  font-size: 10px;
+  font-size: 9.5px;
   font-family: var(--pf-font-monospace);
   font-variant-numeric: tabular-nums;
   fill: var(--pf-color-text-hint);
-  text-anchor: middle;
   pointer-events: none;
 }
 
-// Sample markers
+// Sample markers (harmonized with sidebar & sunburst: Smaps green, Java amber,
+// Native blue)
 .pf-memtl__marker {
   pointer-events: none;
 
@@ -231,7 +218,7 @@
     .pf-memtl__smaps-dot {
       fill: #22c55e;
       stroke: var(--pf-col-surface);
-      stroke-width: 1.5;
+      stroke-width: 1.25;
     }
 
     .pf-memtl__smaps-core {
@@ -240,7 +227,7 @@
     }
 
     .pf-memtl__marker-halo {
-      fill: color-mix(in srgb, #22c55e 26%, transparent);
+      fill: color-mix(in srgb, #22c55e 28%, transparent);
     }
 
     &.pf-memtl__marker--sel .pf-memtl__smaps-dot {
@@ -253,7 +240,7 @@
       }
 
       .pf-memtl__marker-halo {
-        fill: color-mix(in srgb, var(--pf-color-danger) 26%, transparent);
+        fill: color-mix(in srgb, var(--pf-color-danger) 28%, transparent);
       }
     }
   }
@@ -262,7 +249,7 @@
     .pf-memtl__dump-diamond {
       fill: #f59e0b;
       stroke: var(--pf-col-surface);
-      stroke-width: 1.5;
+      stroke-width: 1.25;
     }
 
     .pf-memtl__dump-core {
@@ -283,7 +270,7 @@
     .pf-memtl__native-pill {
       fill: #3b82f6;
       stroke: var(--pf-col-surface);
-      stroke-width: 1.25;
+      stroke-width: 1;
     }
 
     .pf-memtl__marker-halo {
@@ -292,9 +279,9 @@
   }
 }
 
-// Selection curtain, edges, and tactile handles
+// Selection curtain, edges, and compact tactile handles
 .pf-memtl__curtain {
-  fill: color-mix(in srgb, var(--pf-color-primary) 11%, transparent);
+  fill: color-mix(in srgb, var(--pf-color-primary) 13%, transparent);
   pointer-events: none;
 }
 
@@ -304,20 +291,12 @@
   line {
     stroke: var(--pf-color-success);
     stroke-width: 1.5;
-    stroke-dasharray: 4 3;
+    stroke-dasharray: 3 2;
   }
 }
 
-.pf-memtl__pin-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  font-family: var(--pf-font-monospace);
-  fill: var(--pf-color-success);
-  text-anchor: middle;
-}
-
 .pf-memtl__edge {
-  stroke-width: 1.75;
+  stroke-width: 1.5;
   pointer-events: none;
 
   &--base {
@@ -335,8 +314,8 @@
 
 .pf-memtl__handle {
   stroke: var(--pf-col-surface);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  stroke-width: 1.25;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.22));
 
   &--base {
     fill: var(--pf-color-danger);
@@ -348,43 +327,39 @@
 }
 
 .pf-memtl__handle-grip {
-  stroke: rgba(255, 255, 255, 0.85);
+  stroke: rgba(255, 255, 255, 0.88);
   stroke-width: 1.25;
   stroke-linecap: round;
-  pointer-events: none;
-}
-
-.pf-memtl__range-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  font-family: var(--pf-font-monospace);
-  fill: var(--pf-color-primary);
-  text-anchor: middle;
   pointer-events: none;
 }
 
 .pf-memtl__crosshair {
   stroke: var(--pf-color-text-hint);
   stroke-width: 1;
-  stroke-dasharray: 3 3;
+  stroke-dasharray: 2 2;
   pointer-events: none;
 }
 
+// Floating glass hover / drag HUD anchored cleanly below the top bar so it
+// never obscures the compact timeline.
 .pf-memtl__hud {
   position: absolute;
-  top: 0;
-  right: 20px;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 2px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pf-col-surface) 90%, transparent);
-  backdrop-filter: blur(8px);
-  border: 1px solid color-mix(in srgb, var(--pf-col-border) 80%, transparent);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: color-mix(in srgb, var(--pf-col-surface) 94%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--pf-col-border) 85%, transparent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   pointer-events: none;
 
   &-ts {
@@ -422,23 +397,23 @@
   }
 }
 
-// Inline legend items inside the timeline toolbar
+// Ultra-compact micro-legend tucked beneath the selection status pill
 .pf-memtl__legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
+  gap: 4px;
+  font-size: 10.5px;
   color: var(--pf-color-text-muted);
+  white-space: nowrap;
 
   &--empty {
-    opacity: 0.42;
+    opacity: 0.36;
   }
 }
 
 .pf-memtl__legend-line {
   display: inline-block;
-  width: 12px;
+  width: 10px;
   height: 0;
 
   &--rss {
@@ -451,23 +426,23 @@
   flex-shrink: 0;
 
   &--smaps {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: #22c55e;
   }
 
   &--java {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     background: #f59e0b;
     transform: rotate(45deg);
     border-radius: 1px;
   }
 
   &--native {
-    width: 4px;
-    height: 10px;
+    width: 3.5px;
+    height: 8px;
     border-radius: 999px;
     background: #3b82f6;
   }

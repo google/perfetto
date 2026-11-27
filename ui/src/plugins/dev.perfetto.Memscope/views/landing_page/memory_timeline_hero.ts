@@ -355,12 +355,11 @@ export interface MemoryTimelineHeroAttrs {
   readonly onSelectDump?: (dump: HeapDump) => void;
 }
 
-const PAD_X = 16;
-const CONTENT_TOP = 18;
-const RSS_BAND_H = 70;
-const RSS_INNER_PAD_Y = 7;
-const STRIP_GAP = 5;
-const STRIP_H = 38;
+const PAD_X = 6;
+const CONTENT_TOP = 2;
+const WELL_H = 44;
+const RSS_BAND_H = 23;
+const RSS_INNER_PAD_Y = 3;
 const DRAG_THRESHOLD_PX = 6;
 
 type DragMode = 'range' | 'resize-base' | 'resize-sel';
@@ -402,8 +401,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
   private readonly slot = new AsyncMemo<HeroTimelineData>();
   private resizeObserver?: ResizeObserver;
   private observedWrap?: HTMLElement;
-  private containerWidth = 960;
-  private collapsed = false;
+  private containerWidth = 520;
 
   private dragMode?: DragMode;
   private dragAnchorX = 0;
@@ -417,7 +415,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     this.resizeObserver?.disconnect();
     this.observedWrap = wrap;
     const update = () => {
-      const w = Math.max(360, Math.floor(wrap.clientWidth));
+      const w = Math.max(200, Math.floor(wrap.clientWidth));
       if (w !== this.containerWidth) {
         this.containerWidth = w;
         m.redraw();
@@ -471,14 +469,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
 
     const rssTop = CONTENT_TOP;
     const rssBottom = rssTop + RSS_BAND_H;
-    const stripTop = hasRss ? rssBottom + STRIP_GAP : CONTENT_TOP;
-    const stripBottom = stripTop + STRIP_H;
-    const smapsY = stripTop + 8.5;
-    const javaY = stripTop + 19;
-    const nativeY = stripTop + 29.5;
+    const stripTop = hasRss ? rssBottom : CONTENT_TOP;
+    const stripBottom = CONTENT_TOP + WELL_H;
+    const smapsY = hasRss ? stripTop + 4 : CONTENT_TOP + 10;
+    const javaY = hasRss ? stripTop + 10.5 : CONTENT_TOP + 22;
+    const nativeY = hasRss ? stripTop + 17 : CONTENT_TOP + 34;
     const stripMidY = javaY;
-    const axisY = stripBottom + 13;
-    const svgHeight = axisY + 7;
+    const axisY = stripBottom + 11;
+    const svgHeight = axisY + 2;
 
     const traceStart = trace.traceInfo.start;
     const traceEnd = trace.traceInfo.end;
@@ -578,13 +576,18 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         )
       : undefined;
 
-    const xTickCount = Math.max(4, Math.min(9, Math.floor(plotW / 120)));
-    const xTicks: {x: number; label: string}[] = [];
+    const xTickCount = Math.max(2, Math.min(6, Math.floor(plotW / 110)));
+    const xTicks: {
+      x: number;
+      label: string;
+      anchor: 'start' | 'middle' | 'end';
+    }[] = [];
     for (let i = 0; i <= xTickCount; i++) {
       const frac = i / xTickCount;
       xTicks.push({
         x: PAD_X + frac * plotW,
         label: `${(frac * durationS).toFixed(durationS < 10 ? 1 : 0)}s`,
+        anchor: i === 0 ? 'start' : i === xTickCount ? 'end' : 'middle',
       });
     }
 
@@ -790,549 +793,499 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     };
 
     const gradId = `pf-memtl-rss-grad-${upid}`;
-    const rangeLabelText =
-      liveBaseTs !== undefined && liveSelTs !== undefined
-        ? `${secOf(liveBaseTs)} → ${secOf(liveSelTs)}` +
-          (liveHeaderDelta !== undefined
-            ? ` (${formatDelta(liveHeaderDelta)})`
-            : '')
-        : '';
+    const wellMidY = CONTENT_TOP + WELL_H / 2;
 
-    return m(
-      '.pf-memtl-strip',
-      {className: classNames(this.collapsed && 'pf-memtl-strip--collapsed')},
-      [
-        // Single sleek integrated toolbar row (legend + hint on left, status +
-        // delta controls + collapse toggle on right).
-        m('.pf-memtl-strip__bar', [
-          m('.pf-memtl-strip__bar-left', [
-            m('span.pf-memtl-strip__eyebrow', 'Timeline'),
-            hasRss &&
-              m('span.pf-memtl__legend-item', [
-                m('span.pf-memtl__legend-line.pf-memtl__legend-line--rss'),
-                'RSS + Swap',
-              ]),
+    return m('.pf-memtl-inline', [
+      data === undefined
+        ? m('.pf-memtl-inline__loading', 'Loading timeline…')
+        : m('.pf-memtl__canvas-wrap', [
             m(
-              'span.pf-memtl__legend-item',
+              'svg.pf-memtl__svg',
               {
-                className: classNames(
-                  smaps.length === 0 && 'pf-memtl__legend-item--empty',
-                ),
+                width: svgW,
+                height: svgHeight,
+                viewBox: `0 0 ${svgW} ${svgHeight}`,
+                style: {height: `${svgHeight}px`},
+                onpointerdown: onPointerDown,
+                onpointermove: onPointerMove,
+                onpointerup: onPointerUp,
+                onpointerleave: onPointerLeave,
+                ondblclick: () => onSelect(undefined),
               },
               [
-                m(
-                  'span.pf-memtl__legend-sprite.pf-memtl__legend-sprite--smaps',
-                ),
-                `Smaps (${smaps.length})`,
-              ],
-            ),
-            m(
-              'span.pf-memtl__legend-item',
-              {
-                className: classNames(
-                  procDumps.length === 0 && 'pf-memtl__legend-item--empty',
-                ),
-              },
-              [
-                m('span.pf-memtl__legend-sprite.pf-memtl__legend-sprite--java'),
-                `Java (${procDumps.length})`,
-              ],
-            ),
-            m(
-              'span.pf-memtl__legend-item',
-              {
-                className: classNames(
-                  nativeSnaps.length === 0 && 'pf-memtl__legend-item--empty',
-                ),
-              },
-              [
-                m(
-                  'span.pf-memtl__legend-sprite.pf-memtl__legend-sprite--native',
-                ),
-                `Native (${nativeSnaps.length})`,
-              ],
-            ),
-            !this.collapsed &&
-              selection === undefined &&
-              m(
-                'span.pf-memtl-strip__drag-hint',
-                '· Drag to compare Δ, click to pin',
-              ),
-          ]),
-          this.renderHeaderStatus({
-            isComparing,
-            selection,
-            liveDelta: liveHeaderDelta,
-            liveSelSnap,
-            liveSelRss,
-            secOf,
-            canCompareFullTrace,
-            collapsed: this.collapsed,
-            onToggleCollapse: () => {
-              this.collapsed = !this.collapsed;
-              if (!this.collapsed) {
-                this.observedWrap = undefined;
-              }
-            },
-            onCompareFullTrace: compareFullTrace,
-            onClear: () => onSelect(undefined),
-          }),
-        ]),
-
-        !this.collapsed &&
-          (data === undefined
-            ? m('.pf-memtl-strip__loading', 'Loading memory timeline…')
-            : m('.pf-memtl__canvas-wrap', [
-                m(
-                  'svg.pf-memtl__svg',
-                  {
-                    width: svgW,
-                    height: svgHeight,
-                    viewBox: `0 0 ${svgW} ${svgHeight}`,
-                    style: {height: `${svgHeight}px`},
-                    onpointerdown: onPointerDown,
-                    onpointermove: onPointerMove,
-                    onpointerup: onPointerUp,
-                    onpointerleave: onPointerLeave,
-                    ondblclick: () => onSelect(undefined),
-                  },
-                  [
-                    hasRss &&
-                      m(
-                        'defs',
-                        m(
-                          'linearGradient',
-                          {id: gradId, x1: '0', y1: '0', x2: '0', y2: '1'},
-                          [
-                            m('stop', {
-                              'offset': '0%',
-                              'stop-color': '#6366f1',
-                              'stop-opacity': '0.24',
-                            }),
-                            m('stop', {
-                              'offset': '100%',
-                              'stop-color': '#6366f1',
-                              'stop-opacity': '0.01',
-                            }),
-                          ],
-                        ),
-                      ),
-
-                    // Optional full-width RSS + Swap counter graph
-                    hasRss &&
-                      rssPaths !== undefined &&
-                      m('g.pf-memtl__rss-band', [
-                        m('rect.pf-memtl__track-bg', {
-                          x: PAD_X,
-                          y: rssTop,
-                          width: plotW,
-                          height: RSS_BAND_H,
-                          rx: 6,
-                        }),
-                        m('line.pf-memtl__rss-hgrid', {
-                          x1: PAD_X + 1,
-                          y1: (rssPlotTop + rssPlotBottom) / 2,
-                          x2: PAD_X + plotW - 1,
-                          y2: (rssPlotTop + rssPlotBottom) / 2,
-                        }),
-                        m('path.pf-memtl__rss-area', {
-                          d: rssPaths.area,
-                          fill: `url(#${gradId})`,
-                        }),
-                        m('path.pf-memtl__rss-line', {
-                          d: rssPaths.line,
-                        }),
-                        m(
-                          'text.pf-memtl__rss-ytick',
-                          {x: PAD_X + 7, y: rssTop + 13},
-                          formatBytes(rssMaxBytes),
-                        ),
-                        m(
-                          'text.pf-memtl__rss-ytick',
-                          {x: PAD_X + 7, y: rssBottom - 4},
-                          '0',
-                        ),
-                      ]),
-
-                    // Short combined sample-sprite strip beneath the graph
+                hasRss &&
+                  m(
+                    'defs',
                     m(
-                      'g.pf-memtl__strip',
-                      {
-                        class: classNames(
-                          totalSamples === 0 && 'pf-memtl__track--empty',
-                        ),
-                      },
+                      'linearGradient',
+                      {id: gradId, x1: '0', y1: '0', x2: '0', y2: '1'},
                       [
-                        m('rect.pf-memtl__track-bg', {
-                          x: PAD_X,
-                          y: stripTop,
-                          width: plotW,
-                          height: STRIP_H,
-                          rx: 6,
+                        m('stop', {
+                          'offset': '0%',
+                          'stop-color': '#6366f1',
+                          'stop-opacity': '0.26',
                         }),
-                        m('line.pf-memtl__track-rail', {
-                          x1: PAD_X + 8,
-                          y1: smapsY,
-                          x2: PAD_X + plotW - 8,
-                          y2: smapsY,
+                        m('stop', {
+                          'offset': '100%',
+                          'stop-color': '#6366f1',
+                          'stop-opacity': '0.02',
                         }),
-                        m('line.pf-memtl__track-rail', {
-                          x1: PAD_X + 8,
-                          y1: javaY,
-                          x2: PAD_X + plotW - 8,
-                          y2: javaY,
-                        }),
-                        m('line.pf-memtl__track-rail', {
-                          x1: PAD_X + 8,
-                          y1: nativeY,
-                          x2: PAD_X + plotW - 8,
-                          y2: nativeY,
-                        }),
-                        totalSamples === 0 &&
-                          m(
-                            'text.pf-memtl__track-empty-msg',
-                            {x: PAD_X + plotW / 2, y: stripMidY + 4},
-                            'No memory snapshots or heap profiles captured',
-                          ),
                       ],
                     ),
+                  ),
 
-                    // Subtle vertical time gridlines spanning graph + strip
-                    xTicks.map((t, i) =>
-                      m('line.pf-memtl__vgrid', {
-                        key: `vg-${i}`,
-                        x1: t.x,
-                        y1: CONTENT_TOP,
-                        x2: t.x,
-                        y2: stripBottom,
-                      }),
+                // Unified recessed timeline capsule
+                m('rect.pf-memtl__track-bg', {
+                  x: PAD_X,
+                  y: CONTENT_TOP,
+                  width: plotW,
+                  height: WELL_H,
+                  rx: 6,
+                }),
+
+                // Optional top RSS + Swap sparkline band
+                hasRss &&
+                  rssPaths !== undefined &&
+                  m('g.pf-memtl__rss-band', [
+                    m('path.pf-memtl__rss-area', {
+                      d: rssPaths.area,
+                      fill: `url(#${gradId})`,
+                    }),
+                    m('path.pf-memtl__rss-line', {
+                      d: rssPaths.line,
+                    }),
+                    m(
+                      'text.pf-memtl__rss-ytick',
+                      {x: PAD_X + 5, y: rssTop + 10},
+                      formatBytes(rssMaxBytes),
                     ),
-
-                    // Shaded Range Selection Curtain
-                    liveRange !== undefined &&
-                      m('rect.pf-memtl__curtain', {
-                        x: liveRange.x1,
-                        y: CONTENT_TOP - 1,
-                        width: Math.max(2, liveRange.x2 - liveRange.x1),
-                        height: stripBottom - CONTENT_TOP + 2,
-                        rx: 4,
-                      }),
-
-                    // Native heapprofd capsules (bottom sub-row)
-                    nativeSnaps.map((n, i) => {
-                      const x = xOfTs(n.ts);
-                      const isEnd =
-                        selection !== undefined &&
-                        selection.base === undefined &&
-                        nearestByTs(nativeSnaps, selection.sel)?.ts === n.ts;
-                      const isHovered = !isDragging && hoverNative?.ts === n.ts;
-                      const inWin = isInRange(n.ts);
-                      const w = isEnd || isHovered ? 5.5 : 4.5;
-                      const h = isEnd || isHovered ? 10.5 : 8;
-                      return m(
-                        'g.pf-memtl__marker.pf-memtl__marker--native',
-                        {
-                          key: `nat-${n.ts.toString()}`,
-                          class: classNames(
-                            isEnd && 'pf-memtl__marker--sel',
-                            isHovered && 'pf-memtl__marker--hovered',
-                            inWin && 'pf-memtl__marker--in-range',
-                          ),
-                        },
-                        [
-                          (isEnd || isHovered) &&
-                            m('rect.pf-memtl__marker-halo', {
-                              x: x - w / 2 - 2.5,
-                              y: nativeY - h / 2 - 2.5,
-                              width: w + 5,
-                              height: h + 5,
-                              rx: 4,
-                            }),
-                          m('rect.pf-memtl__native-pill', {
-                            x: x - w / 2,
-                            y: nativeY - h / 2,
-                            width: w,
-                            height: h,
-                            rx: w / 2,
-                          }),
-                          m(
-                            'title',
-                            `Native sample #${i + 1} · t=${secOf(n.ts)} · ${formatDelta(n.deltaBytes)}`,
-                          ),
-                        ],
-                      );
+                    m('line.pf-memtl__band-sep', {
+                      x1: PAD_X + 1,
+                      y1: rssBottom,
+                      x2: PAD_X + plotW - 1,
+                      y2: rssBottom,
                     }),
+                  ]),
 
-                    // Smaps circular pins (top sub-row)
-                    smaps.map((s, i) => {
-                      const x = xOfTs(s.ts);
-                      const isEnd =
-                        selection !== undefined &&
-                        nearestByTs(smaps, selection.sel)?.ts === s.ts;
-                      const isBase =
-                        selection?.base !== undefined &&
-                        nearestByTs(smaps, selection.base)?.ts === s.ts &&
-                        !isEnd;
-                      const isHovered = !isDragging && hoverSnap?.ts === s.ts;
-                      const inWin = isInRange(s.ts);
-                      const r = isEnd || isBase || isHovered ? 5 : 3.8;
-                      return m(
-                        'g.pf-memtl__marker.pf-memtl__marker--smaps',
-                        {
-                          key: `smap-${s.ts.toString()}`,
-                          class: classNames(
-                            isEnd && 'pf-memtl__marker--sel',
-                            isBase && 'pf-memtl__marker--base',
-                            isHovered && 'pf-memtl__marker--hovered',
-                            inWin && 'pf-memtl__marker--in-range',
-                          ),
-                        },
-                        [
-                          (isEnd || isBase || isHovered) &&
-                            m('circle.pf-memtl__marker-halo', {
-                              cx: x,
-                              cy: smapsY,
-                              r: r + 3,
-                            }),
-                          m('circle.pf-memtl__smaps-dot', {
-                            cx: x,
-                            cy: smapsY,
-                            r,
-                          }),
-                          m('circle.pf-memtl__smaps-core', {
-                            cx: x,
-                            cy: smapsY,
-                            r: isEnd || isBase || isHovered ? 1.7 : 1.2,
-                          }),
-                          m(
-                            'title',
-                            `Smaps #${i + 1} · t=${secOf(s.ts)} · ${formatBytes(s.total)}`,
-                          ),
-                        ],
-                      );
+                // Staggered 3-height sample rails
+                m(
+                  'g.pf-memtl__strip',
+                  {
+                    class: classNames(
+                      totalSamples === 0 && 'pf-memtl__track--empty',
+                    ),
+                  },
+                  [
+                    m('line.pf-memtl__track-rail', {
+                      x1: PAD_X + 6,
+                      y1: smapsY,
+                      x2: PAD_X + plotW - 6,
+                      y2: smapsY,
                     }),
-
-                    // Java Heap Dump faceted diamonds (middle sub-row)
-                    procDumps.map((d, i) => {
-                      const x = xOfTs(d.ts);
-                      const isActive =
-                        activeDump !== null &&
-                        activeDump.upid === d.upid &&
-                        activeDump.ts === d.ts;
-                      const isHovered = !isDragging && hoverDump?.ts === d.ts;
-                      const inWin = isInRange(d.ts);
-                      const heapBytes = javaHeapBytesByTs.get(d.ts);
-                      const r = isActive || isHovered ? 6 : 4.8;
-                      const pts = `${x},${javaY - r} ${x + r},${javaY} ${x},${javaY + r} ${x - r},${javaY}`;
-                      const innerR = r * 0.36;
-                      const innerPts = `${x},${javaY - innerR} ${x + innerR},${javaY} ${x},${javaY + innerR} ${x - innerR},${javaY}`;
-                      return m(
-                        'g.pf-memtl__marker.pf-memtl__marker--java',
-                        {
-                          key: `dump-${i}-${d.ts.toString()}`,
-                          class: classNames(
-                            isActive && 'pf-memtl__marker--active',
-                            isHovered && 'pf-memtl__marker--hovered',
-                            inWin && 'pf-memtl__marker--in-range',
-                          ),
-                        },
-                        [
-                          (isActive || isHovered) &&
-                            m('circle.pf-memtl__marker-halo', {
-                              cx: x,
-                              cy: javaY,
-                              r: r + 3.5,
-                            }),
-                          m('polygon.pf-memtl__dump-diamond', {points: pts}),
-                          m('polygon.pf-memtl__dump-core', {points: innerPts}),
-                          m(
-                            'title',
-                            `Java Heap Dump #${i + 1} · t=${secOf(d.ts)}` +
-                              (heapBytes !== undefined
-                                ? ` · ${formatBytes(heapBytes)} reachable`
-                                : ''),
-                          ),
-                        ],
-                      );
+                    m('line.pf-memtl__track-rail', {
+                      x1: PAD_X + 6,
+                      y1: javaY,
+                      x2: PAD_X + plotW - 6,
+                      y2: javaY,
                     }),
-
-                    // Single-point pinned selection line
-                    !isDragRange &&
-                      selection !== undefined &&
-                      selection.base === undefined &&
-                      m('g.pf-memtl__pin-line', [
-                        m('line', {
-                          x1: xOfTs(selection.sel),
-                          y1: CONTENT_TOP - 3,
-                          x2: xOfTs(selection.sel),
-                          y2: stripBottom + 3,
-                        }),
-                        m(
-                          'text.pf-memtl__pin-label',
-                          {
-                            x: Math.min(
-                              PAD_X + plotW - 40,
-                              Math.max(PAD_X + 40, xOfTs(selection.sel)),
-                            ),
-                            y: CONTENT_TOP - 6,
-                          },
-                          `t=${secOf(selection.sel)}`,
-                        ),
-                      ]),
-
-                    // Range Selection Edges + Tactile Draggable Handles + Label
-                    liveRange !== undefined &&
-                      m('g.pf-memtl__selection', [
-                        m('line.pf-memtl__edge.pf-memtl__edge--base', {
-                          x1: liveRange.x1,
-                          y1: CONTENT_TOP - 3,
-                          x2: liveRange.x1,
-                          y2: stripBottom + 3,
-                        }),
-                        !isDragging &&
-                          m(
-                            'g.pf-memtl__handle-group',
-                            {
-                              onpointerdown: (e: PointerEvent) =>
-                                startDrag('resize-base', liveRange.x2, e),
-                            },
-                            [
-                              m(
-                                'rect.pf-memtl__handle.pf-memtl__handle--base',
-                                {
-                                  x: liveRange.x1 - 5,
-                                  y: (CONTENT_TOP + stripBottom) / 2 - 13,
-                                  width: 10,
-                                  height: 26,
-                                  rx: 4,
-                                },
-                              ),
-                              m('line.pf-memtl__handle-grip', {
-                                x1: liveRange.x1,
-                                y1: (CONTENT_TOP + stripBottom) / 2 - 6,
-                                x2: liveRange.x1,
-                                y2: (CONTENT_TOP + stripBottom) / 2 + 6,
-                              }),
-                            ],
-                          ),
-                        m('line.pf-memtl__edge.pf-memtl__edge--sel', {
-                          x1: liveRange.x2,
-                          y1: CONTENT_TOP - 3,
-                          x2: liveRange.x2,
-                          y2: stripBottom + 3,
-                        }),
-                        !isDragging &&
-                          m(
-                            'g.pf-memtl__handle-group',
-                            {
-                              onpointerdown: (e: PointerEvent) =>
-                                startDrag('resize-sel', liveRange.x1, e),
-                            },
-                            [
-                              m('rect.pf-memtl__handle.pf-memtl__handle--sel', {
-                                x: liveRange.x2 - 5,
-                                y: (CONTENT_TOP + stripBottom) / 2 - 13,
-                                width: 10,
-                                height: 26,
-                                rx: 4,
-                              }),
-                              m('line.pf-memtl__handle-grip', {
-                                x1: liveRange.x2,
-                                y1: (CONTENT_TOP + stripBottom) / 2 - 6,
-                                x2: liveRange.x2,
-                                y2: (CONTENT_TOP + stripBottom) / 2 + 6,
-                              }),
-                            ],
-                          ),
-                        rangeLabelText !== '' &&
-                          m(
-                            'text.pf-memtl__range-label',
-                            {
-                              x: Math.min(
-                                PAD_X + plotW - 84,
-                                Math.max(
-                                  PAD_X + 84,
-                                  (liveRange.x1 + liveRange.x2) / 2,
-                                ),
-                              ),
-                              y: CONTENT_TOP - 6,
-                            },
-                            rangeLabelText,
-                          ),
-                      ]),
-
-                    // Hover crosshair spanning RSS graph + combined sprite strip
-                    hoverX !== undefined &&
-                      !isDragging &&
-                      m('g', [
-                        m('line.pf-memtl__crosshair', {
-                          x1: hoverX,
-                          y1: CONTENT_TOP,
-                          x2: hoverX,
-                          y2: stripBottom,
-                        }),
-                        hasRss &&
-                          hoverRss !== undefined &&
-                          m('circle.pf-memtl__rss-dot', {
-                            cx: hoverX,
-                            cy: yOfRss(hoverRss.totalRssSwap),
-                            r: 4,
-                          }),
-                      ]),
-
-                    // Time axis baseline + tick labels
-                    m('line.pf-memtl__xaxis', {
-                      x1: PAD_X,
-                      y1: stripBottom + 4,
-                      x2: PAD_X + plotW,
-                      y2: stripBottom + 4,
+                    m('line.pf-memtl__track-rail', {
+                      x1: PAD_X + 6,
+                      y1: nativeY,
+                      x2: PAD_X + plotW - 6,
+                      y2: nativeY,
                     }),
-                    xTicks.map((t, i) =>
+                    totalSamples === 0 &&
                       m(
-                        'text.pf-memtl__xlabel',
-                        {key: `x-${i}`, x: t.x, y: axisY + 2},
-                        t.label,
+                        'text.pf-memtl__track-empty-msg',
+                        {x: PAD_X + plotW / 2, y: stripMidY + 3},
+                        'No snapshots',
                       ),
-                    ),
                   ],
                 ),
 
-                // Floating glass hover HUD pill
-                hoverTs !== undefined &&
-                  !isDragging &&
-                  m('.pf-memtl__hud', [
-                    m('span.pf-memtl__hud-ts', `t=${secOf(hoverTs)}`),
-                    hoverRss !== undefined &&
+                // Subtle internal vertical time gridlines
+                xTicks.slice(1, -1).map((t, i) =>
+                  m('line.pf-memtl__vgrid', {
+                    key: `vg-${i}`,
+                    x1: t.x,
+                    y1: CONTENT_TOP + 1,
+                    x2: t.x,
+                    y2: stripBottom - 1,
+                  }),
+                ),
+
+                // Shaded Range Selection Curtain
+                liveRange !== undefined &&
+                  m('rect.pf-memtl__curtain', {
+                    x: liveRange.x1,
+                    y: CONTENT_TOP,
+                    width: Math.max(2, liveRange.x2 - liveRange.x1),
+                    height: WELL_H,
+                    rx: 3,
+                  }),
+
+                // Native heapprofd capsules (bottom sub-row)
+                nativeSnaps.map((n, i) => {
+                  const x = xOfTs(n.ts);
+                  const isEnd =
+                    selection !== undefined &&
+                    selection.base === undefined &&
+                    nearestByTs(nativeSnaps, selection.sel)?.ts === n.ts;
+                  const isHovered = !isDragging && hoverNative?.ts === n.ts;
+                  const inWin = isInRange(n.ts);
+                  const w = isEnd || isHovered ? 4.4 : 3.4;
+                  const h = isEnd || isHovered ? 8.5 : 6;
+                  return m(
+                    'g.pf-memtl__marker.pf-memtl__marker--native',
+                    {
+                      key: `nat-${n.ts.toString()}`,
+                      class: classNames(
+                        isEnd && 'pf-memtl__marker--sel',
+                        isHovered && 'pf-memtl__marker--hovered',
+                        inWin && 'pf-memtl__marker--in-range',
+                      ),
+                    },
+                    [
+                      (isEnd || isHovered) &&
+                        m('rect.pf-memtl__marker-halo', {
+                          x: x - w / 2 - 2,
+                          y: nativeY - h / 2 - 2,
+                          width: w + 4,
+                          height: h + 4,
+                          rx: 3,
+                        }),
+                      m('rect.pf-memtl__native-pill', {
+                        x: x - w / 2,
+                        y: nativeY - h / 2,
+                        width: w,
+                        height: h,
+                        rx: w / 2,
+                      }),
                       m(
-                        'span.pf-memtl__hud-rss',
-                        `RSS + Swap: ${formatBytes(hoverRss.totalRssSwap)}` +
-                          (hoverRss.anonSwap !== undefined &&
-                          hoverRss.fileBytes !== undefined
-                            ? ` (Anon+Swap ${formatBytes(hoverRss.anonSwap)} · File ${formatBytes(hoverRss.fileBytes)})`
+                        'title',
+                        `Native sample #${i + 1} · t=${secOf(n.ts)} · ${formatDelta(n.deltaBytes)}`,
+                      ),
+                    ],
+                  );
+                }),
+
+                // Smaps circular pins (top sub-row)
+                smaps.map((s, i) => {
+                  const x = xOfTs(s.ts);
+                  const isEnd =
+                    selection !== undefined &&
+                    nearestByTs(smaps, selection.sel)?.ts === s.ts;
+                  const isBase =
+                    selection?.base !== undefined &&
+                    nearestByTs(smaps, selection.base)?.ts === s.ts &&
+                    !isEnd;
+                  const isHovered = !isDragging && hoverSnap?.ts === s.ts;
+                  const inWin = isInRange(s.ts);
+                  const r = isEnd || isBase || isHovered ? 3.8 : 2.9;
+                  return m(
+                    'g.pf-memtl__marker.pf-memtl__marker--smaps',
+                    {
+                      key: `smap-${s.ts.toString()}`,
+                      class: classNames(
+                        isEnd && 'pf-memtl__marker--sel',
+                        isBase && 'pf-memtl__marker--base',
+                        isHovered && 'pf-memtl__marker--hovered',
+                        inWin && 'pf-memtl__marker--in-range',
+                      ),
+                    },
+                    [
+                      (isEnd || isBase || isHovered) &&
+                        m('circle.pf-memtl__marker-halo', {
+                          cx: x,
+                          cy: smapsY,
+                          r: r + 2.5,
+                        }),
+                      m('circle.pf-memtl__smaps-dot', {
+                        cx: x,
+                        cy: smapsY,
+                        r,
+                      }),
+                      m('circle.pf-memtl__smaps-core', {
+                        cx: x,
+                        cy: smapsY,
+                        r: isEnd || isBase || isHovered ? 1.3 : 0.9,
+                      }),
+                      m(
+                        'title',
+                        `Smaps #${i + 1} · t=${secOf(s.ts)} · ${formatBytes(s.total)}`,
+                      ),
+                    ],
+                  );
+                }),
+
+                // Java Heap Dump faceted diamonds (middle sub-row)
+                procDumps.map((d, i) => {
+                  const x = xOfTs(d.ts);
+                  const isActive =
+                    activeDump !== null &&
+                    activeDump.upid === d.upid &&
+                    activeDump.ts === d.ts;
+                  const isHovered = !isDragging && hoverDump?.ts === d.ts;
+                  const inWin = isInRange(d.ts);
+                  const heapBytes = javaHeapBytesByTs.get(d.ts);
+                  const r = isActive || isHovered ? 4.6 : 3.7;
+                  const pts = `${x},${javaY - r} ${x + r},${javaY} ${x},${javaY + r} ${x - r},${javaY}`;
+                  const innerR = r * 0.35;
+                  const innerPts = `${x},${javaY - innerR} ${x + innerR},${javaY} ${x},${javaY + innerR} ${x - innerR},${javaY}`;
+                  return m(
+                    'g.pf-memtl__marker.pf-memtl__marker--java',
+                    {
+                      key: `dump-${i}-${d.ts.toString()}`,
+                      class: classNames(
+                        isActive && 'pf-memtl__marker--active',
+                        isHovered && 'pf-memtl__marker--hovered',
+                        inWin && 'pf-memtl__marker--in-range',
+                      ),
+                    },
+                    [
+                      (isActive || isHovered) &&
+                        m('circle.pf-memtl__marker-halo', {
+                          cx: x,
+                          cy: javaY,
+                          r: r + 2.5,
+                        }),
+                      m('polygon.pf-memtl__dump-diamond', {points: pts}),
+                      m('polygon.pf-memtl__dump-core', {points: innerPts}),
+                      m(
+                        'title',
+                        `Java Heap Dump #${i + 1} · t=${secOf(d.ts)}` +
+                          (heapBytes !== undefined
+                            ? ` · ${formatBytes(heapBytes)} reachable`
                             : ''),
                       ),
-                    hoverSnap !== undefined &&
+                    ],
+                  );
+                }),
+
+                // Single-point pinned selection line
+                !isDragRange &&
+                  selection !== undefined &&
+                  selection.base === undefined &&
+                  m('g.pf-memtl__pin-line', [
+                    m('line', {
+                      x1: xOfTs(selection.sel),
+                      y1: CONTENT_TOP - 1,
+                      x2: xOfTs(selection.sel),
+                      y2: stripBottom + 1,
+                    }),
+                  ]),
+
+                // Range Selection Edges + Compact Tactile Handles
+                liveRange !== undefined &&
+                  m('g.pf-memtl__selection', [
+                    m('line.pf-memtl__edge.pf-memtl__edge--base', {
+                      x1: liveRange.x1,
+                      y1: CONTENT_TOP - 1,
+                      x2: liveRange.x1,
+                      y2: stripBottom + 1,
+                    }),
+                    !isDragging &&
                       m(
-                        'span.pf-memtl__hud-smaps',
-                        `● Smaps: ${formatBytes(hoverSnap.total)}`,
+                        'g.pf-memtl__handle-group',
+                        {
+                          onpointerdown: (e: PointerEvent) =>
+                            startDrag('resize-base', liveRange.x2, e),
+                        },
+                        [
+                          m('rect.pf-memtl__handle.pf-memtl__handle--base', {
+                            x: liveRange.x1 - 4,
+                            y: wellMidY - 9,
+                            width: 8,
+                            height: 18,
+                            rx: 3,
+                          }),
+                          m('line.pf-memtl__handle-grip', {
+                            x1: liveRange.x1,
+                            y1: wellMidY - 4,
+                            x2: liveRange.x1,
+                            y2: wellMidY + 4,
+                          }),
+                        ],
                       ),
-                    hoverDump !== undefined &&
+                    m('line.pf-memtl__edge.pf-memtl__edge--sel', {
+                      x1: liveRange.x2,
+                      y1: CONTENT_TOP - 1,
+                      x2: liveRange.x2,
+                      y2: stripBottom + 1,
+                    }),
+                    !isDragging &&
                       m(
-                        'span.pf-memtl__hud-dump',
-                        `◆ Java Dump #${procDumps.indexOf(hoverDump) + 1}` +
-                          (hoverDumpBytes !== undefined
-                            ? ` (${formatBytes(hoverDumpBytes)})`
-                            : ''),
-                      ),
-                    hoverNative !== undefined &&
-                      m(
-                        'span.pf-memtl__hud-native',
-                        `▮ Native: ${formatDelta(hoverNative.deltaBytes)}`,
+                        'g.pf-memtl__handle-group',
+                        {
+                          onpointerdown: (e: PointerEvent) =>
+                            startDrag('resize-sel', liveRange.x1, e),
+                        },
+                        [
+                          m('rect.pf-memtl__handle.pf-memtl__handle--sel', {
+                            x: liveRange.x2 - 4,
+                            y: wellMidY - 9,
+                            width: 8,
+                            height: 18,
+                            rx: 3,
+                          }),
+                          m('line.pf-memtl__handle-grip', {
+                            x1: liveRange.x2,
+                            y1: wellMidY - 4,
+                            x2: liveRange.x2,
+                            y2: wellMidY + 4,
+                          }),
+                        ],
                       ),
                   ]),
-              ])),
-      ],
-    );
+
+                // Hover crosshair + RSS dot
+                hoverX !== undefined &&
+                  !isDragging &&
+                  m('g', [
+                    m('line.pf-memtl__crosshair', {
+                      x1: hoverX,
+                      y1: CONTENT_TOP,
+                      x2: hoverX,
+                      y2: stripBottom,
+                    }),
+                    hasRss &&
+                      hoverRss !== undefined &&
+                      m('circle.pf-memtl__rss-dot', {
+                        cx: hoverX,
+                        cy: yOfRss(hoverRss.totalRssSwap),
+                        r: 3.2,
+                      }),
+                  ]),
+
+                // Minimal flush-aligned time tick labels
+                xTicks.map((t, i) =>
+                  m(
+                    'text.pf-memtl__xlabel',
+                    {
+                      'key': `x-${i}`,
+                      'x': t.x,
+                      'y': axisY,
+                      'text-anchor': t.anchor,
+                    },
+                    t.label,
+                  ),
+                ),
+              ],
+            ),
+
+            // Floating glass hover / live-drag HUD below the bar
+            isDragRange && liveBaseTs !== undefined && liveSelTs !== undefined
+              ? m('.pf-memtl__hud', [
+                  m(
+                    'span.pf-memtl__hud-ts',
+                    `Δ ${secOf(liveBaseTs)} → ${secOf(liveSelTs)}`,
+                  ),
+                  liveHeaderDelta !== undefined &&
+                    m(
+                      'span.pf-memtl__delta-badge-val',
+                      {style: {color: deltaColor(liveHeaderDelta)}},
+                      formatDelta(liveHeaderDelta),
+                    ),
+                ])
+              : hoverTs !== undefined &&
+                !isDragging &&
+                m('.pf-memtl__hud', [
+                  m('span.pf-memtl__hud-ts', `t=${secOf(hoverTs)}`),
+                  hoverRss !== undefined &&
+                    m(
+                      'span.pf-memtl__hud-rss',
+                      `RSS+Swap ${formatBytes(hoverRss.totalRssSwap)}` +
+                        (hoverRss.anonSwap !== undefined &&
+                        hoverRss.fileBytes !== undefined
+                          ? ` (Anon ${formatBytes(hoverRss.anonSwap)} · File ${formatBytes(hoverRss.fileBytes)})`
+                          : ''),
+                    ),
+                  hoverSnap !== undefined &&
+                    m(
+                      'span.pf-memtl__hud-smaps',
+                      `● Smaps ${formatBytes(hoverSnap.total)}`,
+                    ),
+                  hoverDump !== undefined &&
+                    m(
+                      'span.pf-memtl__hud-dump',
+                      `◆ Java #${procDumps.indexOf(hoverDump) + 1}` +
+                        (hoverDumpBytes !== undefined
+                          ? ` (${formatBytes(hoverDumpBytes)})`
+                          : ''),
+                    ),
+                  hoverNative !== undefined &&
+                    m(
+                      'span.pf-memtl__hud-native',
+                      `▮ Native ${formatDelta(hoverNative.deltaBytes)}`,
+                    ),
+                ]),
+          ]),
+
+      // Compact status / action + micro-legend column right beside the canvas
+      m('.pf-memtl-inline__side', [
+        this.renderHeaderStatus({
+          isComparing,
+          selection,
+          liveDelta: liveHeaderDelta,
+          liveSelSnap,
+          liveSelRss,
+          secOf,
+          canCompareFullTrace,
+          onCompareFullTrace: compareFullTrace,
+          onClear: () => onSelect(undefined),
+        }),
+        m('.pf-memtl-inline__legend', [
+          hasRss &&
+            m(
+              'span.pf-memtl__legend-item',
+              {title: 'Process total RSS + Swap counter'},
+              [
+                m('span.pf-memtl__legend-line.pf-memtl__legend-line--rss'),
+                'RSS',
+              ],
+            ),
+          m(
+            'span.pf-memtl__legend-item',
+            {
+              title: `Smaps snapshots (${smaps.length}) · top row`,
+              className: classNames(
+                smaps.length === 0 && 'pf-memtl__legend-item--empty',
+              ),
+            },
+            [
+              m('span.pf-memtl__legend-sprite.pf-memtl__legend-sprite--smaps'),
+              'Smaps',
+            ],
+          ),
+          m(
+            'span.pf-memtl__legend-item',
+            {
+              title: `Java heap dumps (${procDumps.length}) · middle row`,
+              className: classNames(
+                procDumps.length === 0 && 'pf-memtl__legend-item--empty',
+              ),
+            },
+            [
+              m('span.pf-memtl__legend-sprite.pf-memtl__legend-sprite--java'),
+              'Java',
+            ],
+          ),
+          m(
+            'span.pf-memtl__legend-item',
+            {
+              title: `Native heap samples (${nativeSnaps.length}) · bottom row`,
+              className: classNames(
+                nativeSnaps.length === 0 && 'pf-memtl__legend-item--empty',
+              ),
+            },
+            [
+              m('span.pf-memtl__legend-sprite.pf-memtl__legend-sprite--native'),
+              'Native',
+            ],
+          ),
+        ]),
+      ]),
+    ]);
   }
 
   private renderHeaderStatus(opts: {
@@ -1343,8 +1296,6 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     readonly liveSelRss?: RssPoint;
     readonly secOf: (ts: time) => string;
     readonly canCompareFullTrace: boolean;
-    readonly collapsed: boolean;
-    readonly onToggleCollapse: () => void;
     readonly onCompareFullTrace: () => void;
     readonly onClear: () => void;
   }): m.Children {
@@ -1356,8 +1307,6 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       liveSelRss,
       secOf,
       canCompareFullTrace,
-      collapsed,
-      onToggleCollapse,
       onCompareFullTrace,
       onClear,
     } = opts;
@@ -1369,7 +1318,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       isComparing && selection?.base !== undefined
         ? m('.pf-memtl__delta-badge', [
             m(Icon, {icon: 'compare_arrows'}),
-            m('span', `Δ ${secOf(selection.base)} → ${secOf(selection.sel)}`),
+            m('span', `${secOf(selection.base)}→${secOf(selection.sel)}`),
             liveDelta !== undefined &&
               m(
                 'span.pf-memtl__delta-badge-val',
@@ -1382,47 +1331,35 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
               m(Icon, {icon: 'photo_camera'}),
               m(
                 'span',
-                `Pinned @ ${secOf(selection.sel)}` +
+                `${secOf(selection.sel)}` +
                   (latestTotal !== undefined
                     ? ` · ${formatBytes(latestTotal)}`
                     : ''),
               ),
             ])
-          : latestTs !== undefined &&
-            latestTotal !== undefined &&
-            m('.pf-memtl__pin-badge', [
-              m(Icon, {icon: 'photo_camera'}),
-              m(
-                'span',
-                `Latest @ ${secOf(latestTs)} · ${formatBytes(latestTotal)}`,
-              ),
-            ]),
-      !isComparing &&
-        canCompareFullTrace &&
-        m(Button, {
-          label: 'Compare full trace Δ',
-          icon: 'compare_arrows',
-          variant: ButtonVariant.Outlined,
-          compact: true,
-          onclick: onCompareFullTrace,
-        }),
+          : canCompareFullTrace
+            ? m(Button, {
+                label: 'Full trace Δ',
+                icon: 'compare_arrows',
+                variant: ButtonVariant.Outlined,
+                compact: true,
+                title: 'Compare first to last snapshot across the trace',
+                onclick: onCompareFullTrace,
+              })
+            : latestTs !== undefined &&
+              latestTotal !== undefined &&
+              m('.pf-memtl__pin-badge', [
+                m(Icon, {icon: 'photo_camera'}),
+                m('span', `${secOf(latestTs)} · ${formatBytes(latestTotal)}`),
+              ]),
       selection !== undefined &&
         m(Button, {
-          label: isComparing ? 'Clear range' : 'Reset',
           icon: 'close',
+          title: isComparing ? 'Clear range' : 'Reset selection',
           variant: ButtonVariant.Minimal,
           compact: true,
           onclick: onClear,
         }),
-      m(Button, {
-        icon: collapsed ? 'expand_more' : 'expand_less',
-        title: collapsed
-          ? 'Expand memory timeline'
-          : 'Collapse memory timeline',
-        variant: ButtonVariant.Minimal,
-        compact: true,
-        onclick: onToggleCollapse,
-      }),
     ]);
   }
 }

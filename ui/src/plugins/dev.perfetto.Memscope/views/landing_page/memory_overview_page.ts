@@ -18,7 +18,6 @@ import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Time, type time} from '../../../../base/time';
 import {formatDuration} from '../../../../components/time_utils';
-import type {Setting} from '../../../../public/settings';
 import type {Trace} from '../../../../public/trace';
 import {LONG, NUM_NULL} from '../../../../trace_processor/query_result';
 import {Anchor} from '../../../../widgets/anchor';
@@ -39,7 +38,6 @@ import {
   type OomeDetails,
   renderOomeDetailsGrid,
 } from '../../../dev.perfetto.HeapProfile/oome_callstack_common';
-import {Callout} from '../../components/callout';
 import {ColorChip} from '../../components/color_chip';
 import {Panel} from '../../components/panel';
 import {oomBucketLabel, oomScoreBucket} from '../../process_data';
@@ -76,9 +74,6 @@ export interface MemoryOverviewPageAttrs {
   readonly activePage: MemoryTreePage;
   readonly hdeSession?: HeapDumpExplorerSession;
   readonly hdeSubpage?: string;
-  readonly autoNavigated: boolean;
-  readonly openByDefault: Setting<boolean>;
-  readonly hideDefaultChangedHint: Setting<boolean>;
   readonly onUpidChange: (upid: number) => void;
   readonly onNavigatePage: (page: MemoryTreePage, hdeSubpage?: string) => void;
   readonly onOpenJavaHeap: (
@@ -200,9 +195,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       activePage,
       hdeSession,
       hdeSubpage,
-      autoNavigated,
-      openByDefault,
-      hideDefaultChangedHint,
       onUpidChange,
       onNavigatePage,
       onOpenJavaHeap,
@@ -318,28 +310,9 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       }
     };
 
-    return m('.pf-memscope-page.pf-memtree-page', [
-      // Top Fixed Chrome: Process Bar + Hints + Hero Memory Timeline
-      m('.pf-memtree-header', [
-        this.renderTopBar(
-          trace,
-          procs,
-          selectedProc,
-          validUpid,
-          capture,
-          headerMeta,
-          onUpidChange,
-        ),
-        this.renderDefaultChangedHint(
-          trace,
-          autoNavigated,
-          openByDefault,
-          hideDefaultChangedHint,
-        ),
-        captureError !== undefined && m('p.pf-error', `Error: ${captureError}`),
-        validUpid !== undefined &&
-          captureError === undefined &&
-          m(MemoryTimelineHero, {
+    const inlineTimeline =
+      validUpid !== undefined && captureError === undefined
+        ? m(MemoryTimelineHero, {
             trace,
             upid: validUpid,
             procDumps,
@@ -349,7 +322,23 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
             onSelectDump: (dump) => {
               hdeSession?.selectDump(dump);
             },
-          }),
+          })
+        : undefined;
+
+    return m('.pf-memscope-page.pf-memtree-page', [
+      // Single compact top bar: Process selector + inline Memory Timeline
+      m('.pf-memtree-header', [
+        this.renderTopBar(
+          trace,
+          procs,
+          selectedProc,
+          validUpid,
+          capture,
+          headerMeta,
+          inlineTimeline,
+          onUpidChange,
+        ),
+        captureError !== undefined && m('p.pf-error', `Error: ${captureError}`),
       ]),
 
       // Main Split Body: Left Tree Sidebar + Synced Right Page View
@@ -939,6 +928,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     validUpid: number | undefined,
     capture: CaptureInfo | undefined,
     headerMeta: ProcessHeaderMeta | undefined,
+    inlineTimeline: m.Children,
     onUpidChange: (upid: number) => void,
   ): m.Children {
     const procName = selectedProc?.procName ?? capture?.processName ?? '…';
@@ -951,77 +941,88 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
 
     return m('header.pf-memtl-topbar', [
       m('.pf-memtl-topbar__left', [
-        m('.pf-memtl-brand', [
-          m('.pf-memtl-brand__icon', m(Icon, {icon: 'memory'})),
-          m('span.pf-memtl-brand__title', 'Memory'),
-          m('span.pf-memtl-brand__badge', 'preview'),
+        m('.pf-memtl-topbar__identity', [
+          m(
+            '.pf-memtl-brand__icon',
+            {title: 'Memory'},
+            m(Icon, {icon: 'memory'}),
+          ),
+          m(
+            PopupMenu,
+            {
+              position: PopupPosition.BottomStart,
+              trigger: m(
+                'button.pf-memtl-proc-btn',
+                {type: 'button', title: `${procName} (PID ${pid ?? '?'})`},
+                [
+                  m('span.pf-memtl-proc-btn__name', procName),
+                  pid !== undefined &&
+                    m('span.pf-memtl-proc-btn__pid', `PID ${pid}`),
+                  m(Icon, {
+                    icon: 'arrow_drop_down',
+                    className: 'pf-memtl-proc-btn__caret',
+                  }),
+                ],
+              ),
+            },
+            procs.map((p) =>
+              m(MenuItem, {
+                label: renderProcMenuLabel(p),
+                active: p.upid === validUpid,
+                onclick: () => onUpidChange(p.upid),
+              }),
+            ),
+          ),
         ]),
-        m('.pf-memtl-topbar__sep'),
-        m(
-          PopupMenu,
-          {
-            position: PopupPosition.BottomStart,
-            trigger: m(
-              'button.pf-memtl-proc-btn',
-              {type: 'button', title: `${procName} (PID ${pid ?? '?'})`},
+        m('.pf-memtl-topbar__meta-row', [
+          headerMeta?.uptimeNs !== undefined &&
+            m(
+              'span.pf-memtl-topbar__meta',
+              {title: 'Process uptime at heap dump'},
               [
-                m('span.pf-memtl-proc-btn__name', procName),
-                pid !== undefined &&
-                  m('span.pf-memtl-proc-btn__pid', `PID ${pid}`),
-                m(Icon, {
-                  icon: 'arrow_drop_down',
-                  className: 'pf-memtl-proc-btn__caret',
-                }),
+                m(Icon, {icon: 'schedule'}),
+                formatUptimeShort(headerMeta.uptimeNs),
               ],
             ),
-          },
-          procs.map((p) =>
-            m(MenuItem, {
-              label: renderProcMenuLabel(p),
-              active: p.upid === validUpid,
-              onclick: () => onUpidChange(p.upid),
-            }),
-          ),
-        ),
-        headerMeta?.uptimeNs !== undefined &&
+          headerMeta?.oomScoreAdj !== undefined &&
+            oomBucket !== undefined &&
+            m(
+              'span.pf-memtl-topbar__meta',
+              {title: `OOM adjustment score: ${headerMeta.oomScoreAdj}`},
+              [
+                m(
+                  ColorChip,
+                  {color: oomBucket.color},
+                  `${oomBucketLabel(oomBucket)} (${headerMeta.oomScoreAdj})`,
+                ),
+              ],
+            ),
+          headerMeta?.dmabufRssSize !== undefined &&
+            headerMeta.dmabufRssSize > 0 &&
+            m(
+              'span.pf-memtl-topbar__meta',
+              {title: 'DMA-BUF RSS at heap dump'},
+              [
+                m(Icon, {icon: 'developer_board'}),
+                `DMA ${formatBytes(headerMeta.dmabufRssSize)}`,
+              ],
+            ),
           m(
-            'span.pf-memtl-topbar__meta',
-            {title: 'Process uptime at heap dump'},
-            [
-              m(Icon, {icon: 'schedule'}),
-              `Uptime ${formatUptimeShort(headerMeta.uptimeNs)}`,
-            ],
+            'span.pf-memtl-topbar__trace',
+            {title: trace.traceInfo.traceTitle},
+            `${trace.traceInfo.traceTitle} · ${durationS.toFixed(1)}s`,
           ),
-        headerMeta?.oomScoreAdj !== undefined &&
-          oomBucket !== undefined &&
-          m(
-            'span.pf-memtl-topbar__meta',
-            {title: `OOM adjustment score: ${headerMeta.oomScoreAdj}`},
-            [
-              m(
-                ColorChip,
-                {color: oomBucket.color},
-                `${oomBucketLabel(oomBucket)} (${headerMeta.oomScoreAdj})`,
-              ),
-            ],
-          ),
-        headerMeta?.dmabufRssSize !== undefined &&
-          headerMeta.dmabufRssSize > 0 &&
-          m('span.pf-memtl-topbar__meta', {title: 'DMA-BUF RSS at heap dump'}, [
-            m(Icon, {icon: 'developer_board'}),
-            `DMA-BUF ${formatBytes(headerMeta.dmabufRssSize)}`,
-          ]),
-        m(
-          'span.pf-memtl-topbar__trace',
-          `${trace.traceInfo.traceTitle} · ${durationS.toFixed(1)}s`,
-        ),
+        ]),
       ]),
+      inlineTimeline !== undefined &&
+        m('.pf-memtl-topbar__timeline', inlineTimeline),
       m('.pf-memtl-topbar__right', [
         m(Button, {
           label: 'Timeline',
           icon: 'timeline',
           variant: ButtonVariant.Minimal,
           compact: true,
+          title: 'Open Perfetto trace timeline',
           onclick: () => trace.navigate('#!/viewer'),
         }),
         m(
@@ -1066,72 +1067,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
           }),
       }),
       m(Panel.Body, grid),
-    );
-  }
-
-  private renderDefaultChangedHint(
-    trace: Trace,
-    autoNavigated: boolean,
-    openByDefault: Setting<boolean>,
-    hideDefaultChangedHint: Setting<boolean>,
-  ): m.Children {
-    if (
-      !autoNavigated ||
-      !openByDefault.get() ||
-      hideDefaultChangedHint.get()
-    ) {
-      return undefined;
-    }
-
-    return m(
-      Callout,
-      {
-        className: 'pf-memscope-default-page-callout',
-        icon: 'info',
-        intent: Intent.Primary,
-      },
-      m('.pf-memscope-default-page-callout__body', [
-        m(
-          'span.pf-memscope-default-page-callout__message',
-          'Memory is now the default page for traces with memory snapshots ' +
-            'or heap dumps. Drag across the timeline below to inspect any ' +
-            'time range as a delta.',
-        ),
-        m(
-          '.pf-memscope-default-page-callout__actions',
-          m(
-            ButtonGroup,
-            {className: 'pf-memscope-default-page-callout__split-button'},
-            m(Button, {
-              label: 'Back to Timeline',
-              icon: 'arrow_back',
-              variant: ButtonVariant.Filled,
-              onclick: () => trace.navigate('#!/viewer'),
-            }),
-            m(
-              PopupMenu,
-              {
-                trigger: m(Button, {
-                  icon: 'arrow_drop_down',
-                  variant: ButtonVariant.Filled,
-                  title: 'More options',
-                }),
-                position: PopupPosition.BottomEnd,
-              },
-              m(MenuItem, {
-                label: 'Never open Memory by default',
-                icon: 'timeline',
-                onclick: () => openByDefault.set(false),
-              }),
-              m(MenuItem, {
-                label: 'Dismiss forever',
-                icon: 'close',
-                onclick: () => hideDefaultChangedHint.set(true),
-              }),
-            ),
-          ),
-        ),
-      ]),
     );
   }
 }

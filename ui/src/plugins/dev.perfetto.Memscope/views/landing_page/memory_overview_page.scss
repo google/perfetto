@@ -101,7 +101,7 @@
 
 .pf-memtree-header {
   position: relative;
-  z-index: 2;
+  z-index: 10;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -111,12 +111,8 @@
   background: var(--pf-col-surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
-  > .pf-memscope-default-page-callout {
-    margin: 8px 16px 2px;
-  }
-
   > .pf-error {
-    margin: 8px 16px;
+    margin: 6px 16px;
   }
 }
 
@@ -436,62 +432,93 @@
   padding: 32px;
 }
 
-// Compact top subject bar integrated flush into the header band.
+// Single compact top bar combining process selector, inline timeline, and
+// trace-level navigation actions.
 .pf-memtl-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 14px;
-  padding: 7px 16px;
+  padding: 6px 14px;
   background: transparent;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--pf-col-border) 50%, transparent);
 
   &__left {
+    flex: 0 1 auto;
+    min-width: 170px;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__identity {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
+    gap: 7px;
     min-width: 0;
   }
 
-  &__right {
+  &__meta-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-left: auto;
+    gap: 7px;
+    min-width: 0;
+    overflow: hidden;
   }
 
-  &__sep {
-    width: 1px;
-    height: 18px;
-    background: color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+  &__timeline {
+    flex: 1 1 320px;
+    min-width: 240px;
+  }
+
+  &__right {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    padding-left: 10px;
+    border-left: 1px solid
+      color-mix(in srgb, var(--pf-col-border) 55%, transparent);
   }
 
   &__meta {
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 11.5px;
+    gap: 3px;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
     color: var(--pf-color-text-muted);
     white-space: nowrap;
 
     .pf-icon {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--pf-color-text-hint);
+    }
+
+    .pf-memscope-color-chip {
+      font-size: 10px;
+      padding: 0 5px;
+      line-height: 15px;
     }
   }
 
   &__trace {
-    font-size: 11.5px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
     color: var(--pf-color-text-hint);
     font-variant-numeric: tabular-nums;
   }
 
   &__feedback {
-    font-size: var(--pf-font-size-s);
+    font-size: 11px;
+    padding-right: 4px;
   }
 }
 
@@ -508,11 +535,8 @@
 }
 
 .pf-memtl-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-
   &__icon {
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -526,33 +550,15 @@
       font-size: 16px;
     }
   }
-
-  &__title {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: var(--pf-color-text);
-  }
-
-  &__badge {
-    font-size: 9.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--pf-col-inset) 80%, transparent);
-    border: 1px solid color-mix(in srgb, var(--pf-col-border) 65%, transparent);
-    color: var(--pf-color-text-muted);
-  }
 }
 
 .pf-memtl-proc-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  max-width: 360px;
-  padding: 4px 7px 4px 10px;
+  gap: 6px;
+  min-width: 0;
+  max-width: 248px;
+  padding: 3px 6px 3px 9px;
   border-radius: 7px;
   border: 1px solid color-mix(in srgb, var(--pf-col-border) 75%, transparent);
   background: color-mix(
@@ -562,7 +568,7 @@
   );
   color: var(--pf-color-text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: pointer;
   transition:
     border-color 0.12s ease,
@@ -586,8 +592,8 @@
   &__pid {
     flex-shrink: 0;
     font-family: var(--pf-font-monospace);
-    font-size: 10.5px;
-    padding: 1px 5px;
+    font-size: 10px;
+    padding: 1px 4px;
     border-radius: 4px;
     background: color-mix(in srgb, var(--pf-col-border) 28%, transparent);
     color: var(--pf-color-text-muted);
@@ -595,7 +601,7 @@
 
   &__caret {
     flex-shrink: 0;
-    font-size: 17px;
+    font-size: 16px;
     color: var(--pf-color-text-muted);
     margin-left: -2px;
   }
@@ -666,36 +672,6 @@
 
   &--native {
     background: #3b82f6;
-  }
-}
-
-// Explains the default-page change and groups the available actions without
-// forcing the message and controls onto one line on narrow screens.
-.pf-memscope-default-page-callout__body {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px 16px;
-}
-
-.pf-memscope-default-page-callout__message {
-  flex: 1;
-  min-width: 280px;
-}
-
-.pf-memscope-default-page-callout__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.pf-memscope-default-page-callout__split-button {
-  // ButtonGroup normally removes this shared border. Keep a subtle divider so
-  // the overflow control remains visibly distinct from the navigation action.
-  .pf-button.pf-button--filled:not(:last-child) {
-    border-right: 1px solid var(--pf-color-border);
   }
 }
 
