@@ -26,6 +26,7 @@ export enum TimestampFormat {
   UTC = 'utc',
   CustomTimezone = 'customTimezone',
   TraceTz = 'traceTz',
+  Compact = 'compact',
 }
 
 export enum DurationPrecision {
