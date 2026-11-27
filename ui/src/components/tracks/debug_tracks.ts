@@ -381,12 +381,19 @@ async function createTableForCounterTrack(
     .filter(Boolean) // Remove falsy values
     .join(',');
 
+  // Numbered once here, so the tracks can select samples by id.
   const query = `
     with data as (
       ${stripTrailingSemicolons(data.sqlSource)}
+    ),
+    prepared_data as (
+      select ${cols}
+      from data
     )
-    select ${cols}
-    from data
+    select
+      row_number() over (order by ts) as id,
+      *
+    from prepared_data
     order by ts
   `;
 
@@ -422,6 +429,7 @@ async function addPivotedCounterTracks(
           FROM ${tableName}
           WHERE pivot = ${sqlValueToSqliteString(pivotValue)}
         `,
+        selectable: true,
       }),
     });
 
@@ -442,6 +450,7 @@ function addSingleCounterTrack(
       trace,
       uri,
       sqlSource: `SELECT * FROM ${tableName}`,
+      selectable: true,
     }),
   });
 
