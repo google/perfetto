@@ -132,19 +132,21 @@ struct Incompressible {
 };
 
 // Backend policies: each runs one compile-time-selected codec at the given
-// level.
+// level. BM_Compress creates one backend per run and reuses it across
+// iterations, like the service does across the batches of a read.
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 struct Zlib {
-  static void Compress(std::vector<TracePacket>* packets, int /*level*/) {
-    ZlibCompressFn(packets);
-  }
+  explicit Zlib(int /*level*/) {}
+  void Compress(std::vector<TracePacket>* packets) { ZlibCompressFn(packets); }
 };
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 struct Zstd {
-  static void Compress(std::vector<TracePacket>* packets, int level) {
-    ZstdCompressFn(packets, level);
+  explicit Zstd(int level) : compressor(level) {}
+  void Compress(std::vector<TracePacket>* packets) {
+    compressor.Compress(packets);
   }
+  ZstdPacketCompressor compressor;
 };
 #endif
 
@@ -216,12 +218,13 @@ static void BM_Compress(benchmark::State& state) {
   }
 
   size_t total_out = 0;
+  Backend backend(level);
   for (auto _ : state) {
     state.PauseTiming();
     std::vector<TracePacket> input = CopyPackets(packets);
     state.ResumeTiming();
 
-    Backend::Compress(&input, level);
+    backend.Compress(&input);
 
     total_out = 0;
     for (const TracePacket& packet : input)

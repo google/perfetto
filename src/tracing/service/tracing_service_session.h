@@ -25,6 +25,7 @@
 #include <tuple>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/clock_snapshots.h"
@@ -46,6 +47,8 @@ class MessageFilter;
 }
 
 namespace perfetto {
+
+class ZstdPacketCompressor;
 
 namespace base {
 class TaskRunner;
@@ -70,6 +73,7 @@ struct TracingSession {
                  ConsumerEndpointImpl*,
                  const TraceConfig&,
                  base::TaskRunner*);
+  ~TracingSession();
   TracingSession(TracingSession&&) = delete;
   TracingSession& operator=(TracingSession&&) = delete;
 
@@ -98,6 +102,10 @@ struct TracingSession {
   // event once the buffer hits the limit. The cap bounds memory, as the buffer
   // is drained only on ReadBuffers().
   void AddConcurrentSessionEventWithLimit(const TracingSession& src);
+
+  // Frees the compressor, if any. Call it when a read ends or stops early, so
+  // its memory doesn't sit idle until the next read.
+  void FreeCompressor();
 
   const TracingSessionID id;
 
@@ -295,6 +303,13 @@ struct TracingSession {
   uint64_t filter_errors = 0;
   uint64_t filter_time_taken_ns = 0;
   std::vector<uint64_t> filter_bytes_discarded_per_buffer;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  // Compresses ReadBuffers() output when the config asks for zstd.
+  // We create it on the first batch of a read and free it when the read
+  // ends, so the batches of a read share one zstd context.
+  std::unique_ptr<ZstdPacketCompressor> zstd_compressor;
+#endif
 
   // A randomly generated trace identifier. Note that this does NOT always
   // match the requested TraceConfig.trace_uuid_msb/lsb. Specifically, it does

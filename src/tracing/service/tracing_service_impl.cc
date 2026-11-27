@@ -2591,8 +2591,13 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
     auto weak_consumer = consumer->weak_ptr_factory_.GetWeakPtr();
     weak_runner_.PostTask(
         [this, weak_consumer = std::move(weak_consumer), tsid] {
-          if (!weak_consumer)
+          if (!weak_consumer) {
+            // The consumer went away mid-read, so this read never ends. Free
+            // the compressor here instead.
+            if (TracingSession* session = GetTracingSession(tsid))
+              session->FreeCompressor();
             return;
+          }
           ReadBuffersIntoConsumer(tsid, weak_consumer.get());
         });
   } else {
@@ -2665,6 +2670,8 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
         } while (has_more && !stop_writing_into_file);
 
         if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
+          // The read may have stopped early, so free the compressor here too.
+          tracing_session->FreeCompressor();
           // Ensure all data was written to the file before we close it.
           base::FlushFile(tracing_session->write_into_file.get());
           tracing_session->write_into_file.reset();
@@ -2954,6 +2961,9 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
                        skip_compression_of_first_n_packets);
 
   if (!*has_more) {
+    // This read is done, so free the compressor instead of keeping it idle
+    // until the next read. The call below can then return its memory too.
+    tracing_session->FreeCompressor();
     // We've observed some extremely high memory usage by scudo after
     // MaybeFilterPackets in the past. The original bug (b/195145848) is fixed
     // now, but this code asks scudo to release memory just in case.
@@ -3059,7 +3069,12 @@ void TracingServiceImpl::MaybeCompressPackets(
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
   if (compression.has_zstd()) {
     compress_with_fn([&](std::vector<TracePacket>* target) {
-      ZstdCompressFn(target, compression.zstd().level());
+      auto& compressor = tracing_session->zstd_compressor;
+      if (!compressor) {
+        compressor =
+            std::make_unique<ZstdPacketCompressor>(compression.zstd().level());
+      }
+      compressor->Compress(target);
     });
     return;
   }

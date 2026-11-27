@@ -94,7 +94,7 @@ struct ZlibBackend {
 struct ZstdBackend {
   static constexpr const char* kName = "Zstd";
   static void Compress(std::vector<TracePacket>* packets, int level = 0) {
-    ZstdCompressFn(packets, level);
+    ZstdPacketCompressor(level).Compress(packets);
   }
   static std::string Decompress(const std::string& data) {
     ZSTD_DStream* stream = ZSTD_createDStream();
@@ -368,6 +368,47 @@ TYPED_TEST(CompressorTest, CompressionLevelIsHonored) {
   EXPECT_GT(low_level_size, 0u);
   EXPECT_LE(high_level_size, low_level_size);
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// The service reuses one ZstdPacketCompressor across the batches of a read.
+// Batches bigger than the gather buffer stream through ZSTD_e_continue, so
+// zstd checks them against the pledged size. They also cover slices passed to
+// zstd directly and gather buffer flushes. The tiny batch in between checks a
+// small frame after a large one.
+TEST(ZstdPacketCompressorTest, ReusedAcrossBatches) {
+  struct Batch {
+    size_t num_packets;
+    size_t payload_size;
+  };
+  ZstdPacketCompressor compressor(/*level=*/0);
+  for (const Batch& batch : {Batch{3, 8192}, Batch{1, 16}, Batch{10, 1000}}) {
+    std::vector<std::string> expected;
+    std::vector<TracePacket> packets;
+    for (size_t i = 0; i < batch.num_packets; i++) {
+      expected.push_back(RandomString(batch.payload_size));
+      packets.push_back(CreateTracePacket([&](protos::gen::TracePacket* msg) {
+        msg->mutable_for_testing()->set_str(expected.back());
+      }));
+    }
+
+    compressor.Compress(&packets);
+
+    ASSERT_THAT(packets, SizeIs(1));
+    protos::gen::TracePacket compressed;
+    ASSERT_TRUE(compressed.ParseFromString(packets[0].GetRawBytesForTesting()));
+    const std::string& frame = compressed.zstd_compressed_packets();
+    std::string decompressed = ZstdBackend::Decompress(frame);
+    EXPECT_EQ(ZSTD_getFrameContentSize(frame.data(), frame.size()),
+              decompressed.size());
+    protos::gen::Trace subtrace;
+    ASSERT_TRUE(subtrace.ParseFromString(decompressed));
+    ASSERT_THAT(subtrace.packet(), SizeIs(expected.size()));
+    for (size_t i = 0; i < expected.size(); i++) {
+      EXPECT_EQ(subtrace.packet()[i].for_testing().str(), expected[i]);
+    }
+  }
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 }  // namespace
 }  // namespace perfetto
