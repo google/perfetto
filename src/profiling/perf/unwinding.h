@@ -20,22 +20,19 @@
 #include <stdint.h>
 #include <condition_variable>
 #include <map>
-#include <optional>
 #include <thread>
 
 #include <linux/perf_event.h>
-#include <unwindstack/Error.h>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/unwind_queue.h"
+#include "src/profiling/unwind/unwind_engine.h"
 
 namespace perfetto {
 namespace profiling {
@@ -140,7 +137,7 @@ class Unwinder {
 
     Status status = Status::kInitial;
     // Present iff status == kFdsResolved.
-    std::optional<UnwindingMetadata> unwind_state;
+    std::unique_ptr<ProcessUnwindState> unwind_state;
     // Used to distinguish first-time unwinding attempts for a process, for
     // logging purposes.
     bool attempted_unwinding = false;
@@ -192,21 +189,20 @@ class Unwinder {
   base::FlatSet<DataSourceInstanceID> ConsumeAndUnwindReadySamples();
 
   CompletedSample UnwindSample(const ParsedSample& sample,
-                               UnwindingMetadata* opt_user_state,
+                               ProcessUnwindState* opt_user_state,
                                bool pid_unwound_before,
                                UnwindMode unwind_mode);
 
   // Returns symbolized kernel frames from the kernel-supplied callchain.
-  std::vector<unwindstack::FrameData> SymbolizeKernelCallchain(
-      const ParsedSample& sample);
+  std::vector<FrameData> SymbolizeKernelCallchain(const ParsedSample& sample);
 
   // Returns frames for the userspace portion of the kernel-supplied callchain
   // (i.e. the section after the PERF_CONTEXT_USER marker). Only relevant when
   // sampling with |UnwindMode::kKernelFramePointer|. Returns an empty vector
   // for kernel threads (no user section) or if |user_state| is null.
-  std::vector<unwindstack::FrameData> SymbolizeKernelSuppliedUserFrames(
+  std::vector<FrameData> SymbolizeKernelSuppliedUserFrames(
       const ParsedSample& sample,
-      UnwindingMetadata* user_state);
+      ProcessUnwindState* user_state);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we
@@ -257,7 +253,7 @@ class Unwinder {
   // worth having at the moment to speed up unwinds across map reparses).
   void ClearCachedStatePeriodic(DataSourceInstanceID ds_id, uint32_t period_ms);
 
-  void ResetAndEnableUnwindstackCache();
+  void ResetAndEnableUnwinderCache();
 
   base::MaybeLockFreeTaskRunner* const task_runner_;
   Delegate* const delegate_;
