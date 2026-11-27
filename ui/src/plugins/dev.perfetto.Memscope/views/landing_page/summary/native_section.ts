@@ -28,6 +28,7 @@ import {
 } from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
+import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Intent} from '../../../../../widgets/common';
 import {deltaText, formatBytes, formatDelta, statCard} from '../mem_format';
 import {Ratio} from '../../../components/ratio';
@@ -397,6 +398,8 @@ export interface NativeSectionAttrs {
   // The page-wide selection (by ts). Undefined → whole trace / latest.
   readonly selTs?: time;
   readonly baseTs?: time;
+  // Jump to the Native Flamegraph page in the memory sidebar tree.
+  readonly onOpenFlamegraph?: () => void;
 }
 
 export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
@@ -491,13 +494,23 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       Panel,
       m(Panel.Header, {
         title: TITLE,
-        controls: showAreaInTimelineLink(
-          trace,
-          findProcessTrack(trace, upid, (k) => k.startsWith('heap_profile:'))
-            ?.uri,
-          data.rangeStart,
-          data.rangeEnd,
-        ),
+        controls: [
+          attrs.onOpenFlamegraph !== undefined &&
+            m(Button, {
+              label: 'Flamegraph',
+              icon: 'local_fire_department',
+              variant: ButtonVariant.Outlined,
+              compact: true,
+              onclick: attrs.onOpenFlamegraph,
+            }),
+          showAreaInTimelineLink(
+            trace,
+            findProcessTrack(trace, upid, (k) => k.startsWith('heap_profile:'))
+              ?.uri,
+            data.rangeStart,
+            data.rangeEnd,
+          ),
+        ],
       }),
       m(
         Panel.Body,

@@ -31,7 +31,10 @@ import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import {LiveSession} from './sessions/live_session';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
-import {MemoryOverviewPage} from './views/landing_page/memory_overview_page';
+import {
+  MemoryOverviewPage,
+  type MemoryTreePage,
+} from './views/landing_page/memory_overview_page';
 import {getBestProcess} from './views/landing_page/proc_mem_stats';
 
 const MEMORY_PAGE_ROOT = '/memory';
@@ -118,7 +121,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
 
     // Keep HDE internal tab & drill-down URLs inside /memory/<upid>/heap/...
     // and default embedded HDE straight to Flamegraph since Overview summary
-    // facts live in dedicated sections above.
+    // facts live in dedicated pages of the tree sidebar.
     if (hdeSession !== undefined) {
       hdeSession.setDefaultViewOverride('flamegraph');
       hdeSession.setHrefBuilder((sub) => {
@@ -126,7 +129,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
         if (activeUpid === undefined) {
           return sub ? `#!/heapdump/${sub}` : '#!/heapdump';
         }
-        return `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(activeUpid, sub)}`;
+        return `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(activeUpid, 'java-hde', sub)}`;
       });
     }
 
@@ -137,7 +140,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
       if (targetUpid !== undefined) {
         const sub = hdeSession.navPath || undefined;
         trace.initialPage.suggest(
-          `${MEMORY_PAGE_ROOT}/${formatMemorySubpage(targetUpid, sub)}`,
+          `${MEMORY_PAGE_ROOT}/${formatMemorySubpage(targetUpid, 'java-hde', sub)}`,
           600,
         );
       }
@@ -153,7 +156,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
       const targetUpid = hdeSession?.activeDump?.upid ?? bestUpid;
       const route =
         targetUpid !== undefined
-          ? `${MEMORY_PAGE_ROOT}/${formatMemorySubpage(targetUpid)}`
+          ? `${MEMORY_PAGE_ROOT}/${formatMemorySubpage(targetUpid, 'overview')}`
           : MEMORY_PAGE_ROOT;
       trace.initialPage.suggest(route, 250);
     }
@@ -172,15 +175,38 @@ export default class MemscopePlugin implements PerfettoPlugin {
       return m(MemoryOverviewPage, {
         trace,
         upid,
+        activePage: parsed.page,
         hdeSession,
         hdeSubpage: parsed.hdeSubpage,
-        focusHeapExplorer: parsed.focusHeapExplorer,
         autoNavigated,
         openByDefault,
         hideDefaultChangedHint,
         onUpidChange: (newUpid) => {
-          hdeSession?.selectDumpForProcess(newUpid);
-          trace.navigate(`#!${MEMORY_PAGE_ROOT}/${newUpid}`);
+          const nextDump = hdeSession?.selectDumpForProcess(newUpid);
+          // Preserve the current tree view across process switches, resetting
+          // instance-specific HDE drill-downs to a safe view.
+          let nextPage = parsed.page;
+          let nextHdeSub = parsed.hdeSubpage;
+          if (nextPage === 'java-hde') {
+            if (nextDump === undefined) {
+              nextPage = 'overview';
+              nextHdeSub = undefined;
+            } else if (
+              nextHdeSub?.startsWith('object') ||
+              nextHdeSub?.startsWith('flamegraph_objects')
+            ) {
+              nextHdeSub = 'flamegraph';
+            }
+          }
+          trace.navigate(
+            `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(newUpid, nextPage, nextHdeSub)}`,
+          );
+        },
+        onNavigatePage: (page: MemoryTreePage, hdeSubpage?: string) => {
+          if (upid === undefined || Number.isNaN(upid)) return;
+          trace.navigate(
+            `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(upid, page, hdeSubpage)}`,
+          );
         },
         onOpenJavaHeap: (
           ts: time,
@@ -239,8 +265,8 @@ export default class MemscopePlugin implements PerfettoPlugin {
         : subpage;
       return renderPage({
         upid,
+        page: 'java-hde',
         hdeSubpage: cleanedSubpage || undefined,
-        focusHeapExplorer: true,
       });
     };
 
@@ -295,36 +321,71 @@ export default class MemscopePlugin implements PerfettoPlugin {
 
 interface MemorySubpage {
   readonly upid?: number;
+  readonly page: MemoryTreePage;
   readonly hdeSubpage?: string;
-  readonly focusHeapExplorer: boolean;
 }
 
 function parseMemorySubpage(subpage: string | undefined): MemorySubpage {
   if (!subpage) {
-    return {focusHeapExplorer: false};
+    return {page: 'overview'};
   }
   const parts = subpage.split('/').filter((x) => x !== '');
   const first = parts[0];
   if (first === undefined) {
-    return {focusHeapExplorer: false};
+    return {page: 'overview'};
   }
   const upid = parseInt(first, 10);
-  if (parts[1] === 'heap') {
+  const safeUpid = Number.isNaN(upid) ? Number.NaN : upid;
+  const seg1 = parts[1];
+  const seg2 = parts[2];
+
+  if (seg1 === 'smaps') {
+    return {upid: safeUpid, page: 'smaps'};
+  }
+  if (seg1 === 'java') {
+    if (seg2 === 'bitmaps') {
+      return {upid: safeUpid, page: 'java-bitmaps'};
+    }
+    return {upid: safeUpid, page: 'java-overview'};
+  }
+  if (seg1 === 'native') {
+    if (seg2 === 'flamegraph') {
+      return {upid: safeUpid, page: 'native-flamegraph'};
+    }
+    return {upid: safeUpid, page: 'native-overview'};
+  }
+  if (seg1 === 'heap') {
     const rest = parts.slice(2).join('/');
     return {
-      upid: Number.isNaN(upid) ? Number.NaN : upid,
+      upid: safeUpid,
+      page: 'java-hde',
       hdeSubpage: rest !== '' ? rest : undefined,
-      focusHeapExplorer: true,
     };
   }
-  return {
-    upid: Number.isNaN(upid) ? Number.NaN : upid,
-    focusHeapExplorer: false,
-  };
+  return {upid: safeUpid, page: 'overview'};
 }
 
-function formatMemorySubpage(upid: number, hdeSubpage?: string): string {
-  return hdeSubpage ? `${upid}/heap/${hdeSubpage}` : `${upid}`;
+function formatMemorySubpage(
+  upid: number,
+  page: MemoryTreePage,
+  hdeSubpage?: string,
+): string {
+  switch (page) {
+    case 'overview':
+      return `${upid}`;
+    case 'smaps':
+      return `${upid}/smaps`;
+    case 'java-overview':
+      return `${upid}/java`;
+    case 'java-bitmaps':
+      return `${upid}/java/bitmaps`;
+    case 'native-overview':
+      return `${upid}/native`;
+    case 'native-flamegraph':
+      return `${upid}/native/flamegraph`;
+    case 'java-hde':
+      return hdeSubpage ? `${upid}/heap/${hdeSubpage}` : `${upid}/heap`;
+  }
 }
 
 function resolveMemoryRoute(
@@ -337,7 +398,7 @@ function resolveMemoryRoute(
   if (parsed.upid === undefined) {
     if (bestUpid !== undefined) {
       location.replace(
-        `#!${pageRoot}/${formatMemorySubpage(bestUpid, parsed.hdeSubpage)}`,
+        `#!${pageRoot}/${formatMemorySubpage(bestUpid, parsed.page, parsed.hdeSubpage)}`,
       );
       return {
         parsed,

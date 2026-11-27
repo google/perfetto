@@ -29,7 +29,7 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {Icon} from '../../../../widgets/icon';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {PopupPosition} from '../../../../widgets/popup';
-import {HeapDumpPage} from '../../../com.android.HeapDumpExplorer/heap_dump_page';
+import {HeapDumpContentView} from '../../../com.android.HeapDumpExplorer/heap_dump_page';
 import type {NavView} from '../../../com.android.HeapDumpExplorer/nav_state';
 import type {HeapDumpExplorerSession} from '../../../com.android.HeapDumpExplorer/session';
 import type {HeapDump} from '../../../com.android.HeapDumpExplorer/types';
@@ -56,20 +56,31 @@ import {SmapsDetail} from './smaps_detail';
 import {BitmapsSection} from './summary/bitmaps_section';
 import {JavaSection} from './summary/java_section';
 import {MemoryMap} from './summary/memory_map';
+import {NativeFlamegraphView} from './summary/native_flamegraph';
 import {NativeSection} from './summary/native_section';
 import {TraceOverview} from './summary/trace_overview';
 import './memory_overview_page.scss';
 
+export type MemoryTreePage =
+  | 'overview'
+  | 'smaps'
+  | 'java-overview'
+  | 'java-bitmaps'
+  | 'java-hde'
+  | 'native-overview'
+  | 'native-flamegraph';
+
 export interface MemoryOverviewPageAttrs {
   readonly trace: Trace;
   readonly upid?: number;
+  readonly activePage: MemoryTreePage;
   readonly hdeSession?: HeapDumpExplorerSession;
   readonly hdeSubpage?: string;
-  readonly focusHeapExplorer?: boolean;
   readonly autoNavigated: boolean;
   readonly openByDefault: Setting<boolean>;
   readonly hideDefaultChangedHint: Setting<boolean>;
   readonly onUpidChange: (upid: number) => void;
+  readonly onNavigatePage: (page: MemoryTreePage, hdeSubpage?: string) => void;
   readonly onOpenJavaHeap: (
     ts: time,
     view: NavView,
@@ -79,29 +90,21 @@ export interface MemoryOverviewPageAttrs {
 
 const MAX_INLINE_DUMP_CHIPS = 4;
 
-const SECTION_IDS = {
-  timeline: 'pf-memtl-sec-timeline',
-  breakdown: 'pf-memtl-sec-breakdown',
-  java: 'pf-memtl-sec-java',
-  bitmaps: 'pf-memtl-sec-bitmaps',
-  native: 'pf-memtl-sec-native',
-  smaps: 'pf-memtl-sec-smaps',
-  heap: 'pf-memtl-sec-heap',
-} as const;
-
-function scrollToSection(id: string): void {
-  const el = document.getElementById(id);
-  el?.scrollIntoView({behavior: 'smooth', block: 'start'});
+interface StaticHdeTreeItem {
+  readonly view: NavView;
+  readonly label: string;
+  readonly icon: string;
 }
 
-function scrollToSectionIfNeeded(id: string): void {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  if (rect.top < 0 || rect.top > window.innerHeight * 0.65) {
-    el.scrollIntoView({behavior: 'smooth', block: 'start'});
-  }
-}
+const HDE_JAVA_TREE_ITEMS: ReadonlyArray<StaticHdeTreeItem> = [
+  {view: 'flamegraph', label: 'Flamegraph', icon: 'local_fire_department'},
+  {view: 'classes', label: 'Classes', icon: 'category'},
+  {view: 'objects', label: 'Objects', icon: 'data_object'},
+  {view: 'dominators', label: 'Dominators', icon: 'account_tree'},
+  {view: 'strings', label: 'Strings', icon: 'text_fields'},
+  {view: 'arrays', label: 'Arrays', icon: 'view_array'},
+  {view: 'callstack', label: 'Callstack', icon: 'format_list_numbered'},
+];
 
 function formatOffsetSec(trace: Trace, ts: time): string {
   return `${(Number(Time.diff(ts, trace.traceInfo.start)) / 1e9).toFixed(1)}s`;
@@ -181,8 +184,8 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
   private readonly captureSlot = new AsyncMemo<CaptureInfo>();
   private readonly headerMetaSlot = new AsyncMemo<ProcessHeaderMeta>();
   private readonly selectionByUpid = new Map<number, MemSelection>();
-  private heapExpanded = false;
-  private lastFocusedSubpage?: string;
+  private javaExpanded = true;
+  private nativeExpanded = true;
 
   onremove() {
     this.procsSlot.dispose();
@@ -190,33 +193,18 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     this.headerMetaSlot.dispose();
   }
 
-  onupdate({attrs}: m.VnodeDOM<MemoryOverviewPageAttrs>) {
-    if (
-      attrs.focusHeapExplorer &&
-      attrs.hdeSubpage !== this.lastFocusedSubpage
-    ) {
-      this.lastFocusedSubpage = attrs.hdeSubpage;
-      requestAnimationFrame(() => scrollToSectionIfNeeded(SECTION_IDS.heap));
-    }
-  }
-
-  oncreate({attrs}: m.VnodeDOM<MemoryOverviewPageAttrs>) {
-    if (attrs.focusHeapExplorer) {
-      this.lastFocusedSubpage = attrs.hdeSubpage;
-      requestAnimationFrame(() => scrollToSectionIfNeeded(SECTION_IDS.heap));
-    }
-  }
-
   view({attrs}: m.Vnode<MemoryOverviewPageAttrs>) {
     const {
       trace,
       upid,
+      activePage,
       hdeSession,
       hdeSubpage,
       autoNavigated,
       openByDefault,
       hideDefaultChangedHint,
       onUpidChange,
+      onNavigatePage,
       onOpenJavaHeap,
     } = attrs;
 
@@ -227,7 +215,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
 
     if (procs === undefined) {
       return m(
-        '.pf-memscope-page.pf-memtl-page',
+        '.pf-memscope-page.pf-memtree-page',
         m(
           '.pf-memtl-page__empty',
           m(EmptyState, {icon: 'hourglass', title: 'Loading processes...'}),
@@ -237,7 +225,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
 
     if (procs.length === 0) {
       return m(
-        '.pf-memscope-page.pf-memtl-page',
+        '.pf-memscope-page.pf-memtree-page',
         m(
           '.pf-memtl-page__empty',
           m(EmptyState, {
@@ -280,171 +268,59 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     const currentSelection =
       validUpid !== undefined ? this.selectionByUpid.get(validUpid) : undefined;
 
+    // Keep HDE route state synced before reading active nav/tabs for the tree.
+    if (activePage === 'java-hde' && hdeSession !== undefined) {
+      hdeSession.syncFromSubpage(hdeSubpage);
+      hdeSession.syncInstanceTabFromNav();
+      hdeSession.syncFlamegraphTabFromNav();
+    }
+
     const smapsAvailable = capture === undefined || capture.smaps.samples > 0;
     const dumpsAvailable =
-      procDumps.length > 0 || capture === undefined || capture.dumps > 0;
-    const bitmapsAvailable = capture === undefined || capture.hasBitmaps;
+      procDumps.length > 0 || (capture !== undefined && capture.dumps > 0);
     const nativeAvailable = capture === undefined || capture.native.samples > 0;
 
-    const handleOpenJavaHeap = (
-      ts: time,
+    const handleSelectTimeline = (next: MemSelection | undefined) => {
+      if (validUpid === undefined) return;
+      if (next === undefined) {
+        this.selectionByUpid.delete(validUpid);
+      } else {
+        this.selectionByUpid.set(validUpid, next);
+      }
+      // Keep HDE's active dump synchronized with the timeline's target point.
+      if (hdeSession !== undefined && procDumps.length > 0) {
+        hdeSession.selectDumpForProcess(validUpid, next?.sel);
+      }
+    };
+
+    const handleSelectDump = (dump: HeapDump) => {
+      hdeSession?.selectDump(dump);
+      if (validUpid !== undefined) {
+        const cur = this.selectionByUpid.get(validUpid);
+        if (cur?.base !== undefined) {
+          this.selectionByUpid.set(validUpid, {base: cur.base, sel: dump.ts});
+        } else {
+          this.selectionByUpid.set(validUpid, {sel: dump.ts});
+        }
+      }
+    };
+
+    const handleOpenHdeView = (
       view: NavView,
       params?: Record<string, unknown>,
     ) => {
-      onOpenJavaHeap(ts, view, params);
-      requestAnimationFrame(() => scrollToSection(SECTION_IDS.heap));
+      if (validUpid === undefined) return;
+      if (hdeSession !== undefined && procDumps.length > 0) {
+        hdeSession.selectDumpForProcess(validUpid, currentSelection?.sel);
+        hdeSession.navigateWithTabs(view, params);
+      } else {
+        onNavigatePage('java-hde', view);
+      }
     };
 
-    const jumpItems: ReadonlyArray<{
-      readonly id: string;
-      readonly label: string;
-      readonly icon: string;
-      readonly available: boolean;
-    }> = [
-      {
-        id: SECTION_IDS.breakdown,
-        label: 'Breakdown',
-        icon: 'donut_large',
-        available: smapsAvailable,
-      },
-      {
-        id: SECTION_IDS.java,
-        label: 'Java',
-        icon: 'coffee',
-        available: dumpsAvailable,
-      },
-      {
-        id: SECTION_IDS.bitmaps,
-        label: 'Bitmaps',
-        icon: 'photo_library',
-        available: bitmapsAvailable,
-      },
-      {
-        id: SECTION_IDS.native,
-        label: 'Native',
-        icon: 'memory_alt',
-        available: nativeAvailable,
-      },
-      {
-        id: SECTION_IDS.smaps,
-        label: 'Smaps VMAs',
-        icon: 'table_rows',
-        available: smapsAvailable,
-      },
-      {
-        id: SECTION_IDS.heap,
-        label: 'Heap Explorer',
-        icon: 'account_tree',
-        available: procDumps.length > 0,
-      },
-    ];
-
-    // Order detail sections with data ahead of empty sections while preserving
-    // natural triage order within each group.
-    const flowSections =
-      validUpid !== undefined
-        ? [
-            {
-              key: 'breakdown',
-              hasData: smapsAvailable,
-              content: m(
-                'section.pf-memtl-section',
-                {id: SECTION_IDS.breakdown, key: 'breakdown'},
-                m(MemoryMap, {
-                  trace,
-                  upid: validUpid,
-                  selTs: currentSelection?.sel,
-                  baseTs: currentSelection?.base,
-                  onInspectSmaps: () => scrollToSection(SECTION_IDS.smaps),
-                }),
-              ),
-            },
-            {
-              key: 'java',
-              hasData: dumpsAvailable,
-              content: m(
-                'section.pf-memtl-section',
-                {id: SECTION_IDS.java, key: 'java'},
-                m(JavaSection, {
-                  trace,
-                  upid: validUpid,
-                  selTs: currentSelection?.sel,
-                  baseTs: currentSelection?.base,
-                  onOpenJavaHeap:
-                    procDumps.length > 0 ? handleOpenJavaHeap : undefined,
-                }),
-              ),
-            },
-            {
-              key: 'bitmaps',
-              hasData: bitmapsAvailable,
-              content: m(
-                'section.pf-memtl-section',
-                {id: SECTION_IDS.bitmaps, key: 'bitmaps'},
-                m(BitmapsSection, {
-                  trace,
-                  upid: validUpid,
-                  selTs: currentSelection?.sel,
-                  baseTs: currentSelection?.base,
-                  onOpenBitmapsGallery:
-                    procDumps.length > 0
-                      ? (ts: time, filterKey?: string) =>
-                          handleOpenJavaHeap(
-                            ts,
-                            'bitmaps',
-                            filterKey !== undefined ? {filterKey} : undefined,
-                          )
-                      : undefined,
-                }),
-              ),
-            },
-            {
-              key: 'native',
-              hasData: nativeAvailable,
-              content: m(
-                'section.pf-memtl-section',
-                {id: SECTION_IDS.native, key: 'native'},
-                m(NativeSection, {
-                  trace,
-                  upid: validUpid,
-                  selTs: currentSelection?.sel,
-                  baseTs: currentSelection?.base,
-                }),
-              ),
-            },
-            {
-              key: 'smaps',
-              hasData: smapsAvailable,
-              content: m(
-                'section.pf-memtl-section',
-                {id: SECTION_IDS.smaps, key: 'smaps'},
-                m(SmapsDetail, {
-                  trace,
-                  upid: validUpid,
-                  selTs: currentSelection?.sel,
-                  baseTs: currentSelection?.base,
-                  hideSnapshotPicker: true,
-                }),
-              ),
-            },
-            {
-              key: 'heap-explorer',
-              hasData: procDumps.length > 0,
-              content: this.renderHeapExplorerSection({
-                trace,
-                procDumps,
-                hdeSession,
-                hdeSubpage,
-                selection: currentSelection,
-              }),
-            },
-          ]
-        : [];
-    flowSections.sort((a, b) => Number(b.hasData) - Number(a.hasData));
-
-    return m('.pf-memscope-page.pf-memtl-page', [
-      m('.pf-memscope-page__content.pf-memtl-page__content', [
-        // Compact Top Subject Header (with process uptime, OOM score, DMA-BUF)
+    return m('.pf-memscope-page.pf-memtree-page', [
+      // Top Fixed Chrome: Process Bar + Hints + Hero Memory Timeline
+      m('.pf-memtree-header', [
         this.renderTopBar(
           trace,
           procs,
@@ -454,67 +330,663 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
           headerMeta,
           onUpidChange,
         ),
-
         this.renderDefaultChangedHint(
           trace,
           autoNavigated,
           openByDefault,
           hideDefaultChangedHint,
         ),
-
-        headerMeta?.oome !== undefined &&
-          this.renderOomeBanner(
-            headerMeta.oome,
-            headerMeta.oomeDumpTs,
-            procDumps.length > 0 ? handleOpenJavaHeap : undefined,
-          ),
-
         captureError !== undefined && m('p.pf-error', `Error: ${captureError}`),
-
-        validUpid === undefined &&
-          m(EmptyState, {
-            icon: 'error_outline',
-            title: 'Unable to resolve process from URL',
-          }),
-
         validUpid !== undefined &&
-          captureError === undefined && [
-            // HERO: Interactive Memory Timeline front and center at the top!
+          captureError === undefined &&
+          m(MemoryTimelineHero, {
+            trace,
+            upid: validUpid,
+            procDumps,
+            activeDump: hdeSession?.activeDump ?? null,
+            selection: currentSelection,
+            onSelect: handleSelectTimeline,
+            onSelectDump: (dump) => {
+              hdeSession?.selectDump(dump);
+            },
+          }),
+      ]),
+
+      // Main Split Body: Left Tree Sidebar + Synced Right Page View
+      validUpid === undefined
+        ? m(
+            '.pf-memtl-page__empty',
+            m(EmptyState, {
+              icon: 'error_outline',
+              title: 'Unable to resolve process from URL',
+            }),
+          )
+        : captureError === undefined &&
+          m('.pf-memtree-workspace', [
+            this.renderTreeSidebar({
+              trace,
+              activePage,
+              hdeSession,
+              procDumps,
+              capture,
+              smapsAvailable,
+              dumpsAvailable,
+              nativeAvailable,
+              selection: currentSelection,
+              onClearSelection: () => handleSelectTimeline(undefined),
+              onNavigatePage,
+              onOpenHdeView: handleOpenHdeView,
+            }),
+            this.renderMainContent({
+              trace,
+              upid: validUpid,
+              activePage,
+              hdeSession,
+              hdeSubpage,
+              procDumps,
+              headerMeta,
+              selection: currentSelection,
+              onNavigatePage,
+              onOpenJavaHeap,
+              onOpenHdeView: handleOpenHdeView,
+              onSelectDump: handleSelectDump,
+            }),
+          ]),
+    ]);
+  }
+
+  private renderTreeSidebar(opts: {
+    readonly trace: Trace;
+    readonly activePage: MemoryTreePage;
+    readonly hdeSession?: HeapDumpExplorerSession;
+    readonly procDumps: ReadonlyArray<HeapDump>;
+    readonly capture?: CaptureInfo;
+    readonly smapsAvailable: boolean;
+    readonly dumpsAvailable: boolean;
+    readonly nativeAvailable: boolean;
+    readonly selection?: MemSelection;
+    readonly onClearSelection: () => void;
+    readonly onNavigatePage: (
+      page: MemoryTreePage,
+      hdeSubpage?: string,
+    ) => void;
+    readonly onOpenHdeView: (
+      view: NavView,
+      params?: Record<string, unknown>,
+    ) => void;
+  }): m.Children {
+    const {
+      trace,
+      activePage,
+      hdeSession,
+      procDumps,
+      capture,
+      smapsAvailable,
+      dumpsAvailable,
+      nativeAvailable,
+      selection,
+      onClearSelection,
+      onNavigatePage,
+      onOpenHdeView,
+    } = opts;
+
+    const hdeNav = hdeSession?.nav;
+    const isHdeActive = activePage === 'java-hde';
+    const activeHdeView = isHdeActive ? hdeNav?.view : undefined;
+    const activeFg =
+      isHdeActive && hdeSession !== undefined
+        ? hdeSession.activeFlamegraph
+        : null;
+    const activeInstId =
+      isHdeActive && hdeSession !== undefined
+        ? hdeSession.activeInstanceObjId
+        : null;
+
+    const treeItem = (item: {
+      readonly key?: string;
+      readonly label: string;
+      readonly icon: string;
+      readonly active: boolean;
+      readonly nested?: boolean;
+      readonly muted?: boolean;
+      readonly badge?: string;
+      readonly onClose?: () => void;
+      readonly onclick: () => void;
+    }) =>
+      m(
+        '.pf-memtree-node',
+        {
+          ...(item.key !== undefined ? {key: item.key} : {}),
+          className: classNames(
+            item.nested && 'pf-memtree-node--nested',
+            item.active && 'pf-memtree-node--active',
+            item.muted && 'pf-memtree-node--muted',
+          ),
+        },
+        [
+          m(
+            'button.pf-memtree-node__btn',
+            {type: 'button', title: item.label, onclick: item.onclick},
+            [
+              m(Icon, {icon: item.icon, className: 'pf-memtree-node__icon'}),
+              m('span.pf-memtree-node__label', item.label),
+              item.badge !== undefined &&
+                m('span.pf-memtree-node__badge', item.badge),
+            ],
+          ),
+          item.onClose !== undefined &&
             m(
-              'section.pf-memtl-section',
-              {id: SECTION_IDS.timeline},
-              m(MemoryTimelineHero, {
-                trace,
-                upid: validUpid,
-                procDumps,
-                activeDump: hdeSession?.activeDump ?? null,
-                selection: currentSelection,
-                onSelect: (next) => {
-                  if (next === undefined) {
-                    this.selectionByUpid.delete(validUpid);
-                  } else {
-                    this.selectionByUpid.set(validUpid, next);
-                  }
+              'button.pf-memtree-node__close',
+              {
+                type: 'button',
+                title: `Close ${item.label}`,
+                onclick: (e: Event) => {
+                  e.stopPropagation();
+                  item.onClose?.();
                 },
-                onSelectDump: (dump) => {
-                  hdeSession?.selectDump(dump);
-                },
+              },
+              m(Icon, {icon: 'close'}),
+            ),
+        ],
+      );
+
+    const fgTabs = hdeSession?.flamegraphTabs ?? [];
+    const instTabs = hdeSession?.instanceTabs ?? [];
+
+    return m('aside.pf-memtree-sidebar', {'aria-label': 'Memory navigation'}, [
+      // Active timeline scope banner inside the sidebar when pinned/diffing
+      selection !== undefined &&
+        m(
+          '.pf-memtree-scope',
+          {
+            className: classNames(
+              selection.base !== undefined && 'pf-memtree-scope--delta',
+            ),
+          },
+          [
+            m(Icon, {
+              icon:
+                selection.base !== undefined
+                  ? 'compare_arrows'
+                  : 'photo_camera',
+            }),
+            m(
+              'span.pf-memtree-scope__text',
+              selection.base !== undefined
+                ? `Δ ${formatOffsetSec(trace, selection.base)} → ${formatOffsetSec(trace, selection.sel)}`
+                : `Pinned @ ${formatOffsetSec(trace, selection.sel)}`,
+            ),
+            m(
+              'button.pf-memtree-scope__clear',
+              {
+                type: 'button',
+                title: 'Clear timeline selection',
+                onclick: onClearSelection,
+              },
+              m(Icon, {icon: 'close'}),
+            ),
+          ],
+        ),
+
+      m('nav.pf-memtree-nav', [
+        // Top-level Overview (Memory Breakdown) & Smaps (VMAs)
+        treeItem({
+          label: 'Overview',
+          icon: 'donut_large',
+          active: activePage === 'overview',
+          onclick: () => onNavigatePage('overview'),
+        }),
+        treeItem({
+          label: 'Smaps (VMAs)',
+          icon: 'table_rows',
+          active: activePage === 'smaps',
+          muted: !smapsAvailable,
+          badge:
+            capture !== undefined && capture.smaps.samples > 0
+              ? `${capture.smaps.samples}`
+              : undefined,
+          onclick: () => onNavigatePage('smaps'),
+        }),
+
+        // Java Branch
+        m('.pf-memtree-group', [
+          m(
+            'button.pf-memtree-group__header',
+            {
+              type: 'button',
+              className: classNames(
+                !dumpsAvailable && 'pf-memtree-group__header--muted',
+              ),
+              onclick: () => {
+                this.javaExpanded = !this.javaExpanded;
+              },
+            },
+            [
+              m(Icon, {
+                icon: this.javaExpanded ? 'expand_more' : 'chevron_right',
+                className: 'pf-memtree-group__caret',
+              }),
+              m(Icon, {icon: 'coffee', className: 'pf-memtree-group__icon'}),
+              m('span.pf-memtree-group__label', 'Java'),
+              procDumps.length > 0 &&
+                m('span.pf-memtree-node__badge', `${procDumps.length}`),
+            ],
+          ),
+          this.javaExpanded &&
+            m('.pf-memtree-group__children', [
+              treeItem({
+                label: 'Overview',
+                icon: 'dashboard',
+                nested: true,
+                active: activePage === 'java-overview',
+                muted: !dumpsAvailable,
+                onclick: () => onNavigatePage('java-overview'),
+              }),
+              treeItem({
+                label: 'Bitmaps',
+                icon: 'photo_library',
+                nested: true,
+                active:
+                  activePage === 'java-bitmaps' || activeHdeView === 'bitmaps',
+                muted: !dumpsAvailable,
+                onclick: () => onNavigatePage('java-bitmaps'),
+              }),
+              HDE_JAVA_TREE_ITEMS.map((item) =>
+                treeItem({
+                  key: `hde-${item.view}`,
+                  label: item.label,
+                  icon: item.icon,
+                  nested: true,
+                  active: activeHdeView === item.view,
+                  muted: procDumps.length === 0,
+                  onclick: () => onOpenHdeView(item.view),
+                }),
+              ),
+              hdeSession?.hasFieldValues &&
+                treeItem({
+                  label: 'Duplicates',
+                  icon: 'content_copy',
+                  nested: true,
+                  active: activeHdeView === 'overview',
+                  muted: procDumps.length === 0,
+                  onclick: () => onOpenHdeView('overview'),
+                }),
+              // Dynamic HDE Flamegraph Objects drill-down items
+              fgTabs.map((fg) =>
+                treeItem({
+                  key: `fg-${fg.isDominator ? 'd' : 'n'}:${fg.pathHashes}`,
+                  label:
+                    fg.count !== null
+                      ? `Objects (${fg.count.toLocaleString()})`
+                      : 'Flamegraph objects',
+                  icon: 'filter_list',
+                  nested: true,
+                  active:
+                    activeFg !== null &&
+                    activeFg.pathHashes === fg.pathHashes &&
+                    activeFg.isDominator === fg.isDominator,
+                  onClose: () =>
+                    hdeSession?.closeFlamegraph(fg.pathHashes, fg.isDominator),
+                  onclick: () =>
+                    onOpenHdeView('flamegraph-objects', {
+                      pathHashes: fg.pathHashes,
+                      isDominator: fg.isDominator,
+                    }),
+                }),
+              ),
+              // Dynamic HDE Instance inspector items
+              instTabs.map((inst) =>
+                treeItem({
+                  key: `inst-${inst.objId}`,
+                  label: inst.label,
+                  icon: 'data_object',
+                  nested: true,
+                  active: activeInstId === inst.objId,
+                  onClose: () => hdeSession?.closeInstanceTab(inst.objId),
+                  onclick: () =>
+                    onOpenHdeView('object', {
+                      id: inst.objId,
+                      label: inst.label,
+                    }),
+                }),
+              ),
+            ]),
+        ]),
+
+        // Native Branch
+        m('.pf-memtree-group', [
+          m(
+            'button.pf-memtree-group__header',
+            {
+              type: 'button',
+              className: classNames(
+                !nativeAvailable && 'pf-memtree-group__header--muted',
+              ),
+              onclick: () => {
+                this.nativeExpanded = !this.nativeExpanded;
+              },
+            },
+            [
+              m(Icon, {
+                icon: this.nativeExpanded ? 'expand_more' : 'chevron_right',
+                className: 'pf-memtree-group__caret',
+              }),
+              m(Icon, {
+                icon: 'memory_alt',
+                className: 'pf-memtree-group__icon',
+              }),
+              m('span.pf-memtree-group__label', 'Native'),
+              capture !== undefined &&
+                capture.native.samples > 0 &&
+                m('span.pf-memtree-node__badge', `${capture.native.samples}`),
+            ],
+          ),
+          this.nativeExpanded &&
+            m('.pf-memtree-group__children', [
+              treeItem({
+                label: 'Overview',
+                icon: 'dashboard',
+                nested: true,
+                active: activePage === 'native-overview',
+                muted: !nativeAvailable,
+                onclick: () => onNavigatePage('native-overview'),
+              }),
+              treeItem({
+                label: 'Flamegraph',
+                icon: 'local_fire_department',
+                nested: true,
+                active: activePage === 'native-flamegraph',
+                muted: !nativeAvailable,
+                onclick: () => onNavigatePage('native-flamegraph'),
+              }),
+            ]),
+        ]),
+      ]),
+    ]);
+  }
+
+  private renderMainContent(opts: {
+    readonly trace: Trace;
+    readonly upid: number;
+    readonly activePage: MemoryTreePage;
+    readonly hdeSession?: HeapDumpExplorerSession;
+    readonly hdeSubpage?: string;
+    readonly procDumps: ReadonlyArray<HeapDump>;
+    readonly headerMeta?: ProcessHeaderMeta;
+    readonly selection?: MemSelection;
+    readonly onNavigatePage: (
+      page: MemoryTreePage,
+      hdeSubpage?: string,
+    ) => void;
+    readonly onOpenJavaHeap: (
+      ts: time,
+      view: NavView,
+      params?: Record<string, unknown>,
+    ) => void;
+    readonly onOpenHdeView: (
+      view: NavView,
+      params?: Record<string, unknown>,
+    ) => void;
+    readonly onSelectDump: (dump: HeapDump) => void;
+  }): m.Children {
+    const {
+      trace,
+      upid,
+      activePage,
+      hdeSession,
+      hdeSubpage,
+      procDumps,
+      headerMeta,
+      selection,
+      onNavigatePage,
+      onOpenJavaHeap,
+      onOpenHdeView,
+      onSelectDump,
+    } = opts;
+
+    const isBitmapsGallery =
+      activePage === 'java-hde' && hdeSession?.nav.view === 'bitmaps';
+
+    // Full-height explorer views (HDE views + Native Flamegraph) fill 100% of
+    // the right pane without double scrollbars.
+    if (activePage === 'native-flamegraph') {
+      return m(
+        'main.pf-memtree-main.pf-memtree-main--fill',
+        m(NativeFlamegraphView, {
+          trace,
+          upid,
+          selTs: selection?.sel,
+          baseTs: selection?.base,
+        }),
+      );
+    }
+
+    if (activePage === 'java-hde') {
+      if (hdeSession === undefined || procDumps.length === 0) {
+        return m(
+          'main.pf-memtree-main.pf-memtree-main--scroll',
+          m(
+            '.pf-memtree-empty',
+            m(
+              EmptyState,
+              {
+                icon: 'account_tree',
+                title: 'No Java heap dumps for this process',
+              },
+              'Capture a java_hprof dump to inspect Java flamegraphs, classes, ' +
+                'objects, dominators, bitmaps, and strings.',
+            ),
+          ),
+        );
+      }
+
+      return m('main.pf-memtree-main.pf-memtree-main--fill', [
+        isBitmapsGallery &&
+          this.renderBitmapsModeBar({
+            mode: 'gallery',
+            onSummary: () => onNavigatePage('java-bitmaps'),
+            onGallery: () => onOpenHdeView('bitmaps'),
+          }),
+        this.renderHdeDumpBar(
+          trace,
+          procDumps,
+          hdeSession.activeDump,
+          selection,
+          onSelectDump,
+        ),
+        m(HeapDumpContentView, {
+          session: hdeSession,
+          subpage: hdeSubpage,
+          active: true,
+        }),
+      ]);
+    }
+
+    // Scrollable panel-based pages: Overview, Smaps, Java Overview, Java
+    // Bitmaps (Summary), Native Overview.
+    return m('main.pf-memtree-main.pf-memtree-main--scroll', [
+      activePage === 'overview' &&
+        m('.pf-memtree-stack', [
+          headerMeta?.oome !== undefined &&
+            this.renderOomeBanner(
+              headerMeta.oome,
+              headerMeta.oomeDumpTs,
+              procDumps.length > 0 ? onOpenJavaHeap : undefined,
+            ),
+          m(TraceOverview, {trace, upid}),
+          m(MemoryMap, {
+            trace,
+            upid,
+            selTs: selection?.sel,
+            baseTs: selection?.base,
+            onInspectSmaps: () => onNavigatePage('smaps'),
+          }),
+        ]),
+
+      activePage === 'smaps' &&
+        m(
+          '.pf-memtree-stack',
+          m(SmapsDetail, {
+            trace,
+            upid,
+            selTs: selection?.sel,
+            baseTs: selection?.base,
+            hideSnapshotPicker: true,
+          }),
+        ),
+
+      activePage === 'java-overview' &&
+        m('.pf-memtree-stack', [
+          headerMeta?.oome !== undefined &&
+            this.renderOomeBanner(
+              headerMeta.oome,
+              headerMeta.oomeDumpTs,
+              procDumps.length > 0 ? onOpenJavaHeap : undefined,
+            ),
+          m(JavaSection, {
+            trace,
+            upid,
+            selTs: selection?.sel,
+            baseTs: selection?.base,
+            onOpenJavaHeap: procDumps.length > 0 ? onOpenJavaHeap : undefined,
+          }),
+        ]),
+
+      activePage === 'java-bitmaps' &&
+        m('.pf-memtree-stack', [
+          procDumps.length > 0 &&
+            this.renderBitmapsModeBar({
+              mode: 'summary',
+              onSummary: () => onNavigatePage('java-bitmaps'),
+              onGallery: () => onOpenHdeView('bitmaps'),
+            }),
+          m(BitmapsSection, {
+            trace,
+            upid,
+            selTs: selection?.sel,
+            baseTs: selection?.base,
+            onOpenBitmapsGallery:
+              procDumps.length > 0
+                ? (ts: time, filterKey?: string) =>
+                    onOpenJavaHeap(
+                      ts,
+                      'bitmaps',
+                      filterKey !== undefined ? {filterKey} : undefined,
+                    )
+                : undefined,
+          }),
+        ]),
+
+      activePage === 'native-overview' &&
+        m(
+          '.pf-memtree-stack',
+          m(NativeSection, {
+            trace,
+            upid,
+            selTs: selection?.sel,
+            baseTs: selection?.base,
+            onOpenFlamegraph: () => onNavigatePage('native-flamegraph'),
+          }),
+        ),
+    ]);
+  }
+
+  private renderBitmapsModeBar(opts: {
+    readonly mode: 'summary' | 'gallery';
+    readonly onSummary: () => void;
+    readonly onGallery: () => void;
+  }): m.Children {
+    return m('.pf-memtree-subbar', [
+      m('span.pf-memtree-subbar__title', 'Bitmaps'),
+      m(ButtonGroup, [
+        m(Button, {
+          label: 'Summary & Dimensions',
+          icon: 'analytics',
+          compact: true,
+          variant: ButtonVariant.Outlined,
+          active: opts.mode === 'summary',
+          onclick: opts.onSummary,
+        }),
+        m(Button, {
+          label: 'Bitmap Gallery',
+          icon: 'photo_library',
+          compact: true,
+          variant: ButtonVariant.Outlined,
+          active: opts.mode === 'gallery',
+          onclick: opts.onGallery,
+        }),
+      ]),
+    ]);
+  }
+
+  private renderHdeDumpBar(
+    trace: Trace,
+    procDumps: ReadonlyArray<HeapDump>,
+    activeDump: HeapDump | null,
+    selection: MemSelection | undefined,
+    onSelectDump: (dump: HeapDump) => void,
+  ): m.Children {
+    const baseDump =
+      selection?.base !== undefined
+        ? nearestByTs(procDumps, selection.base)
+        : undefined;
+    const selDump =
+      selection !== undefined
+        ? nearestByTs(procDumps, selection.sel)
+        : (activeDump ?? undefined);
+    const rangeSpansTwoDumps =
+      baseDump !== undefined &&
+      selDump !== undefined &&
+      baseDump.ts !== selDump.ts;
+
+    if (procDumps.length <= 1 && !rangeSpansTwoDumps) {
+      return null;
+    }
+
+    return m('.pf-memtree-subbar.pf-memtree-subbar--dumps', [
+      m('span.pf-memtree-subbar__label', 'Heap dump:'),
+      procDumps.length <= MAX_INLINE_DUMP_CHIPS
+        ? m(
+            '.pf-memtl-heap-card__dump-chips',
+            procDumps.map((d, i) =>
+              m(Chip, {
+                key: `${d.upid}:${d.ts.toString()}`,
+                label: `#${i + 1} · ${formatOffsetSec(trace, d.ts)}`,
+                rounded: true,
+                interactive: true,
+                intent: d === activeDump ? Intent.Primary : Intent.None,
+                onclick: () => onSelectDump(d),
               }),
             ),
-
-            // Sticky Section Jump & Active Range Bar
-            this.renderStickyJumpBar(trace, jumpItems, currentSelection, () =>
-              this.selectionByUpid.delete(validUpid),
+          )
+        : m(
+            PopupMenu,
+            {
+              position: PopupPosition.BottomStart,
+              trigger: m(Button, {
+                label:
+                  activeDump !== null
+                    ? `Dump #${procDumps.indexOf(activeDump) + 1}/${procDumps.length} · ${formatOffsetSec(trace, activeDump.ts)}`
+                    : `${procDumps.length} dumps`,
+                icon: 'photo_camera',
+                rightIcon: 'arrow_drop_down',
+                variant: ButtonVariant.Outlined,
+                compact: true,
+              }),
+            },
+            procDumps.map((d, i) =>
+              m(MenuItem, {
+                label: `Dump #${i + 1} — ${formatDuration(trace, Time.diff(d.ts, trace.traceInfo.start))}`,
+                active: d === activeDump,
+                onclick: () => onSelectDump(d),
+              }),
             ),
-
-            // Headline Process Billboards
-            m(TraceOverview, {trace, upid: validUpid}),
-
-            // Flowing Reactive Subsections (own keyed fragment so sections keep
-            // state when reordered once capture availability resolves).
-            flowSections.map((s) => s.content),
-          ],
-      ]),
+          ),
+      rangeSpansTwoDumps &&
+        m(
+          'span.pf-memtree-subbar__hint',
+          `Showing target Dump #${procDumps.indexOf(selDump) + 1}; see Java → Overview for Δ vs Dump #${procDumps.indexOf(baseDump) + 1}.`,
+        ),
     ]);
   }
 
@@ -655,235 +1127,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     );
   }
 
-  private renderStickyJumpBar(
-    trace: Trace,
-    items: ReadonlyArray<{
-      readonly id: string;
-      readonly label: string;
-      readonly icon: string;
-      readonly available: boolean;
-    }>,
-    selection: MemSelection | undefined,
-    onClearSelection: () => void,
-  ): m.Children {
-    const isRange = selection?.base !== undefined;
-
-    return m('nav.pf-memtl-jumpbar', {'aria-label': 'Jump to section'}, [
-      m('.pf-memtl-jumpbar__links', [
-        m(
-          'button.pf-memtl-jumpbar__btn.pf-memtl-jumpbar__btn--top',
-          {
-            type: 'button',
-            title: 'Back to Memory Timeline',
-            onclick: () => scrollToSection(SECTION_IDS.timeline),
-          },
-          [m(Icon, {icon: 'arrow_upward'}), 'Timeline'],
-        ),
-        items.map((item) =>
-          m(
-            'button.pf-memtl-jumpbar__btn',
-            {
-              key: item.id,
-              type: 'button',
-              disabled: !item.available,
-              className: classNames(
-                !item.available && 'pf-memtl-jumpbar__btn--muted',
-              ),
-              onclick: () => scrollToSection(item.id),
-            },
-            [m(Icon, {icon: item.icon}), item.label],
-          ),
-        ),
-      ]),
-      m('.pf-memtl-jumpbar__context', [
-        isRange && selection?.base !== undefined
-          ? m('.pf-memtl-jumpbar__pill.pf-memtl-jumpbar__pill--delta', [
-              m(Icon, {icon: 'compare_arrows'}),
-              m(
-                'span',
-                `Δ ${formatOffsetSec(trace, selection.base)} → ${formatOffsetSec(trace, selection.sel)}`,
-              ),
-              m(Button, {
-                icon: 'close',
-                compact: true,
-                title: 'Clear time range',
-                onclick: onClearSelection,
-              }),
-            ])
-          : selection !== undefined
-            ? m('.pf-memtl-jumpbar__pill', [
-                m(Icon, {icon: 'photo_camera'}),
-                m('span', `Pinned @ ${formatOffsetSec(trace, selection.sel)}`),
-                m(Button, {
-                  icon: 'close',
-                  compact: true,
-                  title: 'Reset to latest',
-                  onclick: onClearSelection,
-                }),
-              ])
-            : m(
-                'span.pf-memtl-jumpbar__hint',
-                'Drag timeline above to show deltas (Δ)',
-              ),
-      ]),
-    ]);
-  }
-
-  private renderHeapExplorerSection(opts: {
-    readonly trace: Trace;
-    readonly procDumps: ReadonlyArray<HeapDump>;
-    readonly hdeSession?: HeapDumpExplorerSession;
-    readonly hdeSubpage?: string;
-    readonly selection?: MemSelection;
-  }): m.Child {
-    const {trace, procDumps, hdeSession, hdeSubpage, selection} = opts;
-
-    if (hdeSession === undefined || procDumps.length === 0) {
-      return m(
-        'section.pf-memtl-section',
-        {id: SECTION_IDS.heap, key: 'heap-explorer'},
-        m(
-          Panel,
-          {className: 'pf-memscope-panel--empty'},
-          m(Panel.Header, {title: 'Java Heap Explorer'}),
-          m(
-            Panel.Body,
-            m(
-              '.pf-memscope-landing__empty',
-              m(
-                EmptyState,
-                {
-                  icon: 'account_tree',
-                  title: 'No Java heap dumps for this process',
-                },
-                'Capture a java_hprof dump to inspect objects, flamegraph, ' +
-                  'dominators, bitmaps, and strings.',
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    const activeDump = hdeSession.activeDump;
-    const baseDump =
-      selection?.base !== undefined
-        ? nearestByTs(procDumps, selection.base)
-        : undefined;
-    const selDump =
-      selection !== undefined
-        ? nearestByTs(procDumps, selection.sel)
-        : (activeDump ?? undefined);
-    const rangeSpansTwoDumps =
-      baseDump !== undefined &&
-      selDump !== undefined &&
-      baseDump.ts !== selDump.ts;
-
-    const controls: m.Children[] = [];
-    if (procDumps.length === 1) {
-      const only = procDumps[0];
-      if (only !== undefined) {
-        controls.push(
-          m(
-            'span.pf-memtl-heap-card__dump-tag',
-            `Dump #1 · t=${formatOffsetSec(trace, only.ts)}`,
-          ),
-        );
-      }
-    } else if (procDumps.length <= MAX_INLINE_DUMP_CHIPS) {
-      controls.push(
-        m(
-          '.pf-memtl-heap-card__dump-chips',
-          procDumps.map((d, i) =>
-            m(Chip, {
-              key: `${d.upid}:${d.ts.toString()}`,
-              label: `#${i + 1} · ${formatOffsetSec(trace, d.ts)}`,
-              rounded: true,
-              interactive: true,
-              intent: d === activeDump ? Intent.Primary : Intent.None,
-              onclick: () => hdeSession.selectDump(d),
-            }),
-          ),
-        ),
-      );
-    } else {
-      const activeIdx =
-        activeDump !== null ? procDumps.indexOf(activeDump) : -1;
-      controls.push(
-        m(
-          PopupMenu,
-          {
-            position: PopupPosition.BottomEnd,
-            trigger: m(Button, {
-              label:
-                activeDump !== null && activeIdx >= 0
-                  ? `Dump #${activeIdx + 1}/${procDumps.length} · ${formatOffsetSec(trace, activeDump.ts)}`
-                  : `${procDumps.length} dumps`,
-              icon: 'photo_camera',
-              rightIcon: 'arrow_drop_down',
-              variant: ButtonVariant.Outlined,
-              compact: true,
-            }),
-          },
-          procDumps.map((d, i) =>
-            m(MenuItem, {
-              label: `Dump #${i + 1} — ${formatDuration(trace, Time.diff(d.ts, trace.traceInfo.start))}`,
-              active: d === activeDump,
-              onclick: () => hdeSession.selectDump(d),
-            }),
-          ),
-        ),
-      );
-    }
-
-    controls.push(
-      m(Button, {
-        label: this.heapExpanded ? 'Exit fullscreen' : 'Expand',
-        icon: this.heapExpanded ? 'close_fullscreen' : 'open_in_full',
-        variant: ButtonVariant.Outlined,
-        compact: true,
-        onclick: () => {
-          this.heapExpanded = !this.heapExpanded;
-        },
-      }),
-    );
-
-    const subtitle = rangeSpansTwoDumps
-      ? `Inspecting target Dump #${procDumps.indexOf(selDump) + 1} ` +
-        `(t=${formatOffsetSec(trace, selDump.ts)}); see Java Memory & ` +
-        `Bitmaps sections above for Δ vs Dump #${procDumps.indexOf(baseDump) + 1}.`
-      : 'Object-level inspection: flamegraph, classes, dominators, bitmaps, ' +
-        'strings, arrays, and individual instances.';
-
-    return m(
-      'section.pf-memtl-section',
-      {id: SECTION_IDS.heap, key: 'heap-explorer'},
-      m(
-        Panel,
-        {
-          className: classNames(
-            'pf-memtl-heap-card',
-            this.heapExpanded && 'pf-memtl-heap-card--expanded',
-          ),
-        },
-        m(Panel.Header, {
-          title: 'Java Heap Explorer',
-          subtitle,
-          controls,
-        }),
-        m(
-          '.pf-memtl-heap-card__body',
-          m(HeapDumpPage, {
-            session: hdeSession,
-            subpage: hdeSubpage,
-            embedded: true,
-            active: true,
-          }),
-        ),
-      ),
-    );
-  }
-
   private renderDefaultChangedHint(
     trace: Trace,
     autoNavigated: boolean,
@@ -964,7 +1207,7 @@ function renderProcMenuLabel(p: ProcMemStat): m.Children {
   if (p.heapDumps > 0) {
     tags.push(
       m('span.pf-memtl-proc-opt__tag', [
-        m('span.pf-memscope-capture__dot.pf-memscope-capture__dot--dump'),
+        m('span.pf-memscope-capture__dot.pf-memscope-capture__dot--dumps'),
         `${p.heapDumps} java`,
       ]),
     );

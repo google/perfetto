@@ -41,6 +41,9 @@ export interface SunburstSegment {
   readonly value: number;
   readonly cssColor: string;
   readonly children: readonly SunburstSegment[];
+  // Optional signed delta badge displayed inline in the synchronized legend
+  // (e.g. when comparing two snapshots).
+  readonly delta?: m.Children;
   // Optional rich tooltip body. When omitted a default tooltip is shown with
   // the name, formatted value, and share of the current root.
   readonly tooltip?: m.Children;
@@ -603,6 +606,8 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                       'span.pf-sunburst__legend-val',
                       formatValue(rootArc.seg.value),
                     ),
+                    rootArc.seg.delta !== undefined &&
+                      m('span.pf-sunburst__legend-delta', rootArc.seg.delta),
                     m(
                       'span.pf-sunburst__legend-pct',
                       `${(rootArc.shareOfRoot * 100).toFixed(1)}%`,
@@ -656,6 +661,11 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                             'span.pf-sunburst__legend-val',
                             formatValue(subArc.seg.value),
                           ),
+                          subArc.seg.delta !== undefined &&
+                            m(
+                              'span.pf-sunburst__legend-delta',
+                              subArc.seg.delta,
+                            ),
                           m(
                             'span.pf-sunburst__legend-pct',
                             `${(subArc.shareOfRoot * 100).toFixed(1)}%`,

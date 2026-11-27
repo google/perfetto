@@ -1168,6 +1168,8 @@ function buildMemTree(
       ),
     ];
     const baseBytes = baseByPath?.get(opts.path);
+    const delta =
+      baseBytes !== undefined ? deltaText(opts.bytes - baseBytes) : undefined;
     if (baseBytes !== undefined) {
       tip.push(
         deltaText(
@@ -1189,6 +1191,7 @@ function buildMemTree(
       value: opts.bytes,
       cssColor: opts.color,
       children: opts.children ?? [],
+      delta,
       tooltip: tip,
     };
   };

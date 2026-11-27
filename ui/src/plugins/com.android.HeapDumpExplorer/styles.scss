@@ -52,6 +52,11 @@
     flex-direction: column;
   }
 
+  &.pf-hde-page--frameless > * {
+    flex: 1;
+    min-height: 0;
+  }
+
   .pf-tab-strip {
     background: var(--pf-col-surface, var(--pf-color-background));
     border-bottom: 1px solid var(--pf-col-border, var(--pf-color-border));

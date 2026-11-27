@@ -253,6 +253,13 @@
   color: var(--pf-color-text);
 }
 
+.pf-sunburst__legend-delta {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .pf-sunburst__legend-pct {
   flex-shrink: 0;
   width: 44px;

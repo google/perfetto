@@ -403,3 +403,55 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     );
   }
 }
+
+export interface HeapDumpContentViewAttrs {
+  readonly session: HeapDumpExplorerSession;
+  readonly subpage: string | undefined;
+  readonly active?: boolean;
+}
+
+// Renders only the currently active HDE view full-height without HDE's own
+// internal tab bar, for hosts (like the unified Memory tree sidebar) that own
+// navigation externally.
+export class HeapDumpContentView implements m.ClassComponent<HeapDumpContentViewAttrs> {
+  private readonly mergedClassesMemo = new AsyncMemo<ReadonlySet<string>>();
+
+  onremove() {
+    this.mergedClassesMemo.dispose();
+  }
+
+  view({attrs}: m.Vnode<HeapDumpContentViewAttrs>) {
+    const {session, subpage, active: isActive = true} = attrs;
+    if (isActive) {
+      session.syncFromSubpage(subpage);
+      session.syncInstanceTabFromNav();
+      session.syncFlamegraphTabFromNav();
+    }
+
+    const active = session.activeDump;
+    if (active === null) {
+      return m('.pf-hde-loading', m(Spinner, {easing: true}));
+    }
+
+    const {data: potentiallyMergedClasses} = this.mergedClassesMemo.use({
+      key: {upid: active.upid, ts: active.ts},
+      compute: () =>
+        queries.getPotentiallyMergedClasses(session.engine, active),
+    });
+    const {tabs, hasOverviewTab} = buildTabs(
+      session,
+      active,
+      session.nav,
+      potentiallyMergedClasses ?? NO_CLASSES,
+      true,
+    );
+    const activeKey = activeTabKey(session, hasOverviewTab);
+    const activeTab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
+
+    return m(
+      '.pf-hde-page.pf-hde-page--embedded.pf-hde-page--frameless',
+      {key: `${active.upid}:${active.ts}:${activeKey}`},
+      activeTab?.content,
+    );
+  }
+}
