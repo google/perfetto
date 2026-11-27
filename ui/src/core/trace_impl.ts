@@ -363,6 +363,10 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.policy;
   }
 
+  get skills() {
+    return this.app.skills;
+  }
+
   get perfDebugging() {
     return this.app.perfDebugging;
   }

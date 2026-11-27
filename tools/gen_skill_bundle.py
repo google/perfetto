@@ -57,7 +57,8 @@ is an error, and so is a .md file that no reference reaches.
   through tools/release/build_ai_agents.py.
 
   index: only the .md and .sql files that SKILL.md reaches, and an index.json
-  with the name, description and files of each skill. The UI adapter uses it.
+  with the name, description and files of each skill. The UI adapter uses it,
+  through ui/build.mjs.
 
 A skill without adapters, such as an old release tree, is built without one.
 """
@@ -82,7 +83,8 @@ FOLLOWED_EXTS = ('.md', '.sql')
 MAX_FILE_BYTES = 64 * 1024
 MAX_DESCRIPTION = 1024
 NAME_RE = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)*$')
-# The characters the UI accepts in a path segment.
+# The characters the UI accepts in a path segment (PATH_SEGMENT_RE in
+# ui/src/core/skill_manager.ts).
 PATH_SEGMENT_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
 
 # Source files that are not part of any bundle.
