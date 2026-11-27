@@ -15,7 +15,7 @@
 import './json_settings_editor.scss';
 import type {z} from 'zod';
 import m from 'mithril';
-import {Editor} from '../widgets/editor';
+import type {Editor as EditorWidget} from '../widgets/editor';
 import {Callout} from '../widgets/callout';
 import {Intent} from '../widgets/common';
 import {Button} from '../widgets/button';
@@ -44,6 +44,18 @@ export interface JsonSettingsEditorOptions<T> {
     | undefined;
 }
 
+// The editor brings CodeMirror, so it loads with the first editor shown.
+let Editor: typeof EditorWidget | undefined;
+let editorLoad: Promise<void> | undefined;
+
+function loadEditor(): typeof EditorWidget | undefined {
+  editorLoad ??= import('../widgets/editor').then((mod) => {
+    Editor = mod.Editor;
+    m.redraw();
+  });
+  return Editor;
+}
+
 export class JsonSettingsEditor<T> {
   private textareaValue: string | undefined;
   private originalValue: string | undefined;
@@ -58,14 +70,16 @@ export class JsonSettingsEditor<T> {
     this.currentSetting = setting;
     this.initializeTextValue();
 
+    const Editor = loadEditor();
     return m('div', {className: 'pf-json-settings-editor'}, [
       m('div', {className: 'pf-json-settings-editor__editor-section'}, [
-        m(Editor, {
-          text: this.textareaValue,
-          className: 'pf-json-settings-editor__editor',
-          onUpdate: (text: string) => this.handleUpdate(text),
-          onSave: () => this.handleSave(),
-        }),
+        Editor &&
+          m(Editor, {
+            text: this.textareaValue,
+            className: 'pf-json-settings-editor__editor',
+            onUpdate: (text: string) => this.handleUpdate(text),
+            onSave: () => this.handleSave(),
+          }),
         this.jsonError !== undefined &&
           m(
             Callout,

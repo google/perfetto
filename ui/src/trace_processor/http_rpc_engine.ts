@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../protos';
+import type protos from '../protos';
 import {fetchWithTimeout} from '../base/http_utils';
 import {reportError} from '../base/logging';
 import {assertIsArrayBufferView, ensureExists} from '../base/assert';
@@ -130,6 +130,7 @@ export class HttpRpcEngine extends EngineBase {
         const buf = new Uint8Array(await resp.arrayBuffer());
         // Decode the response buffer first. If decoding is successful, update the connection state.
         // This ensures that the connection state is only set to true if the data is correctly parsed.
+        const {default: protos} = await import('../protos');
         httpRpcState.status = protos.StatusResult.decode(buf);
         httpRpcState.connected = true;
       }

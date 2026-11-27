@@ -83,9 +83,9 @@ export function getServingRoot() {
 
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
+  // A classic script knows its own URL; a module (the frontend) has
+  // import.meta.url instead.
   const script = document.currentScript as HTMLScriptElement | null;
-  if (!script) return '/';
-  let root = script.src;
-  root = root.substring(0, root.lastIndexOf('/') + 1);
-  return root;
+  const src = script ? script.src : import.meta.url;
+  return src.substring(0, src.lastIndexOf('/') + 1);
 }

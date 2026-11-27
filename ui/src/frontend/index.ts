@@ -18,7 +18,7 @@ import '../base/static_initializers';
 import '../assets/typefaces.scss';
 import '../assets/common.scss';
 import z from 'zod';
-import {plugins, corePlugins} from './plugins';
+import {corePlugins, plugins} from './plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
@@ -40,7 +40,6 @@ import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import type {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
-import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
   addDebugCounterTrack,
@@ -495,7 +494,7 @@ function onCssLoaded(app: AppImpl) {
   // Initialize plugins, now that we are ready to go.
   const pluginManager = app.plugins;
   corePlugins.forEach((p) => pluginManager.registerPlugin(p, true));
-  plugins.forEach((p) => pluginManager.registerPlugin(p, false));
+  pluginManager.registerPlugins(plugins);
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);
@@ -508,9 +507,10 @@ function onCssLoaded(app: AppImpl) {
 // This function is called only later after all the sub-resources (fonts,
 // images) have been loaded.
 function onWindowLoaded() {
-  // These two functions cause large network fetches and are not load bearing.
+  // These cause large network fetches and are not load bearing.
   AppImpl.instance.serviceWorkerController.install();
   warmupWasmWorker();
+  AppImpl.instance.plugins.loadLazyPlugins();
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
@@ -552,7 +552,11 @@ configureExtensions({
   addDebugCounterTrack,
   addDebugSliceTrack,
   addVisualizedArgTracks,
-  addLegacySqlTableTab: addLegacyTableTab,
+  addLegacySqlTableTab: (trace, config) => {
+    import('../components/details/sql_table_tab').then((m) =>
+      m.addLegacyTableTab(trace, config),
+    );
+  },
 });
 
 main();

@@ -163,9 +163,88 @@ function makeSynthModulePlugin({name, modules}) {
   };
 }
 
-// The plugin barrels (ui/src/virtual/plugins.ts) are no longer synthesised
-// here: that module now uses Vite's import.meta.glob directly, which discovers
-// plugin dirs and re-evaluates on add/remove without manual file-watching.
+// Exposes the non-core plugins via ui/src/virtual/plugin_barrel (typed by
+// plugin_barrel.d.ts). A plugin with a static onActivate() runs at startup,
+// so it is imported normally; every other one only does work once a trace
+// loads, so it is imported on demand and lands in the deferred chunk.
+export function pluginPluginBarrel() {
+  const PLUGINS_DIR = path.join(SRC, 'plugins');
+  const BARREL = path.join(SRC, 'virtual', 'plugin_barrel');
+  const ACTIVATES = /\bstatic\s+(?:async\s+)?onActivate\s*\(/;
+  const generate = (ctx) => {
+    // In directory order, which is the order plugins load traces in.
+    const imports = [];
+    const entries = [];
+    for (const dir of fs.readdirSync(PLUGINS_DIR).sort()) {
+      const index = path.join(PLUGINS_DIR, dir, 'index.ts');
+      if (!fs.existsSync(index)) continue;
+      ctx.addWatchFile(index);
+      const spec = JSON.stringify(index);
+      if (ACTIVATES.test(fs.readFileSync(index, 'utf8'))) {
+        imports.push(`import p${imports.length} from ${spec};\n`);
+        entries.push(`  {plugin: p${imports.length - 1}},\n`);
+      } else {
+        entries.push(
+          `  {load: () => import(${spec}).then((m) => m.default)},\n`,
+        );
+      }
+    }
+    return (
+      imports.join('') + `export const plugins = [\n${entries.join('')}];\n`
+    );
+  };
+  const plugin = makeSynthModulePlugin({
+    name: 'perfetto:plugin-barrel',
+    modules: {[BARREL]: generate},
+  });
+  // Regenerates the barrel when a plugin directory is added or removed.
+  plugin.configureServer = (server) => {
+    const isPluginIndex = (file) =>
+      path.dirname(path.dirname(file)) === PLUGINS_DIR &&
+      path.basename(file) === 'index.ts';
+    const onChange = (file) => {
+      if (!isPluginIndex(file)) return;
+      const mod = server.moduleGraph.getModuleById(
+        '\0perfetto:plugin-barrel:' + BARREL,
+      );
+      if (mod) server.moduleGraph.invalidateModule(mod);
+      server.ws.send({type: 'full-reload'});
+    };
+    server.watcher.on('add', onChange);
+    server.watcher.on('unlink', onChange);
+  };
+  return plugin;
+}
+
+// Splits the frontend into two chunks: what loading the entry runs, and
+// everything only reached through import(), such as lazy plugins. Rolldown's
+// default splitting would instead give every set of importers its own chunk,
+// which for the frontend is hundreds of small files.
+function pluginStartupChunks() {
+  const startup = new Set();
+  return {
+    plugin: {
+      name: 'perfetto:startup-chunks',
+      buildEnd() {
+        const todo = [...this.getModuleIds()].filter(
+          (id) => this.getModuleInfo(id)?.isEntry,
+        );
+        while (todo.length > 0) {
+          const id = todo.pop();
+          if (startup.has(id)) continue;
+          startup.add(id);
+          todo.push(...(this.getModuleInfo(id)?.importedIds ?? []));
+        }
+      },
+    },
+    codeSplitting: {
+      groups: [
+        {name: 'startup', test: (id) => startup.has(id)},
+        {name: 'deferred', test: (id) => !startup.has(id)},
+      ],
+    },
+  };
+}
 
 // Exposes VERSION and SCM_REVISION via ui/src/virtual/version (typed by
 // version.d.ts). Replaces the on-disk ui/src/gen/perfetto_version.ts that
@@ -473,6 +552,11 @@ export default defineConfig(({command}) => {
   const entryFileNames = isBuild
     ? bundleCfg.fileName || '[name]_bundle.js'
     : undefined;
+  // The frontend is an ES module so it can load plugins on demand as chunks.
+  // The other bundles run where modules can't (workers, extensions), so they
+  // stay single-file IIFEs.
+  const isModule = BUNDLE === 'frontend';
+  const startupChunks = isModule ? pluginStartupChunks() : undefined;
 
   return {
     root: SRC,
@@ -480,11 +564,15 @@ export default defineConfig(({command}) => {
     // a module-serving dev server in serve mode. build.mjs owns HTML in both
     // modes (in dev it calls server.transformIndexHtml() and serves at /).
     appType: 'custom',
+    // Chunks preload their dependencies relative to themselves, as they are
+    // served from the version directory rather than the root.
+    base: isBuild ? './' : undefined,
     // We have a real source directory at ui/src/public — disable Vite's
     // magic "publicDir" handling so it doesn't try to serve it at /.
     publicDir: false,
     plugins: [
       pluginPerfettoVersion(),
+      pluginPluginBarrel(),
       // Compiles *.grammar files (lezer parser definitions) on import. Replaces
       // the old "manually run lezer-generator and commit gen/*.js" workflow.
       lezer(),
@@ -492,6 +580,7 @@ export default defineConfig(({command}) => {
       ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
       ...(!isBuild && EXPERIMENTAL_MITHRIL_HMR ? [pluginMithrilHmr()] : []),
       ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
+      ...(startupChunks ? [startupChunks.plugin] : []),
     ],
     resolve: {
       // NB: do NOT set preserveSymlinks:true. pnpm puts every dep under
@@ -553,14 +642,18 @@ export default defineConfig(({command}) => {
           rolldownOptions: {
             input: {[BUNDLE]: inputPath},
             treeshake: NO_TREESHAKE ? false : undefined,
-            transform: {
-              define: {'import.meta.url': IMPORT_META_URL},
-            },
+            transform: isModule
+              ? undefined
+              : {define: {'import.meta.url': IMPORT_META_URL}},
             output: {
-              format: 'iife',
-              name: BUNDLE,
+              format: isModule ? 'es' : 'iife',
+              name: isModule ? undefined : BUNDLE,
               entryFileNames,
-              intro: IMPORT_META_URL_INTRO,
+              // Next to the entry, so import.meta.url gives every chunk the
+              // same asset root.
+              chunkFileNames: '[name]-[hash].js',
+              codeSplitting: startupChunks?.codeSplitting,
+              intro: isModule ? undefined : IMPORT_META_URL_INTRO,
               // Minified output keeps no comments. preserve_comments keeps the
               // legal ones (@license, @preserve, /*! */); Oxc drops the rest.
               ...(MINIFY_JS === 'preserve_comments'

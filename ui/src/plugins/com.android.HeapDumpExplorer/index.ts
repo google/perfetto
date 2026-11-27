@@ -23,7 +23,11 @@ import {NUM} from '../../trace_processor/query_result';
 import HeapProfilePlugin, {
   traceHasTimelineData,
 } from '../dev.perfetto.HeapProfile';
-import {HeapDumpPage} from './heap_dump_page';
+import {lazyComponent} from '../../widgets/lazy_component';
+
+const HeapDumpPage = lazyComponent(() =>
+  import('./heap_dump_page').then((mod) => mod.HeapDumpPage),
+);
 import {HeapDumpExplorerSession} from './session';
 import {DEFAULT_HDE_STATE, HDE_STATE_SCHEMA} from './persisted_state';
 import type {time} from '../../base/time';

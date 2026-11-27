@@ -50,6 +50,10 @@ export interface PluginWrapper {
   // Whether this is a core plugin (part of CORE_PLUGINS) or not.
   readonly isCore: boolean;
 
+  // Position in the order plugins were declared in, which is the order they
+  // are activated and load traces in, dependencies aside.
+  rank: number;
+
   // Keeps track of whether this plugin is active. A plugin can be active even
   // if it's disabled, if another plugin depends on it.
   //
@@ -71,12 +75,89 @@ export interface PluginWrapper {
   };
 }
 
+type PluginLoader = () => Promise<PerfettoPluginStatic<PerfettoPlugin>>;
+
+// A plugin that is imported at startup, or one loaded on demand.
+export type PluginBarrelEntry =
+  | {readonly plugin: PerfettoPluginStatic<PerfettoPlugin>}
+  | {readonly load: PluginLoader};
+
 export class PluginManagerImpl {
   private readonly registry = new Registry<PluginWrapper>((x) => x.desc.id);
   private orderedPlugins: Array<PluginWrapper> = [];
+
+  private nextRank = 0;
+
+  // Plugins that are only loaded when needed: see loadLazyPlugins().
+  private readonly lazyLoaders: Array<{rank: number; load: PluginLoader}> = [];
+  private lazyLoad?: Promise<void>;
+  private _lazyPluginsLoaded = false;
+  // The arguments of the last activatePlugins(), to activate lazy plugins
+  // with once they load.
+  private activation?: {
+    app: AppImpl;
+    enableOverrides: ReadonlyArray<string>;
+  };
+
   constructor(private readonly defaultPluginIds: ReadonlyArray<string>) {}
 
-  registerPlugin(desc: PerfettoPluginStatic<PerfettoPlugin>, isCore = false) {
+  /**
+   * Registers non-core plugins in order. Those given as loaders do nothing
+   * until a trace loads, so their code is only fetched by loadLazyPlugins(),
+   * after startup.
+   */
+  registerPlugins(entries: ReadonlyArray<PluginBarrelEntry>) {
+    for (const entry of entries) {
+      if ('plugin' in entry) {
+        this.registerPlugin(entry.plugin);
+      } else {
+        this.lazyLoaders.push({rank: this.nextRank++, load: entry.load});
+      }
+    }
+  }
+
+  /**
+   * Loads, registers and activates the plugins given to registerLazyPlugins().
+   * Loads them once, however often it is called.
+   */
+  loadLazyPlugins(): Promise<void> {
+    if (this.lazyLoad === undefined) {
+      const loads = this.lazyLoaders.map(async ({rank, load}) => ({
+        rank,
+        desc: await load(),
+      }));
+      this.lazyLoad = Promise.all(loads).then((loaded) => {
+        loaded.forEach(({rank, desc}) => {
+          if (desc.onActivate !== undefined) {
+            console.warn(`Plugin ${desc.id} has onActivate() but was lazy`);
+          }
+          // An eager plugin may already have registered it as a dependency.
+          const existing = this.registry.tryGet(desc.id);
+          if (existing === undefined) {
+            this.registerPlugin(desc, false, rank);
+          } else {
+            existing.rank = rank;
+          }
+        });
+        if (this.activation !== undefined) {
+          const {app, enableOverrides} = this.activation;
+          this.activatePlugins(app, enableOverrides);
+        }
+        this._lazyPluginsLoaded = true;
+      });
+    }
+    return this.lazyLoad;
+  }
+
+  get lazyPluginsLoaded(): boolean {
+    return this._lazyPluginsLoaded;
+  }
+
+  registerPlugin(
+    desc: PerfettoPluginStatic<PerfettoPlugin>,
+    isCore = false,
+    rank = this.nextRank++,
+  ) {
     const flagId = `plugin_${desc.id}`;
     const name = `Plugin: ${desc.id}`;
     const flag = featureFlags.register({
@@ -90,6 +171,7 @@ export class PluginManagerImpl {
       enableFlag: flag,
       enabled: flag.get(),
       isCore,
+      rank,
     });
   }
 
@@ -101,9 +183,11 @@ export class PluginManagerImpl {
    * the current flag setting.
    */
   activatePlugins(app: AppImpl, enableOverrides: ReadonlyArray<string> = []) {
+    this.activation = {app, enableOverrides};
     const enabledPlugins = this.registry
       .valuesAsArray()
-      .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id));
+      .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id))
+      .sort((a, b) => a.rank - b.rank);
 
     this.orderedPlugins = this.sortPluginsTopologically(enabledPlugins);
 
@@ -120,6 +204,7 @@ export class PluginManagerImpl {
     trace: TraceImpl,
     beforeEach?: (id: string) => void,
   ): Promise<void> {
+    await this.loadLazyPlugins();
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
@@ -201,6 +286,8 @@ export class PluginManagerImpl {
 
       // Recursively visit dependencies
       p.desc.dependencies?.forEach((d) => {
+        // A lazy plugin that an eager one imports is registered on first use.
+        if (!this.registry.has(d.id)) this.registerPlugin(d);
         visit(this.registry.get(d.id));
       });
 
