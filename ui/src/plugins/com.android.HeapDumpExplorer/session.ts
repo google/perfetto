@@ -67,6 +67,11 @@ function countKey(pathHashes: string, isDominator: boolean): string {
   return `${isDominator ? 'd' : 'n'}:${pathHashes}`;
 }
 
+export type HrefBuilder = (
+  sub: string | undefined,
+  activeDump: HeapDump | null,
+) => string;
+
 // The persistent state lives in the registered storage `storage`, which the core
 // serializes into permalinks and restores before the plugin loads. The session
 // is a thin controller over it: mutations are storage edits, views render from
@@ -74,7 +79,9 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // dumps, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
   private _dumps: ReadonlyArray<HeapDump> = [];
+  private _restored = false;
   private readonly _counts = new Map<string, number>();
+  private hrefBuilder: HrefBuilder = (sub) => makeHref(sub);
 
   // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
   // with the dumps.
@@ -91,6 +98,18 @@ export class HeapDumpExplorerSession {
     readonly defaultFlamegraph: Setting<boolean>,
     private readonly storage: Storage<HdeState>,
   ) {}
+
+  setHrefBuilder(builder: HrefBuilder): void {
+    this.hrefBuilder = builder;
+  }
+
+  get restored(): boolean {
+    return this._restored;
+  }
+
+  dumpsForUpid(upid: number): ReadonlyArray<HeapDump> {
+    return this._dumps.filter((d) => d.upid === upid);
+  }
 
   private edit(
     fn: (draft: {-readonly [K in keyof HdeState]: HdeState[K]}) => void,
@@ -128,6 +147,7 @@ export class HeapDumpExplorerSession {
     const restored =
       ref !== undefined &&
       this._dumps.some((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts));
+    this._restored = restored;
     if (restored) {
       for (const t of this.storage.get().flamegraphTabs ?? []) {
         this.loadCount(t.pathHashes, t.isDominator);
@@ -155,6 +175,24 @@ export class HeapDumpExplorerSession {
     const view = this.nav.view;
     if (view === 'object' || view === 'flamegraph-objects') {
       this.navigate(this.defaultView);
+    }
+  }
+
+  // Switches the active dump without issuing a navigation (used when the caller
+  // is already navigating to a specific target view via href).
+  setActiveDump(d: HeapDump): void {
+    if (this.activeDump === d) return;
+    this.switchToDump(d);
+  }
+
+  // Ensures activeDump belongs to `upid` (e.g. when a host page switches
+  // processes). No-op if activeDump already belongs to `upid` or if `upid` has
+  // no heap dumps.
+  syncUpid(upid: number): void {
+    if (this.activeDump?.upid === upid) return;
+    const match = this._dumps.find((d) => d.upid === upid);
+    if (match !== undefined) {
+      this.switchToDump(match);
     }
   }
 
@@ -186,7 +224,7 @@ export class HeapDumpExplorerSession {
     this.edit((s) => {
       s.nav = sub;
     });
-    this.trace.navigate(makeHref(sub));
+    this.trace.navigate(this.hrefBuilder(sub, this.activeDump));
   }
 
   navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
@@ -213,7 +251,7 @@ export class HeapDumpExplorerSession {
     });
     // Replace the current URL instead of navigating to avoid creating a new
     // history entry and creating a navigation trap.
-    location.replace(makeHref(sub));
+    location.replace(this.hrefBuilder(sub, this.activeDump));
   }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path

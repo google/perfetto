@@ -418,14 +418,14 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
         controls: m(
           Anchor,
           {
-            href: heapDumpBitmapsHref(),
+            href: heapDumpBitmapsHref(upid),
             onclick: () =>
               trace.plugins
                 .getPlugin(HeapDumpExplorerPlugin)
-                .updateHeadDump(upid, cur.ts),
+                .selectDump(upid, cur.ts),
             icon: Icons.UpdateSelection,
           },
-          'Open in Heap Dump Explorer',
+          'Explore in Java Heap',
         ),
       }),
       m(

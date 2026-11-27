@@ -20,6 +20,7 @@ import m from 'mithril';
 import {Panel} from '../../components/panel';
 import {Table} from '../../components/table';
 import {deltaColor, formatBytes, formatDelta} from './mem_format';
+import {formatMemorySubpage, MEMORY_PAGE_ROOT} from './memory_route';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Stack} from '../../../../widgets/stack';
 
@@ -119,27 +120,32 @@ export function topTable(opts: {
   ]);
 }
 
-// Link to the Heap Dump Explorer's objects list, filtered to one class. The
-// filter goes in the path, not the query (the router drops query params); this
-// matches the explorer's own objects_<class> links.
-export function heapDumpClassHref(cls: string): string {
-  return `#!/heapdump/objects_${encodeURIComponent(cls)}`;
+// Link to the Java Heap scope of the unified Memory page for a process.
+export function heapDumpHref(upid: number, subpage?: string): string {
+  return `#!${MEMORY_PAGE_ROOT}/${formatMemorySubpage(upid, 'heap', subpage)}`;
 }
 
-// Link to the Heap Dump Explorer's bitmaps view.
-export function heapDumpBitmapsHref(): string {
-  return '#!/heapdump/bitmaps';
+// Link to the Java Heap objects list, filtered to one class. The filter goes in
+// the path, not the query (the router drops query params); this matches the
+// explorer's own objects_<class> links.
+export function heapDumpClassHref(upid: number, cls: string): string {
+  return heapDumpHref(upid, `objects_${encodeURIComponent(cls)}`);
 }
 
-// A class-name cell. The class name links to that class's instances in the Heap
-// Dump Explorer. When `retainers` are given, each one adds a `↳ via <owner>`
-// line naming an app-side class that dominates this (library) class's instances
-// up the dominator chain, with the bytes attributed to that owner; the owner
-// name links to the explorer too. A class held through several owners shows
-// several lines, so a single misleading "via" can't imply all the retained
-// bytes flow through one owner. `onclick` runs before any of the links is
-// followed.
+// Link to the Java Heap bitmaps view.
+export function heapDumpBitmapsHref(upid: number): string {
+  return heapDumpHref(upid, 'bitmaps');
+}
+
+// A class-name cell. The class name links to that class's instances in the Java
+// Heap view. When `retainers` are given, each one adds a `↳ via <owner>` line
+// naming an app-side class that dominates this (library) class's instances up
+// the dominator chain, with the bytes attributed to that owner; the owner name
+// links to the explorer too. A class held through several owners shows several
+// lines, so a single misleading "via" can't imply all the retained bytes flow
+// through one owner. `onclick` runs before any of the links is followed.
 export function classNameCell(
+  upid: number,
   full: string,
   retainers?: ReadonlyArray<{name: string; bytes: number}>,
   onclick?: () => void,
@@ -151,7 +157,7 @@ export function classNameCell(
   return m('.pf-memscope-classcell', [
     m(
       'a.pf-memscope-classname',
-      {href: heapDumpClassHref(full), title: full, onclick},
+      {href: heapDumpClassHref(upid, full), title: full, onclick},
       shortClassName(full),
     ),
     ...vias.map((r) =>
@@ -162,7 +168,7 @@ export function classNameCell(
           '↳ via ',
           m(
             'a.pf-memscope-classcell__vialink',
-            {href: heapDumpClassHref(r.name), onclick},
+            {href: heapDumpClassHref(upid, r.name), onclick},
             shortClassName(r.name),
           ),
           showBytes ? ` - ${formatBytes(r.bytes)}` : '',

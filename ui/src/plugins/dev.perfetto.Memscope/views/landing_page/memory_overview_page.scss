@@ -12,6 +12,98 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Unified Memory page shell: pinned top bar (process selector + scope tabs +
+// contextual dump picker) above a full-height body hosting either the Memscope
+// scrollable overview/smaps canvas or the full-bleed Java Heap explorer.
+.pf-memscope-unified {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  &__header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 0 16px;
+    min-height: 40px;
+    background: var(--pf-color-background);
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  &__process {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding-block: 4px;
+  }
+
+  &__label {
+    font-size: var(--pf-font-size-s);
+    font-weight: 600;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__select {
+    max-width: 360px;
+  }
+
+  &__divider {
+    width: 1px;
+    height: 20px;
+    background: var(--pf-color-border);
+    flex-shrink: 0;
+  }
+
+  &__tabs {
+    align-self: stretch;
+    box-shadow: none;
+    padding-inline: 0;
+
+    .pf-tab-strip__tabs {
+      align-items: stretch;
+    }
+
+    .pf-tab-strip__tab {
+      align-items: center;
+      padding: 8px 12px;
+    }
+  }
+
+  &__right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-block: 4px;
+  }
+
+  &__dump-meta {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  &__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .pf-memscope-page,
+    .pf-hde-page {
+      flex: 1;
+      min-height: 0;
+    }
+  }
+}
+
 // Header capture strip: process identity + per-source capture facts. Layout
 // only - the raised-card chrome comes from the Panel this class is applied to.
 .pf-memscope-capture {
@@ -112,19 +204,6 @@
   // the overflow control remains visibly distinct from the navigation action.
   .pf-button.pf-button--filled:not(:last-child) {
     border-right: 1px solid var(--pf-color-border);
-  }
-}
-
-// Process picker at the top of the overview page.
-.pf-memscope-process-select {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-
-  .pf-memscope-process-select__label {
-    font-weight: 600;
-    font-size: var(--pf-font-size-m);
-    color: var(--pf-color-text-muted);
   }
 }
 
