@@ -2015,6 +2015,44 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
 }
 
+// PerfettoTeInit() must be safe to call concurrently, including the very first
+// call that registers the data source, and later calls must be no-ops.
+TEST_F(SharedLibTrackEventTest, TeInitIsIdempotentAndThreadSafe) {
+  constexpr int kIterations = 200;
+  constexpr int kThreads = 8;
+  for (int i = 0; i < kIterations; i++) {
+    // Drops the registration done by SetUp() (or the previous iteration), so
+    // that the threads below race on the first registration.
+    perfetto::shlib::ResetForTesting();
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+
+    std::atomic<bool> go{false};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < kThreads; t++) {
+      threads.emplace_back([&go] {
+        while (!go.load()) {
+        }
+        PerfettoTeInit();
+        PerfettoTeInit();
+      });
+    }
+    go.store(true);
+    for (auto& t : threads) {
+      t.join();
+    }
+  }
+  EXPECT_NE(perfetto_te_process_track_uuid, 0u);
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("cat1")
+                                       .add_disabled_category("*")
+                                       .Build();
+  EXPECT_TRUE(std::atomic_load(cat1.enabled));
+}
+
 // All sessions that record an event share the same timestamp because the clock
 // is read once per event.
 TEST_F(SharedLibTrackEventTest, TrackEventHlSessionsShareTimestamp) {
