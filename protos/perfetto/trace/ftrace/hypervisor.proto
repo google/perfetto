@@ -34,3 +34,10 @@ message HypervisorIommuIdmapCompleteFtraceEvent {
 message HypervisorVcpuIllegalTrapFtraceEvent {
   optional uint64 esr = 1;
 }
+message HypervisorFuncFtraceEvent {
+  optional uint64 ip = 1;
+  optional uint64 parent = 2;
+}
+message HypervisorFuncRetFtraceEvent {
+  optional uint64 ip = 1;
+}

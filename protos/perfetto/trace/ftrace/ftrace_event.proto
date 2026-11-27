@@ -773,5 +773,7 @@ message FtraceEvent {
     LongSoftirqFtraceEvent long_softirq = 617;
     GtiFieldSliceFtraceEvent gti_field_slice = 618;
     GtiFieldCounterFtraceEvent gti_field_counter = 619;
+    HypervisorFuncFtraceEvent hypervisor_func = 620;
+    HypervisorFuncRetFtraceEvent hypervisor_func_ret = 621;
   }
 }
