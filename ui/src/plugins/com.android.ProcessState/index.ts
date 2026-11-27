@@ -38,13 +38,20 @@ import {
 } from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {
+  CAPABILITY_RESIDENCY,
+  FREEZER_RESIDENCY,
+  FreezerTransitionsAggregator,
   freezerTrackUri,
+  PROCESS_STATE_RESIDENCY,
   ProcessExitsAggregator,
   ProcessStartsAggregator,
-  ProcessStateResidencyAggregator,
   ProcessStateTransitionsAggregator,
   processTrackUri,
+  ResidencyAggregator,
+  TAG_CAPABILITY_TRACK,
   TAG_COUNT_TRACK,
+  TAG_FREEZER_COUNT_TRACK,
+  TAG_FREEZER_TRACK,
   TAG_PROCESS_TRACK,
 } from './aggregators';
 import {ProcessStateDetailsPanel} from './details_panel';
@@ -91,6 +98,7 @@ const FREEZER_SCHEMA = {
   pid: NUM,
   process_name: STR_NULL,
   state: STR,
+  unfreeze_reason: STR_NULL,
 } as const;
 
 const CAPABILITY_SCHEMA = {
@@ -111,11 +119,8 @@ const COMPACT_SLICES = {sliceHeight: 12, titleSizePx: 10};
 // Below every other process-scoped track (-50..30) so it appears first.
 const PROCESS_GROUP_SORT_ORDER = -100;
 
-// Keeps the freezer, OOM score, and capability lanes out of the aggregators,
-// which scope by the state track's tag.
-const TAG_FREEZER_TRACK = 'android_freezer';
+// Keeps the OOM score lanes out of the aggregators.
 const TAG_OOM_SCORE_TRACK = 'android_oom_score';
-const TAG_CAPABILITY_TRACK = 'android_process_capability';
 
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
@@ -153,7 +158,10 @@ export default class ProcessState implements PerfettoPlugin {
     `);
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ProcessStateResidencyAggregator(ctx)),
+      createAggregationTab(
+        ctx,
+        new ResidencyAggregator(ctx, PROCESS_STATE_RESIDENCY),
+      ),
     );
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ProcessStateTransitionsAggregator(ctx)),
@@ -163,6 +171,21 @@ export default class ProcessState implements PerfettoPlugin {
     );
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ProcessExitsAggregator(ctx)),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(
+        ctx,
+        new ResidencyAggregator(ctx, FREEZER_RESIDENCY),
+      ),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new FreezerTransitionsAggregator(ctx)),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(
+        ctx,
+        new ResidencyAggregator(ctx, CAPABILITY_RESIDENCY),
+      ),
     );
 
     const group = new TrackNode({
@@ -260,7 +283,7 @@ export default class ProcessState implements PerfettoPlugin {
           intervalsTable: '_android_freezer_intervals',
           trackUri: freezerTrackUri,
         }),
-        // Untagged: the aggregators cover framework states only.
+        tags: {type: TAG_FREEZER_COUNT_TRACK, state},
         description: `Number of processes concurrently ${state.toLowerCase()}.`,
       });
       summary.addChildLast(new TrackNode({uri, name: state}));
@@ -490,6 +513,7 @@ export default class ProcessState implements PerfettoPlugin {
               uri: capabilityUri,
               tag: TAG_CAPABILITY_TRACK,
               upid,
+              capability,
               description: `Intervals where ${capability} is enabled for ${name} (${pid}).`,
               create: (trackUri, ownerUri) =>
                 SliceTrack.create({
@@ -551,18 +575,20 @@ export default class ProcessState implements PerfettoPlugin {
       uri: string;
       tag: string;
       upid: number;
+      // Set on the lane of a single capability.
+      capability?: string;
       description: string;
       create: (trackUri: string, ownerUri?: string) => TrackRenderer;
     },
   ): string {
-    const {uri, tag, upid, description, create} = track;
+    const {uri, tag, upid, capability, description, create} = track;
     const overviewUri = processGroup !== undefined ? `${uri}.overview` : uri;
     for (const trackUri of processGroup ? [uri, overviewUri] : [uri]) {
       const isOwner = trackUri === uri;
       ctx.tracks.registerTrack({
         uri: trackUri,
         renderer: create(trackUri, isOwner ? undefined : uri),
-        tags: {type: tag, upid},
+        tags: {type: tag, upid, ...(capability !== undefined && {capability})},
         description,
       });
     }

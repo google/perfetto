@@ -221,7 +221,10 @@ FROM app_freeze_changes;
 
 -- FROZEN/UNFROZEN spans of each process over its lifetime. Freezer events and
 -- the trace-stop snapshot rows carry an unfreeze_reason only when the process
--- is unfrozen, which is what tells the two states apart.
+-- is unfrozen, which is what tells the two states apart. UNFROZEN spans keep
+-- that reason, and have none when the unfreeze that started them is unknown.
+-- Spans started by a freeze or an unfreeze also have how long the previous
+-- state lasted.
 CREATE PERFETTO TABLE _android_freezer_intervals AS
 WITH
   -- A frozen process that gets killed emits no unfreeze, so spans stop at its
@@ -240,6 +243,7 @@ WITH
       upid,
       ts,
       iif(unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+      unfreeze_reason,
       -- How long the process was in the opposite state before this event: a
       -- freeze carries the time spent unfrozen, an unfreeze the time spent
       -- frozen.
@@ -252,34 +256,22 @@ WITH
     WHERE
       is_initial = 0
   ),
-  -- Spans still open at trace end have dur = -1, like unfinished slices.
-  spans AS (
+  -- Start of the previous state for each event: the previous event, or for the
+  -- first event the time it says (exact start time, else duration), clamped to
+  -- [birth, ts]. In ring-buffer traces the event that started that state is
+  -- often overwritten, so don't stretch the span back to process or trace
+  -- start; before it the state is unknown.
+  events_with_prev AS (
     SELECT
       e.upid,
       e.ts,
-      iif(
-        e.next_ts IS NULL
-        AND l.death IS NULL,
-        -1,
-        min(coalesce(e.next_ts, trace_end()), coalesce(l.death, trace_end()))
-        - e.ts
-      ) AS dur,
-      e.state
-    FROM events AS e
-    JOIN lifetimes AS l USING (upid)
-    UNION ALL
-    -- Before its first event a process was in the opposite state, since the
-    -- time the event says (its exact start time, else its duration). In
-    -- ring-buffer traces the event that started that state is often
-    -- overwritten, so don't stretch the span back to process or trace start;
-    -- before it the state is unknown. The parser drops a start after the event,
-    -- but a process birth after it could still put the span after the event, so
-    -- the span is capped at the event and never gets a negative (or open-ended
-    -- -1) duration.
-    SELECT upid, ts, event_ts - ts AS dur, state
-    FROM (
-      SELECT
-        e.upid,
+      e.state,
+      e.unfreeze_reason,
+      e.prev_ts,
+      e.next_ts,
+      l.death,
+      coalesce(
+        e.prev_ts,
         min(
           e.ts,
           max(
@@ -290,26 +282,59 @@ WITH
               l.birth
             )
           )
-        ) AS ts,
-        e.ts AS event_ts,
-        iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
-      FROM events AS e
-      JOIN lifetimes AS l USING (upid)
-      WHERE
-        e.prev_ts IS NULL
-    )
+        )
+      ) AS prev_start
+    FROM events AS e
+    JOIN lifetimes AS l USING (upid)
+  ),
+  -- Spans still open at trace end have dur = -1, like unfinished slices.
+  spans AS (
+    SELECT
+      e.upid,
+      e.ts,
+      iif(
+        e.next_ts IS NULL
+        AND e.death IS NULL,
+        -1,
+        min(coalesce(e.next_ts, trace_end()), coalesce(e.death, trace_end()))
+        - e.ts
+      ) AS dur,
+      e.state,
+      e.unfreeze_reason,
+      e.ts - e.prev_start AS prev_state_duration
+    FROM events_with_prev AS e
+    UNION ALL
+    -- Before its first event a process was in the opposite state from
+    -- prev_start to ts.
+    SELECT
+      e.upid,
+      e.prev_start AS ts,
+      e.ts - e.prev_start AS dur,
+      iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state,
+      NULL AS unfreeze_reason,
+      NULL AS prev_state_duration
+    FROM events_with_prev AS e
+    WHERE
+      e.prev_ts IS NULL
     UNION ALL
     -- Processes without events kept their trace-stop state throughout, since
     -- they entered it if the snapshot says so. A start after the process's
     -- death is invalid, so it is treated as unknown, and the duration is never
     -- negative, so it can't be mistaken for an open-ended (-1) span.
-    SELECT upid, ts, iif(death IS NULL, -1, max(death - ts, 0)) AS dur, state
+    SELECT
+      upid,
+      ts,
+      iif(death IS NULL, -1, max(death - ts, 0)) AS dur,
+      state,
+      unfreeze_reason,
+      NULL AS prev_state_duration
     FROM (
       SELECT
         s.upid,
         max(l.birth, coalesce(iif(start_ts > l.death, NULL, start_ts), l.birth)) AS ts,
         l.death,
-        iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
+        iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state,
+        s.unfreeze_reason
       FROM (
         SELECT
           *,
@@ -329,7 +354,9 @@ SELECT
   s.upid,
   p.pid,
   m.process_name,
-  s.state
+  s.state,
+  s.unfreeze_reason,
+  s.prev_state_duration
 FROM spans AS s
 JOIN process AS p USING (upid)
 LEFT JOIN android_process_metadata AS m USING (upid)
