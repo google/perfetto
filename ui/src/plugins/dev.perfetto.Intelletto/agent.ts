@@ -81,11 +81,19 @@ export class Agent {
   }
 
   /**
+   * True when history ends on a message expecting a model response (a user
+   * message or tool results), so a failed turn can be retried in place.
+   */
+  canRetry(): boolean {
+    const last = this.history[this.history.length - 1];
+    return last?.role === 'user' || last?.role === 'tool-result';
+  }
+
+  /**
    * Run one user turn to completion, yielding events as they stream.
    *
    * @param userText - The user's message for this turn.
-   * @param model - Optional model path. When omitted, picks the first
-   *     configured model advertising the 'agentic' role.
+   * @param model - Model path to send the request to.
    * @param signal - Optional cancellation signal. An aborted turn stops
    *     cleanly and what completed stays in the history (the transcript stays
    *     truthful).
@@ -103,7 +111,32 @@ export class Agent {
     dequeueFollowUp?: () => string | undefined,
   ): AsyncGenerator<AgentEvent, void, void> {
     this.history.push({role: 'user', text: userText});
+    yield* this.runLoop(model, signal, dequeueFollowUp);
+  }
 
+  /**
+   * Retry the latest turn from the existing history without re-appending a
+   * user message.
+   *
+   * @yields Events as the retried turn streams.
+   */
+  async *retry(
+    model: ModelPath,
+    signal?: AbortSignal,
+    dequeueFollowUp?: () => string | undefined,
+  ): AsyncGenerator<AgentEvent, void, void> {
+    if (!this.canRetry()) {
+      yield {type: 'error', message: 'Nothing to retry.'};
+      return;
+    }
+    yield* this.runLoop(model, signal, dequeueFollowUp);
+  }
+
+  private async *runLoop(
+    model: ModelPath,
+    signal?: AbortSignal,
+    dequeueFollowUp?: () => string | undefined,
+  ): AsyncGenerator<AgentEvent, void, void> {
     // createStream requires a signal; use a never-aborting fallback when the
     // caller didn't supply one.
     const abortSignal = signal ?? new AbortController().signal;
@@ -180,7 +213,6 @@ export class Agent {
         // No tool calls -> the model is done with this turn.
         return;
       }
-      this.history.push({role: 'tool-call', calls});
 
       // Execute every requested tool, threading results back. Tool errors
       // (bad SQL, invalid args) become tool results the model can self-correct
@@ -189,9 +221,14 @@ export class Agent {
       for (const call of calls) {
         if (signal?.aborted) return;
         const {result, isError} = await this.runTool(call, loaded);
+        if (signal?.aborted) return;
         yield {type: 'toolresult', name: call.name, isError, result};
         results.push({id: call.id, name: call.name, result, isError});
       }
+      // Record the tool-call and tool-result pair together once all tools
+      // finish so an abort mid-round never leaves an orphaned tool-call in
+      // history.
+      this.history.push({role: 'tool-call', calls});
       this.history.push({role: 'tool-result', results});
     }
 

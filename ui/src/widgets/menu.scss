@@ -57,6 +57,8 @@
 
 .pf-menu-item {
   font-family: var(--pf-font-compact);
+  color: inherit;
+  text-decoration: none;
   user-select: none;
   text-align: left;
   padding: 6px 10px;
@@ -92,7 +94,8 @@
     background: color_active(transparent);
   }
 
-  &[disabled] {
+  &[disabled],
+  &.pf-disabled {
     color: var(--pf-color-text-muted);
     background: unset;
     cursor: not-allowed;

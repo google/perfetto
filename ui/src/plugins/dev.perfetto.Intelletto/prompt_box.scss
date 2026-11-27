@@ -1,0 +1,134 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-prompt-box {
+  display: flex;
+  flex-direction: column;
+  background: var(--pf-color-void);
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    border-color: var(--pf-color-border);
+  }
+
+  &:focus-within {
+    border-color: var(--pf-color-primary);
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--pf-color-primary) 22%, transparent);
+  }
+
+  &__textarea {
+    width: 100%;
+    min-width: 0;
+    max-height: 12em;
+    resize: none;
+    overflow-y: auto;
+    box-sizing: border-box;
+    font-family: var(--pf-font-compact);
+    font-size: inherit;
+    line-height: 1.45;
+    color: inherit;
+    padding: 10px 12px 4px;
+    margin: 0;
+    outline: none;
+    background: transparent;
+    border: none;
+
+    &::placeholder {
+      color: var(--pf-color-text-muted);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
+
+  &__action {
+    font-size: 1.3em;
+  }
+
+  &__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 4px 5px 6px 12px;
+  }
+
+  &__tokens {
+    margin-right: auto;
+    font-size: 0.8em;
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__model {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 220px;
+    font-size: 0.85em;
+    color: var(--pf-color-text-muted);
+    display: flex;
+    align-items: center;
+    border-radius: 6px;
+
+    .pf-button__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &:hover,
+    &:focus,
+    &.pf-active {
+      color: var(--pf-color-text);
+    }
+  }
+
+  &__model-menu {
+    border-radius: 10px;
+    min-width: 190px;
+
+    .pf-menu {
+      margin: 4px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .pf-menu-title {
+      padding: 6px 10px 4px;
+      letter-spacing: 0.04em;
+    }
+
+    .pf-menu-item {
+      border-radius: 6px;
+      padding: 7px 10px;
+      align-items: center;
+
+      &.pf-active {
+        font-weight: 500;
+      }
+    }
+
+    .pf-menu-item__right-icon {
+      color: var(--pf-color-primary);
+      font-size: 16px;
+    }
+  }
+}
