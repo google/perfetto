@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {uuidv4} from '../../base/uuid';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
 import {Agent, type AgentEvent} from './agent';
 import type {ContextRegistry} from './context';
+import type {ConversationStore, StoredConversation} from './conversation_store';
 import type {ToolRegistry} from './tools';
 
 const CANCELLED_TEXT = '(turn cancelled)';
@@ -41,6 +43,12 @@ export interface ChatLine {
  * The UI renders from this and calls its methods; there is no other state.
  */
 export class ChatSession {
+  /** Stable id of this conversation, used as its key in the store. */
+  readonly id: string;
+  /** When this conversation was started (ms since epoch). */
+  readonly createdAt: number;
+  /** The model this conversation is using, if one has been picked. */
+  model?: ModelPath;
   /** The conversation transcript, in display order. */
   lines: ChatLine[] = [];
   /** True while a turn is in flight. */
@@ -57,6 +65,8 @@ export class ChatSession {
   // of each tool-use round; anything still queued when the turn ends starts a
   // fresh turn. Cancelling drops the queue.
   private pendingFollowUps: string[] = [];
+  // A user-chosen name, overriding the title derived from the first message.
+  private customTitle?: string;
 
   /** Follow-up messages queued while a turn is in flight, in FIFO order. */
   get queuedFollowUps(): readonly string[] {
@@ -101,14 +111,75 @@ export class ChatSession {
    *     per-turn context items.
    * @param systemPrompt - The assembled system prompt (or getter) sent on every
    *     request.
+   * @param store - Where the conversation is persisted after each change.
+   * @param init - Either a previously stored conversation to restore, or the
+   *     initial model for a fresh one.
    */
   constructor(
     gateway: LlmGateway,
     tools: ToolRegistry | (() => ToolRegistry),
     private readonly context: ContextRegistry | (() => ContextRegistry),
     systemPrompt: string | (() => string),
+    private readonly store: ConversationStore,
+    init: {readonly stored: StoredConversation} | {readonly model?: ModelPath},
   ) {
     this.agent = new Agent(gateway, tools, systemPrompt);
+    if ('stored' in init) {
+      const {stored} = init;
+      this.id = stored.id;
+      this.createdAt = stored.createdAt;
+      this.model = stored.model;
+      this.customTitle = stored.customTitle;
+      this.lines = stored.lines.map((l) => ({...l}));
+      this.totalTokens = stored.totalTokens;
+      this.agent.setHistory(stored.history);
+    } else {
+      this.id = uuidv4();
+      this.createdAt = Date.now();
+      this.model = init.model;
+      this.lines = [];
+    }
+  }
+
+  /**
+   * A short human-readable title for the conversation: the user-chosen name if
+   * set, else the first user message, truncated.
+   */
+  get title(): string {
+    if (this.customTitle !== undefined) return this.customTitle;
+    const first = this.lines.find((l) => l.role === 'user')?.text;
+    if (first === undefined) return 'New conversation';
+    const oneLine = first.replace(/\s+/g, ' ').trim();
+    return oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine;
+  }
+
+  /**
+   * Rename the conversation and persist. An empty name reverts to the title
+   * derived from the first message.
+   */
+  rename(name: string): void {
+    const trimmed = name.trim();
+    this.customTitle = trimmed === '' ? undefined : trimmed;
+    this.save();
+  }
+
+  /**
+   * Persist the conversation to the store. No-op until the conversation has
+   * some content, so empty conversations don't clutter the history.
+   */
+  save(): void {
+    if (this.lines.length === 0) return;
+    this.store.save({
+      id: this.id,
+      title: this.title,
+      customTitle: this.customTitle,
+      createdAt: this.createdAt,
+      updatedAt: Date.now(),
+      model: this.model,
+      lines: this.lines.map((l) => ({...l})),
+      history: [...this.agent.getHistory()],
+      totalTokens: this.totalTokens,
+    });
   }
 
   /**
@@ -120,6 +191,7 @@ export class ChatSession {
     const text = message.trim();
     if (text === '') return;
 
+    this.model = model;
     if (this.loading) {
       // Typed mid-turn: hold it in the follow-up queue until the running turn
       // picks it up at its next tool-use round, or until the loop below starts
@@ -159,6 +231,8 @@ export class ChatSession {
     if (this.lines[this.lines.length - 1]?.role === 'error') {
       this.lines.pop();
     }
+    this.model = model;
+    this.save();
 
     await this.drainTurns(undefined, model);
   }
@@ -206,6 +280,7 @@ export class ChatSession {
       const followUp = this.pendingFollowUps.shift();
       if (followUp !== undefined) {
         this.lines.push({role: 'user', text: followUp});
+        this.save();
         m.redraw();
       }
       return followUp;
@@ -214,6 +289,7 @@ export class ChatSession {
     let prompt: string | undefined;
     if (text !== undefined) {
       this.lines.push({role: 'user', text});
+      this.save();
 
       // Fold in any non-excluded context as a preamble the model can see.
       const context = this.getContext()
@@ -296,6 +372,7 @@ export class ChatSession {
     } finally {
       this.loading = false;
       this.abort = undefined;
+      this.save();
       m.redraw();
     }
   }

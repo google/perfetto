@@ -90,6 +90,16 @@ export class Agent {
     this.history = [];
   }
 
+  /** The full conversation history, e.g. for persisting the conversation. */
+  getHistory(): readonly Message[] {
+    return this.history;
+  }
+
+  /** Replace the conversation history, e.g. when restoring a conversation. */
+  setHistory(history: readonly Message[]): void {
+    this.history = [...history];
+  }
+
   /**
    * True when history ends on a message expecting a model response (a user
    * message or tool results), so a failed turn can be retried in place.
