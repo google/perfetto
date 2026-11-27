@@ -35,6 +35,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
           CppOptional(CppInt64()),
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('state_start_ts', CppOptional(CppInt64())),
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
         C('proc_state', CppOptional(CppString())),
         C('oom_score', CppOptional(CppInt32())),
@@ -56,6 +57,15 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         columns={
             'ts':
                 'Timestamp of event; NULL for initial backfill row.',
+            'state_start_ts':
+                'For initial backfill rows: trace time at which the process '
+                'entered the initial proc_state, converted from the '
+                'CLOCK_BOOTTIME prev_proc_state_start_ns of the earliest change '
+                'event or, for processes without change events, '
+                'proc_state_start_ns of the trace-stop snapshot. NULL if unknown '
+                '(not reported, <= 0, not convertible, or after the event or '
+                'snapshot reporting it) and for change rows, whose start is '
+                'ts.',
             'upid':
                 'Unique process ID.',
             'proc_state':

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -44,8 +45,9 @@ StringId InternEnum(TraceProcessorContext* context,
 
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
-// (is_initial = 1, ts = NULL) at finalization. Also records the process groups
-// requested through Process.setProcessGroup.
+// (is_initial = 1, ts = NULL) at finalization. Initial process state rows carry
+// the time the state was entered, when known, in state_start_ts. Also records
+// the process groups requested through Process.setProcessGroup.
 class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
@@ -94,6 +96,9 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
     std::optional<int32_t> process_group;
+    // Trace time at which the process entered |proc_state|, converted from
+    // the CLOCK_BOOTTIME proc_state_start_ns / prev_proc_state_start_ns.
+    std::optional<int64_t> start_ts;
   };
 
   // Information captured for freezer state from trace-stop dumps.
@@ -102,17 +107,22 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> unfreeze_reason;
   };
 
+  // The track-event stream only emits delta transitions (prev -> cur). To
+  // reconstruct each process's state at the start of the trace, records the
+  // prev_* fields of the earliest AndroidProcessStateChangedEvent of |upid|,
+  // at |ts|. Later events return before reading them.
+  void UpdateInitialStateFromDelta(
+      int64_t ts,
+      UniquePid upid,
+      const com::android::internal::pbzero::AndroidProcessStateChangedEvent::
+          Decoder& event);
+
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.
   struct EarliestDelta {
     int64_t ts = std::numeric_limits<int64_t>::max();
     ProcessStateValues values;
   };
-
-  // Records the pre-change state (prev_*) from the earliest delta track event
-  // seen for a process to establish its baseline at trace start.
-  void UpdateInitialStateFromDelta(int64_t ts,
-                                   const ProcessStateValues& prev_state);
 
   // Computes the initial baseline state for every process by starting from the
   // trace-stop dump snapshot and overlaying the pre-transition states from the

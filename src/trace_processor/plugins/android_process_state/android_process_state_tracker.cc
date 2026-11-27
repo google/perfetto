@@ -27,11 +27,13 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
@@ -39,6 +41,26 @@
 namespace perfetto::trace_processor::android_process_state {
 namespace {
 namespace fb = com::android::internal::pbzero;
+
+// Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
+// proc_state_start_ns) to trace time. Values <= 0 mean unknown. Also returns
+// std::nullopt if the conversion fails (the clock tracker records a stat in
+// that case) or if the start is after |event_ts|, the trace time of the event
+// reporting it, as a state can't start after it is reported.
+std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
+                                          int64_t boottime_ns,
+                                          int64_t event_ts) {
+  if (boottime_ns <= 0) {
+    return std::nullopt;
+  }
+  std::optional<int64_t> start_ts = clock_tracker->ToTraceTime(
+      ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
+      boottime_ns);
+  if (start_ts && *start_ts > event_ts) {
+    return std::nullopt;
+  }
+  return start_ts;
+}
 }  // namespace
 
 StringId InternEnum(TraceProcessorContext* context,
@@ -70,20 +92,6 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
           context->storage->InternString("freeze_policy_flags")),
       unknown_process_logger_(context) {}
 
-// The track-event stream only emits delta transitions (prev -> cur). To
-// reconstruct each process's state at the start of the trace, we record the
-// `prev_*` values from its earliest observed delta event.
-void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
-    int64_t ts,
-    const ProcessStateValues& prev_state) {
-  EarliestDelta& earliest = earliest_prev_[prev_state.upid];
-  if (ts >= earliest.ts) {
-    return;
-  }
-  earliest.ts = ts;
-  earliest.values = prev_state;
-}
-
 std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
     int64_t ts,
     const char* source,
@@ -102,6 +110,36 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
+void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
+    int64_t ts,
+    UniquePid upid,
+    const fb::AndroidProcessStateChangedEvent::Decoder& event) {
+  EarliestDelta& earliest = earliest_prev_[upid];
+  if (ts >= earliest.ts) {
+    return;
+  }
+  earliest.ts = ts;
+  ProcessStateValues& prev = earliest.values;
+  prev = ProcessStateValues();
+  prev.upid = upid;
+  if (event.has_prev_proc_state()) {
+    prev.proc_state = static_cast<int32_t>(event.prev_proc_state());
+  }
+  if (event.has_prev_oom_score()) {
+    prev.oom_score = event.prev_oom_score();
+  }
+  if (event.has_prev_capability_flags()) {
+    prev.capability_flags = event.prev_capability_flags();
+  }
+  if (event.has_prev_process_group()) {
+    prev.process_group = static_cast<int32_t>(event.prev_process_group());
+  }
+  if (event.has_prev_proc_state_start_ns()) {
+    prev.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                       event.prev_proc_state_start_ns(), ts);
+  }
+}
+
 void AndroidProcessStateTracker::ParseProcessStateChange(
     int64_t ts,
     protozero::ConstBytes bytes) {
@@ -113,21 +151,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   UniquePid upid = *opt_upid;
 
-  ProcessStateValues prev;
-  prev.upid = upid;
-  if (p.has_prev_proc_state()) {
-    prev.proc_state = static_cast<int32_t>(p.prev_proc_state());
-  }
-  if (p.has_prev_oom_score()) {
-    prev.oom_score = p.prev_oom_score();
-  }
-  if (p.has_prev_capability_flags()) {
-    prev.capability_flags = p.prev_capability_flags();
-  }
-  if (p.has_prev_process_group()) {
-    prev.process_group = static_cast<int32_t>(p.prev_process_group());
-  }
-  UpdateInitialStateFromDelta(ts, prev);
+  UpdateInitialStateFromDelta(ts, upid, p);
 
   // Insert the change row.
   tables::AndroidProcessStateTable::Row row;
@@ -207,6 +231,10 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         rec.has_process_group()
             ? static_cast<int32_t>(rec.process_group())
             : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
+    if (rec.has_proc_state_start_ns()) {
+      v.start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                      rec.proc_state_start_ns(), ts);
+    }
     process_dump_[v.upid] = v;
   }
 }
@@ -295,6 +323,10 @@ void AndroidProcessStateTracker::ParseProcessGroupChange(
 // 2. Processes that changed state during the trace have their initial state
 //    recovered from the `prev_*` fields of their earliest delta in
 //    `earliest_prev_`.
+// When a process has a change event, the time the initial proc_state was
+// entered (start_ts) always comes from its earliest delta, even if the
+// proc_state itself falls back to the snapshot (the delta omits
+// prev_proc_state when it is PROCESS_STATE_UNSPECIFIED).
 std::map<UniquePid, AndroidProcessStateTracker::ProcessStateValues>
 AndroidProcessStateTracker::ComputeInitialProcessStates() const {
   std::map<UniquePid, ProcessStateValues> initial = process_dump_;
@@ -314,6 +346,12 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
     if (earliest.values.process_group.has_value()) {
       v.process_group = earliest.values.process_group;
     }
+    // The start time belongs to the earliest delta's prev_proc_state, so never
+    // keep the trace-stop snapshot's (which is the start of the *last* state),
+    // even when the delta has none: system_server omits
+    // prev_proc_state_start_ns when it is 0, e.g. on the first transition out
+    // of PROCESS_STATE_NONEXISTENT.
+    v.start_ts = earliest.values.start_ts;
   }
 
   return initial;
@@ -350,6 +388,7 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
+  row.state_start_ts = v.start_ts;
   auto id = process_state_table_->Insert(row).id;
   AddFlagsArgs(id, row);
 }

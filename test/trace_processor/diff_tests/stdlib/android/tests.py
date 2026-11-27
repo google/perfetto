@@ -3402,6 +3402,47 @@ class AndroidStdlib(TestSuite):
         2000,-1,500,"IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
         """))
 
+  def test_android_process_state_intervals_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../parser/android/android_process_state_start_ts.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration,
+          state_rank,
+          state_change_reason
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts, state_rank;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
+        1000,-1,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        1200,800,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,1000,200,"IMPORTANT_FOREGROUND","TOP",800,6,"OOM_ADJ_REASON_START_RECEIVER"
+        3000,-1,200,"CACHED_ACTIVITY","IMPORTANT_FOREGROUND",1000,16,"OOM_ADJ_REASON_BIND_SERVICE"
+        1000,1000,300,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,-1,300,"IMPORTANT_FOREGROUND","TOP",1000,6,"OOM_ADJ_REASON_START_RECEIVER"
+        1000,-1,400,"FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
+        1500,-1,500,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        1000,1000,600,"SERVICE","[NULL]","[NULL]",10,"[NULL]"
+        2000,-1,600,"CACHED_EMPTY","SERVICE",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        1000,1000,700,"SERVICE","[NULL]","[NULL]",10,"[NULL]"
+        2000,-1,700,"CACHED_EMPTY","SERVICE",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        1000,-1,800,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        1000,-1,900,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        1500,-1,1000,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        2000,1000,1100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        3000,-1,1100,"CACHED_EMPTY","TOP",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        2000,0,1200,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,-1,1200,"CACHED_EMPTY","TOP",0,19,"OOM_ADJ_REASON_START_RECEIVER"
+        """))
+
   def test_android_process_state_concurrency(self):
     return DiffTestBlueprint(
         trace=Path('../../parser/android/android_process_state.textproto'),
