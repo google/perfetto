@@ -19,7 +19,11 @@ declare_args() {
 }
 
 group("root") {
-  deps = [ ":perfetto_duckdb" ]
+  testonly = true
+  deps = [
+    ":perfetto_duckdb",
+    ":perfetto_duckdb_unittests",
+  ]
 }
 
 # DuckDB's internal C++ headers. Included as system headers so that their
@@ -50,6 +54,21 @@ config("duckdb_cxx") {
   cflags_cc = [
     "-fexceptions",
     "-frtti",
+  ]
+}
+
+# The PERFETTO(...) ( ... ) block rewriter. Uses syntaqlite (TraceProcessor's
+# SQL front end) for the PerfettoSQL inside blocks; no DuckDB dependency.
+source_set("block_rewriter") {
+  sources = [
+    "src/block_rewriter.cc",
+    "src/block_rewriter.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base",
+    "../../src/base",
+    "../../src/perfetto_sql/syntaqlite",
   ]
 }
 
@@ -87,6 +106,7 @@ source_set("duckdb_glue") {
     ":duckdb_cxx",
   ]
   deps = [
+    ":block_rewriter",
     ":trace_session",
     "../../gn:default_deps",
   ]
@@ -103,4 +123,16 @@ shared_library("perfetto_duckdb") {
   if (is_mac) {
     ldflags = [ "-Wl,-undefined,dynamic_lookup" ]
   }
+}
+
+executable("perfetto_duckdb_unittests") {
+  testonly = true
+  sources = [ "src/block_rewriter_unittest.cc" ]
+  deps = [
+    ":block_rewriter",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../../gn:gtest_main",
+    "../../src/perfetto_sql/syntaqlite",
+  ]
 }
