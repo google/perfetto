@@ -62,18 +62,23 @@ class RowCursor {
     in_place_ = nullptr;
     current_ = nullptr;
     current_row_ = 0;
+    exhausted_ = false;
     return Pull();
   }
 
   // Moves to the next row, pulling a new batch if this one is exhausted. At
   // eof it stays put and keeps returning false.
-  bool Next() {
-    if (index_ == size_) {
+  PERFETTO_ALWAYS_INLINE bool Next() {
+    if (PERFETTO_UNLIKELY(index_ == size_)) {
       return false;
     }
     if (++index_ != size_) {
       Locate();
       return true;
+    }
+    // The source said this batch was its last: no pull needed to find eof.
+    if (PERFETTO_LIKELY(exhausted_)) {
+      return false;
     }
     return Pull();
   }
@@ -89,8 +94,11 @@ class RowCursor {
     return current_->column(column).At<T>(current_row_);
   }
 
-  // The batch the current row is in.
-  const RowBatch& batch() const { return current_ ? *current_ : scratch_; }
+  // The batch the current row is in. Only while not at eof.
+  PERFETTO_ALWAYS_INLINE const RowBatch& batch() const {
+    PERFETTO_DCHECK(current_);
+    return *current_;
+  }
   // Which of the rows batch() keeps the current row is. Not for rows read in
   // place (see Source::InPlace).
   uint32_t row() const {
@@ -108,7 +116,7 @@ class RowCursor {
 
   // Finds where the current row is held.
   PERFETTO_ALWAYS_INLINE void Locate() {
-    if (in_place_) {
+    if (PERFETTO_UNLIKELY(in_place_ != nullptr)) {
       uint32_t at = placed_ + index_;
       current_ = in_place_->batches[in_place_->batch[at]];
       current_row_ = in_place_->row[at];
@@ -134,6 +142,10 @@ class RowCursor {
   // Where the current row is held.
   const RowBatch* current_ = nullptr;
   uint32_t current_row_ = 0;
+  // Whether the source can serve rows in place (see Source::HasInPlace).
+  bool may_be_in_place_ = false;
+  // Whether the current batch is the source's last (see RowBatch::last).
+  bool exhausted_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

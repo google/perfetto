@@ -96,5 +96,32 @@ TEST(RowBatchTest, KeepsRowsInAnyOrder) {
   EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(0, 10));
 }
 
+// Only the source which fills a batch says it is the last: anything which
+// refills it, empties it or copies it says nothing.
+TEST(RowBatchTest, LastIsClearedByRefilling) {
+  std::vector<int64_t> values = {0, 10};
+  RowBatch batch;
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.SetRowCount(2);
+  EXPECT_FALSE(batch.last());
+  batch.SetLast();
+  EXPECT_TRUE(batch.last());
+
+  RowBatch copy;
+  copy.CopyFrom(batch);
+  EXPECT_FALSE(copy.last());
+  copy.SetLast();
+  RowBatch moved;
+  moved = std::move(copy);
+  EXPECT_FALSE(moved.last());
+
+  batch.SetRowCount(1);
+  EXPECT_FALSE(batch.last());
+  batch.SetLast();
+  batch.Reset();
+  EXPECT_FALSE(batch.last());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

@@ -109,6 +109,7 @@ class RangeReader {
     uint32_t count = std::min(kMaxBatchRows, range_.e - next_);
     windows_.Fill(next_, count, out);
     next_ += count;
+    out.SetLast(next_ == range_.e);
     return true;
   }
 
@@ -153,6 +154,7 @@ class RowListReader {
     windows_.Gather(base::Span<const uint32_t>(next_, next_ + count), *context_,
                     out);
     next_ += count;
+    out.SetLast(next_ == end_);
     return true;
   }
 

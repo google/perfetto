@@ -174,8 +174,18 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
     }
     // A batch with no rows left has nothing for later transforms to do.
     if (PERFETTO_UNLIKELY(!batch->size())) {
+      // Nor is there a next batch to pull, if the source said this was its
+      // last and nothing needs its run ended.
+      if (batch->last() && !(flags & State::kSegmented) && !s.holds_any) {
+        SourceDone(s);
+        return nullptr;
+      }
       return NextSlow(s);
     }
+  }
+  // Whatever holds state must see the pull which finds the end.
+  if (PERFETTO_UNLIKELY(s.holds_any)) {
+    batch->SetLast(false);
   }
   return batch;
 }
@@ -185,6 +195,10 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
   RowBatch* batch = SegmentNext(last, s.output, s);
   if (!batch) {
     Stop(s);
+  } else {
+    // The slow path may be ending runs or holding rows, which only a pull
+    // finding the end stops.
+    batch->SetLast(false);
   }
   return batch;
 }

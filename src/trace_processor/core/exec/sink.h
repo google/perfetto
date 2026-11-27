@@ -141,6 +141,7 @@ class Served final : public Source {
   void Rewind(OperatorState&) const override {}
   base::Status status(const OperatorState& state) const override;
   const RowsInPlace* InPlace(const OperatorState& state) const override;
+  bool HasInPlace() const override { return true; }
 
   uint32_t id() const { return id_; }
   const Breaker& breaker() const { return breaker_; }

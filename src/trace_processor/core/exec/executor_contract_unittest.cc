@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
@@ -222,8 +223,12 @@ class ContractSource final : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  ContractSource(std::vector<std::vector<int64_t>> chunks, bool fail = false)
-      : chunks_(std::move(chunks)), fail_(fail) {}
+  // With `mark_last`, the last chunk says it is the last (see
+  // RowBatch::last).
+  ContractSource(std::vector<std::vector<int64_t>> chunks,
+                 bool fail = false,
+                 bool mark_last = false)
+      : chunks_(std::move(chunks)), fail_(fail), mark_last_(mark_last) {}
   struct State : OperatorState {
     size_t next = 0;
     bool failed = false;
@@ -247,6 +252,7 @@ class ContractSource final : public Source {
     out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Int64{}}, values.data()));
     out.SetRowCount(static_cast<uint32_t>(values.size()));
+    out.SetLast(mark_last_ && s.next == chunks_.size());
     return true;
   }
   base::Status status(const OperatorState& state) const override {
@@ -258,6 +264,7 @@ class ContractSource final : public Source {
  private:
   std::vector<std::vector<int64_t>> chunks_;
   bool fail_;
+  bool mark_last_;
 };
 
 class ContractFilter final : public Operator {
@@ -308,6 +315,55 @@ class FinishProbe final : public Operator {
   }
   mutable uint32_t finishes = 0;
 };
+
+// Keeps the rows whose first column is not negative, in place, holding the
+// rows it has seen for the run.
+class KeepNonNegative final : public Transform {
+ public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+  void DescribeColumns(StepColumns*) const override {}
+
+  explicit KeepNonNegative(bool hold) : hold_(hold) {}
+
+  struct State : OperatorState {
+    std::vector<uint32_t> selected;
+    std::optional<Held<std::vector<int64_t>>> seen;
+  };
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
+    auto state = std::make_unique<State>();
+    if (hold_) {
+      state->seen.emplace(state.get());
+      seen = &*state->seen;
+    }
+    return state;
+  }
+  bool Process(RowBatch& batch, OperatorState& state) const override {
+    auto& s = state.Cast<State>();
+    s.selected.clear();
+    for (uint32_t i = 0; i < batch.size(); ++i) {
+      int64_t value = batch.Value<int64_t>(0, i);
+      if (s.seen) {
+        s.seen->push_back(value);
+      }
+      if (value >= 0)
+        s.selected.push_back(i);
+    }
+    batch.mutable_selection().Keep(s.selected);
+    return true;
+  }
+  mutable const std::vector<int64_t>* seen = nullptr;
+
+ private:
+  bool hold_;
+};
+
+std::vector<int64_t> ReadAll(RowCursor& cursor) {
+  std::vector<int64_t> rows;
+  for (bool more = cursor.Open(); more; more = cursor.Next())
+    rows.push_back(cursor.Value<int64_t>(0));
+  return rows;
+}
 
 class ExecutorBoundaryContractTest : public testing::TestWithParam<uint32_t> {};
 
@@ -403,6 +459,67 @@ TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
   for (uint32_t run = 1; run <= 2; ++run) {
     EXPECT_FALSE(cursor.Open());
     EXPECT_TRUE(cursor.status().ok());
+    EXPECT_EQ(observed->finishes, run);
+  }
+}
+
+// A batch marked last ends the run without another pull, every run.
+TEST(ExecutorContractTest, LastBatchEndsTheRunWithoutAnotherPull) {
+  ContractSource source({{1, 2}, {3}}, false, true);
+  Pipeline pipeline(source, {});
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    EXPECT_THAT(ReadAll(cursor), ElementsAre(1, 2, 3));
+    EXPECT_EQ(source.pulls, 2 * run);
+    EXPECT_FALSE(cursor.Next());
+    EXPECT_TRUE(cursor.status().ok());
+  }
+}
+
+// So does a last batch a transform keeps no rows of.
+TEST(ExecutorContractTest, EmptiedLastBatchEndsTheRunWithoutAnotherPull) {
+  ContractSource source({{1}, {-1, -2}}, false, true);
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<KeepNonNegative>(false));
+  Pipeline pipeline(source, std::move(steps));
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    EXPECT_THAT(ReadAll(cursor), ElementsAre(1));
+    EXPECT_EQ(source.pulls, 2 * run);
+    EXPECT_TRUE(cursor.status().ok());
+  }
+}
+
+// A step holding state for the run still has it ended when the rows end,
+// which takes the pull finding the end.
+TEST(ExecutorContractTest, LastBatchStillEndsTheRunsOfHoldingSteps) {
+  ContractSource source({{1}, {2, -1}}, false, true);
+  auto keep = std::make_unique<KeepNonNegative>(true);
+  const KeepNonNegative* observed = keep.get();
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::move(keep));
+  Pipeline pipeline(source, std::move(steps));
+  RowCursor cursor(pipeline);
+  ASSERT_TRUE(cursor.Open());
+  ASSERT_TRUE(cursor.Next());
+  EXPECT_EQ(cursor.Value<int64_t>(0), 2);
+  EXPECT_EQ(observed->seen->size(), 3u);
+  EXPECT_FALSE(cursor.Next());
+  EXPECT_TRUE(observed->seen->empty());
+  EXPECT_EQ(source.pulls, 3u);
+}
+
+// Operators after the source are finished even when its last batch is marked.
+TEST(ExecutorContractTest, LastBatchStillFinishesOperators) {
+  ContractSource source({{1}, {2}}, false, true);
+  auto probe = std::make_unique<FinishProbe>();
+  FinishProbe* observed = probe.get();
+  std::vector<Pipeline::Step> ops;
+  ops.push_back(std::move(probe));
+  Pipeline pipeline(source, std::move(ops));
+  RowCursor cursor(pipeline);
+  for (uint32_t run = 1; run <= 2; ++run) {
+    EXPECT_THAT(ReadAll(cursor), ElementsAre(1, 2));
     EXPECT_EQ(observed->finishes, run);
   }
 }

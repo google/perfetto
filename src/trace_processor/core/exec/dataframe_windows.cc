@@ -210,6 +210,7 @@ bool RangeReader::ReadBackwards(RowBatch& out) {
   out.mutable_selection().Reorder(
       base::Span<const uint32_t>(descending_.data() + (kMaxBatchRows - count),
                                  descending_.data() + kMaxBatchRows));
+  out.SetLast(next_ == range_.b);
   return true;
 }
 

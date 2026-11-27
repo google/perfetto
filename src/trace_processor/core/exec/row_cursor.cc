@@ -21,10 +21,12 @@
 namespace perfetto::trace_processor::core::exec {
 
 RowCursor::RowCursor(const Source& source)
-    : source_(source), state_(source.MakeState(context_)) {}
+    : source_(source),
+      state_(source.MakeState(context_)),
+      may_be_in_place_(source.HasInPlace()) {}
 
 RowCursor::RowCursor(const Source& source, const Pipelines& pipelines)
-    : source_(source) {
+    : source_(source), may_be_in_place_(source.HasInPlace()) {
   context_.SetPipelines(&pipelines);
   state_ = source.MakeState(context_);
 }
@@ -41,12 +43,21 @@ bool RowCursor::Pull() {
       current_ = nullptr;
       return false;
     }
+    exhausted_ = batch_->last();
     if (batch_->size()) {
       index_ = 0;
       size_ = batch_->size();
-      in_place_ = source_.InPlace(*state_);
+      if (PERFETTO_UNLIKELY(may_be_in_place_)) {
+        in_place_ = source_.InPlace(*state_);
+      }
       Locate();
       return true;
+    }
+    if (exhausted_) {
+      index_ = 0;
+      size_ = 0;
+      current_ = nullptr;
+      return false;
     }
   }
 }

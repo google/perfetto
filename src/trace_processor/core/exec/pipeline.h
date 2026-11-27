@@ -60,6 +60,13 @@ class Pipeline final : public Source {
   base::Status status(const OperatorState& state) const override;
   // The last step's rows in place, if it is an operator serving them so.
   const RowsInPlace* InPlace(const OperatorState& state) const override;
+  bool HasInPlace() const override {
+    const Segment& last = segments_[last_segment_];
+    if (last.first != last.end) {
+      return false;
+    }
+    return last.start_op != nullptr || source_.HasInPlace();
+  }
 
   // The pipeline's input.
   const Source& input() const { return source_; }

@@ -66,7 +66,15 @@ class RowBatch {
   uint32_t row_count() const { return selection_.rows(); }
 
   // Gives every column `rows` rows, all kept.
-  void SetRowCount(uint32_t rows) { selection_.Reset(rows); }
+  void SetRowCount(uint32_t rows) {
+    selection_.Reset(rows);
+    last_ = false;
+  }
+
+  // Whether the source has no batch after this one. A reader may then stop
+  // without pulling again; an unset flag says nothing.
+  bool last() const { return last_; }
+  void SetLast(bool last = true) { last_ = last; }
 
   const Selection& selection() const { return selection_; }
   Selection& mutable_selection() { return selection_; }
@@ -147,6 +155,11 @@ class RowBatch {
                   const ColumnBuffer* buffers,
                   uint32_t buffer_count) {
     PERFETTO_DCHECK(buffer_count == view_count);
+    // A source filling the same views batch after batch has nothing to do.
+    if (PERFETTO_LIKELY(!owned_ && columns_ == views &&
+                        column_count_ == view_count && buffers_ == buffers)) {
+      return;
+    }
     // Buffers kept from before would only be released later.
     own_buffers_.clear();
     owned_ = false;
@@ -175,6 +188,7 @@ class RowBatch {
   const ColumnBuffer* buffers_ = nullptr;
   uint32_t buffer_count_ = 0;
   bool owned_ = true;
+  bool last_ = false;
   std::vector<ColumnView> own_columns_;
   std::vector<ColumnBuffer> own_buffers_;
   Selection selection_;

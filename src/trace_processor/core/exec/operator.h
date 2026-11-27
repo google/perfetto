@@ -218,6 +218,9 @@ class Source {
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
     return nullptr;
   }
+  // Whether InPlace() can ever return non-null, so readers which cannot need
+  // not ask after every batch.
+  virtual bool HasInPlace() const { return false; }
 
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
