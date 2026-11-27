@@ -22,6 +22,9 @@
 
 const OWNER = Symbol('perfetto.owner');
 
+/** The owner of UI that core adds itself, rather than through a plugin. */
+export const CORE_OWNER = 'core';
+
 interface Owned {
   [OWNER]?: string;
 }

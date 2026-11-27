@@ -30,7 +30,7 @@ import {Icons} from '../base/semantic_icons';
 import {Intent} from '../widgets/common';
 import {Router} from './router';
 import {getErrorMessage} from '../base/errors';
-import {setOwner} from './ownership';
+import {CORE_OWNER, setOwner} from './ownership';
 
 // The owner of the commands created for macros: the plugin that loads them.
 const MACRO_OWNER = 'dev.perfetto.CoreCommands';
@@ -183,6 +183,10 @@ export class CommandManagerImpl implements CommandManager {
   }
 
   registerCommand(cmd: Command): Disposable {
+    // Plugins register commands through a proxy that has already set the
+    // owner, and setOwner keeps the first owner. A command registered here
+    // directly comes from core, so it defaults to core's owner.
+    setOwner(cmd, CORE_OWNER);
     return this.registry.register(cmd);
   }
 
