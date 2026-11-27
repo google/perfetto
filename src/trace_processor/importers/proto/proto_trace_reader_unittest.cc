@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -27,7 +28,11 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/protovm/vm_program.pbzero.h"
+#include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
@@ -37,6 +42,8 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
+#include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -91,6 +98,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
         &host_context_, TraceSorter::SortingMode::kDefault);
     host_context_.reader_registry = std::make_unique<TraceReaderRegistry>();
     host_context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    host_context_.blob_packet_writer = std::make_unique<BlobPacketWriter>();
     host_context_.register_additional_proto_modules =
         &RegisterAdditionalModules;
     proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&host_context_);
@@ -337,6 +345,182 @@ TEST_F(ProtoTraceReaderTest, DeferredClockSnapshotSequenceScopedClock) {
   // (machine_id, trace_id).
   EXPECT_EQ(0, host_context_.stats_tracker->GetStats(
                    stats::clock_sync_failure_unknown_source_clock));
+}
+
+class RecordingPacketAnalyzer : public PacketAnalyzer {
+ public:
+  struct Record {
+    std::vector<uint8_t> bytes;
+    SampleAnnotation annotation;
+  };
+
+  void ProcessPacket(const TraceBlobView& packet,
+                     const SampleAnnotation& packet_annotation) override {
+    records_.push_back(
+        {std::vector<uint8_t>(packet.data(), packet.data() + packet.size()),
+         packet_annotation});
+  }
+
+  void OnEventsFullyExtracted() override {}
+
+  const std::vector<Record>& records() const { return records_; }
+
+ private:
+  std::vector<Record> records_;
+};
+
+// Adds a TraceProvenance packet, a ProtoVms packet whose initial state holds a
+// large (>2 KiB) payload plus |state_sequence_flags| and whose program copies
+// TestEvent.protovm_patch.int_to_merge ->
+// TestEvent.protovm_incremental_state.int_merged, and a small patch packet.
+void AddProtoVmSetupAndPatch(protos::pbzero::Trace* trace,
+                             uint32_t seq_id,
+                             int32_t producer_id,
+                             uint32_t state_sequence_flags,
+                             int32_t patch_int_value) {
+  auto* provenance_pkt = trace->add_packet();
+  auto* seq =
+      provenance_pkt->set_trace_provenance()->add_buffers()->add_sequences();
+  seq->set_id(seq_id);
+  seq->set_producer_id(producer_id);
+
+  auto* protovms_pkt = trace->add_packet();
+  auto* instance = protovms_pkt->set_protovms()->add_instance();
+  {
+    auto* program = instance->set_program();
+    program->set_version(1);
+    auto* instr_src = program->add_instructions();
+    {
+      auto* src_select = instr_src->set_select();
+      src_select->add_relative_path()->set_field_id(
+          protos::pbzero::TracePacket::kForTestingFieldNumber);
+      src_select->add_relative_path()->set_field_id(
+          protos::pbzero::TestEvent::kProtovmPatchFieldNumber);
+      src_select->add_relative_path()->set_field_id(
+          protos::pbzero::TestEvent::ProtoVmPatch::kIntToMergeFieldNumber);
+    }
+    auto* instr_dst = instr_src->add_nested_instructions();
+    {
+      auto* dst_select = instr_dst->set_select();
+      dst_select->set_cursor(protos::pbzero::VmCursorEnum::VM_CURSOR_DST);
+      dst_select->set_create_if_not_exist(true);
+      dst_select->add_relative_path()->set_field_id(
+          protos::pbzero::TracePacket::kForTestingFieldNumber);
+      dst_select->add_relative_path()->set_field_id(
+          protos::pbzero::TestEvent::kProtovmIncrementalStateFieldNumber);
+      dst_select->add_relative_path()->set_field_id(
+          protos::pbzero::TestEvent::ProtoVmIncrementalState::
+              kIntMergedFieldNumber);
+    }
+    instr_dst->add_nested_instructions()->set_set();
+  }
+  {
+    auto* state = instance->set_state();
+    state->set_sequence_flags(state_sequence_flags);
+    state->set_for_testing()
+        ->set_protovm_incremental_state()
+        ->set_string_merged(std::string(2048, 'x'));
+  }
+  instance->set_memory_limit_kb(64);
+  instance->add_producer_id(producer_id);
+
+  auto* patch_pkt = trace->add_packet();
+  patch_pkt->set_trusted_packet_sequence_id(seq_id);
+  patch_pkt->set_for_testing()->set_protovm_patch()->set_int_to_merge(
+      patch_int_value);
+}
+
+TEST_F(ProtoTraceReaderTest, ProtoVmPatch_PacketAnalyzerReceivesRawPatch) {
+  auto analyzer = std::make_unique<RecordingPacketAnalyzer>();
+  auto* analyzer_ptr = analyzer.get();
+  host_context_.content_analyzer = std::move(analyzer);
+
+  constexpr uint32_t kSeqId = 1;
+  constexpr int32_t kProducerId = 10;
+  AddProtoVmSetupAndPatch(
+      trace_.get(), kSeqId, kProducerId,
+      protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED,
+      /*patch_int_value=*/42);
+
+  // A follow-up packet requiring incremental state proves that ProtoVM
+  // actually expanded the patch into the VM state (which carries
+  // SEQ_INCREMENTAL_STATE_CLEARED) rather than passing the patch through.
+  auto* followup_pkt = trace_->add_packet();
+  followup_pkt->set_trusted_packet_sequence_id(kSeqId);
+  followup_pkt->set_sequence_flags(
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+
+  ASSERT_TRUE(Tokenize().ok());
+  EXPECT_EQ(
+      host_context_.stats_tracker->GetStats(stats::protovm_registration_error),
+      0);
+  EXPECT_EQ(host_context_.stats_tracker->GetStats(stats::protovm_abort), 0);
+  EXPECT_EQ(host_context_.stats_tracker->GetStats(
+                stats::packet_skipped_seq_needs_incremental_state_invalid),
+            0);
+
+  // Records: [0] trace_provenance, [1] protovms, [2] patch, [3] follow-up.
+  ASSERT_EQ(analyzer_ptr->records().size(), 4u);
+  EXPECT_TRUE(analyzer_ptr->records()[3].annotation.empty());
+
+  const auto& patch_record = analyzer_ptr->records()[2];
+  EXPECT_TRUE(patch_record.annotation.empty());
+  EXPECT_LT(patch_record.bytes.size(), 100u);
+
+  protos::pbzero::TracePacket::Decoder pkt(patch_record.bytes.data(),
+                                           patch_record.bytes.size());
+  ASSERT_TRUE(pkt.has_for_testing());
+  protos::pbzero::TestEvent::Decoder test_event(pkt.for_testing());
+  ASSERT_TRUE(test_event.has_protovm_patch());
+  EXPECT_FALSE(test_event.has_protovm_incremental_state());
+  protos::pbzero::TestEvent::ProtoVmPatch::Decoder patch(
+      test_event.protovm_patch());
+  EXPECT_EQ(patch.int_to_merge(), 42);
+}
+
+TEST_F(ProtoTraceReaderTest,
+       ProtoVmPatch_PacketAnalyzerReceivesRawPatchWhenSkipped) {
+  auto analyzer = std::make_unique<RecordingPacketAnalyzer>();
+  auto* analyzer_ptr = analyzer.get();
+  host_context_.content_analyzer = std::move(analyzer);
+
+  constexpr uint32_t kSeqId = 1;
+  constexpr int32_t kProducerId = 10;
+  // The expanded VM state sets SEQ_NEEDS_INCREMENTAL_STATE without
+  // SEQ_INCREMENTAL_STATE_CLEARED, while the raw patch sets neither. Seeing
+  // the skipped_packet annotation proves ProtoVM expanded the patch and that
+  // the skipped path still feeds the raw patch to PacketAnalyzer.
+  AddProtoVmSetupAndPatch(
+      trace_.get(), kSeqId, kProducerId,
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE,
+      /*patch_int_value=*/42);
+
+  ASSERT_TRUE(Tokenize().ok());
+  EXPECT_EQ(
+      host_context_.stats_tracker->GetStats(stats::protovm_registration_error),
+      0);
+  EXPECT_EQ(host_context_.stats_tracker->GetStats(stats::protovm_abort), 0);
+
+  // Records: [0] trace_provenance, [1] protovms, [2] skipped patch.
+  ASSERT_EQ(analyzer_ptr->records().size(), 3u);
+
+  const auto& patch_record = analyzer_ptr->records()[2];
+  ASSERT_EQ(patch_record.annotation.size(), 1u);
+  EXPECT_EQ(host_context_.storage->GetString(patch_record.annotation[0].first),
+            "skipped_packet");
+  EXPECT_EQ(host_context_.storage->GetString(patch_record.annotation[0].second),
+            "invalid_incremental_state");
+  EXPECT_LT(patch_record.bytes.size(), 100u);
+
+  protos::pbzero::TracePacket::Decoder pkt(patch_record.bytes.data(),
+                                           patch_record.bytes.size());
+  ASSERT_TRUE(pkt.has_for_testing());
+  protos::pbzero::TestEvent::Decoder test_event(pkt.for_testing());
+  ASSERT_TRUE(test_event.has_protovm_patch());
+  EXPECT_FALSE(test_event.has_protovm_incremental_state());
+  protos::pbzero::TestEvent::ProtoVmPatch::Decoder patch(
+      test_event.protovm_patch());
+  EXPECT_EQ(patch.int_to_merge(), 42);
 }
 
 }  // namespace
