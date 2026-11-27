@@ -22,8 +22,10 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
 namespace perfetto::trace_processor {
@@ -57,5 +59,20 @@ base::Status TraceProcessor::Parse(std::unique_ptr<uint8_t[]> buf,
                                    size_t size) {
   return TraceProcessorStorage::Parse(std::move(buf), size);
 }
+
+namespace json {
+
+base::Status ExportJson(TraceProcessor* tp,
+                        OutputWriter* output,
+                        ArgumentFilterPredicate argument_filter,
+                        MetadataFilterPredicate metadata_filter,
+                        LabelFilterPredicate label_filter) {
+  const TraceStorage* storage =
+      static_cast<TraceProcessorImpl*>(tp)->context()->storage.get();
+  return ExportJson(storage, output, std::move(argument_filter),
+                    std::move(metadata_filter), std::move(label_filter));
+}
+
+}  // namespace json
 
 }  // namespace perfetto::trace_processor

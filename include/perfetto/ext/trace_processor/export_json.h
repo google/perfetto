@@ -27,6 +27,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class TraceProcessor;
 class TraceProcessorStorage;
 
 namespace json {
@@ -51,6 +52,20 @@ class PERFETTO_EXPORT_COMPONENT OutputWriter {
 // applying argument, metadata and label filtering using the callbacks.
 base::Status PERFETTO_EXPORT_COMPONENT
 ExportJson(TraceProcessorStorage*,
+           OutputWriter*,
+           ArgumentFilterPredicate = nullptr,
+           MetadataFilterPredicate = nullptr,
+           LabelFilterPredicate = nullptr);
+
+// Exports the trace loaded in TraceProcessor to json, applying argument,
+// metadata and label filtering using the callbacks.
+// TraceProcessorImpl inherits non-virtually from both TraceProcessor and
+// TraceProcessorStorageImpl, so passing a TraceProcessor* to the
+// TraceProcessorStorage* overload above would cast from the wrong base
+// subobject offset. Note: the argument must be a local TraceProcessor created
+// via TraceProcessor::CreateInstance() (not a RemoteTraceProcessor).
+base::Status PERFETTO_EXPORT_COMPONENT
+ExportJson(TraceProcessor*,
            OutputWriter*,
            ArgumentFilterPredicate = nullptr,
            MetadataFilterPredicate = nullptr,

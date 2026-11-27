@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/traceconv/trace_to_json.h"
 #include "src/traceconv/trace_to_systrace.h"
 
 #include <memory>
@@ -86,6 +87,64 @@ TEST(ExtractSystrace, EscapesNamesInAndroidProcessDump) {
                                 "/dir-with\"quotes/out/Release/node\\\b\f\n\r\t"
                                 "\x01\xe3\x81\x82"));
   EXPECT_THAT(process_dump, testing::HasSubstr("thread\"\\\b\f\n\r\t\x02"));
+}
+
+TEST(TraceToJson, ExportsUserspaceEvents) {
+  const char kInputTrace[] = R"json({
+    "traceEvents": [
+      {
+        "name": "process_name",
+        "ph": "M",
+        "pid": 10,
+        "tid": 11,
+        "args": {"name": "browser"}
+      },
+      {
+        "name": "thread_name",
+        "ph": "M",
+        "pid": 10,
+        "tid": 11,
+        "args": {"name": "CrBrowserMain"}
+      },
+      {
+        "name": "my_slice",
+        "cat": "toplevel",
+        "ph": "X",
+        "ts": 1000,
+        "dur": 250,
+        "pid": 10,
+        "tid": 11
+      }
+    ]
+  })json";
+
+  std::istringstream input(kInputTrace);
+  std::ostringstream output;
+  base::Status status = TraceToJson(&input, &output, /*compress=*/false,
+                                    Keep::kAll, /*full_sort=*/false);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  const std::string output_json = output.str();
+  base::StatusOr<trace_processor::json::Dom> result =
+      trace_processor::json::Parse(output_json);
+  ASSERT_TRUE(result.ok()) << result.status().message() << "\n" << output_json;
+
+  EXPECT_EQ((*result)["controllerTraceDataKey"].AsString(),
+            "systraceController");
+  EXPECT_THAT((*result)["androidProcessDump"].AsString(),
+              testing::HasSubstr("browser"));
+
+  bool found_slice = false;
+  for (const auto& event : (*result)["traceEvents"]) {
+    if (event["name"].AsString() == "my_slice" &&
+        event["ph"].AsString() == "X") {
+      found_slice = true;
+      EXPECT_EQ(event["cat"].AsString(), "toplevel");
+      EXPECT_EQ(event["ts"].AsInt64(), 1000);
+      EXPECT_EQ(event["dur"].AsInt64(), 250);
+    }
+  }
+  EXPECT_TRUE(found_slice);
 }
 
 }  // namespace
