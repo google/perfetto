@@ -86,9 +86,80 @@
 .pf-memtl__svg {
   display: block;
   width: 100%;
-  height: 164px;
   cursor: crosshair;
   touch-action: none;
+}
+
+// Optional process RSS + Swap counter strip above the sample tracks
+.pf-memtl__rss-band {
+  pointer-events: none;
+}
+
+.pf-memtl__rss-hgrid {
+  stroke: color-mix(in srgb, var(--pf-col-border) 50%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.pf-memtl__rss-swatch {
+  fill: #7c4dff;
+
+  &--anon {
+    fill: #5c6bc0;
+  }
+}
+
+.pf-memtl__rss-sublabel {
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--pf-color-text-muted);
+}
+
+.pf-memtl__rss-ytick {
+  font-size: 10px;
+  font-family: var(--pf-font-monospace);
+  font-variant-numeric: tabular-nums;
+  fill: var(--pf-color-text-muted);
+  text-anchor: start;
+  paint-order: stroke;
+  stroke: var(--pf-col-base);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.pf-memtl__rss-area {
+  pointer-events: none;
+}
+
+.pf-memtl__rss-line {
+  fill: none;
+  stroke: #7c4dff;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  pointer-events: none;
+
+  &--anon {
+    fill: none;
+    stroke: #5c6bc0;
+    stroke-width: 1.25;
+    stroke-dasharray: 3 2;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+}
+
+.pf-memtl__rss-dot {
+  fill: #7c4dff;
+  stroke: var(--pf-col-surface);
+  stroke-width: 1.75;
+  pointer-events: none;
+
+  &--anon {
+    fill: #5c6bc0;
+    stroke: var(--pf-col-surface);
+    stroke-width: 1.5;
+    pointer-events: none;
+  }
 }
 
 // Track lanes
@@ -349,6 +420,11 @@
     font-family: var(--pf-font-monospace);
     font-weight: 700;
     color: var(--pf-color-text);
+  }
+
+  &-rss {
+    color: #7c4dff;
+    font-weight: 600;
   }
 
   &-smaps {

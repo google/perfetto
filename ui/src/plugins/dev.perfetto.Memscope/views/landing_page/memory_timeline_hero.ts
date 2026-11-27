@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Hero Interactive Memory Timeline: three clean, aligned horizontal sample
-// tracks (Smaps, Java Heap, Native) on one shared time axis. Drag anywhere
-// across the tracks to select a [base → sel] time range and switch every
-// section below into Δ mode; click any marker to pin a snapshot or dump.
+// Hero Interactive Memory Timeline: optional process RSS + Swap counter strip
+// above three aligned horizontal sample tracks (Smaps, Java Heap, Native) on
+// one shared time axis. Drag anywhere across the timeline to select a
+// [base → sel] time range and switch every section below into Δ mode; click any
+// marker to pin a snapshot or dump.
 
 import m from 'mithril';
 import {AsyncMemo} from '../../../../base/async_memo';
@@ -45,10 +46,220 @@ interface NativeSnap {
   readonly deltaBytes: number;
 }
 
+interface RssPoint {
+  readonly ts: time;
+  readonly totalRssSwap: number;
+  readonly anonSwap?: number;
+}
+
 interface HeroTimelineData {
   readonly smaps: ReadonlyArray<SmapsSnap>;
   readonly nativeSnaps: ReadonlyArray<NativeSnap>;
   readonly javaHeapBytesByTs: ReadonlyMap<bigint, number>;
+  readonly rssPoints: ReadonlyArray<RssPoint>;
+  readonly rssPlotPoints: ReadonlyArray<RssPoint>;
+  readonly rssMaxBytes: number;
+  readonly hasAnonSplit: boolean;
+}
+
+const MAX_RSS_BUCKETS = 360;
+
+// Preserves every spike and trough while capping SVG path vertices on dense
+// ftrace rss_stat counter streams.
+function downsampleRssPoints(
+  points: ReadonlyArray<RssPoint>,
+): ReadonlyArray<RssPoint> {
+  if (points.length <= MAX_RSS_BUCKETS * 2) return points;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (first === undefined || last === undefined) return points;
+
+  const span = Number(last.ts - first.ts);
+  if (span <= 0) return [first, last];
+
+  const out: RssPoint[] = [first];
+  let bucketIdx = -1;
+  let minPt: RssPoint | undefined;
+  let maxPt: RssPoint | undefined;
+
+  const flush = () => {
+    if (minPt === undefined || maxPt === undefined) return;
+    if (minPt === maxPt) {
+      out.push(minPt);
+    } else if (minPt.ts <= maxPt.ts) {
+      out.push(minPt, maxPt);
+    } else {
+      out.push(maxPt, minPt);
+    }
+    minPt = undefined;
+    maxPt = undefined;
+  };
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const pt = points[i];
+    if (pt === undefined) continue;
+    const b = Math.min(
+      MAX_RSS_BUCKETS - 1,
+      Math.floor((Number(pt.ts - first.ts) / span) * MAX_RSS_BUCKETS),
+    );
+    if (b !== bucketIdx) {
+      flush();
+      bucketIdx = b;
+      minPt = pt;
+      maxPt = pt;
+    } else {
+      if (minPt === undefined || pt.totalRssSwap < minPt.totalRssSwap) {
+        minPt = pt;
+      }
+      if (maxPt === undefined || pt.totalRssSwap > maxPt.totalRssSwap) {
+        maxPt = pt;
+      }
+    }
+  }
+  flush();
+  out.push(last);
+  return out;
+}
+
+// Binary search for the latest step-counter point at or before `ts`.
+function rssPointAtTs(
+  points: ReadonlyArray<RssPoint>,
+  ts: time,
+): RssPoint | undefined {
+  if (points.length === 0) return undefined;
+  const first = points[0];
+  if (first === undefined || ts < first.ts) return undefined;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    const pt = points[mid];
+    if (pt !== undefined && pt.ts <= ts) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return points[lo];
+}
+
+async function loadRssCounterSeries(
+  trace: Trace,
+  upid: number,
+): Promise<{
+  readonly rssPoints: ReadonlyArray<RssPoint>;
+  readonly rssPlotPoints: ReadonlyArray<RssPoint>;
+  readonly rssMaxBytes: number;
+  readonly hasAnonSplit: boolean;
+}> {
+  const rssPoints: RssPoint[] = [];
+  let rssMaxBytes = 0;
+  let hasAnonSplit = false;
+
+  try {
+    const res = await trace.engine.query(`
+      SELECT
+        c.ts AS ts,
+        t.name AS name,
+        CAST(c.value AS INT) AS val
+      FROM counter c
+      JOIN process_counter_track t ON c.track_id = t.id
+      WHERE t.upid = ${upid}
+        AND t.name IN (
+          'mem.rss.anon',
+          'mem.rss.file',
+          'mem.rss.shmem',
+          'mem.swap',
+          'mem.rss'
+        )
+      ORDER BY c.ts ASC
+    `);
+
+    let anon: number | undefined;
+    let file: number | undefined;
+    let shmem: number | undefined;
+    let swap: number | undefined;
+    let totalRss: number | undefined;
+    let curTs: bigint | undefined;
+
+    const emit = (tsRaw: bigint) => {
+      const hasSplit =
+        anon !== undefined || file !== undefined || shmem !== undefined;
+      const rss = hasSplit
+        ? (anon ?? 0) + (file ?? 0) + (shmem ?? 0)
+        : (totalRss ?? 0);
+      const totalRssSwap = Math.max(0, rss + (swap ?? 0));
+      const anonSwap =
+        anon !== undefined ? Math.max(0, anon + (swap ?? 0)) : undefined;
+      if (anonSwap !== undefined && anonSwap < totalRssSwap) {
+        hasAnonSplit = true;
+      }
+      if (totalRssSwap > rssMaxBytes) rssMaxBytes = totalRssSwap;
+      const prev = rssPoints[rssPoints.length - 1];
+      if (
+        prev !== undefined &&
+        prev.totalRssSwap === totalRssSwap &&
+        prev.anonSwap === anonSwap
+      ) {
+        return;
+      }
+      rssPoints.push({
+        ts: Time.fromRaw(tsRaw),
+        totalRssSwap,
+        anonSwap,
+      });
+    };
+
+    for (
+      const it = res.iter({ts: LONG, name: STR, val: NUM});
+      it.valid();
+      it.next()
+    ) {
+      if (curTs !== undefined && it.ts !== curTs) {
+        emit(curTs);
+      }
+      curTs = it.ts;
+      const v = Math.max(0, it.val);
+      switch (it.name) {
+        case 'mem.rss.anon':
+          anon = v;
+          break;
+        case 'mem.rss.file':
+          file = v;
+          break;
+        case 'mem.rss.shmem':
+          shmem = v;
+          break;
+        case 'mem.swap':
+          swap = v;
+          break;
+        case 'mem.rss':
+          totalRss = v;
+          break;
+      }
+    }
+    if (curTs !== undefined) {
+      emit(curTs);
+    }
+  } catch {
+    // Counter tracks absent or unavailable.
+  }
+
+  if (rssMaxBytes <= 0) {
+    return {
+      rssPoints: [],
+      rssPlotPoints: [],
+      rssMaxBytes: 0,
+      hasAnonSplit: false,
+    };
+  }
+
+  return {
+    rssPoints,
+    rssPlotPoints: downsampleRssPoints(rssPoints),
+    rssMaxBytes,
+    hasAnonSplit,
+  };
 }
 
 async function loadHeroTimelineData(
@@ -130,7 +341,15 @@ async function loadHeroTimelineData(
     // Module unavailable or empty — pins still render on the Java track.
   }
 
-  return {smaps, nativeSnaps, javaHeapBytesByTs};
+  // 4. Optional process RSS + Swap counter series (drawn above the 3 tracks)
+  const rss = await loadRssCounterSeries(trace, upid);
+
+  return {
+    smaps,
+    nativeSnaps,
+    javaHeapBytesByTs,
+    ...rss,
+  };
 }
 
 export interface MemoryTimelineHeroAttrs {
@@ -145,25 +364,52 @@ export interface MemoryTimelineHeroAttrs {
 
 const PAD_LEFT = 132;
 const PAD_RIGHT = 20;
-const TRACKS_TOP = 24;
+const CONTENT_TOP = 24;
+const RSS_BAND_H = 74;
+const RSS_BAND_GAP = 10;
+const RSS_INNER_PAD_Y = 7;
 const TRACK_H = 34;
 const TRACK_GAP = 6;
 const TRACK_COUNT = 3;
-const TRACKS_BOTTOM =
-  TRACKS_TOP + TRACK_COUNT * TRACK_H + (TRACK_COUNT - 1) * TRACK_GAP;
-const AXIS_Y = TRACKS_BOTTOM + 16;
-const SVG_HEIGHT = AXIS_Y + 10;
 const DRAG_THRESHOLD_PX = 6;
 
 type DragMode = 'range' | 'resize-base' | 'resize-sel';
 type TrackKind = 'smaps' | 'java' | 'native';
 
-function trackCenterY(idx: number): number {
-  return TRACKS_TOP + idx * (TRACK_H + TRACK_GAP) + TRACK_H / 2;
-}
+function buildStepPaths(
+  points: ReadonlyArray<{readonly x: number; readonly y: number}>,
+  baseY: number,
+  fallbackEndX: number,
+): {readonly line: string; readonly area: string} {
+  if (points.length === 0) return {line: '', area: ''};
+  const first = points[0];
+  if (first === undefined) return {line: '', area: ''};
 
-function trackTopY(idx: number): number {
-  return TRACKS_TOP + idx * (TRACK_H + TRACK_GAP);
+  const lineParts: string[] = [`M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`];
+  let prevX = first.x;
+  let prevY = first.y;
+  for (let i = 1; i < points.length; i++) {
+    const pt = points[i];
+    if (pt === undefined) continue;
+    lineParts.push(`H ${pt.x.toFixed(1)} V ${pt.y.toFixed(1)}`);
+    prevX = pt.x;
+    prevY = pt.y;
+  }
+  const endX =
+    points.length === 1 || prevX - first.x < 2
+      ? Math.max(prevX, fallbackEndX)
+      : prevX;
+  if (endX > prevX) {
+    lineParts.push(`H ${endX.toFixed(1)}`);
+  }
+  const line = lineParts.join(' ');
+  const area =
+    `M ${first.x.toFixed(1)} ${baseY.toFixed(1)} ` +
+    `L ${first.x.toFixed(1)} ${first.y.toFixed(1)} ` +
+    lineParts.slice(1).join(' ') +
+    ` L ${endX.toFixed(1)} ${baseY.toFixed(1)} Z`;
+  void prevY;
+  return {line, area};
 }
 
 export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAttrs> {
@@ -231,6 +477,25 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const nativeSnaps = data?.nativeSnaps ?? [];
     const javaHeapBytesByTs =
       data?.javaHeapBytesByTs ?? new Map<bigint, number>();
+    const rssPoints = data?.rssPoints ?? [];
+    const rssPlotPoints = data?.rssPlotPoints ?? [];
+    const rssMaxBytes = data?.rssMaxBytes ?? 0;
+    const hasAnonSplit = data?.hasAnonSplit ?? false;
+    const hasRss = rssPlotPoints.length > 0 && rssMaxBytes > 0;
+
+    // Dynamic vertical layout: include RSS + Swap counter strip above the 3
+    // sample tracks whenever process RSS counters exist in the trace.
+    const rssTop = CONTENT_TOP;
+    const rssBottom = rssTop + RSS_BAND_H;
+    const tracksTop = hasRss ? rssBottom + RSS_BAND_GAP : CONTENT_TOP;
+    const tracksBottom =
+      tracksTop + TRACK_COUNT * TRACK_H + (TRACK_COUNT - 1) * TRACK_GAP;
+    const axisY = tracksBottom + 16;
+    const svgHeight = axisY + 10;
+
+    const trackTopY = (idx: number): number =>
+      tracksTop + idx * (TRACK_H + TRACK_GAP);
+    const trackCenterY = (idx: number): number => trackTopY(idx) + TRACK_H / 2;
 
     const traceStart = trace.traceInfo.start;
     const traceEnd = trace.traceInfo.end;
@@ -249,6 +514,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       const clamped = Math.min(PAD_LEFT + plotW, Math.max(PAD_LEFT, x));
       const frac = (clamped - PAD_LEFT) / plotW;
       return Time.fromRaw(traceStart + BigInt(Math.round(frac * spanNs)));
+    };
+
+    const rssPlotTop = rssTop + RSS_INNER_PAD_Y;
+    const rssPlotBottom = rssBottom - RSS_INNER_PAD_Y;
+    const rssPlotH = Math.max(1, rssPlotBottom - rssPlotTop);
+    const yOfRss = (bytes: number): number => {
+      const frac = Math.min(1, Math.max(0, bytes / Math.max(1, rssMaxBytes)));
+      return rssPlotBottom - frac * rssPlotH;
     };
 
     const secOf = (ts: time): string =>
@@ -303,6 +576,45 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const liveSmapsDelta = hasSmapsRangeDelta
       ? liveSelSnap.total - liveBaseSnap.total
       : undefined;
+
+    const liveBaseRss =
+      liveBaseTs !== undefined
+        ? rssPointAtTs(rssPoints, liveBaseTs)
+        : undefined;
+    const liveSelRss =
+      liveSelTs !== undefined
+        ? rssPointAtTs(rssPoints, liveSelTs)
+        : rssPoints[rssPoints.length - 1];
+    const liveRssDelta =
+      liveBaseRss !== undefined && liveSelRss !== undefined
+        ? liveSelRss.totalRssSwap - liveBaseRss.totalRssSwap
+        : undefined;
+    const liveHeaderDelta = liveSmapsDelta ?? liveRssDelta;
+
+    // Precompute SVG paths for RSS + Swap counter curves.
+    const rssTotalPaths = hasRss
+      ? buildStepPaths(
+          rssPlotPoints.map((p) => ({
+            x: xOfTs(p.ts),
+            y: yOfRss(p.totalRssSwap),
+          })),
+          rssPlotBottom,
+          PAD_LEFT + plotW,
+        )
+      : undefined;
+    const rssAnonPaths =
+      hasRss && hasAnonSplit
+        ? buildStepPaths(
+            rssPlotPoints
+              .filter((p) => p.anonSwap !== undefined)
+              .map((p) => ({
+                x: xOfTs(p.ts),
+                y: yOfRss(p.anonSwap ?? 0),
+              })),
+            rssPlotBottom,
+            PAD_LEFT + plotW,
+          )
+        : undefined;
 
     // X-axis ticks (5–8 clean intervals).
     const xTickCount = Math.max(4, Math.min(8, Math.floor(plotW / 120)));
@@ -452,6 +764,8 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     // Hover HUD readout
     const hoverX = this.hoverX;
     const hoverTs = hoverX !== undefined ? tsOfX(hoverX) : undefined;
+    const hoverRss =
+      hoverTs !== undefined ? rssPointAtTs(rssPoints, hoverTs) : undefined;
     const pickHover = <T extends {readonly ts: time}>(
       items: ReadonlyArray<T>,
       track: TrackKind,
@@ -482,6 +796,8 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const lastDump = procDumps[procDumps.length - 1];
     const firstNative = nativeSnaps[0];
     const lastNative = nativeSnaps[nativeSnaps.length - 1];
+    const firstRss = rssPoints[0];
+    const lastRss = rssPoints[rssPoints.length - 1];
     const canCompareFullTrace =
       (smaps.length >= 2 &&
         firstSmap !== undefined &&
@@ -491,7 +807,10 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         lastDump !== undefined) ||
       (nativeSnaps.length >= 2 &&
         firstNative !== undefined &&
-        lastNative !== undefined);
+        lastNative !== undefined) ||
+      (rssPoints.length >= 2 &&
+        firstRss !== undefined &&
+        lastRss !== undefined);
 
     const compareFullTrace = () => {
       if (
@@ -513,6 +832,12 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         lastNative !== undefined
       ) {
         onSelect({base: firstNative.ts, sel: lastNative.ts});
+      } else if (
+        rssPoints.length >= 2 &&
+        firstRss !== undefined &&
+        lastRss !== undefined
+      ) {
+        onSelect({base: firstRss.ts, sel: lastRss.ts});
       }
     };
 
@@ -520,8 +845,9 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const headerStatus = this.renderHeaderStatus({
       isComparing,
       selection,
-      liveSmapsDelta,
+      liveDelta: liveHeaderDelta,
       liveSelSnap,
+      liveSelRss,
       secOf,
       canCompareFullTrace,
       onCompareFullTrace: compareFullTrace,
@@ -545,13 +871,16 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       return ts >= lo && ts <= hi;
     };
 
+    const gradId = `pf-memtl-rss-grad-${upid}`;
+    const anonGradId = `pf-memtl-anon-grad-${upid}`;
+
     return m(
       Panel,
       {className: 'pf-memtl-hero'},
       m(Panel.Header, {
         title: 'Memory Samples Timeline',
         subtitle:
-          'Drag across the tracks to select a time range and view all ' +
+          'Drag across the timeline to select a time range and view all ' +
           'sections below as a delta (Δ). Click any marker to pin.',
         controls: headerStatus,
       }),
@@ -563,8 +892,9 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                 'svg.pf-memtl__svg',
                 {
                   width: svgW,
-                  height: SVG_HEIGHT,
-                  viewBox: `0 0 ${svgW} ${SVG_HEIGHT}`,
+                  height: svgHeight,
+                  viewBox: `0 0 ${svgW} ${svgHeight}`,
+                  style: {height: `${svgHeight}px`},
                   onpointerdown: onPointerDown,
                   onpointermove: onPointerMove,
                   onpointerup: onPointerUp,
@@ -572,6 +902,123 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                   ondblclick: () => onSelect(undefined),
                 },
                 [
+                  // Gradient definitions for optional RSS + Swap counter strip
+                  hasRss &&
+                    m('defs', [
+                      m(
+                        'linearGradient',
+                        {id: gradId, x1: '0', y1: '0', x2: '0', y2: '1'},
+                        [
+                          m('stop', {
+                            'offset': '0%',
+                            'stop-color': '#7c4dff',
+                            'stop-opacity': '0.22',
+                          }),
+                          m('stop', {
+                            'offset': '100%',
+                            'stop-color': '#7c4dff',
+                            'stop-opacity': '0.02',
+                          }),
+                        ],
+                      ),
+                      hasAnonSplit &&
+                        m(
+                          'linearGradient',
+                          {id: anonGradId, x1: '0', y1: '0', x2: '0', y2: '1'},
+                          [
+                            m('stop', {
+                              'offset': '0%',
+                              'stop-color': '#5c6bc0',
+                              'stop-opacity': '0.24',
+                            }),
+                            m('stop', {
+                              'offset': '100%',
+                              'stop-color': '#5c6bc0',
+                              'stop-opacity': '0.04',
+                            }),
+                          ],
+                        ),
+                    ]),
+
+                  // Optional Process RSS + Swap Counter Track (above sample tracks)
+                  hasRss &&
+                    rssTotalPaths !== undefined &&
+                    m('g.pf-memtl__rss-band', [
+                      m('rect.pf-memtl__track-bg.pf-memtl__rss-bg', {
+                        x: PAD_LEFT,
+                        y: rssTop,
+                        width: plotW,
+                        height: RSS_BAND_H,
+                        rx: 6,
+                      }),
+                      // Subtle 50% horizontal guide line
+                      m('line.pf-memtl__rss-hgrid', {
+                        x1: PAD_LEFT + 1,
+                        y1: (rssPlotTop + rssPlotBottom) / 2,
+                        x2: PAD_LEFT + plotW - 1,
+                        y2: (rssPlotTop + rssPlotBottom) / 2,
+                      }),
+                      // Left header: swatch + title + optional Anon+Swap legend
+                      m('rect.pf-memtl__rss-swatch', {
+                        x: 7,
+                        y: rssTop + 16,
+                        width: 10,
+                        height: 3,
+                        rx: 1.5,
+                      }),
+                      m(
+                        'text.pf-memtl__track-name',
+                        {x: 22, y: rssTop + 21},
+                        'RSS + Swap',
+                      ),
+                      hasAnonSplit &&
+                        m('g.pf-memtl__rss-sublegend', [
+                          m('rect.pf-memtl__rss-swatch--anon', {
+                            x: 7,
+                            y: rssTop + 36,
+                            width: 10,
+                            height: 3,
+                            rx: 1.5,
+                          }),
+                          m(
+                            'text.pf-memtl__rss-sublabel',
+                            {x: 22, y: rssTop + 41},
+                            'Anon + Swap',
+                          ),
+                        ]),
+                      // Filled area + step line for Total RSS + Swap
+                      m('path.pf-memtl__rss-area', {
+                        d: rssTotalPaths.area,
+                        fill: `url(#${gradId})`,
+                      }),
+                      // Optional inner filled area + line for Anon + Swap
+                      rssAnonPaths !== undefined &&
+                        rssAnonPaths.line !== '' &&
+                        m('g', [
+                          m('path.pf-memtl__rss-area', {
+                            d: rssAnonPaths.area,
+                            fill: `url(#${anonGradId})`,
+                          }),
+                          m('path.pf-memtl__rss-line--anon', {
+                            d: rssAnonPaths.line,
+                          }),
+                        ]),
+                      m('path.pf-memtl__rss-line', {
+                        d: rssTotalPaths.line,
+                      }),
+                      // Y-axis max / 0 labels pinned cleanly inside the plot's left edge
+                      m(
+                        'text.pf-memtl__rss-ytick',
+                        {x: PAD_LEFT + 6, y: rssTop + 13},
+                        formatBytes(rssMaxBytes),
+                      ),
+                      m(
+                        'text.pf-memtl__rss-ytick',
+                        {x: PAD_LEFT + 6, y: rssBottom - 4},
+                        '0',
+                      ),
+                    ]),
+
                   // Track lanes & left track headers
                   tracks.map((trk, idx) => {
                     const topY = trackTopY(idx);
@@ -652,14 +1099,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     );
                   }),
 
-                  // Subtle vertical time gridlines
+                  // Subtle vertical time gridlines spanning RSS band + tracks
                   xTicks.map((t, i) =>
                     m('line.pf-memtl__vgrid', {
                       key: `vg-${i}`,
                       x1: t.x,
-                      y1: TRACKS_TOP,
+                      y1: CONTENT_TOP,
                       x2: t.x,
-                      y2: TRACKS_BOTTOM,
+                      y2: tracksBottom,
                     }),
                   ),
 
@@ -667,9 +1114,9 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                   liveRange !== undefined &&
                     m('rect.pf-memtl__curtain', {
                       x: liveRange.x1,
-                      y: TRACKS_TOP - 2,
+                      y: CONTENT_TOP - 2,
                       width: Math.max(2, liveRange.x2 - liveRange.x1),
-                      height: TRACKS_BOTTOM - TRACKS_TOP + 4,
+                      height: tracksBottom - CONTENT_TOP + 4,
                       rx: 4,
                     }),
 
@@ -822,9 +1269,9 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     m('g.pf-memtl__pin-line', [
                       m('line', {
                         x1: xOfTs(selection.sel),
-                        y1: TRACKS_TOP - 4,
+                        y1: CONTENT_TOP - 4,
                         x2: xOfTs(selection.sel),
-                        y2: TRACKS_BOTTOM + 4,
+                        y2: tracksBottom + 4,
                       }),
                       m(
                         'text.pf-memtl__pin-label',
@@ -833,7 +1280,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                             PAD_LEFT + plotW - 40,
                             Math.max(PAD_LEFT + 40, xOfTs(selection.sel)),
                           ),
-                          y: TRACKS_TOP - 9,
+                          y: CONTENT_TOP - 9,
                         },
                         `t=${secOf(selection.sel)}`,
                       ),
@@ -844,14 +1291,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     m('g.pf-memtl__selection', [
                       m('line.pf-memtl__edge.pf-memtl__edge--base', {
                         x1: liveRange.x1,
-                        y1: TRACKS_TOP - 4,
+                        y1: CONTENT_TOP - 4,
                         x2: liveRange.x1,
-                        y2: TRACKS_BOTTOM + 4,
+                        y2: tracksBottom + 4,
                       }),
                       !isDragging &&
                         m('rect.pf-memtl__handle.pf-memtl__handle--base', {
                           x: liveRange.x1 - 5,
-                          y: (TRACKS_TOP + TRACKS_BOTTOM) / 2 - 14,
+                          y: (CONTENT_TOP + tracksBottom) / 2 - 14,
                           width: 10,
                           height: 28,
                           rx: 3,
@@ -860,14 +1307,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         }),
                       m('line.pf-memtl__edge.pf-memtl__edge--sel', {
                         x1: liveRange.x2,
-                        y1: TRACKS_TOP - 4,
+                        y1: CONTENT_TOP - 4,
                         x2: liveRange.x2,
-                        y2: TRACKS_BOTTOM + 4,
+                        y2: tracksBottom + 4,
                       }),
                       !isDragging &&
                         m('rect.pf-memtl__handle.pf-memtl__handle--sel', {
                           x: liveRange.x2 - 5,
-                          y: (TRACKS_TOP + TRACKS_BOTTOM) / 2 - 14,
+                          y: (CONTENT_TOP + tracksBottom) / 2 - 14,
                           width: 10,
                           height: 28,
                           rx: 3,
@@ -884,38 +1331,55 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                               (liveRange.x1 + liveRange.x2) / 2,
                             ),
                           ),
-                          y: TRACKS_TOP - 9,
+                          y: CONTENT_TOP - 9,
                         },
                         liveBaseTs !== undefined && liveSelTs !== undefined
                           ? `${secOf(liveBaseTs)} → ${secOf(liveSelTs)}` +
-                              (liveSmapsDelta !== undefined
-                                ? ` (${formatDelta(liveSmapsDelta)})`
+                              (liveHeaderDelta !== undefined
+                                ? ` (${formatDelta(liveHeaderDelta)})`
                                 : '')
                           : '',
                       ),
                     ]),
 
-                  // Hover crosshair spanning all 3 tracks
-                  this.hoverX !== undefined &&
+                  // Hover crosshair spanning RSS band + all 3 tracks
+                  hoverX !== undefined &&
                     !isDragging &&
-                    m('line.pf-memtl__crosshair', {
-                      x1: this.hoverX,
-                      y1: TRACKS_TOP,
-                      x2: this.hoverX,
-                      y2: TRACKS_BOTTOM,
-                    }),
+                    m('g', [
+                      m('line.pf-memtl__crosshair', {
+                        x1: hoverX,
+                        y1: CONTENT_TOP,
+                        x2: hoverX,
+                        y2: tracksBottom,
+                      }),
+                      hasRss &&
+                        hoverRss !== undefined &&
+                        m('circle.pf-memtl__rss-dot', {
+                          cx: hoverX,
+                          cy: yOfRss(hoverRss.totalRssSwap),
+                          r: 4,
+                        }),
+                      hasRss &&
+                        hasAnonSplit &&
+                        hoverRss?.anonSwap !== undefined &&
+                        m('circle.pf-memtl__rss-dot--anon', {
+                          cx: hoverX,
+                          cy: yOfRss(hoverRss.anonSwap),
+                          r: 3,
+                        }),
+                    ]),
 
                   // Time axis baseline + tick labels
                   m('line.pf-memtl__xaxis', {
                     x1: PAD_LEFT,
-                    y1: TRACKS_BOTTOM + 6,
+                    y1: tracksBottom + 6,
                     x2: PAD_LEFT + plotW,
-                    y2: TRACKS_BOTTOM + 6,
+                    y2: tracksBottom + 6,
                   }),
                   xTicks.map((t, i) =>
                     m(
                       'text.pf-memtl__xlabel',
-                      {key: `x-${i}`, x: t.x, y: AXIS_Y + 4},
+                      {key: `x-${i}`, x: t.x, y: axisY + 4},
                       t.label,
                     ),
                   ),
@@ -927,6 +1391,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                 !isDragging &&
                 m('.pf-memtl__hud', [
                   m('span.pf-memtl__hud-ts', `t=${secOf(hoverTs)}`),
+                  hoverRss !== undefined &&
+                    m(
+                      'span.pf-memtl__hud-rss',
+                      `RSS+Swap: ${formatBytes(hoverRss.totalRssSwap)}` +
+                        (hasAnonSplit && hoverRss.anonSwap !== undefined
+                          ? ` (Anon+Swap ${formatBytes(hoverRss.anonSwap)})`
+                          : ''),
+                    ),
                   hoverSnap !== undefined &&
                     m(
                       'span.pf-memtl__hud-smaps',
@@ -957,8 +1429,9 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
   private renderHeaderStatus(opts: {
     readonly isComparing: boolean;
     readonly selection?: MemSelection;
-    readonly liveSmapsDelta?: number;
+    readonly liveDelta?: number;
     readonly liveSelSnap?: SmapsSnap;
+    readonly liveSelRss?: RssPoint;
     readonly secOf: (ts: time) => string;
     readonly canCompareFullTrace: boolean;
     readonly onCompareFullTrace: () => void;
@@ -967,24 +1440,28 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const {
       isComparing,
       selection,
-      liveSmapsDelta,
+      liveDelta,
       liveSelSnap,
+      liveSelRss,
       secOf,
       canCompareFullTrace,
       onCompareFullTrace,
       onClear,
     } = opts;
 
+    const latestTotal = liveSelSnap?.total ?? liveSelRss?.totalRssSwap;
+    const latestTs = liveSelSnap?.ts ?? liveSelRss?.ts;
+
     return m('.pf-memtl__status-controls', [
       isComparing && selection?.base !== undefined
         ? m('.pf-memtl__delta-badge', [
             m(Icon, {icon: 'compare_arrows'}),
             m('span', `Δ ${secOf(selection.base)} → ${secOf(selection.sel)}`),
-            liveSmapsDelta !== undefined &&
+            liveDelta !== undefined &&
               m(
                 'span.pf-memtl__delta-badge-val',
-                {style: {color: deltaColor(liveSmapsDelta)}},
-                formatDelta(liveSmapsDelta),
+                {style: {color: deltaColor(liveDelta)}},
+                formatDelta(liveDelta),
               ),
           ])
         : selection !== undefined
@@ -993,17 +1470,18 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
               m(
                 'span',
                 `Pinned @ ${secOf(selection.sel)}` +
-                  (liveSelSnap !== undefined
-                    ? ` · ${formatBytes(liveSelSnap.total)}`
+                  (latestTotal !== undefined
+                    ? ` · ${formatBytes(latestTotal)}`
                     : ''),
               ),
             ])
-          : liveSelSnap !== undefined &&
+          : latestTs !== undefined &&
+            latestTotal !== undefined &&
             m('.pf-memtl__pin-badge', [
               m(Icon, {icon: 'photo_camera'}),
               m(
                 'span',
-                `Latest @ ${secOf(liveSelSnap.ts)} · ${formatBytes(liveSelSnap.total)}`,
+                `Latest @ ${secOf(latestTs)} · ${formatBytes(latestTotal)}`,
               ),
             ]),
       !isComparing &&
