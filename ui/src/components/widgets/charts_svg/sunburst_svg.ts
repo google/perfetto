@@ -392,8 +392,7 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
     return m('.pf-sunburst', {className}, [
       // Zoom breadcrumb trail (shown when zoomed into a subtree)
       isZoomed &&
-        m(
-          '.pf-sunburst__crumbs',
+        m('.pf-sunburst__crumbs', [
           trail.map((node, idx) => {
             const isLast = idx === trail.length - 1;
             return m(
@@ -423,7 +422,18 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
               ],
             );
           }),
-        ),
+          m(
+            'button.pf-sunburst__crumb-reset',
+            {
+              type: 'button',
+              onclick: () => {
+                this.zoomPath = [];
+                this.hoveredId = undefined;
+              },
+            },
+            'Reset zoom',
+          ),
+        ]),
 
       m('.pf-sunburst__layout', [
         // Left: Pure SVG Sunburst
@@ -602,6 +612,15 @@ export class SunburstSvg implements m.ClassComponent<SunburstSvgAttrs> {
                       style: {background: rootArc.seg.cssColor},
                     }),
                     m('span.pf-sunburst__legend-name', rootArc.seg.name),
+                    m(
+                      'span.pf-sunburst__legend-bar',
+                      m('span.pf-sunburst__legend-bar-fill', {
+                        style: {
+                          width: `${Math.min(100, Math.max(2, rootArc.shareOfRoot * 100)).toFixed(1)}%`,
+                          background: rootArc.seg.cssColor,
+                        },
+                      }),
+                    ),
                     m(
                       'span.pf-sunburst__legend-val',
                       formatValue(rootArc.seg.value),

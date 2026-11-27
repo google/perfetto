@@ -21,16 +21,103 @@
   flex-direction: column;
   overflow: hidden;
   padding: 0;
+
+  // Refined card & billboard chrome scoped to the Memory workspace.
+  .pf-memscope-panel:not(.pf-memscope-panel--empty) {
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.02);
+  }
+
+  .pf-memscope-panel__header {
+    padding: 12px 18px;
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--pf-col-border) 55%, transparent);
+
+    h2 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+  }
+
+  .pf-memscope-panel__body {
+    padding: 14px 18px;
+
+    &:has(> .pf-grid) {
+      padding: 0;
+    }
+  }
+
+  .pf-memscope-billboard {
+    border-radius: 10px;
+    padding: 14px 18px;
+    border: 1px solid color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .pf-memscope-billboard__label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--pf-color-text-muted);
+  }
+
+  .pf-memscope-billboard__value {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+
+  .pf-memscope-billboard__sub {
+    font-size: 11.5px;
+    color: var(--pf-color-text-hint);
+    margin-top: 3px;
+  }
+
+  .pf-memscope-billboard__section + .pf-memscope-billboard__section {
+    border-left-color: color-mix(
+      in srgb,
+      var(--pf-col-border) 55%,
+      transparent
+    );
+  }
+
+  .pf-memscope-panel .pf-memscope-billboard {
+    background: color-mix(
+      in srgb,
+      var(--pf-col-inset) 65%,
+      var(--pf-col-surface)
+    );
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: none;
+  }
 }
 
 .pf-memtree-header {
+  position: relative;
+  z-index: 2;
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 0;
+  padding: 0;
   border-bottom: 1px solid var(--pf-col-border);
-  background: var(--pf-col-base);
+  background: var(--pf-col-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  > .pf-memscope-default-page-callout {
+    margin: 8px 16px 2px;
+  }
+
+  > .pf-error {
+    margin: 8px 16px;
+  }
 }
 
 .pf-memtree-workspace {
@@ -41,77 +128,17 @@
 }
 
 .pf-memtree-sidebar {
-  width: 220px;
+  width: 214px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 8px;
-  border-right: 1px solid var(--pf-col-border);
-  background: var(--pf-col-surface);
+  gap: 4px;
+  padding: 12px 10px;
+  border-right: 1px solid
+    color-mix(in srgb, var(--pf-col-border) 75%, transparent);
+  background: color-mix(in srgb, var(--pf-col-surface) 90%, var(--pf-col-base));
   overflow-y: auto;
-}
-
-.pf-memtree-scope {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 6px 5px 8px;
-  border-radius: 6px;
-  background: var(--pf-col-base);
-  border: 1px solid var(--pf-col-border);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--pf-color-text);
-
-  .pf-icon {
-    font-size: 14px;
-    flex-shrink: 0;
-    color: var(--pf-color-text-muted);
-  }
-
-  &--delta {
-    background: color-mix(
-      in srgb,
-      var(--pf-color-primary) 12%,
-      var(--pf-col-surface)
-    );
-    border-color: color-mix(in srgb, var(--pf-color-primary) 42%, transparent);
-
-    .pf-icon {
-      color: var(--pf-color-primary);
-    }
-  }
-
-  &__text {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__clear {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--pf-color-text-muted);
-    cursor: pointer;
-
-    .pf-icon {
-      font-size: 13px;
-    }
-
-    &:hover {
-      background: var(--pf-col-inset);
-      color: var(--pf-color-text);
-    }
-  }
+  scrollbar-width: thin;
 }
 
 .pf-memtree-nav {
@@ -123,13 +150,13 @@
 .pf-memtree-group {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  margin-top: 6px;
+  gap: 2px;
+  margin-top: 10px;
 
   &__header {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     width: 100%;
     padding: 5px 6px;
     border: none;
@@ -138,17 +165,18 @@
     color: var(--pf-color-text);
     font: inherit;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0.01em;
     text-align: left;
     cursor: pointer;
+    transition: background-color 0.1s ease;
 
     &:hover {
-      background: var(--pf-col-base);
+      background: color-mix(in srgb, var(--pf-color-text) 5%, transparent);
     }
 
     &--muted {
-      opacity: 0.52;
+      opacity: 0.48;
     }
   }
 
@@ -163,6 +191,23 @@
     color: var(--pf-color-text-muted);
   }
 
+  // Domain tints matching the timeline markers & memory sunburst.
+  &--java .pf-memtree-group__icon {
+    color: #d97706;
+
+    .pf-theme-provider--dark & {
+      color: #fbbf24;
+    }
+  }
+
+  &--native .pf-memtree-group__icon {
+    color: #3b82f6;
+
+    .pf-theme-provider--dark & {
+      color: #60a5fa;
+    }
+  }
+
   &__label {
     flex: 1;
     min-width: 0;
@@ -174,28 +219,45 @@
   &__children {
     display: flex;
     flex-direction: column;
-    gap: 1px;
-    margin-left: 12px;
+    gap: 2px;
+    margin-left: 14px;
     padding-left: 8px;
-    border-left: 1px solid var(--pf-col-border);
+    border-left: 1px solid
+      color-mix(in srgb, var(--pf-col-border) 55%, transparent);
   }
 }
 
 .pf-memtree-node {
+  position: relative;
   display: flex;
   align-items: center;
   border-radius: 6px;
   transition: background-color 0.1s ease;
 
   &:hover {
-    background: var(--pf-col-base);
+    background: color-mix(in srgb, var(--pf-color-text) 5%, transparent);
+
+    .pf-memtree-node__close {
+      opacity: 1;
+    }
   }
 
   &--active {
-    background: color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
+    background: color-mix(in srgb, var(--pf-color-primary) 11%, transparent);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 5px;
+      bottom: 5px;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: var(--pf-color-primary);
+    }
 
     &:hover {
-      background: color-mix(in srgb, var(--pf-color-primary) 18%, transparent);
+      background: color-mix(in srgb, var(--pf-color-primary) 15%, transparent);
     }
 
     .pf-memtree-node__btn {
@@ -209,7 +271,7 @@
   }
 
   &--muted {
-    opacity: 0.48;
+    opacity: 0.45;
   }
 
   &__btn {
@@ -217,8 +279,8 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 8px;
+    gap: 8px;
+    padding: 5.5px 8px 5.5px 10px;
     border: none;
     background: transparent;
     color: var(--pf-color-text);
@@ -231,7 +293,7 @@
 
   &--nested .pf-memtree-node__btn {
     font-size: 12px;
-    padding: 4.5px 7px;
+    padding: 4.5px 7px 4.5px 9px;
   }
 
   &__icon {
@@ -259,7 +321,12 @@
     border-radius: 4px;
     background: transparent;
     color: var(--pf-color-text-hint);
+    opacity: 0.45;
     cursor: pointer;
+    transition:
+      opacity 0.1s ease,
+      background-color 0.1s ease,
+      color 0.1s ease;
 
     .pf-icon {
       font-size: 13px;
@@ -282,7 +349,7 @@
 
   &--scroll {
     overflow-y: auto;
-    padding: 14px 18px 32px;
+    padding: 18px 22px 36px;
   }
 
   &--fill {
@@ -290,13 +357,30 @@
   }
 }
 
+@keyframes pf-memtree-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 .pf-memtree-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
+  animation: pf-memtree-fade 0.12s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-memtree-stack {
+    animation: none;
+  }
 }
 
 .pf-memtree-empty {
@@ -313,13 +397,16 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 12px;
-  padding: 6px 14px;
+  padding: 7px 16px;
   background: var(--pf-col-surface);
-  border-bottom: 1px solid var(--pf-col-border);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--pf-col-border) 65%, transparent);
 
   .pf-memtree-stack & {
-    border-radius: 8px;
-    border: 1px solid var(--pf-col-border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    border: 1px solid color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
 
   &__title {
@@ -349,18 +436,17 @@
   padding: 32px;
 }
 
-// Compact top subject bar
+// Compact top subject bar integrated flush into the header band.
 .pf-memtl-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: var(--pf-col-surface);
-  border: 0.5px solid var(--pf-col-border);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  gap: 8px 14px;
+  padding: 7px 16px;
+  background: transparent;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--pf-col-border) 50%, transparent);
 
   &__left {
     display: flex;
@@ -380,14 +466,14 @@
   &__sep {
     width: 1px;
     height: 18px;
-    background: var(--pf-col-border);
+    background: color-mix(in srgb, var(--pf-col-border) 70%, transparent);
   }
 
   &__meta {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: var(--pf-font-size-xs);
+    font-size: 11.5px;
     font-variant-numeric: tabular-nums;
     color: var(--pf-color-text-muted);
     white-space: nowrap;
@@ -399,8 +485,8 @@
   }
 
   &__trace {
-    font-size: var(--pf-font-size-xs);
-    color: var(--pf-color-text-muted);
+    font-size: 11.5px;
+    color: var(--pf-color-text-hint);
     font-variant-numeric: tabular-nums;
   }
 
@@ -424,39 +510,39 @@
 .pf-memtl-brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 
   &__icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     border-radius: 6px;
-    background: color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
+    background: color-mix(in srgb, var(--pf-color-primary) 13%, transparent);
     color: var(--pf-color-primary);
 
     .pf-icon {
-      font-size: 17px;
+      font-size: 16px;
     }
   }
 
   &__title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.01em;
     color: var(--pf-color-text);
   }
 
   &__badge {
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     padding: 1px 6px;
     border-radius: 999px;
-    background: var(--pf-col-inset);
-    border: 1px solid var(--pf-col-border);
+    background: color-mix(in srgb, var(--pf-col-inset) 80%, transparent);
+    border: 1px solid color-mix(in srgb, var(--pf-col-border) 65%, transparent);
     color: var(--pf-color-text-muted);
   }
 }
@@ -464,21 +550,30 @@
 .pf-memtl-proc-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   max-width: 360px;
-  padding: 4px 8px 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--pf-col-border);
-  background: var(--pf-col-base);
+  padding: 4px 7px 4px 10px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--pf-col-border) 75%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--pf-col-inset) 50%,
+    var(--pf-col-surface)
+  );
   color: var(--pf-color-text);
   font: inherit;
-  font-size: var(--pf-font-size-s);
+  font-size: 12.5px;
   cursor: pointer;
-  transition: border-color 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease,
+    box-shadow 0.12s ease;
 
   &:hover {
-    border-color: var(--pf-color-primary);
+    border-color: color-mix(in srgb, var(--pf-color-primary) 70%, transparent);
     background: var(--pf-col-surface);
+    box-shadow: 0 0 0 2px
+      color-mix(in srgb, var(--pf-color-primary) 14%, transparent);
   }
 
   &__name {
@@ -491,16 +586,16 @@
   &__pid {
     flex-shrink: 0;
     font-family: var(--pf-font-monospace);
-    font-size: 11px;
+    font-size: 10.5px;
     padding: 1px 5px;
     border-radius: 4px;
-    background: var(--pf-col-inset);
+    background: color-mix(in srgb, var(--pf-col-border) 28%, transparent);
     color: var(--pf-color-text-muted);
   }
 
   &__caret {
     flex-shrink: 0;
-    font-size: 18px;
+    font-size: 17px;
     color: var(--pf-color-text-muted);
     margin-left: -2px;
   }
@@ -546,237 +641,31 @@
   }
 }
 
-// Sticky section jump & active range bar
-.pf-memtl-jumpbar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--pf-col-surface) 94%, transparent);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--pf-col-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-
-  &__links {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  &__btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 9px;
-    border-radius: 6px;
-    border: 1px solid transparent;
-    background: transparent;
-    color: var(--pf-color-text);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    transition:
-      background-color 0.1s ease,
-      border-color 0.1s ease;
-
-    .pf-icon {
-      font-size: 14px;
-      color: var(--pf-color-text-muted);
-    }
-
-    &:hover:not(:disabled) {
-      background: var(--pf-col-base);
-      border-color: var(--pf-col-border);
-    }
-
-    &--top {
-      font-weight: 600;
-      color: var(--pf-color-primary);
-
-      .pf-icon {
-        color: var(--pf-color-primary);
-      }
-    }
-
-    &--muted,
-    &:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-  }
-
-  &__context {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-  }
-
-  &__pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 4px 2px 10px;
-    border-radius: 999px;
-    background: var(--pf-col-base);
-    border: 1px solid var(--pf-col-border);
-    font-size: 12px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--pf-color-text);
-
-    .pf-icon {
-      font-size: 14px;
-      color: var(--pf-color-text-muted);
-    }
-
-    &--delta {
-      background: color-mix(
-        in srgb,
-        var(--pf-color-primary) 12%,
-        var(--pf-col-surface)
-      );
-      border-color: color-mix(
-        in srgb,
-        var(--pf-color-primary) 45%,
-        transparent
-      );
-
-      .pf-icon {
-        color: var(--pf-color-primary);
-      }
-    }
-  }
-
-  &__hint {
-    font-size: 11px;
-    color: var(--pf-color-text-hint);
-  }
-}
-
-// Embedded Java Heap Explorer card in document flow (with fullscreen toggle)
-.pf-memtl-heap-card {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-
-  &__body {
-    height: 680px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  &__dump-tag {
-    font-size: var(--pf-font-size-s);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--pf-color-text);
-    padding: 3px 8px;
-    border-radius: 6px;
-    background: var(--pf-col-base);
-    border: 1px solid var(--pf-col-border);
-  }
-
-  &__dump-chips {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  &--expanded {
-    position: fixed;
-    inset: 12px;
-    z-index: 40;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
-
-    .pf-memtl-heap-card__body {
-      height: auto;
-      flex: 1;
-      min-height: 0;
-    }
-  }
-}
-
-// Header capture strip: process identity + per-source capture facts. Layout
-// only - the raised-card chrome comes from the Panel this class is applied to.
-.pf-memscope-capture {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 6px;
-  padding: 12px 16px;
-}
-
-.pf-memscope-capture__identity {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text-muted);
-
-  .pf-memscope-capture__process {
-    font-size: var(--pf-font-size-m);
-    font-weight: 600;
-    color: var(--pf-color-text);
-  }
-}
-
-.pf-memscope-capture__sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-}
-
-.pf-memscope-capture__source {
+.pf-memtl-heap-card__dump-chips {
   display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text-muted);
-
-  &--empty {
-    opacity: 0.6;
-  }
-
-  .pf-memscope-capture__label {
-    font-weight: 600;
-    color: var(--pf-color-text);
-  }
-
-  .pf-memscope-capture__facts {
-    font-variant-numeric: tabular-nums;
-  }
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .pf-memscope-capture__dot {
   align-self: center;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 
-  // Per-source colours, matching the chart series.
+  // Per-source colours, matching the timeline markers & memory sunburst.
   &--smaps {
-    background: #4caf50;
+    background: #22c55e;
   }
 
   &--dump {
-    background: #2196f3;
+    background: #f59e0b;
   }
 
   &--native {
-    background: #ff9800;
+    background: #3b82f6;
   }
 }
 

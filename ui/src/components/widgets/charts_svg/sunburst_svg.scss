@@ -24,6 +24,19 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 2px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(
+    in srgb,
+    var(--pf-col-inset, var(--pf-color-background-secondary)) 65%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--pf-col-border, var(--pf-color-border)) 55%,
+      transparent
+    );
   font-size: var(--pf-font-size-xs, 12px);
 }
 
@@ -34,7 +47,7 @@
 }
 
 .pf-sunburst__crumb-sep {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--pf-color-text-hint);
 }
 
@@ -49,13 +62,31 @@
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: var(--pf-color-background-secondary);
+    background: var(--pf-col-surface, var(--pf-color-background));
   }
 
   &--current {
     color: var(--pf-color-text);
     font-weight: 600;
     cursor: default;
+  }
+}
+
+.pf-sunburst__crumb-reset {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--pf-col-surface, var(--pf-color-background));
+    color: var(--pf-color-text);
   }
 }
 
@@ -78,6 +109,7 @@
   display: block;
   user-select: none;
   overflow: visible;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.06));
 }
 
 .pf-sunburst__slice {
@@ -128,6 +160,12 @@
 
 .pf-sunburst__center-bg {
   fill: var(--pf-col-surface, var(--pf-color-background));
+  stroke: color-mix(
+    in srgb,
+    var(--pf-col-border, var(--pf-color-border)) 55%,
+    transparent
+  );
+  stroke-width: 1;
   transition: fill 0.12s ease;
 }
 
@@ -244,6 +282,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pf-sunburst__legend-bar {
+  flex-shrink: 0;
+  width: 48px;
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--pf-col-border, var(--pf-color-border)) 38%,
+    transparent
+  );
+  overflow: hidden;
+}
+
+.pf-sunburst__legend-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
 }
 
 .pf-sunburst__legend-val {

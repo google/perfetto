@@ -364,15 +364,12 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
         : captureError === undefined &&
           m('.pf-memtree-workspace', [
             this.renderTreeSidebar({
-              trace,
               activePage,
               hdeSession,
               procDumps,
               smapsAvailable,
               dumpsAvailable,
               nativeAvailable,
-              selection: currentSelection,
-              onClearSelection: () => handleSelectTimeline(undefined),
               onNavigatePage,
               onOpenHdeView: handleOpenHdeView,
             }),
@@ -395,15 +392,12 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
   }
 
   private renderTreeSidebar(opts: {
-    readonly trace: Trace;
     readonly activePage: MemoryTreePage;
     readonly hdeSession?: HeapDumpExplorerSession;
     readonly procDumps: ReadonlyArray<HeapDump>;
     readonly smapsAvailable: boolean;
     readonly dumpsAvailable: boolean;
     readonly nativeAvailable: boolean;
-    readonly selection?: MemSelection;
-    readonly onClearSelection: () => void;
     readonly onNavigatePage: (
       page: MemoryTreePage,
       hdeSubpage?: string,
@@ -414,15 +408,12 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     ) => void;
   }): m.Children {
     const {
-      trace,
       activePage,
       hdeSession,
       procDumps,
       smapsAvailable,
       dumpsAvailable,
       nativeAvailable,
-      selection,
-      onClearSelection,
       onNavigatePage,
       onOpenHdeView,
     } = opts;
@@ -488,40 +479,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     const instTabs = hdeSession?.instanceTabs ?? [];
 
     return m('aside.pf-memtree-sidebar', {'aria-label': 'Memory navigation'}, [
-      // Active timeline scope banner inside the sidebar when pinned/diffing
-      selection !== undefined &&
-        m(
-          '.pf-memtree-scope',
-          {
-            className: classNames(
-              selection.base !== undefined && 'pf-memtree-scope--delta',
-            ),
-          },
-          [
-            m(Icon, {
-              icon:
-                selection.base !== undefined
-                  ? 'compare_arrows'
-                  : 'photo_camera',
-            }),
-            m(
-              'span.pf-memtree-scope__text',
-              selection.base !== undefined
-                ? `Δ ${formatOffsetSec(trace, selection.base)} → ${formatOffsetSec(trace, selection.sel)}`
-                : `Pinned @ ${formatOffsetSec(trace, selection.sel)}`,
-            ),
-            m(
-              'button.pf-memtree-scope__clear',
-              {
-                type: 'button',
-                title: 'Clear timeline selection',
-                onclick: onClearSelection,
-              },
-              m(Icon, {icon: 'close'}),
-            ),
-          ],
-        ),
-
       m('nav.pf-memtree-nav', [
         // Top-level Overview (Memory Breakdown) & Smaps (VMAs)
         treeItem({
@@ -539,7 +496,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
         }),
 
         // Java Branch
-        m('.pf-memtree-group', [
+        m('.pf-memtree-group.pf-memtree-group--java', [
           m(
             'button.pf-memtree-group__header',
             {
@@ -642,7 +599,7 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
         ]),
 
         // Native Branch
-        m('.pf-memtree-group', [
+        m('.pf-memtree-group.pf-memtree-group--native', [
           m(
             'button.pf-memtree-group__header',
             {
@@ -1192,7 +1149,7 @@ function renderProcMenuLabel(p: ProcMemStat): m.Children {
   if (p.heapDumps > 0) {
     tags.push(
       m('span.pf-memtl-proc-opt__tag', [
-        m('span.pf-memscope-capture__dot.pf-memscope-capture__dot--dumps'),
+        m('span.pf-memscope-capture__dot.pf-memscope-capture__dot--dump'),
         `${p.heapDumps} java`,
       ]),
     );
