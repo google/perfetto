@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Compute kernel — Speed of Light (compute vs memory vs latency bound)
 
 "Speed of Light" is how close a kernel ran to the hardware's two ceilings:

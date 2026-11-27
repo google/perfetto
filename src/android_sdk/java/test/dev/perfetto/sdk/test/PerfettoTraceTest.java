@@ -1118,7 +1118,7 @@ public class PerfettoTraceTest {
       }
     }
 
-    Category disabledFooCategory = new DisabledCategory("DisabledFoo");
+    Category disabledFooCategory = new DisabledCategory("DisabledFoo").register();
 
     TraceConfig traceConfig = getTraceConfig(List.of(FOO, "DisabledFoo"));
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());

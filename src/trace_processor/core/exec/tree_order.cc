@@ -40,6 +40,11 @@ namespace {
 constexpr char kChildFirst[] = "TREE ORDER CHILD FIRST";
 constexpr char kParentFirst[] = "TREE ORDER PARENT FIRST";
 
+// Where a flat Uint32 column's batch rows start.
+const uint32_t* FlatData(const ColumnView& column) {
+  return static_cast<const uint32_t*>(column.data()) + column.start();
+}
+
 }  // namespace
 
 TreeChildFirst::TreeChildFirst(uint32_t node_column, uint32_t parent_column)
@@ -67,23 +72,33 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
   auto base = static_cast<uint32_t>(s.nodes.size());
   s.nodes.resize(base + count);
   s.parents.resize(base + count);
+  // Locals: the values written could otherwise alias them.
+  const Selection& selection = in.selection();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  const uint32_t* node_data = FlatData(in.column(node_column_));
+  const uint32_t* parent_data = FlatData(in.column(parent_column_));
+  uint32_t* nodes = s.nodes.data() + base;
+  uint32_t* parents = s.parents.data() + base;
+  uint32_t nodes_seen = s.nodes_seen;
   for (uint32_t i = 0; i < count; ++i) {
-    uint32_t node = in.Value<uint32_t>(node_column_, i);
-    uint32_t parent = in.Value<uint32_t>(parent_column_, i);
-    s.nodes[base + i] = node;
-    s.parents[base + i] = parent;
+    uint32_t row = indices ? indices[i] : i;
+    uint32_t node = node_data[row];
+    uint32_t parent = parent_data[row];
+    nodes[i] = node;
+    parents[i] = parent;
     if (node == parent) {
+      s.nodes_seen = nodes_seen;
       s.status = base::ErrStatus("%s: a node is its own parent", kChildFirst);
       return false;
     }
-    s.nodes_seen = std::max(*s.nodes_seen, node + 1);
+    nodes_seen = std::max(nodes_seen, node + 1);
     if (parent != kNoNode) {
-      s.nodes_seen = std::max(*s.nodes_seen, parent + 1);
+      nodes_seen = std::max(nodes_seen, parent + 1);
     }
-    if (s.has_row.size() < s.nodes_seen) {
+    if (s.has_row.size() < nodes_seen) {
       // Grown ahead, as nodes are numbered densely and arrive nearly in order.
       s.has_row.resize(
-          std::max<uint64_t>(s.nodes_seen, s.has_row.size() * 3 / 2 + 64));
+          std::max<uint64_t>(nodes_seen, s.has_row.size() * 3 / 2 + 64));
     }
     // TreeNumberNodes gives each row a different node.
     PERFETTO_DCHECK(!s.has_row.is_set(node));
@@ -98,6 +113,7 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     }
     s.has_row.set(node);
   }
+  s.nodes_seen = nodes_seen;
   s.status = s.rows.Append(in, *s.context);
   return s.status.ok();
 }
@@ -105,12 +121,14 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
 bool TreeChildFirst::Sort(State& s) const {
   uint32_t nodes = s.nodes_seen;
   uint32_t rows = s.rows.size();
+  const uint32_t* parents = s.parents.data();
+  const uint32_t* row_nodes = s.nodes.data();
   // The children of every node, laid out end to end: a tree has as many
   // entries as it has non-roots.
   auto begin = FlexVector<uint32_t>::CreateFilled(nodes + 1, 0);
   for (uint32_t row = 0; row < rows; ++row) {
-    if (s.parents[row] != kNoNode) {
-      ++begin[s.parents[row] + 1];
+    if (parents[row] != kNoNode) {
+      ++begin[parents[row] + 1];
     }
   }
   for (uint32_t node = 0; node < nodes; ++node) {
@@ -120,8 +138,8 @@ bool TreeChildFirst::Sort(State& s) const {
   // array.
   auto children = FlexVector<uint32_t>::CreateWithSize(begin[nodes]);
   for (uint32_t row = 0; row < rows; ++row) {
-    if (s.parents[row] != kNoNode) {
-      children[begin[s.parents[row]]++] = s.nodes[row];
+    if (parents[row] != kNoNode) {
+      children[begin[parents[row]]++] = row_nodes[row];
     }
   }
   for (uint32_t node = nodes; node-- > 0;) {
@@ -132,7 +150,7 @@ bool TreeChildFirst::Sort(State& s) const {
   // Every node has one row: Finalize checked.
   auto row_of_node = FlexVector<uint32_t>::CreateWithSize(nodes);
   for (uint32_t row = 0; row < rows; ++row) {
-    row_of_node[s.nodes[row]] = row;
+    row_of_node[row_nodes[row]] = row;
   }
 
   // A node is only reached through its parent, so this comes out parent
@@ -141,15 +159,15 @@ bool TreeChildFirst::Sort(State& s) const {
   s.order.reserve(rows);
   FlexVector<uint32_t> pending;
   for (uint32_t row = 0; row < rows; ++row) {
-    if (s.parents[row] == kNoNode) {
-      pending.push_back(s.nodes[row]);
+    if (parents[row] == kNoNode) {
+      pending.push_back(row_nodes[row]);
     }
   }
   while (!pending.empty()) {
     uint32_t node = pending.back();
     pending.pop_back();
     s.order.push_back(row_of_node[node]);
-    for (uint32_t i = begin[node]; i < begin[node + 1]; ++i) {
+    for (uint32_t i = begin[node], end = begin[node + 1]; i < end; ++i) {
       pending.push_back(children[i]);
     }
   }
@@ -309,9 +327,14 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   // same batch has to wait too, or it would go out ahead of its parent.
   s.passing.clear();
   s.holding.clear();
+  const Selection& selection = in.selection();
+  const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
+  const uint32_t* node_data = FlatData(in.column(node_column_));
+  const uint32_t* parent_data = FlatData(in.column(parent_column_));
   for (uint32_t i = 0; i < count; ++i) {
-    uint32_t node = in.Value<uint32_t>(node_column_, i);
-    uint32_t parent = in.Value<uint32_t>(parent_column_, i);
+    uint32_t index = indices ? indices[i] : i;
+    uint32_t node = node_data[index];
+    uint32_t parent = parent_data[index];
     if (node == parent) {
       s.status = base::ErrStatus("%s: a node is its own parent", kParentFirst);
       return OpResult::kError;

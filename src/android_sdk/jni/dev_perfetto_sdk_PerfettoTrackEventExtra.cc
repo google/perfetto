@@ -18,13 +18,17 @@
 
 #include <jni.h>
 #include "src/android_sdk/jni/macros.h"
+#include "src/android_sdk/jni/register_natives.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <list>
 #include <utility>
+#include <vector>
 
 namespace perfetto {
 namespace jni {
@@ -647,6 +651,111 @@ static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit(JNIEnv* env,
   StringBuffer::reset();
 }
 
+// Raw-proto layout (see PerfettoRawProtoEvent): [0, fields_size) are serialized
+// TrackEvent fields, followed by name_size event name bytes.
+constexpr size_t kMaxJavaEventSize = PERFETTO_TE_HL_MAX_RAW_PROTO_EVENT_SIZE;
+constexpr size_t kStackEventBytes = 1024;
+constexpr size_t kMaxKeptEventBytes = 16 * 1024;
+constexpr uint8_t kEmptyJavaEventByte = 0;
+
+// Reused per thread for copies of events larger than kStackEventBytes.
+static std::vector<uint8_t>& LargeEventBytes() {
+  static thread_local std::vector<uint8_t> bytes;
+  return bytes;
+}
+
+// RAW_PROTO-only fast path (@CriticalNative on device, no JNI copy).
+// `address` points to a non-movable byte[] kept reachable by Java until this
+// returns, with bounds checked in Java against fields_size + name_size.
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit_raw_proto(
+    PERFETTO_JNI_HOST_PARAMS_COMMA jint type,
+    jlong cat_ptr,
+    jlong track_ptr,
+    jlong address,
+    jint fields_size,
+    jint name_size) {
+  auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
+  if (!category->get()->impl)
+    return;
+  const auto* bytes = toPointer<const uint8_t>(address);
+  sdk_for_jni::trace_event_raw_proto(
+      type, category->get(), reinterpret_cast<const char*>(bytes + fields_size),
+      static_cast<size_t>(name_size), bytes, static_cast<size_t>(fields_size),
+      toPointer<PerfettoTeHlExtra>(track_ptr));
+}
+
+// Checked path (@FastNative) for copied buffers (apps, host, Ravenwood, events
+// over 16 KiB) and mixed EXTRAS + RAW_PROTO events (extras_ptr != 0).
+// Avoids JVM critical-array pinning because trace writers may allocate or lock.
+// Returns false without emitting or throwing on invalid input.
+static jboolean dev_perfetto_sdk_PerfettoTrackEventExtra_emit_with_formats(
+    JNIEnv* env,
+    jclass,
+    jint type,
+    jlong cat_ptr,
+    jint formats,
+    jlong extras_ptr,
+    jlong track_ptr,
+    jbyteArray buffer,
+    jlong address,
+    jint fields_size,
+    jint name_size,
+    jint size) {
+  const bool valid_layout =
+      fields_size >= 0 && name_size >= 0 &&
+      static_cast<size_t>(size) <= kMaxJavaEventSize &&
+      static_cast<int64_t>(fields_size) + name_size <= size;
+  if (!valid_layout ||
+      (size && !address && (!buffer || size > env->GetArrayLength(buffer)))) {
+    return false;
+  }
+
+  const uint8_t* bytes = &kEmptyJavaEventByte;
+  // GetByteArrayRegion writes [0, size) and nothing reads past size.
+  PERFETTO_JNI_NO_AUTO_INIT std::array<uint8_t, kStackEventBytes> stack_bytes;
+  std::vector<uint8_t>* large_bytes = nullptr;
+
+  if (address) {
+    // Non-movable Java array: read in place without copying.
+    bytes = toPointer<const uint8_t>(address);
+  } else if (size) {
+    // Copy Java bytes into the stack buffer, or a thread-local vector if larger
+    // than kStackEventBytes.
+    uint8_t* copy = stack_bytes.data();
+    if (static_cast<size_t>(size) > stack_bytes.size()) {
+      large_bytes = &LargeEventBytes();
+      large_bytes->resize(static_cast<size_t>(size));
+      copy = large_bytes->data();
+    }
+    env->GetByteArrayRegion(buffer, 0, size, reinterpret_cast<jbyte*>(copy));
+    bytes = copy;
+  }
+
+  bool ok = true;
+  auto* category = toPointer<sdk_for_jni::Category>(cat_ptr);
+  if (category->get()->impl) {
+    ok = sdk_for_jni::trace_event_with_formats(
+        type, category->get(),
+        reinterpret_cast<const char*>(bytes + fields_size),
+        static_cast<size_t>(name_size), static_cast<uint32_t>(formats),
+        toPointer<sdk_for_jni::Extra>(extras_ptr), bytes,
+        static_cast<size_t>(fields_size),
+        toPointer<PerfettoTeHlExtra>(track_ptr));
+  }
+
+  if (extras_ptr) {
+    // EXTRAS payloads may hold strings converted via StringBuffer.
+    StringBuffer::reset();
+  }
+
+  // Free oversized thread-local buffers so a single large event (up to 1 MiB)
+  // does not pin memory on this thread indefinitely.
+  if (large_bytes && large_bytes->capacity() > kMaxKeptEventBytes) {
+    std::vector<uint8_t>().swap(*large_bytes);
+  }
+  return ok;
+}
+
 static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init(
     PERFETTO_JNI_HOST_PARAMS) {
   return toJLong(new sdk_for_jni::Proto());
@@ -686,7 +795,11 @@ static const JNINativeMethod gExtraMethods[] = {
     {"native_clear_args", "(J)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args},
     {"native_emit", "(IJLjava/lang/String;J)V",
-     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit},
+    {"native_emit_raw_proto", "(IJJJII)V",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_raw_proto},
+    {"native_emit_with_formats", "(IJIJJ[BJIII)Z",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit_with_formats}};
 
 static const JNINativeMethod gProtoMethods[] = {
     {"native_init", "()J",
@@ -827,97 +940,50 @@ static const JNINativeMethod gCounterMethods[] = {
     {"native_set_value_double", "(JD)V",
      (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounter_set_value_double}};
 
-int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Arg"),
-      gArgMethods, NELEM(gArgMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg native methods.");
+static const NativeClass kExtraClasses[] = {
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Arg"),
+     gArgMethods, NELEM(gArgMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Field"),
+     gFieldMethods, NELEM(gFieldMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested"),
+     gFieldNestedMethods, NELEM(gFieldNestedMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrackEventExtra"),
+     gExtraMethods, NELEM(gExtraMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto"),
+     gProtoMethods, NELEM(gProtoMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow"),
+     gFlowMethods, NELEM(gFlowMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack"),
+     gNamedTrackMethods, NELEM(gNamedTrackMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
+     gNestedTracksMethods, NELEM(gNestedTracksMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
+     gCounterTrackMethods, NELEM(gCounterTrackMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$StateTrack"),
+     gStateTrackMethods, NELEM(gStateTrackMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
+     gCounterMethods, NELEM(gCounterMethods)},
+    {TO_MAYBE_JAR_JAR_CLASS_NAME(
+         "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
+     gCorrelationIdMethods, NELEM(gCorrelationIdMethods)},
+};
 
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Field"),
-      gFieldMethods, NELEM(gFieldMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register field native methods.");
+bool register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
+  return RegisterNativeClassesMayFail(env, kExtraClasses, NELEM(kExtraClasses));
+}
 
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested"),
-      gFieldNestedMethods, NELEM(gFieldNestedMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register field nested native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrackEventExtra"),
-      gExtraMethods, NELEM(gExtraMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register extra native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto"),
-      gProtoMethods, NELEM(gProtoMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register proto native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow"),
-      gFlowMethods, NELEM(gFlowMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register flow native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack"),
-      gNamedTrackMethods, NELEM(gNamedTrackMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register named track native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$NestedTracks"),
-      gNestedTracksMethods, NELEM(gNestedTracksMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register nested tracks native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
-      gCounterTrackMethods, NELEM(gCounterTrackMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register counter track native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$StateTrack"),
-      gStateTrackMethods, NELEM(gStateTrackMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register state track native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$Counter"),
-      gCounterMethods, NELEM(gCounterMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register counter native methods.");
-
-  res = jniRegisterNativeMethods(
-      env,
-      TO_MAYBE_JAR_JAR_CLASS_NAME(
-          "dev/perfetto/sdk/PerfettoTrackEventExtra$CorrelationId"),
-      gCorrelationIdMethods, NELEM(gCorrelationIdMethods));
-  LOG_ALWAYS_FATAL_IF(res < 0,
-                      "Unable to register correlation id native methods.");
-
-  return 0;
+void unregister_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
+  UnregisterNativeClasses(env, kExtraClasses, NELEM(kExtraClasses));
 }
 
 }  // namespace jni

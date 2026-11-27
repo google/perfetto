@@ -45,6 +45,7 @@ export class ConsumerIpcTracingSession implements TracingSession {
   private traceBuf = new ResizableArrayBuffer(64 * 1024);
   readonly onSessionUpdate = new EvtSource<void>();
   private readonly uniqueSessionName?: string;
+  private cachedSessionId?: number;
   private readonly ipcFactory: ConsumerIpcFactory;
 
   /**
@@ -203,10 +204,34 @@ export class ConsumerIpcTracingSession implements TracingSession {
     if (!ipcStatus.ok) return ipcStatus;
     const consumerIpc = ipcStatus.value;
     try {
-      const cloneResp = await consumerIpc.invoke(
+      let cloneResp = await consumerIpc.invoke(
         'CloneSession',
-        new protos.CloneSessionRequest({uniqueSessionName}),
+        this.cachedSessionId !== undefined
+          ? new protos.CloneSessionRequest({sessionId: this.cachedSessionId})
+          : new protos.CloneSessionRequest({uniqueSessionName}),
       );
+      // Pre-v48 traced (e.g. Android 15 QPR1) only supports CloneSession by
+      // numeric session_id, not unique_session_name. Fall back via
+      // QueryServiceState(sessions_only=true) and cache the resolved ID.
+      if (!cloneResp.success && this.cachedSessionId === undefined) {
+        const stateResp = await consumerIpc.invokeStreaming(
+          'QueryServiceState',
+          new protos.QueryServiceStateRequest({sessionsOnly: true}),
+        ).promise;
+        const match = stateResp.serviceState?.tracingSessions?.find(
+          (s) =>
+            s.uniqueSessionName === uniqueSessionName &&
+            s.id !== null &&
+            s.id !== undefined,
+        );
+        if (match?.id !== undefined && match.id !== null) {
+          this.cachedSessionId = Number(match.id);
+          cloneResp = await consumerIpc.invoke(
+            'CloneSession',
+            new protos.CloneSessionRequest({sessionId: this.cachedSessionId}),
+          );
+        }
+      }
       if (!cloneResp.success) {
         return errResult(cloneResp.error || 'CloneSession failed');
       }

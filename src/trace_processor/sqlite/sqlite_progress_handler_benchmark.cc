@@ -16,9 +16,8 @@
 
 // Measures what a SQLite progress handler costs a running query when, like
 // the one trace processor installs to stop interrupted queries (see
-// TraceProcessorImpl::InstallInterruptCheck()), it only reads a flag. The
-// query is pure SQLite work, which is the worst case for the handler's
-// relative cost.
+// PerfettoSqlConnection::Interrupt()), it only reads a flag. The query is pure
+// SQLite work, which is the worst case for the handler's relative cost.
 
 #include <atomic>
 #include <cstdint>

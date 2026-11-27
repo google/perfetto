@@ -20,8 +20,8 @@
   align-items: stretch;
   justify-items: center;
   grid-template-columns: 1fr;
-  grid-template-rows: 1fr auto;
-  grid-template-areas: "center" "footer";
+  grid-template-rows: 1fr;
+  grid-template-areas: "center";
   font-family: var(--pf-font-compact);
 
   .pf-home-page__center {
@@ -202,13 +202,6 @@
       }
     }
   } // .pf-home-page__center
-
-  .pf-home-page__privacy {
-    font-size: 0.9em;
-    grid-area: footer;
-    align-self: center;
-    margin-bottom: 40px;
-  }
 } // .pf-home-page
 
 .pf-channel-select {

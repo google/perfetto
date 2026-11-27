@@ -26,7 +26,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/symbolizer/breakpad_parser.h"
 #include "src/trace_processor/util/symbolizer/symbolizer.h"
 
@@ -70,13 +70,15 @@ SymbolizeResult BreakpadSymbolizer::Symbolize(
   }
 
   std::string file_path;
-  std::string raw_build_id =
-      base::ToHex(mapping.build_id.c_str(), mapping.build_id.length());
+  // ToHex() leaves Chrome's BuildIds unchanged because they are already
+  // hex-encoded.
+  std::string hex_build_id =
+      trace_processor::BuildId::FromRaw(mapping.build_id).ToHex();
 
   // Check to see if the |file_path_for_testing_| member is populated. If it is,
   // this file must be used.
   if (file_path_for_testing_.empty()) {
-    file_path = MakeFilePath(raw_build_id, symbol_dir_path_);
+    file_path = MakeFilePath(hex_build_id, symbol_dir_path_);
   } else {
     file_path = file_path_for_testing_;
   }

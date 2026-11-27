@@ -3,3 +3,10 @@
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[tool.pyrefly]
+preset = "basic"
+project-includes = ["perfetto"]
+# Not shipped in the wheel (see setup.py).
+project-excludes = ["perfetto/bigtrace*", "perfetto/experimental", "perfetto/tools"]
+ignore-missing-imports = ["polars"]  # optional, not in .venv (~190 MB)

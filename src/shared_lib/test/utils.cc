@@ -92,7 +92,8 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
                                                             &protovm_cfg);
       }
       if (!enabled_categories_.empty() || !disabled_categories_.empty() ||
-          !enabled_tags_.empty()) {
+          !enabled_tags_.empty() || raw_proto_events_ ||
+          disable_incremental_timestamps_) {
         perfetto_protos_TrackEventConfig te_cfg;
         perfetto_protos_DataSourceConfig_begin_track_event_config(&ds_cfg,
                                                                   &te_cfg);
@@ -107,6 +108,14 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
         for (const std::string& tag : enabled_tags_) {
           perfetto_protos_TrackEventConfig_set_enabled_tags(&te_cfg, tag.data(),
                                                             tag.size());
+        }
+        if (disable_incremental_timestamps_) {
+          perfetto_protos_TrackEventConfig_set_disable_incremental_timestamps(
+              &te_cfg, true);
+        }
+        if (raw_proto_events_) {
+          perfetto_protos_TrackEventConfig_set_experimental_raw_proto_events(
+              &te_cfg, true);
         }
         perfetto_protos_DataSourceConfig_end_track_event_config(&ds_cfg,
                                                                 &te_cfg);

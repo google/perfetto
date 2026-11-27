@@ -143,6 +143,8 @@ li.pf-sidebar__item {
 }
 
 .pf-sidebar__badge {
+  margin-left: auto;
+  flex-shrink: 0;
   font-size: var(--pf-font-size-xs);
   font-family: var(--pf-font-compact);
   font-weight: 500;
@@ -170,6 +172,11 @@ li.pf-sidebar__item {
   flex-shrink: 0;
   border-color: var(--pf-sidebar-border);
   border-top-color: var(--pf-sidebar-on-surface);
+}
+
+.pf-sidebar__badge ~ .pf-sidebar__external-link-icon,
+.pf-sidebar__badge ~ .pf-spinner.pf-sidebar__spinner {
+  margin-left: 0;
 }
 
 .pf-sidebar__trace-file-name {
@@ -333,6 +340,7 @@ li.pf-sidebar__item {
 }
 
 .pf-sidebar__footer {
+  position: relative;
   padding: 6px;
   display: grid;
   grid-template-columns: repeat(4, min-content);
@@ -384,5 +392,34 @@ li.pf-sidebar__item {
       text-decoration: none;
     }
     margin-top: 11px;
+  }
+}
+
+.pf-sidebar__legal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--pf-sidebar-border);
+  font-family: var(--pf-font-compact);
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-sidebar-on-surface-muted);
+  flex-shrink: 0;
+
+  &-links {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--pf-sidebar-on-surface);
+      text-decoration: underline;
+    }
   }
 }

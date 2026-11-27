@@ -38,6 +38,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -331,6 +332,20 @@ const Wide& GetWide() {
   return *wide;
 }
 
+// The scan lends the nullable columns of the first `k` sparse: lay them out,
+// as lowering would.
+std::vector<Pipeline::Step> SparseExpands(uint32_t k) {
+  std::vector<uint32_t> sparse;
+  for (uint32_t c = 1; c < k; c += 2) {
+    sparse.push_back(c);
+  }
+  std::vector<Pipeline::Step> steps;
+  if (!sparse.empty()) {
+    steps.push_back(std::make_unique<Expand>(std::move(sparse)));
+  }
+  return steps;
+}
+
 struct SumCells : dataframe::CellCallback {
   void OnCell(int64_t v) { sum += v; }
   void OnCell(double) {}
@@ -374,7 +389,7 @@ void BM_IdEq_SortedScan(benchmark::State& state) {
                             {w.df->shared_column(kWideCols),
                              SortedScan::Search::Kind::kBinarySearch, Eq{}, 0}},
                         &w.pool, ReadDirection::kForwards),
-                    {}, {{Id{}, Eq{}}}, &w.pool);
+                    SparseExpands(k), {{Uint32{}, Eq{}}}, &w.pool);
   uint32_t i = 0;
   int64_t sum = 0;
   for (auto _ : state) {

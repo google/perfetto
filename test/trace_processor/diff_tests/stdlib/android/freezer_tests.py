@@ -36,20 +36,20 @@ class Freezer(TestSuite):
         trace=Path('freezer_intervals.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.freezer;
-        SELECT ts, dur, pid, state
+        SELECT ts, dur, pid, state, unfreeze_reason, prev_state_duration
         FROM _android_freezer_intervals
         ORDER BY ts, pid;
         """,
         out=Csv("""
-        "ts","dur","pid","state"
-        500,-1,400,"UNFROZEN"
-        500,8500,500,"UNFROZEN"
-        1000,2000,200,"UNFROZEN"
-        3000,2000,200,"FROZEN"
-        5000,1000,200,"UNFROZEN"
-        6000,2000,200,"FROZEN"
-        7000,-1,300,"FROZEN"
-        9000,-1,500,"FROZEN"
+        "ts","dur","pid","state","unfreeze_reason","prev_state_duration"
+        500,-1,400,"UNFROZEN","UFR_PING","[NULL]"
+        500,8500,500,"UNFROZEN","[NULL]","[NULL]"
+        1000,2000,200,"UNFROZEN","[NULL]","[NULL]"
+        3000,2000,200,"FROZEN","[NULL]",2000
+        5000,1000,200,"UNFROZEN","UFR_BIND_SERVICE",2000
+        6000,2000,200,"FROZEN","[NULL]",1000
+        7000,-1,300,"FROZEN","[NULL]","[NULL]"
+        9000,-1,500,"FROZEN","[NULL]",8500
         """))
 
   def test_android_freezer_intervals_bounded_by_event_duration(self):
@@ -151,6 +151,143 @@ class Freezer(TestSuite):
         6000000000,-1,700,"FROZEN"
         1000000000,3000000000,800,"FROZEN"
         4000000000,-1,800,"UNFROZEN"
+        """))
+
+  def test_android_freezer_intervals_start_times(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/freezer_start_times.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT ts, dur, pid, state
+        FROM _android_freezer_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state"
+        3000000000,1500000000,600,"FROZEN"
+        4500000000,-1,600,"UNFROZEN"
+        4000000000,1500000000,700,"UNFROZEN"
+        5500000000,-1,700,"FROZEN"
+        2500000000,-1,800,"UNFROZEN"
+        3500000000,-1,900,"FROZEN"
+        500000000,-1,1000,"FROZEN"
+        3500000000,2000000000,1100,"UNFROZEN"
+        5500000000,-1,1100,"FROZEN"
+        6499500000,-1,1200,"UNFROZEN"
+        500000000,-1,1300,"FROZEN"
+        4500000000,1000000000,1400,"UNFROZEN"
+        5500000000,-1,1400,"FROZEN"
+        6700000000,-1,1500,"FROZEN"
+        """))
+
+  def test_android_freezer_concurrency_start_times(self):
+    # PID 1500's span starts after the trace end, so it is left out of the
+    # concurrency rather than giving INTERVAL FLATTEN a negative duration.
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/freezer_start_times.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT state, ts, dur, concurrency
+        FROM _android_freezer_concurrency
+        ORDER BY state, ts;
+        """,
+        out=Csv("""
+        "state","ts","dur","concurrency"
+        "FROZEN",500000000,2500000000,2
+        "FROZEN",3000000000,500000000,3
+        "FROZEN",3500000000,1000000000,4
+        "FROZEN",4500000000,1000000000,3
+        "FROZEN",5500000000,1000000000,6
+        "UNFROZEN",500000000,2000000000,0
+        "UNFROZEN",2500000000,1000000000,1
+        "UNFROZEN",3500000000,500000000,2
+        "UNFROZEN",4000000000,500000000,3
+        "UNFROZEN",4500000000,1000000000,5
+        "UNFROZEN",5500000000,999500000,2
+        "UNFROZEN",6499500000,500000,3
+        """))
+
+  def test_android_freezer_intervals_snapshot_death(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event { type: TYPE_INSTANT name: "begin" }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+              uid: 10002
+              start_seq_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 100
+              uid: 10001
+              frozen_dur_ms: 3000
+              frozen_start_ns: 2000
+            }
+            record {
+              pid: 200
+              uid: 10002
+              frozen_dur_ms: 2000
+              frozen_start_ns: 3000
+            }
+          }
+        }
+        packet {
+          timestamp: 6000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 100
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          timestamp: 6500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+              uid: 10002
+              start_seq_id: 2
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT ts, dur, pid, state
+        FROM _android_freezer_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state"
+        2000,4000,100,"FROZEN"
+        4000,2500,200,"FROZEN"
         """))
 
   def test_android_freezer_concurrency(self):

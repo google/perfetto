@@ -3402,6 +3402,77 @@ class AndroidStdlib(TestSuite):
         2000,-1,500,"IMPORTANT_FOREGROUND","BOUND_FOREGROUND_SERVICE",0,6,"OOM_ADJ_REASON_BIND_SERVICE"
         """))
 
+  def test_android_process_state_intervals_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../parser/android/android_process_state_start_ts.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration,
+          state_rank,
+          state_change_reason
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts, state_rank;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration","state_rank","state_change_reason"
+        1000,-1,100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        1200,800,200,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,1000,200,"IMPORTANT_FOREGROUND","TOP",800,6,"OOM_ADJ_REASON_START_RECEIVER"
+        3000,-1,200,"CACHED_ACTIVITY","IMPORTANT_FOREGROUND",1000,16,"OOM_ADJ_REASON_BIND_SERVICE"
+        1000,1000,300,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,-1,300,"IMPORTANT_FOREGROUND","TOP",1000,6,"OOM_ADJ_REASON_START_RECEIVER"
+        1000,-1,400,"FOREGROUND_SERVICE","[NULL]","[NULL]",4,"[NULL]"
+        1500,-1,500,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        1000,1000,600,"SERVICE","[NULL]","[NULL]",10,"[NULL]"
+        2000,-1,600,"CACHED_EMPTY","SERVICE",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        1000,1000,700,"SERVICE","[NULL]","[NULL]",10,"[NULL]"
+        2000,-1,700,"CACHED_EMPTY","SERVICE",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        1000,-1,800,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        1000,-1,900,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        1500,-1,1000,"RECEIVER","[NULL]","[NULL]",11,"[NULL]"
+        2000,1000,1100,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        3000,-1,1100,"CACHED_EMPTY","TOP",1000,19,"OOM_ADJ_REASON_START_RECEIVER"
+        2000,0,1200,"TOP","[NULL]","[NULL]",2,"[NULL]"
+        2000,-1,1200,"CACHED_EMPTY","TOP",0,19,"OOM_ADJ_REASON_START_RECEIVER"
+        """))
+
+  def test_android_process_state_intervals_died(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/android_process_state_died.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration"
+        500,1000,100,"TOP","[NULL]","[NULL]"
+        1500,1001,100,"CACHED_EMPTY","TOP",1000
+        2501,-1,100,"EXITED","CACHED_EMPTY",1001
+        1000,2501,200,"FOREGROUND_SERVICE","[NULL]","[NULL]"
+        3501,-1,200,"EXITED","FOREGROUND_SERVICE",2501
+        500,3501,300,"SERVICE","[NULL]","[NULL]"
+        4001,-1,300,"EXITED","SERVICE",3501
+        700,1300,400,"SERVICE","[NULL]","[NULL]"
+        2000,2501,400,"RECEIVER","SERVICE",1300
+        4501,-1,400,"EXITED","RECEIVER",2501
+        1300,-1,500,"CACHED_EMPTY","[NULL]","[NULL]"
+        """))
+
   def test_android_process_state_concurrency(self):
     return DiffTestBlueprint(
         trace=Path('../../parser/android/android_process_state.textproto'),
@@ -3692,6 +3763,7 @@ class AndroidStdlib(TestSuite):
             type: TYPE_INSTANT
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
               pid: 100 prev_oom_score: 0 cur_oom_score: 200
+              reason: OOM_ADJ_REASON_START_SERVICE
             }
           }
         }
@@ -3712,6 +3784,7 @@ class AndroidStdlib(TestSuite):
             type: TYPE_INSTANT
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
               pid: 100 prev_oom_score: 200 cur_oom_score: 900
+              reason: OOM_ADJ_REASON_UNBIND_SERVICE
             }
           }
         }
@@ -3724,17 +3797,17 @@ class AndroidStdlib(TestSuite):
         """),
         query="""
         INCLUDE PERFETTO MODULE android.process_state;
-        SELECT o.ts, p.pid, o.oom_score
+        SELECT o.ts, p.pid, o.oom_score, o.reason
         FROM _android_process_oom_scores AS o
         JOIN process AS p USING (upid);
         """,
         out=Csv("""
-        "ts","pid","oom_score"
-        1000,100,0
-        1500,300,-900
-        2000,100,200
-        2500,200,0
-        3000,100,900
+        "ts","pid","oom_score","reason"
+        1000,100,0,"[NULL]"
+        1500,300,-900,"[NULL]"
+        2000,100,200,"OOM_ADJ_REASON_START_SERVICE"
+        2500,200,0,"[NULL]"
+        3000,100,900,"OOM_ADJ_REASON_UNBIND_SERVICE"
         """))
 
   def test_is_relevant_notifications_blocking_call(self):

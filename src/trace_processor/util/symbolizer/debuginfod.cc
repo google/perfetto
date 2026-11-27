@@ -250,14 +250,28 @@ base::Status ResolveDebuginfodOptions(const DebuginfodOptions& options,
   std::replace_if(
       list.begin(), list.end(),
       [](char c) { return isspace(static_cast<unsigned char>(c)); }, ' ');
+  bool ima_enforcing = false;
   for (base::StringSplitter urls(std::move(list), ' '); urls.Next();) {
     std::string url = urls.cur_token();
+    if (url == "ima:enforcing") {
+      ima_enforcing = true;
+      continue;
+    }
+    if (url == "ima:ignore") {
+      ima_enforcing = false;
+      continue;
+    }
     while (!url.empty() && url.back() == '/')
       url.pop_back();
     if ((!base::StartsWith(url, "https://") &&
          !base::StartsWith(url, "http://")) ||
         url.find_first_of("?#") != std::string::npos)
       return base::ErrStatus("debuginfod URLs must be HTTP(S) server roots");
+    if (ima_enforcing && config->ima_policy_warning.empty()) {
+      config->ima_policy_warning =
+          "debuginfod IMA verification is not supported; downloads from "
+          "ima:enforcing servers are not signature-verified.\n";
+    }
     config->urls.push_back(std::move(url));
   }
   if (config->urls.empty())

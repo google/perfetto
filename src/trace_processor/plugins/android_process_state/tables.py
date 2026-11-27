@@ -35,6 +35,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
           CppOptional(CppInt64()),
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('state_start_ts', CppOptional(CppInt64())),
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
         C('proc_state', CppOptional(CppString())),
         C('oom_score', CppOptional(CppInt32())),
@@ -56,6 +57,17 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         columns={
             'ts':
                 'Timestamp of event; NULL for initial backfill row.',
+            'state_start_ts':
+                'For initial backfill rows: trace time at which the process '
+                'entered the initial proc_state, converted from the '
+                'CLOCK_BOOTTIME prev_proc_state_start_ns of the earliest change '
+                'or died event or, for processes without such events, '
+                'proc_state_start_ns of the trace-stop snapshot. NULL if unknown '
+                '(not reported, <= 0, not convertible, or after the event or '
+                'snapshot reporting it) and for change rows, whose start is '
+                'ts. Negative values and values after the reporting event or '
+                'snapshot are dropped and reported via the '
+                'android_process_state_invalid_start_ts stat.',
             'upid':
                 'Unique process ID.',
             'proc_state':
@@ -65,7 +77,10 @@ ANDROID_PROCESS_STATE_TABLE = Table(
             'capability_flags':
                 'Capability flags.',
             'process_group':
-                'Process group enum name or value.',
+                'Process group enum name or value, as seen by OomAdjuster '
+                '(the scheduling group it computed for the process). See '
+                '__intrinsic_android_process_group for the groups '
+                'requested through Process.setProcessGroup.',
             'reason':
                 'Reason for state change (if from track event).',
             'seq_id':
@@ -107,6 +122,8 @@ ANDROID_FREEZER_STATE_TABLE = Table(
         C('unfreeze_reason',
           CppOptional(CppString()),
           cpp_access=CppAccess.READ),
+        C('unfrozen_start_ts', CppOptional(CppInt64())),
+        C('frozen_start_ts', CppOptional(CppInt64())),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -123,8 +140,64 @@ ANDROID_FREEZER_STATE_TABLE = Table(
                 'Time since last frozen in milliseconds.',
             'unfreeze_reason':
                 'Reason for unfreezing.',
+            'unfrozen_start_ts':
+                'Trace time at which the process was last unfrozen, converted '
+                'from CLOCK_BOOTTIME unfrozen_start_ns. Set on freeze events '
+                'and on initial rows of processes unfrozen at trace stop. NULL '
+                'if unknown (not reported, <= 0, not convertible, or after '
+                'the event or snapshot reporting it). Negative values and '
+                'values after the reporting event or snapshot are dropped and '
+                'reported via the android_process_state_invalid_start_ts '
+                'stat.',
+            'frozen_start_ts':
+                'Trace time at which the process was last frozen, converted '
+                'from CLOCK_BOOTTIME frozen_start_ns. Set on unfreeze events '
+                'and on initial rows of processes frozen at trace stop. NULL '
+                'if unknown (not reported, <= 0, not convertible, or after '
+                'the event or snapshot reporting it). Negative values and '
+                'values after the reporting event or snapshot are dropped and '
+                'reported via the android_process_state_invalid_start_ts '
+                'stat.',
             'is_initial':
                 '1 for synthesized initial state row, 0 for track event.',
+        },
+    ),
+)
+
+ANDROID_PROCESS_GROUP_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidProcessGroupTable',
+    sql_name='__intrinsic_android_process_group',
+    columns=[
+        C('ts', CppInt64()),
+        C('upid', CppTableId(PROCESS_TABLE)),
+        C('uid', CppOptional(CppInt32())),
+        C('process_group', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Process groups requested through Process.setProcessGroup, one row
+          per call, from AndroidProcessGroupChangedEvent track events.
+          The calling process emits the event (on its own track) before the
+          native call, which can fail (e.g. when the target process is gone),
+          and also when the group does not change, so rows are requests
+          rather than deduplicated changes of the process's actual group.
+          Unlike __intrinsic_android_process_state.process_group (OomAdjuster's
+          view), this reflects every caller of Process.setProcessGroup. There
+          are no initial rows: the event carries no previous group, so the
+          group before a process's first event is unknown.
+        ''',
+        group='Android',
+        columns={
+            'ts': 'Timestamp of the Process.setProcessGroup call.',
+            'upid': 'Unique process ID.',
+            'uid':
+                'Uid of the target process, if the caller passed it '
+                '(Process.setProcessGroup(uid, pid, group)); NULL otherwise.',
+            'process_group':
+                'Requested process group enum name (e.g. '
+                'PROCESS_GROUP_TOP_APP), or its value if unknown; NULL if the '
+                'event has no group.',
         },
     ),
 )
@@ -132,4 +205,5 @@ ANDROID_FREEZER_STATE_TABLE = Table(
 ALL_TABLES = [
     ANDROID_PROCESS_STATE_TABLE,
     ANDROID_FREEZER_STATE_TABLE,
+    ANDROID_PROCESS_GROUP_TABLE,
 ]

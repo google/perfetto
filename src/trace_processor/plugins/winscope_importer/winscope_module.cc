@@ -82,7 +82,8 @@ ModuleResult WinscopeModule::TokenizePacket(const TokenizePacketArgs& args) {
     case FrameworksNativeWinscopeTracePacket::kProtologViewerConfigFieldNumber:
       protolog_parser_.ParseAndAddViewerConfigToMessageDecoder(
           args.field.Cast<
-              FrameworksNativeWinscopeTracePacket::kProtologViewerConfig>());
+              FrameworksNativeWinscopeTracePacket::kProtologViewerConfig>(),
+          args.packet->offset());
       return ModuleResult::Handled();
   }
 

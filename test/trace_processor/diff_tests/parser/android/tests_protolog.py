@@ -17,6 +17,7 @@ from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import TextProto
 
 
 class ProtoLog(TestSuite):
@@ -43,5 +44,75 @@ class ProtoLog(TestSuite):
         "id","ts","level","tag","message","location","stacktrace"
         0,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyTestString and MyTestString","com/test/TestClass.java:123","[NULL]"
         1,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyNextTestString and MyNextTestString","com/test/TestClass.java:123","[NULL]"
+        """),
+    )
+
+  def test_duplicate_viewer_config_bytes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
+            groups { id: 1 name: "WM" tag: "WM" }
+            messages {
+              message_id: 100
+              message: "Val: %d"
+              level: PROTOLOG_LEVEL_INFO
+              group_id: 1
+              location: "Foo.java:10"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
+            groups { id: 1 name: "WM" tag: "WM" }
+            messages {
+              message_id: 100
+              message: "Val: %d"
+              level: PROTOLOG_LEVEL_INFO
+              group_id: 1
+              location: "Foo.java:10"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          [com.android.internal.FrameworksNativeWinscopeTracePacket.protolog_viewer_config] {
+            groups { id: 1 name: "WM" tag: "WM" }
+            messages {
+              message_id: 100
+              message: "Val: %d"
+              level: PROTOLOG_LEVEL_INFO
+              group_id: 1
+              location: "Foo.java:10"
+            }
+            messages {
+              message_id: 200
+              message: "New"
+              level: PROTOLOG_LEVEL_WARN
+              group_id: 1
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          l.name,
+          l.severity,
+          l.byte_offset > 0 AS has_byte_offset,
+          a.key,
+          a.int_value,
+          s.value AS stat_count
+        FROM _trace_import_logs AS l
+        JOIN args AS a USING (arg_set_id)
+        JOIN stats AS s USING (name)
+        WHERE l.name = 'winscope_protolog_viewer_config_duplicates'
+        ORDER BY l.id;
+        """,
+        out=Csv("""
+        "name","severity","has_byte_offset","key","int_value","stat_count"
+        "winscope_protolog_viewer_config_duplicates","info",1,"duplicate_bytes",45,2
+        "winscope_protolog_viewer_config_duplicates","info",1,"duplicate_bytes",45,2
         """),
     )

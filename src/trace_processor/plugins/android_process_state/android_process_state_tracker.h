@@ -44,16 +44,21 @@ StringId InternEnum(TraceProcessorContext* context,
 
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
-// (is_initial = 1, ts = NULL) at finalization.
+// (is_initial = 1, ts = NULL) at finalization. Initial process state rows carry
+// the time the state was entered, when known, in state_start_ts. Also records
+// the process groups requested through Process.setProcessGroup.
 class AndroidProcessStateTracker {
  public:
   AndroidProcessStateTracker(
       TraceProcessorContext* context,
       tables::AndroidProcessStateTable* process_state_table,
-      tables::AndroidFreezerStateTable* freezer_state_table);
+      tables::AndroidFreezerStateTable* freezer_state_table,
+      tables::AndroidProcessGroupTable* process_group_table);
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // A process_state_died_event TrackEvent extension at |ts|.
+  void ParseProcessStateDied(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket at |ts|.
   void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
@@ -62,10 +67,29 @@ class AndroidProcessStateTracker {
   // An AndroidFreezerState dump TracePacket at |ts|.
   void ParseFreezerDump(int64_t ts, protozero::ConstBytes bytes);
 
+  // An AndroidProcessGroupChangedEvent TrackEvent extension at |ts|. Inserts
+  // one row per event. Unlike the other tables, no initial rows are
+  // synthesized: the event carries no previous group, and the snapshot's
+  // process_group is OomAdjuster's view, not the group last requested through
+  // Process.setProcessGroup, so the group before a process's first event is
+  // unknown.
+  void ParseProcessGroupChange(int64_t ts, protozero::ConstBytes bytes);
+
   // Synthesizes the per-process initial-state rows.
   void Finalize();
 
  private:
+  // Returns the live process for |pid|, or std::nullopt if |pid| is <= 0 (also
+  // when it is missing from the event, as it then decodes as 0) or has no live
+  // process. In the latter case, records an android_track_event_process_unknown
+  // notice for |source|, with |process_name| and |start_seq_id| when known.
+  std::optional<UniquePid> ResolveLiveProcess(
+      int64_t ts,
+      const char* source,
+      int64_t pid,
+      protozero::ConstChars process_name = {},
+      std::optional<int64_t> start_seq_id = std::nullopt);
+
   // Information captured for a process from dumps or delta events.
   struct ProcessStateValues {
     UniquePid upid = 0;
@@ -73,13 +97,43 @@ class AndroidProcessStateTracker {
     std::optional<int32_t> proc_state;
     std::optional<int32_t> capability_flags;
     std::optional<int32_t> process_group;
+    // Trace time at which the process entered |proc_state|, converted from
+    // the CLOCK_BOOTTIME proc_state_start_ns / prev_proc_state_start_ns.
+    std::optional<int64_t> start_ts;
   };
 
   // Information captured for freezer state from trace-stop dumps.
   struct FreezerStateValues {
     UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
+    // Trace time at which the process was last unfrozen / frozen.
+    std::optional<int64_t> unfrozen_start_ts;
+    std::optional<int64_t> frozen_start_ts;
   };
+
+  // The track-event stream only emits delta transitions (prev -> cur). To
+  // reconstruct each process's state at the start of the trace, records the
+  // prev_* fields shared by AndroidProcessStateChangedEvent and
+  // AndroidProcessStateDiedEvent from the earliest such event of |upid|, at
+  // |ts|. Later events return before reading or validating them. Defined in the
+  // .cc file, the only place it is instantiated.
+  template <typename Decoder>
+  void UpdateInitialStateFromDelta(int64_t ts,
+                                   UniquePid upid,
+                                   const char* source,
+                                   const Decoder& event);
+
+  // Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
+  // proc_state_start_ns, frozen_start_ns) to trace time. Returns std::nullopt
+  // if |boottime_ns| is 0 (unknown), conversion fails (the clock tracker
+  // records a stat), |boottime_ns| is negative, or the converted time is after
+  // |event_ts|. The last two cases are invalid and recorded via the
+  // android_process_state_invalid_start_ts stat and an import log.
+  std::optional<int64_t> StartNsToTraceTime(int64_t event_ts,
+                                            const char* source,
+                                            const char* field,
+                                            UniquePid upid,
+                                            int64_t boottime_ns);
 
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.
@@ -87,11 +141,6 @@ class AndroidProcessStateTracker {
     int64_t ts = std::numeric_limits<int64_t>::max();
     ProcessStateValues values;
   };
-
-  // Records the pre-change state (prev_*) from the earliest delta track event
-  // seen for a process to establish its baseline at trace start.
-  void UpdateInitialStateFromDelta(int64_t ts,
-                                   const ProcessStateValues& prev_state);
 
   // Computes the initial baseline state for every process by starting from the
   // trace-stop dump snapshot and overlaying the pre-transition states from the
@@ -123,6 +172,7 @@ class AndroidProcessStateTracker {
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
+  tables::AndroidProcessGroupTable* const process_group_table_;
   const StringId capability_flags_id_;
   const StringId cpu_time_reasons_id_;
   const StringId implicit_cpu_time_reasons_id_;

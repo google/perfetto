@@ -184,6 +184,7 @@ perfetto_cc_library(
         ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
         ":src_shared_lib_track_event_intern_map",
+        ":src_shared_lib_track_event_raw_proto_fields",
         ":src_shared_lib_track_event_track_event",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
@@ -2486,6 +2487,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/shared_lib/track_event:raw_proto_fields
+perfetto_filegroup(
+    name = "src_shared_lib_track_event_raw_proto_fields",
+    srcs = [
+        "src/shared_lib/track_event/raw_proto_fields.cc",
+        "src/shared_lib/track_event/raw_proto_fields.h",
+    ],
+)
+
 # GN target: //src/shared_lib/track_event:track_event
 perfetto_filegroup(
     name = "src_shared_lib_track_event_track_event",
@@ -2665,6 +2675,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/distinct.h",
         "src/trace_processor/core/exec/empty_source.cc",
         "src/trace_processor/core/exec/empty_source.h",
+        "src/trace_processor/core/exec/expand.cc",
+        "src/trace_processor/core/exec/expand.h",
         "src/trace_processor/core/exec/expression.cc",
         "src/trace_processor/core/exec/expression.h",
         "src/trace_processor/core/exec/filter.cc",
@@ -2704,6 +2716,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/run_held.h",
         "src/trace_processor/core/exec/selection.cc",
         "src/trace_processor/core/exec/selection.h",
+        "src/trace_processor/core/exec/sink.cc",
+        "src/trace_processor/core/exec/sink.h",
         "src/trace_processor/core/exec/sort.cc",
         "src/trace_processor/core/exec/sort.h",
         "src/trace_processor/core/exec/sorted_rows.cc",
@@ -4135,6 +4149,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_frame_blocking_calls_frame_blocking_calls",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls/blocking_calls_aggregation.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls/instructions.sql",
     ],
 )
 
@@ -5975,6 +5990,7 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h",
         "src/trace_processor/sqlite/bindings/sqlite_bind.h",
         "src/trace_processor/sqlite/bindings/sqlite_column.h",
+        "src/trace_processor/sqlite/bindings/sqlite_db.h",
         "src/trace_processor/sqlite/bindings/sqlite_function.h",
         "src/trace_processor/sqlite/bindings/sqlite_module.h",
         "src/trace_processor/sqlite/bindings/sqlite_result.h",
@@ -6306,6 +6322,9 @@ perfetto_cc_library(
         "src/trace_processor/util/symbolizer/local_symbolizer.h",
         "src/trace_processor/util/symbolizer/subprocess.h",
         "src/trace_processor/util/symbolizer/symbolizer.h",
+    ],
+    deps = [
+        ":src_trace_processor_util_build_id",
     ],
     linkstatic = True,
 )
@@ -7401,8 +7420,10 @@ perfetto_android_binary(
 perfetto_android_library(
     name = "src_android_sdk_java_main_perfetto_trace_lib",
     srcs = [
+        "src/android_sdk/java/main/dev/perfetto/sdk/NonMovableByteArrays.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeLibrary.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoRawProtoEvent.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
@@ -7441,6 +7462,8 @@ perfetto_android_library(
     name = "src_android_sdk_java_test_perfetto_trace_test_lib",
     testonly = True,
     srcs = [
+        "src/android_sdk/java/test/dev/perfetto/sdk/PerfettoRawProtoEventTest.java",
+        "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoEventFormatTest.java",
         "src/android_sdk/java/test/dev/perfetto/sdk/test/PerfettoTraceTest.java",
     ],
     manifest = "src/android_sdk/java/test/AndroidTestManifest.xml",
@@ -7492,6 +7515,7 @@ perfetto_filegroup(
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
         "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h",
         "src/android_sdk/jni/macros.h",
+        "src/android_sdk/jni/register_natives.h",
     ],
 )
 
@@ -12611,6 +12635,18 @@ perfetto_py_binary(
     data = ["CHANGELOG"],
     main = "tools/write_version_header.py",
     python_version = "PY3",
+)
+
+perfetto_py_binary(
+    name = "gen_skill_bundle_py",
+    srcs = ["tools/gen_skill_bundle.py"],
+    main = "tools/gen_skill_bundle.py",
+    python_version = "PY3",
+)
+
+perfetto_filegroup(
+    name = "ai_skills_perfetto",
+    srcs = glob(["ai/skills/perfetto/**"]),
 )
 
 exports_files(

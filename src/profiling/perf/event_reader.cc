@@ -323,7 +323,7 @@ std::optional<CommonSampleData> EventReader::ReadCounters() {
         ReadValues(snapshot.follower_counts.data(), parse_pos, num_followers);
   }
 
-  PERFETTO_DCHECK(parse_pos == reinterpret_cast<char*>(buf + rd_size));
+  PERFETTO_DCHECK(parse_pos == reinterpret_cast<const char*>(buf) + rd_size);
   return snapshot;
 }
 

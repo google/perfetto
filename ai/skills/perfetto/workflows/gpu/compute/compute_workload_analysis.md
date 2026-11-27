@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Compute kernel — Compute Workload Analysis (which pipeline is the limit?)
 
 For a compute-bound kernel, "compute-bound" isn't the end of the story — *which*

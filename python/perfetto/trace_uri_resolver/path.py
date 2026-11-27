@@ -12,25 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Type
+from typing import ClassVar, Optional
 
 from perfetto.trace_uri_resolver import util
 from perfetto.trace_uri_resolver.resolver import TraceUriResolver
 
 
 class PathUriResolver(TraceUriResolver):
-  PREFIX: str = None
+  PREFIX: ClassVar[Optional[str]] = None
 
   def __init__(self, path: str):
     self.path = path
 
-  def resolve(self) -> TraceUriResolver.Result:
+  def resolve(self) -> list[TraceUriResolver.Result]:
     return [
         TraceUriResolver.Result(
             trace=util.file_generator(self.path), metadata={'_path': self.path})
     ]
 
   @classmethod
-  def from_trace_uri(cls: Type['PathUriResolver'],
-                     args_str: str) -> 'PathUriResolver':
+  # pyrefly: ignore[bad-override-param-name]
+  def from_trace_uri(cls, args_str: str) -> 'PathUriResolver':
     return PathUriResolver(args_str)

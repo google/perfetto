@@ -18,14 +18,19 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_CONTEXT_H_
 
 #include <cstdint>
+#include <memory>
 
 #include "perfetto/ext/base/span.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 struct ParamValue;
+class OperatorState;
+class RowBatch;
+class Pipelines;
 
 // What one execution of a plan shares as it runs: the storage the batches'
 // own columns are in. A step takes a buffer for each column it fills, sized
@@ -57,11 +62,52 @@ class Context {
   void SetParams(base::Span<const ParamValue> params) { params_ = params; }
   base::Span<const ParamValue> params() const { return params_; }
 
+  // The plan's pipelines besides its main one, which its steps read by id
+  // (see Pipelines). Set before any state of the plan is made.
+  void SetPipelines(const Pipelines* pipelines);
+
+  // What pipeline `id`'s sink built: built by running the pipeline to its end
+  // the first time it is asked for in a run. When to build is decided here
+  // alone, so an executor could build sinks first instead.
+  base::StatusOr<OperatorState*> BuildSink(uint32_t id);
+
+  // What pipeline `id`'s sink built, or null if it is not built in this run.
+  OperatorState* IfBuilt(uint32_t id) const;
+
+  // The next batch of pipeline `id`, streamed, started the first time it is
+  // asked for in a run. Null at its end or on failure, which
+  // PipelineStatus() then says.
+  RowBatch* NextBatch(uint32_t id);
+  base::Status PipelineStatus(uint32_t id) const;
+
+  // Ends the run of pipeline `id` and of what its sink built (see Held),
+  // so the next asks for them afresh.
+  void EndPipelineRun(uint32_t id);
+
  private:
-  // Declared before `nulls_`, so it outlives it.
+  // A pipeline's states, made the first time it runs and kept for the next
+  // runs, which end them instead.
+  struct Slot {
+    Slot();
+    ~Slot();
+
+    std::unique_ptr<OperatorState> pipeline;
+    std::unique_ptr<OperatorState> state;
+    bool running = false;
+    bool built = false;
+  };
+
+  // Starts a run of pipeline `id`.
+  Slot& Start(uint32_t id);
+
+  // Declared before `nulls_` and the pipelines' states, so it outlives them.
   BufferPool buffers_;
   ColumnBuffer nulls_;
   base::Span<const ParamValue> params_;
+  const Pipelines* pipelines_ = nullptr;
+  // By pipeline, sized once, as running a pipeline can run another within it.
+  std::unique_ptr<Slot[]> slots_;
+  uint32_t slot_count_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

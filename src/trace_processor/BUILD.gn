@@ -431,6 +431,14 @@ perfetto_unittest_source_set("top_level_unittests") {
     "util:trace_type",
   ]
 
+  if (enable_perfetto_trace_processor_sqlite) {
+    sources += [ "trace_processor_impl_unittest.cc" ]
+    deps += [
+      ":lib",
+      "sqlite",
+    ]
+  }
+
   if (enable_perfetto_trace_processor_json && !is_win) {
     # export_json_unittest.cc uses base::TempFile, which is not supported on
     # windows.

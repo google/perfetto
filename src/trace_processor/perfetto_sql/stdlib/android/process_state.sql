@@ -66,21 +66,50 @@ WITH
       p.upid,
       -- AndroidProcessStartEvent only sets fw_start_ts; process.start_ts can
       -- predate the trace, but the initial state is only known from its start.
+      -- The initial proc_state may start later than this (state_start_ts).
       max(coalesce(fw.fw_start_ts, p.start_ts, trace_start()), trace_start()) AS start_ts,
-      p.end_ts AS death_ts
-    FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_state)
+      p.end_ts AS death_ts,
+      -- Time of the process's first change event, if any.
+      s.first_ts
+    FROM (
+      SELECT upid, min(iif(is_initial = 0, ts, NULL)) AS first_ts
+      FROM __intrinsic_android_process_state
+      GROUP BY
+        upid
+    ) AS s
     JOIN process AS p USING (upid)
     LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
   ),
+  states AS (
+    SELECT
+      s.ts,
+      s.is_initial,
+      s.upid,
+      s.proc_state,
+      s.reason,
+      p.first_ts,
+      -- The initial row has no ts. It starts when the process entered the
+      -- state (state_start_ts) when known, but, like every other initial
+      -- interval, not before the process start clamped to the trace start. The
+      -- parser drops a state_start_ts after the event reporting it, so it is
+      -- never after the process's first change event.
+      max(p.start_ts, coalesce(s.state_start_ts, p.start_ts)) AS initial_start_ts
+    FROM __intrinsic_android_process_state AS s
+    JOIN process_lifetimes AS p USING (upid)
+  ),
   all_events AS (
     SELECT
-      coalesce(s.ts, p.start_ts) AS ts,
+      -- The initial interval never starts after the first change event.
+      iif(
+        s.is_initial = 1,
+        min(s.initial_start_ts, coalesce(s.first_ts, s.initial_start_ts)),
+        s.ts
+      ) AS ts,
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
       s.reason AS cur_reason
-    FROM __intrinsic_android_process_state AS s
-    JOIN process_lifetimes AS p USING (upid)
+    FROM states AS s
     UNION ALL
     -- Death is never reported by the state stream, so synthesize it. Left open
     -- ended (dur = -1), as the process never comes back.
@@ -305,9 +334,10 @@ FROM (
 |> SELECT ts, upid, count
 |> ORDER BY ts;
 
--- OOM adjustment scores of each process over time.
+-- OOM adjustment scores of each process over time, with the reason of the
+-- OomAdjuster update that reported each score.
 CREATE PERFETTO TABLE _android_process_oom_scores AS
-SELECT ts, upid, oom_score
+SELECT id, ts, upid, oom_score, reason
 FROM (
   SELECT
     -- Anchor the ts-less initial row at process start, clamped to trace_start().
@@ -318,7 +348,8 @@ FROM (
     1 AS is_initial,
     s.id,
     s.upid,
-    s.oom_score
+    s.oom_score,
+    s.reason
   FROM __intrinsic_android_process_state AS s
   JOIN process AS p USING (upid)
   LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
@@ -328,7 +359,7 @@ FROM (
     -- -10000 (INVALID_ADJ) means no OOM score is set.
     AND s.oom_score != -10000
   UNION ALL
-  SELECT s.ts, 0 AS is_initial, s.id, s.upid, s.oom_score
+  SELECT s.ts, 0 AS is_initial, s.id, s.upid, s.oom_score, s.reason
   FROM __intrinsic_android_process_state AS s
   WHERE
     s.is_initial = 0

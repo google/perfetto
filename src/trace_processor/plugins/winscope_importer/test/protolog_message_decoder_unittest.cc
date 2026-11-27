@@ -190,4 +190,21 @@ TEST_F(ProtologMessageDecoderTest, MessageParameterMismatch) {
             1);
 }
 
+TEST_F(ProtologMessageDecoderTest, TrackDuplicateGroup) {
+  EXPECT_TRUE(decoder_->TrackGroup(2, "NEW_GROUP"));
+  EXPECT_FALSE(decoder_->TrackGroup(2, "NEW_GROUP"));
+  EXPECT_TRUE(decoder_->TrackGroup(2, "COLLIDING_GROUP"));
+}
+
+TEST_F(ProtologMessageDecoderTest, TrackDuplicateMessage) {
+  uint64_t msg_id = 100;
+  EXPECT_TRUE(decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                                     default_group_id, "Value: %d", "Loc"));
+  EXPECT_FALSE(decoder_->TrackMessage(msg_id,
+                                      ProtoLogLevel::PROTOLOG_LEVEL_INFO,
+                                      default_group_id, "Value: %d", "Loc"));
+  EXPECT_TRUE(decoder_->TrackMessage(msg_id, ProtoLogLevel::PROTOLOG_LEVEL_WARN,
+                                     default_group_id, "Other: %s", "Loc2"));
+}
+
 }  // namespace perfetto::trace_processor::winscope

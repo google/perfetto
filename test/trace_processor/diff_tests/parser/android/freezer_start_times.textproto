@@ -1,0 +1,186 @@
+# Exercises the exact freezer start times (unfrozen_start_ns /
+# frozen_start_ns) on freezer events and on the trace-stop freezer snapshot.
+# The trace clock is MONOTONIC, which is BOOTTIME - 0.5s. Packets and the
+# *_start_ns values are BOOTTIME, so both are converted to trace time; times
+# below are BOOTTIME. The trace starts at 1s.
+# Synthetic cases, which real producers don't emit, are marked as such.
+# - PID 600: unfreeze at 5s with frozen_start_ns = 3.5s and a shorter
+#            frozen_dur_ms (500ms, e.g. 1s suspend while frozen): the leading
+#            interval must start at frozen_start_ts (3s) rather than dur (4s).
+# - PID 700: freeze at 6s with unfrozen_start_ns = 4.5s.
+# - PID 1100: freeze at 6s with unfrozen_start_ns = 0 (unknown), so the leading
+#             span falls back to unfrozen_dur_ms (2s). Synthetic: producers
+#             write a non-zero start in practice.
+# - PID 1400: freeze at 6s with unfrozen_start_ns 1ns after the event
+#             (synthetic). The parser drops it as invalid, so the leading span
+#             falls back to unfrozen_dur_ms (1s).
+# Trace-stop snapshot at 7.5s, for processes without events. Only the last
+# track event (7s) bounds the trace, not the snapshot packet, so the trace ends
+# at 7s:
+# - PID 800: unfrozen since 3s. Like real producers (ProtoOutputStream omits 0
+#            values), the record has no unfreeze_reason for UFR_NONE.
+# - PID 900: frozen since 4s.
+# - PID 1000: frozen, from an older producer without frozen_start_ns.
+# - PID 1200: unfrozen since 6.9995s, with unfrozen_dur_ms omitted (0ms).
+# - PID 1300: frozen, frozen_start_ns = 0 (unknown). Synthetic: producers only
+#             write frozen_start_ns when it is > 0.
+# - PID 1500: frozen since 7.2s, after the trace end. Its span lies past the
+#             trace, so it doesn't count towards the freezer concurrency.
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_MONOTONIC
+    clocks { clock_id: 6 timestamp: 1000000000 }
+    clocks { clock_id: 3 timestamp: 500000000 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+packet {
+  timestamp: 1000000000
+  timestamp_clock_id: 6
+  process_tree {
+    processes { pid: 600 ppid: 1 cmdline: "proc600" }
+    processes { pid: 700 ppid: 1 cmdline: "proc700" }
+    processes { pid: 800 ppid: 1 cmdline: "proc800" }
+    processes { pid: 900 ppid: 1 cmdline: "proc900" }
+    processes { pid: 1000 ppid: 1 cmdline: "proc1000" }
+    processes { pid: 1100 ppid: 1 cmdline: "proc1100" }
+    processes { pid: 1200 ppid: 1 cmdline: "proc1200" }
+    processes { pid: 1300 ppid: 1 cmdline: "proc1300" }
+    processes { pid: 1400 ppid: 1 cmdline: "proc1400" }
+    processes { pid: 1500 ppid: 1 cmdline: "proc1500" }
+  }
+}
+packet {
+  timestamp: 1000000000
+  timestamp_clock_id: 6
+  track_descriptor {
+    uuid: 2
+    thread { pid: 100 tid: 100 thread_name: "system_server" }
+  }
+}
+packet {
+  timestamp: 1000000000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "trace_begin"
+  }
+}
+packet {
+  timestamp: 5000000000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "unfreeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 600
+      uid: 10006
+      frozen_dur_ms: 500
+      frozen_start_ns: 3500000000
+      unfreeze_reason: UFR_ACTIVITY
+    }
+  }
+}
+packet {
+  timestamp: 6000000000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 700
+      uid: 10007
+      unfrozen_dur_ms: 1500
+      unfrozen_start_ns: 4500000000
+    }
+  }
+}
+packet {
+  timestamp: 6000000000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 1100
+      uid: 10011
+      unfrozen_dur_ms: 2000
+      unfrozen_start_ns: 0
+    }
+  }
+}
+packet {
+  timestamp: 6000000000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "freeze"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 1400
+      uid: 10014
+      unfrozen_dur_ms: 1000
+      unfrozen_start_ns: 6000000001
+    }
+  }
+}
+packet {
+  timestamp: 7500000000
+  timestamp_clock_id: 6
+  [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+    record {
+      pid: 1500
+      uid: 10015
+      frozen_dur_ms: 300
+      frozen_start_ns: 7200000000
+    }
+    record {
+      pid: 800
+      uid: 10008
+      unfrozen_dur_ms: 4000
+      unfrozen_start_ns: 3000000000
+    }
+    record {
+      pid: 900
+      uid: 10009
+      frozen_dur_ms: 3000
+      frozen_start_ns: 4000000000
+    }
+    record {
+      pid: 1000
+      uid: 10010
+      frozen_dur_ms: 2000
+    }
+    record {
+      pid: 1200
+      uid: 10012
+      unfrozen_start_ns: 6999500000
+    }
+    record {
+      pid: 1300
+      uid: 10013
+      frozen_dur_ms: 1000
+      frozen_start_ns: 0
+    }
+  }
+}
+packet {
+  timestamp: 7000000000
+  timestamp_clock_id: 6
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "end"
+  }
+}

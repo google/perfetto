@@ -223,7 +223,7 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     for (ColumnId id : operand.carried) {
       lowered.retained_columns.push_back(side.QueryPosition(id));
     }
-    lowered.source = side.FinishSide();
+    lowered.pipeline = side.FinishSide();
     inputs.push_back(std::move(lowered));
   }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));

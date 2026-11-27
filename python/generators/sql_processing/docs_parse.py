@@ -18,8 +18,6 @@ import re
 import sys
 from typing import Dict, List, Optional, NamedTuple
 
-# google3 still calls this. Remove it once it uses parse_module().
-from python.generators.sql_processing.docs_parse_legacy import parse_file
 from python.generators.sql_processing.utils import ObjKind
 from python.generators.sql_processing.utils import COLUMN_TYPES, MACRO_ARG_TYPES
 from python.generators.sql_processing.utils import ALLOWED_PREFIXES

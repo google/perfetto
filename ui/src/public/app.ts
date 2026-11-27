@@ -24,6 +24,7 @@ import type {RouteArgs} from './route_schema';
 import type {SettingsManager} from './settings';
 import type {SidePanelManager} from './side_panel';
 import type {SidebarManager} from './sidebar';
+import type {SkillManager} from './skills';
 import type {TraceStream} from './stream';
 import type {TaskTracker} from './task_tracker';
 import type {Trace} from './trace';
@@ -42,6 +43,14 @@ export interface Route {
  * The API endpoint to interact programmatically with the UI before a trace has
  * been loaded. This is passed to plugins' OnActivate().
  */
+export interface OpenTraceStreamOpts {
+  readonly title?: string;
+  readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+  // Optional on-demand fetcher for trace.getTraceFile() (enables Download and
+  // other features that need the raw trace Blob without buffering the stream).
+  readonly getTraceFile?: () => Promise<Blob>;
+}
+
 export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
@@ -89,6 +98,15 @@ export interface App {
   readonly policy: Policy;
 
   /**
+   * Agent skills (markdown instructions plus SQL scripts) for in-UI agents,
+   * read one file at a time.
+   *
+   * @experimental - This is a new API and may change or be removed in the
+   * future.
+   */
+  readonly skills: SkillManager;
+
+  /**
    * Navigate to a new page.
    */
   navigate(newHash: string): void;
@@ -100,7 +118,10 @@ export interface App {
 
   openTraceFromFile(file: File): Promise<Trace>;
   openTraceFromUrl(url: string): Promise<Trace>;
-  openTraceFromStream(stream: TraceStream): Promise<Trace>;
+  openTraceFromStream(
+    stream: TraceStream,
+    opts?: OpenTraceStreamOpts,
+  ): Promise<Trace>;
   openTraceFromBuffer(args: {
     buffer: ArrayBuffer;
     title: string;

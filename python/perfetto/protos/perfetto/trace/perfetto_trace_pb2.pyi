@@ -5044,7 +5044,7 @@ class TestConfig(_message.Message):
     def __init__(self, message_count: _Optional[int] = ..., max_messages_per_second: _Optional[int] = ..., seed: _Optional[int] = ..., message_size: _Optional[int] = ..., send_batch_on_register: bool = ..., dummy_fields: _Optional[_Union[TestConfig.DummyFields, _Mapping]] = ...) -> None: ...
 
 class TrackEventConfig(_message.Message):
-    __slots__ = ("disabled_categories", "enabled_categories", "disabled_tags", "enabled_tags", "disable_incremental_timestamps", "timestamp_unit_multiplier", "filter_debug_annotations", "enable_thread_time_sampling", "thread_time_subsampling_ns", "filter_dynamic_event_names")
+    __slots__ = ("disabled_categories", "enabled_categories", "disabled_tags", "enabled_tags", "disable_incremental_timestamps", "timestamp_unit_multiplier", "filter_debug_annotations", "enable_thread_time_sampling", "thread_time_subsampling_ns", "filter_dynamic_event_names", "experimental_raw_proto_events")
     DISABLED_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     ENABLED_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     DISABLED_TAGS_FIELD_NUMBER: _ClassVar[int]
@@ -5055,6 +5055,7 @@ class TrackEventConfig(_message.Message):
     ENABLE_THREAD_TIME_SAMPLING_FIELD_NUMBER: _ClassVar[int]
     THREAD_TIME_SUBSAMPLING_NS_FIELD_NUMBER: _ClassVar[int]
     FILTER_DYNAMIC_EVENT_NAMES_FIELD_NUMBER: _ClassVar[int]
+    EXPERIMENTAL_RAW_PROTO_EVENTS_FIELD_NUMBER: _ClassVar[int]
     disabled_categories: _containers.RepeatedScalarFieldContainer[str]
     enabled_categories: _containers.RepeatedScalarFieldContainer[str]
     disabled_tags: _containers.RepeatedScalarFieldContainer[str]
@@ -5065,7 +5066,8 @@ class TrackEventConfig(_message.Message):
     enable_thread_time_sampling: bool
     thread_time_subsampling_ns: int
     filter_dynamic_event_names: bool
-    def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., thread_time_subsampling_ns: _Optional[int] = ..., filter_dynamic_event_names: bool = ...) -> None: ...
+    experimental_raw_proto_events: bool
+    def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., thread_time_subsampling_ns: _Optional[int] = ..., filter_dynamic_event_names: bool = ..., experimental_raw_proto_events: bool = ...) -> None: ...
 
 class DataSourceConfig(_message.Message):
     __slots__ = ("name", "target_buffer", "target_buffer_name", "trace_duration_ms", "prefer_suspend_clock_for_duration", "stop_timeout_ms", "enable_extra_guardrails", "session_initiator", "tracing_session_id", "buffer_exhausted_policy", "priority_boost", "protovm_config", "supports_tracing_v2", "experimental_tracing_v2", "ftrace_config", "inode_file_config", "process_stats_config", "sys_stats_config", "heapprofd_config", "java_hprof_config", "android_power_config", "android_log_config", "gpu_counter_config", "android_game_intervention_list_config", "packages_list_config", "perf_event_config", "vulkan_memory_config", "track_event_config", "android_polled_state_config", "android_system_property_config", "statsd_tracing_config", "system_info_config", "frozen_ftrace_config", "chrome_config", "v8_config", "interceptor_config", "network_packet_trace_config", "surfaceflinger_layers_config", "surfaceflinger_transactions_config", "android_sdk_sysprop_guard_config", "etw_config", "protolog_config", "android_input_event_config", "pixel_modem_config", "windowmanager_config", "chromium_system_metrics", "kernel_wakelocks_config", "gpu_renderstages_config", "chromium_histogram_samples", "app_wakelocks_config", "cpu_per_uid_config", "user_list_config", "inputmethod_config", "android_aflags_config", "journald_config", "display_video_config", "chromium_stack_sampling_profiler", "chromium_sampling_heap_profiler", "android_process_state_config", "process_smaps_config", "qnx_config", "cgroup_config", "legacy_config", "for_testing")
@@ -16591,14 +16593,16 @@ class GpuCounterEvent(_message.Message):
     def __init__(self, counter_descriptor: _Optional[_Union[GpuCounterDescriptor, _Mapping]] = ..., counter_descriptor_iid: _Optional[int] = ..., counters: _Optional[_Iterable[_Union[GpuCounterEvent.GpuCounter, _Mapping]]] = ..., gpu_id: _Optional[int] = ...) -> None: ...
 
 class InternedGpuCounterDescriptor(_message.Message):
-    __slots__ = ("iid", "counter_descriptor", "gpu_id")
+    __slots__ = ("iid", "counter_descriptor", "gpu_id", "gpu_domain_id")
     IID_FIELD_NUMBER: _ClassVar[int]
     COUNTER_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
     GPU_ID_FIELD_NUMBER: _ClassVar[int]
+    GPU_DOMAIN_ID_FIELD_NUMBER: _ClassVar[int]
     iid: int
     counter_descriptor: GpuCounterDescriptor
     gpu_id: int
-    def __init__(self, iid: _Optional[int] = ..., counter_descriptor: _Optional[_Union[GpuCounterDescriptor, _Mapping]] = ..., gpu_id: _Optional[int] = ...) -> None: ...
+    gpu_domain_id: int
+    def __init__(self, iid: _Optional[int] = ..., counter_descriptor: _Optional[_Union[GpuCounterDescriptor, _Mapping]] = ..., gpu_id: _Optional[int] = ..., gpu_domain_id: _Optional[int] = ...) -> None: ...
 
 class GpuLog(_message.Message):
     __slots__ = ("severity", "tag", "log_message")
@@ -16635,7 +16639,7 @@ class GpuMemTotalEvent(_message.Message):
     def __init__(self, gpu_id: _Optional[int] = ..., pid: _Optional[int] = ..., size: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStageEvent(_message.Message):
-    __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "name", "name_iid", "event_wait_ids", "kernel_iid", "launch", "specifications", "hw_queue_id", "stage_id")
+    __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "name", "name_iid", "event_wait_ids", "kernel_iid", "launch", "logical_queue_id", "specifications", "hw_queue_id", "stage_id")
     Extensions: _python_message._ExtensionDict
     class ExtraData(_message.Message):
         __slots__ = ("name", "value")
@@ -16720,6 +16724,7 @@ class GpuRenderStageEvent(_message.Message):
     EVENT_WAIT_IDS_FIELD_NUMBER: _ClassVar[int]
     KERNEL_IID_FIELD_NUMBER: _ClassVar[int]
     LAUNCH_FIELD_NUMBER: _ClassVar[int]
+    LOGICAL_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     SPECIFICATIONS_FIELD_NUMBER: _ClassVar[int]
     HW_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     STAGE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -16741,10 +16746,11 @@ class GpuRenderStageEvent(_message.Message):
     event_wait_ids: _containers.RepeatedScalarFieldContainer[int]
     kernel_iid: int
     launch: GpuRenderStageEvent.ComputeKernelLaunch
+    logical_queue_id: int
     specifications: GpuRenderStageEvent.Specifications
     hw_queue_id: int
     stage_id: int
-    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., name: _Optional[str] = ..., name_iid: _Optional[int] = ..., event_wait_ids: _Optional[_Iterable[int]] = ..., kernel_iid: _Optional[int] = ..., launch: _Optional[_Union[GpuRenderStageEvent.ComputeKernelLaunch, _Mapping]] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., name: _Optional[str] = ..., name_iid: _Optional[int] = ..., event_wait_ids: _Optional[_Iterable[int]] = ..., kernel_iid: _Optional[int] = ..., launch: _Optional[_Union[GpuRenderStageEvent.ComputeKernelLaunch, _Mapping]] = ..., logical_queue_id: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
 
 class InternedGraphicsContext(_message.Message):
     __slots__ = ("iid", "pid", "api")

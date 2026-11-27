@@ -120,8 +120,7 @@ SELECT
 FROM _deepest_idle AS deepest
 CROSS JOIN cpu_freqs AS cf
 CROSS JOIN idles AS i
-LEFT JOIN _dev_cpu_policy_map AS m
-  ON m.cpu = cf.cpu
+LEFT JOIN _dev_cpu_policy_map AS m ON m.cpu = cf.cpu
 LEFT JOIN _filtered_curves_1d AS lut
   ON lut.policy = m.policy
   AND lut.freq_khz = cf.freq
@@ -165,7 +164,17 @@ WITH
         _is_cpu_active!(state_id_5),
         _is_cpu_active!(state_id_6),
         _is_cpu_active!(state_id_7)
-      ) AS INTEGER) AS cpus_on_mask
+      ) AS INTEGER) AS cpus_on_mask,
+      CAST(_bitmask8!(
+        _is_cpu_running!(state_id_0),
+        _is_cpu_running!(state_id_1),
+        _is_cpu_running!(state_id_2),
+        _is_cpu_running!(state_id_3),
+        _is_cpu_running!(state_id_4),
+        _is_cpu_running!(state_id_5),
+        _is_cpu_running!(state_id_6),
+        _is_cpu_running!(state_id_7)
+      ) AS INTEGER) AS cpus_running_mask
     FROM _w_config_reps
   )
 SELECT
@@ -213,25 +222,25 @@ SELECT
   + iif(reps.cpus_on_mask & pm.m5, d5.static, 0)
   + iif(reps.cpus_on_mask & pm.m6, d6.static, 0)
   + iif(reps.cpus_on_mask & pm.m7, d7.static, 0) AS static_1d,
+  iif(reps.cpus_running_mask & pm.m0, d0.static, 0)
+  + iif(reps.cpus_running_mask & pm.m1, d1.static, 0)
+  + iif(reps.cpus_running_mask & pm.m2, d2.static, 0)
+  + iif(reps.cpus_running_mask & pm.m3, d3.static, 0)
+  + iif(reps.cpus_running_mask & pm.m4, d4.static, 0)
+  + iif(reps.cpus_running_mask & pm.m5, d5.static, 0)
+  + iif(reps.cpus_running_mask & pm.m6, d6.static, 0)
+  + iif(reps.cpus_running_mask & pm.m7, d7.static, 0) AS running_static_1d,
   reps.suspended
 FROM _policy_masks AS pm
 CROSS JOIN reps
-CROSS JOIN _cpu_state_lut AS d0
-  ON d0.state_id = reps.state_id_0
-CROSS JOIN _cpu_state_lut AS d1
-  ON d1.state_id = reps.state_id_1
-CROSS JOIN _cpu_state_lut AS d2
-  ON d2.state_id = reps.state_id_2
-CROSS JOIN _cpu_state_lut AS d3
-  ON d3.state_id = reps.state_id_3
-CROSS JOIN _cpu_state_lut AS d4
-  ON d4.state_id = reps.state_id_4
-CROSS JOIN _cpu_state_lut AS d5
-  ON d5.state_id = reps.state_id_5
-CROSS JOIN _cpu_state_lut AS d6
-  ON d6.state_id = reps.state_id_6
-CROSS JOIN _cpu_state_lut AS d7
-  ON d7.state_id = reps.state_id_7;
+CROSS JOIN _cpu_state_lut AS d0 ON d0.state_id = reps.state_id_0
+CROSS JOIN _cpu_state_lut AS d1 ON d1.state_id = reps.state_id_1
+CROSS JOIN _cpu_state_lut AS d2 ON d2.state_id = reps.state_id_2
+CROSS JOIN _cpu_state_lut AS d3 ON d3.state_id = reps.state_id_3
+CROSS JOIN _cpu_state_lut AS d4 ON d4.state_id = reps.state_id_4
+CROSS JOIN _cpu_state_lut AS d5 ON d5.state_id = reps.state_id_5
+CROSS JOIN _cpu_state_lut AS d6 ON d6.state_id = reps.state_id_6
+CROSS JOIN _cpu_state_lut AS d7 ON d7.state_id = reps.state_id_7;
 
 -- Per-interval CPU data with the configuration columns attached. Consumers
 -- that only need the per-interval columns should read `_w_cpu_slices_raw`
@@ -270,7 +279,8 @@ SELECT
   slices.suspended,
   slices.dsu_freq,
   cfg.policy_cpus_on_mask,
-  cfg.static_1d
+  cfg.static_1d,
+  cfg.running_static_1d
 FROM _w_cpu_slices_raw AS slices
 JOIN _w_unique_configs AS cfg
   ON cfg.config_hash
@@ -326,13 +336,9 @@ SELECT
 CREATE PERFETTO TABLE _cpu_dep_votes AS
 SELECT d.cpu, d.dep_cpu, v.vote_by_freq, p.policy
 FROM _cpu_lut_dependencies AS d
-JOIN _cpu_dep_class AS k
-  ON k.cpu = d.cpu
-  AND k.rep_cpu = d.cpu
-JOIN _dev_vote_by_freq AS v
-  ON d.cpu = v.cpu
-JOIN _dev_cpu_policy_map AS p
-  ON d.dep_cpu = p.cpu;
+JOIN _cpu_dep_class AS k ON k.cpu = d.cpu AND k.rep_cpu = d.cpu
+JOIN _dev_vote_by_freq AS v ON d.cpu = v.cpu
+JOIN _dev_cpu_policy_map AS p ON d.dep_cpu = p.cpu;
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS

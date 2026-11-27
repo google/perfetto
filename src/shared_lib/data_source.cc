@@ -71,6 +71,8 @@ struct PerfettoDsImpl {
   PerfettoDsOnStopCb on_stop_cb = nullptr;
   PerfettoDsOnDestroyCb on_destroy_cb = nullptr;
   PerfettoDsOnFlushCb on_flush_cb = nullptr;
+  PerfettoDsWillClearIncrementalStateCb will_clear_incremental_state_cb =
+      nullptr;
 
   // These are called to create/delete custom thread-local instance state.
   PerfettoDsOnCreateCustomState on_create_tls_cb = nullptr;
@@ -205,6 +207,15 @@ class ShlibDataSource : public perfetto::DataSourceBase {
     }
   }
 
+  void WillClearIncrementalState(
+      const ClearIncrementalStateArgs& args) override {
+    if (type_.will_clear_incremental_state_cb) {
+      type_.will_clear_incremental_state_cb(
+          &type_, args.internal_instance_index, type_.cb_user_arg, inst_ctx_,
+          nullptr);
+    }
+  }
+
   const PerfettoDsImpl& type() const { return type_; }
 
   void* inst_ctx() const { return inst_ctx_; }
@@ -308,6 +319,13 @@ void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl* ds_impl,
                                   PerfettoDsOnFlushCb cb) {
   PERFETTO_CHECK(!ds_impl->IsRegistered());
   ds_impl->on_flush_cb = cb;
+}
+
+void PerfettoDsSetWillClearIncrementalStateCallback(
+    struct PerfettoDsImpl* ds_impl,
+    PerfettoDsWillClearIncrementalStateCb cb) {
+  PERFETTO_CHECK(!ds_impl->IsRegistered());
+  ds_impl->will_clear_incremental_state_cb = cb;
 }
 
 void PerfettoDsSetOnCreateTls(struct PerfettoDsImpl* ds_impl,

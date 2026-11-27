@@ -1,3 +1,6 @@
+---
+requires: [query]
+---
 # Compute kernel — occupancy and its limiting factor
 
 Occupancy is the ratio of active warps/wavefronts per compute unit to the

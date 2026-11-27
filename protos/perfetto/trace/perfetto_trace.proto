@@ -5196,6 +5196,17 @@ message TrackEventConfig {
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.
   optional bool filter_dynamic_event_names = 9;
+
+  // Experimental.
+  // TODO(b/590770202): remove once the Java SDK migration is complete.
+  //
+  // When true, SDK language bindings (today, the Android Java SDK) send this
+  // session events as raw serialized TrackEvent protobuf fields with inline
+  // names. When false or absent, they use the extras path, which interns names.
+  // Does not affect C or C++ events, and is independent of the trace writer
+  // version.
+  // Introduced in: perfetto v60.
+  optional bool experimental_raw_proto_events = 11;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
@@ -14020,6 +14031,11 @@ message InternedGpuCounterDescriptor {
 
   // optional. Identifier for GPU in a multi-gpu device.
   optional int32 gpu_id = 3;
+
+  // optional. The domain of the GPU (e.g. a hardware block such as an SM or a
+  // PE) the counters belong to, scoped to `gpu_id`. See
+  // GpuTrackDescriptor.gpu_domain_id.
+  optional uint32 gpu_domain_id = 4;
 }
 
 // End of protos/perfetto/trace/gpu/gpu_counter_event.proto

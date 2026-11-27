@@ -19,28 +19,13 @@ import {
   type Page,
   type PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test';
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type {IdleDetectorWindow} from '../frontend/idle_detector_interface';
 import {ensureExists} from '../base/assert';
 import type {Size2D} from '../base/geom';
 import type {AppImpl} from '../core/app_impl';
-
-// Mirrors sanitizeForFilePath() in Playwright's fileUtils.js.
-function sanitizeForFilePath(s: string): string {
-  return s.replace(/[\x00-\x2C\x2E-\x2F\x3A-\x40\x5B-\x60\x7B-\x7F]+/g, '-');
-}
-
-// Mirrors trimLongString() in Playwright's util.js.
-function trimLongString(s: string, length = 100): string {
-  if (s.length <= length) return s;
-  const hash = crypto.createHash('sha1').update(s).digest('hex');
-  const middle = `-${hash.substring(0, 5)}-`;
-  const start = Math.floor((length - middle.length) / 2);
-  const end = length - middle.length - start;
-  return s.substring(0, start) + middle + s.slice(-end);
-}
+import {formatScreenshotName} from './screenshot_name';
 
 export class PerfettoTestHelper {
   private cachedSidebarSize?: Size2D;
@@ -71,14 +56,7 @@ export class PerfettoTestHelper {
   // {testName}. Every screenshot must use this, otherwise it ends up directly
   // under <file>/.
   screenshotName(name: string): string[] {
-    const titlePath = test.info().titlePath.slice(1);
-    if (this.currentStepTitle !== undefined) {
-      titlePath[titlePath.length - 1] = this.currentStepTitle;
-    }
-    const folder = sanitizeForFilePath(trimLongString(titlePath.join(' ')));
-    const ext = path.extname(name);
-    const base = name.substring(0, name.length - ext.length);
-    return [folder, sanitizeForFilePath(base) + ext];
+    return formatScreenshotName(name, this.currentStepTitle);
   }
 
   resetFocus(): Promise<void> {

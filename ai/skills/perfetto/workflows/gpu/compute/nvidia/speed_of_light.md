@@ -1,12 +1,13 @@
+---
+requires: [query]
+---
 # NVIDIA — Speed of Light extraction
 
 The NVIDIA counter extraction behind the compute-vs-memory-vs-latency verdict.
 Run it, then apply the bound-type interpretation from
 [speed_of_light.md]($SKILL_ROOT/workflows/gpu/compute/speed_of_light.md).
 
-```bash
-trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/speed_of_light.sql
-```
+Run `$SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/speed_of_light.sql`.
 
 One row per compute kernel (longest first). Display label → output column →
 NVIDIA counter:

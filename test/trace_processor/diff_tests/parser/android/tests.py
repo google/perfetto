@@ -497,6 +497,504 @@ class AndroidParser(TestSuite):
           2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,"[NULL]","[NULL]","[NULL]",0
         """))
 
+  def test_android_process_state_start_ts(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.reason;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",1,500
+          "[NULL]",200,"PROCESS_STATE_TOP",1,1200
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
+          3000,200,"PROCESS_STATE_CACHED_ACTIVITY",0,"[NULL]"
+          "[NULL]",300,"PROCESS_STATE_TOP",1,"[NULL]"
+          2000,300,"PROCESS_STATE_IMPORTANT_FOREGROUND",0,"[NULL]"
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",1,"[NULL]"
+          "[NULL]",500,"PROCESS_STATE_RECEIVER",1,1500
+          "[NULL]",600,"PROCESS_STATE_SERVICE",1,"[NULL]"
+          2000,600,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+          "[NULL]",700,"PROCESS_STATE_SERVICE",1,"[NULL]"
+          2000,700,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+          "[NULL]",800,"PROCESS_STATE_RECEIVER",1,"[NULL]"
+          "[NULL]",900,"PROCESS_STATE_RECEIVER",1,"[NULL]"
+          "[NULL]",1000,"PROCESS_STATE_RECEIVER",1,1200
+          "[NULL]",1100,"PROCESS_STATE_TOP",1,2000
+          3000,1100,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+          "[NULL]",1200,"PROCESS_STATE_TOP",1,"[NULL]"
+          2000,1200,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+        """))
+
+  def test_android_process_state_invalid_start_ts_stat(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT name, idx, severity, source, value
+        FROM stats
+        WHERE name = 'android_process_state_invalid_start_ts';
+        """,
+        out=Csv("""
+          "name","idx","severity","source","value"
+          "android_process_state_invalid_start_ts","[NULL]","notice","analysis",3
+        """))
+
+  def test_android_process_state_invalid_start_ts_logs(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_start_ts.textproto'),
+        query="""
+        SELECT
+          l.ts,
+          l.severity,
+          l.name,
+          extract_arg(l.arg_set_id, 'reason') AS reason,
+          extract_arg(l.arg_set_id, 'source') AS source,
+          extract_arg(l.arg_set_id, 'field') AS field,
+          extract_arg(l.arg_set_id, 'pid') AS pid,
+          extract_arg(l.arg_set_id, 'upid') = p.upid AS upid_matches,
+          extract_arg(l.arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(l.arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(l.arg_set_id, 'start_ts') AS start_ts
+        FROM _trace_import_logs AS l
+        JOIN process AS p ON p.pid = extract_arg(l.arg_set_id, 'pid')
+        WHERE l.name = 'android_process_state_invalid_start_ts'
+        ORDER BY l.ts, pid;
+        """,
+        out=Csv("""
+          "ts","severity","name","reason","source","field","pid","upid_matches","event_ts","start_ns","start_ts"
+          2000,"notice","android_process_state_invalid_start_ts","after_event","process_state_changed","prev_proc_state_start_ns",600,1,2000,2500,2500
+          10000,"notice","android_process_state_invalid_start_ts","negative","process_dump","proc_state_start_ns",800,1,10000,-5,"[NULL]"
+          10000,"notice","android_process_state_invalid_start_ts","after_event","process_dump","proc_state_start_ns",900,1,10000,12000,12000
+        """))
+
+  def test_android_process_state_start_ts_after_died_event(self):
+    # A process that never changes state but dies at 2000 with a
+    # prev_proc_state_start_ns (2500) after the died event. The died event
+    # inserts no row, but the start is just as invalid.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_state_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_SERVICE
+              prev_proc_state_start_ns: 2500
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (
+            SELECT state_start_ts
+            FROM __intrinsic_android_process_state
+            WHERE is_initial = 1
+          ) AS state_start_ts,
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          extract_arg(arg_set_id, 'reason') AS reason,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'field') AS field,
+          extract_arg(arg_set_id, 'pid') AS pid,
+          extract_arg(arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(arg_set_id, 'start_ts') AS start_ts
+        FROM _trace_import_logs
+        WHERE name = 'android_process_state_invalid_start_ts';
+        """,
+        out=Csv("""
+          "state_start_ts","stat_value","reason","source","field","pid","event_ts","start_ns","start_ts"
+          "[NULL]",1,"after_event","process_state_died","prev_proc_state_start_ns",100,2000,2500,2500
+        """))
+
+  def test_android_freezer_start_times_invalid_stat_and_log(self):
+    # Exercises PID 1400 in freezer_start_times.textproto under a MONOTONIC
+    # trace clock: event_ts and start_ts are in trace time while start_ns stays
+    # CLOCK_BOOTTIME. PIDs 1100 and 1300 have 0 (unknown) and must not warn.
+    return DiffTestBlueprint(
+        trace=Path('freezer_start_times.textproto'),
+        query="""
+        SELECT
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          l.ts,
+          extract_arg(l.arg_set_id, 'reason') AS reason,
+          extract_arg(l.arg_set_id, 'source') AS source,
+          extract_arg(l.arg_set_id, 'field') AS field,
+          extract_arg(l.arg_set_id, 'pid') AS pid,
+          extract_arg(l.arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(l.arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(l.arg_set_id, 'start_ts') AS start_ts
+        FROM _trace_import_logs AS l
+        WHERE l.name = 'android_process_state_invalid_start_ts'
+        ORDER BY l.ts, pid;
+        """,
+        out=Csv("""
+          "stat_value","ts","reason","source","field","pid","event_ts","start_ns","start_ts"
+          1,5500000000,"after_event","freezer_event","unfrozen_start_ns",1400,5500000000,6000000001,5500000001
+        """))
+
+  def test_android_freezer_dump_and_event_invalid_start_ts(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+            processes { pid: 300 ppid: 1 cmdline: "proc300" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "unfreeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 100
+              uid: 10001
+              frozen_dur_ms: 1
+              frozen_start_ns: -10
+              unfreeze_reason: UFR_NONE
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 200
+              uid: 10002
+              unfrozen_dur_ms: 1
+              unfrozen_start_ns: -20
+              unfreeze_reason: UFR_NONE
+            }
+            record {
+              pid: 300
+              uid: 10003
+              frozen_dur_ms: 1
+              frozen_start_ns: 6000
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          extract_arg(l.arg_set_id, 'reason') AS reason,
+          extract_arg(l.arg_set_id, 'source') AS source,
+          extract_arg(l.arg_set_id, 'field') AS field,
+          extract_arg(l.arg_set_id, 'pid') AS pid,
+          extract_arg(l.arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(l.arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(l.arg_set_id, 'start_ts') AS start_ts,
+          f.unfrozen_start_ts,
+          f.frozen_start_ts
+        FROM _trace_import_logs AS l
+        JOIN process AS p ON p.pid = extract_arg(l.arg_set_id, 'pid')
+        JOIN __intrinsic_android_freezer_state AS f ON f.upid = p.upid
+        WHERE l.name = 'android_process_state_invalid_start_ts'
+        ORDER BY l.ts, pid;
+        """,
+        out=Csv("""
+          "stat_value","reason","source","field","pid","event_ts","start_ns","start_ts","unfrozen_start_ts","frozen_start_ts"
+          3,"negative","freezer_event","frozen_start_ns",100,2000,-10,"[NULL]","[NULL]","[NULL]"
+          3,"negative","freezer_dump","unfrozen_start_ns",200,5000,-20,"[NULL]","[NULL]","[NULL]"
+          3,"after_event","freezer_dump","frozen_start_ns",300,5000,6000,6000,"[NULL]","[NULL]"
+        """))
+
+  def test_android_process_state_delta_negative_and_non_earliest(self):
+    # Negative prev_proc_state_start_ns on a process's earliest delta is
+    # dropped and logged; a non-earliest delta skips prev_* decoding entirely.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_SERVICE
+              prev_proc_state_start_ns: -5
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_SERVICE
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_proc_state_start_ns: 9999
+              reason: 3
+              seq_id: 2
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          (
+            SELECT state_start_ts
+            FROM __intrinsic_android_process_state
+            WHERE is_initial = 1
+          ) AS state_start_ts,
+          (
+            SELECT value
+            FROM stats
+            WHERE name = 'android_process_state_invalid_start_ts'
+          ) AS stat_value,
+          extract_arg(arg_set_id, 'reason') AS reason,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'field') AS field,
+          extract_arg(arg_set_id, 'event_ts') AS event_ts,
+          extract_arg(arg_set_id, 'start_ns') AS start_ns,
+          extract_arg(arg_set_id, 'start_ts') AS start_ts
+        FROM _trace_import_logs
+        WHERE name = 'android_process_state_invalid_start_ts';
+        """,
+        out=Csv("""
+          "state_start_ts","stat_value","reason","source","field","event_ts","start_ns","start_ts"
+          "[NULL]",1,"negative","process_state_changed","prev_proc_state_start_ns",2000,-5,"[NULL]"
+        """))
+
+  def test_android_process_state_start_ts_clock_conversion(self):
+    # The trace clock is MONOTONIC, which is BOOTTIME - 9000. Packets are
+    # timestamped in BOOTTIME, like the proc_state_start_ns /
+    # prev_proc_state_start_ns values, and both must be converted to trace time.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_MONOTONIC
+            clocks { clock_id: 6 timestamp: 10000 }
+            clocks { clock_id: 3 timestamp: 1000 }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 10000
+          timestamp_clock_id: 6
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+          }
+        }
+        packet {
+          timestamp: 12000
+          timestamp_clock_id: 6
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_proc_state_start_ns: 11000
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 20000
+          timestamp_clock_id: 6
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            record {
+              pid: 100
+              uid: 10001
+              proc_state: 1002
+              proc_state_start_ns: 10500
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",1,1500
+          "[NULL]",200,"PROCESS_STATE_TOP",1,2000
+          3000,200,"PROCESS_STATE_CACHED_EMPTY",0,"[NULL]"
+        """))
+
+  def test_android_process_state_died(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_died.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.process_group,
+          t.is_initial,
+          t.state_start_ts
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","is_initial","state_start_ts"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"[NULL]",1,"[NULL]"
+          1500,100,"PROCESS_STATE_CACHED_EMPTY",900,0,"[NULL]",0,"[NULL]"
+          "[NULL]",200,"PROCESS_STATE_FOREGROUND_SERVICE",200,4,"[NULL]",1,1000
+          "[NULL]",300,"PROCESS_STATE_SERVICE",500,0,"[NULL]",1,"[NULL]"
+          "[NULL]",400,"PROCESS_STATE_SERVICE",500,"[NULL]","[NULL]",1,700
+          2000,400,"PROCESS_STATE_RECEIVER",200,"[NULL]","[NULL]",0,"[NULL]"
+          "[NULL]",500,"PROCESS_STATE_CACHED_EMPTY",999,0,"PROCESS_GROUP_BACKGROUND",1,1300
+        """))
+
+  def test_android_process_state_died_unknown_pid(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_died.textproto'),
+        query="""
+        SELECT
+          ts,
+          severity,
+          name,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'pid') AS pid
+        FROM _trace_import_logs
+        WHERE name = 'android_track_event_process_unknown'
+        ORDER BY ts, pid;
+        """,
+        out=Csv("""
+          "ts","severity","name","source","pid"
+          5500,"notice","android_track_event_process_unknown","process_state_died",999
+        """))
+
+  def test_android_freezer_state_start_times(self):
+    return DiffTestBlueprint(
+        trace=Path('freezer_start_times.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.unfrozen_start_ts,
+          t.frozen_start_ts,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","unfrozen_start_ts","frozen_start_ts","is_initial"
+          4500000000,600,"[NULL]",500,"UFR_ACTIVITY","[NULL]",3000000000,0
+          5500000000,700,1500,"[NULL]","[NULL]",4000000000,"[NULL]",0
+          "[NULL]",800,"[NULL]","[NULL]","UFR_NONE",2500000000,"[NULL]",1
+          "[NULL]",900,"[NULL]","[NULL]","[NULL]","[NULL]",3500000000,1
+          "[NULL]",1000,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          5500000000,1100,2000,"[NULL]","[NULL]","[NULL]","[NULL]",0
+          "[NULL]",1200,"[NULL]","[NULL]","UFR_NONE",6499500000,"[NULL]",1
+          "[NULL]",1300,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1
+          5500000000,1400,1000,"[NULL]","[NULL]","[NULL]","[NULL]",0
+          "[NULL]",1500,"[NULL]","[NULL]","[NULL]","[NULL]",6700000000,1
+        """))
+
+  def test_android_freezer_dump_explicit_zero_unfrozen_start(self):
+    # A frozen dump record with an explicit unfrozen_start_ns: 0 must stay
+    # frozen (unfreeze_reason = NULL) rather than being treated as UFR_NONE.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 5000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 100
+              uid: 10001
+              frozen_dur_ms: 1000
+              unfrozen_start_ns: 0
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfreeze_reason,
+          t.unfrozen_start_ts,
+          t.frozen_start_ts,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid;
+        """,
+        out=Csv("""
+          "ts","pid","unfreeze_reason","unfrozen_start_ts","frozen_start_ts","is_initial"
+          "[NULL]",100,"[NULL]","[NULL]","[NULL]",1
+        """))
+
   def test_android_freezer_state(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state.textproto'),
@@ -519,6 +1017,178 @@ class AndroidParser(TestSuite):
           "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
           "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
           "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
+        """))
+
+  def test_android_process_group(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.uid,
+          t.process_group
+        FROM __intrinsic_android_process_group t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","uid","process_group"
+          3500,200,10002,"PROCESS_GROUP_DEFAULT"
+        """))
+
+  def test_android_process_group_events(self):
+    # pid 100: several calls, including a repeated group (not deduplicated).
+    # pid 200: a call without cur_process_group (defensive: producers always
+    # write it).
+    # pid 300: in the trace-stop dump but without calls, so no rows.
+    # pid 400: calls but not in the trace-stop dump, through the
+    # Process.setProcessGroup(pid, group) overload, which has no uid.
+    # pid 0 (meaning the calling process) is ignored; unknown pid 998 is
+    # dropped.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+            processes { pid: 200 ppid: 1 cmdline: "proc200" }
+            processes { pid: 300 ppid: 1 cmdline: "proc300" }
+            processes { pid: 400 ppid: 1 cmdline: "proc400" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 100
+              uid: 10001
+              cur_process_group: PROCESS_GROUP_TOP_APP
+            }
+          }
+        }
+        packet {
+          timestamp: 1500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 200
+              uid: 10002
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 100
+              uid: 10001
+              cur_process_group: PROCESS_GROUP_BACKGROUND
+            }
+          }
+        }
+        packet {
+          timestamp: 2200
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 400
+              cur_process_group: PROCESS_GROUP_FOREGROUND
+            }
+          }
+        }
+        packet {
+          timestamp: 2500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 0
+              uid: 1000
+              cur_process_group: PROCESS_GROUP_SYSTEM
+            }
+          }
+        }
+        packet {
+          timestamp: 2600
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 998
+              uid: 10998
+              cur_process_group: PROCESS_GROUP_DEFAULT
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "set_process_group"
+            [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+              pid: 100
+              uid: 10001
+              cur_process_group: PROCESS_GROUP_BACKGROUND
+            }
+          }
+        }
+        packet {
+          timestamp: 10000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            record { pid: 100 uid: 10001 proc_state: 1015 process_group: 2 }
+            record { pid: 300 uid: 10003 proc_state: 1002 process_group: 7 }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.uid,
+          t.process_group
+        FROM __intrinsic_android_process_group t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","uid","process_group"
+          1000,100,10001,"PROCESS_GROUP_TOP_APP"
+          2000,100,10001,"PROCESS_GROUP_BACKGROUND"
+          3000,100,10001,"PROCESS_GROUP_BACKGROUND"
+          1500,200,10002,"[NULL]"
+          2200,400,"[NULL]","PROCESS_GROUP_FOREGROUND"
+        """))
+
+  def test_android_process_group_unknown_pid(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          ts,
+          name,
+          extract_arg(arg_set_id, 'source') AS source,
+          extract_arg(arg_set_id, 'pid') AS pid
+        FROM _trace_import_logs
+        WHERE name = 'android_track_event_process_unknown'
+        ORDER BY ts, pid;
+        """,
+        out=Csv("""
+          "ts","name","source","pid"
+          2400,"android_track_event_process_unknown","process_group_changed",999
         """))
 
   def test_android_process_state_metadata(self):
@@ -562,6 +1232,20 @@ class AndroidParser(TestSuite):
           "ts","pid","unfreeze_reason","is_initial"
           "[NULL]",200,"UFR_PING",1
           2500000000,400,"UFR_BINDER_TXNS",0
+        """))
+
+  def test_android_process_state_metadata_process_group(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT t.ts, p.pid, t.process_group
+        FROM __intrinsic_android_process_group t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","process_group"
+          2600000000,400,"PROCESS_GROUP_DEFAULT"
         """))
 
   def test_android_process_state_metadata_state(self):
