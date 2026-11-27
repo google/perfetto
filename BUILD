@@ -2634,6 +2634,8 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/dataframe.h",
         "src/trace_processor/core/dataframe/dataframe_register_cache.h",
+        "src/trace_processor/core/dataframe/event_table_backend.cc",
+        "src/trace_processor/core/dataframe/event_table_backend.h",
         "src/trace_processor/core/dataframe/logical_plan.cc",
         "src/trace_processor/core/dataframe/logical_plan.h",
         "src/trace_processor/core/dataframe/query_plan.cc",
@@ -6028,6 +6030,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_storage_storage",
     srcs = [
+        "src/trace_processor/storage/import_storage.h",
         "src/trace_processor/storage/metadata.h",
         "src/trace_processor/storage/stats.h",
         "src/trace_processor/storage/stats_types.h",

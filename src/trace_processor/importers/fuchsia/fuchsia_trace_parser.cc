@@ -884,14 +884,12 @@ void FuchsiaTraceParser::Wake(Thread* thread,
     auto waker_it = threads_.find(*waker_tid);
     if (waker_it != threads_.end() &&
         waker_it->second.last_state_row.has_value()) {
-      waker_id = waker_it->second.last_state_row
-                     ->ToRowReference(storage->mutable_thread_state_table())
-                     .id();
+      waker_id = tables::ThreadStateTable::Id{
+          waker_it->second.last_state_row->row_number()};
     }
   } else if (thread->last_state_row.has_value()) {
-    waker_id = thread->last_state_row
-                   ->ToRowReference(storage->mutable_thread_state_table())
-                   .id();
+    waker_id =
+        tables::ThreadStateTable::Id{thread->last_state_row->row_number()};
   }
 
   // Close the state record if one is open for this thread.

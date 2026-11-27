@@ -164,22 +164,21 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       auto slice_id = slice_tracker->Begin(timestamp, track_id, event.cat,
                                            slice_name_id, args_inserter);
       if (slice_id && event.tts != std::numeric_limits<int64_t>::max()) {
-        auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
-        rr.set_thread_ts(event.tts);
+        slice_tracker->SetThreadCounters(track_id, *slice_id, event.tts,
+                                         std::nullopt);
       }
       MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id, event);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid());
-      auto slice_id = slice_tracker->End(timestamp, track_id, event.cat,
-                                         event.name, args_inserter);
+      auto ended = slice_tracker->EndAndGetInfo(timestamp, track_id, event.cat,
+                                                event.name, args_inserter);
       // Now try to update thread_dur if we have a tts field.
-      if (slice_id && event.tts != std::numeric_limits<int64_t>::max()) {
-        auto rr = (*storage->mutable_slice_table())[*slice_id];
-        if (auto start_tts = rr.thread_ts(); start_tts) {
-          rr.set_thread_dur(event.tts - *start_tts);
-        }
+      if (ended && ended->thread_ts &&
+          event.tts != std::numeric_limits<int64_t>::max()) {
+        (*storage->mutable_slice_table())[ended->id].set_thread_dur(
+            event.tts - *ended->thread_ts);
       }
       break;
     }

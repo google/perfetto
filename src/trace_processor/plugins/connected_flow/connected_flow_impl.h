@@ -43,11 +43,10 @@ struct FlowGraph {
 
   static FlowGraph Build(const tables::FlowTable& flow_table) {
     FlowGraph graph;
-    for (uint32_t i = 0; i < flow_table.row_count(); ++i) {
-      tables::FlowTable::RowNumber row(i);
-      auto ref = row.ToRowReference(flow_table);
-      graph.outgoing_flows[ref.slice_out()].push_back(row);
-      graph.incoming_flows[ref.slice_in()].push_back(row);
+    auto flow = flow_table.CreateCursor();
+    for (flow.Execute(); !flow.Eof(); flow.Next()) {
+      graph.outgoing_flows[flow.slice_out()].push_back(flow.ToRowNumber());
+      graph.incoming_flows[flow.slice_in()].push_back(flow.ToRowNumber());
     }
     return graph;
   }

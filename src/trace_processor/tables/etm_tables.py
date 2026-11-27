@@ -16,6 +16,7 @@ Contains tables related to perf data ingestion.
 """
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
@@ -111,6 +112,7 @@ ETM_V4_SESSION = Table(
 ETM_V4_CHUNK = Table(
     python_module=__file__,
     class_name='EtmV4ChunkTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_etm_v4_chunk',
     columns=[
         C('session_id',

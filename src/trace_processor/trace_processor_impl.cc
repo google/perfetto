@@ -571,6 +571,7 @@ base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
 
 void TraceProcessorImpl::Flush() {
   TraceProcessorStorageImpl::Flush();
+  context()->storage->FlushEventTables();
   CacheBoundsAndBuildTable();
 }
 
@@ -603,6 +604,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
+  context()->storage->FlushEventTables();
   CacheBoundsAndBuildTable();
 
   // Run trace-config diagnostics before the parser context is destroyed (rules
@@ -620,6 +622,8 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // finalizing dataframes; once finalized, attach any indexes that were
   // declared at registration time.
   TraceProcessorStorageImpl::DestroyContext();
+  // Destroying the trackers commits what they held back.
+  context()->storage->FlushEventTables();
   for (const auto& df : plugin_dataframes_) {
     df.dataframe->Finalize();
     for (const auto& idx_col_names : df.indexes) {

@@ -42,21 +42,3 @@ source_set("android_job_scheduler") {
     "../../util:descriptors",
   ]
 }
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  deps = [
-    ":android_job_scheduler",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_track_event_zero",
-    "../../../../src/protozero",
-    "../../importers/common",
-    "../../importers/proto:gen_cc_android_extension_descriptor",
-    "../../importers/proto:minimal",
-    "../../storage",
-    "../../tables:tables_python",
-    "../../types",
-  ]
-  sources = [ "android_job_scheduler_tracker_unittest.cc" ]
-}

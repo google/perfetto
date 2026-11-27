@@ -89,9 +89,10 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
   std::unique_ptr<tables::ExperimentalFlatSliceTable> out(
       new tables::ExperimentalFlatSliceTable(pool));
 
+  auto rr = slice.CreateIdCursor();
   auto insert_slice = [&](uint32_t i, int64_t ts,
                           tables::TrackTable::Id track_id) {
-    auto rr = slice[i];
+    rr.SeekToId(SliceId{i});
     tables::ExperimentalFlatSliceTable::Row row;
     row.ts = ts;
     row.dur = -1;
@@ -138,7 +139,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
   std::unordered_map<TrackId, Track> tracks;
 
   auto maybe_terminate_active_slice = [&](const Track& t, int64_t fin_ts) {
-    auto rr = slice[t.active.source_row.value()];
+    rr.SeekToId(SliceId{t.active.source_row.value()});
     int64_t ts = rr.ts();
     int64_t dur = rr.dur();
     if (dur == -1 || ts + dur > fin_ts)
@@ -206,7 +207,8 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
     t.active.out_row = insert_sentinel(ts + dur, track_id);
   };
 
-  for (auto it = slice.IterateRows(); it; ++it) {
+  auto it = slice.CreateCursor();
+  for (it.Execute(); !it.Eof(); it.Next()) {
     // TODO(lalitm): this can be optimized using a O(logn) lower bound/filter.
     // Not adding for now as a premature optimization but may be needed down the
     // line.
@@ -251,9 +253,9 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
     // (after adding the previous slice).
     PERFETTO_DCHECK(track.parents.size() == it.depth());
 
-    track.active.source_row = it.row_number().row_number();
+    track.active.source_row = it.ToRowNumber().row_number();
     track.active.out_row =
-        insert_slice(it.row_number().row_number(), ts, track_id);
+        insert_slice(it.ToRowNumber().row_number(), ts, track_id);
   }
 
   for (const auto& track : tracks) {

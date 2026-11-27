@@ -14,6 +14,7 @@
 """Contains metadata tables for a wide range of usecases."""
 
 from python.generators.trace_processor_table.public import Alias
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
@@ -562,6 +563,7 @@ INTERRUPT_MAPPING_TABLE = Table(
 CHROME_RAW_TABLE = Table(
     python_module=__file__,
     class_name='ChromeRawTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_chrome_raw',
     columns=[
         C(
@@ -594,6 +596,7 @@ CHROME_RAW_TABLE = Table(
 FTRACE_EVENT_TABLE = Table(
     python_module=__file__,
     class_name='FtraceEventTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_ftrace_event',
     columns=[
         C('ts',
@@ -660,6 +663,7 @@ FTRACE_EVENT_TABLE = Table(
 ARG_TABLE = Table(
     python_module=__file__,
     class_name='ArgTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_args',
     columns=[
         C(

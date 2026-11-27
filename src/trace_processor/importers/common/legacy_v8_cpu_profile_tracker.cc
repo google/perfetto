@@ -62,7 +62,7 @@ void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
                                                            int64_t ts) {
   auto [it, inserted] = state_by_session_and_pid_.Insert(
       std::make_pair(session_id, pid),
-      State{ts, base::FlatHashMap<uint32_t, CallsiteId>(),
+      State{ts, base::FlatHashMap<uint32_t, Callsite>(),
             base::FlatHashMap<uint32_t, uint32_t>(), nullptr});
   it->ts = ts;
   if (inserted) {
@@ -111,15 +111,14 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
   CallsiteId callsite_id;
   uint32_t depth;
   if (parent_raw_callsite_id) {
-    auto* parent_id = state->callsites.Find(*parent_raw_callsite_id);
-    if (!parent_id) {
+    auto* parent = state->callsites.Find(*parent_raw_callsite_id);
+    if (!parent) {
       return base::ErrStatus(
           "v8 profile parent id does not exist: cannot insert callsite");
     }
-    auto row = context_->storage->stack_profile_callsite_table()[*parent_id];
     callsite_id = context_->stack_profile_tracker->InternCallsite(
-        *parent_id, frame_id, row.depth() + 1);
-    depth = row.depth() + 1;
+        parent->id, frame_id, parent->depth + 1);
+    depth = parent->depth + 1;
   } else {
     callsite_id = context_->stack_profile_tracker->InternCallsite(std::nullopt,
                                                                   frame_id, 0);
@@ -128,7 +127,9 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
 
   // We already asserted above that we don't already have a node with this
   // callsite id.
-  PERFETTO_CHECK(state->callsites.Insert(raw_callsite_id, callsite_id).second);
+  PERFETTO_CHECK(
+      state->callsites.Insert(raw_callsite_id, Callsite{callsite_id, depth})
+          .second);
 
   // Insert the children so it can be picked up if the node is added in the
   // future. Also go through all the nodes in the table itself and fix the
@@ -142,17 +143,17 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
           raw_child_id);
     }
 
-    auto* child_callsite_id = state->callsites.Find(raw_child_id);
+    auto* child = state->callsites.Find(raw_child_id);
 
     // This means that we havent' seen the node yet. We expect it to appear in
     // the future and be picked up by the `!parent_raw_callsite_id` above when
     // it does.
-    if (!child_callsite_id) {
+    if (!child) {
       continue;
     }
+    child->depth = depth + 1;
     auto row =
-        (*context_->storage
-              ->mutable_stack_profile_callsite_table())[*child_callsite_id];
+        (*context_->storage->mutable_stack_profile_callsite_table())[child->id];
     row.set_depth(depth + 1);
     row.set_parent_id(callsite_id);
   }
@@ -181,8 +182,8 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   if (!state) {
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
   }
-  auto* id = state->callsites.Find(raw_callsite_id);
-  if (!id) {
+  auto* callsite = state->callsites.Find(raw_callsite_id);
+  if (!callsite) {
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
@@ -194,7 +195,7 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   task_context.upid = context_->process_tracker->GetOrCreateProcess(pid);
   row.task_context_id =
       context_->profiler_sample_tracker->InternTaskContext(task_context);
-  row.callsite_id = *id;
+  row.callsite_id = callsite->id;
   context_->profiler_sample_tracker->AddSample(row);
   return base::OkStatus();
 }

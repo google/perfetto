@@ -30,6 +30,8 @@ source_set("dataframe") {
     "dataframe.cc",
     "dataframe.h",
     "dataframe_register_cache.h",
+    "event_table_backend.cc",
+    "event_table_backend.h",
     "logical_plan.cc",
     "logical_plan.h",
     "query_plan.cc",

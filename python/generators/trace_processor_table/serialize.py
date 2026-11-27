@@ -21,6 +21,7 @@ from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import SqlAccess
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
 from python.generators.trace_processor_table.util import parse_type
@@ -313,6 +314,7 @@ class TableSerializer(object):
   def __init__(self, parsed: ParsedTable):
     self.table = parsed.table
     self.table_name = parsed.table.class_name
+    self.is_event = parsed.table.kind == TableKind.EVENT
     self.column_serializers: List[ColumnSerializer] = []
 
     # Filter out aliases first, then assign col_index
@@ -410,6 +412,118 @@ inline constexpr uint32_t k{self.table_name}ColumnCount = {col_count};
         ColumnSerializer.cursor_setter, delimiter='\n')
     insert_argvalue = self.foreach_col(
         ColumnSerializer.row_insert_arg_value, delimiter=', ')
+    # Event tables are read only through cursors: their rows have setters
+    # but no getters, and writes to sealed rows go through the backend.
+    ev = self.is_event
+    t = self.table_name
+    if ev:
+      row_ref_setter = row_ref_setter.replace(
+          'table_->dataframe_.SetCellUnchecked<ColumnIndex::',
+          'table_->template SetCell<ColumnIndex::').replace(
+              '>(kSpec, row_, ', '>(row_, ')
+    row_ref_getter_or_none = '' if ev else row_ref_getter
+    const_row_ref_decl = '' if ev else '  struct ConstRowReference;'
+    const_to_row_ref = '' if ev else f'''
+    ConstRowReference ToRowReference(const {t}& table) const {{
+      return ConstRowReference(&table, value_);
+    }}'''
+    const_row_ref = '' if ev else f'''
+  struct ConstRowReference {{
+   public:
+    explicit ConstRowReference(const {t}* table, uint32_t row)
+        : table_(table), row_(row) {{
+        base::ignore_result(table_);
+    }}
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {{}}
+    {row_ref_getter}
+    RowNumber ToRowNumber() const {{
+      return RowNumber{{row_}};
+    }}
+   private:
+    const {t}* table_;
+    uint32_t row_;
+  }};'''
+    friend_const = '' if ev else 'friend struct ConstRowReference;'
+    const_iterator = '' if ev else f'''
+  class ConstIterator {{
+    public:
+      explicit ConstIterator(const {t}* table) : table_(table) {{
+        base::ignore_result(table_);
+      }}
+      explicit operator bool() const {{ return row_ < table_->row_count(); }}
+      ConstIterator& operator++() {{
+        ++row_;
+        return *this;
+      }}
+      RowNumber row_number() const {{
+        return RowNumber{{row_}};
+      }}
+      ConstRowReference ToRowReference() const {{
+        return ConstRowReference(table_, row_);
+      }}
+      {row_ref_getter}
+
+    private:
+      const {t}* table_;
+      uint32_t row_ = 0;
+  }};'''
+    const_index = '' if ev else f'''
+  ConstRowReference operator[](Id id) const {{
+    return ConstRowReference(this, id.value);
+  }}
+  ConstRowReference operator[](uint32_t row) const {{
+    return ConstRowReference(this, row);
+  }}'''
+    const_iterate = '' if ev else (
+        'ConstIterator IterateRows() const { return ConstIterator(this); }')
+    seal = '''
+    if (PERFETTO_UNLIKELY(row_count + 1 - event_state_.sealed_row_count >=
+                          2 * dataframe::kEventTableTailRows)) {
+      event_state_.backend->SealRows(
+          dataframe_, event_state_.sealed_row_count,
+          event_state_.sealed_row_count + dataframe::kEventTableTailRows);
+      event_state_.sealed_row_count += dataframe::kEventTableTailRows;
+    }''' if ev else ''
+    set_cell = '''
+    if (PERFETTO_LIKELY(row >= event_state_.sealed_row_count ||
+                        event_state_.backend->writes_sealed_rows_in_place())) {
+      dataframe_.template SetCellUnchecked<column>(kSpec, row, value);
+      return;
+    }
+    event_state_.backend->WriteSealedCell(
+        dataframe_, column, row, dataframe::EventTableBackend::ToCell(value));''' if ev else '''
+    dataframe_.template SetCellUnchecked<column>(kSpec, row, value);'''
+    clear = ('''dataframe_.Clear();
+    event_state_.sealed_row_count = 0;''' if ev else 'dataframe_.Clear();')
+    event_api = '''
+  // Sets where the rows of this table go once they are sealed.
+  void set_event_table_backend(dataframe::EventTableBackend* backend) {
+    event_state_.backend = backend;
+  }''' if ev else ''
+    seek_to_id = '''
+    // For a cursor from CreateIdCursor(): moves to the row with `id`.
+    void SeekToId(Id id) {{
+      cursor_.SetFilterValueUnchecked(0, id.value);
+      cursor_.ExecuteUnchecked();
+    }}''' if ev else ''
+    seek_to_id = seek_to_id.replace('{{', '{').replace('}}', '}')
+    id_cursor = '''
+  // Returns a cursor which reads rows by id, through SeekToId().
+  ConstCursor CreateIdCursor() const {
+    return CreateCursor({dataframe::FilterSpec{
+        ColumnIndex::id, 0, dataframe::Eq{}, std::nullopt}});
+  }
+  Cursor CreateIdCursor() {
+    return CreateCursor({dataframe::FilterSpec{
+        ColumnIndex::id, 0, dataframe::Eq{}, std::nullopt}});
+  }''' if ev else ''
+    event_member = ('''
+  dataframe::EventTableState event_state_;''' if ev else '')
+    size_assert = (
+        f'''static_assert(sizeof({t}) == sizeof(dataframe::Dataframe) +
+                                 sizeof(dataframe::EventTableState));''' if ev
+        else f'static_assert(sizeof({t}) == sizeof(dataframe::Dataframe));')
     return f'''
 class {self.table_name} {{
  public:
@@ -419,7 +533,7 @@ class {self.table_name} {{
 
   using Id = {self.table_name}_Id;
   struct RowReference;
-  struct ConstRowReference;
+{const_row_ref_decl}
   struct RowNumber {{
    public:
     explicit constexpr RowNumber(uint32_t value) : value_(value) {{}}
@@ -427,10 +541,7 @@ class {self.table_name} {{
 
     RowReference ToRowReference({self.table_name}* table) const {{
       return RowReference(table, value_);
-    }}
-    ConstRowReference ToRowReference(const {self.table_name}& table) const {{
-      return ConstRowReference(&table, value_);
-    }}
+    }}{const_to_row_ref}
 
     bool operator==(const RowNumber& other) const {{
       return value_ == other.value_;
@@ -450,33 +561,18 @@ class {self.table_name} {{
         : table_(table), row_(row) {{
         base::ignore_result(table_);
     }}
-    {row_ref_getter}
+    {row_ref_getter_or_none}
     {row_ref_setter}
     RowNumber ToRowNumber() const {{
       return RowNumber{{row_}};
     }}
 
    private:
-    friend struct ConstRowReference;
+    {friend_const}
     {self.table_name}* table_;
     uint32_t row_;
   }};
-  struct ConstRowReference {{
-   public:
-    explicit ConstRowReference(const {self.table_name}* table, uint32_t row)
-        : table_(table), row_(row) {{
-        base::ignore_result(table_);
-    }}
-    ConstRowReference(const RowReference& other)
-        : table_(other.table_), row_(other.row_) {{}}
-    {row_ref_getter}
-    RowNumber ToRowNumber() const {{
-      return RowNumber{{row_}};
-    }}
-   private:
-    const {self.table_name}* table_;
-    uint32_t row_;
-  }};
+{const_row_ref}
   class ConstCursor {{
    public:
     explicit ConstCursor(const dataframe::Dataframe& df,
@@ -502,7 +598,7 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
-    void Reset() {{ cursor_.Reset(); }}
+    void Reset() {{ cursor_.Reset(); }}{seek_to_id}
     {cursor_getter}
 
    private:
@@ -534,7 +630,7 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
-    void Reset() {{ cursor_.Reset(); }}
+    void Reset() {{ cursor_.Reset(); }}{seek_to_id}
 
     {cursor_getter}
     {cursor_setter}
@@ -559,35 +655,14 @@ class {self.table_name} {{
       RowReference ToRowReference() const {{
         return RowReference(table_, row_);
       }}
-      {row_ref_getter}
+      {row_ref_getter_or_none}
       {row_ref_setter}
 
     private:
       {self.table_name}* table_;
       uint32_t row_ = 0;
   }};
-  class ConstIterator {{
-    public:
-      explicit ConstIterator(const {self.table_name}* table) : table_(table) {{
-        base::ignore_result(table_);
-      }}
-      explicit operator bool() const {{ return row_ < table_->row_count(); }}
-      ConstIterator& operator++() {{
-        ++row_;
-        return *this;
-      }}
-      RowNumber row_number() const {{
-        return RowNumber{{row_}};
-      }}
-      ConstRowReference ToRowReference() const {{
-        return ConstRowReference(table_, row_);
-      }}
-      {row_ref_getter}
-
-    private:
-      const {self.table_name}* table_;
-      uint32_t row_ = 0;
-  }};
+{const_iterator}
   struct IdAndRow {{
     Id id;
     RowNumber row_number;
@@ -596,6 +671,8 @@ class {self.table_name} {{
   }};
   {self.row_struct()}
 
+  static constexpr bool kIsEventTable = {'true' if self.is_event else 'false'};
+
   explicit {self.table_name}(StringPool* pool)
       : dataframe_(
         dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
@@ -603,7 +680,7 @@ class {self.table_name} {{
   template <typename = void>
   IdAndRow Insert(const Row& row) {{
     uint32_t row_count = dataframe_.row_count();
-    dataframe_.InsertUnchecked(kSpec, {insert_argvalue});
+    dataframe_.InsertUnchecked(kSpec, {insert_argvalue});{seal}
     return IdAndRow{{Id{{row_count}}, RowNumber{{row_count}}, row_count, RowReference(this, row_count)}};
   }}
 
@@ -615,12 +692,7 @@ class {self.table_name} {{
     return dataframe_.mutations();
   }}
 
-  ConstRowReference operator[](Id id) const {{
-    return ConstRowReference(this, id.value);
-  }}
-  ConstRowReference operator[](uint32_t row) const {{
-    return ConstRowReference(this, row);
-  }}
+{const_index}
 
   RowReference operator[](Id id) {{
     return RowReference(this, id.value);
@@ -651,11 +723,21 @@ class {self.table_name} {{
   }}
 
   Iterator IterateRows() {{ return Iterator(this); }}
-  ConstIterator IterateRows() const {{ return ConstIterator(this); }}
+  {const_iterate}
 
   void Finalize() {{ dataframe_.Finalize(); }}
 
-  void Clear() {{ dataframe_.Clear(); }}
+  // Sets a cell of `column`, whether or not the column has a setter.
+  template <size_t column>
+  void SetCell(uint32_t row,
+               const typename decltype(kSpec)::template column_spec<
+                   column>::mutate_type& value) {{{set_cell}
+  }}
+
+  void Clear() {{
+    {clear}
+  }}
+{event_api}{id_cursor}
 
   static const char* Name() {{
     return "{self.table.sql_name}";
@@ -669,9 +751,9 @@ class {self.table_name} {{
   }}
 
  private:
-  dataframe::Dataframe dataframe_;
+  dataframe::Dataframe dataframe_;{event_member}
 }};
-static_assert(sizeof({self.table_name}) == sizeof(dataframe::Dataframe));
+{size_assert}
 '''
 
 
@@ -704,6 +786,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/dataframe/event_table_backend.h"
 #include "{fwd_header_str}"
 
 {include_paths_str}

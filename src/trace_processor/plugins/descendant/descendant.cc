@@ -44,14 +44,15 @@ namespace {
 // Walks the parent chain of |candidate| to check whether |ancestor_id| is an
 // ancestor. Stops early when the depth drops to |ancestor_depth| or below.
 bool IsAncestor(const tables::SliceTable& slices,
-                tables::SliceTable::ConstRowReference candidate,
+                std::optional<SliceId> candidate_parent_id,
                 SliceId ancestor_id,
                 uint32_t ancestor_depth) {
-  for (auto id = candidate.parent_id(); id;) {
+  auto ref = slices.CreateIdCursor();
+  for (auto id = candidate_parent_id; id;) {
     if (*id == ancestor_id) {
       return true;
     }
-    auto ref = slices[*id];
+    ref.SeekToId(*id);
     if (ref.depth() <= ancestor_depth) {
       return false;
     }
@@ -66,7 +67,8 @@ bool GetDescendantsInternal(
     SliceId starting_id,
     std::vector<tables::SliceTable::RowNumber>& row_numbers_accumulator,
     base::Status&) {
-  auto start_ref = slices[starting_id];
+  auto start_ref = slices.CreateIdCursor();
+  start_ref.SeekToId(starting_id);
   cursor.SetFilterValueUnchecked(0, start_ref.ts());
   cursor.SetFilterValueUnchecked(1, start_ref.track_id().value);
   cursor.SetFilterValueUnchecked(2, start_ref.depth());
@@ -91,9 +93,9 @@ bool GetDescendantsInternal(
   int64_t start_ts = start_ref.ts();
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
     auto row_num = cursor.ToRowNumber();
-    auto ref = row_num.ToRowReference(slices);
-    if ((ref.ts() == start_ts || ref.ts() == ts_end) &&
-        !IsAncestor(slices, ref, starting_id, start_ref.depth())) {
+    if ((cursor.ts() == start_ts || cursor.ts() == ts_end) &&
+        !IsAncestor(slices, cursor.parent_id(), starting_id,
+                    start_ref.depth())) {
       continue;
     }
     row_numbers_accumulator.emplace_back(row_num);
@@ -136,8 +138,9 @@ bool Descendant::Cursor::Run(const std::vector<SqlValue>& arguments) {
       break;
     }
   }
+  auto ref = slice_table.CreateIdCursor();
   for (const auto& descendant_row : descendants_) {
-    auto ref = descendant_row.ToRowReference(slice_table);
+    ref.SeekToId(SliceId{descendant_row.row_number()});
     table_.Insert(tables::SliceSubsetTable::Row{
         ref.id(),
         ref.ts(),

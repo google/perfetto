@@ -80,7 +80,8 @@ class BFS {
                tables::SliceTable::ConstCursor& descendant_cursor)
       : storage_(storage),
         flow_graph_(flow_graph),
-        descendant_cursor_(descendant_cursor) {}
+        descendant_cursor_(descendant_cursor),
+        flow_cursor_(storage->flow_table().CreateIdCursor()) {}
 
   std::vector<tables::FlowTable::RowNumber> TakeResultingFlows() && {
     return std::move(flow_rows_);
@@ -164,14 +165,13 @@ class BFS {
       return;
     }
 
-    const auto& flow_table = storage_->flow_table();
     for (tables::FlowTable::RowNumber row : *flows) {
       flow_rows_.push_back(row);
 
-      auto ref = row.ToRowReference(flow_table);
+      flow_cursor_.SeekToId(tables::FlowTable::Id{row.row_number()});
       SliceId next_slice_id = flow_direction == FlowDirection::OUTGOING
-                                  ? ref.slice_in()
-                                  : ref.slice_out();
+                                  ? flow_cursor_.slice_in()
+                                  : flow_cursor_.slice_out();
       if (known_slices_.count(next_slice_id)) {
         continue;
       }
@@ -186,9 +186,8 @@ class BFS {
 
   void GoToRelativesImpl(
       const std::vector<tables::SliceTable::RowNumber>& rows) {
-    const auto& slice = storage_->slice_table();
     for (tables::SliceTable::RowNumber row : rows) {
-      auto relative_slice_id = row.ToRowReference(slice).id();
+      SliceId relative_slice_id{row.row_number()};
       if (known_slices_.count(relative_slice_id))
         continue;
       known_slices_.insert(relative_slice_id);
@@ -199,6 +198,7 @@ class BFS {
   const TraceStorage* storage_;
   const FlowGraph& flow_graph_;
   tables::SliceTable::ConstCursor& descendant_cursor_;
+  tables::FlowTable::ConstCursor flow_cursor_;
 
   std::queue<std::pair<SliceId, VisitType>> slices_to_visit_;
   std::unordered_set<SliceId> known_slices_;
@@ -261,8 +261,9 @@ bool ConnectedFlow::Cursor::Run(const std::vector<SqlValue>& arguments) {
   }
   std::vector<tables::FlowTable::RowNumber> result_rows =
       std::move(bfs).TakeResultingFlows();
+  auto ref = flow.CreateIdCursor();
   for (auto row : result_rows) {
-    auto ref = row.ToRowReference(flow);
+    ref.SeekToId(tables::FlowTable::Id{row.row_number()});
     table_.Insert(tables::ConnectedFlowTable::Row{
         ref.slice_out(),
         ref.slice_in(),

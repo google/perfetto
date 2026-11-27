@@ -98,7 +98,7 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
+      context_->sched_event_tracker->ClosePendingSlice(pending_sched, ts,
                                                        prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
@@ -118,11 +118,10 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
                          prev_state, next_pid, next_comm_id, next_prio);
 
-  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
-      cpu, ts, next_utid, next_prio);
+  context_->sched_event_tracker->AddStartSlice(pending_sched, cpu, ts,
+                                               next_utid, next_prio);
 
   // Finally, update the info for the next sched switch on this CPU.
-  pending_sched->pending_slice_storage_idx = new_slice_idx;
   pending_sched->last_pid = next_pid;
   pending_sched->last_utid = next_utid;
   pending_sched->last_prio = next_prio;
@@ -168,7 +167,7 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     context_->stats_tracker->IncrementStats(stats::task_state_invalid);
   }
   if (pending_slice_idx != std::numeric_limits<uint32_t>::max()) {
-    context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
+    context_->sched_event_tracker->ClosePendingSlice(pending_sched, ts,
                                                      prev_state_str_id);
   }
 
@@ -201,9 +200,8 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     return;
 
   // Update per-cpu Sched table.
-  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
-      cpu, ts, next_utid, next_prio);
-  pending_sched->pending_slice_storage_idx = new_slice_idx;
+  context_->sched_event_tracker->AddStartSlice(pending_sched, cpu, ts,
+                                               next_utid, next_prio);
 
   // Update the per-thread ThreadState table.
   ThreadStateTracker::GetOrCreate(context_)->PushSchedSwitchEvent(

@@ -76,9 +76,14 @@ class LegacyV8CpuProfileTracker
                          uint32_t raw_callsite_id);
 
  private:
+  // A callsite and its depth, kept here so its row is only written.
+  struct Callsite {
+    CallsiteId id;
+    uint32_t depth;
+  };
   struct State {
     int64_t ts;
-    base::FlatHashMap<uint32_t, CallsiteId> callsites;
+    base::FlatHashMap<uint32_t, Callsite> callsites;
     base::FlatHashMap<uint32_t, uint32_t> callsite_inferred_parents;
     DummyMemoryMapping* mapping;
   };

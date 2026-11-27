@@ -40,10 +40,10 @@ class FlowTracker {
   // These methods track flow ids associated with slices and create flows as
   // needed.
   // If you don't have flow ids associated with slices, you should use the
-  // InsertFlow method above.
-  void Begin(SliceId slice_id, FlowId flow_id);
-  void Step(SliceId slice_id, FlowId flow_id);
-  void End(SliceId track_id, FlowId flow_id, bool close_flow);
+  // InsertFlow method above. `slice_ts` is when the slice began.
+  void Begin(SliceId slice_id, int64_t slice_ts, FlowId flow_id);
+  void Step(SliceId slice_id, int64_t slice_ts, FlowId flow_id);
+  void End(SliceId slice_id, int64_t slice_ts, FlowId flow_id, bool close_flow);
 
   // These methods assume you have created a FlowId via GetFlowIdForV1Event and
   // tie the flow id to the currently open slice on a given track. If you don't
@@ -85,7 +85,12 @@ class FlowTracker {
     }
   };
 
-  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, SliceId>;
+  // The last slice of a flow, and when it began.
+  struct FlowSlice {
+    SliceId id;
+    int64_t ts;
+  };
+  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, FlowSlice>;
   using PendingFlowsMap = base::FlatHashMap<TrackId, std::vector<FlowId>>;
   using V1FlowIdToFlowIdMap =
       base::FlatHashMap<V1FlowId, FlowId, V1FlowIdHasher>;

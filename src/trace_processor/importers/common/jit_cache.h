@@ -112,8 +112,11 @@ class JitCache {
   class JittedFunction {
    public:
     JittedFunction(tables::JitCodeTable::Id jit_code_id,
+                   StringId function_name,
                    std::optional<uint32_t> symbol_set_id)
-        : jit_code_id_(jit_code_id), symbol_set_id_(symbol_set_id) {}
+        : jit_code_id_(jit_code_id),
+          function_name_(function_name),
+          symbol_set_id_(symbol_set_id) {}
 
     tables::JitCodeTable::Id jit_code_id() const { return jit_code_id_; }
 
@@ -122,6 +125,7 @@ class JitCache {
 
    private:
     const tables::JitCodeTable::Id jit_code_id_;
+    const StringId function_name_;
     const std::optional<uint32_t> symbol_set_id_;
     base::FlatHashMap<FrameKey, FrameId, base::MurmurHash<FrameKey>>
         interned_frames_;

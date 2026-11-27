@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
@@ -29,6 +30,7 @@ from src.trace_processor.tables.metadata_tables import PROCESS_TABLE
 ANDROID_PROCESS_STATE_TABLE = Table(
     python_module=__file__,
     class_name='AndroidProcessStateTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_process_state',
     columns=[
         C('ts',
@@ -109,6 +111,7 @@ ANDROID_PROCESS_STATE_TABLE = Table(
 ANDROID_FREEZER_STATE_TABLE = Table(
     python_module=__file__,
     class_name='AndroidFreezerStateTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_freezer_state',
     columns=[
         C('ts',
@@ -167,6 +170,7 @@ ANDROID_FREEZER_STATE_TABLE = Table(
 ANDROID_PROCESS_GROUP_TABLE = Table(
     python_module=__file__,
     class_name='AndroidProcessGroupTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_process_group',
     columns=[
         C('ts', CppInt64()),

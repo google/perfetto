@@ -19,13 +19,16 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/event_table_backend.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/tables/android_tables_py.h"   // IWYU pragma: keep
@@ -56,6 +59,7 @@ struct TableInitParams {
   uint32_t column_count;
   const char* const* column_names;
   const dataframe::ColumnSpec* column_specs;
+  bool is_event_table;
 };
 
 template <class Variant, class T>
@@ -65,7 +69,7 @@ template <class T, class... Ts>
 struct table_init_params<std::variant<Ts...>, T> {
   static constexpr std::array<TableInitParams, sizeof...(Ts)> value = {
       {{decltype(Ts::kSpec)::kColumnCount, Ts::kSpec.column_names.data(),
-        Ts::kSpec.column_specs.data()}...}};
+        Ts::kSpec.column_specs.data(), Ts::kIsEventTable}...}};
 };
 
 // Array of initialization parameters for all tables, in the same order as
@@ -84,9 +88,12 @@ TraceStorage::TraceStorage(const Config&) {
   // Initialize all tables using placement new in a simple loop.
   for (size_t i = 0; i < tables::kTableCount; ++i) {
     const auto& params = kTableInitParams[i];
-    new (&tables_storage_[i * sizeof(dataframe::Dataframe)])
-        dataframe::Dataframe(&string_pool_, params.column_count,
-                             params.column_names, params.column_specs);
+    char* slot = &tables_storage_[i * dataframe::kTableSlotSize];
+    new (slot) dataframe::Dataframe(&string_pool_, params.column_count,
+                                    params.column_names, params.column_specs);
+    if (params.is_event_table) {
+      new (slot + sizeof(dataframe::Dataframe)) dataframe::EventTableState();
+    }
   }
   for (uint32_t i = 0; i < variadic_type_ids_.size(); ++i) {
     variadic_type_ids_[i] = InternString(Variadic::kTypeNames[i]);
@@ -97,8 +104,24 @@ TraceStorage::~TraceStorage() {
   // Destroy all tables in reverse order of construction.
   for (size_t i = tables::kTableCount; i > 0; --i) {
     reinterpret_cast<dataframe::Dataframe*>(
-        &tables_storage_[(i - 1) * sizeof(dataframe::Dataframe)])
+        &tables_storage_[(i - 1) * dataframe::kTableSlotSize])
         ->~Dataframe();
+  }
+}
+
+void TraceStorage::SetEventTableBackend(
+    std::unique_ptr<dataframe::EventTableBackend> backend) {
+  owned_event_table_backend_ = std::move(backend);
+  event_table_backend_ = owned_event_table_backend_.get();
+  for (size_t i = 0; i < tables::kTableCount; ++i) {
+    if (!kTableInitParams[i].is_event_table) {
+      continue;
+    }
+    char* slot = &tables_storage_[i * dataframe::kTableSlotSize];
+    auto* state = reinterpret_cast<dataframe::EventTableState*>(
+        slot + sizeof(dataframe::Dataframe));
+    PERFETTO_CHECK(state->sealed_row_count == 0);
+    state->backend = event_table_backend_;
   }
 }
 

@@ -14,6 +14,7 @@
 """Contains tables for relevant for slices."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
@@ -36,6 +37,7 @@ from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TA
 SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SliceTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_slice',
     columns=[
         C(
@@ -180,6 +182,7 @@ SLICE_TABLE = Table(
 ANDROID_NETWORK_PACKETS_TABLE = Table(
     python_module=__file__,
     class_name='AndroidNetworkPacketsTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_android_network_packets',
     columns=[
         C('id', CppTableId(SLICE_TABLE), flags=ColumnFlag.SORTED),
@@ -204,6 +207,7 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
 TRACK_EVENT_CALLSTACKS = Table(
     python_module=__file__,
     class_name='TrackEventCallstacksTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_track_event_callstacks',
     columns=[
         C('slice_id', CppTableId(SLICE_TABLE)),

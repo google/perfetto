@@ -181,6 +181,21 @@ class Purpose(Enum):
   STATIC_TABLE_FUNCTION = auto()
 
 
+class TableKind(Enum):
+  """How a table grows, and so how importers may use it.
+
+  METADATA: What the trace is about, such as its threads, tracks and files.
+  It grows with their number, not with the trace's length, so it stays in
+  memory and importers may read it back.
+
+  EVENT: What happens in the trace. It grows with the trace's length, so
+  importers only write it, through a sink which hands its rows to a backend
+  in batches.
+  """
+  METADATA = auto()
+  EVENT = auto()
+
+
 @dataclass(frozen=True)
 class Table:
   """
@@ -201,6 +216,7 @@ class Table:
     specified table.
     wrapping_sql_view: See |WrappingSqlView|.
     purpose: How the table is consumed. See |Purpose|.
+    kind: How the table grows. See |TableKind|.
   """
   python_module: str
   class_name: str
@@ -211,6 +227,7 @@ class Table:
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
   purpose: Purpose = Purpose.DEFAULT
+  kind: TableKind = TableKind.METADATA
   # TODO(lalitm): remove once migration sticks.
   use_legacy_table_backend: bool = False
 

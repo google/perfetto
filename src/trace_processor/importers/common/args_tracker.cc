@@ -26,90 +26,75 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
-namespace {
-
-// Writes |set_id| into the arg_set_id cell at (|col|, |row|) of |df|, handling
-// whichever nullability the target column happens to use.
-void WriteArgSetId(dataframe::Dataframe* df,
-                   uint32_t col,
-                   uint32_t row,
-                   ArgSetId set_id) {
-  auto n = df->GetNullabilityLegacy(col);
-  if (n.Is<dataframe::NonNull>()) {
-    df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(col, row,
-                                                                      set_id);
-  } else if (n.Is<dataframe::DenseNull>()) {
-    df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
-        col, row, std::make_optional(set_id));
-  } else if (n.Is<dataframe::SparseNullWithPopcountAlways>()) {
-    df->SetCellUncheckedLegacy<dataframe::Uint32,
-                               dataframe::SparseNullWithPopcountAlways>(
-        col, row, std::make_optional(set_id));
-  } else if (n.Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
-    df->SetCellUncheckedLegacy<
-        dataframe::Uint32, dataframe::SparseNullWithPopcountUntilFinalization>(
-        col, row, std::make_optional(set_id));
-  } else {
-    PERFETTO_FATAL("Unsupported nullability type for args.");
-  }
-}
-
-}  // namespace
-
 ArgsTracker::ArgsTracker(TraceStorage* storage) : storage_(storage) {}
 
 ArgsInserter ArgsTracker::AddArgsTo(MetadataId id) {
-  auto* table = storage_->mutable_metadata_table();
-  uint32_t row = (*table)[id].ToRowNumber().row_number();
-  return Bind(&table->dataframe(),
-              tables::MetadataTable::ColumnIndex::int_value, row, id.value);
+  return Bind(
+      storage_->mutable_metadata_table(),
+      [](void* writer, uint32_t row, ArgSetId set_id) {
+        static_cast<tables::MetadataTable*>(writer)
+            ->SetCell<tables::MetadataTable::ColumnIndex::int_value>(
+                row, static_cast<int64_t>(set_id));
+      },
+      id.value, id.value);
 }
 
 ArgsInserter ArgsTracker::AddArgsTo(TrackId id) {
-  auto* table = storage_->mutable_track_table();
-  uint32_t row = (*table)[id].ToRowNumber().row_number();
-  return Bind(&table->dataframe(),
-              tables::TrackTable::ColumnIndex::source_arg_set_id, row,
-              id.value);
+  return Bind(
+      storage_->mutable_track_table(),
+      [](void* writer, uint32_t row, ArgSetId set_id) {
+        static_cast<tables::TrackTable*>(writer)
+            ->SetCell<tables::TrackTable::ColumnIndex::source_arg_set_id>(
+                row, set_id);
+      },
+      id.value, id.value);
 }
 
 ArgsInserter ArgsTracker::AddArgsToProcess(UniquePid id) {
-  auto* table = storage_->mutable_process_table();
-  return Bind(&table->dataframe(),
-              tables::ProcessTable::ColumnIndex::arg_set_id, id, id);
+  return Bind(
+      storage_->mutable_process_table(),
+      [](void* writer, uint32_t row, ArgSetId set_id) {
+        static_cast<tables::ProcessTable*>(writer)
+            ->SetCell<tables::ProcessTable::ColumnIndex::arg_set_id>(row,
+                                                                     set_id);
+      },
+      id, id);
 }
 
 ArgsInserter ArgsTracker::AddArgsToThread(UniqueTid id) {
-  auto* table = storage_->mutable_thread_table();
-  return Bind(&table->dataframe(), tables::ThreadTable::ColumnIndex::arg_set_id,
-              id, id);
+  return Bind(
+      storage_->mutable_thread_table(),
+      [](void* writer, uint32_t row, ArgSetId set_id) {
+        static_cast<tables::ThreadTable*>(writer)
+            ->SetCell<tables::ThreadTable::ColumnIndex::arg_set_id>(row,
+                                                                    set_id);
+      },
+      id, id);
 }
 
 ArgsInserter::ArgsInserter(ArgsTracker* tracker,
-                           dataframe::Dataframe* df,
-                           uint32_t col,
+                           void* writer,
+                           ArgsTracker::WriteArgSetIdFn write,
                            uint32_t row,
                            uint32_t id)
     : tracker_(tracker),
       buffer_(tracker->AcquireArgsBuffer()),
-      df_(df),
-      col_(col),
+      writer_(writer),
+      write_(write),
       row_(row),
       id_(id) {}
 
 ArgsInserter::ArgsInserter(ArgsInserter&& other) noexcept
     : tracker_(other.tracker_),
       buffer_(other.buffer_),
-      df_(other.df_),
-      col_(other.col_),
+      writer_(other.writer_),
+      write_(other.write_),
       row_(other.row_),
       id_(other.id_) {
   other.tracker_ = nullptr;
@@ -201,7 +186,7 @@ void ArgsInserter::Commit() {
   }
   ArgSetId set_id =
       tracker_->AddArgSet(args.data(), static_cast<uint32_t>(args.size()));
-  WriteArgSetId(df_, col_, row_, set_id);
+  write_(writer_, row_, set_id);
 }
 
 uint64_t ArgsTracker::ComputeArgSetHash(const CompactArg* args,

@@ -101,7 +101,8 @@ class VideoFrameImporter : public Plugin<VideoFrameImporter> {
     int64_t start_ns = std::numeric_limits<int64_t>::max();
     int64_t end_ns = 0;
     if (table_) {
-      for (auto it = table_->IterateRows(); it; ++it) {
+      auto it = table_->CreateCursor();
+      for (it.Execute(); !it.Eof(); it.Next()) {
         start_ns = std::min(it.ts(), start_ns);
         end_ns = std::max(it.ts(), end_ns);
       }

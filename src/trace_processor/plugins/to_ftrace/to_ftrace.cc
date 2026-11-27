@@ -88,6 +88,7 @@ class ArgsSerializer {
   ArgsSerializer(TraceProcessorContext*,
                  ArgSetId arg_set_id,
                  tables::ArgTable::ConstCursor*,
+                 tables::ArgTable::ConstCursor* arg_cursor,
                  NullTermStringView event_name,
                  std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
                  base::DynamicStringWriter*);
@@ -121,12 +122,16 @@ class ArgsSerializer {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
-    WriteArg(key, GetArgValue(*storage_, *row), writer);
+    WriteArg(key, GetArgValue(*storage_, SeekArg(*row)), writer);
   }
   void WriteArgAtRow(uint32_t arg_row, const ValueWriter& writer) {
-    const auto& args = storage_->arg_table();
-    const auto& key = storage_->GetString(args[arg_row].key());
-    WriteArg(key, GetArgValue(*storage_, arg_row), writer);
+    const auto& arg = SeekArg(arg_row);
+    WriteArg(storage_->GetString(arg.key()), GetArgValue(*storage_, arg),
+             writer);
+  }
+  const tables::ArgTable::ConstCursor& SeekArg(uint32_t row) {
+    arg_cursor_->SeekToId(tables::ArgTable::Id{row});
+    return *arg_cursor_;
   }
   void WriteArg(base::StringView key,
                 Variadic value,
@@ -137,7 +142,7 @@ class ArgsSerializer {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
-    writer(GetArgValue(*storage_, *row));
+    writer(GetArgValue(*storage_, SeekArg(*row)));
   }
   void WriteKernelFnValue(const Variadic& value) {
     if (value.type == Variadic::Type::kUint) {
@@ -180,6 +185,7 @@ class ArgsSerializer {
   const TraceStorage* storage_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
   tables::ArgTable::ConstCursor* cursor_;
+  tables::ArgTable::ConstCursor* arg_cursor_;
   NullTermStringView event_name_;
   std::vector<std::optional<uint32_t>>* field_id_to_arg_index_;
 
@@ -192,12 +198,14 @@ ArgsSerializer::ArgsSerializer(
     TraceProcessorContext* context,
     ArgSetId arg_set_id,
     tables::ArgTable::ConstCursor* cursor,
+    tables::ArgTable::ConstCursor* arg_cursor,
     NullTermStringView event_name,
     std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
     base::DynamicStringWriter* writer)
     : storage_(context->storage.get()),
       context_(context),
       cursor_(cursor),
+      arg_cursor_(arg_cursor),
       event_name_(event_name),
       field_id_to_arg_index_(field_id_to_arg_index),
       writer_(writer) {
@@ -720,13 +728,14 @@ SystraceSerializer::SystraceSerializer(TraceProcessorContext* context)
               dataframe::Eq{},
               std::nullopt,
           },
-      })) {}
+      })),
+      arg_cursor_(storage_->arg_table().CreateIdCursor()),
+      raw_cursor_(storage_->ftrace_event_table().CreateIdCursor()) {}
 
 SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
     uint32_t raw_row) {
-  const auto& raw = storage_->ftrace_event_table();
-
-  auto row = raw[raw_row];
+  raw_cursor_.SeekToId(tables::FtraceEventTable::Id{raw_row});
+  auto& row = raw_cursor_;
   StringId event_name_id = row.name();
   NullTermStringView event_name = storage_->GetString(event_name_id);
   if (base::StartsWith(event_name, "chrome_event.") ||
@@ -747,9 +756,9 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   }
   line_writer_.AppendChar(':');
 
-  ArgsSerializer serializer(context_, row.arg_set_id(), &cursor_, event_name,
-                            &proto_id_to_arg_index_by_event_[event_name_id],
-                            &line_writer_);
+  ArgsSerializer serializer(
+      context_, row.arg_set_id(), &cursor_, &arg_cursor_, event_name,
+      &proto_id_to_arg_index_by_event_[event_name_id], &line_writer_);
   serializer.SerializeArgs();
 
   return line_writer_.CreateStringCopy();
@@ -757,10 +766,10 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
 
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
                                          base::DynamicStringWriter* writer) {
-  const auto& raw = storage_->ftrace_event_table();
   const auto& cpu_table = storage_->cpu_table();
 
-  auto row = raw[raw_row];
+  raw_cursor_.SeekToId(tables::FtraceEventTable::Id{raw_row});
+  auto& row = raw_cursor_;
   int64_t ts = row.ts();
   auto ucpu = row.ucpu();
   auto cpu = cpu_table[ucpu.value].cpu();

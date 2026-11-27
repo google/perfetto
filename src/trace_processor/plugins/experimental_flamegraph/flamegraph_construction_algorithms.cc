@@ -65,17 +65,26 @@ struct FlamegraphTableAndMergedCallsites {
   std::vector<uint32_t> callsite_to_merged_callsite;
 };
 
+// Cursors which read the frames and symbols of callsites.
+struct CallsiteReaders {
+  explicit CallsiteReaders(const TraceStorage& storage)
+      : frame(storage.stack_profile_frame_table().CreateIdCursor()),
+        symbols(storage.symbol_table().CreateCursor({dataframe::FilterSpec{
+            tables::SymbolTable::ColumnIndex::symbol_set_id, 0, dataframe::Eq{},
+            std::nullopt}})) {}
+
+  tables::StackProfileFrameTable::ConstCursor frame;
+  tables::SymbolTable::ConstCursor symbols;
+};
+
 std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
-                                               uint32_t callstack_row) {
-  const tables::StackProfileCallsiteTable& callsites_tbl =
-      storage->stack_profile_callsite_table();
-  const tables::StackProfileFrameTable& frames_tbl =
-      storage->stack_profile_frame_table();
-  const tables::SymbolTable& symbols_tbl = storage->symbol_table();
+                                               CallsiteReaders& readers,
+                                               FrameId frame_id) {
   const tables::StackProfileMappingTable& mapping_tbl =
       storage->stack_profile_mapping_table();
 
-  auto frame = frames_tbl[callsites_tbl[callstack_row].frame_id()];
+  auto& frame = readers.frame;
+  frame.SeekToId(frame_id);
   StringId mapping_name = mapping_tbl[frame.mapping()].name();
   std::optional<uint32_t> symbol_set_id = frame.symbol_set_id();
 
@@ -87,18 +96,12 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
   }
 
   std::vector<MergedCallsite> result;
-  // id == symbol_set_id for the bottommost frame.
-  // TODO(lalitm): Encode this optimization in the table and remove this
-  // custom optimization.
-  uint32_t symbol_set_idx =
-      symbols_tbl[SymbolId(*symbol_set_id)].ToRowNumber().row_number();
-  for (uint32_t i = symbol_set_idx;
-       i < symbols_tbl.row_count() &&
-       symbols_tbl[i].symbol_set_id() == *symbol_set_id;
-       ++i) {
-    result.emplace_back(MergedCallsite{
-        symbols_tbl[i].name(), mapping_name, symbols_tbl[i].source_file(),
-        symbols_tbl[i].line_number(), std::nullopt});
+  auto& symbol = readers.symbols;
+  symbol.SetFilterValueUnchecked(0, *symbol_set_id);
+  for (symbol.Execute(); !symbol.Eof(); symbol.Next()) {
+    result.emplace_back(MergedCallsite{symbol.name(), mapping_name,
+                                       symbol.source_file(),
+                                       symbol.line_number(), std::nullopt});
   }
   std::reverse(result.begin(), result.end());
   return result;
@@ -124,18 +127,21 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
   // FORWARD PASS:
   // Aggregate callstacks by frame name / mapping name. Use symbolization
   // data.
-  for (uint32_t i = 0; i < callsites_tbl.row_count(); ++i) {
+  CallsiteReaders readers(*storage);
+  auto callsite = callsites_tbl.CreateCursor();
+  for (callsite.Execute(); !callsite.Eof(); callsite.Next()) {
+    uint32_t i = callsite.ToRowNumber().row_number();
     std::optional<uint32_t> parent_idx;
 
-    auto opt_parent_id = callsites_tbl[i].parent_id();
+    auto opt_parent_id = callsite.parent_id();
     if (opt_parent_id) {
-      parent_idx = callsites_tbl[*opt_parent_id].ToRowNumber().row_number();
+      parent_idx = opt_parent_id->value;
       // Make sure what we index into has been populated already.
       PERFETTO_CHECK(*parent_idx < i);
       parent_idx = callsite_to_merged_callsite[*parent_idx];
     }
 
-    auto callsites = GetMergedCallsites(storage, i);
+    auto callsites = GetMergedCallsites(storage, readers, callsite.frame_id());
     // Loop below needs to run at least once for parent_idx to get updated.
     PERFETTO_CHECK(!callsites.empty());
     std::map<MergedCallsite, uint32_t> callsites_to_rowid;

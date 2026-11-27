@@ -14,6 +14,7 @@
 """Contains tables for relevant for sched."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
@@ -33,6 +34,7 @@ from src.trace_processor.tables.metadata_tables import CPU_TABLE
 SCHED_SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SchedSliceTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_sched_slice',
     columns=[
         C('ts',
@@ -93,6 +95,7 @@ SCHED_SLICE_TABLE = Table(
 SPURIOUS_SCHED_WAKEUP_TABLE = Table(
     python_module=__file__,
     class_name='SpuriousSchedWakeupTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_spurious_sched_wakeup',
     wrapping_sql_view=WrappingSqlView('spurious_sched_wakeup'),
     columns=[
@@ -134,6 +137,7 @@ SPURIOUS_SCHED_WAKEUP_TABLE = Table(
 THREAD_STATE_TABLE = Table(
     python_module=__file__,
     class_name='ThreadStateTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_thread_state',
     columns=[
         C('ts',

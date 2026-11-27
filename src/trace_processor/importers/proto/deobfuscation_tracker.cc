@@ -88,7 +88,8 @@ void DeobfuscationTracker::BuildJavaFrameMaps(
   const auto& frame_table = context_->storage->stack_profile_frame_table();
   const auto& mapping_table = context_->storage->stack_profile_mapping_table();
 
-  for (auto frame_it = frame_table.IterateRows(); frame_it; ++frame_it) {
+  auto frame_it = frame_table.CreateCursor();
+  for (frame_it.Execute(); !frame_it.Eof(); frame_it.Next()) {
     const FrameId frame_id = frame_it.id();
     const StringId name_id = frame_it.name();
     const base::StringView function_name =
@@ -129,6 +130,7 @@ void DeobfuscationTracker::AddDeobfuscationMapping(ConstBytes blob) {
 }
 
 void DeobfuscationTracker::OnEventsFullyExtracted() {
+  context_->storage->FlushEventTables();
   // Maps (name, package) -> set of FrameIds for deobfuscation
   JavaFrameMap java_frames_for_name;
 
@@ -225,6 +227,7 @@ void DeobfuscationTracker::DeobfuscateProfiles(
   });
   // Deobfuscate frames using the collected mappings.
   auto* frames_tbl = context_->storage->mutable_stack_profile_frame_table();
+  auto frame_cursor = frames_tbl->CreateIdCursor();
   for (auto it = method_mappings.GetIterator(); it; ++it) {
     StringId merged_obfuscated_id = it.key();
     const auto& mappings = it.value();
@@ -244,14 +247,15 @@ void DeobfuscationTracker::DeobfuscateProfiles(
     }
 
     for (FrameId frame_id : frames) {
-      auto frame = (*frames_tbl)[frame_id];
+      frame_cursor.SeekToId(frame_id);
 
       // Try to get line number from existing symbol entry. Note that the
       // symbol table is not just populated during symbolization, it's also
       // populated by simpleperf, pprof, V8 JIT inside the trace itself.
       std::optional<uint32_t> obfuscated_line;
-      if (frame.symbol_set_id().has_value()) {
-        symbol_cursor.SetFilterValueUnchecked(0, *frame.symbol_set_id());
+      if (std::optional<uint32_t> symbol_set_id =
+              frame_cursor.symbol_set_id()) {
+        symbol_cursor.SetFilterValueUnchecked(0, *symbol_set_id);
         symbol_cursor.Execute();
         if (!symbol_cursor.Eof()) {
           obfuscated_line = symbol_cursor.line_number();
@@ -446,17 +450,18 @@ void DeobfuscationTracker::GuessPackageForCallsite(
   }
 
   // Walk callsite chain and assign package to frames that need it
-  const auto& callsite_table =
-      context_->storage->stack_profile_callsite_table();
+  auto callsite =
+      context_->storage->stack_profile_callsite_table().CreateIdCursor();
+  auto frame = context_->storage->stack_profile_frame_table().CreateIdCursor();
   std::optional<tables::StackProfileCallsiteTable::Id> current_id = callsite_id;
   while (current_id.has_value()) {
-    auto callsite = callsite_table[*current_id];
+    callsite.SeekToId(*current_id);
     const FrameId frame_id = callsite.frame_id();
 
     // Check if this frame needs package guessing
     if (frames_needing_package_guess.count(frame_id) != 0) {
       // Add frame to map with guessed package
-      auto frame = context_->storage->stack_profile_frame_table()[frame_id];
+      frame.SeekToId(frame_id);
       AddJavaFrame(java_frames_for_name, frame.name(), *package, frame_id);
 
       // Remove from set (package now known)
@@ -472,8 +477,8 @@ void DeobfuscationTracker::GuessPackages(
     std::unordered_set<FrameId>& frames_needing_package_guess) {
   const auto& heap_profile_allocation_table =
       context_->storage->heap_profile_allocation_table();
-  for (auto allocation = heap_profile_allocation_table.IterateRows();
-       allocation; ++allocation) {
+  auto allocation = heap_profile_allocation_table.CreateCursor();
+  for (allocation.Execute(); !allocation.Eof(); allocation.Next()) {
     auto upid = tables::ProcessTable::Id(allocation.upid());
     auto callsite_id = allocation.callsite_id();
 
@@ -485,7 +490,8 @@ void DeobfuscationTracker::GuessPackages(
       context_->storage->profiler_sample_table();
   const auto& task_context_table =
       context_->storage->profiler_task_context_table();
-  for (auto sample = profiler_sample_table.IterateRows(); sample; ++sample) {
+  auto sample = profiler_sample_table.CreateCursor();
+  for (sample.Execute(); !sample.Eof(); sample.Next()) {
     if (!sample.task_context_id() || !sample.callsite_id()) {
       continue;
     }

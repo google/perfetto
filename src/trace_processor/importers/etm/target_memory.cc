@@ -55,17 +55,18 @@ TargetMemory::TargetMemory(TraceProcessorContext* context)
   base::FlatHashMap<UniquePid, VirtualAddressSpace::Builder> user;
 
   const auto& table = context->storage->mmap_record_table();
-  for (auto mmap = table.IterateRows(); mmap; ++mmap) {
+  auto mmap = table.CreateCursor();
+  for (mmap.Execute(); !mmap.Eof(); mmap.Next()) {
     std::optional<UniquePid> upid = mmap.upid();
     if (!upid) {
-      kernel.AddMapping(mmap.ToRowReference());
+      kernel.AddMapping(mmap);
       continue;
     }
     auto* it = user.Find(*upid);
     if (!it) {
       it = user.Insert(*upid, VirtualAddressSpace::Builder(context)).first;
     }
-    it->AddMapping(mmap.ToRowReference());
+    it->AddMapping(mmap);
   }
 
   kernel_memory_ = std::move(kernel).Build();

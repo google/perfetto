@@ -49,6 +49,15 @@
 namespace perfetto::trace_processor::storage_tables {
 namespace {
 
+// Calls `fn` with a cursor at each row of `table`.
+template <typename T, typename Fn>
+void ForEachRow(const T& table, Fn fn) {
+  auto cursor = table.CreateCursor();
+  for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
+    fn(cursor);
+  }
+}
+
 template <typename T>
 void AddDataframe(std::vector<PluginDataframe>& out,
                   T* table,
@@ -242,55 +251,58 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     const auto& s = *trace_context_->storage;
     int64_t start_ns = std::numeric_limits<int64_t>::max();
     int64_t end_ns = 0;
-    for (auto it = s.ftrace_event_table().IterateRows(); it; ++it) {
+    ForEachRow(s.ftrace_event_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.sched_slice_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.sched_slice_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
-    }
-    for (auto it = s.counter_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.counter_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.slice_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.slice_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
-    }
-    for (auto it = s.heap_profile_allocation_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.heap_profile_allocation_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.profiler_smaps_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.profiler_smaps_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.thread_state_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.thread_state_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
-    }
-    for (auto it = s.log_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.log_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.heap_graph_object_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.heap_graph_object_table(), [&](const auto& it) {
       start_ns = std::min(it.graph_sample_ts(), start_ns);
       end_ns = std::max(it.graph_sample_ts(), end_ns);
-    }
-    for (auto it = s.heap_graph_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.heap_graph_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
-    }
-    for (auto it = s.state_table().IterateRows(); it; ++it) {
+    });
+    ForEachRow(s.state_table(), [&](const auto& it) {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
-    }
+    });
     // profiler_sample.ts is sorted: the first row holds the min, the last the
     // max.
     if (const auto& ps = s.profiler_sample_table(); ps.row_count() > 0) {
-      start_ns = std::min(ps[0].ts(), start_ns);
-      end_ns = std::max(ps[ps.row_count() - 1].ts(), end_ns);
+      auto sample = ps.CreateIdCursor();
+      sample.SeekToId(tables::ProfilerSampleTable::Id{0});
+      start_ns = std::min(sample.ts(), start_ns);
+      sample.SeekToId(tables::ProfilerSampleTable::Id{ps.row_count() - 1});
+      end_ns = std::max(sample.ts(), end_ns);
     }
     return {start_ns, end_ns};
   }

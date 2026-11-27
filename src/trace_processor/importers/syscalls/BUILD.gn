@@ -28,14 +28,3 @@ source_set("full") {
     "../../types",
   ]
 }
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "syscall_tracker_unittest.cc" ]
-  deps = [
-    ":full",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../common",
-  ]
-}

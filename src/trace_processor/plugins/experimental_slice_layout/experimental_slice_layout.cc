@@ -211,8 +211,9 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
   std::vector<uint32_t> slice_group;
   slice_group.reserve(rows.size());
   std::vector<GroupInfo> groups;
+  auto ref = slice_table_->CreateIdCursor();
   for (tables::SliceTable::RowNumber i : rows) {
-    auto ref = i.ToRowReference(*slice_table_);
+    ref.SeekToId(SliceId{i.row_number()});
     uint32_t depth = ref.depth();
     int64_t start = ref.ts();
     int64_t dur = ref.dur();
@@ -280,7 +281,7 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
   std::vector<CachedRow> cached;
   cached.reserve(rows.size());
   for (uint32_t i = 0; i < rows.size(); ++i) {
-    auto ref = rows[i].ToRowReference(*slice_table_);
+    ref.SeekToId(SliceId{rows[i].row_number()});
     uint32_t group_depth = groups[slice_group[i]].layout_depth;
     cached.emplace_back(ExperimentalSliceLayout::CachedRow{
         ref.id(), ref.depth() + group_depth});

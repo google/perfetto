@@ -45,17 +45,17 @@ FlowTracker::~FlowTracker() = default;
   it is a bit tricky to make it here.
   We suspect that this case is too rare or impossible */
 void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
-  std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
-  if (!open_slice_id) {
+  auto open_slice = context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
+  if (!open_slice) {
     context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  Begin(open_slice_id.value(), flow_id);
+  Begin(open_slice->id, open_slice->ts, flow_id);
 }
 
-void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
-  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice_id);
+void FlowTracker::Begin(SliceId slice_id, int64_t slice_ts, FlowId flow_id) {
+  auto it_and_ins =
+      flow_to_slice_map_.Insert(flow_id, FlowSlice{slice_id, slice_ts});
   if (!it_and_ins.second) {
     context_->stats_tracker->IncrementStats(stats::flow_duplicate_id);
     return;
@@ -63,28 +63,26 @@ void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
 }
 
 void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
-  std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
-  if (!open_slice_id) {
+  auto open_slice = context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
+  if (!open_slice) {
     context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  Step(open_slice_id.value(), flow_id);
+  Step(open_slice->id, open_slice->ts, flow_id);
 }
 
-void FlowTracker::Step(SliceId new_id, FlowId flow_id) {
+void FlowTracker::Step(SliceId new_id, int64_t new_ts, FlowId flow_id) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
     context_->stats_tracker->IncrementStats(stats::flow_step_without_start);
     return;
   }
-  SliceId existing_id = *it;
-  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
-  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
+  SliceId existing_id = it->id;
+  int64_t existing_ts = it->ts;
   SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
   SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
   InsertFlow(flow_id, outgoing, incoming);
-  *it = new_id;
+  *it = FlowSlice{new_id, new_ts};
 }
 
 void FlowTracker::End(TrackId track_id,
@@ -95,24 +93,25 @@ void FlowTracker::End(TrackId track_id,
     pending_flow_ids_map_[track_id].push_back(flow_id);
     return;
   }
-  std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
-  if (!open_slice_id) {
+  auto open_slice = context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
+  if (!open_slice) {
     context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  End(open_slice_id.value(), flow_id, close_flow);
+  End(open_slice->id, open_slice->ts, flow_id, close_flow);
 }
 
-void FlowTracker::End(SliceId new_id, FlowId flow_id, bool close_flow) {
+void FlowTracker::End(SliceId new_id,
+                      int64_t new_ts,
+                      FlowId flow_id,
+                      bool close_flow) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
     context_->stats_tracker->IncrementStats(stats::flow_end_without_start);
     return;
   }
-  SliceId existing_id = *it;
-  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
-  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
+  SliceId existing_id = it->id;
+  int64_t existing_ts = it->ts;
   SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
   SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
   if (close_flow)
@@ -144,7 +143,7 @@ void FlowTracker::ClosePendingEventsOnTrack(TrackId track_id,
     return;
 
   for (FlowId flow_id : *iter) {
-    SliceId slice_out_id = flow_to_slice_map_[flow_id];
+    SliceId slice_out_id = flow_to_slice_map_[flow_id].id;
     InsertFlow(flow_id, slice_out_id, slice_id);
   }
 

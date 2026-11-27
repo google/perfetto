@@ -83,26 +83,6 @@ class FileWriter : public OutputWriter {
   FILE* file_;
 };
 
-template <typename T, typename Compare>
-uint32_t LowerBoundIndex(uint32_t first,
-                         uint32_t last,
-                         const T& value,
-                         Compare comp) {
-  uint32_t count = last - first;
-  uint32_t step;
-  while (count > 0) {
-    step = count / 2;
-    uint32_t current = first + step;
-    if (comp(current, value)) {
-      first = current + 1;
-      count -= step + 1;
-    } else {
-      count = step;
-    }
-  }
-  return first;
-}
-
 using IndexMap = std::map<int, int64_t>;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
@@ -141,7 +121,14 @@ class JsonExporter {
         writer_(output,
                 std::move(argument_filter),
                 std::move(metadata_filter),
-                std::move(label_filter)) {}
+                std::move(label_filter)),
+        slice_by_id_(storage->slice_table().CreateIdCursor()),
+        counter_at_ts_(storage->counter_table().CreateCursor({
+            dataframe::FilterSpec{tables::CounterTable::ColumnIndex::ts, 0,
+                                  dataframe::Eq{}, std::nullopt},
+            dataframe::FilterSpec{tables::CounterTable::ColumnIndex::track_id,
+                                  1, dataframe::Eq{}, std::nullopt},
+        })) {}
 
   base::Status Export() {
     RETURN_IF_ERROR(MapUniquePidsAndTids());
@@ -531,7 +518,8 @@ class JsonExporter {
       const auto& arg_table = storage_->arg_table();
       ArgSet arg_set;
       uint32_t cur_args_set_id = std::numeric_limits<uint32_t>::max();
-      for (auto it = arg_table.IterateRows(); it; ++it) {
+      auto it = arg_table.CreateCursor();
+      for (it.Execute(); !it.Eof(); it.Next()) {
         ArgSetId set_id = it.arg_set_id();
         if (set_id != cur_args_set_id) {
           args_sets_.Insert(cur_args_set_id, ArgNodeToJson(arg_set.root()));
@@ -539,7 +527,7 @@ class JsonExporter {
           cur_args_set_id = set_id;
         }
         arg_set.AppendArg(storage->GetString(it.key()),
-                          GetArgValue(*storage_, it.row_number().row_number()));
+                          GetArgValue(*storage_, it));
       }
       if (cur_args_set_id != std::numeric_limits<uint32_t>::max()) {
         args_sets_.Insert(cur_args_set_id, ArgNodeToJson(arg_set.root()));
@@ -775,15 +763,16 @@ class JsonExporter {
   // are found 0 is returned.
   int64_t FindLastSliceTimestamp() {
     int64_t last_ts = 0;
-    for (auto it = storage_->slice_table().IterateRows(); it; ++it) {
+    auto it = storage_->slice_table().CreateCursor();
+    for (it.Execute(); !it.Eof(); it.Next()) {
       last_ts = std::max(last_ts, it.ts() + it.dur());
     }
     return last_ts;
   }
 
   base::Status ExportSlices() {
-    const auto& slices = storage_->slice_table();
-    for (auto it = slices.IterateRows(); it; ++it) {
+    auto it = storage_->slice_table().CreateCursor();
+    for (it.Execute(); !it.Eof(); it.Next()) {
       // Skip slices with empty category - these are ftrace/system slices that
       // were also imported into the raw table and will be exported from there
       // by trace_to_text.
@@ -1062,9 +1051,8 @@ class JsonExporter {
                                        const std::string& cat,
                                        Dom args,
                                        bool flow_begin) {
-    const auto& slices = storage_->slice_table();
-
-    auto slice_rr = slices[slice_id];
+    auto& slice_rr = slice_by_id_;
+    slice_rr.SeekToId(slice_id);
 
     TrackId track_id = slice_rr.track_id();
     auto rr = storage_->track_table()[track_id];
@@ -1092,9 +1080,8 @@ class JsonExporter {
   }
 
   base::Status ExportFlows() {
-    const auto& flow_table = storage_->flow_table();
-    const auto& slice_table = storage_->slice_table();
-    for (auto it = flow_table.IterateRows(); it; ++it) {
+    auto it = storage_->flow_table().CreateCursor();
+    for (it.Execute(); !it.Eof(); it.Next()) {
       SliceId slice_out = it.slice_out();
       SliceId slice_in = it.slice_in();
       std::optional<uint32_t> arg_set_id = it.arg_set_id();
@@ -1110,12 +1097,12 @@ class JsonExporter {
         args.RemoveMember("name");
         args.RemoveMember("cat");
       } else {
-        auto rr = slice_table[slice_out];
-        cat = GetNonNullString(storage_, rr.category());
-        name = GetNonNullString(storage_, rr.name());
+        slice_by_id_.SeekToId(slice_out);
+        cat = GetNonNullString(storage_, slice_by_id_.category());
+        name = GetNonNullString(storage_, slice_by_id_.name());
       }
 
-      uint32_t i = it.row_number().row_number();
+      uint32_t i = it.ToRowNumber().row_number();
       auto out_event = CreateFlowEventV1(i, slice_out, name, cat, args.Copy(),
                                          /* flow_begin = */ true);
       auto in_event = CreateFlowEventV1(i, slice_in, name, cat, std::move(args),
@@ -1130,7 +1117,7 @@ class JsonExporter {
   }
 
   Dom ConvertLegacyRawEventToJson(
-      const tables::ChromeRawTable::ConstIterator& it) {
+      const tables::ChromeRawTable::ConstCursor& it) {
     Dom event(Type::kObject);
     event["ts"] = static_cast<int64_t>(it.ts() / 1000);
 
@@ -1218,8 +1205,8 @@ class JsonExporter {
     std::optional<StringId> raw_chrome_metadata_event_id =
         storage_->string_pool().GetId("chrome_event.metadata");
 
-    const auto& events = storage_->chrome_raw_table();
-    for (auto it = events.IterateRows(); it; ++it) {
+    auto it = storage_->chrome_raw_table().CreateCursor();
+    for (it.Execute(); !it.Eof(); it.Next()) {
       if (raw_legacy_event_key_id && it.name() == *raw_legacy_event_key_id) {
         Dom event = ConvertLegacyRawEventToJson(it);
         writer_.WriteCommonEvent(event);
@@ -1458,7 +1445,8 @@ class JsonExporter {
             smaps_table.row_count() > 0
                 ? &event["args"]["dumps"]["process_mmaps"]["vm_regions"]
                 : nullptr;
-        for (auto it = smaps_table.IterateRows(); it; ++it) {
+        auto it = smaps_table.CreateCursor();
+        for (it.Execute(); !it.Eof(); it.Next()) {
           if (it.upid() != pit.id())
             continue;
           if (it.ts() != snapshot_ts)
@@ -1523,7 +1511,8 @@ class JsonExporter {
 
         const auto& sn = storage_->memory_snapshot_node_table();
 
-        for (auto it = sn.IterateRows(); it; ++it) {
+        auto it = sn.CreateCursor();
+        for (it.Execute(); !it.Eof(); it.Next()) {
           if (it.process_snapshot_id() != process_snapshot_id) {
             continue;
           }
@@ -1561,19 +1550,21 @@ class JsonExporter {
         }
 
         const auto& snapshot_edges = storage_->memory_snapshot_edge_table();
-        for (auto it = snapshot_edges.IterateRows(); it; ++it) {
-          SnapshotNodeId source_node_id = it.source_node_id();
-          auto source_node_rr = sn[source_node_id];
+        auto source_node_rr = sn.CreateIdCursor();
+        auto edge_row = snapshot_edges.CreateCursor();
+        for (edge_row.Execute(); !edge_row.Eof(); edge_row.Next()) {
+          SnapshotNodeId source_node_id = edge_row.source_node_id();
+          source_node_rr.SeekToId(source_node_id);
 
           if (source_node_rr.process_snapshot_id() != process_snapshot_id) {
             continue;
           }
           Dom edge(Type::kObject);
           edge["source"] =
-              base::Uint64ToHexStringNoPrefix(it.source_node_id().value);
+              base::Uint64ToHexStringNoPrefix(edge_row.source_node_id().value);
           edge["target"] =
-              base::Uint64ToHexStringNoPrefix(it.target_node_id().value);
-          edge["importance"] = static_cast<int64_t>(it.importance());
+              base::Uint64ToHexStringNoPrefix(edge_row.target_node_id().value);
+          edge["importance"] = static_cast<int64_t>(edge_row.importance());
           edge["type"] = "ownership";
           event["args"]["dumps"]["allocators_graph"].Append(std::move(edge));
         }
@@ -1652,29 +1643,18 @@ class JsonExporter {
   }
 
   uint64_t GetCounterValue(TrackId track_id, int64_t ts) {
-    const auto& counter_table = storage_->counter_table();
-    // The timestamp column is sorted, so we can binary search for a matching
-    // timestamp. Note that we don't want to use dataframe apis here as that
-    // would bloat the binary size of the Chrome binary.
-    uint32_t idx = LowerBoundIndex(0, counter_table.row_count(), ts,
-                                   [&](uint32_t i, int64_t expected_ts) {
-                                     return counter_table[i].ts() < expected_ts;
-                                   });
-    for (; idx < counter_table.row_count(); ++idx) {
-      auto rr = counter_table[idx];
-      if (rr.ts() != ts) {
-        break;
-      }
-      if (rr.track_id() == track_id) {
-        return static_cast<uint64_t>(rr.value());
-      }
-    }
-    return 0;
+    counter_at_ts_.SetFilterValueUnchecked(0, ts);
+    counter_at_ts_.SetFilterValueUnchecked(1, track_id.value);
+    counter_at_ts_.Execute();
+    return counter_at_ts_.Eof() ? 0
+                                : static_cast<uint64_t>(counter_at_ts_.value());
   }
 
   const TraceStorage* storage_;
   ArgsBuilder args_builder_;
   TraceFormatWriter writer_;
+  tables::SliceTable::ConstCursor slice_by_id_;
+  tables::CounterTable::ConstCursor counter_at_ts_;
 
   // If a pid/tid is duplicated between two or more  different processes/threads
   // (pid/tid reuse), we export the subsequent occurrences with different

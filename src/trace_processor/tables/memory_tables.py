@@ -14,6 +14,7 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import TableKind
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt64
@@ -88,6 +89,7 @@ PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
 MEMORY_SNAPSHOT_NODE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotNodeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_memory_snapshot_node',
     columns=[
         C(
@@ -139,6 +141,7 @@ MEMORY_SNAPSHOT_NODE_TABLE = Table(
 MEMORY_SNAPSHOT_EDGE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotEdgeTable',
+    kind=TableKind.EVENT,
     sql_name='__intrinsic_memory_snapshot_edge',
     columns=[
         C(

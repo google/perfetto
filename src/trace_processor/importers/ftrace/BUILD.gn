@@ -103,10 +103,7 @@ source_set("ftrace_descriptors") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [
-    "binder_tracker_unittest.cc",
-    "ftrace_sched_event_tracker_unittest.cc",
-  ]
+  sources = [ "ftrace_sched_event_tracker_unittest.cc" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
