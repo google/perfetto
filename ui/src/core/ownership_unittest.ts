@@ -12,7 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {carryOwner, getOwner, setOwner} from './ownership';
+import m from 'mithril';
+import {withOwner} from '../base/owner_attribute';
+import {Portal} from '../widgets/portal';
+import {
+  carryOwner,
+  findAttributionForElement,
+  getOwner,
+  setOwner,
+  UNATTRIBUTED,
+} from './ownership';
 
 describe('setOwner / getOwner', () => {
   test('plain object', () => {
@@ -91,5 +100,62 @@ describe('carryOwner', () => {
     const target = {};
     setOwner(target, 'com.example.B');
     expect(getOwner(carryOwner(original, target))).toBe('com.example.B');
+  });
+});
+
+describe('findAttributionForElement', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    m.render(container, null);
+    container.remove();
+  });
+
+  function ownerOf(selector: string): string {
+    return findAttributionForElement(document.querySelector(selector)).owner;
+  }
+
+  test('an element without a label is unattributed', () => {
+    m.render(container, m('.target'));
+    expect(ownerOf('.target')).toBe(UNATTRIBUTED);
+  });
+
+  test('no element is unattributed', () => {
+    expect(findAttributionForElement(null).owner).toBe(UNATTRIBUTED);
+  });
+
+  test('an element gets its own label', () => {
+    m.render(container, m('.target', {'data-plugin': 'com.example.A'}));
+    expect(ownerOf('.target')).toBe('com.example.A');
+  });
+
+  test('the innermost label wins', () => {
+    m.render(
+      container,
+      m(
+        '',
+        {'data-plugin': 'com.example.Outer'},
+        m('', {'data-plugin': 'com.example.Inner'}, m('.target')),
+      ),
+    );
+    expect(ownerOf('.target')).toBe('com.example.Inner');
+  });
+
+  test('finds a label on a withOwner() wrapper', () => {
+    m.render(container, withOwner('com.example.A', m('.target')));
+    expect(ownerOf('.target')).toBe('com.example.A');
+  });
+
+  test('content moved by a portal gets the label it was opened from', () => {
+    m.render(
+      container,
+      m('', {'data-plugin': 'com.example.A'}, m(Portal, m('.target'))),
+    );
+    expect(ownerOf('.target')).toBe('com.example.A');
   });
 });
