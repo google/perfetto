@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import dataclasses as dc
-from typing import Dict, List, Type, Union
+from typing import BinaryIO, Dict, List, Optional, Type, Union, cast
 
 from perfetto.trace_uri_resolver import util
 from perfetto.trace_uri_resolver.resolver import TraceContent
@@ -26,6 +26,7 @@ TraceListReference = Union[TraceReference, List[TraceReference]]
 
 
 class ResolverRegistry:
+  registry: dict[Optional[str], type[TraceUriResolver]]
 
   @dc.dataclass
   class Result:
@@ -33,7 +34,7 @@ class ResolverRegistry:
     metadata: Dict[str, str]
 
   def __init__(self, resolvers: List[Type[TraceUriResolver]] = []):
-    self.registry: Dict[str, Type[TraceUriResolver]] = dict()
+    self.registry = dict()
 
     for resolver in resolvers:
       self.register(resolver)
@@ -63,9 +64,11 @@ class ResolverRegistry:
       ]
 
     if hasattr(ref, 'read'):
-      return [ResolverRegistry.Result(util.read_generator(ref), {})]
+      return [
+          ResolverRegistry.Result(util.read_generator(cast(BinaryIO, ref)), {})
+      ]
 
-    return [ResolverRegistry.Result(ref, {})]
+    return [ResolverRegistry.Result(cast(TraceGenerator, ref), {})]
 
   def _resolver_from_uri(self, uri: TraceUri) -> TraceUriResolver:
     resolver_name, _ = util.parse_trace_uri(uri)
@@ -75,7 +78,7 @@ class ResolverRegistry:
 
 def _merge_metadata(
     resolver_res: TraceUriResolver.Result,
-    registry_res: ResolverRegistry.Result) -> List[ResolverRegistry.Result]:
+    registry_res: ResolverRegistry.Result) -> ResolverRegistry.Result:
   return ResolverRegistry.Result(
       generator=registry_res.generator,
       metadata=util.merge_dicts(resolver_res.metadata, registry_res.metadata))
