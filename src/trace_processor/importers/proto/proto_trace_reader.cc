@@ -276,6 +276,10 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
   PERFETTO_DCHECK(is_machine_dispatcher_ || decoder.has_machine_id());
 
+  for (ProtoImporterModule* module : module_context_.raw_packet_observers) {
+    module->OnRawPacket(decoder, packet);
+  }
+
   // Execute ProtoVM logic right after the "machine ID fork" as detailed in
   // go/perfetto-proto-vm.
   std::optional<TraceBlobView> raw_protovm_patch;

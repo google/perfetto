@@ -21512,6 +21512,7 @@ filegroup {
         "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation_unittest.cc",
         "src/trace_processor/plugins/winscope_importer/test/protolog_message_decoder_unittest.cc",
         "src/trace_processor/plugins/winscope_importer/test/windowmanager_hierarchy_walker_unittest.cc",
+        "src/trace_processor/plugins/winscope_importer/test/winscope_module_unittest.cc",
         "src/trace_processor/plugins/winscope_importer/viewcapture_views_extractor_unittest.cc",
         "src/trace_processor/plugins/winscope_importer/viewcapture_visibility_computation_unittest.cc",
         "src/trace_processor/plugins/winscope_importer/winscope_geometry_unittest.cc",

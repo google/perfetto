@@ -74,6 +74,10 @@ void ProtoImporterModule::RegisterForField(uint32_t field_id) {
   module_context_->modules_by_field[field_id].push_back(this);
 }
 
+void ProtoImporterModule::RegisterForRawPackets() {
+  module_context_->raw_packet_observers.push_back(this);
+}
+
 void ProtoImporterModuleContext::PushFtraceEvent(uint32_t cpu,
                                                  int64_t ts,
                                                  FtraceData data) {
