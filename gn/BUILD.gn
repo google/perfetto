@@ -488,6 +488,17 @@ if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
     group("libunwind") {
       public_configs = [ ":libunwind_config" ]
     }
+
+    # Links against the system's libelf (standard SVR4 libelf/gelf API).
+    # Can later be swapped to a BSD-2-Clause buildtools/elftoolchain source_set
+    # for hermetic/static builds without changing callers.
+    config("libelf_config") {
+      libs = [ "elf" ]
+    }
+
+    group("libelf") {
+      public_configs = [ ":libelf_config" ]
+    }
   }
 }
 

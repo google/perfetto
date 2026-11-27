@@ -27,6 +27,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/libunwind/elf_helper.h"
 #include "src/profiling/unwind/unwind_engine.h"
 #include "src/profiling/unwind/unwind_types.h"
 
@@ -53,7 +54,7 @@ struct LibunwindMapping : public UnwoundMapping {
   uint64_t end = 0;
   uint64_t offset = 0;
   uint64_t start_offset = 0;
-  // TODO(safayat): populate load_bias in the follow-up symbolization PR.
+  // Populated lazily from the backing ELF on first lookup.
   uint64_t load_bias = 0;
 };
 
@@ -85,6 +86,11 @@ class LibunwindProcessState : public ProcessUnwindState {
   // Returns the mapping containing |pc|, or nullptr.
   std::shared_ptr<LibunwindMapping> FindMap(uint64_t pc);
 
+  // Returns the sorted function symbols of the DSO backing |mapping| (parsed
+  // once per DSO), or nullptr if the DSO is not a readable on-disk ELF.
+  // Updates |mapping->load_bias| as a side effect.
+  const std::vector<ElfSymbol>* GetSymbols(LibunwindMapping* mapping);
+
   unw_addr_space_t addr_space() const { return addr_space_; }
   int mem_fd() const { return *mem_fd_; }
 
@@ -107,12 +113,13 @@ class LibunwindProcessState : public ProcessUnwindState {
   struct MappedFile {
     void* data = nullptr;
     size_t size = 0;
+    uint64_t load_bias = 0;
     bool unwind_table_parsed = false;
     uint64_t table_segbase = 0;
     uint64_t table_mapoff = 0;
     ElfDynInfo edi{};
-    // TODO(safayat): cache ELF load_bias and parsed symbol table in the
-    // follow-up symbolization PR.
+    bool symbols_parsed = false;
+    std::vector<ElfSymbol> symbols;
   };
 
   void ParseMaps();
@@ -124,8 +131,8 @@ class LibunwindProcessState : public ProcessUnwindState {
   std::vector<std::shared_ptr<LibunwindMapping>> maps_;
   // Cache of mmap'd ELF binaries (DSOs) keyed by file path, used by
   // `AccessDsoMem` to serve `.text`/`.eh_frame` memory reads without
-  // `pread64(mem_fd)` syscalls and by `FindProcInfo` for `.eh_frame_hdr` table
-  // lookup.
+  // `pread64(mem_fd)` syscalls, by `FindProcInfo` for `.eh_frame_hdr` table
+  // lookup, and by `BuildFrameFromPc` for symbol lookup.
   base::FlatHashMap<std::string, MappedFile> dso_mmaps_;
   unw_addr_space_t addr_space_ = nullptr;
 };

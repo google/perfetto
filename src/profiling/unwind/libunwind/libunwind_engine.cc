@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/libunwind/elf_helper.h"
 #include "src/profiling/unwind/proc_pid_maps.h"
 #include "src/profiling/unwind/unwind_engine.h"
 #include "src/profiling/unwind/unwind_types.h"
@@ -234,8 +235,8 @@ void LibunwindProcessState::ReparseMaps() {
   ParseMaps();
 }
 
-// Drops the parsed maps, the mmap'd DSOs (and their parsed unwind tables),
-// and flushes libunwind's DWARF cache for this address space.
+// Drops the parsed maps, the mmap'd DSOs (and their parsed unwind tables /
+// symbols) and flushes libunwind's DWARF cache for this address space.
 // Outstanding FrameData objects keep their LibunwindMapping alive via
 // shared_ptr.
 void LibunwindProcessState::ResetMaps() {
@@ -313,13 +314,25 @@ LibunwindProcessState::MappedFile* LibunwindProcessState::GetOrMapDso(
       if (ptr != MAP_FAILED) {
         mapped.data = ptr;
         mapped.size = size;
-        // TODO(safayat): populate load_bias (and symbol table lazily) in the
-        // follow-up symbolization PR.
+        mapped.load_bias = GetElfLoadBias(ptr, size);
       }
     }
-    found = dso_mmaps_.Insert(path, mapped).first;
+    found = dso_mmaps_.Insert(path, std::move(mapped)).first;
   }
   return found->data ? found : nullptr;
+}
+
+const std::vector<ElfSymbol>* LibunwindProcessState::GetSymbols(
+    LibunwindMapping* mapping) {
+  MappedFile* mapped = GetOrMapDso(mapping->name);
+  if (!mapped)
+    return nullptr;
+  mapping->load_bias = mapped->load_bias;
+  if (!mapped->symbols_parsed) {
+    mapped->symbols = ParseElfSymbols(mapped->data, mapped->size);
+    mapped->symbols_parsed = true;
+  }
+  return &mapped->symbols;
 }
 
 // Uses `libunwind`'s `dwarf_find_unwind_table` (to parse `.eh_frame_hdr`,
@@ -418,7 +431,8 @@ namespace {
 
 FrameData BuildFrameFromPcImpl(LibunwindProcessState* state,
                                uint64_t pc,
-                               bool adjust_pc) {
+                               bool adjust_pc,
+                               bool resolve_names) {
   FrameData frame{};
   frame.pc = pc;
   frame.rel_pc = pc;
@@ -428,12 +442,36 @@ FrameData BuildFrameFromPcImpl(LibunwindProcessState* state,
     return frame;
   }
 
-  uint64_t relative_pc = pc - map_info->start + map_info->offset;
+  // Also refreshes map_info->load_bias from the backing ELF.
+  const std::vector<ElfSymbol>* symbols = state->GetSymbols(map_info.get());
+
+  uint64_t relative_pc =
+      pc - map_info->start + map_info->offset + map_info->load_bias;
   uint64_t pc_adjustment = (adjust_pc && relative_pc > 0 && pc > 0) ? 1 : 0;
   frame.rel_pc = relative_pc - pc_adjustment;
   frame.pc = pc - pc_adjustment;
-  // TODO(safayat): populate function_name / load_bias in follow-up ELF PR.
-  frame.symbol_status = SymbolStatus::kNotAttempted;
+  frame.symbol_status =
+      resolve_names ? SymbolStatus::kFailure : SymbolStatus::kNotAttempted;
+
+  // Resolve function name and offset by binary-searching the cached, sorted
+  // `.symtab`/`.dynsym` table of the mapped DSO (mimicking
+  // `libunwindstack::Symbols` and Linux `perf`'s `dso__load_sym`), avoiding
+  // `_UPT_get_proc_name` which re-opens `/proc/<pid>/maps`, `mmap`s the ELF,
+  // and linearly scans the symbol table on every frame.
+  if (resolve_names && symbols) {
+    auto it = std::upper_bound(
+        symbols->begin(), symbols->end(), frame.rel_pc,
+        [](uint64_t val, const ElfSymbol& s) { return val < s.addr; });
+    if (it != symbols->begin()) {
+      --it;
+      if (frame.rel_pc >= it->addr && frame.rel_pc < it->addr + it->size) {
+        frame.function_name = it->name;
+        frame.function_offset = frame.rel_pc - it->addr;
+        frame.symbol_status = SymbolStatus::kResolved;
+      }
+    }
+  }
+
   frame.map_info = std::move(map_info);
   return frame;
 }
@@ -442,8 +480,9 @@ FrameData BuildFrameFromPcImpl(LibunwindProcessState* state,
 
 FrameData LibunwindEngine::BuildFrameFromPc(ProcessUnwindState* raw_state,
                                             uint64_t pc,
-                                            bool /*resolve_names*/) {
-  return BuildFrameFromPcImpl(StateOf(raw_state), pc, /*adjust_pc=*/true);
+                                            bool resolve_names) {
+  return BuildFrameFromPcImpl(StateOf(raw_state), pc, /*adjust_pc=*/true,
+                              resolve_names);
 }
 
 UnwindResult LibunwindEngine::Unwind(ProcessUnwindState* raw_state,
@@ -492,8 +531,8 @@ UnwindResult LibunwindEngine::Unwind(ProcessUnwindState* raw_state,
     const uint64_t frame_pc =
         (!is_first_frame && !prev_was_signal_frame && ip > 0) ? ip - 1 : ip;
 
-    FrameData frame =
-        BuildFrameFromPcImpl(state, frame_pc, /*adjust_pc=*/false);
+    FrameData frame = BuildFrameFromPcImpl(state, frame_pc, /*adjust_pc=*/false,
+                                           options.resolve_names);
     frame.sp = sp;
     if (!frame.map_info) {
       result.error_code = UnwindErrorCode::kInvalidMap;

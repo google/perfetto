@@ -23,9 +23,12 @@ source_set("libunwind") {
   deps = [
     "..:proc_pid_maps",
     "../../../../gn:default_deps",
+    "../../../../gn:libelf",
     "../../../base",
   ]
   sources = [
+    "elf_helper.cc",
+    "elf_helper.h",
     "libunwind_engine.cc",
     "libunwind_engine.h",
   ]
@@ -39,5 +42,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../base",
   ]
-  sources = [ "libunwind_engine_unittest.cc" ]
+  sources = [
+    "elf_helper_unittest.cc",
+    "libunwind_engine_unittest.cc",
+  ]
 }
