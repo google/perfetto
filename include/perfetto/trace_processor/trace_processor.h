@@ -223,7 +223,11 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   virtual base::Status RegisterFileContent(const std::string& path,
                                            TraceBlob content) = 0;
 
-  // Interrupts the current query. Typically used by Ctrl-C handler.
+  // Interrupts all the queries running now: their statements stop with an
+  // "interrupted" error, and so does every statement which starts afterwards,
+  // until the next query starts (ExecuteQuery(), or the first statement of
+  // ExecuteNextStatement()). Work run in between, such as computing metrics,
+  // can be stopped too. Typically used by a Ctrl-C handler.
   virtual void InterruptQuery() = 0;
 
   // Restores Trace Processor to its pristine state. It preserves the built-in

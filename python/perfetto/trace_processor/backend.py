@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+from typing import Any
 from typing import List
 from typing import Optional
 from typing import Union
@@ -29,42 +30,42 @@ class TraceProcessorBackend(abc.ABC):
     self.protos = protos
 
   @abc.abstractmethod
-  def execute_query(self, query: str):
+  def execute_query(self, query: str) -> Any:
     ...
 
   @abc.abstractmethod
-  def compute_metric(self, metrics: List[str]):
+  def compute_metric(self, metrics: List[str]) -> Any:
     ...
 
   @abc.abstractmethod
   def trace_summary(self,
                     specs: List[Union[str, bytes]],
                     metric_ids: Optional[List[str]] = None,
-                    metadata_query_id: Optional[str] = None):
+                    metadata_query_id: Optional[str] = None) -> Any:
     ...
 
   @abc.abstractmethod
-  def enable_metatrace(self):
+  def enable_metatrace(self) -> bytes:
     ...
 
   @abc.abstractmethod
-  def disable_and_read_metatrace(self):
+  def disable_and_read_metatrace(self) -> Any:
     ...
 
   @abc.abstractmethod
-  def export(self, output_file, export_format: str):
+  def export(self, output_file, export_format: str) -> None:
     ...
 
   @abc.abstractmethod
-  def parse(self, chunk: bytes):
+  def parse(self, chunk: bytes) -> Any:
     ...
 
   @abc.abstractmethod
-  def notify_eof(self):
+  def notify_eof(self) -> bytes:
     ...
 
   @abc.abstractmethod
-  def close(self):
+  def close(self) -> None:
     ...
 
   def _fill_trace_summary_args(self,

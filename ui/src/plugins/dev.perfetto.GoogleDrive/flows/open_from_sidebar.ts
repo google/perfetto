@@ -21,6 +21,7 @@ import {
 import type {DriveClient} from '../google/drive_client';
 import type {GoogleOAuthClient} from '../google/oauth_client';
 import {gdriveTraceArgs} from '../trace_args';
+import {makeGDriveTraceFileGetter} from './trace_file_getter';
 
 const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
@@ -56,7 +57,7 @@ export async function openFileFromSidebar(
   // trace.
   const filename = file.name ?? 'Google Drive file';
 
-  // Download the file.
+  // Stream the file directly into TraceProcessor.
   const download = await drive.openFile(oauthToken, file.id);
   if (!download.ok) {
     await alertDownloadFailed(download.error, filename);
@@ -64,14 +65,15 @@ export async function openFileFromSidebar(
   }
 
   // Open the trace.
-  app.openTraceFromBuffer({
-    buffer: download.value,
+  app.openTraceFromStream(download.value, {
     title: filename,
-    fileName: filename,
-    // ACL-protected Drive traces must not be re-uploaded to the public
-    // perfetto-ui-data GCS bucket via permalinks or crash reports.
-    shareable: false,
     // Lets onTraceLoad() know which Drive file this trace is.
     pluginArgs: gdriveTraceArgs(file.id, file.resourceKey),
+    getTraceFile: makeGDriveTraceFileGetter(
+      oauth,
+      drive,
+      file.id,
+      file.resourceKey,
+    ),
   });
 }

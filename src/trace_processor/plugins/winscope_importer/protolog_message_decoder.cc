@@ -69,7 +69,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
   }
 }
 
-void ProtoLogMessageDecoder::TrackGroup(uint32_t id, std::string_view tag) {
+bool ProtoLogMessageDecoder::TrackGroup(uint32_t id, std::string_view tag) {
   auto tracked_group = tracked_groups_.Find(id);
   if (tracked_group != nullptr) {
     if (tracked_group->tag != tag) {
@@ -77,13 +77,16 @@ void ProtoLogMessageDecoder::TrackGroup(uint32_t id, std::string_view tag) {
           stats::winscope_protolog_group_tag_collision);
 
       tracked_groups_[id] = TrackedGroup{std::string(kCollisionGroupTag)};
+      return true;
     }
+    return false;
   } else {
     tracked_groups_.Insert(id, TrackedGroup{std::string(tag)});
+    return true;
   }
 }
 
-void ProtoLogMessageDecoder::TrackMessage(
+bool ProtoLogMessageDecoder::TrackMessage(
     uint64_t message_id,
     ProtoLogLevel level,
     uint32_t group_id,
@@ -96,7 +99,7 @@ void ProtoLogMessageDecoder::TrackMessage(
     single_message_vector.emplace_back(TrackedMessage{
         level, group_id, message, location, GetParameterSignature(message)});
     tracked_messages_.Insert(message_id, std::move(single_message_vector));
-    return;
+    return true;
   }
 
   base::SmallVector<TrackedMessage, 1>& existing_messages =
@@ -111,11 +114,12 @@ void ProtoLogMessageDecoder::TrackMessage(
                          });
 
   if (it != existing_messages.end()) {
-    return;
+    return false;
   }
 
   existing_messages.emplace_back(TrackedMessage{
       level, group_id, message, location, GetParameterSignature(message)});
+  return true;
 }
 
 std::string ProtoLogMessageDecoder::FormatMessage(

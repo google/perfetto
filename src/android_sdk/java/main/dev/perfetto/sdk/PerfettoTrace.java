@@ -16,6 +16,12 @@
 
 package dev.perfetto.sdk;
 
+import static dev.perfetto.sdk.PerfettoTrackEventBuilder.PERFETTO_TE_TYPE_COUNTER;
+import static dev.perfetto.sdk.PerfettoTrackEventBuilder.PERFETTO_TE_TYPE_INSTANT;
+import static dev.perfetto.sdk.PerfettoTrackEventBuilder.PERFETTO_TE_TYPE_SLICE_BEGIN;
+import static dev.perfetto.sdk.PerfettoTrackEventBuilder.PERFETTO_TE_TYPE_SLICE_END;
+import static dev.perfetto.sdk.PerfettoTrackEventBuilder.PERFETTO_TE_TYPE_STATE;
+
 import com.google.errorprone.annotations.CompileTimeConstant;
 import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
@@ -34,13 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class PerfettoTrace {
   private static final String TAG = "PerfettoTrace";
-
-  // Keep in sync with C++
-  private static final int PERFETTO_TE_TYPE_SLICE_BEGIN = 1;
-  private static final int PERFETTO_TE_TYPE_SLICE_END = 2;
-  private static final int PERFETTO_TE_TYPE_INSTANT = 3;
-  private static final int PERFETTO_TE_TYPE_COUNTER = 4;
-  private static final int PERFETTO_TE_TYPE_STATE = 5;
 
   private static boolean sIsDebug = false;
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
@@ -101,6 +100,9 @@ public final class PerfettoTrace {
     @CriticalNative
     private static native boolean native_is_enabled(long ptr);
 
+    @CriticalNative
+    private static native int native_get_event_formats(long ptr);
+
     /** Create the native category object and register it. */
     public synchronized Category register() {
       if (!PerfettoNativeLibrary.isAvailable()) {
@@ -139,6 +141,25 @@ public final class PerfettoTrace {
     public boolean isEnabled() {
       // mPtr is volatile and is set only from `#register()` method.
       return mPtr != 0 && native_is_enabled(mPtr);
+    }
+
+    // Snapshot of active PERFETTO_TE_EVENT_FORMAT_* bits for this category,
+    // or 0 if disabled. Final so the builder call can be inlined.
+    final int getEventFormats() {
+      long ptr = mPtr;
+      if (ptr == 0) {
+        return 0;
+      }
+      // Honor subclasses (and test doubles) that override isEnabled().
+      if (getClass() != Category.class && !isEnabled()) {
+        return 0;
+      }
+      return native_get_event_formats(ptr);
+    }
+
+    // Final version of getPtr() so the builder avoids virtual dispatch.
+    final long nativePtr() {
+      return mPtr;
     }
 
     /** Whether the category is registered or not. */
@@ -406,11 +427,11 @@ public final class PerfettoTrace {
    */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(
       Category category, String eventName, StackTraceElement[] stackTrace) {
-    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
-        return PerfettoTrace.instant(category, eventName);
+    PerfettoTrackEventBuilder event = PerfettoTrace.instant(category, eventName);
+    if (!event.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+      return event;
     }
-    return writeCallStack(PerfettoTrace.instant(category, eventName).beginProto(), stackTrace)
-        .endProto();
+    return writeCallStack(event.beginProto(), stackTrace).endProto();
   }
 
   /**
@@ -421,12 +442,13 @@ public final class PerfettoTrace {
    */
   public static PerfettoTrackEventBuilder expensiveDebugCallStack(
       Category category, String eventName, StackTraceElement[] stackTrace, double callstackWeight) {
-    if (!category.isEnabled() || stackTrace == null || stackTrace.length == 0) {
-        return PerfettoTrace.instant(category, eventName);
+    PerfettoTrackEventBuilder event = PerfettoTrace.instant(category, eventName);
+    if (!event.isEnabled() || stackTrace == null || stackTrace.length == 0) {
+      return event;
     }
     final long FIELD_TRACK_EVENT_CALLSTACK_WEIGHT = 57L;
-    PerfettoTrackEventBuilder builder = PerfettoTrace.instant(category, eventName)
-        .beginProto().addField(FIELD_TRACK_EVENT_CALLSTACK_WEIGHT, callstackWeight);
+    PerfettoTrackEventBuilder builder =
+        event.beginProto().addField(FIELD_TRACK_EVENT_CALLSTACK_WEIGHT, callstackWeight);
     return writeCallStack(builder, stackTrace).endProto();
   }
 

@@ -249,6 +249,8 @@ export class TraceImpl implements Trace, Disposable {
         // Re-materialize the merged TAR (manifest + traces) from the retained
         // file list; reopening it reproduces the merge.
         return await tarFileListToBlob(src.files);
+      } else if (src.type === 'STREAM' && src.getTraceFile !== undefined) {
+        return await src.getTraceFile();
       }
     }
     // Not available in HTTP+RPC mode. Rather than propagating an undefined,
@@ -335,8 +337,11 @@ export class TraceImpl implements Trace, Disposable {
     return this.app.openTraceFromUrl(url, serializedAppState);
   }
 
-  openTraceFromStream(stream: TraceStream) {
-    return this.app.openTraceFromStream(stream);
+  openTraceFromStream(
+    stream: TraceStream,
+    opts?: Parameters<AppImpl['openTraceFromStream']>[1],
+  ) {
+    return this.app.openTraceFromStream(stream, opts);
   }
 
   openTraceFromBuffer(
@@ -356,6 +361,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get policy(): Policy {
     return this.app.policy;
+  }
+
+  get skills() {
+    return this.app.skills;
   }
 
   get perfDebugging() {

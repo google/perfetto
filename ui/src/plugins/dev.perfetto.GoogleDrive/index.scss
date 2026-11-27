@@ -1,0 +1,24 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The "Share to Google Drive" dialog is built from the standard widgets (Form,
+// TextInput, Button, Callout, ...), which bring their own styling. Only the
+// layout specific to this dialog lives here.
+
+// Override .pf-modal-dialog's `min-width: 25vw` so the dialog box never grows
+// wider than the form content on wide/ultrawide displays.
+.pf-modal-dialog.pf-gdrive-modal {
+  min-width: 0;
+  width: min(560px, 90vw);
+}

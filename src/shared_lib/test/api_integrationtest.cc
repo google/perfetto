@@ -22,6 +22,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/endian.h"
@@ -148,6 +149,13 @@ class MockDs2Callbacks : testing::Mock {
                void* user_arg,
                void* inst_ctx,
                struct PerfettoDsOnFlushArgs* args));
+  MOCK_METHOD(void,
+              WillClearIncrementalState,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx,
+               struct PerfettoDsWillClearIncrementalStateArgs* args));
   MOCK_METHOD(void*,
               OnCreateTls,
               (struct PerfettoDsImpl*,
@@ -905,6 +913,14 @@ class SharedLibDataSourceTest : public testing::Test {
           return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
+    params.will_clear_incremental_state_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           void* user_arg, void* inst_ctx,
+           struct PerfettoDsWillClearIncrementalStateArgs* args) {
+          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+          thiz->ds2_callbacks_.WillClearIncrementalState(
+              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
+        };
     params.on_create_tls_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
@@ -1497,6 +1513,45 @@ TEST_F(SharedLibDataSourceTest, IncrementalStateClearSuccess) {
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
 }
 
+TEST_F(SharedLibDataSourceTest, WillClearIncrementalStateCallback) {
+  void* const kInstCtx = reinterpret_cast<void*>(0x444);
+  WaitableEvent clear_notification;
+
+  EXPECT_CALL(ds2_callbacks_, OnSetup(data_source_2.impl, _, _, _,
+                                      kDataSource2UserArg, nullptr))
+      .WillOnce(Return(kInstCtx));
+  EXPECT_CALL(ds2_callbacks_,
+              WillClearIncrementalState(data_source_2.impl, _,
+                                        kDataSource2UserArg, kInstCtx, nullptr))
+      .WillRepeatedly([&clear_notification](
+                          struct PerfettoDsImpl*, PerfettoDsInstanceIndex,
+                          void*, void*,
+                          struct PerfettoDsWillClearIncrementalStateArgs*) {
+        PERFETTO_DS_TRACE(data_source_2, ctx) {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+          perfetto_protos_TracePacket_set_timestamp(&trace_packet.msg, 42);
+          PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+        }
+        clear_notification.Notify();
+      });
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name(kDataSourceName2)
+                                       .set_clear_period_ms(10)
+                                       .Build();
+
+  ASSERT_TRUE(clear_notification.WaitForNotification());
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(perfetto_protos_Trace_packet_field_number,
+                       MsgField(Contains(PbField(
+                           perfetto_protos_TracePacket_timestamp_field_number,
+                           VarIntField(42)))))));
+}
+
 TEST_F(SharedLibDataSourceTest, IncrementalStateClearFailure) {
   bool ignored1 = false;
   bool ignored2 = false;
@@ -1867,6 +1922,60 @@ class SharedLibTrackEventTest : public testing::Test {
   }
 };
 
+// Copies values, so callers can release trace buffers after decoding.
+std::vector<uint64_t> EventFieldValues(
+    const std::vector<uint8_t>& trace,
+    uint32_t field_id,
+    std::vector<uint64_t>* timestamps = nullptr) {
+  std::vector<uint64_t> values;
+  for (auto packet :
+       IdFieldView(trace, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      if (timestamps) {
+        IdFieldView ts(packet,
+                       perfetto_protos_TracePacket_timestamp_field_number);
+        EXPECT_EQ(ts.size(), 1u);
+        if (ts.size() != 0)
+          timestamps->push_back(ts.front().value.integer64);
+      }
+      for (auto value : IdFieldView(event, field_id))
+        values.push_back(value.value.integer64);
+    }
+  }
+  return values;
+}
+
+std::vector<std::pair<uint64_t, std::string>> InternedStrings(
+    const std::vector<uint8_t>& trace,
+    uint32_t table) {
+  std::vector<std::pair<uint64_t, std::string>> strings;
+  for (auto packet :
+       IdFieldView(trace, perfetto_protos_Trace_packet_field_number)) {
+    for (auto data : IdFieldView(
+             packet, perfetto_protos_TracePacket_interned_data_field_number)) {
+      for (auto entry : IdFieldView(data, table)) {
+        IdFieldView iids(entry, 1);
+        IdFieldView names(entry, 2);
+        EXPECT_EQ(iids.size(), 1u);
+        EXPECT_EQ(names.size(), 1u);
+        if (iids.size() != 0 && names.size() != 0) {
+          auto name = names.front().value.delimited;
+          strings.emplace_back(
+              iids.front().value.integer64,
+              std::string(reinterpret_cast<const char*>(name.start), name.len));
+        }
+      }
+    }
+  }
+  return strings;
+}
+
+// Shorthands for the `formats` argument of PerfettoTeHlEmitWithFormatsImpl().
+constexpr uint32_t kExtras = PERFETTO_TE_EVENT_FORMAT_EXTRAS;
+constexpr uint32_t kRawProto = PERFETTO_TE_EVENT_FORMAT_RAW_PROTO;
+constexpr uint32_t kBothFormats = kExtras | kRawProto;
+
 TEST_F(SharedLibTrackEventTest, TrackEventFastpathOtherDsCatDisabled) {
   TracingSession tracing_session =
       TracingSession::Builder()
@@ -1904,6 +2013,345 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
   EXPECT_TRUE(std::atomic_load(cat1.enabled));
   EXPECT_FALSE(std::atomic_load(cat2.enabled));
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
+}
+
+// PerfettoTeInit() must be safe to call concurrently, including the very first
+// call that registers the data source, and later calls must be no-ops.
+TEST_F(SharedLibTrackEventTest, TeInitIsIdempotentAndThreadSafe) {
+  constexpr int kIterations = 200;
+  constexpr int kThreads = 8;
+  for (int i = 0; i < kIterations; i++) {
+    // Drops the registration done by SetUp() (or the previous iteration), so
+    // that the threads below race on the first registration.
+    perfetto::shlib::ResetForTesting();
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+
+    std::atomic<bool> go{false};
+    std::vector<std::thread> threads;
+    for (int t = 0; t < kThreads; t++) {
+      threads.emplace_back([&go] {
+        while (!go.load()) {
+        }
+        PerfettoTeInit();
+        PerfettoTeInit();
+      });
+    }
+    go.store(true);
+    for (auto& t : threads) {
+      t.join();
+    }
+  }
+  EXPECT_NE(perfetto_te_process_track_uuid, 0u);
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("cat1")
+                                       .add_disabled_category("*")
+                                       .Build();
+  EXPECT_TRUE(std::atomic_load(cat1.enabled));
+}
+
+// All sessions that record an event share the same timestamp because the clock
+// is read once per event.
+TEST_F(SharedLibTrackEventTest, TrackEventHlSessionsShareTimestamp) {
+  auto first = TracingSession::Builder()
+                   .set_data_source_name("track_event")
+                   .add_enabled_category("cat1")
+                   .set_disable_incremental_timestamps(true)
+                   .Build();
+  auto second = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_disable_incremental_timestamps(true)
+                    .Build();
+  // The first event resets the incremental state, and the second does not.
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event2"));
+  first.StopBlocking();
+  second.StopBlocking();
+  auto collect_timestamps = [](const std::vector<uint8_t>& data,
+                               std::vector<uint64_t>* timestamps) {
+    for (struct PerfettoPbDecoderField packet :
+         IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+      if (IdFieldView(packet,
+                      perfetto_protos_TracePacket_track_event_field_number)
+              .size() == 0) {
+        continue;
+      }
+      IdFieldView timestamp(packet,
+                            perfetto_protos_TracePacket_timestamp_field_number);
+      ASSERT_EQ(timestamp.size(), 1u);
+      timestamps->push_back(timestamp.front().value.integer64);
+    }
+  };
+  std::vector<uint64_t> first_ts;
+  std::vector<uint64_t> second_ts;
+  collect_timestamps(first.ReadBlocking(), &first_ts);
+  collect_timestamps(second.ReadBlocking(), &second_ts);
+  ASSERT_EQ(first_ts.size(), 2u);
+  ASSERT_EQ(second_ts.size(), 2u);
+  EXPECT_EQ(first_ts, second_ts);
+}
+
+TEST_F(SharedLibTrackEventTest, EventFormatsFollowSessionConfig) {
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(nullptr), 0u);
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(cat1.impl), 0u);
+  auto extras = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .Build();
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(cat1.impl), kExtras);
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(cat2.impl), 0u);
+  auto raw_proto = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("cat1")
+                       .set_raw_proto_events(true)
+                       .Build();
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(cat1.impl), kBothFormats);
+  extras.StopBlocking();
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(cat1.impl), kRawProto);
+  raw_proto.StopBlocking();
+  EXPECT_EQ(PerfettoTeCategoryImplGetEventFormats(cat1.impl), 0u);
+}
+
+TEST_F(SharedLibTrackEventTest, RawProtoMixedEventsRouteOnceAndShareTimestamp) {
+  auto extras = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .set_disable_incremental_timestamps(true)
+                    .Build();
+  auto raw_proto = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("cat1")
+                       .set_raw_proto_events(true)
+                       .set_disable_incremental_timestamps(true)
+                       .Build();
+  PerfettoTeHlProtoFieldVarInt field{{PERFETTO_TE_HL_PROTO_TYPE_VARINT, 1000},
+                                     11};
+  PerfettoTeHlProtoField* proto_fields[] = {&field.header, nullptr};
+  PerfettoTeHlExtraProtoFields proto{{PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS},
+                                     proto_fields};
+  PerfettoTeHlExtra* extras_array[] = {&proto.header, nullptr};
+  const uint8_t bytes[] = {0xC0, 0x3E, 22};  // field 1000 = 22.
+  const char name[] = {'n', 'a', 'm', 'e'};  // Deliberately no terminator.
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, name, sizeof(name), kBothFormats,
+      extras_array, bytes, sizeof(bytes), nullptr));
+  extras.StopBlocking();
+  raw_proto.StopBlocking();
+  std::vector<uint64_t> extras_timestamps;
+  std::vector<uint64_t> raw_proto_timestamps;
+  auto extras_data = extras.ReadBlocking();
+  auto raw_proto_data = raw_proto.ReadBlocking();
+  EXPECT_THAT(EventFieldValues(extras_data, 1000, &extras_timestamps),
+              ElementsAre(11));
+  EXPECT_THAT(EventFieldValues(raw_proto_data, 1000, &raw_proto_timestamps),
+              ElementsAre(22));
+  ASSERT_EQ(extras_timestamps.size(), 1u);
+  EXPECT_EQ(raw_proto_timestamps, extras_timestamps);
+  EXPECT_THAT(InternedStrings(extras_data, 2),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string("name"))));
+  EXPECT_TRUE(InternedStrings(raw_proto_data, 2).empty());
+  EXPECT_TRUE(InternedStrings(raw_proto_data, 1).empty());
+  for (auto packet :
+       IdFieldView(raw_proto_data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      EXPECT_THAT(event,
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("name"))));
+      EXPECT_THAT(event, AllFieldsWithId(
+                             perfetto_protos_TrackEvent_categories_field_number,
+                             ElementsAre(StringField("cat1"))));
+    }
+  }
+}
+
+TEST_F(SharedLibTrackEventTest, RawProtoSnapshotSkipsLateDifferentFormat) {
+  auto extras = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .Build();
+  const uint32_t formats = PerfettoTeCategoryImplGetEventFormats(cat1.impl);
+  auto raw_proto = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("cat1")
+                       .set_raw_proto_events(true)
+                       .Build();
+  auto late_extras = TracingSession::Builder()
+                         .set_data_source_name("track_event")
+                         .add_enabled_category("cat1")
+                         .Build();
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "event", 5, formats, nullptr,
+      nullptr, 0, nullptr));
+  late_extras.StopBlocking();
+  extras.StopBlocking();
+  raw_proto.StopBlocking();
+  EXPECT_THAT(EventFieldValues(extras.ReadBlocking(),
+                               perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+  EXPECT_TRUE(EventFieldValues(raw_proto.ReadBlocking(),
+                               perfetto_protos_TrackEvent_type_field_number)
+                  .empty());
+  EXPECT_THAT(EventFieldValues(late_extras.ReadBlocking(),
+                               perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+}
+
+TEST_F(SharedLibTrackEventTest, CountersHaveNoNameInBothFormats) {
+  auto extras = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .Build();
+  auto raw_proto = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("cat1")
+                       .set_raw_proto_events(true)
+                       .Build();
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "", 0, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_COUNTER, "c", 1, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  PerfettoTeHlEmitRawProtoImpl(cat1.impl, PERFETTO_TE_TYPE_COUNTER, "c", 1,
+                               nullptr, 0, nullptr);
+  extras.StopBlocking();
+  raw_proto.StopBlocking();
+  auto extras_data = extras.ReadBlocking();
+  auto raw_proto_data = raw_proto.ReadBlocking();
+  EXPECT_THAT(EventFieldValues(extras_data,
+                               perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT,
+                          perfetto_protos_TrackEvent_TYPE_COUNTER));
+  EXPECT_THAT(EventFieldValues(raw_proto_data,
+                               perfetto_protos_TrackEvent_type_field_number),
+              ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT,
+                          perfetto_protos_TrackEvent_TYPE_COUNTER,
+                          perfetto_protos_TrackEvent_TYPE_COUNTER));
+  EXPECT_THAT(InternedStrings(extras_data, 2),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string(""))));
+  EXPECT_TRUE(InternedStrings(raw_proto_data, 2).empty());
+  auto event_name_counts = [](const std::vector<uint8_t>& data) {
+    std::vector<size_t> counts;
+    for (auto packet :
+         IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+      for (auto event : IdFieldView(
+               packet, perfetto_protos_TracePacket_track_event_field_number)) {
+        counts.push_back(
+            IdFieldView(event, perfetto_protos_TrackEvent_name_field_number)
+                .size() +
+            IdFieldView(event, perfetto_protos_TrackEvent_name_iid_field_number)
+                .size());
+      }
+    }
+    return counts;
+  };
+  // Both formats write an empty instant name and omit counter names.
+  EXPECT_THAT(event_name_counts(extras_data), ElementsAre(1u, 0u));
+  EXPECT_THAT(event_name_counts(raw_proto_data), ElementsAre(1u, 0u, 0u));
+}
+
+TEST_F(SharedLibTrackEventTest, RawProtoNamedTrackAndInlineName) {
+  auto session = TracingSession::Builder()
+                     .set_data_source_name("track_event")
+                     .add_enabled_category("cat1")
+                     .set_raw_proto_events(true)
+                     .Build();
+  PerfettoTeHlExtraNamedTrack track{{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK},
+                                    "named",
+                                    7,
+                                    PerfettoTeProcessTrackUuid(),
+                                    true};
+  const char name[] = {'x', 'y'};
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, name, sizeof(name), kRawProto,
+      nullptr, nullptr, 0, &track.header));
+  session.StopBlocking();
+  auto data = session.ReadBlocking();
+  EXPECT_THAT(EventFieldValues(
+                  data, perfetto_protos_TrackEvent_track_uuid_field_number),
+              ElementsAre(PerfettoTeNamedTrackUuid(
+                  "named", 7, PerfettoTeProcessTrackUuid())));
+  EXPECT_TRUE(InternedStrings(data, 2).empty());
+  for (auto packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      EXPECT_THAT(event,
+                  AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                                  ElementsAre(StringField("xy"))));
+    }
+  }
+}
+
+TEST_F(SharedLibTrackEventTest,
+       InvalidRawProtoInputDoesNotTouchExtrasSequence) {
+  auto extras = TracingSession::Builder()
+                    .set_data_source_name("track_event")
+                    .add_enabled_category("cat1")
+                    .Build();
+  auto raw_proto = TracingSession::Builder()
+                       .set_data_source_name("track_event")
+                       .add_enabled_category("cat1")
+                       .set_raw_proto_events(true)
+                       .Build();
+  // A NULL category or perfetto_te_any_categories (NULL descriptor).
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      nullptr, PERFETTO_TE_TYPE_INSTANT, "bad", 3, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      perfetto_te_any_categories, PERFETTO_TE_TYPE_INSTANT, "bad", 3,
+      kBothFormats, nullptr, nullptr, 0, nullptr));
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      perfetto_te_any_categories, PERFETTO_TE_TYPE_INSTANT, "bad", 3, kExtras,
+      nullptr, nullptr, 0, nullptr));
+  PerfettoTeHlEmitRawProtoImpl(nullptr, PERFETTO_TE_TYPE_INSTANT, "bad", 3,
+                               nullptr, 0, nullptr);
+  PerfettoTeHlEmitRawProtoImpl(perfetto_te_any_categories,
+                               PERFETTO_TE_TYPE_INSTANT, "bad", 3, nullptr, 0,
+                               nullptr);
+  // Truncated fields.
+  const uint8_t truncated[] = {0x12, 99};
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "bad", 3, kBothFormats, nullptr,
+      truncated, sizeof(truncated), nullptr));
+  // Too large.
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "bad",
+      PERFETTO_TE_HL_MAX_RAW_PROTO_EVENT_SIZE + 1, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  // A size without a name.
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, nullptr, 1, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  // An unknown format bit.
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "bad", 3, 4, nullptr, nullptr, 0,
+      nullptr));
+  // A RAW_PROTO track that is not a track extra.
+  PerfettoTeHlExtra invalid_track{PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64};
+  EXPECT_FALSE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "bad", 3, kBothFormats, nullptr,
+      nullptr, 0, &invalid_track));
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, "good", 4, kBothFormats, nullptr,
+      nullptr, 0, nullptr));
+  extras.StopBlocking();
+  raw_proto.StopBlocking();
+  auto extras_data = extras.ReadBlocking();
+  auto raw_proto_data = raw_proto.ReadBlocking();
+  for (const auto& data : {extras_data, raw_proto_data}) {
+    EXPECT_THAT(
+        EventFieldValues(data, perfetto_protos_TrackEvent_type_field_number),
+        ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT));
+  }
+  EXPECT_THAT(InternedStrings(extras_data, 2),
+              ElementsAre(std::make_pair(uint64_t{1}, std::string("good"))));
+  EXPECT_TRUE(InternedStrings(raw_proto_data, 2).empty());
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventCategoryCallback) {
@@ -2162,15 +2610,63 @@ class SharedLibTrackEventEncodingTest
     : public SharedLibTrackEventTest,
       public testing::WithParamInterface<uint32_t> {
  protected:
-  TracingSession StartSession() {
+  TracingSession StartSession(bool raw_proto = false) {
     auto builder = TracingSession::Builder()
                        .set_data_source_name("track_event")
+                       .set_raw_proto_events(raw_proto)
                        .add_enabled_category("*");
     if (GetParam() == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP)
       builder.set_v2_probability(100);
     return builder.Build();
   }
 };
+
+TEST_P(SharedLibTrackEventEncodingTest, RawProtoPathMatchesWithFormats) {
+  auto raw_proto = StartSession(/*raw_proto=*/true);
+  auto extras = StartSession(/*raw_proto=*/false);
+  const uint8_t bytes[] = {0xC0, 0x3E, 22};       // field 1000 = 22.
+  const char name[] = {'e', 'v', 'e', 'n', 't'};  // Deliberately no NUL.
+  ASSERT_TRUE(PerfettoTeHlEmitWithFormatsImpl(
+      cat1.impl, PERFETTO_TE_TYPE_INSTANT, name, sizeof(name), kRawProto,
+      nullptr, bytes, sizeof(bytes), nullptr));
+  PerfettoTeHlEmitRawProtoImpl(cat1.impl, PERFETTO_TE_TYPE_INSTANT, name,
+                               sizeof(name), bytes, sizeof(bytes), nullptr);
+  // Counter on a named track. Counters carry no name.
+  PerfettoTeHlExtraNamedTrack track{
+      {PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK}, "counter", 0, 0, true};
+  const uint8_t counter[] = {0xF0, 0x01, 7};  // counter_value (30) = 7.
+  PerfettoTeHlEmitRawProtoImpl(cat1.impl, PERFETTO_TE_TYPE_COUNTER, "", 0,
+                               counter, sizeof(counter), &track.header);
+  raw_proto.StopBlocking();
+  extras.StopBlocking();
+  auto data = raw_proto.ReadBlocking();
+  EXPECT_THAT(
+      EventFieldValues(data, perfetto_protos_TrackEvent_type_field_number),
+      ElementsAre(perfetto_protos_TrackEvent_TYPE_INSTANT,
+                  perfetto_protos_TrackEvent_TYPE_INSTANT,
+                  perfetto_protos_TrackEvent_TYPE_COUNTER));
+  EXPECT_THAT(EventFieldValues(data, 1000), ElementsAre(22, 22));
+  EXPECT_THAT(EventFieldValues(data, 30), ElementsAre(7));
+  EXPECT_TRUE(InternedStrings(data, 1).empty());
+  EXPECT_TRUE(InternedStrings(data, 2).empty());
+  size_t named_events = 0;
+  for (auto packet :
+       IdFieldView(data, perfetto_protos_Trace_packet_field_number)) {
+    for (auto event : IdFieldView(
+             packet, perfetto_protos_TracePacket_track_event_field_number)) {
+      IdFieldView event_name(event,
+                             perfetto_protos_TrackEvent_name_field_number);
+      if (event_name.size() == 0)
+        continue;
+      ++named_events;
+      EXPECT_THAT(event_name.front(), StringField("event"));
+    }
+  }
+  EXPECT_EQ(named_events, 2u);
+  EXPECT_TRUE(EventFieldValues(extras.ReadBlocking(),
+                               perfetto_protos_TrackEvent_type_field_number)
+                  .empty());
+}
 
 TEST_P(SharedLibTrackEventEncodingTest, TrackEventHlInstant) {
   auto tracing_session = StartSession();

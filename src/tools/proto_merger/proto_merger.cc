@@ -490,6 +490,8 @@ base::Status MergeOneofs(
                         deleted_type_names, out_item);
     if (!status.ok())
       return status;
+    if (!input_item && out_item.fields.empty())
+      continue;
     out.emplace_back(std::move(out_item));
   }
   return base::OkStatus();
@@ -600,14 +602,27 @@ base::Status Merge(const ProtoFile::Message& input,
   if (!status.ok())
     return status;
 
+  // A field the input already has keeps the input's placement, even if
+  // upstream declares it in another oneof (or outside of one).
+  std::set<int> allowed_fields = allowlist.fields;
+  std::map<std::string, Allowlist::Oneof> allowed_oneofs = allowlist.oneofs;
+  auto disallow = [&](const ProtoFile::Field& field) {
+    allowed_fields.erase(field.number);
+    for (auto& [oneof_name, field_numbers] : allowed_oneofs)
+      field_numbers.erase(field.number);
+  };
+  std::for_each(input.fields.begin(), input.fields.end(), disallow);
+  for (const auto& oneof : input.oneofs)
+    std::for_each(oneof.fields.begin(), oneof.fields.end(), disallow);
+
   // Merge any oneofs.
-  status = MergeOneofs(input.oneofs, upstream.oneofs, allowlist.oneofs, ctx,
+  status = MergeOneofs(input.oneofs, upstream.oneofs, allowed_oneofs, ctx,
                        deleted_type_names, out.oneofs);
   if (!status.ok())
     return status;
 
   // Finish by merging the list of fields.
-  FieldParams field_params{allowlist.fields, upstream.reserved_numbers,
+  FieldParams field_params{allowed_fields, upstream.reserved_numbers,
                            deleted_type_names};
   status =
       MergeFields(input.fields, upstream.fields, field_params, ctx, out.fields);

@@ -39,6 +39,7 @@
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -224,6 +225,11 @@ class SearchScansDiffTest : public ::testing::Test {
     std::unique_ptr<Pipeline> pipeline;
     std::vector<std::optional<ParamCaster<Values>>> casters;
   };
+  // Params are cast for the type a column is read as: an id is a Uint32.
+  static StorageType ReadAs(StorageType type) {
+    return type.Is<Id>() ? StorageType{Uint32{}} : type;
+  }
+
   std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan,
                                 ReadDirection direction) {
     std::vector<std::shared_ptr<const dataframe::Column>> columns;
@@ -244,7 +250,7 @@ class SearchScansDiffTest : public ::testing::Test {
         }
         if (f->value_index && !f->op.IsAnyOf<NullOp>()) {
           out.casters[*f->value_index] =
-              GetParamCaster<Values>(f->storage, f->op);
+              GetParamCaster<Values>(ReadAs(f->storage), f->op);
         }
         using K = SortedScan::Search::Kind;
         std::optional<K> kind;
@@ -279,7 +285,8 @@ class SearchScansDiffTest : public ::testing::Test {
           if (!p.op.Is<Eq>()) {
             return std::nullopt;
           }
-          out.casters[*p.value_index] = GetParamCaster<Values>(p.storage, p.op);
+          out.casters[*p.value_index] =
+              GetParamCaster<Values>(ReadAs(p.storage), p.op);
           equalities.push_back({df_->shared_column(p.col), *p.value_index});
         }
         index = &df_->indexes()[idx->index];
@@ -313,6 +320,18 @@ class SearchScansDiffTest : public ::testing::Test {
       ++sorted_scans_;
     }
     std::vector<Pipeline::Step> steps;
+    // A scan lends nullable columns sparse, unless it copies the rows as an
+    // index scan does; lay them out before anything reads them, as lowering
+    // would.
+    std::vector<uint32_t> sparse;
+    for (uint32_t i = 0; i < df_->column_names().size() && !index; ++i) {
+      if (!df_->column(i).null_storage.nullability().Is<NonNull>()) {
+        sparse.push_back(i);
+      }
+    }
+    if (!sparse.empty()) {
+      steps.emplace_back(std::make_unique<Expand>(std::move(sparse)));
+    }
     if (!conditions.empty()) {
       steps.emplace_back(
           std::make_unique<Filter>(std::move(conditions), &pool_));

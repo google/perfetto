@@ -52,6 +52,13 @@ class Selection {
     return prefix_ ? i : indices_[i];
   }
 
+  // The batch rows kept, unless prefix(): the first size() are in use. For
+  // loops which would otherwise read prefix() again for every row.
+  const uint16_t* indices() const {
+    PERFETTO_DCHECK(!prefix_);
+    return indices_;
+  }
+
   // Keeps all of `rows` rows.
   void Reset(uint32_t rows) {
     PERFETTO_DCHECK(rows <= kMaxBatchRows);

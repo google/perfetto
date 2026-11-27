@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/util/graph.h"
 
@@ -71,21 +72,26 @@ class NodeIndex {
     auto [min, max] = std::minmax_element(ids.begin(), ids.end());
     min_ = *min;
     uint64_t span = static_cast<uint64_t>(*max) - static_cast<uint64_t>(*min);
-    dense_ = span < 2 * uint64_t{ids.size()} + 1024;
-    if (dense_) {
-      node_of_offset_.assign(span + 1, kNoNode);
-    }
-    for (uint32_t node = 0; node < ids.size(); ++node) {
-      if (dense_) {
-        uint32_t& slot = node_of_offset_[static_cast<uint64_t>(ids[node]) -
-                                         static_cast<uint64_t>(min_)];
-        if (slot != kNoNode) {
-          return ids[node];
+    const int64_t* data = ids.data();
+    auto count = static_cast<uint32_t>(ids.size());
+    dense_ = span < 2 * uint64_t{count} + 1024;
+    if (!dense_) {
+      for (uint32_t node = 0; node < count; ++node) {
+        if (!node_of_id_.Insert(data[node], node).second) {
+          return data[node];
         }
-        slot = node;
-      } else if (!node_of_id_.Insert(ids[node], node).second) {
-        return ids[node];
       }
+      return std::nullopt;
+    }
+    node_of_offset_.assign(span + 1, kNoNode);
+    uint32_t* slots = node_of_offset_.data();
+    auto min_offset = static_cast<uint64_t>(min_);
+    for (uint32_t node = 0; node < count; ++node) {
+      uint32_t& slot = slots[static_cast<uint64_t>(data[node]) - min_offset];
+      if (slot != kNoNode) {
+        return data[node];
+      }
+      slot = node;
     }
     return std::nullopt;
   }
@@ -118,16 +124,22 @@ struct GraphTree::State : OperatorState {
     void EndRun() { static_cast<util::GraphTree&>(*this) = {}; }
   };
 
-  std::unique_ptr<OperatorState> nodes_state;
-  std::unique_ptr<OperatorState> edges_state;
-  std::unique_ptr<OperatorState> seeds_state;
-  Context* context = nullptr;
+  State(Context& c, const GraphTreeSpec& spec)
+      : context(&c),
+        nodes(this, spec.nodes),
+        edges(this, spec.edges),
+        seeds(this, spec.seeds) {}
+
+  Context* context;
+  // The inputs, streamed in through the run's Context.
+  PipelineUse nodes;
+  PipelineUse edges;
+  PipelineUse seeds;
 
   Held<base::Status> status{this};
 
-  // The inputs, read in full: what each batch is read into, and the retained
-  // columns of every node row, in the order they arrived.
-  Held<RowBatch> batch{this};
+  // The inputs, read in full: the retained columns of every node row, in the
+  // order they arrived.
   Held<RowBatch> retained{this};
   Held<RowStore> rows{this};
   // Nodes are numbered in the order they arrived, so a node's number is also
@@ -153,20 +165,10 @@ GraphTree::GraphTree(GraphTreeSpec spec) : spec_(std::move(spec)) {}
 GraphTree::~GraphTree() = default;
 
 std::unique_ptr<OperatorState> GraphTree::MakeState(Context& context) const {
-  auto state = std::make_unique<State>();
-  state->context = &context;
-  state->nodes_state = spec_.nodes->MakeState(context);
-  state->edges_state = spec_.edges->MakeState(context);
-  state->seeds_state = spec_.seeds->MakeState(context);
-  return state;
+  return std::make_unique<State>(context, spec_);
 }
 
-void GraphTree::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
-  Restart(*spec_.nodes, *s.nodes_state);
-  Restart(*spec_.edges, *s.edges_state);
-  Restart(*spec_.seeds, *s.seeds_state);
-}
+void GraphTree::Rewind(OperatorState&) const {}
 
 base::Status GraphTree::status(const OperatorState& state) const {
   return state.Cast<const State>().status;
@@ -175,19 +177,21 @@ base::Status GraphTree::status(const OperatorState& state) const {
 base::Status GraphTree::Build(State& s) const {
   const char* name = Name(spec_.kind);
 
-  while (spec_.nodes->GetData(s.batch, *s.nodes_state)) {
-    FlatColumnReader<int64_t> ids(s.batch, spec_.node_column);
-    for (uint32_t row = 0; row < s.batch.size(); ++row) {
-      int64_t id;
-      if (!ids.Read(row, &id)) {
+  while (RowBatch* batch = s.nodes.Next(*s.context)) {
+    FlatColumnReader<int64_t> ids(*batch, spec_.node_column);
+    uint32_t n = batch->size();
+    size_t first = s.id_of_node.size();
+    s.id_of_node.resize(first + n);
+    int64_t* out = s.id_of_node.data() + first;
+    for (uint32_t row = 0; row < n; ++row) {
+      if (!ids.Read(row, &out[row])) {
         return base::ErrStatus("%s: a node has no id", name);
       }
-      s.id_of_node.push_back(id);
     }
-    s.retained.Project(s.batch, spec_.retained_columns);
+    s.retained.Project(*batch, spec_.retained_columns);
     RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
   }
-  RETURN_IF_ERROR(spec_.nodes->status(*s.nodes_state));
+  RETURN_IF_ERROR(s.nodes.status());
 
   auto node_count = static_cast<uint32_t>(s.id_of_node.size());
   NodeIndex index;
@@ -196,19 +200,25 @@ base::Status GraphTree::Build(State& s) const {
   }
 
   std::vector<uint32_t> seeds;
-  while (spec_.seeds->GetData(s.batch, *s.seeds_state)) {
-    FlatColumnReader<int64_t> ids(s.batch, spec_.seed_column);
-    for (uint32_t row = 0; row < s.batch.size(); ++row) {
+  while (RowBatch* batch = s.seeds.Next(*s.context)) {
+    FlatColumnReader<int64_t> ids(*batch, spec_.seed_column);
+    uint32_t n = batch->size();
+    // Not push_back: a call in the loop would reload the index every row.
+    size_t found = seeds.size();
+    seeds.resize(found + n);
+    uint32_t* out = seeds.data();
+    for (uint32_t row = 0; row < n; ++row) {
       int64_t id;
       if (!ids.Read(row, &id)) {
         continue;
       }
       if (uint32_t node = index.Find(id); node != kNoNode) {
-        seeds.push_back(node);
+        out[found++] = node;
       }
     }
+    seeds.resize(found);
   }
-  RETURN_IF_ERROR(spec_.seeds->status(*s.seeds_state));
+  RETURN_IF_ERROR(s.seeds.status());
 
   // A dominator tree has one root, so it grows from an extra node with an
   // edge to every seed.
@@ -216,10 +226,16 @@ base::Status GraphTree::Build(State& s) const {
   uint32_t graph_nodes = node_count + (dominator ? 1 : 0);
   std::vector<uint32_t> sources;
   std::vector<uint32_t> targets;
-  while (spec_.edges->GetData(s.batch, *s.edges_state)) {
-    FlatColumnReader<int64_t> from(s.batch, spec_.source_column);
-    FlatColumnReader<int64_t> to(s.batch, spec_.target_column);
-    for (uint32_t row = 0; row < s.batch.size(); ++row) {
+  while (RowBatch* batch = s.edges.Next(*s.context)) {
+    FlatColumnReader<int64_t> from(*batch, spec_.source_column);
+    FlatColumnReader<int64_t> to(*batch, spec_.target_column);
+    uint32_t n = batch->size();
+    size_t found = sources.size();
+    sources.resize(found + n);
+    targets.resize(found + n);
+    uint32_t* source_out = sources.data();
+    uint32_t* target_out = targets.data();
+    for (uint32_t row = 0; row < n; ++row) {
       int64_t source;
       int64_t target;
       if (!from.Read(row, &source) || !to.Read(row, &target)) {
@@ -228,12 +244,14 @@ base::Status GraphTree::Build(State& s) const {
       uint32_t source_node = index.Find(source);
       uint32_t target_node = index.Find(target);
       if (source_node != kNoNode && target_node != kNoNode) {
-        sources.push_back(source_node);
-        targets.push_back(target_node);
+        source_out[found] = source_node;
+        target_out[found++] = target_node;
       }
     }
+    sources.resize(found);
+    targets.resize(found);
   }
-  RETURN_IF_ERROR(spec_.edges->status(*s.edges_state));
+  RETURN_IF_ERROR(s.edges.status());
   if (dominator) {
     for (uint32_t seed : seeds) {
       sources.push_back(node_count);
@@ -295,11 +313,12 @@ bool GraphTree::GetData(RowBatch& out, OperatorState& state) const {
   auto* number = numbers.chunk().Values<uint32_t>();
   auto* parent_number = parent_numbers.chunk().Values<uint32_t>();
   s.gather_rows.resize(count);
+  uint32_t served = s.served;
   for (uint32_t i = 0; i < count; ++i) {
-    uint32_t node = s.tree.order[s.served + i];
+    uint32_t node = s.tree.order[served + i];
     uint32_t parent = s.tree.parent[node];
     s.gather_rows[i] = node;
-    number[i] = s.served + i;
+    number[i] = served + i;
     bool root = parent == kNoParent;
     parent_id[i] = root ? 0 : s.id_of_node[parent];
     parent_id_chunk.validity.change(i, !root);

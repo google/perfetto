@@ -17,6 +17,7 @@
 #include "src/protozero/filtering/string_filter.h"
 
 #include <algorithm>
+#include <bitset>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -84,6 +85,17 @@ PERFETTO_ALWAYS_INLINE bool StartsWith(const char* ptr,
   return memcmp(ptr + 1, starts_with.data() + 1, len - 1) == 0;
 }
 
+// Returns true if the atrace payload of [ptr, end) can't start with any prefix
+// whose first byte is in |first_chars|.
+PERFETTO_ALWAYS_INLINE bool PrefilterRejects(
+    const std::bitset<256>& first_chars,
+    const char* ptr,
+    const char* end) {
+  const char* payload = FindAtracePayloadPtr(ptr, end);
+  return !payload || payload == end ||
+         !first_chars.test(static_cast<uint8_t>(*payload));
+}
+
 void RedactMatches(const std::vector<std::string_view>& matches) {
   // Go through every group in the matches.
   for (size_t i = 1; i < matches.size(); ++i) {
@@ -131,22 +143,41 @@ void StringFilter::AddRule(Policy policy,
   if (!replaced) {
     rules_.push_back(std::move(new_rule));
   }
-  RecomputeActiveSemanticTypes();
+  RecomputeDerivedState();
 }
 
-void StringFilter::RecomputeActiveSemanticTypes() {
-  // AddRule() is a cold setup path: recomputing the union from |rules_| after
-  // every append or named replacement is simpler than tracking cleared bits and
-  // ensures |active_semantic_types_| and |rules_| cannot drift apart.
+void StringFilter::RecomputeDerivedState() {
+  // AddRule() is a cold setup path: recomputing everything derived from
+  // |rules_| after every append or named replacement is simpler than tracking
+  // cleared bits and ensures the derived state and |rules_| cannot drift apart.
   active_semantic_types_ = SemanticTypeMask();
+  types_without_prefilter_ = SemanticTypeMask();
+  prefilter_first_chars_.reset();
   for (const Rule& rule : rules_) {
     active_semantic_types_ |= rule.semantic_type_mask;
+
+    bool is_atrace = rule.policy == Policy::kAtraceMatchBreak ||
+                     rule.policy == Policy::kAtraceMatchRedactGroups ||
+                     rule.policy == Policy::kAtraceRepeatedSearchRedactGroups;
+    if (is_atrace && !rule.atrace_payload_starts_with.empty()) {
+      prefilter_first_chars_.set(
+          static_cast<uint8_t>(rule.atrace_payload_starts_with[0]));
+    } else {
+      types_without_prefilter_ |= rule.semantic_type_mask;
+    }
   }
 }
 
 bool StringFilter::MaybeFilterInternal(char* ptr,
                                        size_t len,
                                        uint32_t semantic_type) const {
+  // If every rule for this type needs a non-empty atrace prefix, strings whose
+  // payload can't start any of those prefixes can be rejected up front.
+  if (!types_without_prefilter_.IsSet(semantic_type) &&
+      PrefilterRejects(prefilter_first_chars_, ptr, ptr + len)) {
+    return false;
+  }
+
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
   std::string_view input(ptr, len);

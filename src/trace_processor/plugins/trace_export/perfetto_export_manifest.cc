@@ -96,11 +96,30 @@ const char* DuplicateStateToString(core::DuplicateState d) {
   return "has_duplicates";
 }
 
-// The manifest records the full nullability string; for compatibility only
-// the nullable-vs-non-null distinction matters (it determines the Arrow wire
-// format), so storage-strategy changes between builds stay compatible.
-bool IsNullableString(std::string_view s) {
-  return s != "non_null";
+enum class NullabilityWireFormat : uint8_t {
+  kNonNull,
+  kDenseNull,
+  kSparseNull,
+  kUnknown,
+};
+
+// The manifest records the full nullability string; for compatibility, the
+// Arrow wire format depends on non-null vs dense nullable (one Arrow column)
+// vs sparse nullable (two Arrow columns: validity and packed values). Changes
+// among sparse popcount strategies share the same wire format and stay
+// compatible.
+NullabilityWireFormat NullabilityWireFormatFromString(std::string_view s) {
+  if (s == "non_null") {
+    return NullabilityWireFormat::kNonNull;
+  }
+  if (s == "dense_null") {
+    return NullabilityWireFormat::kDenseNull;
+  }
+  if (s == "sparse_null" || s == "sparse_null_popcount_always" ||
+      s == "sparse_null_popcount_until_finalization") {
+    return NullabilityWireFormat::kSparseNull;
+  }
+  return NullabilityWireFormat::kUnknown;
 }
 
 base::Status ValidateTableSchema(
@@ -131,8 +150,11 @@ base::Status ValidateTableSchema(
           name, col.name.c_str(), col.type.c_str(),
           StorageTypeToString(cs.type));
     }
-    if (IsNullableString(col.nullability) !=
-        IsNullableString(NullabilityToString(cs.nullability))) {
+    NullabilityWireFormat archive_nullability =
+        NullabilityWireFormatFromString(col.nullability);
+    NullabilityWireFormat expected_nullability =
+        NullabilityWireFormatFromString(NullabilityToString(cs.nullability));
+    if (archive_nullability != expected_nullability) {
       return base::ErrStatus(
           "perfetto_export: schema mismatch for table '%s', column '%s': "
           "nullability is '%s' in the archive but '%s' in this version of "

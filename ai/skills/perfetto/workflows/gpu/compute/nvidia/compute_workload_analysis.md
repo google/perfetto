@@ -1,12 +1,13 @@
+---
+requires: [query]
+---
 # NVIDIA — Compute Workload Analysis extraction
 
 The NVIDIA extraction behind the saturated-pipe / instruction-mix analysis. Run
 it, then apply the interpretation from
 [compute_workload_analysis.md]($SKILL_ROOT/workflows/gpu/compute/compute_workload_analysis.md).
 
-```bash
-trace_processor query --remote SESSION --query-file $SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/compute_workload_analysis.sql
-```
+Run `$SKILL_ROOT/workflows/gpu/compute/nvidia/scripts/compute_workload_analysis.sql`.
 
 One row per compute kernel (longest first). Display label → output column →
 NVIDIA counter:

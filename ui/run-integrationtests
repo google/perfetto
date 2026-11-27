@@ -118,7 +118,7 @@ def is_docker_rootless(use_sudo):
 
 def run_build(args):
   """Run the build script to ensure we have something to test."""
-  build_args = []
+  build_args = ['--enable-component-harness']
   if args.no_build:
     build_args += ['--no-build']
   if args.no_depscheck:

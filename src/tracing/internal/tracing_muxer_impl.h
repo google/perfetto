@@ -382,11 +382,6 @@ class TracingMuxerImpl : public TracingMuxer {
     // Callback for a pending call to QueryServiceState().
     TracingSession::QueryServiceStateCallback query_service_state_callback_;
 
-    // The states of all data sources in this tracing session. |true| means the
-    // data source has started tracing.
-    using DataSourceHandle = std::pair<std::string, std::string>;
-    std::map<DataSourceHandle, bool> data_source_states_;
-
     std::unique_ptr<ConsumerEndpoint> service_;  // Keep before last.
     PERFETTO_THREAD_CHECKER(thread_checker_)     // Keep last.
   };

@@ -1,0 +1,141 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Styles for the component harness page (component_harness.html).
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+// Fixture tree on the left, the mounted fixture on the right.
+.harness-layout {
+  display: flex;
+  height: 100vh;
+  background: var(--pf-color-background);
+  color: var(--pf-color-text);
+}
+.harness-nav {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-secondary);
+  font-size: var(--pf-font-size-s);
+}
+.harness-nav__tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 8px;
+}
+.harness-nav__controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--pf-color-border);
+}
+#harness-root {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 16px;
+}
+.harness-placeholder {
+  margin: 0;
+  color: var(--pf-color-text-muted);
+}
+.harness-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.harness-tree .harness-tree {
+  margin-left: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--pf-color-border);
+}
+.harness-tree__group {
+  padding: 4px 6px 2px;
+  color: var(--pf-color-text-muted);
+  font-weight: 500;
+}
+.harness-tree__leaf {
+  display: block;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+.harness-tree__leaf:hover {
+  background: var(--pf-color-background-tertiary);
+}
+.harness-tree__leaf--active {
+  background: var(--pf-color-primary);
+  color: var(--pf-color-text-on-primary);
+}
+.harness-tree__leaf--active:hover {
+  background: var(--pf-color-primary);
+}
+
+// Crop marks around the mounted component, so it's obvious where its edges
+// are. Each corner gets a small L just outside the component's box,
+// pointing at the corner. The marks are positioned with CSS anchor
+// positioning (Chromium), so they follow the component as it resizes and
+// don't affect its layout or swallow clicks.
+.harness-frame {
+  position: relative;
+  --harness-mark-size: 10px;
+  --harness-mark-gap: 0px;
+  --harness-mark-color: magenta;
+}
+.harness-frame > :first-child {
+  anchor-name: --harness-subject;
+}
+.harness-corner {
+  position: absolute;
+  position-anchor: --harness-subject;
+  width: var(--harness-mark-size);
+  height: var(--harness-mark-size);
+  border: 0 solid var(--harness-mark-color);
+  pointer-events: none;
+}
+.harness-corner--tl {
+  right: calc(anchor(left) + var(--harness-mark-gap));
+  bottom: calc(anchor(top) + var(--harness-mark-gap));
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+.harness-corner--tr {
+  left: calc(anchor(right) + var(--harness-mark-gap));
+  bottom: calc(anchor(top) + var(--harness-mark-gap));
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+}
+.harness-corner--bl {
+  right: calc(anchor(left) + var(--harness-mark-gap));
+  top: calc(anchor(bottom) + var(--harness-mark-gap));
+  border-right-width: 1px;
+  border-top-width: 1px;
+}
+.harness-corner--br {
+  left: calc(anchor(right) + var(--harness-mark-gap));
+  top: calc(anchor(bottom) + var(--harness-mark-gap));
+  border-left-width: 1px;
+  border-top-width: 1px;
+}

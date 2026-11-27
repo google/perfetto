@@ -1,12 +1,21 @@
 #include "perfetto/tracing/tracing.h"
 
 #include <stdio.h>
+#include <atomic>
+#include <functional>
+#include <memory>
 #include <optional>
+#include <string>
 
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/waitable_event.h"
+#include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/backend_type.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "protos/perfetto/config/data_source_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -101,6 +110,63 @@ class TracingServiceThread {
   std::unique_ptr<ServiceIPCHost> svc_;
 };
 
+// Unregisters its data source from StartDataSource() instead of acking it.
+class VanishingProducer : public Producer {
+ public:
+  static constexpr char kDataSourceName[] = "test_ds";
+
+  // Calls `on_registered` (on the producer thread) once the service has
+  // registered the data source.
+  VanishingProducer(const std::string& producer_socket,
+                    std::function<void()> on_registered)
+      : runner_(base::ThreadTaskRunner::CreateAndStart("fake_app")),
+        on_registered_(std::move(on_registered)) {
+    runner_.PostTaskAndWaitForTesting([this, &producer_socket]() {
+      endpoint_ = ProducerIPCClient::Connect(producer_socket.c_str(), this,
+                                             "fake_app", &runner_);
+    });
+  }
+
+  ~VanishingProducer() override {
+    runner_.PostTaskAndWaitForTesting([this]() { endpoint_.reset(); });
+  }
+
+  bool start_reached() const { return start_reached_; }
+
+  void OnConnect() override {
+    DataSourceDescriptor descriptor;
+    descriptor.set_name(kDataSourceName);
+    descriptor.set_will_notify_on_start(true);
+    endpoint_->RegisterDataSource(descriptor);
+    // The service handles requests in order, so Sync() replies after the
+    // registration completes.
+    endpoint_->Sync(on_registered_);
+  }
+
+  void StartDataSource(DataSourceInstanceID, const DataSourceConfig&) override {
+    start_reached_ = true;
+    // Skip NotifyDataSourceStarted() so the data source vanishes before start.
+    endpoint_->UnregisterDataSource(kDataSourceName);
+  }
+
+  void OnDisconnect() override {}
+  void OnTracingSetup() override {}
+  void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override {
+  }
+  void StopDataSource(DataSourceInstanceID) override {}
+  void Flush(FlushRequestID,
+             const DataSourceInstanceID*,
+             size_t,
+             FlushFlags) override {}
+  void ClearIncrementalState(const DataSourceInstanceID*, size_t) override {}
+
+ private:
+  base::ThreadTaskRunner runner_;
+  std::function<void()> on_registered_;
+  std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
+  std::atomic<bool> start_reached_{false};
+};
+
 TEST_F(TracingMuxerImplIntegrationTest, ActivateTriggers) {
   base::TmpDirTree tmpdir_;
 
@@ -171,6 +237,56 @@ TEST_F(TracingMuxerImplIntegrationTest, ActivateTriggers) {
                    &perfetto::protos::gen::TracePacket::trigger,
                    Property(&perfetto::protos::gen::Trigger::trigger_name,
                             "trigger1")))));
+}
+
+// Unregistering the only data source during start must still complete the
+// session start.
+TEST_F(TracingMuxerImplIntegrationTest,
+       StartCompletesWhenDataSourceUnregistersDuringStart) {
+  base::TmpDirTree tmpdir;
+  base::TestTaskRunner task_runner;
+
+  ASSERT_FALSE(perfetto::Tracing::IsInitialized());
+
+  tmpdir.TrackFile("producer.sock");
+  tmpdir.TrackFile("consumer.sock");
+  TracingServiceThread tracing_service(tmpdir.AbsolutePath("producer.sock"),
+                                       tmpdir.AbsolutePath("consumer.sock"));
+  SetEnvVar("PERFETTO_PRODUCER_SOCK_NAME",
+            tracing_service.producer_socket().c_str());
+  SetEnvVar("PERFETTO_CONSUMER_SOCK_NAME",
+            tracing_service.consumer_socket().c_str());
+
+  // Wait for registration so Setup() creates an instance for this producer.
+  auto registered = task_runner.CreateCheckpoint("registered");
+  VanishingProducer producer(
+      tracing_service.producer_socket(),
+      [&task_runner, registered] { task_runner.PostTask(registered); });
+  task_runner.RunUntilCheckpoint("registered");
+
+  TracingInitArgs args;
+  args.backends = perfetto::kSystemBackend;
+  perfetto::Tracing::Initialize(args);
+
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  cfg.add_data_sources()->mutable_config()->set_name(
+      VanishingProducer::kDataSourceName);
+
+  std::unique_ptr<TracingSession> session =
+      perfetto::Tracing::NewTrace(perfetto::kSystemBackend);
+  session->Setup(cfg);
+  // The callback runs on the muxer thread. A failure times out here instead
+  // of blocking forever, like StartBlocking() would.
+  auto started = task_runner.CreateCheckpoint("started");
+  session->SetOnStartCallback(
+      [&task_runner, started] { task_runner.PostTask(started); });
+  session->Start();
+  task_runner.RunUntilCheckpoint("started", 30000);
+
+  EXPECT_TRUE(producer.start_reached());
+
+  session->StopBlocking();
 }
 
 }  // namespace

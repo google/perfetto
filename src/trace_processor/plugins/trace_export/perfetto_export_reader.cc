@@ -106,7 +106,8 @@ base::Status PerfettoExportTableReader::OnPushDataToSorter() {
   ASSIGN_OR_RETURN(auto dataframe,
                    core::dataframe::DeserializeFromArrow(
                        buffer_, context_->storage->mutable_string_pool(),
-                       table->dataframe->CreateSpec()));
+                       table->dataframe->CreateSpec(),
+                       core::dataframe::ArrowSparseColumns::kSplit));
 
   const TraceManifestState::PerfettoExportTable& schema =
       *table->entry->exported_table_schema;

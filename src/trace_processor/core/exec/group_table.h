@@ -55,7 +55,7 @@ class GroupTable {
 
   uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }
   void Clear();
-  // Clear(), keeping only small allocations for the next run (see RunHeld).
+  // Clear(), keeping only small allocations for the next run (see Held).
   void EndRun();
 
   // Reserves `words` zeroed words after each group's keys for the caller to
@@ -72,7 +72,13 @@ class GroupTable {
   // Key `k` of `group` as stored: integers as int64, doubles as their bits
   // and strings as their interned id.
   int64_t Key(uint32_t group, uint32_t k) const {
-    return group_rows_.data()[uint64_t{group} * stride_ + 1 + k];
+    return group_row(group)[1 + k];
+  }
+
+  // The null bits then keys of `group`. Consecutive groups' rows are
+  // `row_stride()` words apart.
+  const int64_t* group_row(uint32_t group) const {
+    return group_rows_.data() + uint64_t{group} * stride_;
   }
 
   // Whether key `k` of `group` is null.

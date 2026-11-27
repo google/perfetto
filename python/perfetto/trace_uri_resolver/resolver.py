@@ -15,6 +15,7 @@
 import dataclasses as dc
 import enum
 from typing import BinaryIO, Dict, Generator, List, Type, Union
+from typing import Any, ClassVar, Optional
 from typing import Generic, Tuple, TypeVar, get_type_hints
 
 from perfetto.trace_uri_resolver import util
@@ -44,7 +45,6 @@ class ConstraintClass(Generic[_T]):
 
 
 Constraint = Union[_T, ConstraintClass[_T]]
-ConstraintWithList = Union[Constraint[_T], Constraint[List[_T]]]
 
 
 class TraceUriResolver:
@@ -87,7 +87,7 @@ class TraceUriResolver:
 
   # Subclasses should set PREFIX to match the trace address prefix they
   # want to handle.
-  PREFIX: str = None
+  PREFIX: ClassVar[Optional[str]] = None
 
   @dc.dataclass
   class Result:
@@ -185,8 +185,7 @@ def _parse_arg(arg_str: str) -> Tuple[str, ConstraintClass.Op, str]:
   return (key, op, value)
 
 
-def _args_dict_from_uri(uri: str,
-                        type_hints) -> Dict[str, ConstraintWithList[str]]:
+def _args_dict_from_uri(uri: str, type_hints) -> dict[str, Any]:
   """Creates an the args dictionary from a trace URI.
 
     URIs have the form:
@@ -203,7 +202,7 @@ def _args_dict_from_uri(uri: str,
     return {}
 
   args_lst = args_str.split(';')
-  args_dict = dict()
+  args_dict: dict[str, Any] = dict()
   for arg in args_lst:
     (key, op, value) = _parse_arg(arg)
     lst = value.split(',')

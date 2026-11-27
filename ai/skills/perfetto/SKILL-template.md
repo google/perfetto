@@ -1,39 +1,15 @@
 ---
 name: perfetto
-description: >-
-  Analyze or record Perfetto traces to debug performance problems: slow app
-  startup, jank and dropped frames, ANRs, high CPU, battery drain, memory
-  growth, low-memory kills, and Java/native heap leaks, GPU utilisation,
-  scheduling latency. Use for any trace file (.pftrace, .perfetto-trace,
-  .pb, systrace, ftrace, Chrome JSON) from Android, Linux, Chrome or
-  CUDA/GPU workloads, whether or not the user says "Perfetto". Bundles
-  trace_processor (PerfettoSQL) plus guided workflows for Android memory
-  and GPU analysis.
 ---
 
 # Perfetto
 
 Perfetto traces are analysed with `trace_processor`, a SQL engine over the
-trace. This skill ships that tool and tells you how to drive it.
+trace.
 
-## Setup (once per session)
+## Environment setup
 
-Set `$SKILL_ROOT` to the absolute path of the directory containing this
-`SKILL.md`; every path below is written relative to it. Then put the
-bundled `trace_processor` on the `PATH` and check it runs:
-
-```sh
-export SKILL_ROOT="/absolute/path/to/skills/perfetto"   # dir holding SKILL.md
-chmod +x "$SKILL_ROOT/bin/trace_processor"
-export PATH="$SKILL_ROOT/bin:$PATH"
-trace_processor --version
-```
-
-The first call downloads the native binary for this platform and caches
-it; later calls are instant. Do not download `trace_processor` separately.
-On Windows invoke it as `python "$SKILL_ROOT/bin/trace_processor" ...`. If
-the environment already mandates its own `trace_processor` (Google
-internal, OEM or CI images), use that instead.
+{{environment_setup}}
 
 ## Pick the workflow
 
@@ -42,7 +18,9 @@ internal, OEM or CI images), use that instead.
    - Linux host: [recording_linux_traces.md]($SKILL_ROOT/infra-references/recording_linux_traces.md)
 
 2. **Memory** (RSS/swap, graphics & buffers, GC, LMK, heap dumps, profiles)
-   - Memory in a system trace — RSS/swap, Java heap & GC, GPU/graphics/DMA-BUF, memory pressure, LMK (one trace or before/after): [system_trace_memory.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory.md)
+   - Memory in a system trace — RSS/swap, Java heap & GC, GPU/graphics/DMA-BUF, memory pressure, LMK: [system_trace_memory.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory.md)
+   - Compare memory across two system traces (before/after): [system_trace_memory_compare.md]($SKILL_ROOT/workflows/android_memory/system_trace_memory_compare.md)
+   - Record the memory signals that a system trace is missing: [recording_memory_signals.md]($SKILL_ROOT/workflows/android_memory/recording_memory_signals.md)
    - Leak or retention in one Java heap dump: [heap_dump.md]($SKILL_ROOT/workflows/android_memory/heap_dump.md)
    - Compare two Java heap dumps (before/after diff): [heap_dump_diff.md]($SKILL_ROOT/workflows/android_memory/heap_dump_diff.md)
    - Duplicate objects, caching opportunities: [heap_dump_caching_optimizer.md]($SKILL_ROOT/workflows/android_memory/heap_dump_caching_optimizer.md)
@@ -58,7 +36,7 @@ internal, OEM or CI images), use that instead.
 4. **Everything else** (startup, jank, ANRs, CPU, scheduling, counters,
    any custom question): read
    [querying.md]($SKILL_ROOT/infra-references/querying.md) and write
-   PerfettoSQL against a warm session.
+   PerfettoSQL.
 
 Workflows carry their own queries and scripts; read `querying.md` only for
 ad-hoc work.
@@ -67,13 +45,3 @@ ad-hoc work.
 
 Answer with numbers from the trace and the query that produced them, and
 keep model-generated theories clearly separate from measured facts.
-
-For any investigation that took more than a handful of queries, or that
-followed a workflow, also save a markdown report in the working directory
-(default `perfetto_analysis_report.md`, or where the user asked) so a
-human can follow what was done without reading the whole session. It
-should contain the question, the trace file(s), the findings with
-concrete numbers, the validated queries so the analysis can be re-run,
-and open questions or next steps. Mention its path in your final message.
-A single quick question answered by one or two queries does not need a
-file.

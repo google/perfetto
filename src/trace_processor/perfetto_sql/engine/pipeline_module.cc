@@ -140,7 +140,8 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
   }
   c->plan = std::move(*plan);
   c->pool = context->pool;
-  c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
+  c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source(),
+                                                    c->plan->pipelines());
   // One reader per declared column, so Column only indexes: arguments read as
   // null, and columns past the plan's outputs fail.
   using Reader = PipelineModule::Cursor::ColumnReader;

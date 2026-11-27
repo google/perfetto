@@ -102,10 +102,10 @@ FlatBufferWriter::Offset FlatBufferWriter::WriteVecOffsets(
   return Offset{size()};
 }
 
-FlatBufferWriter::Offset FlatBufferWriter::WriteVecStruct(const void* data,
-                                                          uint32_t elem_size,
-                                                          uint32_t count,
-                                                          uint32_t elem_align) {
+FlatBufferWriter::Offset FlatBufferWriter::WriteVecBytes(const void* data,
+                                                         uint32_t elem_size,
+                                                         uint32_t count,
+                                                         uint32_t elem_align) {
   Align(elem_align);
   PrependBytes(data, elem_size * count);
   Prepend<uint32_t>(count);
@@ -204,9 +204,8 @@ FlatBufferWriter::Offset FlatBufferWriter::EndTable() {
 
   // Patch soffset: signed offset from the table to its vtable, i.e. the
   // reader computes vtable = table - soffset.
-  auto soff = static_cast<int32_t>(vtable_off - table_off);
-  memcpy(&buf_[static_cast<uint32_t>(buf_.size()) - table_off], &soff,
-         sizeof(int32_t));
+  base::StoreLE(&buf_[static_cast<uint32_t>(buf_.size()) - table_off],
+                static_cast<int32_t>(vtable_off - table_off));
 
   return Offset{table_off};
 }

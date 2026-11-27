@@ -240,10 +240,19 @@ export class LiveSession {
       this.engine[Symbol.dispose]();
       this.engine = undefined;
     }
-    if (this.session) {
-      const session = this.session;
-      this.session = undefined;
-      await session.cancel();
+    try {
+      if (this.profileImpl) {
+        const profile = this.profileImpl.session;
+        this.profileImpl = undefined;
+        await profile.cancel();
+      }
+      if (this.session) {
+        const session = this.session;
+        this.session = undefined;
+        await session.cancel();
+      }
+    } finally {
+      this.device?.close();
     }
   }
 

@@ -9,23 +9,25 @@ menu.
 
 ## Flows
 
-### Sidebar flow (openFileFromSidebar)
+### Sidebar flow (openFileFromSidebar / openFileById)
 
 ```mermaid
 graph TD
     A[Click Open from GDrive] --> B{Flow already running}
     B -->|Yes| C[Do nothing]
-    B -->|No| D[Authenticate]
-    D --> E{Got token}
-    E -->|No| F[Alert connect failed]
-    E -->|Yes| G[Show file picker]
-    G --> H{Picker result}
-    H -->|Cancelled| I[Do nothing]
-    H -->|Error| J[Alert picker failed]
-    H -->|Picked| K[Download file]
-    K --> L{Download ok}
-    L -->|No| M[Alert download failed]
-    L -->|Yes| N[Open trace]
+    B -->|No| D[Show Open from Google Drive dialog]
+    D -->|Browse Google Drive| E[Authenticate]
+    D -->|Paste Drive link and click Open| F[openFileById: same auth, download, and authorize flow as deep link]
+    E --> G{Got token}
+    G -->|No| H[Alert connect failed]
+    G -->|Yes| I[Show file picker]
+    I --> J{Picker result}
+    J -->|Cancelled| K[Do nothing]
+    J -->|Error| L[Alert picker failed]
+    J -->|Picked| M[Download file with omnibox progress]
+    M --> N{Download ok}
+    N -->|No| O[Alert download failed]
+    N -->|Yes| P[Open trace]
 ```
 
 ### Deep link flow (openFileFromDeeplink)
@@ -48,16 +50,21 @@ graph TD
     M --> N
     N -->|No| O[Alert connect failed]
     N -->|Yes| P[Remove state param from URL]
-    P --> Q[Fetch metadata and download file in parallel]
+    P --> Q[Fetch metadata and download file with omnibox progress]
     Q --> R{Access denied}
-    R -->|Yes| S[Prompt Authorize access to file]
-    S --> T{User pressed Authorize}
+    R -->|Yes| S{HideAuthDialog setting}
+    S -->|No| S1[Prompt Authorize access to file with Drive link]
+    S1 --> T{User pressed Authorize}
     T -->|No| U[Do nothing]
     T -->|Yes| V[Show picker for this file]
+    S -->|Yes| V
     V --> W{Picker result}
-    W -->|Cancelled| X[Do nothing]
+    W -->|Cancelled| X[Prompt File not shown in picker with Drive link]
+    X --> X1{User pressed Try Again}
+    X1 -->|No| X2[Do nothing]
+    X1 -->|Yes| V
     W -->|Error| Y[Alert picker failed]
-    W -->|Picked| Z[Download file again]
+    W -->|Picked| Z[Download file again with omnibox progress]
     R -->|No| AA{Download ok}
     Z --> AA
     AA -->|No| AB[Alert download failed]
@@ -86,18 +93,36 @@ graph TD
     K --> L{Upload result}
     L -->|Cancelled| M[Do nothing]
     L -->|Error| N[Record upload failed]
-    L -->|Done| O[Record file ID as saved]
+    L -->|Done| O{Apply default domain shares}
+    O -->|Yes| O1[Create domain permissions with allowFileDiscovery]
+    O1 --> O2{Permissions ok}
+    O2 -->|No| O3[Record default sharing failed]
+    O2 -->|Yes| O4[Fetch initial permissions]
+    O3 --> O4
+    O -->|No| O4
+    O4 --> O5[Record file ID as saved]
     E --> P[Clear upload in progress]
     G --> P
     J --> P
     M --> P
     N --> P
-    O --> P
+    O5 --> P
 ```
 
-"Change" (pick a folder) and "Share" (Drive's sharing dialog) are the same
-shape: authenticate, then show the Google picker or sharing dialog, recording
-any failure in the banner.
+The other actions in the share dialog follow the same shape — authenticate, then
+call Drive, recording any failure in the banner:
+
+- **Location** (`pickUploadFolder`): opens the folder picker and remembers the
+  chosen folder in headless settings.
+- **Share… / Edit sharing** (`openGDriveSharingDialog`): opens Drive's sharing
+  dialog. When it closes, permissions are refreshed (updating remembered default
+  domain shares) and any link-only domain permissions are made searchable
+  (`allowFileDiscovery: true`) on a best-effort basis (failing silently).
+- **Refresh** (`refreshGDrivePermissions`): reloads current permissions (or
+  records `access_denied` on HTTP 403).
+- **Make searchable** (`makeGDrivePermissionsSearchable`): enables
+  `allowFileDiscovery: true` on link-only domain permissions (never `anyone`)
+  and refreshes permissions.
 
 ### Authenticate step (GoogleOAuthClient authenticate)
 
@@ -300,12 +325,18 @@ for access to any files.
 
 ### Sidebar flow
 
-1. Click "Open from GDrive" in the sidebar.
-2. Complete the Google popup if it asks.
-3. Pick a trace in the picker. It should open, titled with the file's name.
-4. Cancel the picker instead of picking: nothing should happen.
-5. Clicking the button again while a flow is still running (e.g. while the
-   picker is open) should do nothing.
+1. Click "Open from GDrive" in the sidebar. The "Open from Google Drive"
+   dialog should appear with two options: browsing Drive or pasting a Drive
+   link.
+2. Click "Browse Google Drive", complete the Google popup if it asks, and pick
+   a trace in the picker. While downloading, progress should be shown in the
+   omnibox, and the trace should open titled with the file's name.
+3. Cancel the picker instead of picking: nothing should happen.
+4. Reopen the dialog, paste a Google Drive file link (or `?resourcekey=` link)
+   into the link field, and click "Open". It should follow the same download
+   and authorization flow as a deep link.
+5. Clicking the sidebar button again while a flow is still running (e.g. while
+   the picker is open) should do nothing.
 
 ### Token reuse within a session
 
@@ -505,8 +536,11 @@ The app can only read files the user has opened or picked with it.
 4. Click "Authorize File Access". The dialog closes and the picker opens,
    showing only that file. Pick it, and the trace should open, titled with the
    file's real name.
-5. Repeat and click "Cancel" in the dialog, or cancel the picker: the flow
-   should end silently.
+5. Repeat and click "Cancel" in the dialog: the flow should end silently.
+6. Repeat and cancel the picker instead of picking the file: a recovery dialog
+   should appear explaining why the file may not have been shown, with a direct
+   link to open it in Google Drive and a "Try Again" button that reopens the
+   picker.
 
 Drive reports a file the app has not been granted as "not found", the same as
 a file that does not exist. So a deep link with a made-up file ID also shows
@@ -555,7 +589,8 @@ On the sidebar flow a 403 or 404 is just a failed download.
 ### Picker failures
 
 Cancelling or closing the picker is not a failure: from the sidebar nothing
-happens, and on a deep link the flow ends silently.
+happens, and on a deep link a recovery dialog is shown with a link to open the
+file in Google Drive and a "Try Again" button to reopen the picker.
 
 If the picker cannot be built or reports an error, a "Couldn't open the Google
 Drive file picker" dialog should appear, with the error under "Error details".
@@ -582,15 +617,18 @@ cannot be read back to upload, such as one loaded from
 
 1. Open a trace from a local file.
 2. Click "Share to GDrive". The "Share to Google Drive" dialog should open
-   with the file name filled in and focused, and "My Drive" as the location.
+   with the file name filled in and focused, and "My Drive" (or the last
+   chosen folder) as the location. If you previously shared a trace with a
+   domain, an "Also share with <domain>" checkbox is shown and checked by
+   default.
 3. Clear the file name: "Upload" should be disabled and the field outlined in
    red. Type a name again.
 4. Click "Upload" (or press Enter). Complete the Google popup if it asks.
-   While it uploads, the button should show a spinner and the text beside the
-   buttons should count up, e.g. "Uploading… 42% (12.3 of 29.4 MB)". Use a
-   large trace or DevTools Network throttling to make this last long enough
-   to see.
-5. The dialog should switch to "Saved to Google Drive", and the file should
+   While it uploads, a linear progress bar and status text should count up,
+   e.g. "Uploading… 42% (12.3 of 29.4 MB)". Use a large trace or DevTools
+   Network throttling to make this last long enough to see.
+5. The dialog should switch to the saved view (showing the file name,
+   "Saved to Google Drive", and current permissions), and the file should
    appear in Drive under that name.
 6. Repeat with a large trace (hundreds of MB). The upload is sent as a single
    request rather than with Drive's resumable upload; this has been seen to
@@ -657,30 +695,48 @@ does not stop or hide an upload.
 
 ### Choose a folder
 
-1. In the dialog, click "Change". Complete the Google popup if it asks. The
-   Google folder picker should open, titled "Select folder".
-2. Pick a folder: the location field should show its name, and the upload
+1. In the dialog, click the location button ("My Drive"). Complete the Google
+   popup if it asks. The Google folder picker should open, titled "Select
+   folder".
+2. Pick a folder: the location button should show its name with a reset icon
+   beside it, the choice is remembered for future uploads, and the upload
    should go there.
-3. Click "Change" again and cancel the picker: the location should not change,
-   and no banner should appear.
-4. Pick a folder inside a shared drive (under "Shared drives" in Drive, as
+3. Click the reset icon beside the location button: it should return to
+   "My Drive".
+4. Click the location button again and cancel the picker: the location should
+   not change, and no banner should appear.
+5. Pick a folder inside a shared drive (under "Shared drives" in Drive, as
    opposed to "My Drive") and upload: the file should appear there. Opening a
    trace that lives in a shared drive should work too.
 
 ### After uploading
 
-With the dialog showing "Saved to Google Drive":
+With the dialog showing the saved state:
 
-1. "Copy link" should copy a Perfetto link and briefly show "Copied".
-2. "Share" should open Google Drive's sharing dialog for the file.
-3. "Open in Drive" should open the file in Drive in a new tab.
-4. Close and reopen the dialog: it should still show the saved state.
-5. Open a trace from Drive (sidebar or deep link), then click "Share to
-   GDrive": it should show the saved state straight away, without uploading.
+1. "People with access" and "General access" list the file's current
+   permissions (or a message if you do not have permission to view them). The
+   refresh icon reloads them from Drive.
+2. If only you have access, a warning explains that recipients won't be able
+   to open the link until you share it, and the primary button is "Share…".
+3. "Share…" (or "Edit sharing" once shared) opens Google Drive's sharing
+   dialog for the file. When you close it, permissions refresh automatically,
+   domain shares are remembered for future uploads, and any link-only domain
+   share is made searchable (`allowFileDiscovery: true`) on a best-effort
+   basis.
+4. If a link-only domain permission remains unsearchable, a warning is shown
+   with a "Make searchable" button. If a link-only `anyone` permission is set,
+   the warning is shown without a "Make searchable" button (link-shared public
+   files are never made web-searchable).
+5. "Copy Perfetto link" should copy a Perfetto link and briefly show "Copied".
+6. "Open in Drive" should open the file in Drive in a new tab.
+7. Close and reopen the dialog: it should still show the saved state.
+8. Open a trace from Drive (sidebar or deep link), then click "Share to
+   GDrive": it should show the saved state straight away, without uploading,
+   and load its permissions.
 
 ### Share link
 
-"Copy link" produces a `?state=...` deep link of the form
+"Copy Perfetto link" produces a `?state=...` deep link of the form
 `<origin>/?state=%7B%22ids%22%3A%5B%22<FILE_ID>%22%5D%7D`.
 
 1. Paste it into a new tab. It should behave like the

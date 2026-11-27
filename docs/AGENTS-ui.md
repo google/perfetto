@@ -647,3 +647,113 @@ Integration tests use Playwright:
 ```sh
 ui/run-integrationtests
 ```
+
+### Component Fixtures (developing and testing components in isolation)
+
+The component harness mounts a single component in isolation, without booting
+the full UI or loading a trace. Use it to iterate on a widget or plugin view
+(look at it, screenshot it, tweak it) and to test it with Playwright. The
+harness lives in `ui/src/component_harness/` and is only built with
+`--enable-component-harness`; it is never shipped.
+
+**Running it:**
+```sh
+ui/run-dev-server --enable-component-harness
+```
+Then open `http://127.0.0.1:10000/component_harness.html`. A tree of all
+fixtures is on the left. The dev server serves the harness from source through
+Vite, so saving a fixture or a component it shows reloads the page.
+
+- If a dev server is already running without the flag, the build lock stops a
+  second one. Ask the user to restart theirs with the flag. Do NOT start a
+  second server with a different `--out`: that re-points the shared `ui/out`
+  and `ui/src/gen` symlinks under the running server.
+- Without a dev server: `ui/build --enable-component-harness`, then
+  `ui/build --serve --no-build`.
+
+**Accessing a fixture:**
+`/component_harness.html?fixture=<name>[&theme=dark][&guides=1][&<arg>=<value>...]`
+
+- `<name>` is the fixture file's path relative to `ui/src`, without
+  `.fixture.ts`, plus the fixture's key, e.g.
+  `widgets/popup/scroll_container` for the `scroll_container` export of
+  `ui/src/widgets/popup.fixture.ts`.
+- Any other query params are passed to the fixture as string args.
+- The sidebar includes **Dark mode** (`&theme=dark`) and **Show guides**
+  (`&guides=1`, crop marks around the component's edges) toggles. The fixture's
+  root element is inside `#harness-root`; `window.__harnessReady` becomes `true`
+  once it has rendered.
+- To look at a fixture as an agent, take a Playwright screenshot of the page
+  (or of `#harness-root`) after waiting for `window.__harnessReady`.
+
+**Creating a fixture:**
+Put a `<component>.fixture.ts` file next to the component. It is discovered
+automatically (`import.meta.glob('../**/*.fixture.ts')` in
+`component_harness/index.ts`); there is nothing to register. It default-exports
+a map of named states (illustrative example):
+
+```typescript
+import m from 'mithril';
+import {type FixtureModule, record} from '../component_harness/registry';
+import {Button} from './button';
+import {Popup, PopupPosition} from './popup';
+
+export default {
+  // One entry per state worth looking at or testing.
+  open: (args) => ({
+    view: () =>
+      m(
+        Popup,
+        {
+          trigger: m(Button, {label: args.label ?? 'Trigger'}),
+          isOpen: true,
+          position: PopupPosition.Right,
+          onChange: (open) => record({open}), // Recorded for tests.
+        },
+        'Popup content',
+      ),
+  }),
+} satisfies FixtureModule;
+```
+
+- Prefer one fixture per state (e.g. `empty`, `uploading`, `error`) over one
+  fixture switched by args; use args only for small tweaks.
+- Fixtures must be fully stubbed: no network, no Google/Drive calls, no real
+  `Trace` or engine. Pass fake state and callbacks that update local state and
+  call `record(...)`. Components that hold no state of their own (state and
+  callbacks passed in as attrs) are the easiest to fixture.
+- If the component renders external links, intercept clicks in a wrapper in
+  the fixture and `record` them instead of navigating away.
+- Fixture files must only be imported by the harness, never by shipped code.
+- See `ui/src/widgets/popup.fixture.ts` for an example.
+
+**Writing component tests:**
+Component tests are Playwright tests named `*.ctest.ts`, placed next to the
+component and its fixture. They run in the `components` Playwright project
+(see `ui/playwright.config.ts`), which needs the harness to be built or served.
+
+```typescript
+import {expect, test} from '@playwright/test';
+import {
+  harnessEvents,
+  mountFixture,
+} from '../component_harness/harness_test_helper';
+
+test('closes on escape', async ({page}) => {
+  await mountFixture(page, 'widgets/popup/open');
+  await page.keyboard.press('Escape');
+  expect(await harnessEvents(page)).toEqual([{open: false}]);
+});
+```
+
+Run them against a running harness server with:
+```sh
+cd ui && ./pnpm exec playwright test --project=components
+```
+`ui/run-integrationtests` builds with the harness and runs them too.
+
+Only write a `.ctest.ts` when the behaviour needs a real browser: layout and
+CSS, popups/overlays and positioning, scrolling and visibility, focus and real
+input, canvas, or screenshots. Logic and wiring (which state renders what,
+which callback fires) belong in a jsdom test (`*_jsdomtest.ts`, run by
+`ui/run-unittests`), which is faster and needs no build.

@@ -25,6 +25,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
 
 namespace perfetto::profiling {
@@ -163,6 +164,34 @@ TEST(BreakpadSymbolizerTest, SourceLocationNotFound) {
   EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
   EXPECT_TRUE(result.frames[0][0].file_name.empty());
   EXPECT_EQ(result.frames[0][0].line, 0u);
+}
+
+// Chrome records module IDs as 33-character hex strings. Symbol files for them
+// are named after that text, so it must not be hex-encoded again.
+TEST(BreakpadSymbolizerTest, LooksUpChromeModuleIdAsIs) {
+  constexpr char kModuleId[] = "892E74C4A50E94B357E39FD6A360C84D0";
+  base::TmpDirTree tmp;
+  tmp.AddFile(std::string(kModuleId) + ".breakpad", kTestFileContents);
+  BreakpadSymbolizer symbolizer(tmp.path());
+  Symbolizer::Environment env;
+  UnsymbolizedMapping mapping{kModuleId, "libfoo.so", 0, 0, 0};
+  SymbolizeResult result = symbolizer.Symbolize(env, mapping, {0x1010u});
+  ASSERT_EQ(result.frames.size(), 1u);
+  EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
+}
+
+// Raw build IDs (e.g. from ELF build ID notes) are looked up by their hex
+// encoding.
+TEST(BreakpadSymbolizerTest, LooksUpRawBuildIdAsHex) {
+  base::TmpDirTree tmp;
+  tmp.AddFile("0123abcd.breakpad", kTestFileContents);
+  BreakpadSymbolizer symbolizer(tmp.path());
+  Symbolizer::Environment env;
+  UnsymbolizedMapping mapping{std::string("\x01\x23\xab\xcd", 4), "libfoo.so",
+                              0, 0, 0};
+  SymbolizeResult result = symbolizer.Symbolize(env, mapping, {0x1010u});
+  ASSERT_EQ(result.frames.size(), 1u);
+  EXPECT_EQ(result.frames[0][0].function_name, "foo_foo()");
 }
 
 }  // namespace

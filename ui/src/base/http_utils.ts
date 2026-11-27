@@ -76,7 +76,9 @@ export function getServingRoot() {
   // to the document.currentScript logic below.
   const window = globalThis as unknown as {__GLOBAL_ASSET_ROOT__?: string};
   if (window.__GLOBAL_ASSET_ROOT__) {
-    return window.__GLOBAL_ASSET_ROOT__;
+    // The dev server sets a relative path; APIs like PasswordCredential's
+    // iconURL need an absolute one.
+    return new URL(window.__GLOBAL_ASSET_ROOT__, location.href).href;
   }
 
   // Works out the root directory where the content should be served from

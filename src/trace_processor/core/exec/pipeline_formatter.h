@@ -19,7 +19,9 @@
 
 #include <string>
 
+#include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/core/exec/sink.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -29,13 +31,17 @@ class PipelineFormatter {
  public:
   // Prints `pipeline` on one line: its input, then each step, e.g.
   // "DataframeScan | Sort(#2, #0 desc) | HashAggregate(keys: #2; COUNT(*))".
-  // Columns are shown as batch positions.
-  static std::string Format(const Pipeline& pipeline);
+  // Columns are shown as batch positions. A pipeline reading what a breaker
+  // built shows the pipeline the breaker ends, from `pipelines`, then the
+  // breaker and where it is served: "DataframeScan | Sort(#2) / Served".
+  static std::string Format(const Pipeline& pipeline,
+                            const Pipelines* pipelines);
 
  private:
   static std::string SourceString(const Source&);
   static std::string TransformString(const Transform&);
   static std::string OperatorString(const Operator&);
+  static std::string BreakerString(const Breaker&);
 };
 
 }  // namespace perfetto::trace_processor::core::exec

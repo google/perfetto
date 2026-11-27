@@ -249,6 +249,7 @@ void GroupTable::FindValues(uint32_t count, uint32_t* groups) {
   const int64_t* keys = keys_[0].data();
   uint64_t mask = slots_.size() - 1;
   const int64_t* stored_base = group_rows_.data();
+  uint32_t stride = stride_;
   for (uint32_t row = 0; row < count; ++row) {
     int64_t key = keys[row];
     uint64_t hash = base::MurmurHashValue(key);
@@ -264,7 +265,7 @@ void GroupTable::FindValues(uint32_t count, uint32_t* groups) {
       }
       if (Salt(slot) == salt) {
         uint32_t candidate = GroupFromSlot(slot);
-        const int64_t* stored = stored_base + uint64_t{candidate} * stride_;
+        const int64_t* stored = stored_base + uint64_t{candidate} * stride;
         // A null group's salt never matches key 0's, the only key it stores.
         if (stored[1] == key) {
           group = candidate;

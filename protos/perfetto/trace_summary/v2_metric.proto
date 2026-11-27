@@ -185,6 +185,10 @@ message TraceMetricV2Spec {
     // Whether or not the dimension is aggregatable (values are disjoint
     // and can be aggregated without double counting). Optional.
     optional bool is_aggregatable = 6;
+    // Vendor extensions. These might be used for system-specific
+    // configuration on how to manage additional dimension metadata.
+    // See https://perfetto.dev/docs/analysis/trace-summary#extending
+    extensions 500 to 1000;
   }
   repeated DimensionSpec dimensions_specs = 5;
   repeated string dimensions = 2;

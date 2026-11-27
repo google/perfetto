@@ -51,18 +51,24 @@ static constexpr char kOperators[] =
     "an operator other than =, !=, <, <=, >, >=, GLOB, REGEXP, IN, BETWEEN "
     "and IS [NOT] NULL";
 
-bool IsBound(const WherePredicate& p, const std::vector<Literal>& literals) {
-  return p.literal_count == 1 && literals[p.first_literal].is_bound();
+// The value `p` compares with, if whoever runs the plan gives it: an external
+// literal or a bound param.
+const Literal* GivenOf(const WherePredicate& p,
+                       const std::vector<Literal>& literals) {
+  if (p.literal_count != 1 || !literals[p.first_literal].is_given()) {
+    return nullptr;
+  }
+  return &literals[p.first_literal];
 }
 
 // What `p` should compare with to suit a column of storage `type`, if a literal
 // of it is a string where the column holds numbers, or the other way around.
-// GLOB, REGEXP and IS [NOT] NULL do not compare values, and a bound param has
-// none yet.
+// GLOB, REGEXP and IS [NOT] NULL do not compare values, and a given value
+// has none yet.
 std::optional<std::string> LiteralMismatch(const WherePredicate& p,
                                            const std::vector<Literal>& literals,
                                            core::StorageType type) {
-  if (IsBound(p, literals)) {
+  if (GivenOf(p, literals)) {
     return std::nullopt;
   }
   if (p.op.IsAnyOf<core::NullOp>() || p.op.IsAnyOf<core::OnlyStringOp>()) {
@@ -237,8 +243,8 @@ class Parser {
 // The type a column of no known type is converted to, for Filter to read it:
 // the type its literals have. Strings win, as SQL compares a number with a
 // string by type. None for IS [NOT] NULL, which reads any column, or for a
-// bound param, which has no value yet. GLOB and REGEXP match only strings,
-// whatever is bound.
+// given value, which has none yet. GLOB and REGEXP match only strings,
+// whatever is given.
 std::optional<core::StorageType> TypeForLiterals(
     const WherePredicate& p,
     const std::vector<Literal>& literals) {
@@ -248,7 +254,7 @@ std::optional<core::StorageType> TypeForLiterals(
   if (p.op.IsAnyOf<core::OnlyStringOp>()) {
     return core::String{};
   }
-  if (IsBound(p, literals)) {
+  if (GivenOf(p, literals)) {
     return std::nullopt;
   }
   core::StorageType type = core::Int64{};
@@ -275,8 +281,9 @@ PlannedParam PlanValue(const WherePredicate& p,
                         literals.begin() + p.first_literal + p.literal_count);
   value.type = type;
   value.op = p.op;
-  if (IsBound(p, literals)) {
-    value.state = PlannedParam::State::kBound;
+  if (const Literal* given = GivenOf(p, literals)) {
+    value.state = given->is_bound() ? PlannedParam::State::kBound
+                                    : PlannedParam::State::kExternal;
   } else {
     value.state = PlannedParam::State::kConstant;
     value.value =
@@ -349,13 +356,13 @@ OutputProperties Where::Derive(DeriveContext& c) const {
     }
     std::optional<core::StorageType> type = out.TypeOf(p.column).storage();
     if (!type) {
-      if (!IsBound(p, literals_)) {
+      if (!GivenOf(p, literals_)) {
         continue;
       }
-      // A column holding no values matches no comparison, whatever is bound.
+      // A column holding no values matches no comparison, whatever is given.
       if (!out.TypeOf(p.column).is_null()) {
         c.Fail(
-            base::ErrStatus("WHERE: a bound param needs a column of a known "
+            base::ErrStatus("WHERE: a given value needs a column of a known "
                             "type"));
         return out;
       }
@@ -403,9 +410,9 @@ void Where::Rewrite(BoundPlan* bound,
     values[i] = PlanValue(p, where.literals_, *type, *context.pool);
     predicate_indices.push_back(i);
     conditions.push_back({p.column, p.op,
-                          values[i].state == PlannedParam::State::kBound
-                              ? nullptr
-                              : &values[i].value});
+                          values[i].state == PlannedParam::State::kConstant
+                              ? &values[i].value
+                              : nullptr});
   }
   std::optional<Scan::SearchPlan> searched =
       scan.PlanSearch(conditions, *bound->bindings.dataframes[scan_id]);

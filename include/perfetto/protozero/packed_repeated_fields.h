@@ -24,6 +24,7 @@
 #include <type_traits>
 
 #include "perfetto/base/endian.h"
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_utils.h"
 
@@ -46,7 +47,7 @@ namespace protozero {
 //   msg->set_fieldname(buf);
 //   msg.SerializeAsString();
 
-class PackedBufferBase {
+class PERFETTO_EXPORT_COMPONENT PackedBufferBase {
  public:
   PackedBufferBase() { Reset(); }
 

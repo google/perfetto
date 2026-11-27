@@ -18,7 +18,10 @@ import("../../../../gn/test.gni")
 
 perfetto_component("symbolizer") {
   public_deps = [ "../../../../include/perfetto/ext/base" ]
-  deps = [ "../../../../gn:default_deps" ]
+  deps = [
+    "../:build_id",
+    "../../../../gn:default_deps",
+  ]
   sources = [
     "breakpad_parser.cc",
     "breakpad_parser.h",

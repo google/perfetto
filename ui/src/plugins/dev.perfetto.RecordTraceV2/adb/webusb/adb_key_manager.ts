@@ -81,6 +81,10 @@ export class AdbKeyManager {
   }
 }
 
+// Shared process-wide AdbKeyManager so the cached in-memory key survives page
+// unmounts/remounts and is shared across plugins.
+export const adbKeyManager = new AdbKeyManager();
+
 // Update credential store with the given key.
 async function storeKeyInBrowserCredentials(key: AdbKey): Promise<void> {
   if (!hasPasswordCredential()) {

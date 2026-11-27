@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_H_
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -53,6 +55,7 @@ class Filter final : public Transform {
   void DescribeColumns(StepColumns* out) const override {
     for (const Condition& condition : conditions_) {
       out->reads.push_back(condition.column);
+      out->reads_sparse.push_back(condition.column);
     }
   }
 
@@ -80,6 +83,9 @@ class Filter final : public Transform {
     const Context* context;
     // The batch rows still kept, increasing.
     CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;
+    // By batch row, the values of a sparse column or a sequence at the rows
+    // kept.
+    CallScratch<std::array<uint64_t, kMaxBatchRows>> sparse_values;
   };
 
   std::vector<Condition> conditions_;

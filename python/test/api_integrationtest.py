@@ -29,6 +29,7 @@ from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import FailureHandling
 from perfetto.batch_trace_processor.api import Metadata
 from perfetto.batch_trace_processor.api import TraceListReference
+from perfetto.common.query_result_iterator import HAS_POLARS
 from perfetto.common.query_result_iterator import HAS_PYARROW
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
@@ -336,6 +337,15 @@ class TestApi(unittest.TestCase):
         execute_failure_handling=FailureHandling.INCREMENT_STAT)
     _ = btp.query('select * from sl')
     self.assertEqual(btp.stats().execute_failures, 1)
+
+  @unittest.skipUnless(HAS_POLARS, 'polars not installed')
+  def test_btp_query_and_flatten_polars_failure_increment_stat(self):
+    btp = create_batch_tp(
+        traces=example_android_trace_path(),
+        execute_failure_handling=FailureHandling.INCREMENT_STAT)
+    df = btp.query_and_flatten_polars('select * from sl')
+    self.assertEqual(btp.stats().execute_failures, 1)
+    self.assertTrue(df.is_empty())
 
   def test_btp_query_failure_message(self):
     btp = create_batch_tp(
@@ -808,10 +818,46 @@ class TestApi(unittest.TestCase):
               f for f in manifest['files'] if '__exported_table_schema' in f
           ]
           self.assertGreater(len(table_files), 0)
-          for f in table_files:
-            self.assertEqual(f['__exported_table_schema']['format'], 1)
+          formats = {
+              f['__exported_table_schema']['format'] for f in table_files
+          }
+          self.assertEqual(len(formats), 1)
+          self.assertIsInstance(formats.pop(), int)
           manifest_paths = {f['path'] for f in table_files}
           self.assertEqual(manifest_paths, set(arrow_names))
+      finally:
+        os.unlink(output_path)
+
+  @unittest.skipUnless(HAS_PYARROW, 'pyarrow not installed')
+  def test_export_arrow_tar_reads_with_pyarrow(self):
+    import io
+    import tarfile
+    import pyarrow as pa
+    with create_tp(trace=example_android_trace_path()) as tp:
+      with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as f:
+        output_path = f.name
+      try:
+        tp.export(output_path, 'arrow_tar')
+        null_columns = 0
+        with tarfile.open(output_path) as tf:
+          names = tf.getnames()
+          self.assertGreater(len(names), 0)
+          for name in names:
+            with self.subTest(name=name):
+              data = tf.extractfile(name).read()
+              table = pa.ipc.open_file(io.BytesIO(data)).read_all()
+              count = tp.query(
+                  f'SELECT COUNT(*) AS c FROM {name[:-len(".arrow")]}'
+              ).as_pandas_dataframe()['c'][0]
+              self.assertEqual(table.num_rows, count)
+              for field in table.schema:
+                if field.type == pa.null():
+                  null_columns += 1
+                  self.assertEqual(
+                      table.column(field.name).to_pylist(),
+                      [None] * table.num_rows)
+        # Columns null in every row are written as Arrow Null.
+        self.assertGreater(null_columns, 0)
       finally:
         os.unlink(output_path)
 

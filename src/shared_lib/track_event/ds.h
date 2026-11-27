@@ -94,6 +94,9 @@ struct TrackEventTlsState {
     timestamp_unit_multiplier = 1;
     if (locked_ds.valid()) {
       const auto& config = locked_ds->GetConfig();
+      event_format = config.experimental_raw_proto_events()
+                         ? PERFETTO_TE_EVENT_FORMAT_RAW_PROTO
+                         : PERFETTO_TE_EVENT_FORMAT_EXTRAS;
       disable_incremental_timestamps = config.disable_incremental_timestamps();
       if (config.has_timestamp_unit_multiplier() &&
           config.timestamp_unit_multiplier() != 0) {
@@ -110,6 +113,7 @@ struct TrackEventTlsState {
       default_clock_id = PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL;
     }
   }
+  uint32_t event_format = PERFETTO_TE_EVENT_FORMAT_EXTRAS;
   uint32_t default_clock_id;
   uint64_t timestamp_unit_multiplier;
 };
