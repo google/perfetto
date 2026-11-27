@@ -30,6 +30,10 @@ import {Icons} from '../base/semantic_icons';
 import {Intent} from '../widgets/common';
 import {Router} from './router';
 import {getErrorMessage} from '../base/errors';
+import {setOwner} from './ownership';
+
+// The owner of the commands created for macros: the plugin that loads them.
+const MACRO_OWNER = 'dev.perfetto.CoreCommands';
 
 // A map of command id -> hotkey.
 export type HotkeyOverlay = Record<string, Hotkey>;
@@ -202,30 +206,32 @@ export class CommandManagerImpl implements CommandManager {
   registerMacro({id, name, run}: Macro, source?: string) {
     const stack = new DisposableStack();
     stack.use(this.macros.register(id));
-    stack.use(
-      this.registerCommand({
-        id,
-        name,
-        source,
-        callback: async () => {
-          // Macros could run multiple commands, some of which might prompt the
-          // user in an optional way. But macros should be self-contained
-          // so we disable prompts during their execution.
-          using _ = this.omnibox.disablePrompts();
-          for (const command of run) {
-            try {
-              await this.runCommand(command.id, ...command.args);
-            } catch (err) {
-              if (this.isExecutingStartupCommands) {
-                throw err;
-              }
-              showMacroErrorDialog(name, id, command.id, err);
-              return;
+    const cmd: Command = {
+      id,
+      name,
+      source,
+      callback: async () => {
+        // Macros could run multiple commands, some of which might prompt the
+        // user in an optional way. But macros should be self-contained
+        // so we disable prompts during their execution.
+        using _ = this.omnibox.disablePrompts();
+        for (const command of run) {
+          try {
+            await this.runCommand(command.id, ...command.args);
+          } catch (err) {
+            if (this.isExecutingStartupCommands) {
+              throw err;
             }
+            showMacroErrorDialog(name, id, command.id, err);
+            return;
           }
-        },
-      }),
-    );
+        }
+      },
+    };
+    // Macros are user-defined, so they are credited to the plugin that loads
+    // them rather than to whoever called registerMacro.
+    setOwner(cmd, MACRO_OWNER);
+    stack.use(this.registerCommand(cmd));
     return stack;
   }
 
