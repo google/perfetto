@@ -25,6 +25,7 @@
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -81,8 +82,9 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   spec.lanes.group_column = 4;
   spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
                      {AggregateCall::Function::kSum, 3}};
+  Context context;
   IntervalFlatten op(spec);
-  auto state = op.MakeState(test::TestContext());
+  auto state = op.MakeState(context);
   // Refill the same vectors for each input batch, published in a buffer each,
   // as a source refilling its storage would. Retained group keys must survive
   // this.
@@ -119,7 +121,6 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
         weight_valid.change(row, value.present);
       }
       in.Reset();
-      Context& context = test::TestContext();
       test::AddCopy(context, ts, nullptr, &in);
       test::AddCopy(context, dur, nullptr, &in);
       test::AddCopy(context, key, &key_valid, &in);
@@ -157,14 +158,15 @@ TEST(IntervalFlattenTest, ErrorLeavesNoRowsForTheNextRun) {
   spec.lanes.ts_column = 0;
   spec.lanes.dur_column = 1;
   spec.aggregates = {{AggregateCall::Function::kCountStar, 0}};
+  Context context;
   IntervalFlatten op(spec);
-  auto state = op.MakeState(test::TestContext());
+  auto state = op.MakeState(context);
   RowBatch in, out;
   auto fill = [&](const std::vector<int64_t>& ts,
                   const std::vector<int64_t>& dur) {
     in.Reset();
-    test::AddCopy(test::TestContext(), ts, nullptr, &in);
-    test::AddCopy(test::TestContext(), dur, nullptr, &in);
+    test::AddCopy(context, ts, nullptr, &in);
+    test::AddCopy(context, dur, nullptr, &in);
     in.SetRowCount(static_cast<uint32_t>(ts.size()));
   };
 
@@ -197,8 +199,9 @@ TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {
     spec.lanes.ts_column = 0;
     spec.lanes.dur_column = 1;
     spec.aggregates = std::move(aggregates);
+    Context context;
     IntervalFlatten op(spec);
-    auto state = op.MakeState(test::TestContext());
+    auto state = op.MakeState(context);
     std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> rows;
     RowBatch in, out;
     auto collect = [&] {
@@ -253,6 +256,7 @@ TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
     weight.insert(weight.end(), {kMax, 0});
     weight_valid.set(2 * i);
   }
+  Context context;
   RowBatch in, out;
   in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ts.data()));
   in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, dur.data()));
@@ -264,7 +268,7 @@ TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
   spec.lanes.dur_column = 1;
   spec.aggregates = {{AggregateCall::Function::kSum, 2}};
   IntervalFlatten op(spec);
-  auto state = op.MakeState(test::TestContext());
+  auto state = op.MakeState(context);
   std::vector<std::optional<int64_t>> sums;
   auto collect = [&] {
     for (std::optional<int64_t> sum : test::ReadNullableColumn<int64_t>(out, 2))

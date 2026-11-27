@@ -342,17 +342,17 @@ ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
 
 }  // namespace
 
-const OperationRegistration kSelect{SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT,
-                                    &BuildSelectPlan, std::nullopt};
-const OperationRegistration kExtend{SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND,
-                                    &BuildExtendPlan, std::nullopt};
-const OperationRegistration kDrop{SYNTAQLITE_NODE_PERFETTO_PIPE_DROP,
-                                  &BuildDropPlan, std::nullopt};
-const OperationRegistration kRename{SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME,
-                                    &BuildRenamePlan, std::nullopt};
-const OperationRegistration kSet{SYNTAQLITE_NODE_PERFETTO_PIPE_SET,
-                                 &BuildSetPlan, std::nullopt};
-const OperationRegistration kAs{SYNTAQLITE_NODE_PERFETTO_PIPE_AS, &BuildAsPlan,
-                                std::nullopt};
+constexpr OperationRegistration kSelect{SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT,
+                                        &BuildSelectPlan, std::nullopt};
+constexpr OperationRegistration kExtend{SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND,
+                                        &BuildExtendPlan, std::nullopt};
+constexpr OperationRegistration kDrop{SYNTAQLITE_NODE_PERFETTO_PIPE_DROP,
+                                      &BuildDropPlan, std::nullopt};
+constexpr OperationRegistration kRename{SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME,
+                                        &BuildRenamePlan, std::nullopt};
+constexpr OperationRegistration kSet{SYNTAQLITE_NODE_PERFETTO_PIPE_SET,
+                                     &BuildSetPlan, std::nullopt};
+constexpr OperationRegistration kAs{SYNTAQLITE_NODE_PERFETTO_PIPE_AS,
+                                    &BuildAsPlan, std::nullopt};
 
 }  // namespace perfetto::trace_processor::pipeline::projection

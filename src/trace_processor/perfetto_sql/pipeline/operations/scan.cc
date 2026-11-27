@@ -155,7 +155,7 @@ std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
 
 }  // namespace
 
-const OperationRegistration Scan::kRegistration{
+constexpr OperationRegistration Scan::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE, &BuildPlan,
     OperationRegistration::Encoding{0, &MakeOperation<Scan>}};
 

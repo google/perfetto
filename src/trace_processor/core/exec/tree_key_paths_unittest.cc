@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -122,8 +123,8 @@ Paths KeyPaths(const std::vector<int64_t>& parents,
   ops.push_back(std::make_unique<TreeKeyPaths>(TreeKeyPathsSpec{3, 4, {2}}));
   Pipeline pipeline(source, std::move(ops));
 
-  std::unique_ptr<OperatorState> state =
-      pipeline.MakeState(test::TestContext());
+  Context context;
+  std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
   RowBatch batch;
   Paths result;
   result.keys.assign(parents.size(), -1);

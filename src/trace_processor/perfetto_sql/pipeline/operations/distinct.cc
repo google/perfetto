@@ -32,7 +32,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration Distinct::kRegistration{
+constexpr OperationRegistration Distinct::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT, &BuildPlan,
     OperationRegistration::Encoding{7, &MakeOperation<Distinct>}};
 

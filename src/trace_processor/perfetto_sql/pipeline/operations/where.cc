@@ -294,7 +294,7 @@ PlannedParam PlanValue(const WherePredicate& p,
 
 }  // namespace
 
-const OperationRegistration Where::kRegistration{
+constexpr OperationRegistration Where::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE, &BuildPlan,
     OperationRegistration::Encoding{8, &MakeOperation<Where>}};
 

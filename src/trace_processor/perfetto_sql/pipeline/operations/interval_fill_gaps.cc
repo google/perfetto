@@ -41,7 +41,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration IntervalFillGaps::kRegistration{
+constexpr OperationRegistration IntervalFillGaps::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS, &BuildPlan,
     OperationRegistration::Encoding{6, &MakeOperation<IntervalFillGaps>}};
 

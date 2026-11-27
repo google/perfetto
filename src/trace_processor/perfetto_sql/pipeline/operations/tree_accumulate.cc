@@ -38,7 +38,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration TreeAccumulate::kRegistration{
+constexpr OperationRegistration TreeAccumulate::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE, &BuildPlan,
     OperationRegistration::Encoding{1, &MakeOperation<TreeAccumulate>}};
 

@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -310,8 +311,8 @@ TEST(StateTest, AStepsRunEndsWithItsStream) {
   ops.push_back(std::make_unique<Recording>(&seen));
   ops.push_back(std::make_unique<Trailer>(99, 2));
   Pipeline pipeline(source, std::move(ops));
-  std::unique_ptr<OperatorState> state =
-      pipeline.MakeState(test::TestContext());
+  Context context;
+  std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
   for (uint32_t run = 0; run < 2; ++run) {
     if (run) {
       Restart(pipeline, *state);
@@ -409,7 +410,8 @@ TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   steps.push_back(std::move(drop));
   Pipeline pipeline(source, std::move(steps));
 
-  auto state = pipeline.MakeState(test::TestContext());
+  Context context;
+  auto state = pipeline.MakeState(context);
   RowBatch scratch;
   pipeline.Rewind(*state);
   RowBatch* batch = pipeline.Next(scratch, *state);

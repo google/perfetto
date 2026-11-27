@@ -36,7 +36,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration TreeKeyPaths::kRegistration{
+constexpr OperationRegistration TreeKeyPaths::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_TREE_KEY_PATHS, &BuildPlan,
     OperationRegistration::Encoding{12, &MakeOperation<TreeKeyPaths>}};
 

@@ -27,6 +27,7 @@
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -201,9 +202,9 @@ Result Accumulate(const std::vector<int64_t>& parent,
     for (auto& step : accumulate) {
       ops.push_back(std::move(step));
     }
+    Context context;
     Pipeline pipeline(source, std::move(ops));
-    std::unique_ptr<OperatorState> state =
-        pipeline.MakeState(test::TestContext());
+    std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
     RowBatch batch;
     while (pipeline.GetData(batch, *state)) {
       read(batch);
@@ -251,18 +252,18 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
   std::vector<uint32_t> down_nodes = {0, 1};
   std::vector<uint32_t> down_parents = {kNoNode, 0};
   std::vector<int64_t> values = {std::numeric_limits<int64_t>::max(), 1};
+  Context context;
   RowBatch out;
 
   TreeAccumulateDown down({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> down_state =
-      down.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> down_state = down.MakeState(context);
   RowBatch in = Batch(down_nodes, down_parents, values);
   EXPECT_FALSE(test::ProcessCopy(down, in, out, *down_state));
   EXPECT_THAT(down.status(*down_state).message(),
               testing::HasSubstr("overflow"));
 
   TreeAccumulateUp up({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> up_state = up.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> up_state = up.MakeState(context);
   in = Batch(up_nodes, up_parents, values);
   EXPECT_FALSE(test::ProcessCopy(up, in, out, *up_state));
   EXPECT_THAT(up.status(*up_state).message(), testing::HasSubstr("overflow"));
@@ -283,8 +284,9 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
   BitVector up_valid = BitVector::CreateWithSize(3);
   up_valid.set(0);
   up_valid.set(1);
+  Context context;
   TreeAccumulateUp up({0, 1, {min, max}});
-  std::unique_ptr<OperatorState> up_state = up.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> up_state = up.MakeState(context);
   RowBatch out;
   RowBatch in = Batch(up_nodes, up_parents, up_values, &up_valid);
   ASSERT_TRUE(test::ProcessCopy(up, in, out, *up_state));
@@ -299,8 +301,7 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
   down_valid.set(1);
   down_valid.set(2);
   TreeAccumulateDown down({0, 1, {min, max, Sum(2)}});
-  std::unique_ptr<OperatorState> down_state =
-      down.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> down_state = down.MakeState(context);
   in = Batch(down_nodes, down_parents, down_values, &down_valid);
   ASSERT_TRUE(test::ProcessCopy(down, in, out, *down_state));
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
@@ -320,8 +321,9 @@ TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
   std::vector<uint32_t> no_parent = {kNoNode};
   std::vector<int64_t> root_value = {99};
   BitVector none = BitVector::CreateWithSize(1);
+  Context context;
   TreeAccumulateUp op({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   RowBatch first = Batch(children, to_root, child_values);
   ASSERT_TRUE(test::ProcessCopy(op, first, out, *state));

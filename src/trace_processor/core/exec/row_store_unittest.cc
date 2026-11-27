@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -49,9 +50,11 @@ void Fill(RowBatch* batch,
 
 // Fills a batch the way an operator computing a column does: into a buffer
 // of its own, taken afresh for each batch.
-void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
+void FillBuffer(Context& context,
+                RowBatch* batch,
+                const std::vector<int64_t>& values) {
   batch->Reset();
-  ColumnBuffer buffer = test::TestContext().TakeBuffer(sizeof(int64_t));
+  ColumnBuffer buffer = context.TakeBuffer(sizeof(int64_t));
   int64_t* data = buffer.chunk().Values<int64_t>();
   std::copy(values.begin(), values.end(), data);
   batch->AddColumn(ColumnView::Reference(StorageType{Int64{}}, data),
@@ -60,10 +63,13 @@ void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
 }
 
 // Gathers `rows` of the store.
-uint32_t Gather(RowStore& store, RowBatch* out, std::vector<uint32_t> rows) {
+uint32_t Gather(Context& context,
+                RowStore& store,
+                RowBatch* out,
+                std::vector<uint32_t> rows) {
   return store.Gather(
       out, base::Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
-      test::TestContext());
+      context);
 }
 
 // Reads every row of the store back, a run at a time.
@@ -81,11 +87,12 @@ std::vector<int64_t> ReadAll(RowStore& store, uint32_t column) {
 }
 
 TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
+  Context context;
   std::vector<int64_t> values(kMaxBatchRows, 1);
   RowStore store;
   RowBatch batch;
   Fill(&batch, values, 0, kMaxBatchRows);
-  ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(batch, context).ok());
 
   BitVector validity = BitVector::CreateWithSize(1);
   int64_t null_value = 0;
@@ -93,7 +100,7 @@ TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, &null_value, &validity));
   batch.SetRowCount(1);
-  ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(batch, context).ok());
 
   RowBatch out;
   ASSERT_EQ(store.View(&out, 0, kMaxBatchRows), kMaxBatchRows);
@@ -105,6 +112,7 @@ TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
 
 // Input batch boundaries do not change the logical sequence of stored rows.
 TEST(RowStoreTest, InputBatchSizesDoNotChangeTheRows) {
+  Context context;
   const uint32_t kRows = kMaxBatchRows * 2 + 37;
   std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < values.size(); ++i) {
@@ -117,7 +125,7 @@ TEST(RowStoreTest, InputBatchSizesDoNotChangeTheRows) {
     for (uint32_t done = 0; done < kRows;) {
       uint32_t n = std::min(batch_rows, kRows - done);
       Fill(&batch, values, 0, n);
-      ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
+      ASSERT_TRUE(store.Append(batch, context).ok());
       for (uint32_t i = 0; i < n; ++i) {
         expected.push_back(values[i]);
       }
@@ -129,19 +137,20 @@ TEST(RowStoreTest, InputBatchSizesDoNotChangeTheRows) {
 }
 
 TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
+  Context context;
   RowBatch range, gathered;
   {
     RowStore store;
     RowBatch input, later;
-    FillBuffer(&input, {10, 20, 30});
-    ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+    FillBuffer(context, &input, {10, 20, 30});
+    ASSERT_TRUE(store.Append(input, context).ok());
     ASSERT_EQ(store.View(&range, 0, 3), 3u);
-    Gather(store, &gathered, {2, 0, 2});
+    Gather(context, store, &gathered, {2, 0, 2});
     EXPECT_TRUE(gathered.selection().prefix());
-    Gather(store, &later, {1, 1, 0});
+    Gather(context, store, &later, {1, 1, 0});
     store.Clear();
-    FillBuffer(&input, {40, 50, 60});
-    ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+    FillBuffer(context, &input, {40, 50, 60});
+    ASSERT_TRUE(store.Append(input, context).ok());
   }
   EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
@@ -150,11 +159,12 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
 // Rows gathered from several batches keep their values and their nulls,
 // whichever batch they come from and however the batches' windows start.
 TEST(RowStoreTest, GathersAcrossBatchesWithAndWithoutNulls) {
+  Context context;
   std::vector<int64_t> values = {0, 1, 2, 3, 4};
   RowStore store;
   RowBatch batch;
   Fill(&batch, values, 1, 3);
-  ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(batch, context).ok());
 
   std::vector<int64_t> more = {100, 200, 300};
   BitVector validity = BitVector::CreateWithSize(3);
@@ -163,25 +173,26 @@ TEST(RowStoreTest, GathersAcrossBatchesWithAndWithoutNulls) {
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, more.data(), &validity, 1));
   batch.SetRowCount(2);
-  ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(batch, context).ok());
 
   RowBatch out;
-  ASSERT_EQ(Gather(store, &out, {4, 0, 3, 2, 3}), 5u);
+  ASSERT_EQ(Gather(context, store, &out, {4, 0, 3, 2, 3}), 5u);
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 0),
               ElementsAre(std::nullopt, 1, 200, 3, 200));
 }
 
 // A batch keeping most of a batch's worth of rows is held as it is.
 TEST(RowStoreTest, SharesTheBuffersOfALargeBatch) {
+  Context context;
   std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
     values[i] = i;
   }
   RowStore store;
   RowBatch input;
-  FillBuffer(&input, values);
+  FillBuffer(context, &input, values);
   const void* data = input.column(0).data();
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
   RowBatch out;
   ASSERT_EQ(store.View(&out, 0, kMaxBatchRows), kMaxBatchRows);
   EXPECT_EQ(out.column(0).data(), data);
@@ -190,11 +201,12 @@ TEST(RowStoreTest, SharesTheBuffersOfALargeBatch) {
 // A batch whose columns all borrow storage which outlives the run costs
 // nothing to hold, however few rows it keeps.
 TEST(RowStoreTest, SharesASmallBatchOfBorrowedColumns) {
+  Context context;
   std::vector<int64_t> values = {1, 2, 3};
   RowStore store;
   RowBatch input;
   Fill(&input, values, 0, 3);
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
   RowBatch out;
   ASSERT_EQ(store.View(&out, 0, 3), 3u);
   EXPECT_EQ(out.column(0).data(), values.data());
@@ -204,17 +216,18 @@ TEST(RowStoreTest, SharesASmallBatchOfBorrowedColumns) {
 // does not keep the batch's buffers alive. Rows packed and rows shared come
 // back in the order they were appended.
 TEST(RowStoreTest, PacksAFewRowsOfABatchWithBuffers) {
+  Context context;
   std::vector<int64_t> large(kMaxBatchRows, 7);
   RowStore store;
   RowBatch input;
-  FillBuffer(&input, {10, 20, 30});
+  FillBuffer(context, &input, {10, 20, 30});
   const void* data = input.column(0).data();
   input.mutable_selection().KeepRange(1, 2);
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
-  FillBuffer(&input, large);
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
-  FillBuffer(&input, {40});
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
+  FillBuffer(context, &input, large);
+  ASSERT_TRUE(store.Append(input, context).ok());
+  FillBuffer(context, &input, {40});
+  ASSERT_TRUE(store.Append(input, context).ok());
   ASSERT_EQ(store.size(), kMaxBatchRows + 3);
 
   RowBatch out;
@@ -223,20 +236,21 @@ TEST(RowStoreTest, PacksAFewRowsOfABatchWithBuffers) {
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(20, 30));
   EXPECT_THAT(ReadAll(store, 0).back(), 40);
   RowBatch gathered;
-  ASSERT_EQ(Gather(store, &gathered, {kMaxBatchRows + 2, 0, 5}), 3u);
+  ASSERT_EQ(Gather(context, store, &gathered, {kMaxBatchRows + 2, 0, 5}), 3u);
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(40, 20, 7));
 }
 
 // Rows of batches shared are placed where they are held, in any order.
 TEST(RowStoreTest, PlacesRowsOfSharedBatches) {
+  Context context;
   std::vector<int64_t> values = {1, 2, 3, 4, 5};
   RowStore store;
   RowBatch input;
   Fill(&input, values, 0, 3);
   input.mutable_selection().KeepRange(1, 2);
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
   Fill(&input, values, 3, 2);
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
 
   std::vector<uint32_t> rows = {3, 0, 2, 1};
   RowsInPlace placed;
@@ -255,10 +269,11 @@ TEST(RowStoreTest, PlacesRowsOfSharedBatches) {
 // Rows packed are not placed: their columns can differ in kind from those of
 // the batches shared.
 TEST(RowStoreTest, DoesNotPlaceRowsPacked) {
+  Context context;
   RowStore store;
   RowBatch input;
-  FillBuffer(&input, {10, 20, 30});
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  FillBuffer(context, &input, {10, 20, 30});
+  ASSERT_TRUE(store.Append(input, context).ok());
   std::vector<uint32_t> rows = {2, 0};
   RowsInPlace placed;
   EXPECT_FALSE(store.Place(
@@ -269,17 +284,18 @@ TEST(RowStoreTest, DoesNotPlaceRowsPacked) {
 // Rows asked for in one ascending run of one batch held are viewed where
 // they are held, not copied.
 TEST(RowStoreTest, GathersARunOfOneBatchWithoutCopying) {
+  Context context;
   std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
     values[i] = i;
   }
   RowStore store;
   RowBatch input;
-  FillBuffer(&input, values);
+  FillBuffer(context, &input, values);
   const auto* data = static_cast<const int64_t*>(input.column(0).data());
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
   RowBatch out;
-  ASSERT_EQ(Gather(store, &out, {5, 6, 7}), 3u);
+  ASSERT_EQ(Gather(context, store, &out, {5, 6, 7}), 3u);
   EXPECT_EQ(
       static_cast<const int64_t*>(out.column(0).data()) + out.column(0).start(),
       data + 5);
@@ -289,6 +305,7 @@ TEST(RowStoreTest, GathersARunOfOneBatchWithoutCopying) {
 // Rows kept in any order are held, and read back, in that order, whether the
 // batch is shared or its rows are packed.
 TEST(RowStoreTest, HoldsRowsInTheOrderKept) {
+  Context context;
   std::vector<int64_t> values(kMaxBatchRows);
   std::vector<uint32_t> reversed(kMaxBatchRows);
   for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
@@ -297,14 +314,14 @@ TEST(RowStoreTest, HoldsRowsInTheOrderKept) {
   }
   RowStore store;
   RowBatch input;
-  FillBuffer(&input, values);
+  FillBuffer(context, &input, values);
   input.mutable_selection().Reorder(base::Span<const uint32_t>(
       reversed.data(), reversed.data() + reversed.size()));
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
-  FillBuffer(&input, {10, 20, 30});
+  ASSERT_TRUE(store.Append(input, context).ok());
+  FillBuffer(context, &input, {10, 20, 30});
   uint32_t few[] = {2, 0};
   input.mutable_selection().Reorder(base::Span<const uint32_t>(few));
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
 
   std::vector<int64_t> all = ReadAll(store, 0);
   ASSERT_EQ(all.size(), kMaxBatchRows + 2);
@@ -313,7 +330,7 @@ TEST(RowStoreTest, HoldsRowsInTheOrderKept) {
   EXPECT_THAT(std::vector<int64_t>(all.end() - 2, all.end()),
               ElementsAre(30, 10));
   RowBatch out;
-  ASSERT_EQ(Gather(store, &out, {5, 6, 7}), 3u);
+  ASSERT_EQ(Gather(context, store, &out, {5, 6, 7}), 3u);
   int64_t last = int64_t{kMaxBatchRows} - 1;
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0),
               ElementsAre(last - 5, last - 6, last - 7));
@@ -322,21 +339,22 @@ TEST(RowStoreTest, HoldsRowsInTheOrderKept) {
 // Rows asked for from one batch held, in any order, are viewed where they are
 // held, not copied.
 TEST(RowStoreTest, GathersRowsOfOneBatchInAnyOrderWithoutCopying) {
+  Context context;
   std::vector<int64_t> values(kMaxBatchRows);
   for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
     values[i] = i;
   }
   RowStore store;
   RowBatch input;
-  FillBuffer(&input, values);
+  FillBuffer(context, &input, values);
   const void* data = input.column(0).data();
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(input, context).ok());
   RowBatch out;
   std::vector<uint32_t> rows = {7, 5, 6, 100};
   ASSERT_EQ(store.GatherInPlace(&out,
                                 base::Span<const uint32_t>(
                                     rows.data(), rows.data() + rows.size()),
-                                test::TestContext()),
+                                context),
             4u);
   EXPECT_EQ(out.column(0).data(), data);
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(7, 5, 6, 100));
@@ -375,30 +393,31 @@ TEST(RowStoreTest, DoesNotHoldColumnsNeverReadBack) {
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 1),
               ElementsAre(std::nullopt, std::nullopt));
   RowBatch gathered;
-  ASSERT_EQ(Gather(store, &gathered, {5, 0}), 2u);
+  ASSERT_EQ(Gather(context, store, &gathered, {5, 0}), 2u);
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(5, 0));
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(gathered, 1),
               ElementsAre(std::nullopt, std::nullopt));
 }
 
 TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
+  Context context;
   auto stored =
       std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});
   RowStore store;
   RowBatch batch;
   batch.AddBorrowedColumn(ColumnView::Sequence(nullptr, 0));
   test::Window(&batch, 5, 2);
-  ASSERT_TRUE(store.Append(batch, test::TestContext()).ok());
+  ASSERT_TRUE(store.Append(batch, context).ok());
 
   batch.Reset();
   batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Uint32{}}, stored->data()));
   batch.SetRowCount(2);
-  base::Status status = store.Append(batch, test::TestContext());
+  base::Status status = store.Append(batch, context);
   ASSERT_TRUE(status.ok()) << status.message();
 
   RowBatch out;
-  ASSERT_EQ(Gather(store, &out, {3, 0, 2, 1}), 4u);
+  ASSERT_EQ(Gather(context, store, &out, {3, 0, 2, 1}), 4u);
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(41, 5, 40, 6));
 }
 

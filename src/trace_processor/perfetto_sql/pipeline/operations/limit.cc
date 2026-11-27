@@ -69,7 +69,7 @@ uint32_t Clamp(int64_t value) {
 
 }  // namespace
 
-const OperationRegistration Limit::kRegistration{
+constexpr OperationRegistration Limit::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_LIMIT, &BuildPlan,
     OperationRegistration::Encoding{11, &MakeOperation<Limit>}};
 

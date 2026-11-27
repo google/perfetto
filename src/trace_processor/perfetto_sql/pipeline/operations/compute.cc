@@ -34,7 +34,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration Compute::kRegistration{
+constexpr OperationRegistration Compute::kRegistration{
     std::numeric_limits<uint32_t>::max(), &BuildPlan,
     OperationRegistration::Encoding{10, &MakeOperation<Compute>}};
 

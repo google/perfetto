@@ -38,7 +38,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration IntervalFlatten::kRegistration{
+constexpr OperationRegistration IntervalFlatten::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN, &BuildPlan,
     OperationRegistration::Encoding{3, &MakeOperation<IntervalFlatten>}};
 

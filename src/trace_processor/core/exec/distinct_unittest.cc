@@ -25,6 +25,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -40,7 +41,7 @@ using ::testing::IsEmpty;
 
 // Runs batches of one Int64 column through a Distinct over it.
 struct Batches {
-  Batches() : op({0}), state(op.MakeState(test::TestContext())) {}
+  Batches() : op({0}), state(op.MakeState(context)) {}
 
   // The values kept from `values`, in order.
   std::vector<int64_t> Process(std::vector<int64_t> values) {
@@ -54,6 +55,7 @@ struct Batches {
     return test::ReadColumn<int64_t>(out, 0);
   }
 
+  Context context;
   Distinct op;
   std::unique_ptr<OperatorState> state;
   // Kept alive, as the batches borrow them.
@@ -86,8 +88,9 @@ TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
       ColumnView::Reference(StorageType{String{}}, strings.data()));
   in.SetRowCount(5);
 
+  Context context;
   Distinct op({0, 1});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 1, 2));
@@ -107,8 +110,9 @@ TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
       ColumnView::Reference(StorageType{Double{}}, values.data(), &valid));
   in.SetRowCount(5);
 
+  Context context;
   Distinct op({0});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadNullableColumn<double>(out, 0),
@@ -126,8 +130,9 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
   in.mutable_selection().Keep(
       base::Span<const uint32_t>(kept.data(), kept.data() + kept.size()));
 
+  Context context;
   Distinct op({0});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2));
@@ -145,8 +150,9 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
       ColumnView::Reference(StorageType{Double{}}, doubles.data()));
   of_doubles.SetRowCount(1);
 
+  Context context;
   Distinct op({0});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, of_ints, out, *state));
   EXPECT_FALSE(test::ProcessCopy(op, of_doubles, out, *state));
