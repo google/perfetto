@@ -111,6 +111,7 @@ from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
+from diff_tests.parser.process_tracking.tid_scope_tests import TidScopes
 from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
 from diff_tests.parser.profiling.r8_retrace_compat.tests import R8RetraceCompat
 from diff_tests.parser.profiling.tests import Profiling
@@ -257,6 +258,7 @@ def fetch_all_diff_tests(
       EntityStateResidency,
       LinuxSysfsPower,
       ProcessTracking,
+      TidScopes,
       Profiling,
       ProfilingHeapGraph,
       ProfilingHeapProfiling,

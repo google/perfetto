@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <variant>
 
 #include "src/trace_processor/containers/string_pool.h"
@@ -29,11 +30,12 @@ namespace perfetto::trace_processor::gecko_importer {
 struct alignas(8) GeckoEvent {
   struct ThreadMetadata {
     uint32_t tid;
-    uint32_t pid;
+    std::optional<uint32_t> pid;
     StringPool::Id name;
   };
   struct StackSample {
     uint32_t tid;
+    std::optional<uint32_t> pid;
     tables::StackProfileCallsiteTable::Id callsite_id;
   };
   // Firefox marker phase. Values match the Firefox profiler's wire-format enum.
@@ -48,6 +50,7 @@ struct alignas(8) GeckoEvent {
   };
   struct Marker {
     uint32_t tid;
+    std::optional<uint32_t> pid;
     MarkerPhase phase;
     StringPool::Id name;
     StringPool::Id category;
