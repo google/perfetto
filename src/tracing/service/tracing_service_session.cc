@@ -19,6 +19,9 @@
 #include "src/protozero/filtering/message_filter.h"
 #include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+#include "src/tracing/service/zstd_compressor.h"
+#endif
 
 namespace perfetto::tracing_service {
 
@@ -41,6 +44,14 @@ TracingSession::TracingSession(TracingSessionID session_id,
   lifecycle_events.emplace_back(
       protos::pbzero::TracingServiceEvent::kFlushStartedFieldNumber,
       64 /* max_size */);
+}
+
+TracingSession::~TracingSession() = default;
+
+void TracingSession::FreeCompressor() {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  zstd_compressor.reset();
+#endif
 }
 
 bool TracingSession::IsCloneAllowed(uid_t clone_uid) const {

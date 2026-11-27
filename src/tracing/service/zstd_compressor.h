@@ -17,18 +17,50 @@
 #ifndef SRC_TRACING_SERVICE_ZSTD_COMPRESSOR_H_
 #define SRC_TRACING_SERVICE_ZSTD_COMPRESSOR_H_
 
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+
 #include <vector>
 
-#include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+
+struct ZSTD_CCtx_s;
 
 namespace perfetto {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
-// Compresses `packets` with zstd at the given compression `level`.
-void ZstdCompressFn(std::vector<TracePacket>*, int level);
-#endif
+// Compresses `TracePacket`s with zstd's streaming API. Each Compress() call
+// writes one zstd frame into slices of up to
+// packet_compressor::kCompressSliceSize bytes.
+// The zstd context is reused across calls, so later batches reuse its tables
+// and window instead of allocating their own, unless they need bigger ones.
+// zstd API reference: https://facebook.github.io/zstd/zstd_manual.html
+class ZstdPacketCompressor {
+ public:
+  explicit ZstdPacketCompressor(int level);
+
+  ZstdPacketCompressor(const ZstdPacketCompressor&) = delete;
+  ZstdPacketCompressor& operator=(const ZstdPacketCompressor&) = delete;
+  ZstdPacketCompressor(ZstdPacketCompressor&&) = delete;
+  ZstdPacketCompressor& operator=(ZstdPacketCompressor&&) = delete;
+
+  // Replaces `packets` with a single packet holding their zstd frame.
+  // No-op if `packets` is empty.
+  void Compress(std::vector<TracePacket>* packets);
+
+ private:
+  static int FreeCCtx(ZSTD_CCtx_s*);
+  using ScopedCCtx = base::ScopedResource<ZSTD_CCtx_s*,
+                                          FreeCCtx,
+                                          /*InvalidValue=*/nullptr,
+                                          /*CheckClose=*/false>;
+
+  ScopedCCtx cctx_;
+};
 
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 #endif  // SRC_TRACING_SERVICE_ZSTD_COMPRESSOR_H_
