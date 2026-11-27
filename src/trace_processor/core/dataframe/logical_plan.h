@@ -39,7 +39,7 @@ namespace perfetto::trace_processor::core::dataframe {
 // A backend that wants the planner's access-path choice reads the strategy; a
 // backend which picks its own reads only the predicate and ignores it.
 //
-// Nothing here refers to the bytecode interpreter. Registers, scratch buffers,
+// Nothing here refers to a particular execution backend. Scratch buffers,
 // null bitvectors and index materialization are all decisions about *how* to
 // run an operation and belong to whatever lowers this plan.
 namespace logical {

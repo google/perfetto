@@ -18,9 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
-#include <string_view>
-#include <unordered_set>
 
 #include "perfetto/base/logging.h"
 
@@ -86,28 +83,6 @@ uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
     result = total;
   }
   return static_cast<uint32_t>(result);
-}
-
-void DistinctRows(base::Span<const uint8_t> row_layout,
-                  uint32_t row_stride,
-                  base::Span<uint32_t>* indices) {
-  PERFETTO_DCHECK(indices);
-  if (indices->empty()) {
-    return;
-  }
-  PERFETTO_DCHECK(row_layout.size() >= indices->size() * row_stride);
-  std::unordered_set<std::string_view> seen_rows;
-  seen_rows.reserve(indices->size());
-
-  const uint8_t* row = row_layout.b;
-  uint32_t* output = indices->b;
-  for (const uint32_t* index = indices->b; index != indices->e; ++index) {
-    std::string_view row_view(reinterpret_cast<const char*>(row), row_stride);
-    *output = *index;
-    output += seen_rows.insert(row_view).second;
-    row += row_stride;
-  }
-  indices->e = output;
 }
 
 #define PERFETTO_INSTANTIATE_DISTINCT(type)      \

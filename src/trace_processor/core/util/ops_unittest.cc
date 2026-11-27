@@ -89,15 +89,6 @@ TEST(OpsTest, EstimateDistinctCount) {
   EXPECT_EQ(EstimateDistinctCount(&counts, base::MakeSpan(strings)), 2u);
 }
 
-TEST(OpsTest, DistinctRows) {
-  const uint32_t rows[] = {1, 2, 1, 3};
-  uint32_t indices[] = {10, 20, 30, 40};
-  base::Span<uint32_t> index_span = base::MakeMutableSpan(indices);
-  DistinctRows(base::AsBytes(base::MakeSpan(rows)), sizeof(uint32_t),
-               &index_span);
-  EXPECT_THAT(index_span, testing::ElementsAre(10u, 20u, 40u));
-}
-
 TEST(OpsTest, SortRowLayoutStably) {
   const uint32_t rows[] = {2, 1, 2};
   uint32_t indices[] = {10, 20, 30};

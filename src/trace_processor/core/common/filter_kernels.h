@@ -182,8 +182,7 @@ template <typename Comparator, typename ValueType, typename DataType>
 }
 
 // As Filter, for an Id column, which stores no values: the value at index `i`
-// is `first_id + i`. The interpreter's indices are rows of the whole column,
-// so it passes 0; a window onto the column passes the row it starts at.
+// is `first_id + i`. A window onto the column passes the row it starts at.
 template <typename Comparator, typename ValueType>
 [[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* IdentityFilter(
     uint32_t first_id,
@@ -205,38 +204,6 @@ template <typename Comparator, typename ValueType>
   return o_write;
 }
 
-inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterEq(
-    const StringPool* string_pool,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  std::optional<StringPool::Id> id = string_pool->GetId(base::StringView(val));
-  if (!id) {
-    return output;
-  }
-  static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::equal_to<>());
-}
-
-inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
-    const StringPool* string_pool,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  std::optional<StringPool::Id> id = string_pool->GetId(base::StringView(val));
-  if (!id) {
-    return output + (end - begin);
-  }
-  static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::not_equal_to<>());
-}
-
 // Keeps the strings which match the GLOB `pattern`. Compiled once, in
 // filter_kernels.cc, as it is too large to be worth inlining.
 uint32_t* StringFilterGlob(const StringPool* string_pool,
@@ -246,15 +213,6 @@ uint32_t* StringFilterGlob(const StringPool* string_pool,
                            const uint32_t* end,
                            uint32_t* output);
 
-// Keeps the strings which the regular expression `pattern` matches part of.
-// Nothing matches a pattern which does not compile.
-uint32_t* StringFilterRegex(const StringPool* string_pool,
-                            const StringPool::Id* data,
-                            const char* pattern,
-                            const uint32_t* begin,
-                            const uint32_t* end,
-                            uint32_t* output);
-
 // Keeps the strings which `regex` matches part of.
 uint32_t* StringFilterRegex(const StringPool* string_pool,
                             const StringPool::Id* data,
@@ -262,29 +220,6 @@ uint32_t* StringFilterRegex(const StringPool* string_pool,
                             const uint32_t* begin,
                             const uint32_t* end,
                             uint32_t* output);
-
-// Applies any string operator: an equality, an ordering, GLOB or REGEXP.
-template <typename Op>
-inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringCompare(
-    const StringPool* string_pool,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  if constexpr (std::is_same_v<Op, Eq>) {
-    return StringFilterEq(string_pool, data, begin, end, output, val);
-  } else if constexpr (std::is_same_v<Op, Ne>) {
-    return StringFilterNe(string_pool, data, begin, end, output, val);
-  } else if constexpr (std::is_same_v<Op, Glob>) {
-    return StringFilterGlob(string_pool, data, val, begin, end, output);
-  } else if constexpr (std::is_same_v<Op, Regex>) {
-    return StringFilterRegex(string_pool, data, val, begin, end, output);
-  } else {
-    return Filter(data, begin, end, output, NullTermStringView(val),
-                  comparators::StringComparator<Op>{string_pool});
-  }
-}
 
 // BitVector membership filter for FilterIn. O(1) per row.
 // Only applicable to Id/Uint32 columns with dense value ranges.
@@ -596,103 +531,6 @@ base::Span<const uint32_t> SearchIndexEqual(
     const IndexColumn& column,
     const CastFilterValueResult::Value& value,
     base::Span<const uint32_t> entries);
-
-// Sorts row indices ascending. Compiled once, in filter_kernels.cc, so every
-// column type and null mode shares it.
-void SortRowIndices(uint32_t* begin, uint32_t* end);
-
-// The rows of an IN found by binary-searching a sorted index for each of its
-// values, written to `dest` in increasing order. Returns false, writing
-// nothing, if the list is empty or too long for searching to beat a scan.
-//
-// TODO(lalitm): since the index is sorted, galloping search could replace
-// a LowerBound per value for better locality.
-template <typename T, typename N>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE bool IndexedFilterInBinarySearch(
-    const CastFilterValueListResult& cast_result,
-    base::Span<uint32_t> index,
-    const typename T::cpp_type* data,
-    const BitVector* bv,
-    const uint32_t* popcount,
-    const StringPool* string_pool,
-    base::Span<uint32_t>& dest) {
-  using VL =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
-  if (vl.empty() || vl.size() > kFilterInIndexedBinarySearchThreshold) {
-    return false;
-  }
-  uint32_t* write = dest.b;
-  for (const auto& cmp_val : vl) {
-    // For String columns, resolve StringPool::Id to NullTermStringView
-    // once per value to avoid repeated lookups in the comparators.
-    std::pair<const uint32_t*, const uint32_t*> range;
-    if constexpr (std::is_same_v<T, String>) {
-      auto target = string_pool->Get(cmp_val);
-      range = IndexEqualRange<T, N>(index.b, index.e, target, data, bv,
-                                    popcount, string_pool);
-    } else {
-      range = IndexEqualRange<T, N>(index.b, index.e, cmp_val, data, bv,
-                                    popcount, string_pool);
-    }
-    auto n = static_cast<size_t>(range.second - range.first);
-    memcpy(write, range.first, n * sizeof(uint32_t));
-    write += n;
-  }
-  dest.e = write;
-
-  // Binary search produces output in key order. Sort by raw index.
-  SortRowIndices(dest.b, dest.e);
-  return true;
-}
-
-// The rows of `range` whose value is in an IN's list, written to `dest`,
-// testing each against the list's hash map.
-template <typename T, typename N>
-inline PERFETTO_ALWAYS_INLINE void FilterInRangeScan(
-    const CastFilterValueListResult& cast_result,
-    Range range,
-    const typename T::cpp_type* data,
-    const BitVector* bv,
-    const uint32_t* popcount,
-    base::Span<uint32_t>& dest) {
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
-  // |data| is unused for Id columns (the storage index IS the value).
-  base::ignore_result(data);
-  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
-  uint32_t* write = dest.b;
-  for (uint32_t i = range.b; i < range.e; ++i) {
-    uint32_t si = IndexToStorageIndex<N>(i, bv, popcount);
-    if (si == std::numeric_limits<uint32_t>::max()) {
-      continue;
-    }
-    if constexpr (std::is_same_v<T, Id>) {
-      if (hm.Find(CastFilterValueResult::Id{si}) != nullptr) {
-        *write++ = i;
-      }
-    } else {
-      if (hm.Find(data[si]) != nullptr) {
-        *write++ = i;
-      }
-    }
-  }
-  dest.e = write;
-}
-
-// Copies the rows of `source` which lie in `range` to `out`, in order,
-// returning the end of those written. `out` may be `source.b`.
-inline PERFETTO_ALWAYS_INLINE uint32_t* CopySpanIntersectingRange(
-    base::Span<const uint32_t> source,
-    Range range,
-    uint32_t* out) {
-  for (const uint32_t* it = source.b; it != source.e; ++it) {
-    *out = *it;
-    out += (*it >= range.b && *it < range.e);
-  }
-  return out;
-}
 
 }  // namespace perfetto::trace_processor::core::filter
 

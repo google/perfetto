@@ -23,17 +23,10 @@ source_set("storage") {
     "arrow_internal.h",
     "arrow_serializer.cc",
     "arrow_serializer.h",
-    "bytecode_lowering.cc",
-    "bytecode_lowering.h",
-    "cursor.h",
-    "cursor_impl.h",
     "dataframe.cc",
     "dataframe.h",
-    "dataframe_register_cache.h",
     "logical_plan.cc",
     "logical_plan.h",
-    "query_plan.cc",
-    "query_plan.h",
     "runtime_dataframe_builder.h",
     "specs.h",
     "types.h",
@@ -50,7 +43,6 @@ source_set("storage") {
     "../../util:sort",
     "../../util:trace_blob_view_reader",
     "../common",
-    "../interpreter",
     "../util",
   ]
 }
@@ -95,7 +87,7 @@ perfetto_unittest_source_set("unittests") {
     "../../util:concurrency_stress_test_util",
     "../../util:flatbuffer_reader",
     "../../util:trace_blob_view_reader",
-    "../interpreter",
+    "../common",
     "../util",
   ]
 }

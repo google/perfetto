@@ -333,29 +333,11 @@ uint32_t* StringFilterGlob(const StringPool* string_pool,
 
 uint32_t* StringFilterRegex(const StringPool* string_pool,
                             const StringPool::Id* data,
-                            const char* pattern,
-                            const uint32_t* begin,
-                            const uint32_t* end,
-                            uint32_t* output) {
-  auto regex = base::Regex::Create(pattern);
-  if (!regex.ok()) {
-    return output;
-  }
-  return StringFilterRegex(string_pool, data, regex.value(), begin, end,
-                           output);
-}
-
-uint32_t* StringFilterRegex(const StringPool* string_pool,
-                            const StringPool::Id* data,
                             const base::Regex& regex,
                             const uint32_t* begin,
                             const uint32_t* end,
                             uint32_t* output) {
   return Filter(data, begin, end, output, regex, RegexComparator{string_pool});
-}
-
-void SortRowIndices(uint32_t* begin, uint32_t* end) {
-  std::sort(begin, end);
 }
 
 }  // namespace perfetto::trace_processor::core::filter

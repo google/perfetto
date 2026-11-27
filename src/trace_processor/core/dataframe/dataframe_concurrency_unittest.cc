@@ -38,11 +38,11 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/util/concurrency_stress_test_util.h"
 #include "test/gtest_and_gmock.h"
 
@@ -116,27 +116,19 @@ class DataframeConcurrencyTest : public ::testing::Test {
     PERFETTO_CHECK(df_->finalized());
   }
 
-  // Plans and runs one query with a fresh plan and cursor, returning every row.
+  // Plans and runs one query with a fresh cursor, returning every row.
   std::vector<GoldenRow> RunQueryWithSpecs(const Dataframe& df,
                                            std::vector<FilterSpec> filters,
                                            std::vector<SortSpec> sorts,
                                            int64_t filter_value) {
-    base::StatusOr<Dataframe::QueryPlan> plan_or =
-        df.PlanQuery(filters, {}, sorts, {}, kColsBitmap);
-    PERFETTO_CHECK(plan_or.ok());
-
-    auto cursor = std::make_unique<Cursor<TestRowFetcher>>();
-    df.PrepareCursor(plan_or.value(), *cursor);
-
-    std::vector<TestRowFetcher::Value> filter_row = {filter_value};
-    TestRowFetcher fetcher;
-    fetcher.SetRow(filter_row);
-    cursor->Execute(fetcher);
+    TypedCursor cursor(&df, std::move(filters), std::move(sorts));
+    cursor.SetFilterValueUnchecked(0, filter_value);
+    cursor.ExecuteUnchecked();
 
     std::vector<GoldenRow> rows;
-    for (; !cursor->Eof(); cursor->Next()) {
+    for (; !cursor.Eof(); cursor.Next()) {
       ValueVerifier verifier;
-      verifier.Fetch(&*cursor, /*col_count=*/3);
+      verifier.Fetch(df, cursor.RowIndex(), /*col_count=*/3);
       PERFETTO_CHECK(verifier.values.size() == 3);
 
       // The builder downcasts the int column to uint32_t; widen it back.
@@ -181,17 +173,13 @@ class DataframeConcurrencyTest : public ::testing::Test {
   void AssertIndexedQueryUsesIndex(const Dataframe& df) {
     std::vector<FilterSpec> filters = {
         FilterSpec{kIntCol, 0, Eq{}, std::nullopt}};
-    base::StatusOr<Dataframe::QueryPlan> plan_or =
-        df.PlanQuery(filters, {}, {}, {}, kColsBitmap);
+    base::StatusOr<LogicalPlan> plan_or =
+        df.PlanQueryLogical(filters, {}, {}, {}, kColsBitmap);
     ASSERT_OK(plan_or.status());
-    bool uses_index = false;
-    std::string all;
-    for (const std::string& line : plan_or.value().BytecodeToString()) {
-      all += line + "\n";
-      if (line.find("Indexed") != std::string::npos)
-        uses_index = true;
-    }
-    ASSERT_TRUE(uses_index) << "Eq query did not engage the index:\n" << all;
+    std::string text = plan_or.value().ToString();
+    ASSERT_NE(text.find("IndexFilter"), std::string::npos)
+        << "Eq query did not engage the index:\n"
+        << text;
   }
 
   StringPool pool_;

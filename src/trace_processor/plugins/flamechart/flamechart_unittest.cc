@@ -105,19 +105,11 @@ int64_t AsInt64(const dataframe::ValueVerifier::ValueVariant& v) {
 
 std::vector<Row> ReadRuns(dataframe::Dataframe& df) {
   PERFETTO_CHECK(df.column_names().size() == 5);
-  std::vector<dataframe::FilterSpec> filters;
-  auto plan = df.PlanQuery(filters, {}, {}, {}, 0b11111);
-  PERFETTO_CHECK(plan.ok());
-  auto cursor =
-      std::make_unique<dataframe::Cursor<dataframe::TestRowFetcher>>();
-  df.PrepareCursor(std::move(*plan), *cursor);
-  dataframe::TestRowFetcher fetcher;
-  cursor->Execute(fetcher);
-
   std::vector<Row> rows;
-  for (; !cursor->Eof(); cursor->Next()) {
+  rows.reserve(df.row_count());
+  for (uint32_t r = 0; r < df.row_count(); ++r) {
     dataframe::ValueVerifier verifier;
-    verifier.Fetch(&*cursor, 5);
+    verifier.Fetch(df, r, 5);
     rows.push_back(Row{AsInt64(verifier.values[0]), AsInt64(verifier.values[1]),
                        AsInt64(verifier.values[2]), AsInt64(verifier.values[3]),
                        AsInt64(verifier.values[4])});

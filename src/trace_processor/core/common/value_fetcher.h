@@ -19,8 +19,6 @@
 
 #include <cstdint>
 
-#include "perfetto/base/logging.h"
-
 namespace perfetto::trace_processor::core {
 
 // Fetcher for values from an aribtrary indexed source. The meaning of the index
@@ -58,31 +56,6 @@ struct ValueFetcher {
   // Forwards the iterator to the next value and returns true if the iterator
   // has more elements, false otherwise.
   bool IteratorNext(uint32_t);
-};
-
-// ErrorValueFetcher is a dummy implementation of ValueFetcher that returns
-// an error value for all methods. This is used in cases where a
-// ValueFetcher is required but no actual data is available (e.g. where you are
-// iterating over a dataframe without filtering).
-struct ErrorValueFetcher : public ValueFetcher {
-  static const Type kInt64 = 0;
-  static const Type kDouble = 1;
-  static const Type kString = 2;
-  static const Type kNull = 3;
-  static int64_t GetInt64Value(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static double GetDoubleValue(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static const char* GetStringValue(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static Type GetValueType(uint32_t) {
-    PERFETTO_FATAL("Dummy implementation; should not be called");
-  }
-  static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 };
 
 }  // namespace perfetto::trace_processor::core

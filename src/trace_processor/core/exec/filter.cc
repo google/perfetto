@@ -210,9 +210,13 @@ Rows Compare(const ColumnView& column,
     } else if constexpr (std::is_same_v<O, Regex>) {
       kept = filter::StringFilterRegex(&pool, data, cast.regex(), begin, end,
                                        begin);
+    } else if constexpr (std::is_same_v<O, Glob>) {
+      kept = filter::StringFilterGlob(&pool, data, cast.text().c_str(), begin,
+                                      end, begin);
     } else {
-      kept = filter::FilterStringCompare<O>(&pool, data, begin, end, begin,
-                                            cast.text().c_str());
+      kept = filter::Filter(data, begin, end, begin,
+                            NullTermStringView(cast.text().c_str()),
+                            filter::comparators::StringComparator<O>{&pool});
     }
   } else {
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
@@ -280,8 +284,8 @@ constexpr CompareTable kCompareTable = MakeCompareTable();
 
 // Keeps the rows of a string `column` whose value `glob`'s pattern matches.
 // Rows are matched one at a time until as many have been as a quarter of the
-// pool's strings; then, as the interpreter does for a large input, every
-// string in the pool is matched in one pass, and each row after is a bit test.
+// pool's strings; after that, every string in the pool is matched in one pass,
+// and each row after is a bit test.
 PERFETTO_NO_INLINE Rows KeepGlobMatches(const ColumnView& column,
                                         GlobMatch& glob,
                                         const StringPool& pool,

@@ -33,8 +33,6 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -48,7 +46,7 @@ namespace perfetto::trace_processor::core::exec {
 namespace {
 
 // Shaped like a trace's slices, with none of the filtered columns sorted, so
-// both the executor and the interpreter test every row.
+// the executor tests every row.
 inline constexpr auto kSlices = dataframe::CreateTypedDataframeSpec(
     {"id", "dur", "cpu", "depth", "name"},
     dataframe::CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}),
@@ -92,6 +90,11 @@ class Slices {
   dataframe::Dataframe df_;
 };
 
+const Slices& GetSlices() {
+  static const Slices* slices = new Slices();
+  return *slices;
+}
+
 using Value = std::variant<int64_t, std::string>;
 
 struct OneValue : ValueFetcher {
@@ -121,7 +124,7 @@ void RunExecutor(benchmark::State& state,
                  uint32_t column,
                  Op op,
                  const Value& value) {
-  const Slices s;
+  const Slices& s = GetSlices();
   const dataframe::Dataframe& df = s.df();
   core::Arena arena;
   Filter filter(arena.CopySpan<Filter::Condition>({{1, op, 0}}), &s.pool());
@@ -151,69 +154,29 @@ void RunExecutor(benchmark::State& state,
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kRows);
 }
 
-// The same filter, run by the dataframe interpreter.
-void RunInterpreter(benchmark::State& state,
-                    uint32_t column,
-                    Op op,
-                    const Value& value) {
-  const Slices s;
-  const dataframe::Dataframe& df = s.df();
-  std::vector<dataframe::FilterSpec> specs = {{column, 0, op, std::nullopt}};
-  auto plan = df.PlanQuery(specs, {}, {}, {}, uint64_t{1} << kId);
-  PERFETTO_CHECK(plan.ok());
-  dataframe::Cursor<OneValue> cursor;
-  df.PrepareCursor(*plan, cursor);
-  OneValue fetcher(value);
-  for (auto _ : state) {
-    cursor.Execute(fetcher);
-    uint32_t rows = 0;
-    for (; !cursor.Eof(); cursor.Next()) {
-      ++rows;
-    }
-    benchmark::DoNotOptimize(rows);
-  }
-  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kRows);
-}
-
 // An eighth of the rows, spread throughout.
 void BM_ExecFilterEqUint32(benchmark::State& state) {
   RunExecutor(state, kCpu, Eq{}, int64_t{3});
 }
 BENCHMARK(BM_ExecFilterEqUint32);
-void BM_InterpreterFilterEqUint32(benchmark::State& state) {
-  RunInterpreter(state, kCpu, Eq{}, int64_t{3});
-}
-BENCHMARK(BM_InterpreterFilterEqUint32);
 
 // Half the rows.
 void BM_ExecFilterLtInt64(benchmark::State& state) {
   RunExecutor(state, kDur, Lt{}, int64_t{500});
 }
 BENCHMARK(BM_ExecFilterLtInt64);
-void BM_InterpreterFilterLtInt64(benchmark::State& state) {
-  RunInterpreter(state, kDur, Lt{}, int64_t{500});
-}
-BENCHMARK(BM_InterpreterFilterLtInt64);
 
 // A sixteenth of the rows which are not null.
 void BM_ExecFilterEqNullable(benchmark::State& state) {
   RunExecutor(state, kDepth, Eq{}, int64_t{3});
 }
 BENCHMARK(BM_ExecFilterEqNullable);
-void BM_InterpreterFilterEqNullable(benchmark::State& state) {
-  RunInterpreter(state, kDepth, Eq{}, int64_t{3});
-}
-BENCHMARK(BM_InterpreterFilterEqNullable);
 
 // A sixty-fourth of the rows, by string.
 void BM_ExecFilterEqString(benchmark::State& state) {
   RunExecutor(state, kName, Eq{}, std::string("name7"));
 }
 BENCHMARK(BM_ExecFilterEqString);
-void BM_InterpreterFilterEqString(benchmark::State& state) {
-  RunInterpreter(state, kName, Eq{}, std::string("name7"));
-}
-BENCHMARK(BM_InterpreterFilterEqString);
 
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec

@@ -436,7 +436,6 @@ perfetto_cc_library(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_storage",
         ":src_trace_processor_core_exec_exec",
-        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
@@ -521,8 +520,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_critical_path_critical_path",
         ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
-        ":src_trace_processor_plugins_developer_functions_developer_functions",
-        ":src_trace_processor_plugins_developer_functions_tables",
         ":src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":src_trace_processor_plugins_dfs_weight_bounded_tables",
         ":src_trace_processor_plugins_dominator_tree_dominator_tree",
@@ -769,7 +766,6 @@ perfetto_cc_library(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_storage",
         ":src_trace_processor_core_exec_exec",
-        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
@@ -855,8 +851,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_critical_path_critical_path",
         ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
-        ":src_trace_processor_plugins_developer_functions_developer_functions",
-        ":src_trace_processor_plugins_developer_functions_tables",
         ":src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":src_trace_processor_plugins_dfs_weight_bounded_tables",
         ":src_trace_processor_plugins_dominator_tree_dominator_tree",
@@ -2640,17 +2634,10 @@ perfetto_filegroup(
         "src/trace_processor/core/dataframe/arrow_internal.h",
         "src/trace_processor/core/dataframe/arrow_serializer.cc",
         "src/trace_processor/core/dataframe/arrow_serializer.h",
-        "src/trace_processor/core/dataframe/bytecode_lowering.cc",
-        "src/trace_processor/core/dataframe/bytecode_lowering.h",
-        "src/trace_processor/core/dataframe/cursor.h",
-        "src/trace_processor/core/dataframe/cursor_impl.h",
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/dataframe.h",
-        "src/trace_processor/core/dataframe/dataframe_register_cache.h",
         "src/trace_processor/core/dataframe/logical_plan.cc",
         "src/trace_processor/core/dataframe/logical_plan.h",
-        "src/trace_processor/core/dataframe/query_plan.cc",
-        "src/trace_processor/core/dataframe/query_plan.h",
         "src/trace_processor/core/dataframe/runtime_dataframe_builder.h",
         "src/trace_processor/core/dataframe/specs.h",
         "src/trace_processor/core/dataframe/types.h",
@@ -2749,26 +2736,6 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/tree_order.cc",
         "src/trace_processor/core/exec/tree_order.h",
         "src/trace_processor/core/exec/variant.h",
-    ],
-)
-
-# GN target: //src/trace_processor/core/interpreter:interpreter
-perfetto_filegroup(
-    name = "src_trace_processor_core_interpreter_interpreter",
-    srcs = [
-        "src/trace_processor/core/interpreter/bytecode_builder.cc",
-        "src/trace_processor/core/interpreter/bytecode_builder.h",
-        "src/trace_processor/core/interpreter/bytecode_core.h",
-        "src/trace_processor/core/interpreter/bytecode_instruction_macros.h",
-        "src/trace_processor/core/interpreter/bytecode_instructions.h",
-        "src/trace_processor/core/interpreter/bytecode_interpreter.h",
-        "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
-        "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h",
-        "src/trace_processor/core/interpreter/bytecode_interpreter_state.h",
-        "src/trace_processor/core/interpreter/bytecode_registers.h",
-        "src/trace_processor/core/interpreter/bytecode_to_string.cc",
-        "src/trace_processor/core/interpreter/bytecode_to_string.h",
-        "src/trace_processor/core/interpreter/interpreter_types.h",
     ],
 )
 
@@ -5036,29 +5003,6 @@ perfetto_filegroup(
         "src/trace_processor/plugins/descendant/descendant.cc",
         "src/trace_processor/plugins/descendant/descendant.h",
         "src/trace_processor/plugins/descendant/descendant_impl.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/developer_functions:developer_functions
-perfetto_filegroup(
-    name = "src_trace_processor_plugins_developer_functions_developer_functions",
-    srcs = [
-        "src/trace_processor/plugins/developer_functions/dataframe_query_plan_decoder.cc",
-        "src/trace_processor/plugins/developer_functions/dataframe_query_plan_decoder.h",
-        "src/trace_processor/plugins/developer_functions/developer_functions.h",
-    ],
-)
-
-# GN target: //src/trace_processor/plugins/developer_functions:tables
-perfetto_cc_tp_tables(
-    name = "src_trace_processor_plugins_developer_functions_tables",
-    srcs = [
-        "src/trace_processor/plugins/developer_functions/tables.py",
-    ],
-    outs = [
-        "src/trace_processor/plugins/developer_functions/all_tables_fwd.h",
-        "src/trace_processor/plugins/developer_functions/tables_fwd.h",
-        "src/trace_processor/plugins/developer_functions/tables_py.h",
     ],
 )
 
@@ -12189,7 +12133,6 @@ perfetto_cc_library(
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_dataframe_storage",
         ":src_trace_processor_core_exec_exec",
-        ":src_trace_processor_core_interpreter_interpreter",
         ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
@@ -12274,8 +12217,6 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_critical_path_critical_path",
         ":src_trace_processor_plugins_critical_path_tables",
         ":src_trace_processor_plugins_descendant_descendant",
-        ":src_trace_processor_plugins_developer_functions_developer_functions",
-        ":src_trace_processor_plugins_developer_functions_tables",
         ":src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":src_trace_processor_plugins_dfs_weight_bounded_tables",
         ":src_trace_processor_plugins_dominator_tree_dominator_tree",

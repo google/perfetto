@@ -33,8 +33,6 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
@@ -203,33 +201,57 @@ class SearchScansDiffTest : public ::testing::Test {
     }
   }
 
-  // Runs `specs` with `slots` through the interpreter, returning the rows.
-  std::vector<uint32_t> RunInterpreter(std::vector<dataframe::FilterSpec> specs,
-                                       const std::vector<Value>& slots) {
-    auto plan = df_->PlanQuery(specs, {}, {}, {}, uint64_t{1} << kMaybe);
-    PERFETTO_CHECK(plan.ok());
-    dataframe::Cursor<Values> cursor;
-    df_->PrepareCursor(*plan, cursor);
-    Values fetcher;
-    fetcher.values = &slots;
-    cursor.Execute(fetcher);
-    std::vector<uint32_t> rows;
-    for (; !cursor.Eof(); cursor.Next()) {
-      rows.push_back(cursor.RowIndex());
-    }
-    return rows;
-  }
-
   // Lowers a filter-only logical plan to a scan and a Filter, reading the
   // scan in `direction`. An index is only read forwards.
   struct ExecPlan {
     const Source* scan;
     const Pipeline* pipeline;
     std::vector<std::optional<ParamCaster<Values>>> casters;
+    bool uses_index = false;
   };
   // Params are cast for the type a column is read as: an id is a Uint32.
   static StorageType ReadAs(StorageType type) {
     return type.Is<Id>() ? StorageType{Uint32{}} : type;
+  }
+
+  // Reference plan: plain DataframeScan + Filter with no sorted/index search.
+  ExecPlan BuildReferenceScan(const std::vector<dataframe::FilterSpec>& specs) {
+    core::Arena& arena = arena_;
+    std::vector<const dataframe::Column*> all;
+    for (uint32_t i = 0; i < df_->column_names().size(); ++i) {
+      all.push_back(&df_->column(i));
+    }
+    core::ArenaSpan<const dataframe::Column*> columns =
+        test::InArena(arena, all);
+    ExecPlan out;
+    out.casters.resize(specs.size());
+    std::vector<Filter::Condition> conditions;
+    for (uint32_t i = 0; i < specs.size(); ++i) {
+      const auto& s = specs[i];
+      if (!s.op.IsAnyOf<NullOp>()) {
+        out.casters[i] =
+            GetParamCaster<Values>(ReadAs(df_->column_type(s.col)), s.op);
+      }
+      conditions.push_back({s.col, s.op, i});
+    }
+    out.scan = arena.New<DataframeScan>(columns, df_->row_count(),
+                                        ReadDirection::kForwards);
+    std::vector<Pipeline::Step> steps;
+    std::vector<uint32_t> sparse;
+    for (uint32_t i = 0; i < df_->column_names().size(); ++i) {
+      if (!df_->column(i).null_storage.nullability().Is<NonNull>()) {
+        sparse.push_back(i);
+      }
+    }
+    if (!sparse.empty()) {
+      steps.emplace_back(arena.New<Expand>(test::InArena(arena, sparse)));
+    }
+    if (!conditions.empty()) {
+      steps.emplace_back(
+          arena.New<Filter>(test::InArena(arena, conditions), &pool_));
+    }
+    out.pipeline = arena.New<Pipeline>(arena, *out.scan, steps);
+    return out;
   }
 
   std::optional<ExecPlan> Lower(const dataframe::LogicalPlan& plan,
@@ -314,6 +336,7 @@ class SearchScansDiffTest : public ::testing::Test {
       out.scan = arena.New<IndexScan>(arena, columns, *index,
                                       test::InArena(arena, equalities),
                                       test::InArena(arena, searches), &pool_);
+      out.uses_index = true;
       ++index_scans_;
     } else if (searches.empty()) {
       out.scan = arena.New<DataframeScan>(columns, rows, direction);
@@ -357,7 +380,7 @@ class SearchScansDiffTest : public ::testing::Test {
   uint32_t index_scans_ = 0;
 };
 
-TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
+TEST_F(SearchScansDiffTest, FindsWhatLinearScanFinds) {
   const std::vector<Op> kOps = {Eq{}, Ne{}, Lt{},     Le{},
                                 Gt{}, Ge{}, IsNull{}, IsNotNull{}};
   uint32_t compared = 0;
@@ -400,6 +423,8 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
       if (!exec) {
         continue;
       }
+      ExecPlan reference = BuildReferenceScan(specs);
+      RowCursor ref_cursor(*reference.pipeline);
       // Reuse one cursor across runs, as a query does.
       RowCursor cursor(*exec->pipeline);
       // Read backwards, the same rows come out in reverse.
@@ -414,6 +439,22 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
         for (const auto& [col, op] : shape) {
           by_source.push_back(RandomValue(col));
         }
+        Values ref_fetcher;
+        ref_fetcher.values = &by_source;
+        std::vector<ParamValue> ref_cast(by_source.size());
+        for (uint32_t i = 0; i < by_source.size(); ++i) {
+          if (reference.casters[i]) {
+            (*reference.casters[i])(ref_fetcher, i, pool_, &ref_cast[i]);
+          }
+        }
+        std::vector<uint32_t> expected;
+        for (bool ok = ref_cursor.Open(base::Span<const ParamValue>(
+                 ref_cast.data(), ref_cast.data() + ref_cast.size()));
+             ok; ok = ref_cursor.Next()) {
+          expected.push_back(ref_cursor.Value<uint32_t>(kId));
+        }
+        ASSERT_TRUE(ref_cursor.status().ok());
+
         // The planner numbers the values in the order it applies them.
         std::vector<Value> slots(logical->filter_value_count);
         for (const auto& spec : planned) {
@@ -421,7 +462,6 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
             slots[*spec.value_index] = by_source[spec.source_index];
           }
         }
-        std::vector<uint32_t> expected = RunInterpreter(specs, slots);
 
         Values fetcher;
         fetcher.values = &slots;
@@ -450,6 +490,10 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
           ASSERT_EQ(maybe, maybe_[row]) << row;
         }
         ASSERT_TRUE(cursor.status().ok());
+        if (exec->uses_index) {
+          // IndexScan returns rows in index order rather than row-id order.
+          std::sort(actual.begin(), actual.end());
+        }
         ASSERT_EQ(actual, expected) << logical->ToString();
         ++compared;
         found += !expected.empty();

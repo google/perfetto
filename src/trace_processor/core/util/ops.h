@@ -79,12 +79,6 @@ template <typename T>
 uint32_t EstimateDistinctCount(base::FlatHashMap<int64_t, uint32_t>* counts,
                                base::Span<const T> values);
 
-// Removes duplicate fixed-width rows and compacts |indices| in place. Rows in
-// |row_layout| are parallel to indices rather than addressed by their values.
-void DistinctRows(base::Span<const uint8_t> row_layout,
-                  uint32_t row_stride,
-                  base::Span<uint32_t>* indices);
-
 // Stably sorts indices by fixed-width rows in |row_layout|.
 void SortRowLayout(base::Span<const uint8_t> row_layout,
                    uint32_t row_stride,

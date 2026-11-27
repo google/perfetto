@@ -15,9 +15,9 @@
  */
 
 // Searches of a big table, run once per row of another: what extract_arg,
-// joins on an id and time range queries do millions of times. Each executor
-// case is timed against the interpreter running the same query through
-// TypedCursor, which is how C++ callers run it today.
+// joins on an id and time range queries do millions of times. Each direct
+// executor case is timed alongside TypedCursor, which is how C++ callers run
+// it.
 
 #include <benchmark/benchmark.h>
 
@@ -34,7 +34,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
@@ -237,7 +236,7 @@ core::ArenaSpan<const dataframe::Column*> Columns(
 
 // extract_arg: arg_set_id = ? AND key = ?
 
-void BM_ExtractArg_Interpreter(benchmark::State& state) {
+void BM_ExtractArg_TypedCursor(benchmark::State& state) {
   const Args a;
   dataframe::TypedCursor cursor(
       a.df.get(),
@@ -255,7 +254,7 @@ void BM_ExtractArg_Interpreter(benchmark::State& state) {
   }
   benchmark::DoNotOptimize(found);
 }
-BENCHMARK(BM_ExtractArg_Interpreter);
+BENCHMARK(BM_ExtractArg_TypedCursor);
 
 // Runs `scan` reading the arg id and key, with the key filtered after.
 void RunExtractArg(benchmark::State& state,
@@ -356,7 +355,7 @@ struct SumCells : dataframe::CellCallback {
   int64_t sum = 0;
 };
 
-void BM_IdEq_Interpreter(benchmark::State& state) {
+void BM_IdEq_TypedCursor(benchmark::State& state) {
   const Wide w;
   auto k = static_cast<uint32_t>(state.range(0));
   dataframe::TypedCursor cursor(w.df.get(),
@@ -374,7 +373,7 @@ void BM_IdEq_Interpreter(benchmark::State& state) {
   }
   benchmark::DoNotOptimize(cells.sum);
 }
-BENCHMARK(BM_IdEq_Interpreter)->Arg(1)->Arg(16);
+BENCHMARK(BM_IdEq_TypedCursor)->Arg(1)->Arg(16);
 
 void BM_IdEq_SortedScan(benchmark::State& state) {
   core::Arena arena;
@@ -413,7 +412,7 @@ BENCHMARK(BM_IdEq_SortedScan)->Arg(1)->Arg(16);
 
 // track = ?, through an index, reading every row found
 
-void BM_IndexEq_Interpreter(benchmark::State& state) {
+void BM_IndexEq_TypedCursor(benchmark::State& state) {
   const Slices s;
   dataframe::TypedCursor cursor(s.df.get(), {{kTrack, 0, Eq{}, std::nullopt}},
                                 {});
@@ -427,7 +426,7 @@ void BM_IndexEq_Interpreter(benchmark::State& state) {
   }
   benchmark::DoNotOptimize(rows);
 }
-BENCHMARK(BM_IndexEq_Interpreter);
+BENCHMARK(BM_IndexEq_TypedCursor);
 
 void BM_IndexEq_IndexScan(benchmark::State& state) {
   core::Arena arena;
@@ -454,7 +453,7 @@ BENCHMARK(BM_IndexEq_IndexScan);
 // ts >= ? AND ts < ?, reading dur for every row. The arg is roughly how many
 // rows each range holds.
 
-void BM_TsRange_Interpreter(benchmark::State& state) {
+void BM_TsRange_TypedCursor(benchmark::State& state) {
   const Slices s;
   auto span = static_cast<uint32_t>(state.range(0));
   dataframe::TypedCursor cursor(
@@ -477,7 +476,7 @@ void BM_TsRange_Interpreter(benchmark::State& state) {
   benchmark::DoNotOptimize(sum);
   state.SetItemsProcessed(rows);
 }
-BENCHMARK(BM_TsRange_Interpreter)->Arg(16)->Arg(65536);
+BENCHMARK(BM_TsRange_TypedCursor)->Arg(16)->Arg(65536);
 
 void BM_TsRange_SortedScan(benchmark::State& state) {
   core::Arena arena;

@@ -32,9 +32,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -46,63 +45,31 @@ class TraceBlobViewReader;
 namespace perfetto::trace_processor::core::dataframe {
 
 enum class ArrowSparseColumns : uint8_t;
-struct QueryPlanImpl;
 struct LogicalPlan;
+
+// Callback for receiving cell values from Dataframe::GetCell.
+struct CellCallback {
+  void OnCell(int64_t);
+  void OnCell(double);
+  void OnCell(NullTermStringView);
+  void OnCell(std::nullptr_t);
+  void OnCell(uint32_t);
+  void OnCell(int32_t);
+};
 
 // Dataframe is a columnar data structure for efficient querying and filtering
 // of tabular data. It provides:
 //
 // - Type-specialized storage and filtering optimized for common trace data
 //   patterns
-// - Efficient query execution with optimized bytecode generation
-// - Support for serializable query plans that separate planning from execution
 // - Memory-efficient storage with support for specialized column types
 //
 // A finalized Dataframe is safe for concurrent reads from multiple threads as
-// long as each thread uses its own cursor: PlanQuery, PrepareCursor and cursor
-// iteration touch no shared mutable state. Mutating operations (Insert*,
+// long as each thread uses its own cursor: PlanQueryLogical, TypedCursor and
+// exec scans touch no shared mutable state. Mutating operations (Insert*,
 // SetCell*, Clear, Finalize) are not thread-safe and must not race with reads.
 class Dataframe {
  public:
-  // QueryPlan encapsulates an executable, serializable representation of a
-  // dataframe query operation. It contains the bytecode instructions and
-  // metadata needed to execute a query.
-  class QueryPlan {
-   public:
-    // Default constructor for an empty query plan.
-    QueryPlan() = default;
-
-    // Serializes the query plan to a string.
-    std::string Serialize() const;
-
-    // Deserializes a query plan from a string previously produced by
-    // `Serialize()`.
-    static QueryPlan Deserialize(std::string_view serialized);
-
-    // Returns the underlying implementation for testing purposes.
-    const QueryPlanImpl& GetImplForTesting() const;
-
-    // The maximum number of rows it's possible for this query plan to return.
-    uint32_t max_row_count() const;
-
-    // The number of rows this query plan estimates it will return.
-    uint32_t estimated_row_count() const;
-
-    // Returns the bytecode instructions of the query plan as a vector of
-    // strings, where each string represents a single bytecode instruction.
-    std::vector<std::string> BytecodeToString() const;
-
-    // An estimate for the cost of executing the query plan.
-    double estimated_cost() const;
-
-   private:
-    friend class Dataframe;
-    // Constructs a QueryPlan from its implementation.
-    explicit QueryPlan(QueryPlanImpl plan) : plan_(std::move(plan)) {}
-    // The underlying query plan implementation.
-    QueryPlanImpl plan_;
-  };
-
   // Constructs a Dataframe with the specified column names and types.
   Dataframe(StringPool* string_pool,
             uint32_t column_count,
@@ -147,53 +114,17 @@ class Dataframe {
                                ts...);
   }
 
-  // Creates an execution plan for querying the dataframe with specified filters
-  // and column selection.
-  //
-  // Parameters:
-  //   filter_specs:     Filter predicates to apply to the data.
-  //   distinct_specs:   Distinct specifications to remove duplicate rows.
-  //   sort_specs:       Sort specifications defining the desired row order.
-  //   limit_spec:       Optional struct specifying LIMIT and OFFSET values.
-  //   cols_used_bitmap: Bitmap where each bit corresponds to a column that may
-  //                     be requested. Only columns with set bits can be
-  //                     fetched.
-  // Returns:
-  //   A StatusOr containing the QueryPlan or an error status.
-  base::StatusOr<QueryPlan> PlanQuery(
-      std::vector<FilterSpec>& filter_specs,
-      const std::vector<DistinctSpec>& distinct_specs,
-      const std::vector<SortSpec>& sort_specs,
-      const LimitSpec& limit_spec,
-      uint64_t cols_used_bitmap) const;
-
   // The indexes added to the dataframe (see AddIndex).
   const std::vector<Index>& indexes() const { return indexes_; }
 
   // Plans a query logically (assigning `value_index` on usable filter specs,
-  // estimating output rows and cost) without lowering to bytecode.
+  // estimating output rows and cost).
   base::StatusOr<LogicalPlan> PlanQueryLogical(
       std::vector<FilterSpec>& filter_specs,
       const std::vector<DistinctSpec>& distinct_specs,
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used_bitmap) const;
-
-  // Prepares a cursor for executing the query plan. The template parameter
-  // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
-  // logic for fetching filter values for each filter specs specified when
-  // calling `PlanQuery`.
-  //
-  // Parameters:
-  //   plan: The query plan to execute.
-  //   c:    A reference to a std::optional that will be set to the prepared
-  //         cursor.
-  template <typename FilterValueFetcherImpl>
-  void PrepareCursor(const QueryPlan& plan,
-                     Cursor<FilterValueFetcherImpl>& c) const {
-    c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
-                 column_ptrs_.data(), indexes_.data(), string_pool_);
-  }
 
   // Given a typed spec, a column index and a row index, returns the value
   // stored in the dataframe at that position.
@@ -446,18 +377,12 @@ class Dataframe {
  private:
   friend class AdhocDataframeBuilder;
   friend class TypedCursor;
-  friend class QueryPlanBuilder;
-  friend struct QueryPlanImpl;
   friend class ArrowSerializer;
   friend base::StatusOr<Dataframe> DeserializeFromArrow(
       const util::TraceBlobViewReader&,
       StringPool*,
       const DataframeSpec&,
       ArrowSparseColumns);
-
-  // TODO(lalitm): remove this once we have a proper static builder for
-  // dataframe.
-  friend class DataframeBytecodeTest;
 
   Dataframe(bool finalized,
             std::vector<std::string> column_names,

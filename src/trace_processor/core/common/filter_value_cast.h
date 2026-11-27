@@ -462,20 +462,6 @@ CastFilterValue(uint32_t index, FilterValueFetcherImpl& fetcher, NonNullOp op) {
 // over the value list instead of a HashMap lookup (avoids hashing overhead).
 inline constexpr uint32_t kFilterInKeyScanThreshold = 16;
 
-// Above this threshold, the indexed FilterIn path switches from binary
-// search to copying the index and filtering in-place with the HashMap.
-//
-// Benchmarks (BM_FilterIn_IndexedBinarySearch / BM_FilterIn_IndexedLinearScan,
-// run with BENCHMARK_CONSTANT_SWEEPING=1) show the crossover is consistently
-// between k=50 and k=200 regardless of n, because the O(m·log(m)) sort of
-// matched results dominates the binary search path when k is large. A threshold
-// of 64 catches the crossover conservatively.
-inline constexpr uint32_t kFilterInIndexedBinarySearchThreshold = 64;
-
-// value_list is needed by both the key-scan and binary-search paths.
-inline constexpr uint32_t kFilterInValueListThreshold =
-    std::max(kFilterInKeyScanThreshold, kFilterInIndexedBinarySearchThreshold);
-
 // Extracts the raw uint32_t from an Id or Uint32 key.
 template <typename T>
 uint32_t FilterInKeyToUint32(const T& key) {
@@ -509,7 +495,7 @@ void MaybeBuildBitVector(CastFilterValueListResult& result) {
 }
 
 // Builds a value_list from the HashMap when the key count is small enough
-// for the linear scan or indexed binary search paths.
+// for the linear key-scan path.
 template <typename T>
 void MaybeBuildValueList(CastFilterValueListResult& result) {
   using HM =
@@ -518,7 +504,7 @@ void MaybeBuildValueList(CastFilterValueListResult& result) {
   using VL =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
   auto& hm = base::unchecked_get<HM>(result.hash_map);
-  if (hm.size() > kFilterInValueListThreshold) {
+  if (hm.size() > kFilterInKeyScanThreshold) {
     return;
   }
   auto& vl = base::unchecked_get<VL>(result.value_list);

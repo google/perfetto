@@ -3152,7 +3152,6 @@ cc_test {
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_exec_exec",
-        ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_plugin_plugin",
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
@@ -3232,7 +3231,6 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_create_view_function_create_view_function",
         ":perfetto_src_trace_processor_plugins_critical_path_critical_path",
         ":perfetto_src_trace_processor_plugins_descendant_descendant",
-        ":perfetto_src_trace_processor_plugins_developer_functions_developer_functions",
         ":perfetto_src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":perfetto_src_trace_processor_plugins_dominator_tree_dominator_tree",
         ":perfetto_src_trace_processor_plugins_etm_decode_chunk_etm_decode_chunk",
@@ -3540,7 +3538,6 @@ cc_test {
         "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
-        "perfetto_src_trace_processor_plugins_developer_functions_tables",
         "perfetto_src_trace_processor_plugins_dfs_weight_bounded_tables",
         "perfetto_src_trace_processor_plugins_dominator_tree_tables",
         "perfetto_src_trace_processor_plugins_experimental_annotated_stack_tables",
@@ -18239,10 +18236,8 @@ filegroup {
         "src/trace_processor/core/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/core/dataframe/arrow_deserializer.cc",
         "src/trace_processor/core/dataframe/arrow_serializer.cc",
-        "src/trace_processor/core/dataframe/bytecode_lowering.cc",
         "src/trace_processor/core/dataframe/dataframe.cc",
         "src/trace_processor/core/dataframe/logical_plan.cc",
-        "src/trace_processor/core/dataframe/query_plan.cc",
     ],
 }
 
@@ -18350,29 +18345,6 @@ filegroup {
         "src/trace_processor/core/exec/tree_key_paths_unittest.cc",
         "src/trace_processor/core/exec/tree_number_nodes_unittest.cc",
         "src/trace_processor/core/exec/tree_order_unittest.cc",
-    ],
-}
-
-// GN: //src/trace_processor/core/interpreter:bytecode_interpreter_test_utils
-filegroup {
-    name: "perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
-}
-
-// GN: //src/trace_processor/core/interpreter:interpreter
-filegroup {
-    name: "perfetto_src_trace_processor_core_interpreter_interpreter",
-    srcs: [
-        "src/trace_processor/core/interpreter/bytecode_builder.cc",
-        "src/trace_processor/core/interpreter/bytecode_interpreter_impl.cc",
-        "src/trace_processor/core/interpreter/bytecode_to_string.cc",
-    ],
-}
-
-// GN: //src/trace_processor/core/interpreter:unittests
-filegroup {
-    name: "perfetto_src_trace_processor_core_interpreter_unittests",
-    srcs: [
-        "src/trace_processor/core/interpreter/bytecode_interpreter_unittest.cc",
     ],
 }
 
@@ -20566,44 +20538,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/plugins/developer_functions:developer_functions
-filegroup {
-    name: "perfetto_src_trace_processor_plugins_developer_functions_developer_functions",
-    srcs: [
-        "src/trace_processor/plugins/developer_functions/dataframe_query_plan_decoder.cc",
-    ],
-}
-
-// GN: //src/trace_processor/plugins/developer_functions:tables
-genrule {
-    name: "perfetto_src_trace_processor_plugins_developer_functions_tables",
-    srcs: [
-        "src/trace_processor/plugins/developer_functions/tables.py",
-    ],
-    tools: [
-        "perfetto_src_trace_processor_plugins_developer_functions_tables_binary",
-    ],
-    cmd: "$(location perfetto_src_trace_processor_plugins_developer_functions_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
-    out: [
-        "src/trace_processor/plugins/developer_functions/all_tables_fwd.h",
-        "src/trace_processor/plugins/developer_functions/tables_fwd.h",
-        "src/trace_processor/plugins/developer_functions/tables_py.h",
-    ],
-}
-
-// GN: //src/trace_processor/plugins/developer_functions:tables
-python_binary_host {
-    name: "perfetto_src_trace_processor_plugins_developer_functions_tables_binary",
-    srcs: [
-        "python/generators/trace_processor_table/public.py",
-        "python/generators/trace_processor_table/serialize.py",
-        "python/generators/trace_processor_table/util.py",
-        "src/trace_processor/plugins/developer_functions/tables.py",
-        "tools/gen_tp_table_headers.py",
-    ],
-    main: "tools/gen_tp_table_headers.py",
-}
-
 // GN: //src/trace_processor/plugins/dfs_weight_bounded:dfs_weight_bounded
 filegroup {
     name: "perfetto_src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
@@ -22055,7 +21989,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_exec_exec",
-        ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_plugin_plugin",
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
@@ -22136,7 +22069,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_create_view_function_create_view_function",
         ":perfetto_src_trace_processor_plugins_critical_path_critical_path",
         ":perfetto_src_trace_processor_plugins_descendant_descendant",
-        ":perfetto_src_trace_processor_plugins_developer_functions_developer_functions",
         ":perfetto_src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":perfetto_src_trace_processor_plugins_dominator_tree_dominator_tree",
         ":perfetto_src_trace_processor_plugins_etm_decode_chunk_etm_decode_chunk",
@@ -22339,7 +22271,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
-        "perfetto_src_trace_processor_plugins_developer_functions_tables",
         "perfetto_src_trace_processor_plugins_dfs_weight_bounded_tables",
         "perfetto_src_trace_processor_plugins_dominator_tree_tables",
         "perfetto_src_trace_processor_plugins_experimental_annotated_stack_tables",
@@ -22448,7 +22379,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
-        "perfetto_src_trace_processor_plugins_developer_functions_tables",
         "perfetto_src_trace_processor_plugins_dfs_weight_bounded_tables",
         "perfetto_src_trace_processor_plugins_dominator_tree_tables",
         "perfetto_src_trace_processor_plugins_experimental_annotated_stack_tables",
@@ -25162,9 +25092,6 @@ cc_test {
         ":perfetto_src_trace_processor_core_exec_exec",
         ":perfetto_src_trace_processor_core_exec_test_utils",
         ":perfetto_src_trace_processor_core_exec_unittests",
-        ":perfetto_src_trace_processor_core_interpreter_bytecode_interpreter_test_utils",
-        ":perfetto_src_trace_processor_core_interpreter_interpreter",
-        ":perfetto_src_trace_processor_core_interpreter_unittests",
         ":perfetto_src_trace_processor_core_plugin_plugin",
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_tree_unittests",
@@ -25270,7 +25197,6 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_critical_path_critical_path",
         ":perfetto_src_trace_processor_plugins_descendant_descendant",
         ":perfetto_src_trace_processor_plugins_descendant_unittests",
-        ":perfetto_src_trace_processor_plugins_developer_functions_developer_functions",
         ":perfetto_src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":perfetto_src_trace_processor_plugins_dominator_tree_dominator_tree",
         ":perfetto_src_trace_processor_plugins_etm_decode_chunk_etm_decode_chunk",
@@ -25710,7 +25636,6 @@ cc_test {
         "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
-        "perfetto_src_trace_processor_plugins_developer_functions_tables",
         "perfetto_src_trace_processor_plugins_dfs_weight_bounded_tables",
         "perfetto_src_trace_processor_plugins_dominator_tree_tables",
         "perfetto_src_trace_processor_plugins_experimental_annotated_stack_tables",
@@ -26367,7 +26292,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_storage",
         ":perfetto_src_trace_processor_core_exec_exec",
-        ":perfetto_src_trace_processor_core_interpreter_interpreter",
         ":perfetto_src_trace_processor_core_plugin_plugin",
         ":perfetto_src_trace_processor_core_tree_tree",
         ":perfetto_src_trace_processor_core_util_util",
@@ -26447,7 +26371,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_create_view_function_create_view_function",
         ":perfetto_src_trace_processor_plugins_critical_path_critical_path",
         ":perfetto_src_trace_processor_plugins_descendant_descendant",
-        ":perfetto_src_trace_processor_plugins_developer_functions_developer_functions",
         ":perfetto_src_trace_processor_plugins_dfs_weight_bounded_dfs_weight_bounded",
         ":perfetto_src_trace_processor_plugins_dominator_tree_dominator_tree",
         ":perfetto_src_trace_processor_plugins_etm_decode_chunk_etm_decode_chunk",
@@ -26636,7 +26559,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
-        "perfetto_src_trace_processor_plugins_developer_functions_tables",
         "perfetto_src_trace_processor_plugins_dfs_weight_bounded_tables",
         "perfetto_src_trace_processor_plugins_dominator_tree_tables",
         "perfetto_src_trace_processor_plugins_experimental_annotated_stack_tables",
@@ -26743,7 +26665,6 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_android_process_state_tables",
         "perfetto_src_trace_processor_plugins_connected_flow_tables",
         "perfetto_src_trace_processor_plugins_critical_path_tables",
-        "perfetto_src_trace_processor_plugins_developer_functions_tables",
         "perfetto_src_trace_processor_plugins_dfs_weight_bounded_tables",
         "perfetto_src_trace_processor_plugins_dominator_tree_tables",
         "perfetto_src_trace_processor_plugins_experimental_annotated_stack_tables",

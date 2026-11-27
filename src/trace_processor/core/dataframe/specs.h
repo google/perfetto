@@ -72,7 +72,6 @@ using core::HasDuplicates;
 using core::NoDuplicates;
 
 // Value fetcher.
-using core::ErrorValueFetcher;
 using core::ValueFetcher;
 
 // -----------------------------------------------------------------------------

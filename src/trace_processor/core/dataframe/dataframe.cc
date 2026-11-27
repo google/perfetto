@@ -35,12 +35,9 @@
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/string_ranks.h"
-#include "src/trace_processor/core/dataframe/bytecode_lowering.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
-#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/interpreter/bytecode_to_string.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -134,19 +131,6 @@ Dataframe& Dataframe::operator=(const Dataframe& other) {
     *this = Dataframe(other);
   }
   return *this;
-}
-
-base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
-    std::vector<FilterSpec>& filter_specs,
-    const std::vector<DistinctSpec>& distinct_specs,
-    const std::vector<SortSpec>& sort_specs,
-    const LimitSpec& limit_spec,
-    uint64_t cols_used) const {
-  ASSIGN_OR_RETURN(
-      LogicalPlan logical,
-      LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
-                           distinct_specs, sort_specs, limit_spec, cols_used));
-  return QueryPlan(BytecodeLowering::Lower(logical, columns_, indexes_));
 }
 
 base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogical(
@@ -533,39 +517,6 @@ std::vector<std::shared_ptr<Column>> Dataframe::CreateColumnVector(
     }));
   }
   return columns;
-}
-
-std::vector<std::string> Dataframe::QueryPlan::BytecodeToString() const {
-  std::vector<std::string> result;
-  for (const auto& instr : plan_.bytecode) {
-    result.push_back(interpreter::ToString(instr));
-  }
-  return result;
-}
-
-std::string Dataframe::QueryPlan::Serialize() const {
-  return plan_.Serialize();
-}
-
-Dataframe::QueryPlan Dataframe::QueryPlan::Deserialize(
-    std::string_view serialized) {
-  return QueryPlan(QueryPlanImpl::Deserialize(serialized));
-}
-
-const QueryPlanImpl& Dataframe::QueryPlan::GetImplForTesting() const {
-  return plan_;
-}
-
-uint32_t Dataframe::QueryPlan::max_row_count() const {
-  return plan_.params.max_row_count;
-}
-
-uint32_t Dataframe::QueryPlan::estimated_row_count() const {
-  return plan_.params.estimated_row_count;
-}
-
-double Dataframe::QueryPlan::estimated_cost() const {
-  return plan_.params.estimated_cost;
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

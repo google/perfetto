@@ -105,7 +105,6 @@
 #include "src/trace_processor/plugins/create_view_function/create_view_function.h"
 #include "src/trace_processor/plugins/critical_path/critical_path.h"
 #include "src/trace_processor/plugins/descendant/descendant.h"
-#include "src/trace_processor/plugins/developer_functions/developer_functions.h"
 #include "src/trace_processor/plugins/dfs_weight_bounded/dfs_weight_bounded.h"
 #include "src/trace_processor/plugins/dominator_tree/dominator_tree.h"
 #include "src/trace_processor/plugins/etm_decode_chunk/etm_decode_chunk.h"
@@ -357,7 +356,6 @@ TraceProcessorImpl::TraceProcessorImpl(
   create_view_function::RegisterPlugin();
   critical_path::RegisterPlugin();
   descendant::RegisterPlugin();
-  developer_functions::RegisterPlugin();
   dfs_weight_bounded::RegisterPlugin();
   dominator_tree::RegisterPlugin();
   etm_decode_chunk::RegisterPlugin();

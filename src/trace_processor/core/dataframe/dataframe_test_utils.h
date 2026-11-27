@@ -17,20 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_TEST_UTILS_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_TEST_UTILS_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/core/dataframe/cursor.h"
-#include "src/trace_processor/core/dataframe/cursor_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/null_types.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::dataframe {
@@ -92,10 +94,9 @@ struct ValueVerifier : CellCallback {
                                     NullTermStringView,
                                     std::nullptr_t>;
 
-  template <typename Fetcher>
-  void Fetch(Cursor<Fetcher>* cursor, uint32_t col_count) {
+  void Fetch(const Dataframe& df, uint32_t row, uint32_t col_count) {
     for (uint32_t i = 0; i < col_count; ++i) {
-      cursor->Cell(i, *this);
+      df.GetCell(row, i, *this);
     }
   }
   void OnCell(int64_t value) { values.emplace_back(value); }
@@ -108,38 +109,72 @@ struct ValueVerifier : CellCallback {
   std::vector<ValueVariant> values;
 };
 
+template <typename Callback>
+inline void VisitStorageCell(const Storage& storage,
+                             uint32_t storage_idx,
+                             const StringPool* string_pool,
+                             Callback& cb) {
+  const Storage::DataPointer ptr = storage.data();
+  switch (ptr.index()) {
+    case StorageType::GetTypeIndex<Id>():
+      cb.OnCell(storage_idx);
+      break;
+    case StorageType::GetTypeIndex<Uint32>():
+      cb.OnCell(Storage::CastDataPtr<Uint32>(ptr)[storage_idx]);
+      break;
+    case StorageType::GetTypeIndex<Int32>():
+      cb.OnCell(Storage::CastDataPtr<Int32>(ptr)[storage_idx]);
+      break;
+    case StorageType::GetTypeIndex<Int64>():
+      cb.OnCell(Storage::CastDataPtr<Int64>(ptr)[storage_idx]);
+      break;
+    case StorageType::GetTypeIndex<Double>():
+      cb.OnCell(Storage::CastDataPtr<Double>(ptr)[storage_idx]);
+      break;
+    case StorageType::GetTypeIndex<String>(): {
+      auto id = Storage::CastDataPtr<String>(ptr)[storage_idx];
+      if (id.is_null()) {
+        cb.OnCell(nullptr);
+      } else {
+        cb.OnCell(string_pool->Get(id));
+      }
+      break;
+    }
+    default:
+      PERFETTO_FATAL("Invalid storage type");
+  }
+}
+
 inline void VerifyData(
     Dataframe& df,
     uint64_t cols_bitmap,
     const std::vector<std::vector<ValueVerifier::ValueVariant>>& expected) {
-  std::vector<FilterSpec> filter_specs;
-  auto num_cols_selected =
-      static_cast<uint32_t>(PERFETTO_POPCOUNT(cols_bitmap));
-  ASSERT_OK_AND_ASSIGN(auto plan,
-                       df.PlanQuery(filter_specs, {}, {}, {}, cols_bitmap));
-
-  // Heap allocate to avoid potential stack overflows due to large cursor
-  // object.
-  auto cursor = std::make_unique<Cursor<TestRowFetcher>>();
-  df.PrepareCursor(std::move(plan), *cursor);
-
-  TestRowFetcher fetcher;
-  cursor->Execute(fetcher);
-
-  size_t row_index = 0;
-  for (const auto& row : expected) {
-    ValueVerifier verifier;
-    ASSERT_FALSE(cursor->Eof()) << "Cursor finished early at row " << row_index;
-    verifier.Fetch(&*cursor, num_cols_selected);
-    EXPECT_THAT(verifier.values, testing::ElementsAreArray(row))
-        << "Mismatch in data for row " << row_index;
-    cursor->Next();
-    row_index++;
+  std::vector<uint32_t> selected_cols;
+  for (uint32_t c = 0; c < df.column_count(); ++c) {
+    if ((cols_bitmap >> std::min(c, 63u)) & 1u) {
+      selected_cols.push_back(c);
+    }
   }
-  ASSERT_TRUE(cursor->Eof()) << "Cursor has more rows than expected. Expected "
-                             << expected.size() << " rows.";
-  ASSERT_EQ(row_index, expected.size())
+  std::vector<uint32_t> sparse_pos(selected_cols.size(), 0);
+
+  ASSERT_EQ(df.row_count(), expected.size())
       << "Mismatch in number of rows processed.";
+  for (uint32_t row = 0; row < df.row_count(); ++row) {
+    ValueVerifier verifier;
+    for (size_t i = 0; i < selected_cols.size(); ++i) {
+      const Column& col = df.column(selected_cols[i]);
+      const BitVector* nulls = col.null_storage.MaybeGetNullBitVector();
+      if (nulls && !nulls->is_set(row)) {
+        verifier.OnCell(nullptr);
+      } else {
+        uint32_t pos =
+            IsSparse(col.null_storage.nullability()) ? sparse_pos[i]++ : row;
+        VisitStorageCell(col.storage, pos, df.string_pool(), verifier);
+      }
+    }
+    EXPECT_THAT(verifier.values, testing::ElementsAreArray(expected[row]))
+        << "Mismatch in data for row " << row;
+  }
 }
 
 template <typename... Args>
