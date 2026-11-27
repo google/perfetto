@@ -334,9 +334,10 @@ FROM (
 |> SELECT ts, upid, count
 |> ORDER BY ts;
 
--- OOM adjustment scores of each process over time.
+-- OOM adjustment scores of each process over time, with the reason of the
+-- OomAdjuster update that reported each score.
 CREATE PERFETTO TABLE _android_process_oom_scores AS
-SELECT ts, upid, oom_score
+SELECT id, ts, upid, oom_score, reason
 FROM (
   SELECT
     -- Anchor the ts-less initial row at process start, clamped to trace_start().
@@ -347,7 +348,8 @@ FROM (
     1 AS is_initial,
     s.id,
     s.upid,
-    s.oom_score
+    s.oom_score,
+    s.reason
   FROM __intrinsic_android_process_state AS s
   JOIN process AS p USING (upid)
   LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
@@ -357,7 +359,7 @@ FROM (
     -- -10000 (INVALID_ADJ) means no OOM score is set.
     AND s.oom_score != -10000
   UNION ALL
-  SELECT s.ts, 0 AS is_initial, s.id, s.upid, s.oom_score
+  SELECT s.ts, 0 AS is_initial, s.id, s.upid, s.oom_score, s.reason
   FROM __intrinsic_android_process_state AS s
   WHERE
     s.is_initial = 0

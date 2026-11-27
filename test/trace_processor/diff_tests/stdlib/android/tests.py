@@ -3763,6 +3763,7 @@ class AndroidStdlib(TestSuite):
             type: TYPE_INSTANT
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
               pid: 100 prev_oom_score: 0 cur_oom_score: 200
+              reason: OOM_ADJ_REASON_START_SERVICE
             }
           }
         }
@@ -3783,6 +3784,7 @@ class AndroidStdlib(TestSuite):
             type: TYPE_INSTANT
             [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
               pid: 100 prev_oom_score: 200 cur_oom_score: 900
+              reason: OOM_ADJ_REASON_UNBIND_SERVICE
             }
           }
         }
@@ -3795,17 +3797,17 @@ class AndroidStdlib(TestSuite):
         """),
         query="""
         INCLUDE PERFETTO MODULE android.process_state;
-        SELECT o.ts, p.pid, o.oom_score
+        SELECT o.ts, p.pid, o.oom_score, o.reason
         FROM _android_process_oom_scores AS o
         JOIN process AS p USING (upid);
         """,
         out=Csv("""
-        "ts","pid","oom_score"
-        1000,100,0
-        1500,300,-900
-        2000,100,200
-        2500,200,0
-        3000,100,900
+        "ts","pid","oom_score","reason"
+        1000,100,0,"[NULL]"
+        1500,300,-900,"[NULL]"
+        2000,100,200,"OOM_ADJ_REASON_START_SERVICE"
+        2500,200,0,"[NULL]"
+        3000,100,900,"OOM_ADJ_REASON_UNBIND_SERVICE"
         """))
 
   def test_is_relevant_notifications_blocking_call(self):

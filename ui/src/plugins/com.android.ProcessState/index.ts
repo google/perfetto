@@ -42,6 +42,7 @@ import {
   FREEZER_RESIDENCY,
   FreezerTransitionsAggregator,
   freezerTrackUri,
+  OomScoreTransitionsAggregator,
   PROCESS_STATE_RESIDENCY,
   ProcessExitsAggregator,
   ProcessStartsAggregator,
@@ -52,9 +53,11 @@ import {
   TAG_COUNT_TRACK,
   TAG_FREEZER_COUNT_TRACK,
   TAG_FREEZER_TRACK,
+  TAG_OOM_SCORE_TRACK,
   TAG_PROCESS_TRACK,
 } from './aggregators';
 import {ProcessStateDetailsPanel} from './details_panel';
+import {OomScoreTrack} from './oom_score_track';
 import {ProcessStateCountTrack} from './state_count_track';
 
 const BASE_SCHEMA = {
@@ -119,9 +122,6 @@ const COMPACT_SLICES = {sliceHeight: 12, titleSizePx: 10};
 // Below every other process-scoped track (-50..30) so it appears first.
 const PROCESS_GROUP_SORT_ORDER = -100;
 
-// Keeps the OOM score lanes out of the aggregators.
-const TAG_OOM_SCORE_TRACK = 'android_oom_score';
-
 interface ProcessTrack {
   readonly node: TrackNode;
   readonly userId?: number;
@@ -179,7 +179,6 @@ function addByPackage(
     parent.addChildLast(node);
   }
 }
-
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
  *
@@ -244,6 +243,9 @@ export default class ProcessState implements PerfettoPlugin {
         ctx,
         new ResidencyAggregator(ctx, CAPABILITY_RESIDENCY),
       ),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new OomScoreTransitionsAggregator(ctx)),
     );
 
     const group = new TrackNode({
@@ -516,16 +518,13 @@ export default class ProcessState implements PerfettoPlugin {
             upid,
             description: `OOM adjustment score of ${name} (${pid}) over time.`,
             create: (trackUri) =>
-              CounterTrack.create({
-                trace: ctx,
-                uri: trackUri,
-                endTs: Time.fromRaw(endTs ?? undefined),
-                sqlSource: `
-                  SELECT ts, oom_score AS value
-                  FROM _android_process_oom_scores
-                  WHERE upid = ${upid}
-                `,
-              }),
+              new OomScoreTrack(
+                ctx,
+                trackUri,
+                upid,
+                `${name} ${pid}`,
+                Time.fromRaw(endTs ?? undefined),
+              ),
           },
         );
         overviewNode.addChildLast(

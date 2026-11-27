@@ -51,6 +51,9 @@ export const TAG_FREEZER_COUNT_TRACK = 'android_freezer_count';
 /** Track tag `type` of the per-process capability tracks. */
 export const TAG_CAPABILITY_TRACK = 'android_process_capability';
 
+/** Track tag `type` of the per-process OOM score tracks. */
+export const TAG_OOM_SCORE_TRACK = 'android_oom_score';
+
 /** Track URI for a single process's proc-state timeline. */
 export function processTrackUri(upid: number): string {
   return `com.android.ProcessState#process.${upid}`;
@@ -653,5 +656,123 @@ export class FreezerTransitionsAggregator implements Aggregator {
 
   getTabName() {
     return 'Freezer Transitions';
+  }
+}
+
+/**
+ * The OOM score changes of the given processes: one row per new score, with
+ * how long it lasted and the score before it.
+ */
+export function oomScoreChanges(upids: ReadonlyArray<number>): string {
+  return `
+    SELECT
+      c.id,
+      c.ts,
+      coalesce(lead(c.ts) OVER w, p.end_ts, trace_end()) - c.ts AS dur,
+      c.upid,
+      c.oom_score,
+      c.reason,
+      lag(c.oom_score) OVER w AS prev_score,
+      c.ts - lag(c.ts) OVER w AS prev_dur
+    FROM (
+      SELECT id, ts, upid, oom_score, reason
+      FROM (
+        SELECT
+          *,
+          lag(oom_score) OVER (PARTITION BY upid ORDER BY ts) AS prev
+        FROM _android_process_oom_scores
+        WHERE upid IN (${upids.join(',')})
+      )
+      -- A score repeats when only the proc state, the capabilities or the
+      -- process group changed.
+      WHERE prev IS NULL OR prev != oom_score
+    ) AS c
+    JOIN process AS p USING (upid)
+    WINDOW w AS (PARTITION BY c.upid ORDER BY c.ts)
+  `;
+}
+
+/** Every OOM score change in the selection, with the OomAdjuster reason. */
+export class OomScoreTransitionsAggregator implements Aggregator {
+  readonly id = 'android_oom_score_transitions';
+
+  constructor(private readonly trace: Trace) {}
+
+  probe(area: AreaSelection) {
+    const scope = probeScope(area, TAG_OOM_SCORE_TRACK);
+    if (scope === undefined) {
+      return undefined;
+    }
+
+    return {
+      getGridConfig: () => this.getGridConfig(),
+      prepareData: async (engine: Engine) => {
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            SELECT
+              t.ts,
+              m.process_name,
+              p.pid,
+              t.prev_score,
+              t.prev_dur,
+              t.oom_score AS cur_score,
+              t.dur AS cur_dur,
+              t.reason
+            FROM (${oomScoreChanges(scope.upids)}) AS t
+            JOIN process AS p USING (upid)
+            LEFT JOIN android_process_metadata AS m USING (upid)
+            WHERE t.prev_score IS NOT NULL
+              AND t.ts >= ${area.start}
+              AND t.ts < ${area.end}
+          `,
+        });
+        return createAggregationData(table);
+      },
+    };
+  }
+
+  private getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        ts: timestampColumn(this.trace, 'Transition ts'),
+        process_name: {title: 'Process', columnType: 'text'},
+        pid: {title: 'PID', columnType: 'identifier'},
+        prev_score: {title: 'Previous score', columnType: 'quantitative'},
+        prev_dur: durationColumn(
+          this.trace,
+          'Time at previous score',
+          'Total elapsed duration at the previous score, unclipped by the selection window.',
+        ),
+        cur_score: {title: 'Current score', columnType: 'quantitative'},
+        cur_dur: durationColumn(
+          this.trace,
+          'Time at current score',
+          'Total elapsed duration at the current score, unclipped by the selection window.',
+        ),
+        reason: {
+          title: titleWithHelp(
+            'OomAdjuster reason',
+            'What triggered the OomAdjuster update that set this score. One update can change the scores of many processes.',
+          ),
+          titleString: 'OomAdjuster reason',
+          columnType: 'text',
+        },
+      },
+      initialColumns: [
+        {id: 'ts', field: 'ts', sort: 'ASC'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'pid', field: 'pid'},
+        {id: 'prev_score', field: 'prev_score'},
+        {id: 'prev_dur', field: 'prev_dur'},
+        {id: 'cur_score', field: 'cur_score'},
+        {id: 'cur_dur', field: 'cur_dur'},
+        {id: 'reason', field: 'reason'},
+      ],
+    };
+  }
+
+  getTabName() {
+    return 'OOM Score Transitions';
   }
 }
