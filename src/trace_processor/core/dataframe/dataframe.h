@@ -289,6 +289,9 @@ class Dataframe {
   // Returns whether the dataframe has been finalized.
   bool finalized() const { return finalized_; }
 
+  // Holds the strings of the dataframe's string columns.
+  StringPool* string_pool() const { return string_pool_; }
+
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
@@ -297,10 +300,9 @@ class Dataframe {
   const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
 
   // Returns `column` with shared ownership, for readers that must outlive
-  // the dataframe. Only valid on a finalized dataframe as columns are
-  // immutable after that.
+  // the dataframe. On an unfinalized dataframe, callers must not read the
+  // returned column across mutations to the dataframe.
   std::shared_ptr<const Column> shared_column(uint32_t column) const {
-    PERFETTO_DCHECK(finalized_);
     return columns_[column];
   }
   // Returns the type of the values in `column`.
