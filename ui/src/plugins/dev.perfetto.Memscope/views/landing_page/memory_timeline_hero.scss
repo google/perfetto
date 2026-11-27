@@ -101,20 +101,6 @@
   stroke-dasharray: 2 4;
 }
 
-.pf-memtl__rss-swatch {
-  fill: #7c4dff;
-
-  &--anon {
-    fill: #5c6bc0;
-  }
-}
-
-.pf-memtl__rss-sublabel {
-  font-size: 10px;
-  font-weight: 500;
-  fill: var(--pf-color-text-muted);
-}
-
 .pf-memtl__rss-ytick {
   font-size: 10px;
   font-family: var(--pf-font-monospace);
@@ -186,38 +172,6 @@
   stroke: color-mix(in srgb, var(--pf-col-border) 70%, transparent);
   stroke-width: 1;
   stroke-dasharray: 2 4;
-  pointer-events: none;
-}
-
-.pf-memtl__badge-dot {
-  pointer-events: none;
-
-  &--smaps {
-    fill: #4caf50;
-  }
-
-  &--java {
-    fill: #2196f3;
-  }
-
-  &--native {
-    fill: #ff9800;
-  }
-}
-
-.pf-memtl__track-name {
-  font-size: 12px;
-  font-weight: 600;
-  fill: var(--pf-color-text);
-  pointer-events: none;
-}
-
-.pf-memtl__track-count {
-  font-size: 11px;
-  font-family: var(--pf-font-monospace);
-  font-variant-numeric: tabular-nums;
-  fill: var(--pf-color-text-muted);
-  text-anchor: end;
   pointer-events: none;
 }
 
@@ -440,6 +394,69 @@
   &-native {
     color: #ff9800;
     font-weight: 600;
+  }
+}
+
+// Compact legend strip below the combined timeline
+.pf-memtl__legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 4px 14px 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memtl__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &--empty {
+    opacity: 0.45;
+  }
+}
+
+.pf-memtl__legend-line {
+  display: inline-block;
+  width: 12px;
+  height: 0;
+
+  &--rss {
+    border-top: 2px solid #7c4dff;
+  }
+
+  &--anon {
+    border-top: 2px dashed #5c6bc0;
+  }
+}
+
+.pf-memtl__legend-sprite {
+  display: inline-block;
+  flex-shrink: 0;
+
+  &--smaps {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4caf50;
+  }
+
+  &--java {
+    width: 8px;
+    height: 8px;
+    background: #2196f3;
+    transform: rotate(45deg);
+    border-radius: 1px;
+  }
+
+  &--native {
+    width: 4px;
+    height: 11px;
+    border-radius: 999px;
+    background: #ff9800;
   }
 }
 
