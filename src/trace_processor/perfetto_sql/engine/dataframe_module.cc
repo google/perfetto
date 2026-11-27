@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/pipeline/builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/iterator.h"
@@ -479,12 +480,10 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   }
   info->orderByConsumed = true;
 
-  // Temporary bridge: use Dataframe::PlanQuery for SQLite cost/row estimates
-  // and constraint argument ordering, then execute via pipeline.
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
-      s->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
-                              limit_spec, info->colUsed));
+      s->dataframe->PlanQueryLogical(filter_specs, distinct_specs, sort_specs,
+                                     limit_spec, info->colUsed));
   int max_argv = 0;
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
@@ -504,9 +503,9 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     info->aConstraintUsage[*offset_constraint_idx].argvIndex = ++max_argv;
   }
   info->needToFreeIdxStr = true;
-  info->estimatedCost = plan.estimated_cost();
-  info->estimatedRows = plan.estimated_row_count();
-  if (plan.max_row_count() <= 1) {
+  info->estimatedCost = plan.EstimatedCost();
+  info->estimatedRows = plan.rows.estimated;
+  if (plan.rows.max <= 1) {
     info->idxFlags |= SQLITE_INDEX_SCAN_UNIQUE;
   }
   info->idxNum = v->best_idx_num++;

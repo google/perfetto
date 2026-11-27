@@ -66,10 +66,7 @@ namespace {
 std::vector<uint32_t> SparseColumns(const Bindings::Dataframe& data) {
   std::vector<uint32_t> sparse;
   for (uint32_t i = 0; i < data.columns.size(); ++i) {
-    const auto& n = data.columns[i]->null_storage.nullability();
-    if (n.Is<core::SparseNull>() ||
-        n.Is<core::SparseNullWithPopcountAlways>() ||
-        n.Is<core::SparseNullWithPopcountUntilFinalization>()) {
+    if (core::IsSparse(data.columns[i]->null_storage.nullability())) {
       sparse.push_back(i);
     }
   }

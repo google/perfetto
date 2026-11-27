@@ -185,6 +185,10 @@ struct LogicalPlan {
   // Rows the whole plan produces.
   core::RowEstimate rows;
 
+  // Estimates the execution cost of this plan for query optimization (e.g.
+  // SQLite's xBestIndex).
+  double EstimatedCost() const;
+
   // Renders the plan one operation per line. For debugging and tests; not
   // parsed back.
   std::string ToString() const;

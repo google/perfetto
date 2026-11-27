@@ -40,12 +40,6 @@ namespace perfetto::trace_processor::core::exec {
 
 namespace {
 
-bool IsSparse(const dataframe::NullStorage& nulls) {
-  const auto& n = nulls.nullability();
-  return n.Is<SparseNull>() || n.Is<SparseNullWithPopcountAlways>() ||
-         n.Is<SparseNullWithPopcountUntilFinalization>();
-}
-
 // Lends `column` where it lies: a flat view onto its storage, or, for a
 // column without a slot per row, a sparse view with its prefix popcount.
 template <typename T>
@@ -148,7 +142,7 @@ void DataframeWindows::Init(base::Span<const dataframe::Column* const> columns,
     const dataframe::Column& column = *columns[i];
     StorageType type = column.storage.type();
     const auto& nulls = column.null_storage;
-    bool sparse = IsSparse(nulls);
+    bool sparse = IsSparse(nulls.nullability());
     const uint32_t* popcount = sparse ? PopcountOf(column, context) : nullptr;
     if (type.Is<Id>()) {
       // An id column stores no values: each is its row, or for a sparse one

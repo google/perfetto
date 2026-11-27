@@ -529,6 +529,163 @@ std::string RowsToString(const core::RowEstimate& in,
 
 }  // namespace
 
+namespace {
+
+template <typename... Ts>
+struct Overloaded : Ts... {
+  using Ts::operator()...;
+};
+template <typename... Ts>
+Overloaded(Ts...) -> Overloaded<Ts...>;
+
+// Relative per-operation cost weights for LogicalPlan::EstimatedCost().
+constexpr double kFixedCost = 5.0;
+constexpr double kLimitCost = 10.0;
+constexpr double kSmallValueLookupCost = 10.0;
+constexpr double kIdOrSetIdLookupCost = 20.0;
+constexpr double kMaterializeSetupCost = 30.0;
+constexpr double kInSetupCost = 1000.0;
+
+constexpr double kOutputPerRow = 2.0;
+constexpr double kLinearFilterPerRow = 5.0;
+constexpr double kMinMaxPerRow = 7.0;
+constexpr double kMaterializePerRow = 10.0;
+constexpr double kBinarySearchLogFactor = 10.0;
+constexpr double kInOrDistinctPerRow = 10.0;
+constexpr double kNullPruneOrStringFilterPerRow = 15.0;
+constexpr double kSortLogLinearFactor = 15.0;
+
+double LogCost(uint32_t n, double factor) {
+  return n == 0 ? kFixedCost : factor * std::log2(static_cast<double>(n));
+}
+
+double LinearCost(uint32_t n, double factor) {
+  return n == 0 ? kFixedCost : factor * static_cast<double>(n);
+}
+
+double LogLinearCost(uint32_t n, double factor) {
+  if (n == 0) {
+    return kFixedCost;
+  }
+  double dn = static_cast<double>(n);
+  return factor * dn * std::log2(dn);
+}
+
+}  // namespace
+
+double LogicalPlan::EstimatedCost() const {
+  double cost = 0.0;
+  uint32_t current_rows = 0;
+  bool materialized = false;
+  auto ensure_materialized = [&]() {
+    if (!materialized) {
+      cost +=
+          kMaterializeSetupCost + LinearCost(current_rows, kMaterializePerRow);
+      materialized = true;
+    }
+  };
+  auto visit_op = Overloaded{
+      [&](const logical::Scan& s) {
+        cost += kFixedCost;
+        current_rows = s.rows.estimated;
+      },
+      [&](const logical::Empty&) {
+        cost += kFixedCost;
+        current_rows = 0;
+      },
+      [&](const logical::Filter& f) {
+        if (f.op.Is<In>()) {
+          cost += kInSetupCost;
+        } else if (!f.op.IsAnyOf<NullOp>()) {
+          cost += kFixedCost;
+        }
+        auto linear_scan = [&]() {
+          ensure_materialized();
+          if (!f.nullability.Is<NonNull>()) {
+            cost +=
+                LinearCost(f.rows_in.estimated, kNullPruneOrStringFilterPerRow);
+          }
+          if (f.op.IsAnyOf<NullOp>()) {
+            cost += LinearCost(f.rows_in.estimated, kLinearFilterPerRow);
+          } else if (f.op.Is<In>()) {
+            cost += LinearCost(f.estimated_rows_after_null_prune,
+                               kInOrDistinctPerRow);
+          } else if (f.storage.Is<String>()) {
+            cost += LinearCost(f.estimated_rows_after_null_prune,
+                               kNullPruneOrStringFilterPerRow);
+          } else {
+            cost += LinearCost(f.estimated_rows_after_null_prune,
+                               kLinearFilterPerRow);
+          }
+        };
+        std::visit(Overloaded{
+                       [&](logical::BinarySearch) {
+                         cost += f.storage.Is<Id>()
+                                     ? kIdOrSetIdLookupCost
+                                     : LogCost(f.rows_in.estimated,
+                                               kBinarySearchLogFactor);
+                       },
+                       [&](logical::SetIdSortedSearch) {
+                         cost += kIdOrSetIdLookupCost;
+                       },
+                       [&](logical::SmallValueLookup) {
+                         cost += kSmallValueLookupCost;
+                       },
+                       [&](logical::RangeScan) { linear_scan(); },
+                       [&](logical::IndexListScan) { linear_scan(); },
+                   },
+                   f.strategy);
+        current_rows = f.rows_out.estimated;
+      },
+      [&](const logical::IndexFilter& idx) {
+        for (const auto& p : idx.predicates) {
+          if (p.op.Is<In>()) {
+            cost += kInSetupCost +
+                    LinearCost(p.rows_out.estimated, kLinearFilterPerRow);
+          } else {
+            cost += kFixedCost +
+                    LogCost(p.rows_in.estimated, kBinarySearchLogFactor);
+          }
+          current_rows = p.rows_out.estimated;
+        }
+        cost += LinearCost(current_rows, kOutputPerRow);
+        materialized = true;
+      },
+      [&](const logical::Distinct& d) {
+        ensure_materialized();
+        cost += LinearCost(d.rows_in.estimated, kInOrDistinctPerRow) *
+                static_cast<double>(std::max<size_t>(1, d.cols.size()));
+        current_rows = d.rows_out.estimated;
+      },
+      [&](const logical::Reverse&) {
+        ensure_materialized();
+        cost += LinearCost(current_rows, kOutputPerRow);
+      },
+      [&](const logical::Sort& sort) {
+        ensure_materialized();
+        cost += LogLinearCost(sort.rows.estimated, kSortLogLinearFactor);
+        current_rows = sort.rows.estimated;
+      },
+      [&](const logical::MinMax& mm) {
+        ensure_materialized();
+        cost += LinearCost(mm.rows_in.estimated, kMinMaxPerRow);
+        current_rows = mm.rows_out.estimated;
+      },
+      [&](const logical::Limit& l) {
+        cost += kLimitCost;
+        current_rows = l.rows_out.estimated;
+      },
+      [&](const logical::Output&) {
+        ensure_materialized();
+        cost += LinearCost(current_rows, kOutputPerRow);
+      },
+  };
+  for (const logical::Operation& op : ops) {
+    std::visit(visit_op, op);
+  }
+  return cost;
+}
+
 std::string LogicalPlan::ToString() const {
   std::string res;
   for (const auto& op : ops) {

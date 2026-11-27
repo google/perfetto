@@ -49,6 +49,12 @@ using Nullability = base::TypeSet<NonNull,
                                   SparseNullWithPopcountUntilFinalization,
                                   DenseNull>;
 
+// Returns whether `n` stores values sparsely (only for non-null rows).
+inline bool IsSparse(Nullability n) {
+  return n.Is<SparseNull>() || n.Is<SparseNullWithPopcountAlways>() ||
+         n.Is<SparseNullWithPopcountUntilFinalization>();
+}
+
 }  // namespace perfetto::trace_processor::core
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_NULL_TYPES_H_

@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,17 +27,23 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/null_types.h"
+#include "src/trace_processor/core/common/row_layout.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/string_ranks.h"
 #include "src/trace_processor/core/dataframe/bytecode_lowering.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/ops.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 namespace {
@@ -142,7 +149,7 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
   return QueryPlan(BytecodeLowering::Lower(logical, columns_, indexes_));
 }
 
-base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
+base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogical(
     std::vector<FilterSpec>& filter_specs,
     const std::vector<DistinctSpec>& distinct_specs,
     const std::vector<SortSpec>& sort_specs,
@@ -200,26 +207,171 @@ void Dataframe::Clear() {
   ++non_column_mutations_;
 }
 
+namespace {
+
+RowLayout::Type RowLayoutTypeFor(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Id>():
+    case StorageType::GetTypeIndex<Uint32>():
+    case StorageType::GetTypeIndex<String>():
+      return RowLayout::Type::kUint32;
+    case StorageType::GetTypeIndex<Int32>():
+      return RowLayout::Type::kInt32;
+    case StorageType::GetTypeIndex<Int64>():
+      return RowLayout::Type::kInt64;
+    case StorageType::GetTypeIndex<Double>():
+      return RowLayout::Type::kDouble;
+    default:
+      PERFETTO_FATAL("Unsupported storage type");
+  }
+}
+
+template <typename T>
+void WriteColumnToRowLayout(const Column& col,
+                            uint32_t row_count,
+                            RowLayout::Slot slot,
+                            uint8_t* rows) {
+  const auto* data = col.storage.unchecked_data<typename TypeTagFor<T>::type>();
+  const BitVector* nulls = col.null_storage.MaybeGetNullBitVector();
+  if (!nulls) {
+    RowLayout::Write<T>(
+        slot, row_count,
+        [data](uint32_t row, T* out) {
+          *out = data[row];
+          return true;
+        },
+        rows);
+    return;
+  }
+  bool sparse = IsSparse(col.null_storage.nullability());
+  uint32_t storage_idx = 0;
+  RowLayout::Write<T>(
+      slot, row_count,
+      [data, nulls, sparse, &storage_idx](uint32_t row, T* out) {
+        if (!nulls->is_set(row)) {
+          return false;
+        }
+        *out = data[sparse ? storage_idx++ : row];
+        return true;
+      },
+      rows);
+}
+
+}  // namespace
+
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
-  std::vector<SortSpec> sorts;
-  sorts.reserve(cols.size());
-  for (const auto& col : cols) {
-    sorts.push_back(SortSpec{col, SortDirection::kAscending});
+  std::vector<uint32_t> permutation(row_count_);
+  std::iota(permutation.begin(), permutation.end(), uint32_t{0});
+  if (row_count_ <= 1 || cols.empty()) {
+    return Index(std::move(cols), std::make_shared<std::vector<uint32_t>>(
+                                      std::move(permutation)));
   }
 
-  // Heap allocate to avoid potential stack overflows due to large cursor
-  // object.
-  auto c = std::make_unique<TypedCursor>(this, std::vector<FilterSpec>(),
-                                         std::move(sorts));
-  c->ExecuteUnchecked();
-
-  std::vector<uint32_t> permutation;
-  permutation.reserve(row_count_);
-  for (; !c->Eof(); c->Next()) {
-    permutation.push_back(c->RowIndex());
+  std::vector<RowLayout::Column> layout_cols;
+  layout_cols.reserve(cols.size());
+  StringRanks string_ranks;
+  bool has_string = false;
+  for (uint32_t col_idx : cols) {
+    const Column& col = *column_ptrs_[col_idx];
+    StorageType type = col.storage.type();
+    bool nullable =
+        !col.null_storage.nullability().Is<NonNull>() || type.Is<String>();
+    layout_cols.push_back({RowLayoutTypeFor(type), nullable, false});
+    if (!type.Is<String>()) {
+      continue;
+    }
+    has_string = true;
+    const auto& data = col.storage.unchecked_get<String>();
+    const BitVector* nulls = col.null_storage.MaybeGetNullBitVector();
+    if (!nulls || IsSparse(col.null_storage.nullability())) {
+      for (uint32_t i = 0; i < data.size(); ++i) {
+        if (!data[i].is_null()) {
+          string_ranks.Add(data[i]);
+        }
+      }
+    } else {
+      for (uint32_t row = 0; row < row_count_; ++row) {
+        if (nulls->is_set(row) && !data[row].is_null()) {
+          string_ranks.Add(data[row]);
+        }
+      }
+    }
   }
+  if (has_string) {
+    string_ranks.Rank(*string_pool_);
+  }
+
+  RowLayout layout(layout_cols);
+  auto buffer = Slab<uint8_t>::Alloc(size_t{row_count_} * layout.stride());
+  for (uint32_t i = 0; i < cols.size(); ++i) {
+    const Column& col = *column_ptrs_[cols[i]];
+    RowLayout::Slot slot = layout.slot(i);
+    switch (col.storage.type().index()) {
+      case StorageType::GetTypeIndex<Id>(): {
+        const BitVector* nulls = col.null_storage.MaybeGetNullBitVector();
+        bool sparse = IsSparse(col.null_storage.nullability());
+        uint32_t storage_idx = 0;
+        RowLayout::Write<uint32_t>(
+            slot, row_count_,
+            [nulls, sparse, &storage_idx](uint32_t row, uint32_t* out) {
+              if (nulls && !nulls->is_set(row)) {
+                return false;
+              }
+              *out = sparse ? storage_idx++ : row;
+              return true;
+            },
+            buffer.data());
+        break;
+      }
+      case StorageType::GetTypeIndex<Uint32>():
+        WriteColumnToRowLayout<uint32_t>(col, row_count_, slot, buffer.data());
+        break;
+      case StorageType::GetTypeIndex<Int32>():
+        WriteColumnToRowLayout<int32_t>(col, row_count_, slot, buffer.data());
+        break;
+      case StorageType::GetTypeIndex<Int64>():
+        WriteColumnToRowLayout<int64_t>(col, row_count_, slot, buffer.data());
+        break;
+      case StorageType::GetTypeIndex<Double>():
+        WriteColumnToRowLayout<double>(col, row_count_, slot, buffer.data());
+        break;
+      case StorageType::GetTypeIndex<String>(): {
+        const auto* data = col.storage.unchecked_data<String>();
+        const BitVector* nulls = col.null_storage.MaybeGetNullBitVector();
+        bool sparse = IsSparse(col.null_storage.nullability());
+        uint32_t storage_idx = 0;
+        RowLayout::Write<uint32_t>(
+            slot, row_count_,
+            [data, nulls, sparse, &storage_idx, &string_ranks](uint32_t row,
+                                                               uint32_t* out) {
+              if (nulls && !nulls->is_set(row)) {
+                return false;
+              }
+              StringPool::Id id = data[sparse ? storage_idx++ : row];
+              if (id.is_null()) {
+                return false;
+              }
+              const uint32_t* rank = string_ranks.Find(id);
+              PERFETTO_DCHECK(rank);
+              *out = *rank;
+              return true;
+            },
+            buffer.data());
+        break;
+      }
+      default:
+        PERFETTO_FATAL("Unsupported storage type");
+    }
+  }
+
+  base::Span<uint32_t> perm_span(permutation.data(),
+                                 permutation.data() + permutation.size());
+  ops::SortRowLayout(
+      base::Span<const uint8_t>(buffer.data(), buffer.data() + buffer.size()),
+      layout.stride(), &perm_span);
+
   return Index(std::move(cols),
                std::make_shared<std::vector<uint32_t>>(std::move(permutation)));
 }

@@ -206,10 +206,6 @@ inline bool IsNullable(Nullability type) {
   return !type.Is<core::NonNull>();
 }
 
-inline bool IsSparse(Nullability type) {
-  return IsNullable(type) && !type.Is<core::DenseNull>();
-}
-
 // Reads the |index|-th little-endian T from |data|.
 template <typename T>
 T Load(const uint8_t* data, uint32_t index) {

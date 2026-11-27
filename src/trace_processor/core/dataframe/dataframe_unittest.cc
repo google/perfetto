@@ -2070,8 +2070,8 @@ class LogicalPlanTest : public ::testing::Test {
                           uint64_t cols_used = 0xFFFFFFFF) {
     ASSERT_OK_AND_ASSIGN(
         LogicalPlan plan,
-        df.PlanQueryLogicalForTesting(filters, distinct_specs, sort_specs,
-                                      limit_spec, cols_used));
+        df.PlanQueryLogical(filters, distinct_specs, sort_specs, limit_spec,
+                            cols_used));
     EXPECT_THAT(plan.ToString(), EqualsIgnoringWhitespace(expected));
   }
 

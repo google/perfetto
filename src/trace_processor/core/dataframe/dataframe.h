@@ -170,9 +170,9 @@ class Dataframe {
   // The indexes added to the dataframe (see AddIndex).
   const std::vector<Index>& indexes() const { return indexes_; }
 
-  // Returns the logical plan PlanQuery would lower, for tests which assert on
-  // the planner's choices rather than on the bytecode they produce.
-  base::StatusOr<LogicalPlan> PlanQueryLogicalForTesting(
+  // Plans a query logically (assigning `value_index` on usable filter specs,
+  // estimating output rows and cost) without lowering to bytecode.
+  base::StatusOr<LogicalPlan> PlanQueryLogical(
       std::vector<FilterSpec>& filter_specs,
       const std::vector<DistinctSpec>& distinct_specs,
       const std::vector<SortSpec>& sort_specs,

@@ -46,9 +46,7 @@ namespace {
 using filter::CastFilterValueResult;
 
 bool StoresNoValueForNulls(const dataframe::Column& column) {
-  const auto& n = column.null_storage.nullability();
-  return n.Is<SparseNull>() || n.Is<SparseNullWithPopcountAlways>() ||
-         n.Is<SparseNullWithPopcountUntilFinalization>();
+  return IsSparse(column.null_storage.nullability());
 }
 
 }  // namespace

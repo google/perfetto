@@ -393,8 +393,8 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
         shape.emplace_back(col, op);
       }
       std::vector<dataframe::FilterSpec> planned = specs;
-      auto logical = df_->PlanQueryLogicalForTesting(planned, {}, {}, {},
-                                                     uint64_t{1} << kMaybe);
+      auto logical =
+          df_->PlanQueryLogical(planned, {}, {}, {}, uint64_t{1} << kMaybe);
       ASSERT_TRUE(logical.ok());
       std::optional<ExecPlan> exec = Lower(*logical, ReadDirection::kForwards);
       if (!exec) {
