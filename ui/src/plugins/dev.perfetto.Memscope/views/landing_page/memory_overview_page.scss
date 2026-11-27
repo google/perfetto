@@ -248,18 +248,6 @@
     white-space: nowrap;
   }
 
-  &__badge {
-    flex-shrink: 0;
-    padding: 0 5px;
-    border-radius: 999px;
-    background: var(--pf-col-inset);
-    border: 1px solid var(--pf-col-border);
-    font-size: 10px;
-    font-family: var(--pf-font-monospace);
-    font-variant-numeric: tabular-nums;
-    color: var(--pf-color-text-muted);
-  }
-
   &__close {
     flex-shrink: 0;
     display: inline-flex;

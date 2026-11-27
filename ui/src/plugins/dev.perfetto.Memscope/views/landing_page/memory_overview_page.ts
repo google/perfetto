@@ -368,7 +368,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
               activePage,
               hdeSession,
               procDumps,
-              capture,
               smapsAvailable,
               dumpsAvailable,
               nativeAvailable,
@@ -400,7 +399,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
     readonly activePage: MemoryTreePage;
     readonly hdeSession?: HeapDumpExplorerSession;
     readonly procDumps: ReadonlyArray<HeapDump>;
-    readonly capture?: CaptureInfo;
     readonly smapsAvailable: boolean;
     readonly dumpsAvailable: boolean;
     readonly nativeAvailable: boolean;
@@ -420,7 +418,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       activePage,
       hdeSession,
       procDumps,
-      capture,
       smapsAvailable,
       dumpsAvailable,
       nativeAvailable,
@@ -449,7 +446,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
       readonly active: boolean;
       readonly nested?: boolean;
       readonly muted?: boolean;
-      readonly badge?: string;
       readonly onClose?: () => void;
       readonly onclick: () => void;
     }) =>
@@ -470,8 +466,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
             [
               m(Icon, {icon: item.icon, className: 'pf-memtree-node__icon'}),
               m('span.pf-memtree-node__label', item.label),
-              item.badge !== undefined &&
-                m('span.pf-memtree-node__badge', item.badge),
             ],
           ),
           item.onClose !== undefined &&
@@ -541,10 +535,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
           icon: 'table_rows',
           active: activePage === 'smaps',
           muted: !smapsAvailable,
-          badge:
-            capture !== undefined && capture.smaps.samples > 0
-              ? `${capture.smaps.samples}`
-              : undefined,
           onclick: () => onNavigatePage('smaps'),
         }),
 
@@ -568,8 +558,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
               }),
               m(Icon, {icon: 'coffee', className: 'pf-memtree-group__icon'}),
               m('span.pf-memtree-group__label', 'Java'),
-              procDumps.length > 0 &&
-                m('span.pf-memtree-node__badge', `${procDumps.length}`),
             ],
           ),
           this.javaExpanded &&
@@ -676,9 +664,6 @@ export class MemoryOverviewPage implements m.ClassComponent<MemoryOverviewPageAt
                 className: 'pf-memtree-group__icon',
               }),
               m('span.pf-memtree-group__label', 'Native'),
-              capture !== undefined &&
-                capture.native.samples > 0 &&
-                m('span.pf-memtree-node__badge', `${capture.native.samples}`),
             ],
           ),
           this.nativeExpanded &&
