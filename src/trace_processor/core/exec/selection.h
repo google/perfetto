@@ -82,6 +82,9 @@ class Selection {
   // row.
   void KeepMatching(const uint32_t* values, uint32_t value, bool equal);
 
+  // Reverses the order of the rows kept.
+  void Reverse();
+
   // Keeps `count` of the rows kept, from the `first`.
   void KeepRange(uint32_t first, uint32_t count);
 

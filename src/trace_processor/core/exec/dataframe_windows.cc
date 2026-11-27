@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 
-#include <array>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -91,6 +90,13 @@ const BitVector* GatherColumn(const ColumnView& view,
   const uint32_t* popcount = view.popcount();
   const uint32_t* begin = rows.b;
   auto count = static_cast<uint32_t>(rows.size());
+  if (!validity && !sparse && data) {
+    for (uint32_t i = 0; i < count; ++i) {
+      memcpy(values + uint64_t{i} * kWidth, data + uint64_t{begin[i]} * kWidth,
+             kWidth);
+    }
+    return nullptr;
+  }
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t row = begin[i];
     uint8_t* value = values + uint64_t{i} * kWidth;
@@ -168,6 +174,13 @@ void DataframeWindows::Gather(base::Span<const uint32_t> rows,
   gathered_buffers_.resize(lent_.size());
   for (uint32_t i = 0; i < lent_.size(); ++i) {
     const ColumnView& view = lent_[i];
+    if (view.kind() == ColumnView::Kind::kSequence && !view.validity()) {
+      // A non-null id's values are the rows themselves, which outlive the
+      // batch, so they are lent rather than copied.
+      gathered_[i] = ColumnView::Reference(StorageType{Uint32{}}, rows.b);
+      gathered_buffers_[i] = ColumnBuffer();
+      continue;
+    }
     uint32_t width = ValueWidth(view.type());
     // A buffer a batch still holds is left to it: a fresh one is taken.
     gathered_buffers_[i] = context.TakeBuffer(width);
@@ -183,21 +196,9 @@ void DataframeWindows::Gather(base::Span<const uint32_t> rows,
   out.SetRowCount(static_cast<uint32_t>(rows.size()));
 }
 
-void DataframeWindows::Fill(uint32_t from, uint32_t count, RowBatch& out) {
-  // Only the windows move: the views stay as they were lent.
-  for (ColumnView& view : lent_) {
-    view.set_start(from);
-  }
-  out.SetColumns(lent_, buffers_);
-  out.SetRowCount(count);
-}
-
 void RangeReader::Init(
     const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
   windows_.Init(columns);
-  for (uint32_t i = 0; i < kMaxBatchRows; ++i) {
-    descending_[i] = kMaxBatchRows - 1 - i;
-  }
 }
 
 bool RangeReader::ReadBackwards(RowBatch& out) {
@@ -207,9 +208,7 @@ bool RangeReader::ReadBackwards(RowBatch& out) {
   uint32_t count = std::min(kMaxBatchRows, next_ - range_.b);
   next_ -= count;
   windows_.Fill(next_, count, out);
-  out.mutable_selection().Reorder(
-      base::Span<const uint32_t>(descending_.data() + (kMaxBatchRows - count),
-                                 descending_.data() + kMaxBatchRows));
+  out.mutable_selection().Reverse();
   out.SetLast(next_ == range_.b);
   return true;
 }

@@ -43,6 +43,16 @@ namespace {
 
 using filter::CastFilterValueResult;
 
+// Out of line, so that FindAll builds no CastFilterValueResult::Value on the
+// path of every other search.
+PERFETTO_NO_INLINE Range SearchSortedString(const filter::SortedColumn& column,
+                                            RangeOp op,
+                                            const char* str,
+                                            Range range) {
+  return filter::SearchSorted(column, op, CastFilterValueResult::Value(str),
+                              range);
+}
+
 }  // namespace
 
 SortedSearches::SortedSearches(std::vector<Search> searches,
@@ -108,21 +118,17 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
     if (cast.validity == CastFilterValueResult::kAllMatch) {
       continue;
     }
-    const dataframe::Column& column = *s.column;
     switch (s.kind) {
       case Search::Kind::kBinarySearch: {
         const Sorted& sorted = sorted_[i];
         if (sorted.string_eq) {
           // String = values are cast to an interned id.
-          range = filter::SearchSorted(
-              sorted.column, sorted.op,
-              CastFilterValueResult::Value(pool_->Get(cast.string_id).c_str()),
-              range);
+          range = SearchSortedString(sorted.column, sorted.op,
+                                     pool_->Get(cast.string_id).c_str(), range);
         } else if (sorted.column.type.Is<String>()) {
           // `value` points into `text`, and goes stale if the value is moved.
-          range = filter::SearchSorted(
-              sorted.column, sorted.op,
-              CastFilterValueResult::Value(cast.text().c_str()), range);
+          range = SearchSortedString(sorted.column, sorted.op,
+                                     cast.text().c_str(), range);
         } else {
           range =
               filter::SearchSorted(sorted.column, sorted.op, cast.value, range);
@@ -130,13 +136,13 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
         break;
       }
       case Search::Kind::kSetIdEq:
-        filter::SetIdSortedEqualRange(column.storage.unchecked_data<Uint32>(),
-                                      base::unchecked_get<uint32_t>(cast.value),
-                                      range);
+        filter::SetIdSortedEqualRange(
+            static_cast<const uint32_t*>(sorted_[i].column.data),
+            base::unchecked_get<uint32_t>(cast.value), range);
         break;
       case Search::Kind::kSmallValueEq: {
         const auto& small =
-            column.specialized_storage
+            s.column->specialized_storage
                 .unchecked_get<dataframe::SpecializedStorage::SmallValueEq>();
         filter::SmallValueEqualRange(
             small.bit_vector, small.prefix_popcount.data(),

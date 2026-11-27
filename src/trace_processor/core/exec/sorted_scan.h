@@ -77,7 +77,7 @@ class SortedSearches {
   Range FindIdEq(const Context& context, Range rows) const;
 
   std::vector<Search> searches_;
-  // Parallel to searches_; used only by binary searches.
+  // Parallel to searches_; read by binary searches and SetIdEq.
   std::vector<Sorted> sorted_;
   const StringPool* pool_;
   // The hottest lookup, id = ?, skips the general search loop.

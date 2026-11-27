@@ -55,11 +55,21 @@ class DataframeWindows {
   void Init(const std::vector<std::shared_ptr<const dataframe::Column>>&);
 
   // Points `out` at rows [from, from + count), all kept.
-  void Fill(uint32_t from, uint32_t count, RowBatch& out);
+  PERFETTO_ALWAYS_INLINE void Fill(uint32_t from,
+                                   uint32_t count,
+                                   RowBatch& out) {
+    // Only the windows move: the views stay as they were lent.
+    for (ColumnView& view : lent_) {
+      view.set_start(from);
+    }
+    out.SetColumns(lent_, buffers_);
+    out.SetRowCount(count);
+  }
 
   // Fills `out` with copies of the values at `rows`, in buffers taken from
-  // `context`. A column with no storage of its own becomes stored Uint32s,
-  // and a sparse one a flat one.
+  // `context`. A non-null id column is lent `rows` itself, which must outlive
+  // the batch; a nullable one becomes stored Uint32s, and a sparse column a
+  // flat one.
   void Gather(base::Span<const uint32_t> rows, Context& context, RowBatch& out);
 
  private:
@@ -121,8 +131,6 @@ class RangeReader {
   Range range_{0, 0};
   uint32_t next_ = 0;
   ReadDirection direction_ = ReadDirection::kForwards;
-  // From kMaxBatchRows - 1 down to 0: the last `count` reverse a batch.
-  std::array<uint32_t, kMaxBatchRows> descending_;
 };
 
 // Reads a list of a dataframe's rows, in list order, a batch at a time. Each

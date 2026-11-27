@@ -123,5 +123,24 @@ TEST(RowBatchTest, LastIsClearedByRefilling) {
   EXPECT_FALSE(batch.last());
 }
 
+TEST(RowBatchTest, ReversesSelection) {
+  std::vector<int64_t> values = {0, 10, 20, 30};
+  RowBatch batch;
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.SetRowCount(4);
+  batch.mutable_selection().Reverse();
+  EXPECT_FALSE(batch.selection().prefix());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(30, 20, 10, 0));
+
+  batch.mutable_selection().Reverse();
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(0, 10, 20, 30));
+
+  batch.SetRowCount(1);
+  batch.mutable_selection().Reverse();
+  EXPECT_TRUE(batch.selection().prefix());
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(0));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::exec
