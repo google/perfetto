@@ -106,7 +106,8 @@ Rules for "sql":
   (each ending in ";"), then the SELECT last.
 - It can read upstream nodes connected via secondaryInputIds as $input_0,
   $input_1, ... (port number).
-- Confirm tables/columns with run_query / get_schema first; do not guess schema.
+- Confirm tables/columns with find_sql_objects / describe_sql_object first; do
+  not guess schema.
 
 Preferred shape (the common case) - real nodes, one operation each:
 {
