@@ -1011,6 +1011,9 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
 base::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
+  // Like a query, computing metrics starts a new piece of work: an interrupt
+  // left from earlier work must not stop it.
+  engine_->ClearInterrupt();
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())

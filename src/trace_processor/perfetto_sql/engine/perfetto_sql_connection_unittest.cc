@@ -428,6 +428,20 @@ TEST_F(PerfettoSqlConnectionTest, NextStatement_TrailingDummyStatement) {
   ASSERT_EQ(sqlite3_column_int64((*res)->stmt.sqlite_stmt(), 0), 2);
 }
 
+// An interrupt stops user SQL before it starts, however short it is, but
+// never trace processor's own SQL, whose steps must run together.
+TEST_F(PerfettoSqlConnectionTest, Interrupt_StopsUserSqlButNotInternalSql) {
+  connection_->Interrupt();
+
+  auto internal = connection_->Execute(
+      SqlSource::FromTraceProcessorImplementation("SELECT 1"));
+  ASSERT_TRUE(internal.ok()) << internal.status().c_message();
+
+  auto user = connection_->Execute(SqlSource::FromExecuteQuery("SELECT 1"));
+  ASSERT_THAT(user, IsError());
+  EXPECT_THAT(user.status().c_message(), testing::HasSubstr("interrupted"));
+}
+
 TEST_F(PerfettoSqlConnectionTest, PipelinePragmaIncludeChangesCaller) {
   ASSERT_OK(connection_->RegisterPackage(
       "foo", CreateTestPackage(

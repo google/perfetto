@@ -710,6 +710,18 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
     if (!parser->Next()) {
       break;
     }
+
+    // An interrupt stops every statement which starts after it, even one too
+    // short for the progress handler to run. Trace processor's own SQL is
+    // never stopped here, so that its steps (e.g. a savepoint and its
+    // rollback) always run together, and neither are the statements of a
+    // running INCLUDE, which must finish.
+    if (interrupted_.load(std::memory_order_relaxed) &&
+        !parser->statement_sql().IsTraceProcessorImplementation() &&
+        !IsIncludeRunning()) {
+      return parser->statement_sql().AddTraceback(
+          0, base::ErrStatus("interrupted"));
+    }
     const auto& stmt = parser->statement();
 
     // Vanilla SQLite is inlined; PerfettoSQL extensions detour through
@@ -944,8 +956,8 @@ const dataframe::Dataframe* PerfettoSqlConnection::GetDataframeOrNull(
 
 void PerfettoSqlConnection::Interrupt() {
   // The flag stops statements which start later. Interrupting the SQLite
-  // connection stops the ones running now, at once, and is all that works in
-  // builds without progress callbacks.
+  // connection stops the ones running now, at once, which is the only way to
+  // do so in builds without progress callbacks.
   interrupted_.store(true, std::memory_order_relaxed);
   connection_->Interrupt();
 }
@@ -1353,6 +1365,12 @@ bool PerfettoSqlConnection::IsKeyOnIncludeStack(const std::string& key) const {
     }
   }
   return false;
+}
+
+bool PerfettoSqlConnection::IsIncludeRunning() const {
+  return std::any_of(
+      execution_stack_.begin(), execution_stack_.end(),
+      [](const ExecutionFrame& f) { return f.type != FrameType::kRoot; });
 }
 
 base::Status PerfettoSqlConnection::IncludeModuleImpl(

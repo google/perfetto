@@ -125,7 +125,9 @@ SqlSource SqlSource::FromModuleInclude(std::string sql,
 }
 
 SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
-  return {std::move(sql), "trace processor internal", false};
+  SqlSource source(std::move(sql), "trace processor internal", false);
+  source.root_.is_trace_processor_implementation = true;
+  return source;
 }
 
 SqlSource SqlSource::FromMacroExpansion(std::string sql,
@@ -308,6 +310,7 @@ SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
   return Node{
       name,
       show_expanded_statement,
+      is_trace_processor_implementation,
       line_and_col.first,
       line_and_col.second,
       new_original,
