@@ -48,7 +48,9 @@ interface NativeSnap {
 
 interface RssPoint {
   readonly ts: time;
-  readonly anonSwapBytes: number;
+  readonly totalRssSwap: number;
+  readonly anonSwap?: number;
+  readonly fileBytes?: number;
 }
 
 interface HeroTimelineData {
@@ -106,10 +108,10 @@ function downsampleRssPoints(
       minPt = pt;
       maxPt = pt;
     } else {
-      if (minPt === undefined || pt.anonSwapBytes < minPt.anonSwapBytes) {
+      if (minPt === undefined || pt.totalRssSwap < minPt.totalRssSwap) {
         minPt = pt;
       }
-      if (maxPt === undefined || pt.anonSwapBytes > maxPt.anonSwapBytes) {
+      if (maxPt === undefined || pt.totalRssSwap > maxPt.totalRssSwap) {
         maxPt = pt;
       }
     }
@@ -161,24 +163,48 @@ async function loadRssCounterSeries(
       FROM counter c
       JOIN process_counter_track t ON c.track_id = t.id
       WHERE t.upid = ${upid}
-        AND t.name IN ('mem.rss.anon', 'mem.swap')
+        AND t.name IN (
+          'mem.rss.anon',
+          'mem.rss.file',
+          'mem.rss.shmem',
+          'mem.swap',
+          'mem.rss'
+        )
       ORDER BY c.ts ASC
     `);
 
-    let anon = 0;
-    let swap = 0;
+    let anon: number | undefined;
+    let file: number | undefined;
+    let shmem: number | undefined;
+    let swap: number | undefined;
+    let totalRss: number | undefined;
     let curTs: bigint | undefined;
 
     const emit = (tsRaw: bigint) => {
-      const anonSwapBytes = Math.max(0, anon + swap);
-      if (anonSwapBytes > rssMaxBytes) rssMaxBytes = anonSwapBytes;
+      const hasSplit =
+        anon !== undefined || file !== undefined || shmem !== undefined;
+      const rss = hasSplit
+        ? (anon ?? 0) + (file ?? 0) + (shmem ?? 0)
+        : (totalRss ?? 0);
+      const totalRssSwap = Math.max(0, rss + (swap ?? 0));
+      const anonSwap =
+        anon !== undefined ? Math.max(0, anon + (swap ?? 0)) : undefined;
+      const fileBytes = file !== undefined ? Math.max(0, file) : undefined;
+      if (totalRssSwap > rssMaxBytes) rssMaxBytes = totalRssSwap;
       const prev = rssPoints[rssPoints.length - 1];
-      if (prev !== undefined && prev.anonSwapBytes === anonSwapBytes) {
+      if (
+        prev !== undefined &&
+        prev.totalRssSwap === totalRssSwap &&
+        prev.anonSwap === anonSwap &&
+        prev.fileBytes === fileBytes
+      ) {
         return;
       }
       rssPoints.push({
         ts: Time.fromRaw(tsRaw),
-        anonSwapBytes,
+        totalRssSwap,
+        anonSwap,
+        fileBytes,
       });
     };
 
@@ -192,10 +218,22 @@ async function loadRssCounterSeries(
       }
       curTs = it.ts;
       const v = Math.max(0, it.val);
-      if (it.name === 'mem.rss.anon') {
-        anon = v;
-      } else if (it.name === 'mem.swap') {
-        swap = v;
+      switch (it.name) {
+        case 'mem.rss.anon':
+          anon = v;
+          break;
+        case 'mem.rss.file':
+          file = v;
+          break;
+        case 'mem.rss.shmem':
+          shmem = v;
+          break;
+        case 'mem.swap':
+          swap = v;
+          break;
+        case 'mem.rss':
+          totalRss = v;
+          break;
       }
     }
     if (curTs !== undefined) {
@@ -529,16 +567,16 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         : rssPoints[rssPoints.length - 1];
     const liveRssDelta =
       liveBaseRss !== undefined && liveSelRss !== undefined
-        ? liveSelRss.anonSwapBytes - liveBaseRss.anonSwapBytes
+        ? liveSelRss.totalRssSwap - liveBaseRss.totalRssSwap
         : undefined;
     const liveHeaderDelta = liveSmapsDelta ?? liveRssDelta;
 
-    // Precompute SVG path for RSS Anon + Swap counter curve.
+    // Precompute SVG path for RSS + Swap counter curve.
     const rssPaths = hasRss
       ? buildStepPaths(
           rssPlotPoints.map((p) => ({
             x: xOfTs(p.ts),
-            y: yOfRss(p.anonSwapBytes),
+            y: yOfRss(p.totalRssSwap),
           })),
           rssPlotBottom,
           PAD_X + plotW,
@@ -1161,7 +1199,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         hoverRss !== undefined &&
                         m('circle.pf-memtl__rss-dot', {
                           cx: hoverX,
-                          cy: yOfRss(hoverRss.anonSwapBytes),
+                          cy: yOfRss(hoverRss.totalRssSwap),
                           r: 4,
                         }),
                     ]),
@@ -1188,7 +1226,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                 hasRss &&
                   m('span.pf-memtl__legend-item', [
                     m('span.pf-memtl__legend-line.pf-memtl__legend-line--rss'),
-                    'RSS Anon + Swap',
+                    'RSS + Swap',
                   ]),
                 m(
                   'span.pf-memtl__legend-item',
@@ -1243,7 +1281,11 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                   hoverRss !== undefined &&
                     m(
                       'span.pf-memtl__hud-rss',
-                      `RSS Anon + Swap: ${formatBytes(hoverRss.anonSwapBytes)}`,
+                      `RSS + Swap: ${formatBytes(hoverRss.totalRssSwap)}` +
+                        (hoverRss.anonSwap !== undefined &&
+                        hoverRss.fileBytes !== undefined
+                          ? ` (Anon+Swap ${formatBytes(hoverRss.anonSwap)} · File ${formatBytes(hoverRss.fileBytes)})`
+                          : ''),
                     ),
                   hoverSnap !== undefined &&
                     m(
@@ -1295,7 +1337,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
       onClear,
     } = opts;
 
-    const latestTotal = liveSelSnap?.total ?? liveSelRss?.anonSwapBytes;
+    const latestTotal = liveSelSnap?.total ?? liveSelRss?.totalRssSwap;
     const latestTs = liveSelSnap?.ts ?? liveSelRss?.ts;
 
     return m('.pf-memtl__status-controls', [
