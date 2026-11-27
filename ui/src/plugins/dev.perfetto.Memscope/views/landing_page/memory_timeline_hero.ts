@@ -325,7 +325,7 @@ const CONTENT_TOP = 22;
 const RSS_BAND_H = 82;
 const RSS_INNER_PAD_Y = 7;
 const STRIP_GAP = 6;
-const STRIP_H = 28;
+const STRIP_H = 40;
 const DRAG_THRESHOLD_PX = 6;
 
 type DragMode = 'range' | 'resize-base' | 'resize-sel';
@@ -439,7 +439,10 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
     const rssBottom = rssTop + RSS_BAND_H;
     const stripTop = hasRss ? rssBottom + STRIP_GAP : CONTENT_TOP;
     const stripBottom = stripTop + STRIP_H;
-    const stripMidY = stripTop + STRIP_H / 2;
+    const smapsY = stripTop + 9;
+    const javaY = stripTop + 20;
+    const nativeY = stripTop + 31;
+    const stripMidY = javaY;
     const axisY = stripBottom + 15;
     const svgHeight = axisY + 9;
 
@@ -615,19 +618,41 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
         return;
       }
 
-      // Click: snap to nearest sprite across Java / Smaps / Native (preferring
-      // an exact Java dump hit when sprites overlap).
+      // Click: if clicking inside the combined sprite strip, prefer the sprite
+      // row closest to the click's Y height (Smaps / Java / Native), then fall
+      // back to the nearest marker across all types.
       const clickX = this.dragCurrentX;
+      const clickY = e.clientY - svg.getBoundingClientRect().top;
       const clickTs = tsOfX(clickX);
-      const nearDump =
-        procDumps.length > 0 ? nearestByTs(procDumps, clickTs) : undefined;
-      if (
-        nearDump !== undefined &&
-        Math.abs(xOfTs(nearDump.ts) - clickX) <= 10
-      ) {
-        onSelect({sel: nearDump.ts});
-        onSelectDump?.(nearDump);
-        return;
+
+      if (clickY >= stripTop && clickY <= stripBottom) {
+        const dSmaps = Math.abs(clickY - smapsY);
+        const dJava = Math.abs(clickY - javaY);
+        const dNative = Math.abs(clickY - nativeY);
+        if (dJava <= dSmaps && dJava <= dNative && procDumps.length > 0) {
+          const d = nearestByTs(procDumps, clickTs);
+          if (d !== undefined && Math.abs(xOfTs(d.ts) - clickX) <= 14) {
+            onSelect({sel: d.ts});
+            onSelectDump?.(d);
+            return;
+          }
+        } else if (dSmaps <= dJava && dSmaps <= dNative && smaps.length > 0) {
+          const s = nearestByTs(smaps, clickTs);
+          if (s !== undefined && Math.abs(xOfTs(s.ts) - clickX) <= 14) {
+            onSelect({sel: s.ts});
+            if (procDumps.length > 0 && onSelectDump !== undefined) {
+              const d = nearestByTs(procDumps, s.ts);
+              if (d !== undefined) onSelectDump(d);
+            }
+            return;
+          }
+        } else if (nativeSnaps.length > 0) {
+          const n = nearestByTs(nativeSnaps, clickTs);
+          if (n !== undefined && Math.abs(xOfTs(n.ts) - clickX) <= 14) {
+            onSelect({sel: n.ts});
+            return;
+          }
+        }
       }
 
       const candidates: {ts: time; dump?: HeapDump}[] = [
@@ -853,9 +878,21 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       }),
                       m('line.pf-memtl__track-rail', {
                         x1: PAD_X + 8,
-                        y1: stripMidY,
+                        y1: smapsY,
                         x2: PAD_X + plotW - 8,
-                        y2: stripMidY,
+                        y2: smapsY,
+                      }),
+                      m('line.pf-memtl__track-rail', {
+                        x1: PAD_X + 8,
+                        y1: javaY,
+                        x2: PAD_X + plotW - 8,
+                        y2: javaY,
+                      }),
+                      m('line.pf-memtl__track-rail', {
+                        x1: PAD_X + 8,
+                        y1: nativeY,
+                        x2: PAD_X + plotW - 8,
+                        y2: nativeY,
                       }),
                       totalSamples === 0 &&
                         m(
@@ -887,7 +924,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       rx: 4,
                     }),
 
-                  // Native heapprofd capsules (drawn first so dots/diamonds sit crisply above)
+                  // Native heapprofd capsules (bottom sub-row inside the combined strip)
                   nativeSnaps.map((n, i) => {
                     const x = xOfTs(n.ts);
                     const isEnd =
@@ -896,8 +933,8 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       nearestByTs(nativeSnaps, selection.sel)?.ts === n.ts;
                     const isHovered = !isDragging && hoverNative?.ts === n.ts;
                     const inWin = isInRange(n.ts);
-                    const w = isEnd || isHovered ? 6 : 4.5;
-                    const h = isEnd || isHovered ? 18 : 14;
+                    const w = isEnd || isHovered ? 5.5 : 4.5;
+                    const h = isEnd || isHovered ? 11 : 8.5;
                     return m(
                       'g.pf-memtl__marker.pf-memtl__marker--native',
                       {
@@ -911,15 +948,15 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       [
                         (isEnd || isHovered) &&
                           m('rect.pf-memtl__marker-halo', {
-                            x: x - w / 2 - 3,
-                            y: stripMidY - h / 2 - 3,
-                            width: w + 6,
-                            height: h + 6,
-                            rx: 5,
+                            x: x - w / 2 - 2.5,
+                            y: nativeY - h / 2 - 2.5,
+                            width: w + 5,
+                            height: h + 5,
+                            rx: 4,
                           }),
                         m('rect.pf-memtl__native-pill', {
                           x: x - w / 2,
-                          y: stripMidY - h / 2,
+                          y: nativeY - h / 2,
                           width: w,
                           height: h,
                           rx: w / 2,
@@ -932,7 +969,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     );
                   }),
 
-                  // Smaps circular pins
+                  // Smaps circular pins (top sub-row inside the combined strip)
                   smaps.map((s, i) => {
                     const x = xOfTs(s.ts);
                     const isEnd =
@@ -944,7 +981,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                       !isEnd;
                     const isHovered = !isDragging && hoverSnap?.ts === s.ts;
                     const inWin = isInRange(s.ts);
-                    const r = isEnd || isBase || isHovered ? 6 : 4.5;
+                    const r = isEnd || isBase || isHovered ? 5.2 : 4;
                     return m(
                       'g.pf-memtl__marker.pf-memtl__marker--smaps',
                       {
@@ -960,18 +997,18 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         (isEnd || isBase || isHovered) &&
                           m('circle.pf-memtl__marker-halo', {
                             cx: x,
-                            cy: stripMidY,
-                            r: r + 3.5,
+                            cy: smapsY,
+                            r: r + 3,
                           }),
                         m('circle.pf-memtl__smaps-dot', {
                           cx: x,
-                          cy: stripMidY,
+                          cy: smapsY,
                           r,
                         }),
                         m('circle.pf-memtl__smaps-core', {
                           cx: x,
-                          cy: stripMidY,
-                          r: isEnd || isBase || isHovered ? 2 : 1.5,
+                          cy: smapsY,
+                          r: isEnd || isBase || isHovered ? 1.8 : 1.3,
                         }),
                         m(
                           'title',
@@ -981,7 +1018,7 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     );
                   }),
 
-                  // Java Heap Dump faceted diamonds (on top so rare dumps always stand out)
+                  // Java Heap Dump faceted diamonds (middle sub-row inside the combined strip)
                   procDumps.map((d, i) => {
                     const x = xOfTs(d.ts);
                     const isActive =
@@ -991,10 +1028,10 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                     const isHovered = !isDragging && hoverDump?.ts === d.ts;
                     const inWin = isInRange(d.ts);
                     const heapBytes = javaHeapBytesByTs.get(d.ts);
-                    const r = isActive || isHovered ? 7.5 : 6;
-                    const pts = `${x},${stripMidY - r} ${x + r},${stripMidY} ${x},${stripMidY + r} ${x - r},${stripMidY}`;
+                    const r = isActive || isHovered ? 6.2 : 5;
+                    const pts = `${x},${javaY - r} ${x + r},${javaY} ${x},${javaY + r} ${x - r},${javaY}`;
                     const innerR = r * 0.36;
-                    const innerPts = `${x},${stripMidY - innerR} ${x + innerR},${stripMidY} ${x},${stripMidY + innerR} ${x - innerR},${stripMidY}`;
+                    const innerPts = `${x},${javaY - innerR} ${x + innerR},${javaY} ${x},${javaY + innerR} ${x - innerR},${javaY}`;
                     return m(
                       'g.pf-memtl__marker.pf-memtl__marker--java',
                       {
@@ -1009,14 +1046,14 @@ export class MemoryTimelineHero implements m.ClassComponent<MemoryTimelineHeroAt
                         (isActive || isHovered) &&
                           m('circle.pf-memtl__marker-halo', {
                             cx: x,
-                            cy: stripMidY,
-                            r: r + 4,
+                            cy: javaY,
+                            r: r + 3.5,
                           }),
                         m('polygon.pf-memtl__dump-diamond', {points: pts}),
                         m('polygon.pf-memtl__dump-core', {points: innerPts}),
                         m(
                           'text.pf-memtl__dump-tag',
-                          {x: x + r + 4, y: stripMidY + 3.5},
+                          {x: x + r + 3.5, y: javaY + 3.5},
                           `#${i + 1}`,
                         ),
                         m(

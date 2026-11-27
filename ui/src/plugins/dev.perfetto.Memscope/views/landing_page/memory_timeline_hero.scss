@@ -153,9 +153,9 @@
 }
 
 .pf-memtl__track-rail {
-  stroke: color-mix(in srgb, var(--pf-col-border) 70%, transparent);
+  stroke: color-mix(in srgb, var(--pf-col-border) 42%, transparent);
   stroke-width: 1;
-  stroke-dasharray: 2 4;
+  stroke-dasharray: 2 5;
   pointer-events: none;
 }
 
