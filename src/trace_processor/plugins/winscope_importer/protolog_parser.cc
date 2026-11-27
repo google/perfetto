@@ -30,6 +30,8 @@
 #include "protos/third_party/android/frameworks/native/tracing/frameworks_native_interned_data.pbzero.h"
 #include "protos/third_party/android/frameworks/native/tracing/winscope/protolog.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/plugins/winscope_importer/protolog_message_decoder.h"
@@ -38,6 +40,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
@@ -63,8 +66,10 @@ ProtoLogParser::ProtoLogParser(winscope::WinscopeContext* context)
       log_level_wtf_string_id_(
           context->trace_processor_context_->storage->InternString("WTF")),
       log_level_unknown_string_id_(
-          context->trace_processor_context_->storage->InternString("UNKNOWN")) {
-}
+          context->trace_processor_context_->storage->InternString("UNKNOWN")),
+      duplicate_bytes_key_id_(
+          context->trace_processor_context_->storage->InternString(
+              "duplicate_bytes")) {}
 
 void ProtoLogParser::ParseProtoLogMessage(
     PacketSequenceStateGeneration* sequence_state,
@@ -151,33 +156,53 @@ void ProtoLogParser::ParseProtoLogMessage(
 }
 
 void ProtoLogParser::ParseAndAddViewerConfigToMessageDecoder(
-    protozero::ConstBytes blob) {
+    protozero::ConstBytes blob,
+    size_t packet_offset) {
   com::android::internal::pbzero::ProtoLogViewerConfig::Decoder
       protolog_viewer_config(blob);
 
   winscope::ProtoLogMessageDecoder& protolog_message_decoder =
       context_->protolog_message_decoder_;
 
+  int64_t duplicate_bytes = 0;
+
   for (auto it = protolog_viewer_config.groups(); it; ++it) {
+    protozero::ConstBytes group_bytes = *it;
     com::android::internal::pbzero::ProtoLogViewerConfig::Group::Decoder group(
-        *it);
-    protolog_message_decoder.TrackGroup(group.id(), group.tag().ToStdString());
+        group_bytes);
+    if (!protolog_message_decoder.TrackGroup(group.id(),
+                                             group.tag().ToStdString())) {
+      duplicate_bytes += static_cast<int64_t>(group_bytes.size);
+    }
   }
 
   for (auto it = protolog_viewer_config.messages(); it; ++it) {
+    protozero::ConstBytes message_bytes = *it;
     com::android::internal::pbzero::ProtoLogViewerConfig::MessageData::Decoder
-        message_data(*it);
+        message_data(message_bytes);
 
     std::optional<std::string> location = std::nullopt;
     if (message_data.has_location()) {
       location = message_data.location().ToStdString();
     }
 
-    protolog_message_decoder.TrackMessage(
-        message_data.message_id(),
-        static_cast<ProtoLogLevel>(message_data.level()),
-        message_data.group_id(), message_data.message().ToStdString(),
-        location);
+    if (!protolog_message_decoder.TrackMessage(
+            message_data.message_id(),
+            static_cast<ProtoLogLevel>(message_data.level()),
+            message_data.group_id(), message_data.message().ToStdString(),
+            location)) {
+      duplicate_bytes += static_cast<int64_t>(message_bytes.size);
+    }
+  }
+
+  if (duplicate_bytes > 0) {
+    context_->trace_processor_context_->import_logs_tracker
+        ->RecordTokenizationLog(
+            stats::winscope_protolog_viewer_config_duplicates, packet_offset,
+            [this, duplicate_bytes](ArgsInserter& inserter) {
+              inserter.AddArg(duplicate_bytes_key_id_,
+                              Variadic::Integer(duplicate_bytes));
+            });
   }
 }
 
