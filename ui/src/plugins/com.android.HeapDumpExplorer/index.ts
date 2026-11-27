@@ -35,6 +35,9 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly dependencies = [HeapProfilePlugin];
   private static defaultFlamegraphSetting: Setting<boolean>;
   private readonly session: HeapDumpExplorerSession;
+  private _hasHeapDumps = false;
+  private _restoredFromPermalink = false;
+  private unifiedHostRenderer?: (subpage: string | undefined) => m.Children;
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -76,6 +79,29 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     );
   }
 
+  getSession(): HeapDumpExplorerSession {
+    return this.session;
+  }
+
+  hasHeapDumps(): boolean {
+    return this._hasHeapDumps;
+  }
+
+  wasRestoredFromPermalink(): boolean {
+    return this._restoredFromPermalink;
+  }
+
+  selectDumpForProcess(upid: number, preferredTs?: time): boolean {
+    return this.session.selectDumpForProcess(upid, preferredTs) !== undefined;
+  }
+
+  // Lets a unified host plugin (e.g. Memscope) take over rendering of the
+  // /heapdump route and hide the standalone Heapdump Explorer sidebar item
+  // without causing a duplicate /heapdump page registration.
+  setUnifiedHost(renderer: (subpage: string | undefined) => m.Children): void {
+    this.unifiedHostRenderer = renderer;
+  }
+
   // Change which heap dump we're looking at from another plugin
   updateHeadDump(upid: number, ts: time): void {
     const dump = this.session.dumps.find((d) => d.upid === upid && d.ts === ts);
@@ -89,12 +115,23 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
     );
     if (res.iter({cnt: NUM}).cnt === 0) return;
 
+    this._hasHeapDumps = true;
     const session = this.session;
     const restored = await session.loadDumps();
+    this._restoredFromPermalink = restored;
+
+    ctx.plugins
+      .getPlugin(HeapProfilePlugin)
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
+      );
 
     ctx.pages.registerPage({
       route: '/heapdump',
-      render: (subpage) => m(HeapDumpPage, {session, subpage}),
+      render: (subpage) =>
+        this.unifiedHostRenderer !== undefined
+          ? this.unifiedHostRenderer(subpage)
+          : m(HeapDumpPage, {session, subpage}),
     });
 
     if (restored) {
@@ -110,18 +147,13 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       ctx.initialPage.suggest('/heapdump', 100);
     }
 
-    ctx.plugins
-      .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
-        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
-      );
-
     ctx.sidebar.addMenuItem({
       section: 'current_trace',
       sortOrder: 30,
       text: 'Heapdump Explorer',
       href: '#!/heapdump',
       icon: 'memory',
+      hidden: () => this.unifiedHostRenderer !== undefined,
     });
   }
 }

@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {AsyncMemo} from '../../base/async_memo';
+import {classNames} from '../../base/classnames';
 import {Time} from '../../base/time';
 import {Spinner} from '../../widgets/spinner';
 import {Button, ButtonVariant} from '../../widgets/button';
@@ -37,9 +38,13 @@ import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 import * as queries from './queries';
 
-interface HeapDumpPageAttrs {
+export interface HeapDumpPageAttrs {
   readonly session: HeapDumpExplorerSession;
   readonly subpage: string | undefined;
+  readonly embedded?: boolean;
+  // When embedded inside a Gate, false while hidden so a parent route change
+  // does not clobber the session's active subpage.
+  readonly active?: boolean;
 }
 
 const FG_KEY_PREFIX = 'fg-';
@@ -85,6 +90,7 @@ function buildTabs(
   activeDump: HeapDump,
   state: NavState,
   potentiallyMergedClasses: ReadonlySet<string>,
+  embedded: boolean,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
   const {engine, trace} = session;
   const navigateWithTabs = session.navigateWithTabs.bind(session);
@@ -102,7 +108,7 @@ function buildTabs(
         activeDump,
         hasFieldValues: session.hasFieldValues,
         navigate: navigateWithTabs,
-        showDefaultChangedHint: session.autoNavigated && !hideHint,
+        showDefaultChangedHint: !embedded && session.autoNavigated && !hideHint,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
         onDismissDefaultChangedHint: () => hideExplanationSetting.set(true),
       }),
@@ -318,16 +324,23 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   }
 
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
-    const {session, subpage} = attrs;
-    session.syncFromSubpage(subpage);
-    session.syncInstanceTabFromNav();
-    session.syncFlamegraphTabFromNav();
+    const {session, subpage, embedded = false, active: isActive = true} = attrs;
+    if (isActive) {
+      session.syncFromSubpage(subpage);
+      session.syncInstanceTabFromNav();
+      session.syncFlamegraphTabFromNav();
+    }
 
+    const pageClass = classNames(
+      'pf-hde-page',
+      embedded && 'pf-hde-page--embedded',
+    );
     const active = session.activeDump;
     if (active === null) {
       return m(
-        '.pf-hde-page',
-        renderDumpSelector(session),
+        'div',
+        {className: pageClass},
+        !embedded && renderDumpSelector(session),
         m('.pf-hde-loading', m(Spinner, {easing: true})),
       );
     }
@@ -345,17 +358,20 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
       active,
       session.nav,
       potentiallyMergedClasses ?? NO_CLASSES,
+      embedded,
     );
 
     return m(
-      '.pf-hde-page',
-      renderDumpSelector(session),
+      'div',
+      {className: pageClass},
+      !embedded && renderDumpSelector(session),
       m(
         'main',
         {class: 'pf-hde-page__tabs'},
         m(Tabs, {
           key: tabsKey,
           tabs,
+          variant: embedded ? 'underline' : 'card',
           activeTabKey: activeTabKey(session),
           onTabChange: (key: string) => actions.get(key)?.select(),
           onTabClose: (key: string) => actions.get(key)?.close?.(),
