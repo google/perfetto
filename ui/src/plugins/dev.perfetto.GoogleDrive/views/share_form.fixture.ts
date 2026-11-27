@@ -22,7 +22,40 @@ import {
   type FixtureModule,
   record,
 } from '../../../component_harness/registry';
-import {ShareForm, type ShareState} from './share_form';
+import type {DriveFilePermission} from '../google/drive_client';
+import {ShareForm, type ShareFormAttrs, type ShareState} from './share_form';
+
+const OWNER: DriveFilePermission = {
+  id: '1',
+  type: 'user',
+  role: 'owner',
+  displayName: 'Alice Smith',
+  emailAddress: 'alice@example.com',
+};
+
+const DOMAIN: DriveFilePermission = {
+  id: '2',
+  type: 'domain',
+  role: 'reader',
+  domain: '00gjdgxs4cdk4oe.audience.googledomains.com',
+  displayName: 'Google',
+};
+
+const UNSEARCHABLE_DOMAIN_PERMISSIONS: ReadonlyArray<DriveFilePermission> = [
+  OWNER,
+  {
+    ...DOMAIN,
+    allowFileDiscovery: false,
+  },
+];
+
+const SEARCHABLE_DOMAIN_PERMISSIONS: ReadonlyArray<DriveFilePermission> = [
+  OWNER,
+  {
+    ...DOMAIN,
+    allowFileDiscovery: true,
+  },
+];
 
 export default {
   // Nothing uploaded yet.
@@ -89,24 +122,42 @@ export default {
   unsearchable: (args) =>
     shareForm(args, {
       fileId: 'fake-file-id',
-      permissions: [
-        {
-          id: '1',
-          type: 'user',
-          role: 'owner',
-          displayName: 'Alice Smith',
-          emailAddress: 'alice@example.com',
-        },
-        {
-          id: '2',
-          type: 'domain',
-          role: 'reader',
-          domain: '00gjdgxs4cdk4oe.audience.googledomains.com',
-          displayName: 'Google',
-          allowFileDiscovery: false,
-        },
-      ],
+      permissions: UNSEARCHABLE_DOMAIN_PERMISSIONS,
     }),
+
+  // Same as unsearchable, with Googler-only bug link text shown.
+  unsearchableGoogler: (args) =>
+    shareForm(
+      args,
+      {
+        fileId: 'fake-file-id',
+        permissions: UNSEARCHABLE_DOMAIN_PERMISSIONS,
+      },
+      {googlerOnlyFeatures: true},
+    ),
+
+  // Uploaded and automatically made searchable within the domain, showing the
+  // dismissible info callout with the "Change back to link-only" action.
+  autoMadeSearchable: (args) =>
+    shareForm(
+      args,
+      {
+        fileId: 'fake-file-id',
+        permissions: SEARCHABLE_DOMAIN_PERMISSIONS,
+      },
+      {autoMadeSearchable: true},
+    ),
+
+  // Same as autoMadeSearchable, with Googler-only bug link text shown.
+  autoMadeSearchableGoogler: (args) =>
+    shareForm(
+      args,
+      {
+        fileId: 'fake-file-id',
+        permissions: SEARCHABLE_DOMAIN_PERMISSIONS,
+      },
+      {autoMadeSearchable: true, googlerOnlyFeatures: true},
+    ),
 
   // The last upload failed.
   error: (args) =>
@@ -130,6 +181,7 @@ export default {
 function shareForm(
   args: FixtureArgs,
   initial: Partial<ShareState>,
+  overrides?: Partial<ShareFormAttrs>,
 ): m.Component {
   const share: ShareState = {
     fileName: args.fileName ?? 'trace.perfetto-trace',
@@ -192,6 +244,10 @@ function shareForm(
           onOpenSharingDialog: () => record('openSharingDialog'),
           onRefreshPermissions: () => record('refreshPermissions'),
           onMakeSearchable: () => record('makeSearchable'),
+          onDismissAutoMadeSearchable: () =>
+            record('dismissAutoMadeSearchable'),
+          onRevertAutoMadeSearchable: () => record('revertAutoMadeSearchable'),
+          ...overrides,
         }),
       ),
   };
