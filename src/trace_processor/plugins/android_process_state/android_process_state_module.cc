@@ -74,6 +74,8 @@ AndroidProcessStateExtensionParser::AndroidProcessStateExtensionParser(
   RegisterTrackEventExtension(
       fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber);
   RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kProcessStateDiedEventFieldNumber);
+  RegisterTrackEventExtension(
       fb::FrameworksBaseTrackEvent::kFreezerEventFieldNumber);
   RegisterTrackEventExtension(
       fb::FrameworksBaseTrackEvent::kProcessGroupChangedEventFieldNumber);
@@ -96,6 +98,11 @@ AndroidProcessStateExtensionParser::OnTrackEventField(
           ts,
           field
               .Cast<fb::FrameworksBaseTrackEvent::kProcessStateChangedEvent>());
+      break;
+    case fb::FrameworksBaseTrackEvent::kProcessStateDiedEventFieldNumber:
+      tracker_->ParseProcessStateDied(
+          ts,
+          field.Cast<fb::FrameworksBaseTrackEvent::kProcessStateDiedEvent>());
       break;
     case fb::FrameworksBaseTrackEvent::kFreezerEventFieldNumber:
       tracker_->ParseFreezerEvent(

@@ -244,6 +244,8 @@ WITH
       -- freeze carries the time spent unfrozen, an unfreeze the time spent
       -- frozen.
       iif(unfreeze_reason IS NULL, unfrozen_dur_ms, frozen_dur_ms) AS prev_state_dur_ms,
+      -- When the process entered that opposite state, if the event says.
+      iif(unfreeze_reason IS NULL, unfrozen_start_ts, frozen_start_ts) AS prev_state_start_ts,
       lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS prev_ts,
       lead(ts) OVER (PARTITION BY upid ORDER BY ts) AS next_ts
     FROM __intrinsic_android_freezer_state
@@ -266,32 +268,59 @@ WITH
     FROM events AS e
     JOIN lifetimes AS l USING (upid)
     UNION ALL
-    -- Before its first event a process was in the opposite state, for as long
-    -- as the event says. In ring-buffer traces the event that started that
-    -- state is often overwritten, so don't stretch the span back to process or
-    -- trace start; before it the state is unknown.
-    SELECT
-      e.upid,
-      max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS ts,
-      e.ts
-      - max(l.birth, coalesce(e.ts - e.prev_state_dur_ms * 1000000, l.birth)) AS dur,
-      iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
-    FROM events AS e
-    JOIN lifetimes AS l USING (upid)
-    WHERE
-      e.prev_ts IS NULL
+    -- Before its first event a process was in the opposite state, since the
+    -- time the event says (its exact start time, else its duration). In
+    -- ring-buffer traces the event that started that state is often
+    -- overwritten, so don't stretch the span back to process or trace start;
+    -- before it the state is unknown. The parser drops a start after the event,
+    -- but a process birth after it could still put the span after the event, so
+    -- the span is capped at the event and never gets a negative (or open-ended
+    -- -1) duration.
+    SELECT upid, ts, event_ts - ts AS dur, state
+    FROM (
+      SELECT
+        e.upid,
+        min(
+          e.ts,
+          max(
+            l.birth,
+            coalesce(
+              e.prev_state_start_ts,
+              e.ts - e.prev_state_dur_ms * 1000000,
+              l.birth
+            )
+          )
+        ) AS ts,
+        e.ts AS event_ts,
+        iif(e.state = 'FROZEN', 'UNFROZEN', 'FROZEN') AS state
+      FROM events AS e
+      JOIN lifetimes AS l USING (upid)
+      WHERE
+        e.prev_ts IS NULL
+    )
     UNION ALL
-    -- Processes without events kept their trace-stop state throughout.
-    SELECT
-      s.upid,
-      l.birth AS ts,
-      iif(l.death IS NULL, -1, l.death - l.birth) AS dur,
-      iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
-    FROM __intrinsic_android_freezer_state AS s
-    JOIN lifetimes AS l USING (upid)
-    WHERE
-      s.is_initial = 1
-      AND NOT EXISTS (SELECT 1 FROM events AS e WHERE e.upid = s.upid)
+    -- Processes without events kept their trace-stop state throughout, since
+    -- they entered it if the snapshot says so. A start after the process's
+    -- death is invalid, so it is treated as unknown, and the duration is never
+    -- negative, so it can't be mistaken for an open-ended (-1) span.
+    SELECT upid, ts, iif(death IS NULL, -1, max(death - ts, 0)) AS dur, state
+    FROM (
+      SELECT
+        s.upid,
+        max(l.birth, coalesce(iif(start_ts > l.death, NULL, start_ts), l.birth)) AS ts,
+        l.death,
+        iif(s.unfreeze_reason IS NULL, 'FROZEN', 'UNFROZEN') AS state
+      FROM (
+        SELECT
+          *,
+          iif(unfreeze_reason IS NULL, frozen_start_ts, unfrozen_start_ts) AS start_ts
+        FROM __intrinsic_android_freezer_state
+      ) AS s
+      JOIN lifetimes AS l USING (upid)
+      WHERE
+        s.is_initial = 1
+        AND NOT EXISTS (SELECT 1 FROM events AS e WHERE e.upid = s.upid)
+    )
   )
 SELECT
   row_number() OVER (ORDER BY s.ts, s.upid) AS id,
@@ -313,6 +342,11 @@ CREATE PERFETTO TABLE _android_freezer_flattened AS
 FROM (
   SELECT ts, iif(dur < 0, trace_end() - ts, dur) AS dur, state
   FROM _android_freezer_intervals
+  -- The trace-stop snapshot packet doesn't extend the trace bounds, so a span
+  -- from its start times can begin after the trace end. Such a span lies
+  -- outside the trace, and would give INTERVAL FLATTEN a negative duration.
+  WHERE
+    ts < trace_end()
 )
 |> INTERVAL FLATTEN PER state AGGREGATE COUNT(*) AS concurrency
 |> INTERVAL FILL GAPS WITH (

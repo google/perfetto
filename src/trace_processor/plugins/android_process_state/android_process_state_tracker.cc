@@ -43,10 +43,10 @@ namespace {
 namespace fb = com::android::internal::pbzero;
 
 // Converts a CLOCK_BOOTTIME start time written by system_server (e.g.
-// proc_state_start_ns) to trace time. Values <= 0 mean unknown. Also returns
-// std::nullopt if the conversion fails (the clock tracker records a stat in
-// that case) or if the start is after |event_ts|, the trace time of the event
-// reporting it, as a state can't start after it is reported.
+// proc_state_start_ns, frozen_start_ns) to trace time. Values <= 0 mean
+// unknown. Also returns std::nullopt if the conversion fails (the clock tracker
+// records a stat in that case) or if the start is after |event_ts|, the trace
+// time of the event reporting it, as a state can't start after it is reported.
 std::optional<int64_t> StartNsToTraceTime(ClockTracker* clock_tracker,
                                           int64_t boottime_ns,
                                           int64_t event_ts) {
@@ -110,10 +110,11 @@ std::optional<UniquePid> AndroidProcessStateTracker::ResolveLiveProcess(
   return upid;
 }
 
+template <typename Decoder>
 void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
     int64_t ts,
     UniquePid upid,
-    const fb::AndroidProcessStateChangedEvent::Decoder& event) {
+    const Decoder& event) {
   EarliestDelta& earliest = earliest_prev_[upid];
   if (ts >= earliest.ts) {
     return;
@@ -195,6 +196,26 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   AddFlagsArgs(id, row);
 }
 
+// A process that dies without changing state during the trace is not in the
+// trace-stop snapshot, so its died event's prev_* fields are the only source
+// of its initial state. The event is fed into the same earliest-delta logic as
+// state changes, so an earlier change event still wins. It inserts no row: the
+// death itself comes from the process table.
+void AndroidProcessStateTracker::ParseProcessStateDied(
+    int64_t ts,
+    protozero::ConstBytes bytes) {
+  fb::AndroidProcessStateDiedEvent::Decoder p(bytes);
+  // AndroidProcessStateDiedEvent carries no start_seq_id, so this assumes the
+  // pid is still live (not yet ended by e.g. sched_process_free) and has not
+  // already been reused for another process.
+  std::optional<UniquePid> opt_upid =
+      ResolveLiveProcess(ts, "process_state_died", p.pid());
+  if (!opt_upid) {
+    return;
+  }
+  UpdateInitialStateFromDelta(ts, *opt_upid, p);
+}
+
 void AndroidProcessStateTracker::ParseProcessStateDump(
     int64_t ts,
     protozero::ConstBytes blob) {
@@ -257,6 +278,16 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   if (evt.has_frozen_dur_ms()) {
     row.frozen_dur_ms = evt.frozen_dur_ms();
   }
+  // system_server writes these unconditionally (a freeze carries
+  // unfrozen_start_ns, an unfreeze frozen_start_ns), so 0 means unknown.
+  if (evt.has_unfrozen_start_ns()) {
+    row.unfrozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                               evt.unfrozen_start_ns(), ts);
+  }
+  if (evt.has_frozen_start_ns()) {
+    row.frozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                             evt.frozen_start_ns(), ts);
+  }
   if (evt.has_unfreeze_reason()) {
     row.unfreeze_reason =
         InternEnum(context_, unfreeze_reason_cache_,
@@ -279,12 +310,22 @@ void AndroidProcessStateTracker::ParseFreezerDump(int64_t ts,
     }
     FreezerStateValues v;
     v.upid = *opt_upid;
-    // If the process is unfrozen in the dump, has_unfrozen_dur_ms() is true.
-    // Note: android.util.proto.ProtoOutputStream omits 0 values during
-    // serialization, so an unset unfreeze_reason on an unfrozen process
-    // represents UFR_NONE (0). When the process is frozen, unfreeze_reason is
-    // left as std::nullopt so the initial row has NULL.
-    if (rec.has_unfrozen_dur_ms()) {
+    if (rec.has_unfrozen_start_ns()) {
+      v.unfrozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                               rec.unfrozen_start_ns(), ts);
+    }
+    if (rec.has_frozen_start_ns()) {
+      v.frozen_start_ts = StartNsToTraceTime(context_->clock_tracker.get(),
+                                             rec.frozen_start_ns(), ts);
+    }
+    // An unfrozen process in the dump has unfrozen_dur_ms and, on newer
+    // producers, a positive unfrozen_start_ns; a frozen one has the frozen_*
+    // fields instead. android.util.proto.ProtoOutputStream omits 0 values
+    // during serialization, so unfrozen_dur_ms is missing when the process was
+    // unfrozen less than 1ms before the dump, and an unset unfreeze_reason on
+    // an unfrozen process represents UFR_NONE (0). When the process is frozen,
+    // unfreeze_reason is left as std::nullopt so the initial row has NULL.
+    if (rec.has_unfrozen_dur_ms() || rec.unfrozen_start_ns() > 0) {
       v.unfreeze_reason =
           rec.has_unfreeze_reason()
               ? static_cast<int32_t>(rec.unfreeze_reason())
@@ -468,6 +509,8 @@ void AndroidProcessStateTracker::EmitInitialFreezerRow(
   row.ts = std::nullopt;
   row.unfrozen_dur_ms = std::nullopt;
   row.frozen_dur_ms = std::nullopt;
+  row.unfrozen_start_ts = v.unfrozen_start_ts;
+  row.frozen_start_ts = v.frozen_start_ts;
   row.is_initial = 1;
   if (v.unfreeze_reason.has_value()) {
     row.unfreeze_reason =

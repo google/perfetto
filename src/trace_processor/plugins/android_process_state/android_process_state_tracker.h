@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
-#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/importers/android/unknown_process_logger.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -58,6 +57,8 @@ class AndroidProcessStateTracker {
 
   // A process_state_changed_event TrackEvent extension at |ts|.
   void ParseProcessStateChange(int64_t ts, protozero::ConstBytes bytes);
+  // A process_state_died_event TrackEvent extension at |ts|.
+  void ParseProcessStateDied(int64_t ts, protozero::ConstBytes bytes);
   // An AndroidProcessState dump TracePacket at |ts|.
   void ParseProcessStateDump(int64_t ts, protozero::ConstBytes bytes);
 
@@ -105,17 +106,21 @@ class AndroidProcessStateTracker {
   struct FreezerStateValues {
     UniquePid upid = 0;
     std::optional<int32_t> unfreeze_reason;
+    // Trace time at which the process was last unfrozen / frozen.
+    std::optional<int64_t> unfrozen_start_ts;
+    std::optional<int64_t> frozen_start_ts;
   };
 
   // The track-event stream only emits delta transitions (prev -> cur). To
   // reconstruct each process's state at the start of the trace, records the
-  // prev_* fields of the earliest AndroidProcessStateChangedEvent of |upid|,
-  // at |ts|. Later events return before reading them.
-  void UpdateInitialStateFromDelta(
-      int64_t ts,
-      UniquePid upid,
-      const com::android::internal::pbzero::AndroidProcessStateChangedEvent::
-          Decoder& event);
+  // prev_* fields shared by AndroidProcessStateChangedEvent and
+  // AndroidProcessStateDiedEvent from the earliest such event of |upid|, at
+  // |ts|. Later events return before reading them. Defined in the .cc file,
+  // the only place it is instantiated.
+  template <typename Decoder>
+  void UpdateInitialStateFromDelta(int64_t ts,
+                                   UniquePid upid,
+                                   const Decoder& event);
 
   // Tracks the state before the first observed change (prev_*) for a process,
   // used to reconstruct its baseline state at trace start.

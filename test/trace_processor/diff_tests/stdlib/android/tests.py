@@ -3443,6 +3443,36 @@ class AndroidStdlib(TestSuite):
         2000,-1,1200,"CACHED_EMPTY","TOP",0,19,"OOM_ADJ_REASON_START_RECEIVER"
         """))
 
+  def test_android_process_state_intervals_died(self):
+    return DiffTestBlueprint(
+        trace=Path('../../parser/android/android_process_state_died.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT
+          ts,
+          dur,
+          pid,
+          state,
+          prev_state,
+          prev_state_duration
+        FROM _android_process_state_intervals
+        ORDER BY pid, ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","state","prev_state","prev_state_duration"
+        500,1000,100,"TOP","[NULL]","[NULL]"
+        1500,1001,100,"CACHED_EMPTY","TOP",1000
+        2501,-1,100,"EXITED","CACHED_EMPTY",1001
+        1000,2501,200,"FOREGROUND_SERVICE","[NULL]","[NULL]"
+        3501,-1,200,"EXITED","FOREGROUND_SERVICE",2501
+        500,3501,300,"SERVICE","[NULL]","[NULL]"
+        4001,-1,300,"EXITED","SERVICE",3501
+        700,1300,400,"SERVICE","[NULL]","[NULL]"
+        2000,2501,400,"RECEIVER","SERVICE",1300
+        4501,-1,400,"EXITED","RECEIVER",2501
+        1300,-1,500,"CACHED_EMPTY","[NULL]","[NULL]"
+        """))
+
   def test_android_process_state_concurrency(self):
     return DiffTestBlueprint(
         trace=Path('../../parser/android/android_process_state.textproto'),
