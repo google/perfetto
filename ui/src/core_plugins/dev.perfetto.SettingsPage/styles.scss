@@ -16,7 +16,7 @@
 
 .pf-settings-page {
   &__plugin-section {
-    margin-bottom: 32px;
+    margin-bottom: var(--pf-space-xxl);
 
     &:last-child {
       margin-bottom: 0;
@@ -24,26 +24,26 @@
   }
 
   &__plugin-title {
-    font-size: var(--pf-font-size-xl);
+    font-size: var(--pf-font-size-xs);
     font-weight: 600;
-    margin: 0 0 16px 0;
-    padding: 8px 12px;
-    background: var(--pf-minimal-background);
-    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+    margin: 0 0 var(--pf-space-s) var(--pf-space-xxs);
   }
 
   &__complex-error {
     display: flex;
     align-items: center;
-    gap: 4px;
-    color: var(--pf-color-danger);
-    font-size: var(--pf-font-size-m);
+    gap: var(--pf-space-xs);
+    color: var(--pf-color-danger-text);
+    font-size: var(--pf-font-size-s);
   }
 
   &__controls {
     display: flex;
     flex-direction: row;
-    column-gap: 16px;
+    column-gap: var(--pf-space-m);
     align-items: center;
   }
 }

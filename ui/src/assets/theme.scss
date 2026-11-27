@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-$border-radius: 2px;
-$border-radius-medium: 3px;
-$border-radius-large: 4px;
-$anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$border-radius: 4px;
+$border-radius-medium: 6px;
+$border-radius-large: 8px;
+$anim-timing: var(--pf-anim-normal) var(--pf-anim-easing);
 
-$box-shadow-1: 0px 2px 4px var(--pf-color-box-shadow);
-$box-shadow-2: 0px 4px 12px var(--pf-color-box-shadow);
-$box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
+$box-shadow-1: var(--pf-shadow-1);
+$box-shadow-2: var(--pf-shadow-2);
+$box-shadow-3: var(--pf-shadow-3);
 
-// This function is used to compute the hove color for interactive surfaces such
-// as buttons or or menu items. The idea is you give it the surface color and
+// This function is used to compute the hover color for interactive surfaces such
+// as buttons or menu items. The idea is you give it the surface color and
 // the 'on surface' color (i.e. the text/icon color that goes on top of the
 // surface) and it will return a color that is a mix of mostly the surface color
 // with a hint of the on-surface color.
@@ -39,7 +39,7 @@ $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
   $surface: transparent,
   $on-surface: currentColor
 ) {
-  @return color-mix(in srgb, $surface, $on-surface 8%);
+  @return color-mix(in srgb, $surface, $on-surface 7%);
 }
 
 // This function is used to compute the active color for interactive surfaces
@@ -60,7 +60,7 @@ $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
   $surface: transparent,
   $on-surface: currentColor
 ) {
-  @return color-mix(in srgb, $surface, $on-surface 16%);
+  @return color-mix(in srgb, $surface, $on-surface 14%);
 }
 
 // This function is deprecated and should not be used in new code.
@@ -75,6 +75,25 @@ $box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
 
 @mixin focus {
   outline: 2px solid var(--pf-color-accent);
+  outline-offset: 1px;
+}
+
+@mixin focus-inset {
+  outline: 2px solid var(--pf-color-accent);
+  outline-offset: -2px;
+}
+
+@mixin input-focus {
+  border-color: var(--pf-color-accent);
+  box-shadow: 0 0 0 2px var(--pf-color-focus-ring);
+}
+
+@mixin interactive-transition($time: var(--pf-anim-fast)) {
+  transition:
+    background-color $time var(--pf-anim-easing),
+    border-color $time var(--pf-anim-easing),
+    color $time var(--pf-anim-easing),
+    box-shadow $time var(--pf-anim-easing);
 }
 
 @mixin transition($time: 0.1s) {

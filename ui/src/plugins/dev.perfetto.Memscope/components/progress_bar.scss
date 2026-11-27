@@ -30,8 +30,10 @@
 
 .pf-progress__track {
   height: 8px;
-  border-radius: 4px;
-  background: var(--pf-col-border);
+  border-radius: var(--pf-radius-s);
+  background: var(--pf-color-control-track);
+  border: 1px solid var(--pf-col-border);
+  box-shadow: var(--pf-shadow-inset);
   overflow: hidden;
 }
 

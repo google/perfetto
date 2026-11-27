@@ -54,20 +54,25 @@
 }
 
 .pf-omnibox {
-  @include transition(0.25s);
+  @include transition(0.2s);
   width: 90%;
   max-width: 600px;
   display: grid;
   grid-template-areas: "icon input stepthrough";
   grid-template-columns: 34px auto max-content;
   border-radius: $border-radius;
-  background-color: var(--pf-color-background);
-  border: solid 1px transparent;
+  background-color: var(--pf-color-background-input);
+  border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-inset);
   line-height: 34px;
 
+  &:hover {
+    border-color: var(--pf-color-border-strong);
+    background-color: var(--pf-color-background-input-hover);
+  }
+
   &:focus-within {
-    border-color: var(--pf-color-primary);
-    box-shadow: $box-shadow-1;
+    @include input-focus;
   }
 
   &:before {
@@ -186,12 +191,13 @@
     }
 
     li {
+      @include interactive-transition;
       list-style-type: none;
       display: flex;
-      gap: 4px;
+      gap: var(--pf-space-xs);
       user-select: none;
       cursor: pointer;
-      padding: 4px 8px;
+      padding: var(--pf-padding-menu-item-y) var(--pf-padding-menu-item-x);
       border-radius: $border-radius;
       align-items: center;
       line-height: 1.2;
@@ -210,7 +216,7 @@
       }
 
       &:hover {
-        background-color: color_hover(transparent);
+        background-color: var(--pf-color-background-hover);
       }
 
       &.pf-highlighted {
@@ -223,6 +229,7 @@
         .pf-chip {
           color: currentColor;
           background: color-mix(in srgb, currentColor 15%, transparent);
+          border-color: color-mix(in srgb, currentColor 35%, transparent);
         }
       }
     }

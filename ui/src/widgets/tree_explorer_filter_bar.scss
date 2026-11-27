@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 .pf-tree-explorer-filter-bar {
-  margin: 6px 8px;
+  margin: var(--pf-space-s) var(--pf-space-m);
   display: flex;
-  column-gap: 6px;
-  row-gap: 6px;
+  column-gap: var(--pf-space-s);
+  row-gap: var(--pf-space-s);
   align-items: center;
   flex-wrap: wrap;
 
@@ -134,12 +136,12 @@
     margin-top: 4px;
   }
   code {
-    font-family: var(--pf-font-monospace, monospace);
-    background: var(--pf-color-background-secondary, rgba(0, 0, 0, 0.06));
-    border-radius: 3px;
-    padding: 0 3px;
+    font-family: var(--pf-font-monospace);
+    background: var(--pf-color-background-secondary);
+    border-radius: var(--pf-radius-xs);
+    padding: 0 var(--pf-space-xs);
   }
   &__warn {
-    color: var(--pf-color-warning);
+    color: var(--pf-color-warning-text);
   }
 }

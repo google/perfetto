@@ -77,9 +77,10 @@
 
 .pf-node {
   position: relative;
-  background: var(--pf-color-background-secondary);
-  border: 2px solid var(--pf-color-border);
-  border-radius: 8px;
+  background: var(--pf-color-background-elevated);
+  border: 1px solid var(--pf-color-border);
+  box-shadow: $box-shadow-2;
+  border-radius: $border-radius-large;
   min-width: 180px;
   cursor: move;
   pointer-events: auto;
@@ -129,8 +130,8 @@
   display: flex;
   flex-direction: column;
   pointer-events: auto;
-  box-shadow: 0 4px 12px var(--pf-color-box-shadow);
-  border-radius: 8px;
+  box-shadow: $box-shadow-2;
+  border-radius: $border-radius-large;
   width: max-content;
   transition:
     left 0.1s ease-out,
@@ -488,8 +489,8 @@
     align-items: center;
     justify-content: center;
     background: var(--pf-color-danger);
-    color: white;
-    border-radius: 3px;
+    color: var(--pf-color-text-on-danger);
+    border-radius: $border-radius;
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.2s;

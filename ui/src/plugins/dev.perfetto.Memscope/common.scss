@@ -16,4 +16,4 @@
 
 // Corner radius for top-level sections (panels, billboards, callouts,
 // tables, insets, the dashed connection hero).
-$memscope-section-radius: 4px;
+$memscope-section-radius: var(--pf-radius-m);

@@ -36,6 +36,11 @@ export interface PortalAttrs {
   readonly onContentMount?: (portalElement: HTMLElement) => void;
   // Called after our portal's content is updated.
   readonly onContentUpdate?: (portalElement: HTMLElement) => void;
+  // Called before our portal is removed. Returning a promise defers unmounting
+  // until the promise resolves (e.g. to play an exit animation).
+  readonly onBeforeContentUnmount?: (
+    portalElement: HTMLElement,
+  ) => Promise<void> | void;
   // Called before our portal is removed.
   readonly onContentUnmount?: (portalElement: HTMLElement) => void;
 }
@@ -98,6 +103,13 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
       this.portalElement.className = attrs.className ?? '';
       Object.assign(this.portalElement.style, attrs.style);
     }
+  }
+
+  onbeforeremove({attrs}: m.CVnodeDOM<PortalAttrs>): Promise<void> | void {
+    if (this.portalElement && attrs.onBeforeContentUnmount) {
+      return attrs.onBeforeContentUnmount(this.portalElement);
+    }
+    return undefined;
   }
 
   onremove({attrs}: m.CVnodeDOM<PortalAttrs>) {

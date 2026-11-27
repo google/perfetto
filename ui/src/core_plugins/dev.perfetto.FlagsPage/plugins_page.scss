@@ -15,8 +15,6 @@
 @use "../../assets/theme" as *;
 
 .pf-plugins-page {
-  margin-block: 16px;
-
   &__topbar {
     display: flex;
     justify-content: space-between;
@@ -26,18 +24,10 @@
     font-size: var(--pf-font-size-s);
   }
 
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
-    border-left: solid 3px transparent;
-  }
-
   &__controls {
     display: flex;
     flex-direction: row;
-    column-gap: 16px;
+    column-gap: var(--pf-space-m);
     align-items: center;
   }
 
@@ -65,14 +55,14 @@
   &__deps--dependencies {
     .pf-plugins-page__deps-icon,
     .pf-plugins-page__deps-label {
-      color: var(--pf-color-primary);
+      color: var(--pf-color-primary-text);
     }
   }
 
   &__deps--dependants {
     .pf-plugins-page__deps-icon,
     .pf-plugins-page__deps-label {
-      color: var(--pf-color-warning);
+      color: var(--pf-color-warning-text);
     }
   }
 

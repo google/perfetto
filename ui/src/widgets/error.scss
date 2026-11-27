@@ -13,7 +13,7 @@
 // limitations under the License.
 
 .pf-error {
-  padding: 20px 10px;
-  color: var(--pf-color-danger);
-  font-weight: 300;
+  padding: var(--pf-space-xl) var(--pf-space-l);
+  color: var(--pf-color-danger-text);
+  font-weight: 400;
 }

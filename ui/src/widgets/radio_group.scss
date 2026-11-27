@@ -19,18 +19,16 @@
   display: inline-flex;
   flex-direction: row;
   align-items: baseline;
-  gap: 2px;
-  padding: 2px;
-  border-radius: $border-radius-large;
-  background: color-mix(
-    in srgb,
-    transparent,
-    var(--pf-color-interactive-base) 10%
-  );
+  gap: var(--pf-space-xxs);
+  padding: var(--pf-space-xxs);
+  border-radius: $border-radius-medium;
+  border: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-sunken);
+  box-shadow: var(--pf-shadow-inset);
   user-select: none;
 
   &[disabled] {
-    filter: opacity(50%);
+    opacity: 0.45;
     cursor: not-allowed;
 
     // Make everything inside the disabled container non-interactive.
@@ -48,47 +46,58 @@
   }
 
   .pf-radio-group__button {
+    @include interactive-transition;
     border-radius: $border-radius;
     background: transparent;
-    color: var(--pf-color-text-hint);
+    color: var(--pf-color-text-muted);
     display: inline-flex;
     align-items: baseline;
     justify-content: center;
-    padding: 3px 8px;
+    padding: var(--pf-padding-input-y) var(--pf-padding-control-x);
     cursor: pointer;
 
     .pf-icon {
-      margin-right: 4px;
+      margin-right: var(--pf-space-xs);
       align-self: center;
     }
 
     &:hover {
       color: var(--pf-color-text);
+      background: var(--pf-color-background-hover);
+    }
+
+    &:focus-visible {
+      @include focus-inset;
     }
 
     &.pf-active {
-      background: var(--pf-color-background);
+      background: var(--pf-color-button);
       color: var(--pf-color-text);
+      box-shadow: var(--pf-shadow-control);
     }
   }
 
   &.pf-intent-primary .pf-active {
     background: var(--pf-color-primary);
     color: var(--pf-color-text-on-primary);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &.pf-intent-success .pf-active {
     background: var(--pf-color-success);
     color: var(--pf-color-text-on-success);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &.pf-intent-warning .pf-active {
     background: var(--pf-color-warning);
     color: var(--pf-color-text-on-warning);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 
   &.pf-intent-danger .pf-active {
     background: var(--pf-color-danger);
     color: var(--pf-color-text-on-danger);
+    box-shadow: var(--pf-shadow-control-filled);
   }
 }

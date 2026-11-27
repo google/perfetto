@@ -15,14 +15,20 @@
 @use "../assets/theme" as *;
 
 .pf-section {
-  border-radius: $border-radius;
-  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: $border-radius-medium;
+  border: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-elevated);
+  overflow: hidden;
+
   header {
-    padding: 6px;
+    padding: var(--pf-space-s) var(--pf-space-l);
+    background: var(--pf-color-background-secondary);
     border-bottom: 1px solid var(--pf-color-border-secondary);
+    font-weight: 500;
   }
+
   article {
-    padding: 6px;
+    padding: var(--pf-space-l);
     font-size: var(--pf-font-size-m);
   }
 }

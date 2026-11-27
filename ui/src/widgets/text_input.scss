@@ -15,15 +15,17 @@
 @use "../assets/theme" as *;
 
 .pf-text-input {
+  @include interactive-transition;
   display: inline-flex;
   align-items: baseline;
   font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
-  padding: 2px 4px;
-  gap: 4px;
-  background: var(--pf-color-void);
-  border: solid 1px var(--pf-color-border-secondary);
+  padding: var(--pf-padding-input-y) var(--pf-padding-input-x);
+  gap: var(--pf-space-s);
+  background: var(--pf-color-background-input);
+  border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-inset);
   border-radius: $border-radius;
 
   &__input {
@@ -41,6 +43,10 @@
     border: none;
     background: none;
     min-width: 0; // input elements have a default min-width, set to 0 to allow flexbox to work properly
+
+    &::placeholder {
+      color: var(--pf-color-text-hint);
+    }
   }
 
   &__left-icon {
@@ -51,15 +57,16 @@
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    border-color: var(--pf-color-border);
+    border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:has(.pf-text-input__input:focus) {
-    border-color: var(--pf-color-primary);
+    @include input-focus;
   }
 
   &:has(.pf-text-input__input[disabled]) {
-    opacity: 0.5;
+    opacity: 0.45;
     pointer-events: none;
     cursor: not-allowed;
   }

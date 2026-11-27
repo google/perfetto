@@ -14,18 +14,16 @@
 
 @use "../assets/theme" as *;
 
-$chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='8' width='8'%3E%3Cline x1='2' y1='0' x2='6' y2='4' stroke='black'/%3E%3Cline x1='6' y1='4' x2='2' y2='8' stroke='black'/%3E%3C/svg%3E");
-
 .pf-tree {
   display: grid;
   grid-template-columns: [left]auto [right]1fr;
-  row-gap: 5px;
+  row-gap: var(--pf-space-xs);
 
   .pf-tree-node {
     display: contents;
 
     &:hover {
-      background: color_hover(transparent);
+      background: var(--pf-color-background-hover);
     }
 
     .pf-tree-left {
@@ -33,13 +31,14 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       background: inherit;
       min-width: max-content;
       border-radius: $border-radius 0 0 $border-radius;
-      font-weight: bolder;
+      font-weight: 500;
+      color: var(--pf-color-text-secondary);
     }
 
     .pf-tree-right {
       grid-column: right;
       background: inherit;
-      padding: 0 0 0 15px;
+      padding: 0 0 0 var(--pf-space-xl);
       border-radius: 0 $border-radius $border-radius 0;
       overflow-wrap: break-word; // Break words if overflowing
       white-space: pre-wrap;
@@ -52,6 +51,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       width: 16px;
       justify-content: center;
       align-items: center;
+      color: var(--pf-color-text-muted);
     }
 
     &.pf-collapsed > .pf-tree-left > .pf-tree-gutter {
@@ -73,7 +73,8 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     &.pf-loading > .pf-tree-left > .pf-tree-gutter {
       &::after {
         content: "";
-        border: solid 1px var(--pf-color-border);
+        border: solid 1px
+          color-mix(in srgb, var(--pf-color-interactive-base) 16%, transparent);
         border-top: solid 1px var(--pf-color-primary);
         animation: pf-spinner-rotation 1s infinite linear;
         width: 8px;
@@ -95,10 +96,10 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     display: grid;
     grid-column: 1 / span 2;
     grid-template-columns: subgrid;
-    row-gap: 5px;
-    border-left: solid var(--pf-color-border) 1px;
-    margin-left: 6px;
-    padding-left: 6px;
+    row-gap: var(--pf-space-xs);
+    border-left: solid var(--pf-color-border-secondary) 1px;
+    margin-left: 7px;
+    padding-left: var(--pf-space-m);
   }
 }
 
@@ -108,19 +109,24 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
 // rows and a label-column indent on nested rows.
 .pf-tree.pf-tree--bordered {
   border: 1px solid var(--pf-color-border);
-  border-radius: $border-radius;
+  border-radius: $border-radius-medium;
   overflow: hidden;
   row-gap: 0;
 
   .pf-tree-left,
   .pf-tree-right {
-    padding: 4px 10px;
-    border-top: 1px solid var(--pf-color-border);
+    padding: var(--pf-space-s) var(--pf-space-l);
+    border-top: 1px solid var(--pf-color-border-secondary);
     border-radius: 0;
   }
 
   .pf-tree-left {
-    border-right: 1px solid var(--pf-color-border);
+    background: var(--pf-color-background-sunken);
+    border-right: 1px solid var(--pf-color-border-secondary);
+  }
+
+  .pf-tree-node:hover .pf-tree-left {
+    background: var(--pf-color-background-secondary);
   }
 
   // The very first row reuses the outer container's top edge as its divider.

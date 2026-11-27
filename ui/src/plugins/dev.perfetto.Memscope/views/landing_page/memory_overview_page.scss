@@ -198,7 +198,7 @@
       color: var(--pf-color-text);
 
       &--diff {
-        color: var(--pf-color-primary);
+        color: var(--pf-color-primary-text);
       }
     }
 
@@ -241,7 +241,7 @@
 }
 
 .pf-memscope-show-more {
-  color: var(--pf-color-primary);
+  color: var(--pf-color-primary-text);
   text-decoration: none;
 
   &:hover {
@@ -256,7 +256,7 @@
 }
 
 a.pf-memscope-classname {
-  color: var(--pf-color-primary);
+  color: var(--pf-color-primary-text);
   text-decoration: none;
 
   &:hover {

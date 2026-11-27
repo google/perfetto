@@ -15,21 +15,19 @@
 @use "../assets/theme" as *;
 
 .pf-tag-input {
+  @include interactive-transition;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
-  border: solid 1px var(--pf-color-border-secondary);
+  border: solid 1px var(--pf-color-border);
   border-radius: $border-radius;
-  padding: 2px 4px;
-  background: var(--pf-color-void);
-  transition:
-    border $anim-timing,
-    box-shadow $anim-timing,
-    background $anim-timing;
-  gap: 4px;
+  padding: var(--pf-padding-input-y) var(--pf-padding-input-x);
+  background: var(--pf-color-background-input);
+  box-shadow: var(--pf-shadow-inset);
+  gap: var(--pf-space-xs);
 
   &__left-icon {
     align-self: center;
@@ -49,14 +47,19 @@
     flex-grow: 1;
     padding: 0;
     margin: 0;
+
+    &::placeholder {
+      color: var(--pf-color-text-hint);
+    }
   }
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    border: solid 1px var(--pf-color-border);
+    border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:focus-within {
-    border: solid 1px var(--pf-color-primary);
+    @include input-focus;
   }
 }

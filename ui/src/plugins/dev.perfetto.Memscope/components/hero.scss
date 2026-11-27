@@ -22,10 +22,10 @@
   gap: 16px;
   padding: 48px 24px;
   border-radius: c.$memscope-section-radius;
-  border: 0.5px dashed var(--pf-col-border);
+  border: 1px dashed var(--pf-col-border);
   text-align: center;
   // Subtle inset shadow for depth
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--pf-shadow-inset);
 }
 
 .pf-memscope-hero__icon {

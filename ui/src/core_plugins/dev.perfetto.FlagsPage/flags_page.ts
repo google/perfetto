@@ -18,9 +18,9 @@ import {channelChanged, getNextChannel, setChannel} from '../../core/channels';
 import {featureFlags} from '../../core/feature_flags';
 import {type Flag, OverrideState} from '../../public/feature_flag';
 import {Button, ButtonVariant} from '../../widgets/button';
+import {Callout} from '../../widgets/callout';
 import {CardStack} from '../../widgets/card';
 import {EmptyState} from '../../widgets/empty_state';
-import {Icon} from '../../widgets/icon';
 import {Select} from '../../widgets/select';
 import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Stack, StackAuto} from '../../widgets/stack';
@@ -194,6 +194,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
               trigger: m(Button, {
                 icon: 'restore',
                 label: 'Restore Defaults',
+                variant: ButtonVariant.Filled,
               }),
             },
             m(
@@ -271,16 +272,19 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           onSelect: (id) => setChannel(id),
         }),
         m(
-          'span',
+          Callout,
+          {
+            icon: Icons.Warning,
+            intent: Intent.Warning,
+          },
           m(
-            'h1',
-            m(Icon, {icon: Icons.Warning}),
-            ' Warning: Experimental features ahead! ',
+            '.pf-flags-page__warning-title',
+            'Warning: Experimental features ahead',
           ),
-        ),
-        m(
-          'span.pf-flags-page__description',
-          'The following flags are experimental and may change or break the UI in unexpected ways. They are used by the Perfetto developers to test new features while in development. They might mess up your local storage, and they may be removed or renamed at any time. Use at your own risk!',
+          m(
+            '.pf-flags-page__description',
+            'The following flags are experimental and may change or break the UI in unexpected ways. They are used by the Perfetto developers to test new features while in development. They might mess up your local storage, and they may be removed or renamed at any time. Use at your own risk!',
+          ),
         ),
         filteredFlags.length === 0
           ? this.renderEmptyState(isFiltering)

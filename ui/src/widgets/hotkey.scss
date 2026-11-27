@@ -19,22 +19,22 @@ kbd.pf-keycap {
 
   user-select: none;
   line-height: 1;
-  background-color: var(--pf-color-background-secondary);
+  background-color: var(--pf-color-button);
   border: 1px solid var(--pf-color-border);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  color: var(--pf-color-text-muted);
+  box-shadow: var(--pf-shadow-keycap);
+  border-radius: $border-radius;
+  color: var(--pf-color-text-secondary);
   display: inline-block;
   vertical-align: baseline;
-  padding: 2px 4px;
+  padding: var(--pf-space-xxs) var(--pf-space-s);
 
   &.pf-spacing-large {
-    padding: 4px 6px;
+    padding: var(--pf-space-xs) var(--pf-space-m);
   }
 }
 
 .pf-hotkey {
   display: inline-flex;
   flex-direction: row;
-  gap: 2px;
+  gap: var(--pf-space-xxs);
 }

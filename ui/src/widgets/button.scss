@@ -17,23 +17,59 @@
 @mixin filled-color-scheme($intent-color, $text-color) {
   color: $text-color;
   background: $intent-color;
+  box-shadow: var(--pf-shadow-control-filled);
 
   &:hover {
-    background: color_hover($intent-color);
+    background: color-hover-surface(
+      $intent-color,
+      var(--pf-color-interactive-base)
+    );
   }
 
   &:active,
   &.pf-active {
-    background: color_active($intent-color);
+    background: color-active-surface(
+      $intent-color,
+      var(--pf-color-interactive-base)
+    );
+    box-shadow: var(--pf-shadow-control-active);
   }
 
   &[disabled] {
+    box-shadow: none;
+
     &:hover {
       background: $intent-color;
     }
 
     &.pf-active {
-      background: color_active($intent-color);
+      background: color-active-surface(
+        $intent-color,
+        var(--pf-color-interactive-base)
+      );
+    }
+  }
+}
+
+@mixin subtle-intent-scheme($text-color, $subtle-bg, $intent-color) {
+  color: $text-color;
+
+  &:hover {
+    background: $subtle-bg;
+  }
+
+  &:active,
+  &.pf-active {
+    background: color-mix(in srgb, $intent-color 18%, transparent);
+  }
+
+  &[disabled] {
+    &:hover {
+      background: transparent;
+    }
+
+    &.pf-active {
+      background: color-mix(in srgb, $intent-color 18%, transparent);
     }
   }
 }
@@ -49,11 +85,14 @@
 }
 
 .pf-button {
+  @include interactive-transition;
   font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
+  border: 1px solid transparent;
   border-radius: $border-radius;
-  padding: 4px 8px;
+  padding: calc(var(--pf-padding-control-y) - 1px)
+    calc(var(--pf-padding-control-x) - 1px);
   white-space: nowrap;
   min-width: max-content;
   position: relative;
@@ -72,15 +111,15 @@
       content: "";
       height: 0.9em;
       width: 0.9em;
-      border-radius: 100px;
+      border-radius: var(--pf-radius-pill);
       border-style: solid;
       border-width: 0.15em;
-      border-color: var(--pf-color-border);
-      border-top-color: var(--pf-color-primary);
+      border-color: color-mix(in srgb, currentColor 25%, transparent);
+      border-top-color: currentColor;
       position: absolute;
       inset: 50%;
       translate: -50% -50%;
-      animation: pf-spinner-rotation 1s infinite linear;
+      animation: pf-spinner-rotation 0.75s infinite linear;
     }
   }
 
@@ -91,15 +130,17 @@
   }
 
   &--rounded {
-    border-radius: 100px;
+    border-radius: var(--pf-radius-pill);
   }
 
   & > .pf-left-icon {
-    margin-right: 6px; // Make some room between the icon and label
+    margin-right: var(
+      --pf-space-s
+    ); // Make some room between the icon and label
   }
 
   & > .pf-right-icon {
-    margin-left: 6px; // Make some room between the icon and label
+    margin-left: var(--pf-space-s); // Make some room between the icon and label
   }
 
   &__tooltip {
@@ -112,13 +153,14 @@
 
   // Reduce padding when compact
   &.pf-compact {
-    padding: 2px 4px;
+    padding: calc(var(--pf-padding-control-compact-y) - 1px)
+      calc(var(--pf-padding-control-compact-x) - 1px);
     & > .pf-left-icon {
-      margin-right: 2px;
+      margin-right: var(--pf-space-xs);
     }
 
     & > .pf-right-icon {
-      margin-left: 2px;
+      margin-left: var(--pf-space-xs);
     }
   }
 
@@ -128,10 +170,14 @@
       margin: 0;
     }
 
-    padding: 4px;
+    padding: calc(var(--pf-padding-control-y) - 1px);
 
     &.pf-compact {
       padding: 0;
+
+      &:not(.pf-button--outlined) {
+        border-width: 0;
+      }
     }
 
     &::before {
@@ -142,50 +188,38 @@
   }
 
   &[disabled] {
-    filter: opacity(50%);
+    opacity: 0.45;
     cursor: not-allowed;
   }
 
   // From here on in we just describe the colors
   &--filled {
-    background: color-mix(
-      in srgb,
-      transparent,
-      var(--pf-color-interactive-base) 10%
-    );
+    background: var(--pf-color-button);
+    border-color: var(--pf-color-border);
+    box-shadow: var(--pf-shadow-control);
 
     &:hover {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 15%
-      );
+      background: var(--pf-color-button-hover);
+      border-color: var(--pf-color-border-strong);
     }
 
     &.pf-active,
     &:active {
-      background: color-mix(
-        in srgb,
-        transparent,
-        var(--pf-color-interactive-base) 20%
-      );
+      background: var(--pf-color-button-active);
+      border-color: var(--pf-color-border-strong);
+      box-shadow: var(--pf-shadow-control-active);
     }
 
     &[disabled] {
+      box-shadow: none;
+
       &:hover {
-        background: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 10%
-        ); // Reset to the default background
+        background: var(--pf-color-button); // Reset to the default background
+        border-color: var(--pf-color-border);
       }
 
       &.pf-active {
-        background: color-mix(
-          in srgb,
-          transparent,
-          var(--pf-color-interactive-base) 40%
-        );
+        background: var(--pf-color-button-active);
       }
     }
 
@@ -219,43 +253,67 @@
   }
 
   &--outlined {
-    border: solid 1px var(--pf-color-border);
+    border-color: var(--pf-color-border);
+
+    &:hover {
+      border-color: var(--pf-color-border-strong);
+    }
+
+    &[disabled]:hover {
+      border-color: var(--pf-color-border);
+    }
   }
 
   &--minimal,
   &--outlined {
     &:hover {
-      background: color_hover(transparent);
+      background: var(--pf-color-background-hover);
     }
 
     &:active,
     &.pf-active {
-      background: color_active(transparent);
+      background: var(--pf-color-background-active);
     }
 
     &.pf-intent-primary {
-      color: var(--pf-color-primary);
+      @include subtle-intent-scheme(
+        var(--pf-color-primary-text),
+        var(--pf-color-primary-subtle),
+        var(--pf-color-primary)
+      );
     }
 
     &.pf-intent-success {
-      color: var(--pf-color-success);
+      @include subtle-intent-scheme(
+        var(--pf-color-success-text),
+        var(--pf-color-success-subtle),
+        var(--pf-color-success)
+      );
     }
 
     &.pf-intent-danger {
-      color: var(--pf-color-danger);
+      @include subtle-intent-scheme(
+        var(--pf-color-danger-text),
+        var(--pf-color-danger-subtle),
+        var(--pf-color-danger)
+      );
     }
 
     &.pf-intent-warning {
-      color: var(--pf-color-warning);
+      @include subtle-intent-scheme(
+        var(--pf-color-warning-text),
+        var(--pf-color-warning-subtle),
+        var(--pf-color-warning)
+      );
     }
 
     &[disabled] {
       &:hover {
-        background: unset;
+        background: transparent;
       }
 
       &.pf-active {
-        background: color_active(transparent);
+        background: var(--pf-color-background-active);
       }
     }
   }
@@ -264,7 +322,7 @@
 .pf-button-bar {
   display: flex;
   flex-direction: row;
-  gap: 2px;
+  gap: var(--pf-space-xs);
   align-items: baseline;
 }
 
@@ -274,13 +332,19 @@
   align-items: baseline;
 
   .pf-button:not(:last-child) {
-    border-top-right-radius: unset;
-    border-bottom-right-radius: unset;
-    border-right: unset;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
   }
 
   .pf-button:not(:first-child) {
-    border-top-left-radius: unset;
-    border-bottom-left-radius: unset;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    margin-left: -1px;
+  }
+
+  .pf-button:hover,
+  .pf-button:focus-visible,
+  .pf-button.pf-active {
+    z-index: 1;
   }
 }

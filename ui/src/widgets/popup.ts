@@ -122,6 +122,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private triggerElement?: Element;
   private popupElement?: HTMLElement;
   private popper?: Instance;
+  private readonly exitingPoppers = new WeakMap<HTMLElement, Instance>();
   private onChange: OnChangeCallback = () => {};
   private closeOnEscape?: boolean;
   private closeOnOutsideClick?: boolean;
@@ -271,16 +272,41 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         // recompute the popup's position, in case it has changed size.
         this.popper && this.popper.update();
       },
-      onContentUnmount: (dom: HTMLElement) => {
-        if (this.popupElement) {
-          onPopupUnMount(this.popupElement);
+      onBeforeContentUnmount: (dom: HTMLElement) => {
+        const popupElement = findRef(dom, Popup.POPUP_REF);
+        if (popupElement !== undefined && popupElement === this.popupElement) {
+          dom.removeEventListener('click', this.handleContentClick);
+          document.removeEventListener('keydown', this.handleDocKeyPress);
+          document.removeEventListener('mousedown', this.handleDocMouseDown);
+          if (this.popper !== undefined) {
+            this.exitingPoppers.set(dom, this.popper);
+            this.popper = undefined;
+          }
+          this.popupElement = undefined;
         }
-        dom.removeEventListener('click', this.handleContentClick);
-        document.removeEventListener('keydown', this.handleDocKeyPress);
-        document.removeEventListener('mousedown', this.handleDocMouseDown);
-        this.popper && this.popper.destroy();
-        this.popper = undefined;
-        this.popupElement = undefined;
+        if (popupElement instanceof HTMLElement) {
+          return animatePopupExit(popupElement);
+        }
+        return undefined;
+      },
+      onContentUnmount: (dom: HTMLElement) => {
+        const exitingPopper = this.exitingPoppers.get(dom);
+        if (exitingPopper !== undefined) {
+          this.exitingPoppers.delete(dom);
+          exitingPopper.destroy();
+        }
+        const popupElement = findRef(dom, Popup.POPUP_REF);
+        if (popupElement !== undefined && popupElement === this.popupElement) {
+          dom.removeEventListener('click', this.handleContentClick);
+          document.removeEventListener('keydown', this.handleDocKeyPress);
+          document.removeEventListener('mousedown', this.handleDocMouseDown);
+          this.popper && this.popper.destroy();
+          this.popper = undefined;
+          this.popupElement = undefined;
+        }
+        if (popupElement instanceof HTMLElement) {
+          onPopupUnMount(popupElement);
+        }
       },
     };
 
@@ -403,7 +429,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         {name: 'preventOverflow', options: {padding: 8}},
         // Don't let the arrow reach the end of the popup, which looks odd when
         // the popup has rounded corners
-        {name: 'arrow', options: {padding: 2}},
+        {name: 'arrow', options: {padding: 6}},
         ...matchWidthModifier,
       ],
     };
@@ -486,4 +512,56 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     this.isOpen = !this.isOpen;
     this.onChange(this.isOpen);
   }
+}
+
+// Plays the popup exit animation and resolves when it ends. Returns undefined
+// when no animation will run (hidden popup, prefers-reduced-motion, or jsdom)
+// so callers can unmount synchronously without stalling.
+export function animatePopupExit(
+  popupElement: HTMLElement,
+): Promise<void> | undefined {
+  if (popupElement.hasAttribute('data-popper-reference-hidden')) {
+    return undefined;
+  }
+  popupElement.classList.add('pf-popup--closing');
+  const style = window.getComputedStyle(popupElement);
+  const durationMs = parseAnimationDurationMs(style.animationDuration);
+  if (
+    style.animationName === 'none' ||
+    style.animationName === '' ||
+    durationMs <= 0
+  ) {
+    return undefined;
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(fallbackTimer);
+      popupElement.removeEventListener('animationend', onAnimationEnd);
+      resolve();
+    };
+    const onAnimationEnd = (e: Event) => {
+      if (e.target !== popupElement) return;
+      finish();
+    };
+    popupElement.addEventListener('animationend', onAnimationEnd);
+    // Safety fallback in case an ancestor hides the popup mid-animation.
+    const fallbackTimer = window.setTimeout(finish, durationMs + 50);
+  });
+}
+
+function parseAnimationDurationMs(duration: string): number {
+  const first = duration.split(',')[0]?.trim();
+  if (first === undefined) return 0;
+  if (first.endsWith('ms')) {
+    const ms = parseFloat(first);
+    return Number.isNaN(ms) ? 0 : ms;
+  }
+  if (first.endsWith('s')) {
+    const secs = parseFloat(first);
+    return Number.isNaN(secs) ? 0 : secs * 1000;
+  }
+  return 0;
 }

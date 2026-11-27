@@ -19,7 +19,7 @@
   align-items: baseline;
   background-color: var(--pf-color-background-secondary);
   box-shadow: inset var(--pf-color-border) 0px -1px 0px 0px;
-  padding-inline: 3px;
+  padding-inline: var(--pf-space-xs);
   overflow: hidden; // Don't let the tab shadow spill out onto the content
 
   &__tabs {
@@ -41,17 +41,18 @@
   }
 
   &__tab {
+    @include interactive-transition;
     display: flex;
     align-items: baseline;
-    gap: 2px;
+    gap: var(--pf-space-xs);
     font-family: var(--pf-font-compact);
-    padding: 5px;
-    margin-top: 2px;
+    padding: var(--pf-space-s) var(--pf-space-m);
+    margin-top: var(--pf-space-xs);
     cursor: pointer;
     // TabStrip.Link renders an <a>: don't look like a text link.
     text-decoration: none;
 
-    border-radius: 3px 3px 0 0;
+    border-radius: $border-radius $border-radius 0 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -66,8 +67,12 @@
     }
 
     &:hover {
-      background: color_hover(transparent);
+      background: var(--pf-color-background-hover);
       color: var(--pf-color-text);
+    }
+
+    &:focus-visible {
+      @include focus-inset;
     }
 
     &-icon {
@@ -75,7 +80,7 @@
     }
 
     &-title {
-      margin: 0px 4px;
+      margin: 0 var(--pf-space-xs);
       overflow: hidden;
       user-select: none;
     }
@@ -84,7 +89,7 @@
       cursor: default;
       background-color: var(--pf-color-background);
       border-color: var(--pf-color-border);
-      box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
+      box-shadow: $box-shadow-1;
       color: var(--pf-color-text);
       z-index: 1;
 
@@ -96,7 +101,7 @@
 
     // Matches Button's disabled look.
     &--disabled {
-      filter: opacity(50%);
+      opacity: 0.45;
       cursor: not-allowed;
 
       &:hover {
@@ -125,7 +130,7 @@
       font: inherit;
       color: inherit;
       padding: 0;
-      margin: 0 4px;
+      margin: 0 var(--pf-space-xs);
       width: 100%;
     }
   }
@@ -134,6 +139,7 @@
   // primary underline on the active tab.
   &--underline {
     background-color: transparent;
+    box-shadow: inset var(--pf-color-border-secondary) 0px -1px 0px 0px;
     border-bottom: none;
     padding-inline: 0;
 
@@ -141,19 +147,19 @@
       margin-top: 0;
       margin-bottom: 0;
       margin-left: 0;
-      padding: 5px 10px;
+      padding: var(--pf-space-s) var(--pf-space-l);
       border: none;
       border-bottom: 2px solid transparent;
-      border-radius: 0;
+      border-radius: $border-radius $border-radius 0 0;
 
       &--active {
         background-color: transparent;
-        border-bottom-color: var(--pf-color-primary);
+        border-bottom-color: var(--pf-color-primary-text);
         box-shadow: none;
-        color: var(--pf-color-primary);
+        color: var(--pf-color-primary-text);
 
         &:hover {
-          background-color: color_hover(transparent);
+          background-color: var(--pf-color-background-hover);
         }
       }
     }

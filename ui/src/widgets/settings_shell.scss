@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "../assets/theme" as *;
+
 .pf-settings-shell {
   overflow: auto;
   height: 100%;
@@ -19,13 +21,30 @@
   &__header {
     position: sticky;
     top: 0;
-    padding-bottom: 10px;
-    padding-top: 12px;
-    z-index: 1;
-    background-color: var(--pf-color-background);
+    padding-block: var(--pf-space-m);
+    z-index: 2;
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background) 88%,
+      transparent
+    );
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid transparent;
+    transition:
+      box-shadow var(--pf-anim-fast) var(--pf-anim-easing),
+      border-color var(--pf-anim-fast) var(--pf-anim-easing);
 
     &--stuck {
-      box-shadow: 0px 2px 5px var(--pf-color-box-shadow);
+      border-bottom-color: var(--pf-color-border);
+      box-shadow: $box-shadow-1;
+    }
+
+    .pf-stack {
+      align-items: center;
+    }
+
+    .pf-text-input {
+      min-width: 240px;
     }
   }
 
@@ -33,19 +52,26 @@
     max-width: 900px;
     min-width: 300px;
     margin-inline: auto;
-    padding-inline: 8px;
+    padding-inline: var(--pf-space-xl);
   }
 
   &__content {
-    margin-block: 16px;
+    padding-top: var(--pf-space-m);
+    padding-bottom: var(--pf-space-xxl);
   }
 
   &__title {
-    font-size: var(--pf-font-size-xl);
-    font-weight: 500;
-    padding-bottom: 12px;
-    padding-top: 24px;
-    text-transform: uppercase;
+    padding-top: var(--pf-space-xxl);
+    padding-bottom: var(--pf-space-xs);
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+      color: var(--pf-color-text);
+    }
   }
 }
 
@@ -53,28 +79,33 @@
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: start;
-  gap: 16px;
+  gap: var(--pf-space-xl);
+  padding: 14px var(--pf-space-xl);
+  border-left: solid 3px transparent;
+  transition: background-color var(--pf-anim-fast) var(--pf-anim-easing);
+
+  &:hover {
+    background-color: var(--pf-color-background-hover);
+
+    .pf-settings-card__link {
+      opacity: 1;
+    }
+  }
 
   &.pf-intent-primary {
-    border-left: solid 5px var(--pf-color-primary);
+    border-left-color: var(--pf-color-primary);
   }
 
   &.pf-intent-success {
-    border-left: solid 5px var(--pf-color-success);
+    border-left-color: var(--pf-color-success);
   }
 
   &.pf-intent-warning {
-    border-left: solid 5px var(--pf-color-warning);
+    border-left-color: var(--pf-color-warning);
   }
 
   &.pf-intent-danger {
-    border-left: solid 5px var(--pf-color-danger);
-  }
-
-  &:hover {
-    .pf-settings-card__link {
-      visibility: visible;
-    }
+    border-left-color: var(--pf-color-danger);
   }
 
   // Highlight the focused flag when navigating directly to it
@@ -91,28 +122,46 @@
     overflow: hidden;
   }
 
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: var(--pf-space-xs);
+    font-size: var(--pf-font-size-m);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--pf-color-text);
+  }
+
   &__id {
     font-family: var(--pf-font-monospace);
-    font-size: var(--pf-font-size-s);
-    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-hint);
     word-break: break-all; // Allow breaking long flag IDs
     margin-top: 2px;
   }
 
   &__description {
     font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-secondary);
+    line-height: 1.5;
     white-space: pre-line;
-    margin-top: 10px;
+    margin-top: var(--pf-space-s);
+    max-width: 68ch;
   }
 
   &__link {
-    visibility: hidden;
-    margin-left: 4px;
+    opacity: 0;
+    margin-left: var(--pf-space-xxs);
+    transition: opacity var(--pf-anim-fast) var(--pf-anim-easing);
+
+    &:focus-visible {
+      opacity: 1;
+    }
   }
 
   &__footer {
-    margin-top: 12px;
-    margin-bottom: 24px;
+    margin-top: var(--pf-space-l);
+    margin-bottom: var(--pf-space-xxl);
     display: flex;
     justify-content: center;
   }

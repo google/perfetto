@@ -15,25 +15,26 @@
 @use "../assets/theme" as *;
 
 .pf-anchor {
-  color: var(--pf-color-primary);
+  @include interactive-transition;
+  color: var(--pf-color-primary-text);
   border-radius: $border-radius;
   cursor: pointer;
   text-decoration: underline;
+  text-underline-offset: 2px;
   text-decoration-thickness: 1px;
-  text-decoration-color: var(--pf-color-primary);
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
 
   &__icon--end {
-    margin-left: 1px;
+    margin-left: var(--pf-space-xxs);
   }
 
   &__icon--start {
-    margin-right: 1px;
+    margin-right: var(--pf-space-xxs);
   }
 
   &:hover {
-    // Gently darken the background and thicken the underline.
-    background: color_hover(transparent);
-    text-decoration-thickness: 2px;
+    background: var(--pf-color-primary-subtle);
+    text-decoration-color: currentColor;
   }
 
   &:focus-visible {

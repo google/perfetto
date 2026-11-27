@@ -15,11 +15,17 @@
 @use "../assets/theme" as *;
 
 .pf-chip {
-  @mixin color-theme($base-color) {
-    color: $base-color;
-    background: color-mix(in srgb, $base-color 15%, transparent);
+  @mixin color-theme($text-color, $subtle-bg, $border-color, $intent-color) {
+    color: $text-color;
+    background: $subtle-bg;
+    border-color: $border-color;
+
+    &.pf-chip--interactive:hover {
+      background: color-mix(in srgb, $intent-color 18%, transparent);
+    }
   }
 
+  @include interactive-transition;
   display: inline-flex;
   align-items: baseline;
 
@@ -27,10 +33,13 @@
   line-height: 1;
   user-select: none;
   border-radius: $border-radius;
-  padding: 2px 4px;
+  padding: var(--pf-padding-chip-y) var(--pf-padding-chip-x);
   white-space: nowrap;
   min-width: max-content;
-  border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
+  color: var(--pf-color-text-secondary);
+  background: var(--pf-color-background-secondary);
+  border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-chip);
   overflow: hidden;
 
   &__label {
@@ -40,58 +49,88 @@
   }
 
   &--rounded {
-    border-radius: 100px;
+    border-radius: var(--pf-radius-pill);
   }
 
   // Hint that the chip is clickable.
   &--interactive {
     cursor: pointer;
+
+    &:hover {
+      background: var(--pf-color-background-tertiary);
+      border-color: var(--pf-color-border-strong);
+    }
+
+    &:active {
+      box-shadow: var(--pf-shadow-control-active);
+    }
   }
 
   &__icon {
     align-self: center;
-    margin-right: 6px;
+    margin-right: var(--pf-space-xs);
   }
 
   .pf-button {
-    margin-left: 6px; // Make some room between the icon and label
+    margin-left: var(
+      --pf-space-xs
+    ); // Make some room between the icon and label
   }
 
   &:focus-visible {
     @include focus;
   }
 
-  // Remove default background in minimal mode, showing only the text
   &.pf-intent-primary {
-    @include color-theme(var(--pf-color-primary));
+    @include color-theme(
+      var(--pf-color-primary-text),
+      var(--pf-color-primary-subtle),
+      var(--pf-color-primary-border),
+      var(--pf-color-primary)
+    );
   }
 
   &.pf-intent-success {
-    @include color-theme(var(--pf-color-success));
+    @include color-theme(
+      var(--pf-color-success-text),
+      var(--pf-color-success-subtle),
+      var(--pf-color-success-border),
+      var(--pf-color-success)
+    );
   }
 
   &.pf-intent-warning {
-    @include color-theme(var(--pf-color-warning));
+    @include color-theme(
+      var(--pf-color-warning-text),
+      var(--pf-color-warning-subtle),
+      var(--pf-color-warning-border),
+      var(--pf-color-warning)
+    );
   }
 
   &.pf-intent-danger {
-    @include color-theme(var(--pf-color-danger));
+    @include color-theme(
+      var(--pf-color-danger-text),
+      var(--pf-color-danger-subtle),
+      var(--pf-color-danger-border),
+      var(--pf-color-danger)
+    );
   }
 
   &[disabled] {
     cursor: not-allowed;
-    opacity: 0.5;
+    opacity: 0.45;
   }
 
   // Reduce padding when compact
   &.pf-compact {
-    padding: 0px 4px;
+    padding: 1px var(--pf-space-xs);
     .pf-chip__icon {
-      margin-right: 2px;
+      margin-right: var(--pf-space-xxs);
     }
 
     .pf-button {
-      margin-left: 2px;
+      margin-left: var(--pf-space-xxs);
     }
   }
 
@@ -101,7 +140,7 @@
       margin: 0;
     }
 
-    padding: 4px;
+    padding: var(--pf-space-xs);
 
     &.pf-compact {
       padding: 0;

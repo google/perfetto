@@ -17,26 +17,27 @@
 .pf-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--pf-space-m);
 
   &__button-bar {
     display: flex;
     justify-content: right;
     flex-direction: row-reverse;
     align-items: baseline;
-    gap: 4px;
+    gap: var(--pf-space-xs);
   }
 
   &__label {
-    font-size: smaller;
+    font-size: var(--pf-font-size-s);
     font-weight: 500;
-    margin-bottom: -4px;
+    color: var(--pf-color-text-secondary);
+    margin-bottom: calc(-1 * var(--pf-space-xs));
   }
 
   &__grid {
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 8px;
+    gap: var(--pf-space-m);
     align-items: baseline;
   }
 
@@ -44,17 +45,18 @@
     border: 1px solid var(--pf-color-border);
     display: flex;
     flex-direction: column;
-    border-radius: 4px;
-    padding: 8px;
+    border-radius: $border-radius-medium;
+    padding: var(--pf-space-l);
     margin: 0; // Reset default fieldset margin
-    gap: 8px;
+    gap: var(--pf-space-m);
 
     &-label {
-      font-weight: 500;
+      font-weight: 600;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      font-size: 0.7em;
+      font-size: var(--pf-font-size-xs);
       color: var(--pf-color-text-muted);
-      padding: 0 2px;
+      padding: 0 var(--pf-space-xs);
     }
   }
 
@@ -63,6 +65,8 @@
     &:active,
     &:focus {
       border-color: var(--pf-color-danger);
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--pf-color-danger) 28%, transparent);
     }
   }
 
@@ -70,6 +74,8 @@
     border-color: var(--pf-color-danger);
     &:has(input:focus) {
       border-color: var(--pf-color-danger);
+      box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--pf-color-danger) 28%, transparent);
     }
   }
 }

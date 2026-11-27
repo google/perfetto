@@ -14,10 +14,16 @@
 
 import './form.scss';
 import m from 'mithril';
+import {classNames} from '../base/classnames';
 import {Button, ButtonVariant} from './button';
-import type {HTMLAttrs, HTMLLabelAttrs} from './common';
+import {
+  classForDensity,
+  type Density,
+  type HTMLAttrs,
+  type HTMLLabelAttrs,
+  Intent,
+} from './common';
 import {Popup} from './popup';
-import {Intent} from '../widgets/common';
 
 export interface FormAttrs extends HTMLAttrs {
   // Text to show on the "submit" button.
@@ -49,6 +55,9 @@ export interface FormAttrs extends HTMLAttrs {
   // the native HTML form validation. The submit button will be disabled if
   // this function returns false.
   readonly validation?: () => boolean;
+
+  // Controls padding density for descendant inputs and buttons.
+  readonly density?: Density;
 }
 
 // A simple wrapper around a <form> element providing some opinionated default
@@ -66,12 +75,20 @@ export class Form implements m.ClassComponent<FormAttrs> {
       onSubmit = () => {},
       preventDefault = true,
       validation: _validation,
+      density,
+      className,
       ...htmlAttrs
     } = attrs;
 
     return m(
       'form.pf-form',
-      htmlAttrs,
+      {
+        ...htmlAttrs,
+        className: classNames(
+          className,
+          density !== undefined && classForDensity(density),
+        ),
+      },
       children,
       (submitLabel || cancelLabel || resetLabel) &&
         m(

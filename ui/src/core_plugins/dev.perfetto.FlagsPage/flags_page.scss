@@ -13,10 +13,21 @@
 // limitations under the License.
 
 .pf-flags-page {
+  &__warning-title {
+    font-weight: 600;
+    margin-bottom: var(--pf-space-xxs);
+  }
+
+  &__description {
+    font-size: var(--pf-font-size-s);
+  }
+
   &__footer {
-    margin-top: 12px;
-    margin-bottom: 24px;
+    margin-top: var(--pf-space-l);
+    margin-bottom: var(--pf-space-xxl);
     display: flex;
     justify-content: center;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
   }
 }

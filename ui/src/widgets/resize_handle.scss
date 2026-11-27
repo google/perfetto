@@ -31,12 +31,18 @@ $thickness: 1px;
     position: absolute;
   }
 
-  &:hover {
-    &::after {
-      content: "";
-      position: absolute;
-      background: var(--pf-color-accent);
-    }
+  &::after {
+    content: "";
+    position: absolute;
+    background: var(--pf-color-accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--pf-anim-fast) var(--pf-anim-easing);
+  }
+
+  &:hover::after,
+  &:active::after {
+    opacity: 1;
   }
 
   // Vertical variant (horizontal bar for top/bottom dragging)

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 .pf-box {
-  padding: 4px;
+  padding: var(--pf-padding-container-s);
 
   &--fill-height {
     height: 100%;
@@ -21,18 +21,18 @@
   }
 
   &.pf-spacing-none {
-    padding: 0px;
+    padding: var(--pf-spacing-none);
   }
 
   &.pf-spacing-small {
-    padding: 2px;
+    padding: var(--pf-space-xs);
   }
 
   &.pf-spacing-medium {
-    padding: 4px;
+    padding: var(--pf-padding-container-s);
   }
 
   &.pf-spacing-large {
-    padding: 6px;
+    padding: var(--pf-padding-container-m);
   }
 }

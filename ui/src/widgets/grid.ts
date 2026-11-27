@@ -1135,11 +1135,13 @@ export class Grid implements m.ClassComponent<GridAttrs> {
 
     const renderedRows = renderableRows
       .map(([rowIndex, row]) => {
+        const rowClass = classNames(rowIndex % 2 === 1 && 'pf-grid__row--alt');
         if (row !== undefined) {
           return m(
             '.pf-grid__row',
             {
               key: rowIndex,
+              className: rowClass,
               role: 'row',
               style: {
                 height: `${rowHeight}px`,
@@ -1163,6 +1165,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
           // Return empty spacer instead if row is not present
           return m('.pf-grid__row', {
             key: rowIndex,
+            className: rowClass,
             role: 'row',
             style: {
               height: `${rowHeight}px`,
@@ -1201,6 +1204,7 @@ export class Grid implements m.ClassComponent<GridAttrs> {
         '.pf-grid__row',
         {
           key: rowIndex,
+          className: classNames(rowIndex % 2 === 1 && 'pf-grid__row--alt'),
           role: 'row',
           onmouseenter: onRowHover ? () => onRowHover(rowIndex) : undefined,
           onmouseleave: onRowOut,

@@ -15,12 +15,19 @@
 import './stack.scss';
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {classForSpacing, type HTMLAttrs, type Spacing} from './common';
+import {
+  classForDensity,
+  classForSpacing,
+  type Density,
+  type HTMLAttrs,
+  type Spacing,
+} from './common';
 
 export interface StackAttrs extends HTMLAttrs {
   readonly orientation?: 'horizontal' | 'vertical';
   readonly fillHeight?: boolean;
   readonly spacing?: Spacing;
+  readonly density?: Density;
   readonly wrap?: boolean;
   readonly inline?: boolean;
 }
@@ -37,6 +44,7 @@ export const Stack: m.Component<StackAttrs> = {
       orientation = 'vertical',
       fillHeight = false,
       spacing = 'medium',
+      density,
       className,
       wrap,
       inline,
@@ -49,6 +57,7 @@ export const Stack: m.Component<StackAttrs> = {
           orientation === 'horizontal' && 'pf-stack--horiz',
           fillHeight && 'pf-stack--fill-height',
           classForSpacing(spacing),
+          density !== undefined && classForDensity(density),
           wrap && 'pf-stack--wrap',
           inline && 'pf-stack--inline',
           className,
@@ -62,6 +71,7 @@ export const Stack: m.Component<StackAttrs> = {
 
 export interface InlineAttrs extends HTMLAttrs {
   readonly spacing?: Spacing;
+  readonly density?: Density;
   readonly wrap?: boolean;
   readonly inline?: boolean;
 }
@@ -76,12 +86,20 @@ export interface InlineAttrs extends HTMLAttrs {
  */
 export const Inline: m.Component<InlineAttrs> = {
   view({attrs, children}) {
-    const {spacing = 'medium', className, wrap, inline, ...htmlAttrs} = attrs;
+    const {
+      spacing = 'medium',
+      density,
+      className,
+      wrap,
+      inline,
+      ...htmlAttrs
+    } = attrs;
     return m(
       '.pf-inline',
       {
         className: classNames(
           classForSpacing(spacing),
+          density !== undefined && classForDensity(density),
           wrap && 'pf-inline--wrap',
           inline && 'pf-inline--inline',
           className,

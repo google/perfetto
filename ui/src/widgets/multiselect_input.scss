@@ -15,14 +15,18 @@
 @use "../assets/theme" as *;
 
 .pf-multiselect-input {
+  @include interactive-transition;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
+  gap: var(--pf-space-xs);
+  padding: var(--pf-padding-input-y) var(--pf-padding-input-x);
+  font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
-  border: none; // Disable the default border
-  background: var(--pf-color-void);
-  border: solid 1px var(--pf-color-border-secondary);
+  background: var(--pf-color-background-input);
+  border: solid 1px var(--pf-color-border);
+  box-shadow: var(--pf-shadow-inset);
   border-radius: $border-radius;
 
   input {
@@ -31,14 +35,22 @@
     background: none;
     font-family: inherit;
     font-size: inherit;
+    line-height: inherit;
     color: inherit;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
     flex-grow: 1;
+
+    &::placeholder {
+      color: var(--pf-color-text-hint);
+    }
   }
 
   i {
     cursor: pointer;
     font-size: smaller;
-    margin-left: 2px;
+    margin-left: var(--pf-space-xxs);
   }
 
   &__popup {
@@ -49,25 +61,35 @@
   &__scroller {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--pf-space-xxs);
   }
 
   &__option-row {
+    @include interactive-transition;
+    display: flex;
+    align-items: center;
+    gap: var(--pf-space-s);
+    padding: var(--pf-padding-menu-item-y) var(--pf-padding-menu-item-x);
     overflow: hidden;
     cursor: pointer;
-    border-radius: 2px;
+    border-radius: $border-radius;
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
 
     &--selected {
-      background: color_active(transparent);
+      background: var(--pf-color-background-selected);
     }
   }
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    border-color: var(--pf-color-border);
+    border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
   }
 
   &:focus-within {
-    border-color: var(--pf-color-primary);
+    @include input-focus;
   }
 }

@@ -38,54 +38,128 @@
   }
 }
 
+@keyframes modalDialogIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes modalDialogOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 6px)) scale(0.98);
+  }
+}
+
+@keyframes modalDialogTopIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes modalDialogTopOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.98);
+  }
+}
+
 .pf-modal-backdrop {
   position: absolute;
   z-index: 99;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: var(--pf-color-backdrop);
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  backdrop-filter: blur(2px);
-  animation: modalFadeIn 0.25s var(--anim-easing);
+  backdrop-filter: blur(3px);
+  animation: modalFadeIn var(--pf-anim-slow) var(--pf-anim-easing);
   animation-fill-mode: both;
 
   &.modal-fadeout {
-    animation: modalFadeOut 0.25s var(--anim-easing);
+    animation: modalFadeOut var(--pf-anim-normal) var(--pf-anim-easing-exit);
     animation-fill-mode: both;
+
+    .pf-modal-dialog {
+      animation: modalDialogOut var(--pf-anim-normal) var(--pf-anim-easing-exit);
+      animation-fill-mode: both;
+
+      &.pf-modal-dialog-valign-top {
+        animation-name: modalDialogTopOut;
+      }
+    }
+  }
+
+  // Keep a minimal 1ms fade-out animation so modal.ts's onanimationend
+  // removal hook still fires reliably when reduced motion is preferred.
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 1ms;
+
+    &.modal-fadeout {
+      animation-duration: 1ms;
+    }
+
+    .pf-modal-dialog,
+    &.modal-fadeout .pf-modal-dialog {
+      animation: none;
+    }
   }
 }
 
 .pf-modal-dialog {
   position: absolute;
   z-index: 100;
-  background-color: var(--pf-color-background);
+  background-color: var(--pf-color-background-elevated);
+  border: 1px solid var(--pf-color-border);
+  box-shadow: $box-shadow-3;
   margin: auto;
   min-width: 25vw;
   min-height: 10vh;
-  padding: 30px;
+  padding: var(--pf-padding-modal) var(--pf-space-xxl);
   max-width: 90vw;
   max-height: 90vh;
-  border-radius: $border-radius;
+  border-radius: $border-radius-large;
   overflow-y: auto;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  animation: modalDialogIn var(--pf-anim-slow) var(--pf-anim-easing-enter);
+  animation-fill-mode: both;
 
   &.pf-modal-dialog-valign-top {
     top: 1rem;
     transform: translate(-50%, 0);
+    animation-name: modalDialogTopIn;
   }
 
   > header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--pf-space-l);
 
     .modal-title {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: var(--pf-space-m);
     }
 
     h1,
@@ -106,14 +180,34 @@
     }
 
     button {
+      @include interactive-transition;
       background: transparent;
       border: 0;
+      border-radius: $border-radius;
+      padding: var(--pf-space-xs);
+      color: var(--pf-color-text-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+
+      &:hover {
+        background: var(--pf-color-background-hover);
+        color: var(--pf-color-text);
+      }
+
+      &:active {
+        background: var(--pf-color-background-active);
+      }
+
+      &:focus-visible {
+        @include focus;
+      }
     }
   } // header
 
   main {
     font-size: 1rem;
-    margin-top: 2rem;
+    margin-top: var(--pf-space-xl);
     line-height: 1.5;
 
     .small-font {
@@ -124,8 +218,8 @@
   footer {
     display: flex;
     justify-content: end;
-    margin-top: 2rem;
-    gap: 4px;
+    margin-top: var(--pf-space-xl);
+    gap: var(--pf-space-m);
   } // footer
 }
 
@@ -138,13 +232,13 @@
 .pf-modal-bash {
   white-space: pre-wrap;
   border: 1px solid var(--pf-color-border);
-  padding: 10px;
-  border-radius: 3px;
+  padding: var(--pf-space-l);
+  border-radius: $border-radius;
   font-size: var(--pf-font-size-xs);
-  background: var(--pf-color-background-secondary);
+  background: var(--pf-color-background-sunken);
   font-family: var(--pf-font-monospace);
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin-top: var(--pf-space-m);
+  margin-bottom: var(--pf-space-m);
   min-height: 50px;
   max-height: 40vh;
   overflow: auto;
@@ -152,20 +246,33 @@
 
 .pf-modal-bash {
   margin: 0;
-  padding: 5px 0;
+  padding: var(--pf-space-xs) 0;
   overflow: auto;
   min-height: 0;
 }
 
 .pf-modal-textarea {
+  @include interactive-transition;
   display: block;
-  padding: 10px;
-  border-radius: 3px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  padding: var(--pf-space-m) var(--pf-space-l);
+  border: 1px solid var(--pf-color-border);
+  border-radius: $border-radius;
+  margin-top: var(--pf-space-m);
+  margin-bottom: var(--pf-space-m);
   width: 100%;
-  background: inherit;
+  background: var(--pf-color-background-input);
+  box-shadow: var(--pf-shadow-inset);
   color: inherit;
+  outline: none;
+
+  &:hover {
+    border-color: var(--pf-color-border-strong);
+    background: var(--pf-color-background-input-hover);
+  }
+
+  &:focus {
+    @include input-focus;
+  }
 }
 
 .pf-modal-small {

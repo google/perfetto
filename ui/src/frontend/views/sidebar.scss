@@ -74,7 +74,7 @@
   padding: 0 4px;
 
   // Override scrollbar colors for the sidebar's dark background.
-  scrollbar-color: var(--pf-sidebar-border) var(--pf-sidebar-surface);
+  scrollbar-color: var(--pf-sidebar-scrollbar) var(--pf-sidebar-surface);
   &::-webkit-scrollbar {
     width: 0.5em;
   }
@@ -83,7 +83,7 @@
     border-radius: 2px;
   }
   &::-webkit-scrollbar-thumb {
-    background: var(--pf-sidebar-border);
+    background: var(--pf-sidebar-scrollbar);
     border-radius: 2px;
   }
 
@@ -103,13 +103,14 @@ li.pf-sidebar__item {
 
   a,
   button {
+    @include interactive-transition;
     color: inherit;
     text-decoration: none;
     display: flex;
     align-items: center;
-    padding: 6px 8px;
+    padding: var(--pf-space-s) var(--pf-space-m);
     border-radius: $border-radius;
-    gap: 8px;
+    gap: var(--pf-space-m);
     width: 100%;
     font: inherit;
     background: none;
@@ -123,6 +124,10 @@ li.pf-sidebar__item {
 
     &:active {
       background: color-active-surface(transparent, currentColor);
+    }
+
+    &:focus-visible {
+      @include focus-inset;
     }
 
     &[disabled] {
@@ -168,7 +173,11 @@ li.pf-sidebar__item {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
-  border-color: var(--pf-sidebar-border);
+  border-color: color-mix(
+    in srgb,
+    var(--pf-sidebar-on-surface) 22%,
+    transparent
+  );
   border-top-color: var(--pf-sidebar-on-surface);
 }
 

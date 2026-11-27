@@ -15,7 +15,7 @@
 .pf-stack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--pf-spacing-medium);
 
   &--horiz {
     flex-direction: row;
@@ -28,19 +28,19 @@
   }
 
   &.pf-spacing-none {
-    gap: 0px;
+    gap: var(--pf-spacing-none);
   }
 
   &.pf-spacing-small {
-    gap: 2px;
+    gap: var(--pf-spacing-small);
   }
 
   &.pf-spacing-medium {
-    gap: 4px;
+    gap: var(--pf-spacing-medium);
   }
 
   &.pf-spacing-large {
-    gap: 16px;
+    gap: var(--pf-spacing-large);
   }
 
   &--wrap {
@@ -64,19 +64,23 @@
 .pf-inline {
   display: flex;
   flex-direction: row;
-  gap: 4px;
+  gap: var(--pf-spacing-medium);
   align-items: baseline;
 
+  &.pf-spacing-none {
+    gap: var(--pf-spacing-none);
+  }
+
   &.pf-spacing-small {
-    gap: 2px;
+    gap: var(--pf-spacing-small);
   }
 
   &.pf-spacing-medium {
-    gap: 4px;
+    gap: var(--pf-spacing-medium);
   }
 
   &.pf-spacing-large {
-    gap: 16px;
+    gap: var(--pf-spacing-large);
   }
 
   &--wrap {

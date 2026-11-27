@@ -110,8 +110,6 @@
 
 .pf-flamegraph-action-menu {
   .pf-menu {
-    // Drop the default vertical margin so item hover reaches the popup edges.
-    margin: 0;
     max-height: min(60vh, 480px);
     overflow-y: auto;
     // overflow-y:auto also implies overflow-x:auto; pin it off to avoid a
