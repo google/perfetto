@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {App} from '../../public/app';
 import type {Trace} from '../../public/trace';
 import type {ContextProviderRegistration} from './api';
 
@@ -80,14 +81,57 @@ export class ContextRegistry {
 }
 
 /**
- * Register the core context providers (page, viewport, selection) owned by the
- * Intelletto plugin itself. Richer providers come from the plugins that own
- * them.
+ * Register the app-level context providers used when no trace is loaded.
+ */
+export function registerAppContextProviders(
+  reg: ContextRegistry,
+  app: App,
+): void {
+  reg.registerContextProvider({
+    id: 'dev.perfetto.Intelletto#page',
+    getContext() {
+      const route = app.getCurrentRoute();
+      const page = `${route.page}${route.subpage}` || '/';
+      return {
+        summary: `Page: ${page}`,
+        data: `Current page route: ${page}`,
+      };
+    },
+  });
+
+  reg.registerContextProvider({
+    id: 'dev.perfetto.Intelletto#trace',
+    getContext() {
+      return {
+        summary: 'No trace loaded',
+        data: 'No trace is currently loaded.',
+      };
+    },
+  });
+}
+
+/**
+ * Register the core context providers (trace, page, viewport, selection) owned
+ * by the Intelletto plugin itself. Richer providers come from the plugins that
+ * own them.
  */
 export function registerCoreContextProviders(
   reg: ContextRegistry,
   trace: Trace,
 ): void {
+  // The currently loaded trace, so the model knows when the user switches
+  // traces mid-conversation and avoids reusing stale ids/URIs.
+  reg.registerContextProvider({
+    id: 'dev.perfetto.Intelletto#trace',
+    getContext() {
+      const title = trace.traceInfo.traceTitle || 'Untitled trace';
+      return {
+        summary: `Trace: ${title}`,
+        data: `Current trace: ${title}`,
+      };
+    },
+  });
+
   // The current page (where the user is looking). Never returns undefined -
   // the strip is never empty and never silent about what's being sent.
   reg.registerContextProvider({

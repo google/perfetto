@@ -95,15 +95,18 @@ export class ChatSession {
 
   /**
    * @param gateway - The LLM gateway used to drive the agent.
-   * @param tools - The registry of tools available to the agent.
-   * @param context - The registry supplying per-turn context items.
-   * @param systemPrompt - The assembled system prompt sent on every request.
+   * @param tools - The registry (or getter for the active registry) of tools
+   *     available to the agent.
+   * @param context - The registry (or getter for the active registry) supplying
+   *     per-turn context items.
+   * @param systemPrompt - The assembled system prompt (or getter) sent on every
+   *     request.
    */
   constructor(
     gateway: LlmGateway,
-    tools: ToolRegistry,
-    private readonly context: ContextRegistry,
-    systemPrompt: string,
+    tools: ToolRegistry | (() => ToolRegistry),
+    private readonly context: ContextRegistry | (() => ContextRegistry),
+    systemPrompt: string | (() => string),
   ) {
     this.agent = new Agent(gateway, tools, systemPrompt);
   }
@@ -182,6 +185,10 @@ export class ChatSession {
     this.lines.push({role: 'error', text: CANCELLED_TEXT});
   }
 
+  private getContext(): ContextRegistry {
+    return typeof this.context === 'function' ? this.context() : this.context;
+  }
+
   private appendAi(text: string) {
     const last = this.lines[this.lines.length - 1];
     if (last?.role === 'ai') {
@@ -209,7 +216,7 @@ export class ChatSession {
       this.lines.push({role: 'user', text});
 
       // Fold in any non-excluded context as a preamble the model can see.
-      const context = this.context
+      const context = this.getContext()
         .buildContextItems()
         .filter((c) => !this.excludedContext.has(c.id));
       prompt =
