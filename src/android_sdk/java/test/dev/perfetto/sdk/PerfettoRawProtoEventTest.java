@@ -240,6 +240,31 @@ public class PerfettoRawProtoEventTest {
   }
 
   @Test
+  public void bytesMatchReference() {
+    byte[][] values = {
+        new byte[0],
+        new byte[] {(byte) 0xFF, (byte) 0xD8, 0x00, (byte) 0x80, 0x42},
+        new byte[127],
+        new byte[128],
+        new byte[8192],
+    };
+    Arrays.fill(values[2], (byte) 0xAB);
+    Arrays.fill(values[3], (byte) 0xCD);
+    for (int i = 0; i < values[4].length; i++) {
+      values[4][i] = (byte) (i & 0xFF);
+    }
+    for (byte[] value : values) {
+      PerfettoRawProtoEvent event = new PerfettoRawProtoEvent();
+      event.addBytes(2, value);
+      assertArrayEquals(
+          "length " + value.length, new Ref().bytesField(2, value).bytes(), finishedFields(event));
+    }
+    PerfettoRawProtoEvent nullBytes = new PerfettoRawProtoEvent();
+    nullBytes.addBytes(2, null);
+    assertArrayEquals(new Ref().bytesField(2, new byte[0]).bytes(), finishedFields(nullBytes));
+  }
+
+  @Test
   public void nestedLengthsAtVarintBoundaries() {
     // Payloads around the one-byte (127) and two-byte (16383) length limits.
     int[] sizes = {0, 2, 126, 127, 128, 129, 16383, 16384, 16385};

@@ -25,6 +25,7 @@
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
+#include "protos/perfetto/trace/track_event/screenshot.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
 
 namespace perfetto {
@@ -162,6 +163,71 @@ event { type: 2, debug_annotations: [] }
 )";
 
   EXPECT_STREQ(result.c_str(), actual);
+}
+
+TEST(TracingSdkForJniTest, ProtoFieldBytes) {
+  sdk_for_jni::register_perfetto(true);
+  sdk_for_jni::Category category("bytes_cat");
+  category.register_category();
+
+  auto tracing_session = StartTracing();
+
+  const std::string expected("\xff\xd8\x00\x80payload", 11);
+
+  auto* proto = new sdk_for_jni::Proto();
+  auto* nested = new sdk_for_jni::ProtoFieldNested();
+  auto* jpg_field = new sdk_for_jni::ProtoField();
+  auto* empty_field = new sdk_for_jni::ProtoField();
+
+  uint8_t* dst =
+      jpg_field->set_bytes(1, expected.size());  // Screenshot.jpg_image
+  ASSERT_NE(dst, nullptr);
+  memcpy(dst, expected.data(), expected.size());
+
+  uint8_t* empty_dst = empty_field->set_bytes(2, 0);  // Screenshot.pam_image
+  EXPECT_EQ(empty_dst, nullptr);
+
+  nested->set_id(50);  // TrackEvent.screenshot
+  nested->add_field(
+      reinterpret_cast<PerfettoTeHlProtoField*>(jpg_field->get()));
+  nested->add_field(
+      reinterpret_cast<PerfettoTeHlProtoField*>(empty_field->get()));
+  proto->add_field(reinterpret_cast<PerfettoTeHlProtoField*>(
+      const_cast<PerfettoTeHlProtoFieldNested*>(nested->get())));
+
+  sdk_for_jni::Extra extra;
+  extra.push_extra(reinterpret_cast<PerfettoTeHlExtra*>(
+      const_cast<PerfettoTeHlExtraProtoFields*>(proto->get())));
+  trace_event(PERFETTO_TE_TYPE_INSTANT, category.get(), "Screenshot", &extra);
+
+  jpg_field->release_bytes();
+  EXPECT_EQ(jpg_field->get()->field_bytes.len, 0u);
+
+  // Verify the field can allocate again after release_bytes().
+  const std::string second("abc", 3);
+  uint8_t* dst2 = jpg_field->set_bytes(1, second.size());
+  ASSERT_NE(dst2, nullptr);
+  memcpy(dst2, second.data(), second.size());
+  EXPECT_EQ(jpg_field->get()->field_bytes.len, second.size());
+  jpg_field->release_bytes();
+
+  sdk_for_jni::ProtoField::delete_field(empty_field);
+  sdk_for_jni::ProtoField::delete_field(jpg_field);
+  sdk_for_jni::ProtoFieldNested::delete_field(nested);
+  sdk_for_jni::Proto::delete_proto(proto);
+
+  Trace trace = StopTracing(tracing_session);
+  bool found = false;
+  for (const TracePacket& packet : trace.packet()) {
+    if (packet.has_track_event() && packet.track_event().has_screenshot()) {
+      const auto& shot = packet.track_event().screenshot();
+      EXPECT_EQ(shot.jpg_image(), expected);
+      EXPECT_TRUE(shot.has_pam_image());
+      EXPECT_TRUE(shot.pam_image().empty());
+      found = true;
+    }
+  }
+  EXPECT_TRUE(found);
 }
 }  // namespace
 }  // namespace perfetto

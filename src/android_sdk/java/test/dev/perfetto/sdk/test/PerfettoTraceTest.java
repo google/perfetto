@@ -799,6 +799,56 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testProtoBytes() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // Arbitrary binary bytes including 0x00, 0x80, 0xFF and > 4 KiB length.
+    byte[] payload = new byte[8192];
+    payload[0] = (byte) 0xFF;
+    payload[1] = (byte) 0xD8;
+    payload[2] = 0x00;
+    payload[3] = (byte) 0x80;
+    for (int i = 4; i < payload.length; i++) {
+      payload[i] = (byte) (i & 0xFF);
+    }
+
+    // TrackEvent.screenshot = 50; Screenshot.{jpg_image = 1, pam_image = 2, ppm_image = 3}.
+    PerfettoTrace.instant(FOO_CATEGORY, "event_bytes_large")
+        .beginProto()
+        .beginNested(50L)
+        .addField(1L, payload)
+        .addField(2L, new byte[0])
+        .addField(3L, (byte[]) null)
+        .endNested()
+        .endProto()
+        .emit();
+
+    // Reuse the pooled Field slot on a subsequent event.
+    byte[] smallPayload = new byte[] {1, 2, 3};
+    PerfettoTrace.instant(FOO_CATEGORY, "event_bytes_small")
+        .beginProto()
+        .beginNested(50L)
+        .addField(1L, smallPayload)
+        .endNested()
+        .endProto()
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    TrackEvent first = getTrackEvent(trace, 0);
+    TrackEvent second = getTrackEvent(trace, 1);
+
+    assertThat(first.getScreenshot().getJpgImage().toByteArray()).isEqualTo(payload);
+    assertThat(first.getScreenshot().hasPamImage()).isTrue();
+    assertThat(first.getScreenshot().getPamImage().isEmpty()).isTrue();
+    assertThat(first.getScreenshot().hasPpmImage()).isTrue();
+    assertThat(first.getScreenshot().getPpmImage().isEmpty()).isTrue();
+    assertThat(second.getScreenshot().getJpgImage().toByteArray()).isEqualTo(smallPayload);
+  }
+
+  @Test
   public void testProtoWithInterning() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
@@ -1097,6 +1147,11 @@ public class PerfettoTraceTest {
     PerfettoTrace.instant(FOO_CATEGORY, "inner")
         .addArg("inner_arg", value)
         .addArg("inner_str", "inner_string_that_clobbers_shared_buffer")
+        .beginProto()
+        .beginNested(50L)
+        .addField(1L, new byte[] {9, 8, 7})
+        .endNested()
+        .endProto()
         .emit();
     return value;
   }
@@ -1106,16 +1161,21 @@ public class PerfettoTraceTest {
     TraceConfig traceConfig = getTraceConfig(FOO);
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
+    byte[] outerBytes = new byte[] {(byte) 0xFF, 0x00, 0x42, (byte) 0x80};
+
     // Inner events are emitted from the outer event's argument list, both for a
     // debug arg and inside a proto field. Strings (including one that spills
-    // into overflow_strings) are set before the inner emits to verify that the
-    // inner emit does not overwrite or free the outer event's strings.
+    // into overflow_strings) and bytes are set before the inner emits to verify
+    // that the inner emit does not overwrite or free the outer event's buffers.
     PerfettoTrace.instant(FOO_CATEGORY, "outer")
         .setCorrelationId("outer_corr")
         .addArg("outer_str", "hello")
         .addArg("outer_long_str", TEXT_ABOVE_4K_SIZE)
         .addArg("outer_arg", emitInnerEvent(1))
         .beginProto()
+        .beginNested(50L)
+        .addField(1L, outerBytes)
+        .endNested()
         .beginNested(33L)
         .addField(3, "outer_function")
         .addField(4L, emitInnerEvent(2))
@@ -1136,14 +1196,17 @@ public class PerfettoTraceTest {
 
     assertThat(inner1.getDebugAnnotations(0).getIntValue()).isEqualTo(1);
     assertThat(inner1.hasSourceLocation()).isFalse();
+    assertThat(inner1.getScreenshot().getJpgImage().toByteArray()).isEqualTo(new byte[] {9, 8, 7});
     assertThat(inner2.getDebugAnnotations(0).getIntValue()).isEqualTo(2);
     assertThat(inner2.hasSourceLocation()).isFalse();
+    assertThat(inner2.getScreenshot().getJpgImage().toByteArray()).isEqualTo(new byte[] {9, 8, 7});
 
     assertThat(outer.getCorrelationIdStr()).isEqualTo("outer_corr");
     assertThat(outer.getDebugAnnotationsCount()).isEqualTo(3);
     assertThat(outer.getDebugAnnotations(0).getStringValue()).isEqualTo("hello");
     assertThat(outer.getDebugAnnotations(1).getStringValue()).isEqualTo(TEXT_ABOVE_4K_SIZE);
     assertThat(outer.getDebugAnnotations(2).getIntValue()).isEqualTo(1);
+    assertThat(outer.getScreenshot().getJpgImage().toByteArray()).isEqualTo(outerBytes);
     assertThat(outer.getSourceLocation().getFunctionName()).isEqualTo("outer_function");
     assertThat(outer.getSourceLocation().getLineNumber()).isEqualTo(2);
 

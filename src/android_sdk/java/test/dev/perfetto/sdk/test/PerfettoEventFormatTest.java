@@ -752,6 +752,11 @@ public class PerfettoEventFormatTest {
         .addField(1001, 3.25)
         .addField(1002, "proto-string")
         .addField(1003, true)
+        .beginNested(50L)
+        .addField(1L, new byte[] {(byte) 0xFF, 0x00, 0x42, (byte) 0x80})
+        .addField(2L, new byte[0])
+        .addField(3L, (byte[]) null)
+        .endNested()
         .endProto()
         .emit();
     PerfettoTrace.begin(CATEGORY, "slice").emit();

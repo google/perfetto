@@ -532,6 +532,8 @@ final class PerfettoTrackEventExtra {
     // Public pointer to Perfetto object itself
     private final long mFieldPtr;
 
+    private boolean mHasBytes;
+
     Field(PerfettoNativeMemoryCleaner memoryCleaner) {
       mPtr = native_init();
       mFieldPtr = native_get_extra_ptr(mPtr);
@@ -555,6 +557,20 @@ final class PerfettoTrackEventExtra {
       native_set_value_string(mPtr, id, val);
     }
 
+    public void setValueBytes(long id, byte[] val) {
+      if (val != null && val.length > 0) {
+        mHasBytes = true;
+      }
+      native_set_value_bytes(mPtr, id, val);
+    }
+
+    public void releaseBytes() {
+      if (mHasBytes) {
+        mHasBytes = false;
+        native_release_bytes(mPtr);
+      }
+    }
+
     public void setValueWithInterning(long id, String val, long internedTypeId) {
       native_set_value_with_interning(mPtr, id, val, internedTypeId);
     }
@@ -576,6 +592,12 @@ final class PerfettoTrackEventExtra {
 
     @FastNative
     private static native void native_set_value_string(long ptr, long id, String val);
+
+    @FastNative
+    private static native void native_set_value_bytes(long ptr, long id, byte[] val);
+
+    @CriticalNative
+    private static native void native_release_bytes(long ptr);
 
     @FastNative
     private static native void native_set_value_with_interning(

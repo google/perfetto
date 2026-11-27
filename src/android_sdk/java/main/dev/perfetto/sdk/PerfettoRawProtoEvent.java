@@ -386,6 +386,27 @@ final class PerfettoRawProtoEvent {
     mPosition = copyString(value, size, mPosition);
   }
 
+  void addBytes(long id, byte[] value) {
+    if (mFailed) {
+      return;
+    }
+    long tag = tag(id, WIRE_TYPE_LENGTH_DELIMITED);
+    if (tag < 0) {
+      return;
+    }
+    int size = value == null ? 0 : value.length;
+    if ((size > MAX_ONE_BYTE_LENGTH || !fits(MAX_TAG_SIZE + 1 + size))
+        && !reserve((long) varintSize(tag) + varintSize(size) + size)) {
+      return;
+    }
+    putVarint(tag);
+    putVarint(size);
+    if (size > 0) {
+      System.arraycopy(value, 0, mBuffer, mPosition, size);
+      mPosition += size;
+    }
+  }
+
   void beginNested(long id) {
     if (mFailed) {
       return;

@@ -99,6 +99,7 @@ public final class PerfettoTrackEventBuilder {
     public final Pool<Proto> mProtoPool;
     public final Pool<Flow> mFlowPool;
     public final Pool<Flow> mTerminatingFlowPool;
+    public boolean mHasBytesFields;
 
     public ObjectsPool(int capacity) {
       mFieldPool = new Pool<>(capacity);
@@ -114,6 +115,7 @@ public final class PerfettoTrackEventBuilder {
       mProtoPool.reset();
       mFlowPool.reset();
       mTerminatingFlowPool.reset();
+      mHasBytesFields = false;
     }
   }
 
@@ -271,6 +273,15 @@ public final class PerfettoTrackEventBuilder {
     }
     // Release references to native extras so their Java owners can be collected.
     if (buildsExtrasEvent()) {
+      if (mObjectsPool.mHasBytesFields) {
+        mObjectsPool.mHasBytesFields = false;
+        for (int i = 0, size = mPendingPointers.size(); i < size; i++) {
+          PerfettoPointer ptr = mPendingPointers.get(i);
+          if (ptr instanceof Field) {
+            ((Field) ptr).releaseBytes();
+          }
+        }
+      }
       mPendingPointers.clear();
     }
     mCategory = null;
@@ -1077,6 +1088,32 @@ public final class PerfettoTrackEventBuilder {
     if (buildsExtrasEvent()) {
       Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
       field.setValueString(id, val);
+      addFieldToContainer(field);
+    }
+  }
+
+  /** Adds a proto field with field id {@code id} and value {@code val}. */
+  public PerfettoTrackEventBuilder addField(long id, byte[] val) {
+    if (mIsCategoryEnabled) {
+      addFieldEnabled(id, val);
+    }
+    return this;
+  }
+
+  private void addFieldEnabled(long id, byte[] val) {
+    if (!isProtoBuilder()) {
+      return;
+    }
+    if (buildsRawProtoEvent()) {
+      checkNoOpenNestedField();
+      mRawProto.addBytes(id, val);
+    }
+    if (buildsExtrasEvent()) {
+      Field field = mObjectsPool.mFieldPool.get(fieldSupplier);
+      field.setValueBytes(id, val);
+      if (val != null && val.length > 0) {
+        mObjectsPool.mHasBytesFields = true;
+      }
       addFieldToContainer(field);
     }
   }
