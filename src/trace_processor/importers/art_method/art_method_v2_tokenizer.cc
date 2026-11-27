@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
@@ -336,6 +337,53 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
     return base::ErrStatus(
         "ART Method V2 trace: trace entries encountered for unknown thread %u",
         thread_id);
+  }
+
+  // Earlier, pre-TSC ART V2 layout (Android 15/16 and current public AOSP,
+  // TraceWriter::FlushEntriesFormatV2 in art/runtime/trace.cc). It leaves the
+  // TSC header fields zeroed and encodes every record, entries and exits
+  // alike, as SLEB128(delta of method_ptr | action), then ULEB128(delta of
+  // wall ns since start), then ULEB128(delta of thread cpu ns) when dual
+  // clock. Its wall time is relative to the header timestamp `ts_`. Newer ART
+  // updated the format in place: it populates the TSC fields and omits method
+  // IDs on exits, which the loop below handles.
+  if (tsc_frequency_ == 0) {
+    uint64_t wall_ns = 0;
+    for (uint32_t i = 0; i < num_records; i++) {
+      int64_t diff = 0;
+      const uint8_t* next =
+          DecodeSignedLeb128(current_buffer_ptr, buffer_end, &diff);
+      if (next == current_buffer_ptr) {
+        break;
+      }
+      current_buffer_ptr = next;
+      prev_method_value =
+          static_cast<int64_t>(static_cast<uint64_t>(prev_method_value) +
+                               static_cast<uint64_t>(diff));
+      auto method_action = static_cast<uint64_t>(prev_method_value);
+
+      uint64_t clock_diff = 0;
+      next = protozero::proto_utils::ParseVarInt(current_buffer_ptr, buffer_end,
+                                                 &clock_diff);
+      if (next == current_buffer_ptr) {
+        break;
+      }
+      current_buffer_ptr = next;
+      wall_ns += clock_diff;
+      if (is_dual_clock_) {
+        next = protozero::proto_utils::ParseVarInt(current_buffer_ptr,
+                                                   buffer_end, &clock_diff);
+        if (next == current_buffer_ptr) {
+          break;
+        }
+        current_buffer_ptr = next;
+      }
+      PushRecord(thread_id, method_action & kTraceActionMask,
+                 method_action & ~uint64_t{kTraceActionMask},
+                 static_cast<int64_t>(wall_ns));
+    }
+    reader_.PopFrontUntil(it.file_offset());
+    return true;
   }
 
   std::vector<uint64_t>& method_stack = thread_it->method_stack;
