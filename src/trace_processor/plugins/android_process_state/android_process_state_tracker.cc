@@ -44,6 +44,41 @@
 namespace perfetto::trace_processor::android_process_state {
 namespace {
 namespace fb = com::android::internal::pbzero;
+
+// Records the android_process_state_invalid_start_ts stat and an import log
+// with details of a dropped negative or post-event start time.
+void RecordInvalidStartTs(TraceProcessorContext* context,
+                          int64_t event_ts,
+                          const char* reason,
+                          const char* source,
+                          const char* field,
+                          UniquePid upid,
+                          int64_t start_ns,
+                          std::optional<int64_t> start_ts) {
+  TraceStorage* storage = context->storage.get();
+  int64_t pid = storage->process_table()[upid].pid();
+  context->import_logs_tracker->RecordParserLog(
+      stats::android_process_state_invalid_start_ts, event_ts,
+      [&](ArgsInserter& inserter) {
+        inserter.AddArg(storage->InternString("reason"),
+                        Variadic::String(storage->InternString(reason)));
+        inserter.AddArg(storage->InternString("source"),
+                        Variadic::String(storage->InternString(source)));
+        inserter.AddArg(storage->InternString("field"),
+                        Variadic::String(storage->InternString(field)));
+        inserter.AddArg(storage->InternString("pid"), Variadic::Integer(pid));
+        inserter.AddArg(storage->InternString("upid"),
+                        Variadic::Integer(static_cast<int64_t>(upid)));
+        inserter.AddArg(storage->InternString("event_ts"),
+                        Variadic::Integer(event_ts));
+        inserter.AddArg(storage->InternString("start_ns"),
+                        Variadic::Integer(start_ns));
+        if (start_ts.has_value()) {
+          inserter.AddArg(storage->InternString("start_ts"),
+                          Variadic::Integer(*start_ts));
+        }
+      });
+}
 }  // namespace
 
 StringId InternEnum(TraceProcessorContext* context,
@@ -103,52 +138,19 @@ std::optional<int64_t> AndroidProcessStateTracker::StartNsToTraceTime(
     return std::nullopt;
   }
   if (boottime_ns < 0) {
-    RecordInvalidStartTs(event_ts, "negative", source, field, upid, boottime_ns,
-                         /*start_ts=*/std::nullopt);
+    RecordInvalidStartTs(context_, event_ts, "negative", source, field, upid,
+                         boottime_ns, /*start_ts=*/std::nullopt);
     return std::nullopt;
   }
   std::optional<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
       ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
       boottime_ns);
   if (start_ts && *start_ts > event_ts) {
-    RecordInvalidStartTs(event_ts, "after_event", source, field, upid,
+    RecordInvalidStartTs(context_, event_ts, "after_event", source, field, upid,
                          boottime_ns, start_ts);
     return std::nullopt;
   }
   return start_ts;
-}
-
-void AndroidProcessStateTracker::RecordInvalidStartTs(
-    int64_t event_ts,
-    const char* reason,
-    const char* source,
-    const char* field,
-    UniquePid upid,
-    int64_t start_ns,
-    std::optional<int64_t> start_ts) {
-  TraceStorage* storage = context_->storage.get();
-  int64_t pid = storage->process_table()[upid].pid();
-  context_->import_logs_tracker->RecordParserLog(
-      stats::android_process_state_invalid_start_ts, event_ts,
-      [&](ArgsInserter& inserter) {
-        inserter.AddArg(storage->InternString("reason"),
-                        Variadic::String(storage->InternString(reason)));
-        inserter.AddArg(storage->InternString("source"),
-                        Variadic::String(storage->InternString(source)));
-        inserter.AddArg(storage->InternString("field"),
-                        Variadic::String(storage->InternString(field)));
-        inserter.AddArg(storage->InternString("pid"), Variadic::Integer(pid));
-        inserter.AddArg(storage->InternString("upid"),
-                        Variadic::Integer(static_cast<int64_t>(upid)));
-        inserter.AddArg(storage->InternString("event_ts"),
-                        Variadic::Integer(event_ts));
-        inserter.AddArg(storage->InternString("start_ns"),
-                        Variadic::Integer(start_ns));
-        if (start_ts.has_value()) {
-          inserter.AddArg(storage->InternString("start_ts"),
-                          Variadic::Integer(*start_ts));
-        }
-      });
 }
 
 template <typename Decoder>
