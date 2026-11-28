@@ -187,7 +187,7 @@ base::Status ParseSingleMetricExtensionPath(bool dev,
   std::vector<std::string> parts = base::SplitString(raw_extension, "@");
   if (parts.size() != 2 || parts[0].length() == 0 || parts[1].length() == 0) {
     return base::ErrStatus(
-        "--metric-extension-dir must be of format disk_path@virtual_path");
+        "--metric-extension must be of format disk_path@virtual_path");
   }
 
   parsed_extension.SetDiskPath(std::move(parts[0]));
