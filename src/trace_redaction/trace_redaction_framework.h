@@ -49,11 +49,13 @@ class SystemInfo {
   int32_t AllocateSynthThread() { return ++next_synth_thread_; }
 
   uint32_t ReserveCpu(uint32_t cpu) {
-    last_cpu_ = std::max(last_cpu_, cpu);
-    return last_cpu_;
+    last_cpu_ = last_cpu_.has_value() ? std::max(*last_cpu_, cpu) : cpu;
+    return *last_cpu_;
   }
 
-  uint32_t cpu_count() const { return last_cpu_ + 1; }
+  uint32_t cpu_count() const {
+    return last_cpu_.has_value() ? *last_cpu_ + 1 : 0;
+  }
 
  private:
   // This is the last allocated tid. Using a tid equal to or less than this tid
@@ -76,16 +78,15 @@ class SystemInfo {
   //      system-wide limit on the total number of processes and
   //      threads.  The default value for this file, 32768, results
   //      in the same range of PIDs as on earlier kernels.  On
-  //      32-bit platforms, 32768 is the maximum value for pid_max.
-  //      On 64-bit systems, pid_max can be set to any value up to
+  //      32-bit platforms, pid_max can be set to any value up to
   //      2^22 (PID_MAX_LIMIT, approximately 4 million).
   //
   // SOURCE: https://man7.org/linux/man-pages/man5/proc.5.html
   int32_t next_synth_thread_ = 1 << 22;
 
-  // The last CPU index seen. If this value is 7, it means there are at least
-  // 8 CPUs.
-  uint32_t last_cpu_ = 0;
+  // The last CPU index seen in ftrace events, or nullopt if no ftrace events
+  // were seen. If this value is 7, it means there are at least 8 CPUs.
+  std::optional<uint32_t> last_cpu_;
 };
 
 class SyntheticProcess {
@@ -372,6 +373,10 @@ class Context {
   // Deduplicated representation of all processes and threads in the trace.
   // Used to produce the final process tree packets.
   std::optional<MergedProcessTree> merged_process_tree;
+
+  // Number of ProcessTree packets seen in Pass 1 (used by dynamic Pass 2 to
+  // skip merging when <= 1 snapshot exists).
+  uint32_t process_tree_packets = 0;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The

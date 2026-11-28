@@ -119,7 +119,7 @@ class DummyAugmentTimestamp : public AugmentPrimitive {
 
 }  // namespace
 
-TEST(TraceRedactorPassTest, DirectPassExecution) {
+TEST(ConcreteRedactorPassTest, DirectPassExecution) {
   protos::gen::Trace trace;
   {
     auto* packet = trace.add_packet();
@@ -139,7 +139,7 @@ TEST(TraceRedactorPassTest, DirectPassExecution) {
 
   std::string serialized = trace.SerializeAsString();
 
-  TraceRedactorPass pass;
+  ConcreteRedactorPass pass;
   pass.emplace_collect<DummyCollect>();
   pass.emplace_transform<DummyTransform>();
   pass.emplace_augment<DummyAugment>();
@@ -163,14 +163,14 @@ TEST(TraceRedactorPassTest, DirectPassExecution) {
   EXPECT_EQ(timestamps[2], 999u);
 }
 
-TEST(TraceRedactorPassTest, ValidatorErrorHaltsExecution) {
+TEST(ConcreteRedactorPassTest, ValidatorErrorHaltsExecution) {
   protos::gen::Trace trace;
   auto* packet = trace.add_packet();
   packet->set_timestamp(100);
 
   std::string serialized = trace.SerializeAsString();
 
-  TraceRedactorPass pass;
+  ConcreteRedactorPass pass;
   pass.emplace_validator<DummyValidator>();
 
   Context context;
@@ -181,14 +181,15 @@ TEST(TraceRedactorPassTest, ValidatorErrorHaltsExecution) {
   ASSERT_EQ(status.message(), "DummyValidator: validation failed");
 }
 
-TEST(TraceRedactorPassTest, EmptyTimelineWithTimelineValidationReturnsError) {
+TEST(ConcreteRedactorPassTest,
+     EmptyTimelineWithTimelineValidationReturnsError) {
   protos::gen::Trace trace;
   auto* packet = trace.add_packet();
   packet->set_timestamp(100);
 
   std::string serialized = trace.SerializeAsString();
 
-  TraceRedactorPass pass;
+  ConcreteRedactorPass pass;
   pass.emplace_validator<TimelineValidation>();
 
   Context context;  // timeline is null / empty
@@ -1459,6 +1460,70 @@ TEST(TraceRedactorTest, MAYBE_RedactsOomScoreAdjUpdateEvents) {
     EXPECT_EQ(oom.pid(), kTargetAppPid);
     EXPECT_FALSE(oom.has_comm());
     EXPECT_EQ(oom.oom_score_adj(), 0);
+  }
+}
+
+TEST(TraceRedactorTest, DynamicPassSkippedWhenEmptyAndRunsWhenPopulated) {
+  protos::gen::Trace trace;
+  {
+    auto* packet = trace.add_packet();
+    packet->set_timestamp(10);
+    packet->set_trusted_uid(500);
+  }
+  std::string serialized = trace.SerializeAsString();
+
+  auto make_redactor = [](bool* builder_called) {
+    auto redactor = std::make_unique<TraceRedactor>();
+    auto* pass1 = redactor->add_pass();
+    pass1->emplace_collect<DummyCollect>();
+    pass1->emplace_augment<DummyAugmentTimestamp<100>>();
+
+    redactor->add_pass(
+        [builder_called](const Context& ctx, ConcreteRedactorPass* pass2) {
+          *builder_called = true;
+          if (ctx.synthetic_process) {
+            pass2->emplace_augment<DummyAugmentTimestamp<200>>();
+          }
+        });
+    return redactor;
+  };
+
+  // Case 1: synthetic_process is null -> Pass 2 stays empty and is skipped.
+  {
+    bool builder_called = false;
+    auto redactor = make_redactor(&builder_called);
+    Context context;
+    std::string output;
+    ASSERT_OK(redactor->RedactBuffer(serialized, &output, &context));
+    EXPECT_TRUE(builder_called);
+
+    protos::pbzero::Trace::Decoder decoded(output);
+    std::vector<uint64_t> timestamps;
+    for (auto it = decoded.packet(); it; ++it) {
+      timestamps.push_back(
+          protos::pbzero::TracePacket::Decoder(it->as_bytes()).timestamp());
+    }
+    EXPECT_THAT(timestamps, testing::ElementsAre(10u, 100u));
+  }
+
+  // Case 2: synthetic_process is set -> Pass 2 populates and runs.
+  {
+    bool builder_called = false;
+    auto redactor = make_redactor(&builder_called);
+    Context context;
+    context.synthetic_process = std::make_unique<SyntheticProcess>(
+        4194305, std::vector<int32_t>{4194306});
+    std::string output;
+    ASSERT_OK(redactor->RedactBuffer(serialized, &output, &context));
+    EXPECT_TRUE(builder_called);
+
+    protos::pbzero::Trace::Decoder decoded(output);
+    std::vector<uint64_t> timestamps;
+    for (auto it = decoded.packet(); it; ++it) {
+      timestamps.push_back(
+          protos::pbzero::TracePacket::Decoder(it->as_bytes()).timestamp());
+    }
+    EXPECT_THAT(timestamps, testing::ElementsAre(10u, 100u, 200u));
   }
 }
 

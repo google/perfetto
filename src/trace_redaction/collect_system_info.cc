@@ -86,6 +86,9 @@ base::Status BuildSyntheticThreads::Build(Context* context) const {
   }
 
   auto& system_info = context->system_info.value();
+  if (system_info.cpu_count() == 0) {
+    return base::OkStatus();
+  }
 
   auto tgid = system_info.AllocateSynthThread();
 

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_REDACTION_TRACE_REDACTOR_H_
 #define SRC_TRACE_REDACTION_TRACE_REDACTOR_H_
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -29,10 +30,10 @@ namespace perfetto::trace_redaction {
 
 // Represents a single redaction pass containing its own sequence of collect,
 // build, transform, and augment primitives.
-class TraceRedactorPass {
+class ConcreteRedactorPass {
  public:
-  TraceRedactorPass();
-  virtual ~TraceRedactorPass();
+  ConcreteRedactorPass();
+  virtual ~ConcreteRedactorPass();
 
   // T must be derived from trace_redaction::CollectPrimitive.
   template <typename T>
@@ -77,6 +78,12 @@ class TraceRedactorPass {
     auto* ptr = uptr.get();
     augmenters_.push_back(std::move(uptr));
     return ptr;
+  }
+
+  // Returns true when no primitives have been registered on this pass.
+  bool empty() const {
+    return collectors_.empty() && validators_.empty() && builders_.empty() &&
+           transformers_.empty() && augmenters_.empty();
   }
 
   // Executes the pass: Collect -> Validate -> Build -> Transform -> Augment.
@@ -150,14 +157,23 @@ class TraceRedactorPass {
 };
 
 // Orchestrates multi-pass trace redaction by executing one or more
-// TraceRedactorPass instances sequentially.
+// ConcreteRedactorPass instances sequentially.
 class TraceRedactor {
  public:
+  // Populates a pass dynamically from `Context` right before the pass runs,
+  // after all earlier passes have completed. Leaving the pass empty skips it
+  // with zero buffer allocation or copy.
+  using PassBuilder =
+      std::function<void(const Context&, ConcreteRedactorPass*)>;
+
   TraceRedactor();
   virtual ~TraceRedactor();
 
   // Adds a new pass to the redaction pipeline and returns a pointer to it.
-  TraceRedactorPass* add_pass();
+  ConcreteRedactorPass* add_pass();
+
+  // Adds a dynamic pass prepared from `Context` right before execution.
+  void add_pass(PassBuilder builder);
 
   // Entry point for redacting a trace. Coordinates execution across all passes.
   // Regardless of success/failure, `context` will contain the current state.
@@ -165,46 +181,38 @@ class TraceRedactor {
                       std::string_view dest_filename,
                       Context* context) const;
 
-  // Convenience helper methods that forward to the current pass
-  // (creates a pass if `passes_` is empty).
+  // In-memory variant of Redact(). `input` is a serialized, uncompressed
+  // Trace and must stay valid for the duration of the call. `output` is
+  // cleared and receives the redacted serialized Trace.
+  base::Status RedactBuffer(std::string_view input,
+                            std::string* output,
+                            Context* context) const;
+
+  // Convenience helper methods that forward to the last concrete pass
+  // (creates a pass if needed).
   template <typename T>
   T* emplace_collect() {
-    if (passes_.empty()) {
-      add_pass();
-    }
-    return passes_.back()->emplace_collect<T>();
+    return GetLastConcretePass()->emplace_collect<T>();
   }
 
   template <typename T>
   T* emplace_validator() {
-    if (passes_.empty()) {
-      add_pass();
-    }
-    return passes_.back()->emplace_validator<T>();
+    return GetLastConcretePass()->emplace_validator<T>();
   }
 
   template <typename T>
   T* emplace_build() {
-    if (passes_.empty()) {
-      add_pass();
-    }
-    return passes_.back()->emplace_build<T>();
+    return GetLastConcretePass()->emplace_build<T>();
   }
 
   template <typename T>
   T* emplace_transform() {
-    if (passes_.empty()) {
-      add_pass();
-    }
-    return passes_.back()->emplace_transform<T>();
+    return GetLastConcretePass()->emplace_transform<T>();
   }
 
   template <typename T>
   T* emplace_augment() {
-    if (passes_.empty()) {
-      add_pass();
-    }
-    return passes_.back()->emplace_augment<T>();
+    return GetLastConcretePass()->emplace_augment<T>();
   }
 
   struct Config {
@@ -217,7 +225,19 @@ class TraceRedactor {
   static std::unique_ptr<TraceRedactor> CreateInstance(const Config& config);
 
  private:
-  std::vector<std::unique_ptr<TraceRedactorPass>> passes_;
+  struct RedactorPass {
+    std::unique_ptr<ConcreteRedactorPass> concrete_pass;
+    PassBuilder builder;
+  };
+
+  ConcreteRedactorPass* GetLastConcretePass() {
+    if (passes_.empty() || !passes_.back().concrete_pass) {
+      return add_pass();
+    }
+    return passes_.back().concrete_pass.get();
+  }
+
+  std::vector<RedactorPass> passes_;
 };
 
 }  // namespace perfetto::trace_redaction
