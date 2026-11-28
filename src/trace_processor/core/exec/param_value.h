@@ -98,6 +98,26 @@ inline void AttachGlob(ParamValue* value) {
 
 namespace internal {
 
+// Copies the text of a string cast for ordering, GLOB or REGEXP into `out`,
+// which then points to it, and compiles a REGEXP pattern. Out of line, so
+// that a string = or != cast stays small.
+PERFETTO_NO_INLINE inline void KeepStringText(const char* text,
+                                              NonNullOp op,
+                                              ParamValue* out) {
+  out->text.assign(text);
+  out->value.value = out->text.c_str();
+  if (op.Is<Regex>()) {
+    // As the interpreter does, a pattern which does not compile matches
+    // nothing.
+    base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
+    if (!regex.ok()) {
+      out->value = filter::CastFilterValueResult::NoneMatch();
+      return;
+    }
+    out->regex = std::move(*regex);
+  }
+}
+
 // Casts the value `fetcher` has at `index` into `out`, for a column of
 // storage type T compared by `op`. `pool` holds the column's strings.
 template <typename T, typename Fetcher>
@@ -112,31 +132,20 @@ void CastParamFor(Fetcher& fetcher,
       return;
     }
     const char* text = base::unchecked_get<const char*>(out->value.value);
-    if (op.Is<Eq>() || op.Is<Ne>()) {
-      // A string no row holds equals none of them, and differs from all.
-      std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
-      if (!id) {
-        out->value = op.Is<Eq>() ? filter::CastFilterValueResult::NoneMatch()
-                                 : filter::CastFilterValueResult::AllMatch();
-        return;
-      }
-      out->string_id = *id;
-      // Whatever `text` points to need not outlive the cast.
-      out->value.value = static_cast<const char*>(nullptr);
-    } else {
-      out->text.assign(text);
-      out->value.value = out->text.c_str();
-      if (op.Is<Regex>()) {
-        // As the interpreter does, a pattern which does not compile matches
-        // nothing.
-        base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
-        if (!regex.ok()) {
-          out->value = filter::CastFilterValueResult::NoneMatch();
-          return;
-        }
-        out->regex = std::move(*regex);
-      }
+    if (PERFETTO_UNLIKELY(!op.Is<Eq>() && !op.Is<Ne>())) {
+      KeepStringText(text, op, out);
+      return;
     }
+    // A string no row holds equals none of them, and differs from all.
+    std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
+    if (!id) {
+      out->value = op.Is<Eq>() ? filter::CastFilterValueResult::NoneMatch()
+                               : filter::CastFilterValueResult::AllMatch();
+      return;
+    }
+    out->string_id = *id;
+    // Whatever `text` points to need not outlive the cast.
+    out->value.value = static_cast<const char*>(nullptr);
   } else {
     base::ignore_result(pool);
   }
