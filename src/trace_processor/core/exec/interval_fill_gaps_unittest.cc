@@ -133,11 +133,11 @@ class Fill {
 // output row. Each batch is copied into its own buffers. The input must be
 // grouped by key and sorted by ts within each key.
 std::vector<Row> RunFill(
+    Context& context,
     const IntervalFillGaps& op,
     OperatorState& state,
     const std::vector<std::vector<std::optional<int64_t>>>& input,
     uint32_t chunk) {
-  Context& context = test::TestContext();
   RowBatch in, out;
   std::vector<Row> rows;
   uint32_t groups = 0;
@@ -229,7 +229,7 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
     state->EndRun();
-    EXPECT_EQ(RunFill(op, *state, input, chunk), expected);
+    EXPECT_EQ(RunFill(fill.context(), op, *state, input, chunk), expected);
   }
 }
 
@@ -241,7 +241,7 @@ TEST(IntervalFillGapsTest, OverlappingRowsCoverTheirUnion) {
   // Some rows overlap and some touch. Together they cover [10, 30) and
   // [50, 60).
   std::vector<Row> rows = RunFill(
-      op, *state,
+      fill.context(), op, *state,
       {{10, 10, 0, 3}, {12, 3, 0, 4}, {20, 10, 0, 2}, {50, 10, 0, 1}}, 2);
   EXPECT_EQ(rows, (std::vector<Row>{{0, 10, std::nullopt, 7},
                                     {10, 10, 0, 3},

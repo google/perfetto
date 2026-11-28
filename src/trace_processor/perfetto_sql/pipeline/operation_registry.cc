@@ -40,7 +40,7 @@ namespace perfetto::trace_processor::pipeline {
 
 namespace {
 
-const OperationRegistration* const kOperations[] = {
+constexpr const OperationRegistration* kOperations[] = {
     &Scan::kRegistration,
     &TreeAccumulate::kRegistration,
     &TreeKeyPaths::kRegistration,

@@ -42,7 +42,7 @@
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
-const OperationRegistration IntervalIntersect::kRegistration{
+constexpr OperationRegistration IntervalIntersect::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan,
     OperationRegistration::Encoding{2, &MakeOperation<IntervalIntersect>}};
 

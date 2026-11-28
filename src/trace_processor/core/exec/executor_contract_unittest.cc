@@ -127,14 +127,14 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   std::vector<double> values(4);
   std::memcpy(values.data(), bits, sizeof(bits));
   std::vector<uint32_t> rows{1, 0, 1, 3};
+  Context context;
   RowBatch input, output;
   input.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Double{}}, values.data()));
   input.SetRowCount(4);
   RowStore store;
-  ASSERT_TRUE(store.Append(input, test::TestContext()).ok());
-  ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows),
-                         test::TestContext()),
+  ASSERT_TRUE(store.Append(input, context).ok());
+  ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows), context),
             4u);
   for (uint32_t i = 0; i < 4; ++i) {
     double value = output.Value<double>(0, i);
@@ -412,7 +412,8 @@ TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<CombineBatches>());
   Pipeline pipeline(source, std::move(ops));
-  auto state = pipeline.MakeState(test::TestContext());
+  Context context;
+  auto state = pipeline.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(pipeline.GetData(out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3, 4, 5));

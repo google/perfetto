@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -50,7 +51,7 @@ struct Numbered {
            std::vector<T> parents,
            std::vector<bool> has_parent)
       : op(0, 1),
-        state(op.MakeState(test::TestContext())),
+        state(op.MakeState(context)),
         ids_(std::move(ids)),
         parents_(std::move(parents)) {
     auto count = static_cast<uint32_t>(ids_.size());
@@ -68,6 +69,7 @@ struct Numbered {
 
   bool Process() { return test::ProcessCopy(op, in, out, *state); }
 
+  Context context;
   TreeNumberNodes op;
   std::unique_ptr<OperatorState> state;
   std::vector<T> ids_;
@@ -123,8 +125,9 @@ TEST(TreeNumberNodesTest, IdsAreNumberedDensely) {
 TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
   StringPool pool;
   StringPool::Id string = pool.InternString("id");
+  Context context;
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
   std::vector<Variant> ids = {Variant::Int64(string.raw_id()),
                               Variant::String(string)};
   std::vector<Variant> parents = {Variant::Null(), Variant::Null()};
@@ -142,9 +145,7 @@ TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
 // operator in turn.
 struct Scanned {
   explicit Scanned(std::vector<uint32_t> parents, std::vector<bool> has_parent)
-      : op(0, 1),
-        state(op.MakeState(test::TestContext())),
-        parents_(std::move(parents)) {
+      : op(0, 1), state(op.MakeState(context)), parents_(std::move(parents)) {
     validity_ =
         BitVector::CreateWithSize(static_cast<uint32_t>(parents_.size()));
     for (uint32_t i = 0; i < parents_.size(); ++i) {
@@ -163,6 +164,7 @@ struct Scanned {
     return test::ProcessCopy(op, in, out, *state);
   }
 
+  Context context;
   TreeNumberNodes op;
   std::unique_ptr<OperatorState> state;
   std::vector<uint32_t> parents_;
@@ -247,14 +249,13 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
 
   DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
                      ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> scan_state =
-      scan.MakeState(test::TestContext());
+  Context context;
+  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   // The scan lends the nullable parents sparse, so they are laid out first.
   Expand expand({1});
-  std::unique_ptr<OperatorState> expand_state =
-      expand.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> expand_state = expand.MakeState(context);
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  std::unique_ptr<OperatorState> state = op.MakeState(context);
 
   RowBatch in;
   RowBatch out;

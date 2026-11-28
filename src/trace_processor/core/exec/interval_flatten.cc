@@ -28,7 +28,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
@@ -64,27 +63,13 @@ void PopEnd(FlexVector<Live>& heap) {
 // AggregateDeltas), then a slot for each live interval.
 constexpr uint32_t kFirstSlot = 2 * kMaxBatchRows;
 
-// The same for every run, so it is shared instead of stored in each run's
-// state. It is built on first use instead of being constexpr, which keeps its
-// ~24 KB out of the binary.
-struct Tree {
-  Tree() {
-    for (uint32_t k = 0; k < kFirstSlot; ++k) {
-      groups.push_back(k);
-      if (k >= 2) {
-        pushes.push_back(GroupMerge{k, k / 2});
-      }
-    }
+// Group i for each of the first `count` groups.
+const uint32_t* GroupsUpTo(FlexVector<uint32_t>& groups, uint32_t count) {
+  groups.resize(count);
+  for (uint32_t k = 0; k < count; ++k) {
+    groups[k] = k;
   }
-  // Group k is groups[k]: the leaves of a tree of n are groups + n.
-  std::vector<uint32_t> groups;
-  // Each node below the root merged from its parent, parents first.
-  std::vector<GroupMerge> pushes;
-};
-
-const Tree& GetTree() {
-  static const base::NoDestructor<Tree> tree;
-  return tree.ref();
+  return groups.data();
 }
 
 }  // namespace
@@ -396,7 +381,7 @@ bool IntervalFlatten::AggregateDeltas(State& s) const {
   if (overflow) {
     return false;
   }
-  const uint32_t* groups = GetTree().groups.data();
+  const uint32_t* groups = GroupsUpTo(s.groups, count);
   for (uint32_t i = 0; i < functions_.size(); ++i) {
     s.outputs[i] = FinalizeToBuffer(*s.context, *functions_[i],
                                     States(s, i, false), groups, count);
@@ -432,7 +417,12 @@ void IntervalFlatten::AggregateTree(State& s, bool* overflow) const {
     }
   }
   s.merges.resize(static_cast<uint64_t>(out - s.merges.data()));
-  const Tree& tree = GetTree();
+  // Each node below the root is pushed from its parent, parents first.
+  s.pushes.resize(2 * leaves - 2);
+  for (uint32_t k = 2; k < 2 * leaves; ++k) {
+    s.pushes[k - 2] = GroupMerge{k, k / 2};
+  }
+  const uint32_t* leaf_groups = GroupsUpTo(s.groups, 2 * leaves) + leaves;
   for (uint32_t i = 0; i < functions_.size(); ++i) {
     const AggregateFunction& function = *functions_[i];
     GroupStates states = States(s, i, false);
@@ -441,9 +431,9 @@ void IntervalFlatten::AggregateTree(State& s, bool* overflow) const {
     }
     function.Combine(s.merges.data(), static_cast<uint32_t>(s.merges.size()),
                      states, overflow);
-    function.Combine(tree.pushes.data(), 2 * leaves - 2, states, overflow);
-    s.outputs[i] = FinalizeToBuffer(*s.context, function, states,
-                                    tree.groups.data() + leaves, count);
+    function.Combine(s.pushes.data(), 2 * leaves - 2, states, overflow);
+    s.outputs[i] =
+        FinalizeToBuffer(*s.context, function, states, leaf_groups, count);
   }
 }
 
