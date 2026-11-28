@@ -394,8 +394,28 @@
     color: var(--pf-color-text);
   }
 
+  // Deliberately understated link-style button so users aren't drawn to
+  // accidentally revert the searchable setting.
   &__info-action {
-    background-color: var(--pf-color-background);
+    appearance: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: var(--pf-font-size-xs);
+    color: var(--pf-color-text-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--pf-color-text);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
   }
 
   &__searchable-bug-text {

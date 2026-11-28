@@ -386,15 +386,15 @@ function renderAutoMadeSearchableInfo(attrs: ShareFormAttrs): m.Children {
         ),
       ]),
       attrs.onRevertAutoMadeSearchable &&
-        m(Button, {
-          className: 'pf-gdrive-share__info-action',
-          label: 'Change back to link-only',
-          icon: 'undo',
-          variant: ButtonVariant.Outlined,
-          loading: loadingPermissions,
-          disabled: loadingPermissions,
-          onclick: () => attrs.onRevertAutoMadeSearchable?.(),
-        }),
+        m(
+          'button.pf-gdrive-share__info-action',
+          {
+            type: 'button',
+            disabled: loadingPermissions,
+            onclick: () => attrs.onRevertAutoMadeSearchable?.(),
+          },
+          'Change back to link-only',
+        ),
     ]),
     m(Button, {
       icon: 'close',
