@@ -90,9 +90,9 @@ export class PromptBox implements m.ClassComponent<PromptBoxAttrs> {
       m(
         '.pf-prompt-box__toolbar',
         attrs.totalTokens !== undefined
-          ? m(
-              '.pf-prompt-box__tokens',
-              `${(attrs.totalTokens / 1000).toFixed(1)} ktok`,
+          ? this.renderTokens(
+              attrs.totalTokens,
+              getContextWindow(attrs.selectedModel, attrs.models),
             )
           : null,
         this.renderModelPicker(attrs),
@@ -117,6 +117,35 @@ export class PromptBox implements m.ClassComponent<PromptBoxAttrs> {
               intent: Intent.Primary,
             }),
       ),
+    );
+  }
+
+  private renderTokenSize(totalTokens: number): m.Children {
+    if (totalTokens < 1000) {
+      return `${totalTokens} tokens`;
+    } else if (totalTokens < 1000000) {
+      return `${(totalTokens / 1000).toFixed(1)}k`;
+    } else {
+      return `${(totalTokens / 1000000).toFixed(1)}M`;
+    }
+  }
+
+  // Render the token readout: a percentage of the model's context window when
+  // its size is known, else the raw token count.
+  private renderTokens(
+    totalTokens: number,
+    contextWindow: number | undefined,
+  ): m.Children {
+    const ktok = `${(totalTokens / 1000).toFixed(1)} ktok`;
+    if (contextWindow === undefined || contextWindow <= 0) {
+      return m('.pf-prompt-box__tokens', ktok);
+    }
+    const pct = (totalTokens / contextWindow) * 100;
+    return m(
+      '.pf-prompt-box__tokens',
+      {title: `${ktok} of ${(contextWindow / 1000).toFixed(1)} ktok`},
+      `${pct.toFixed(1)}% of `,
+      this.renderTokenSize(contextWindow),
     );
   }
 
@@ -218,6 +247,16 @@ export class PromptBox implements m.ClassComponent<PromptBoxAttrs> {
       ],
     );
   }
+}
+
+function getContextWindow(
+  model: ModelPath | undefined,
+  models: readonly ModelDetails[],
+): number | undefined {
+  if (model === undefined) return undefined;
+  return models.find(
+    (m) => m.model.id === model.modelId && m.provider.id === model.providerId,
+  )?.model.contextWindow;
 }
 
 function shortModelName(model: ModelDetails): string {
