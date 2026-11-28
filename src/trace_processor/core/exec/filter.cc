@@ -152,8 +152,11 @@ Rows Compare(const ColumnView& column,
              const StringPool& pool,
              Rows r) {
   // The value was cast for the column's storage type, which picks its
-  // alternative.
-  PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
+  // alternative. A string compared by = or != is cast to its id instead.
+  if constexpr (!std::is_same_v<T, String> ||
+                (!std::is_same_v<O, Eq> && !std::is_same_v<O, Ne>)) {
+    PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
+  }
   if (r.contiguous) {
     // The rows are a run, so the values are read in order with no list.
     if constexpr (std::is_same_v<T, String>) {
