@@ -68,6 +68,12 @@ export class ChromeTracingController extends RpcConsumerPort {
     });
   }
 
+  // Release the shared chrome.debugger event listeners and the debugger
+  // attach when this connection goes away.
+  dispose() {
+    this.devtoolsSocket.dispose();
+  }
+
   handleCommand(methodName: string, requestData: Uint8Array) {
     switch (methodName) {
       case 'EnableTracing':
@@ -302,11 +308,18 @@ export class ChromeTracingController extends RpcConsumerPort {
   }
 
   onTracingComplete(params: Protocol.Tracing.TracingCompleteEvent) {
+    // CDP notifications are broadcast to every controller's DevToolsSocket.
+    // Chrome permits a single attach per extension per debuggee, so the
+    // attached controller is exactly the one that started this session; any
+    // other connected page's controller must not inherit the stream handle or
+    // see the completion.
+    if (!this.devtoolsSocket.isAttached()) return;
     this.streamHandle = params.stream;
     this.sendMessage({type: 'EnableTracingResponse'});
   }
 
   onBufferUsage(params: Protocol.Tracing.BufferUsageEvent) {
+    if (!this.devtoolsSocket.isAttached()) return;
     this.lastBufferUsageEvent = params;
   }
 
