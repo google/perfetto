@@ -390,9 +390,9 @@ PERFETTO_NO_INLINE void UnpackSelection(const uint16_t* indices,
   }
 }
 
-// Applies a comparison or IN to the rows kept so far, when the param is not
-// a value or the column is not flat. The values of a sparse
-// column or a sequence at those rows are written to `sparse_values` first.
+// Applies a comparison or IN to the rows kept so far where Process's fast path
+// cannot, dropping the nulls first. The values of a sparse column or a
+// sequence at those rows are written to `sparse_values` first.
 PERFETTO_NO_INLINE Rows ApplySlow(const ColumnView& lent,
                                   Op op,
                                   const ParamValue& cast,
@@ -462,20 +462,24 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
       PERFETTO_DCHECK(c.param < s.context->params().size());
       const ParamValue& cast = values[c.param];
-      if (PERFETTO_UNLIKELY(cast.value.validity !=
-                                CastFilterValueResult::kValid ||
-                            column.kind() != ColumnView::Kind::kFlat)) {
+      // A dense nullable flat column's null slots hold values, so a number
+      // or a string id is compared on every row, and the nulls are dropped
+      // only from the rows left. Other string comparisons read the pool,
+      // which a null's slot need not be in.
+      bool nulls_first = column.validity() != nullptr &&
+                         column.type().Is<String>() && !c.op.Is<Eq>() &&
+                         !c.op.Is<Ne>();
+      if (PERFETTO_UNLIKELY(
+              cast.value.validity != CastFilterValueResult::kValid ||
+              column.kind() != ColumnView::Kind::kFlat || nulls_first)) {
         r = ApplySlow(column, c.op, cast, *pool_, s.sparse_values.data(), r);
       } else {
-        if (column.validity() != nullptr) {
-          r = KeepNonNullFlat(column, r);
-          if (r.count == 0) {
-            break;
-          }
-        }
         CompareFn fn = kCompareTable[c.op.index()][column.type().index()];
         PERFETTO_DCHECK(fn != nullptr);
         r = fn(column, cast, *pool_, r);
+        if (column.validity() != nullptr && r.count != 0) {
+          r = KeepNonNullFlat(column, r);
+        }
       }
     }
     if (r.count == 0) {
