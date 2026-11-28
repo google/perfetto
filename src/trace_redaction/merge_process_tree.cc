@@ -66,6 +66,10 @@ base::Status CollectProcessTrees::Collect(const TracePacket::Decoder& packet,
     process.is_kthread = process_decoder.is_kthread();
     process.ppid = process_decoder.ppid();
     process.uid = process_decoder.uid();
+    if (process_decoder.has_process_start_from_boot()) {
+      process.process_start_from_boot =
+          process_decoder.process_start_from_boot();
+    }
     merged_tree.processes_by_pid[process.pid] = process;
   }
 
@@ -123,6 +127,10 @@ base::Status AugmentProcessTrees::Augment(const Context& context,
     process_field->set_ppid(process.ppid);
     process_field->set_uid(process.uid);
     process_field->set_is_kthread(process.is_kthread);
+    if (process.process_start_from_boot.has_value()) {
+      process_field->set_process_start_from_boot(
+          *process.process_start_from_boot);
+    }
     for (const std::string& cmdline : process.cmdline) {
       process_field->add_cmdline(cmdline);
     }

@@ -18,8 +18,11 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/collect_clocks.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
+#include "protos/perfetto/common/builtin_clock.gen.h"
+#include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
@@ -300,6 +303,92 @@ TEST_F(CollectTimelineEventsTest, ProcessWithNegativeUidDefaultsToUnknownUid) {
     ASSERT_EQ(event2->uid, ProcessThreadTimeline::Event::kUnknownUid);
     ASSERT_NE(event2->uid, 15u);
   }
+}
+
+class CollectTimelineEventsBackdateTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    collector_.set_backdate_first_open(true);
+    ASSERT_OK(collector_.Begin(&context_));
+  }
+
+  void CollectProcessTree(int32_t trusted_uid) {
+    protos::gen::TracePacket packet;
+    packet.set_trusted_uid(trusted_uid);
+    packet.set_timestamp(kTimeC);
+    auto* process = packet.mutable_process_tree()->add_processes();
+    process->set_pid(kPid);
+    process->set_ppid(1);
+    process->set_uid(10146);
+    process->set_process_start_from_boot(kTimeB);
+    auto buffer = packet.SerializeAsString();
+    ASSERT_OK(collector_.Collect(protos::pbzero::TracePacket::Decoder(buffer),
+                                 &context_));
+  }
+
+  void CollectTraceClock(protos::gen::BuiltinClock clock,
+                         int32_t trusted_uid = 9999) {
+    protos::gen::TracePacket packet;
+    packet.set_trusted_uid(trusted_uid);
+    packet.mutable_clock_snapshot()->set_primary_trace_clock(clock);
+    auto buffer = packet.SerializeAsString();
+    protos::pbzero::TracePacket::Decoder decoder(buffer);
+    ASSERT_OK(clocks_.Collect(decoder, &context_));
+    ASSERT_OK(collector_.Collect(decoder, &context_));
+  }
+
+  Context context_;
+  CollectClocks clocks_;
+  CollectTimelineEvents collector_;
+};
+
+TEST_F(CollectTimelineEventsBackdateTest, BackdatesToProcessStart) {
+  CollectProcessTree(9999);
+  ASSERT_OK(collector_.End(&context_));
+
+  ASSERT_TRUE(context_.timeline->GetOpeningEvent(kTimeB, kPid));
+  ASSERT_FALSE(context_.timeline->GetOpeningEvent(kTimeA, kPid));
+}
+
+TEST_F(CollectTimelineEventsBackdateTest, BoottimeClockUsesProcessStart) {
+  CollectTraceClock(protos::gen::BUILTIN_CLOCK_BOOTTIME);
+  CollectProcessTree(9999);
+  ASSERT_OK(collector_.End(&context_));
+
+  ASSERT_TRUE(context_.timeline->GetOpeningEvent(kTimeB, kPid));
+  ASSERT_FALSE(context_.timeline->GetOpeningEvent(kTimeA, kPid));
+}
+
+// Process start times are BOOTTIME; with another trace clock they cannot be
+// compared with packet timestamps, so the first open moves to 0.
+TEST_F(CollectTimelineEventsBackdateTest, OtherClockBackdatesToZero) {
+  CollectTraceClock(protos::gen::BUILTIN_CLOCK_MONOTONIC);
+  CollectProcessTree(9999);
+  ASSERT_OK(collector_.End(&context_));
+
+  ASSERT_TRUE(context_.timeline->GetOpeningEvent(kTimeA, kPid));
+}
+
+// The start time is taken from the earliest snapshot, the one whose open event
+// is back-dated, even if a later snapshot reports a reused pid.
+TEST_F(CollectTimelineEventsBackdateTest, PairsStartWithEarliestSnapshot) {
+  CollectProcessTree(9999);  // ts = kTimeC, start = kTimeB.
+  {
+    protos::gen::TracePacket packet;
+    packet.set_trusted_uid(9999);
+    packet.set_timestamp(kTimeC * 3);
+    auto* process = packet.mutable_process_tree()->add_processes();
+    process->set_pid(kPid);
+    process->set_uid(10200);
+    process->set_process_start_from_boot(kTimeC * 2);
+    auto buffer = packet.SerializeAsString();
+    ASSERT_OK(collector_.Collect(protos::pbzero::TracePacket::Decoder(buffer),
+                                 &context_));
+  }
+  ASSERT_OK(collector_.End(&context_));
+
+  ASSERT_TRUE(context_.timeline->PidConnectsToUid(kTimeB, kPid, 10146));
+  ASSERT_TRUE(context_.timeline->PidConnectsToUid(kTimeC * 3, kPid, 10200));
 }
 
 }  // namespace perfetto::trace_redaction

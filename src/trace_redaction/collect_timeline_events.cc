@@ -16,9 +16,11 @@
 
 #include "src/trace_redaction/collect_timeline_events.h"
 
+#include "perfetto/ext/base/status_macros.h"
 #include "src/trace_redaction/process_thread_timeline.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
@@ -134,6 +136,26 @@ void AppendEvents(const FtraceEventBundle::Decoder& ftrace_events,
   }
 }
 
+void RecordProcessStarts(const TracePacket::Decoder& packet,
+                         Context::TimelineBackdating* backdating) {
+  if (!packet.has_process_tree()) {
+    return;
+  }
+  uint64_t ts = packet.timestamp();
+  ProcessTree::Decoder tree(packet.process_tree());
+  for (auto it = tree.processes(); it; ++it) {
+    ProcessTree::Process::Decoder process(*it);
+    if (!process.has_pid() || !process.has_process_start_from_boot()) {
+      continue;
+    }
+    auto [entry, inserted] = backdating->first_snapshot_start.emplace(
+        process.pid(), std::make_pair(ts, process.process_start_from_boot()));
+    if (!inserted && ts < entry->second.first) {
+      entry->second = {ts, process.process_start_from_boot()};
+    }
+  }
+}
+
 }  // namespace
 
 base::Status CollectTimelineEvents::Begin(Context* context) const {
@@ -151,6 +173,10 @@ base::Status CollectTimelineEvents::Begin(Context* context) const {
 
 base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
                                             Context* context) const {
+  if (backdate_first_open_) {
+    RecordProcessStarts(packet, &context->timeline_backdating);
+  }
+
   // Unlike ftrace events, process trees do not provide per-process or
   // per-thread timing information. The packet has timestamp and the process
   // tree has collection_end_timestamp (collection_end_timestamp > timestamp).
@@ -173,6 +199,32 @@ base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
 }
 
 base::Status CollectTimelineEvents::End(Context* context) const {
+  if (backdate_first_open_) {
+    // Process starts are CLOCK_BOOTTIME (`starttime` in /proc/pid/stat); they
+    // are only comparable with packet timestamps when the trace clock is also
+    // BOOTTIME (populated on `clock_converter` by CollectClocks, defaulting to
+    // BOOTTIME).
+    ASSIGN_OR_RETURN(ClockId trace_clock,
+                     context->clock_converter.GetTraceClock());
+    bool is_boottime =
+        trace_clock == ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+
+    auto& backdating = context->timeline_backdating;
+    std::unordered_map<int32_t, uint64_t> start_ts_by_pid;
+    if (is_boottime) {
+      for (const auto& [pid, snapshot_and_start] :
+           backdating.first_snapshot_start) {
+        start_ts_by_pid[pid] = snapshot_and_start.second;
+      }
+    }
+    bool has_ftrace = context->system_info.has_value() &&
+                      context->system_info->cpu_count() > 0;
+    context->timeline->BackdateFirstOpenEvents(
+        start_ts_by_pid,
+        /*fallback_to_zero=*/!has_ftrace);
+    backdating = Context::TimelineBackdating();
+  }
+
   // Sort must be called in order to read from the timeline. If any more events
   // are added after this, then sort will need to be called again.
   context->timeline->Sort();

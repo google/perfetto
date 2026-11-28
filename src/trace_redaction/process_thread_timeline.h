@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <unordered_map>
 #include <vector>
 
 namespace perfetto::trace_redaction {
@@ -92,6 +93,14 @@ class ProcessThreadTimeline {
   void Append(const Event& event);
 
   bool empty() const { return events_.empty(); }
+
+  // Must be called before Sort(). For every pid, moves its earliest open event
+  // back to `start_ts_by_pid[pid]` (if present and earlier), or to 0 when
+  // `fallback_to_zero` is true (e.g. when the trace has no ftrace lifecycle
+  // events). Later open events keep their timestamps.
+  void BackdateFirstOpenEvents(
+      const std::unordered_map<int32_t, uint64_t>& start_ts_by_pid,
+      bool fallback_to_zero = true);
 
   // REQUIRED: Sorts all events by pid, making it possible to locate the subset
   // of events connected to a pid. Events are not sorted by time because the

@@ -27,12 +27,22 @@ namespace perfetto::trace_redaction {
 // packets and stores them in a timeline.
 class CollectTimelineEvents : public CollectPrimitive {
  public:
+  // When true, the first open event of every pid is moved back to the
+  // process's start time (ProcessTree.Process.process_start_from_boot) or to
+  // 0 if unknown. See ProcessThreadTimeline::BackdateFirstOpenEvents().
+  void set_backdate_first_open(bool backdate) {
+    backdate_first_open_ = backdate;
+  }
+
   base::Status Begin(Context* context) const override;
 
   base::Status Collect(const protos::pbzero::TracePacket::Decoder& packet,
                        Context* context) const override;
 
   base::Status End(Context* context) const override;
+
+ private:
+  bool backdate_first_open_ = false;
 };
 
 }  // namespace perfetto::trace_redaction

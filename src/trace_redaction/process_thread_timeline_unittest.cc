@@ -262,4 +262,44 @@ TEST(ProcessThreadTimelineTest_Empty, EmptyTimeline) {
   ASSERT_FALSE(timeline.empty());
 }
 
+TEST(ProcessThreadTimelineBackdateTest, MovesFirstOpenToProcessStart) {
+  ProcessThreadTimeline timeline;
+  timeline.Append(ProcessThreadTimeline::Event::Open(300, 1, 0, 10146));
+  timeline.BackdateFirstOpenEvents({{1, 50}});
+  timeline.Sort();
+
+  ASSERT_TRUE(timeline.PidConnectsToUid(60, 1, 10146));
+  ASSERT_FALSE(timeline.PidConnectsToUid(40, 1, 10146));
+}
+
+TEST(ProcessThreadTimelineBackdateTest, MovesFirstOpenToZeroWithoutStart) {
+  ProcessThreadTimeline timeline;
+  timeline.Append(ProcessThreadTimeline::Event::Open(300, 2, 0, 10200));
+  timeline.BackdateFirstOpenEvents({});
+  timeline.Sort();
+
+  ASSERT_TRUE(timeline.PidConnectsToUid(0, 2, 10200));
+}
+
+TEST(ProcessThreadTimelineBackdateTest, KeepsLaterOpenEvents) {
+  ProcessThreadTimeline timeline;
+  timeline.Append(ProcessThreadTimeline::Event::Open(300, 1, 0, 10146));
+  timeline.Append(ProcessThreadTimeline::Event::Open(500, 1, 0, 10300));
+  timeline.BackdateFirstOpenEvents({{1, 50}});
+  timeline.Sort();
+
+  // The pid was reused at 500; that open keeps its timestamp.
+  ASSERT_TRUE(timeline.PidConnectsToUid(400, 1, 10146));
+  ASSERT_TRUE(timeline.PidConnectsToUid(500, 1, 10300));
+}
+
+TEST(ProcessThreadTimelineBackdateTest, NeverMovesOpenForward) {
+  ProcessThreadTimeline timeline;
+  timeline.Append(ProcessThreadTimeline::Event::Open(300, 1, 0, 10146));
+  timeline.BackdateFirstOpenEvents({{1, 400}});
+  timeline.Sort();
+
+  ASSERT_TRUE(timeline.PidConnectsToUid(300, 1, 10146));
+}
+
 }  // namespace perfetto::trace_redaction
