@@ -21,14 +21,12 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_value_cast.h"
@@ -98,13 +96,61 @@ inline void AttachGlob(ParamValue* value) {
 
 namespace internal {
 
-// Copies the text of a string cast for ordering, GLOB or REGEXP into `out`,
-// which then points to it, and compiles a REGEXP pattern. Out of line, so
-// that a string = or != cast stays small.
-PERFETTO_NO_INLINE inline void KeepStringText(const char* text,
-                                              NonNullOp op,
-                                              ParamValue* out) {
-  out->text.assign(text);
+// Casts the value `fetcher` has at `index` into `out`, for a numeric column
+// of storage type T compared by `op`.
+template <typename T, typename Fetcher>
+void CastParamFor(Fetcher& fetcher,
+                  uint32_t index,
+                  NonNullOp op,
+                  const StringPool&,
+                  ParamValue* out) {
+  out->value = filter::CastFilterValue<T>(index, fetcher, op);
+}
+
+// Casts a string compared by = (kEq) or != to its id in `pool`, leaving
+// `value.value` unset. Apart from the casts for ordering, GLOB and REGEXP,
+// which would give every lookup their stack frame.
+template <bool kEq, typename Fetcher>
+void CastStringEqParam(Fetcher& fetcher,
+                       uint32_t index,
+                       NonNullOp,
+                       const StringPool& pool,
+                       ParamValue* out) {
+  auto type = fetcher.GetValueType(index);
+  if (PERFETTO_LIKELY(type == Fetcher::kString)) {
+    const char* text = fetcher.GetStringValue(index);
+    std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
+    if (PERFETTO_LIKELY(id.has_value())) {
+      out->value.validity = filter::CastFilterValueResult::kValid;
+      out->string_id = *id;
+    } else {
+      // A string no row holds equals none of them, and differs from all.
+      out->value.validity = kEq ? filter::CastFilterValueResult::kNoneMatch
+                                : filter::CastFilterValueResult::kAllMatch;
+    }
+    return;
+  }
+  // As CastFilterValue<String> does: null matches nothing, and a number
+  // equals no string and differs from all.
+  PERFETTO_DCHECK(type == Fetcher::kNull || type == Fetcher::kInt64 ||
+                  type == Fetcher::kDouble);
+  out->value.validity = type == Fetcher::kNull || kEq
+                            ? filter::CastFilterValueResult::kNoneMatch
+                            : filter::CastFilterValueResult::kAllMatch;
+}
+
+// Casts a string compared by order, GLOB or REGEXP into `out`.
+template <typename Fetcher>
+void CastStringOtherParam(Fetcher& fetcher,
+                          uint32_t index,
+                          NonNullOp op,
+                          const StringPool&,
+                          ParamValue* out) {
+  out->value = filter::CastFilterValue<String>(index, fetcher, op);
+  if (out->value.validity != filter::CastFilterValueResult::kValid) {
+    return;
+  }
+  out->text.assign(base::unchecked_get<const char*>(out->value.value));
   out->value.value = out->text.c_str();
   if (op.Is<Regex>()) {
     // As the interpreter does, a pattern which does not compile matches
@@ -115,39 +161,6 @@ PERFETTO_NO_INLINE inline void KeepStringText(const char* text,
       return;
     }
     out->regex = std::move(*regex);
-  }
-}
-
-// Casts the value `fetcher` has at `index` into `out`, for a column of
-// storage type T compared by `op`. `pool` holds the column's strings.
-template <typename T, typename Fetcher>
-void CastParamFor(Fetcher& fetcher,
-                  uint32_t index,
-                  NonNullOp op,
-                  const StringPool& pool,
-                  ParamValue* out) {
-  out->value = filter::CastFilterValue<T>(index, fetcher, op);
-  if constexpr (std::is_same_v<T, String>) {
-    if (out->value.validity != filter::CastFilterValueResult::kValid) {
-      return;
-    }
-    const char* text = base::unchecked_get<const char*>(out->value.value);
-    if (PERFETTO_UNLIKELY(!op.Is<Eq>() && !op.Is<Ne>())) {
-      KeepStringText(text, op, out);
-      return;
-    }
-    // A string no row holds equals none of them, and differs from all.
-    std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
-    if (!id) {
-      out->value = op.Is<Eq>() ? filter::CastFilterValueResult::NoneMatch()
-                               : filter::CastFilterValueResult::AllMatch();
-      return;
-    }
-    out->string_id = *id;
-    // Whatever `text` points to need not outlive the cast.
-    out->value.value = static_cast<const char*>(nullptr);
-  } else {
-    base::ignore_result(pool);
   }
 }
 
@@ -211,7 +224,13 @@ ParamCaster<Fetcher> GetParamCaster(StorageType type, const Op& op) {
     case StorageType::GetTypeIndex<Double>():
       return {&internal::CastParamFor<Double, Fetcher>, non_null};
     case StorageType::GetTypeIndex<String>():
-      return {&internal::CastParamFor<String, Fetcher>, non_null};
+      if (non_null.Is<Eq>()) {
+        return {&internal::CastStringEqParam<true, Fetcher>, non_null};
+      }
+      if (non_null.Is<Ne>()) {
+        return {&internal::CastStringEqParam<false, Fetcher>, non_null};
+      }
+      return {&internal::CastStringOtherParam<Fetcher>, non_null};
     default:
       PERFETTO_FATAL("Unsupported storage type");
   }
