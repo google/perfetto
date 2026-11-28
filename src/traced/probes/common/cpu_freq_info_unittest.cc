@@ -16,6 +16,11 @@
 
 #include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cstring>
+
 #include "test/gtest_and_gmock.h"
 
 using ::testing::ElementsAre;
@@ -58,6 +63,46 @@ TEST_F(CpuFreqInfoTest, CpuFreqInfo) {
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 1996800u), 19u);
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 2803200), 20u);
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 5u), 0u);
+}
+
+TEST_F(CpuFreqInfoTest, ReadCpuCurrFreqPersistentAndRecovery) {
+  auto cpu_freq_info = GetCpuFreqInfo();
+  std::string cpu0_path =
+      cpu_freq_info_for_testing.AbsolutePath("cpu0/cpufreq/scaling_cur_freq");
+
+  auto write_file = [](const std::string& path, const char* data, int flags) {
+    int fd = open(path.c_str(), flags, 0600);
+    ASSERT_GE(fd, 0);
+    size_t len = strlen(data);
+    if (len > 0) {
+      ASSERT_EQ(write(fd, data, len), static_cast<ssize_t>(len));
+    }
+    ASSERT_EQ(close(fd), 0);
+  };
+
+  const auto& first = cpu_freq_info->ReadCpuCurrFreq();
+  ASSERT_GE(first.size(), 1u);
+  EXPECT_EQ(first[0], 2650000u);
+  if (first.size() >= 2u) {
+    EXPECT_EQ(first[1], 3698200u);
+  }
+
+  // Overwrite in place (same inode): persistent FD observes updated frequency.
+  write_file(cpu0_path, "1800000\n", O_WRONLY | O_TRUNC);
+  EXPECT_EQ(cpu_freq_info->ReadCpuCurrFreq()[0], 1800000u);
+
+  // Empty read resets cached FD so a recreated file (new inode, e.g. hotplug)
+  // is re-opened on a subsequent poll.
+  write_file(cpu0_path, "", O_WRONLY | O_TRUNC);
+  EXPECT_EQ(cpu_freq_info->ReadCpuCurrFreq()[0], 0u);
+
+  ASSERT_EQ(unlink(cpu0_path.c_str()), 0);
+  write_file(cpu0_path, "2400000", O_WRONLY | O_CREAT);
+  EXPECT_EQ(cpu_freq_info->ReadCpuCurrFreq()[0], 2400000u);
+
+  // Non-numeric contents report 0 without crashing.
+  write_file(cpu0_path, "invalid\n", O_WRONLY | O_TRUNC);
+  EXPECT_EQ(cpu_freq_info->ReadCpuCurrFreq()[0], 0u);
 }
 
 }  // namespace

@@ -16,6 +16,7 @@
 
 #include "src/traced/probes/common/cpu_freq_info.h"
 
+#include <fcntl.h>
 #include <unistd.h>
 
 #include <set>
@@ -23,6 +24,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 
@@ -122,25 +124,40 @@ std::string CpuFreqInfo::ReadFile(std::string path) {
 }
 
 const std::vector<uint32_t>& CpuFreqInfo::ReadCpuCurrFreq() {
-  // Check if capacity of cpu_curr_freq_ is enough for all CPUs
-  auto num_cpus = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
-  if (cpu_curr_freq_.size() < num_cpus)
-    cpu_curr_freq_.resize(num_cpus);
+  if (cpu_curr_freq_.empty()) {
+    long num_cpus = sysconf(_SC_NPROCESSORS_CONF);
+    if (num_cpus > 0) {
+      cpu_curr_freq_.resize(static_cast<size_t>(num_cpus));
+      cpu_curr_freq_fds_.resize(static_cast<size_t>(num_cpus));
+    }
+  }
 
   for (uint32_t i = 0; i < cpu_curr_freq_.size(); i++) {
-    // Read CPU current frequency. Set 0 for offline/disabled cpus.
-    std::string buf(ReadFile(sysfs_cpu_path_ + "/cpu" + std::to_string(i) +
-                             "/cpufreq/scaling_cur_freq"));
-    if (buf.empty()) {
+    base::ScopedFile& fd = cpu_curr_freq_fds_[i];
+    if (!fd) {
+      std::string path = sysfs_cpu_path_ + "/cpu" + std::to_string(i) +
+                         "/cpufreq/scaling_cur_freq";
+      fd = base::OpenFile(path, O_RDONLY);
+      if (!fd) {
+        cpu_curr_freq_[i] = 0;
+        continue;
+      }
+    }
+
+    // Read from offset 0 into a stack buffer. Reset the FD on error/EOF so a
+    // hotplugged CPU re-opens its new sysfs node on a later poll.
+    char buf[32];
+    ssize_t rsize = PERFETTO_EINTR(pread(*fd, buf, sizeof(buf) - 1, 0));
+    if (rsize <= 0) {
+      fd.reset();
       cpu_curr_freq_[i] = 0;
       continue;
     }
-    auto freq = base::StringToUInt32(base::StripSuffix(buf, "\n"));
-    if (!freq.has_value()) {
-      cpu_curr_freq_[i] = 0;
-      continue;
+    if (buf[rsize - 1] == '\n') {
+      --rsize;
     }
-    cpu_curr_freq_[i] = freq.value();
+    buf[rsize] = '\0';
+    cpu_curr_freq_[i] = base::CStringToUInt32(buf).value_or(0);
   }
   return cpu_curr_freq_;
 }

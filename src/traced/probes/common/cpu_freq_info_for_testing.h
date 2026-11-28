@@ -30,6 +30,9 @@ class CpuFreqInfoForTesting {
   CpuFreqInfoForTesting();
 
   std::unique_ptr<CpuFreqInfo> GetInstance();
+  std::string AbsolutePath(const std::string& relative_path) const {
+    return tmpdir_.AbsolutePath(relative_path);
+  }
 
  private:
   base::TmpDirTree tmpdir_;
