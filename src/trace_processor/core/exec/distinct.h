@@ -18,15 +18,12 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DISTINCT_H_
 
 #include <cstdint>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -58,12 +55,11 @@ class Distinct final : public Transform {
 
   struct State : OperatorState {
     // Every key seen so far, numbered in the order first seen.
-    Held<GroupTable> keys{this};
-
+    GroupTable keys;
     // Scratch for one call: the key number of each row, and the positions
     // of the rows kept.
-    CallScratch<FlexVector<uint32_t>> row_keys;
-    CallScratch<FlexVector<uint32_t>> kept;
+    core::ArenaSpan<uint32_t> row_keys;
+    core::ArenaSpan<uint32_t> kept;
   };
 
   OperatorState* NewState(Context&) const override;

@@ -31,7 +31,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/row_store.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/arena.h"
@@ -136,8 +136,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   input.SetRowCount(4);
   RowStore store;
   ASSERT_TRUE(store.Append(input, owner).ok());
-  ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows), context),
-            4u);
+  ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows), owner), 4u);
   for (uint32_t i = 0; i < 4; ++i) {
     double value = output.Value<double>(0, i);
     uint64_t actual;
@@ -199,7 +198,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
     ASSERT_EQ(store.Gather(&out,
                            base::Span<const uint32_t>(order.data(),
                                                       order.data() + count),
-                           context),
+                           owner),
               count);
     EXPECT_NE(out.column(0).data(), stable.data());
     EXPECT_TRUE(out.selection().prefix());
@@ -328,32 +327,32 @@ class KeepNonNegative final : public Transform {
   explicit KeepNonNegative(bool hold) : hold_(hold) {}
 
   struct State : OperatorState {
-    std::vector<uint32_t> selected;
-    std::optional<Held<std::vector<int64_t>>> seen;
+    uint32_t selected[kMaxBatchRows];
+    RunVector<int64_t> seen;
   };
   OperatorState* NewState(Context& context) const override {
     auto* state = context.Make<State>();
     if (hold_) {
-      state->seen.emplace(state);
-      seen = &*state->seen;
+      seen = &state->seen;
     }
     return state;
   }
   bool Process(RowBatch& batch, OperatorState& state) const override {
     auto& s = state.Cast<State>();
-    s.selected.clear();
+    uint32_t kept = 0;
     for (uint32_t i = 0; i < batch.size(); ++i) {
       int64_t value = batch.Value<int64_t>(0, i);
-      if (s.seen) {
-        s.seen->push_back(value);
+      if (hold_) {
+        s.seen.push_back(s, value);
       }
       if (value >= 0)
-        s.selected.push_back(i);
+        s.selected[kept++] = i;
     }
-    batch.mutable_selection().Keep(s.selected);
+    batch.mutable_selection().Keep(
+        base::Span<const uint32_t>(s.selected, s.selected + kept));
     return true;
   }
-  mutable const std::vector<int64_t>* seen = nullptr;
+  mutable const RunVector<int64_t>* seen = nullptr;
 
  private:
   bool hold_;

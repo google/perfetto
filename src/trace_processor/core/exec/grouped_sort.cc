@@ -44,10 +44,10 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
     return true;
   }
   uint64_t at = s.groups.size();
-  s.groups.resize(at + count);
-  if (std::optional<uint32_t> bad =
-          s.group_table.FindOrCreate(in, spec_.groups, s.groups.data() + at)) {
-    s.groups.resize(at);
+  s.groups.resize(s, at + count);
+  if (std::optional<uint32_t> bad = s.group_table.FindOrCreate(
+          in, spec_.groups, s.groups.data() + at, s)) {
+    s.groups.resize(s, at);
     s.context().Fail(base::ErrStatus(
         "GROUPED SORT: group %u must be a column holding one type", *bad + 1));
     return false;
@@ -66,19 +66,18 @@ bool GroupedSort::Finalize(Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
   bool sorted = !spec_.keys.empty();
   if (sorted) {
-    s.rows.Sort();
+    s.rows.Sort(s);
   }
-  FlexVector<uint32_t>& order = s.rows.order();
+  RunVector<uint32_t>& order = s.rows.order();
   uint32_t rows = s.rows.size();
   uint32_t groups = s.group_table.size();
   const uint32_t* group_of_row = s.groups.data();
-  s.next.clear();
-  s.next.push_back_multiple(0, groups);
+  s.next.assign(s, groups, 0);
   uint32_t* PERFETTO_RESTRICT next = s.next.data();
   for (uint32_t row = 0; row < rows; ++row) {
     ++next[group_of_row[row]];
   }
-  s.ordered_groups.resize(rows);
+  s.ordered_groups.resize(s, rows);
   uint32_t* PERFETTO_RESTRICT ordered_groups = s.ordered_groups.data();
   uint32_t start = 0;
   for (uint32_t group = 0; group < groups; ++group) {
@@ -89,20 +88,20 @@ bool GroupedSort::Finalize(Breaker::State& state) const {
   }
   if (!sorted) {
     // With no keys, rows are placed in their group in input order.
-    order.resize(rows);
+    order.resize(s, rows);
     uint32_t* PERFETTO_RESTRICT grouped = order.data();
     for (uint32_t row = 0; row < rows; ++row) {
       grouped[next[group_of_row[row]]++] = row;
     }
     return true;
   }
-  s.scratch.resize(rows);
+  s.scratch.resize(s, rows);
   uint32_t* PERFETTO_RESTRICT grouped = s.scratch.data();
   for (uint32_t i = 0; i < rows; ++i) {
     uint32_t row = order[i];
     grouped[next[group_of_row[row]]++] = row;
   }
-  std::swap(order, static_cast<FlexVector<uint32_t>&>(s.scratch));
+  std::swap(order, s.scratch);
   return true;
 }
 
@@ -111,7 +110,7 @@ bool GroupedSort::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows.size()) {
     return false;
   }
-  uint32_t count = s.rows.Gather(&out, s.emitted, s.context());
+  uint32_t count = s.rows.Gather(&out, s.emitted, s);
   // In a buffer of its own, as the state can go before the batch does.
   ColumnBuffer buffer = s.context().TakeBuffer(sizeof(uint32_t));
   auto* groups = buffer.chunk().Values<uint32_t>();

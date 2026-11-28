@@ -18,19 +18,16 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TOP_K_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -72,21 +69,21 @@ class TopK final : public Breaker {
   struct State : Breaker::State {
     // The rows held. Pruning appends the first of them to `spare`, which
     // then takes over.
-    Held<std::unique_ptr<SortedRows>> rows{this};
-    Held<std::unique_ptr<SortedRows>> spare{this};
+    SortedRows rows;
+    SortedRows spare;
     // The cutoff's keys, laid out, and the strings of its string keys, by
     // key. Set once the rows are first pruned.
-    RunValue<bool> has_cutoff{this};
-    Held<FlexVector<uint8_t>> cutoff{this};
-    Held<std::vector<std::optional<StringPool::Id>>> cutoff_strings{this};
-
-    // The keys of a batch, and the rows of it which come before the cutoff.
-    CallScratch<FlexVector<uint8_t>> keys;
-    CallScratch<FlexVector<uint32_t>> passing;
-    CallScratch<RowBatch> passed;
-    CallScratch<std::vector<FlatColumnReader<StringPool::Id>>> strings;
-
-    RunValue<uint32_t> emitted{this};
+    bool has_cutoff = false;
+    RunVector<uint8_t> cutoff;
+    RunVector<std::optional<StringPool::Id>> cutoff_strings;
+    // The keys of a batch.
+    RunVector<uint8_t> keys;
+    uint32_t emitted = 0;
+    // Scratch for one call: the rows of a batch which come before the
+    // cutoff, and a reader of each string key.
+    core::ArenaSpan<uint32_t> passing;
+    core::ArenaSpan<FlatColumnReader<StringPool::Id>> strings;
+    RowBatch* passed = nullptr;
   };
 
   OperatorState* NewSinkState(Context&) const override;

@@ -19,17 +19,13 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <vector>
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -65,31 +61,25 @@ class HashAggregate final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    // With no keys, the aggregate state of the single group: zero again once
-    // a run ends.
-    struct Total : FlexVector<int64_t> {
-      void EndRun() { std::fill(begin(), end(), 0); }
-    };
-
     // The groups, and each one's aggregate states.
-    Held<GroupTable> groups{this};
-    Held<Total> total{this};
-    // The type of each key column, taken from the first batch. The key values
-    // are stored in the group table.
-    Held<std::vector<StorageType>> key_types{this};
+    GroupTable groups;
+    // With no keys, the aggregate state of the single group. It is zero at the
+    // start of each run.
+    core::ArenaSpan<int64_t> total;
+    // The type of each key column, taken from the first batch, once
+    // `consumed`. The key values are stored in the group table.
+    core::ArenaSpan<StorageType> key_types;
     // For each aggregate, which groups have seen a non-null value.
-    Held<RunEach<SeenBytes>> seen{this};
+    core::ArenaSpan<SeenBytes> seen;
     // Whether any input row was read.
-    RunValue<bool> consumed{this, false};
-
+    bool consumed = false;
     // The groups served.
-    RunValue<uint32_t> emitted{this};
-
+    uint32_t emitted = 0;
     // Scratch for one call: each input row's group, the aggregates' inputs,
     // and the groups served.
-    CallScratch<FlexVector<uint32_t>> row_groups;
-    CallScratch<AggregateInputLoader> input;
-    CallScratch<FlexVector<uint32_t>> served_rows;
+    core::ArenaSpan<uint32_t> row_groups;
+    AggregateInputLoader* input = nullptr;
+    core::ArenaSpan<uint32_t> served_rows;
   };
 
   OperatorState* NewSinkState(Context&) const override;

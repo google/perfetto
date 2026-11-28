@@ -21,7 +21,6 @@
 #include <cstring>
 #include <optional>
 #include <type_traits>
-#include <vector>
 
 #include "perfetto/base/bits.h"
 #include "perfetto/base/compiler.h"
@@ -31,7 +30,6 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
@@ -97,7 +95,7 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
                                                  const Selection& selection,
                                                  uint32_t k,
                                                  uint32_t count) {
-  int64_t* keys = keys_[k].data();
+  int64_t* keys = this->keys(k);
   Kind kind;
   if (column.kind() == ColumnView::Kind::kSequence) {
     kind = Kind::kInteger;
@@ -180,26 +178,28 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
 std::optional<uint32_t> GroupTable::FindOrCreate(
     const RowBatch& batch,
     base::Span<const uint32_t> columns,
-    uint32_t* groups) {
-  return FindOrCreate(batch, batch.selection(), columns, groups);
+    uint32_t* groups,
+    OperatorState& owner) {
+  return FindOrCreate(batch, batch.selection(), columns, groups, owner);
 }
 
 std::optional<uint32_t> GroupTable::FindOrCreate(
     const RowBatch& batch,
     const Selection& rows,
     base::Span<const uint32_t> columns,
-    uint32_t* groups) {
+    uint32_t* groups,
+    OperatorState& owner) {
   // Nulls are stored as one bit per column in a 64-bit word.
   PERFETTO_CHECK(columns.size() <= 64);
   PERFETTO_DCHECK(kinds_.empty() || kinds_.size() == columns.size());
   uint32_t count = rows.size();
-  keys_.resize(columns.size());
-  nulls_.resize(count);
+  key_count_ = static_cast<uint32_t>(columns.size());
+  keys_.resize(owner, uint64_t{key_count_} * kMaxBatchRows);
+  nulls_.resize(owner, count);
   memset(nulls_.data(), 0, count * sizeof(uint64_t));
   bool first = kinds_.empty();
   bool may_be_null = false;
   for (uint32_t k = 0; k < columns.size(); ++k) {
-    keys_[k].resize(count);
     may_be_null |= batch.column(columns[k]).validity() != nullptr;
     std::optional<Kind> kind = Load(batch.column(columns[k]), rows, k, count);
     if (!kind || (!first && kinds_[k] != *kind)) {
@@ -210,28 +210,32 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
       return k;
     }
     if (first) {
-      kinds_.push_back(*kind);
+      kinds_.push_back(owner, *kind);
     }
   }
-  stride_ = static_cast<uint32_t>(columns.size()) + 1 + payload_words_;
+  stride_ = key_count_ + 1 + payload_words_;
 
-  Grow(size() + count);
-  if (keys_.size() == 1 && !may_be_null) {
+  Grow(size() + count, owner);
+  // Reserve room for every row to add a group, so adding one needs no capacity
+  // check.
+  hashes_.reserve(owner, uint64_t{size()} + count);
+  group_rows_.reserve(owner, (uint64_t{size()} + count) * stride_);
+  if (key_count_ == 1 && !may_be_null) {
     FindValues(count, groups);
     return std::nullopt;
   }
   uint64_t mask = slots_.size() - 1;
+  uint64_t* slots = slots_.data();
   const int64_t* stored_base = group_rows_.data();
   for (uint32_t row = 0; row < count; ++row) {
     uint64_t hash = Hash(row);
     uint64_t salt = Salt(hash);
     for (uint64_t at = hash & mask;; at = (at + 1) & mask) {
-      uint64_t slot = slots_[at];
+      uint64_t slot = slots[at];
       if (slot == 0) {
         uint32_t group = Add(row, hash);
-        slots_[at] = salt | (group + 1);
+        slots[at] = salt | (group + 1);
         groups[row] = group;
-        stored_base = group_rows_.data();
         break;
       }
       if (Salt(slot) == salt) {
@@ -246,27 +250,41 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
   return std::nullopt;
 }
 
-void GroupTable::FindValues(uint32_t count, uint32_t* groups) {
-  const int64_t* keys = keys_[0].data();
+PERFETTO_NO_INLINE void GroupTable::FindValues(uint32_t count,
+                                               uint32_t* groups) {
+  // Everything is kept in locals, since a store through `groups` could
+  // otherwise alias the members. Groups are added into the room FindOrCreate()
+  // reserved, and the table's sizes are set once the batch is done.
+  const int64_t* keys = this->keys(0);
   uint64_t mask = slots_.size() - 1;
-  const int64_t* stored_base = group_rows_.data();
-  uint32_t stride = stride_;
+  uint64_t* slots = slots_.data();
+  uint64_t stride = stride_;
+  uint64_t payload_words = payload_words_;
+  uint32_t first = size();
+  uint32_t next = first;
+  uint64_t* hashes = hashes_.data();
+  int64_t* stored_base = group_rows_.data();
   for (uint32_t row = 0; row < count; ++row) {
     int64_t key = keys[row];
     uint64_t hash = base::MurmurHashValue(key);
     uint64_t salt = Salt(hash);
     uint32_t group;
     for (uint64_t at = hash & mask;; at = (at + 1) & mask) {
-      uint64_t slot = slots_[at];
+      uint64_t slot = slots[at];
       if (slot == 0) {
-        group = Add(row, hash);
-        slots_[at] = salt | (group + 1);
-        stored_base = group_rows_.data();
+        group = next++;
+        hashes[group] = hash;
+        int64_t* stored = stored_base + group * stride;
+        // A single key with no nulls.
+        stored[0] = 0;
+        stored[1] = key;
+        std::fill_n(stored + 2, payload_words, 0);
+        slots[at] = salt | (group + 1);
         break;
       }
       if (Salt(slot) == salt) {
         uint32_t candidate = GroupFromSlot(slot);
-        const int64_t* stored = stored_base + uint64_t{candidate} * stride;
+        const int64_t* stored = stored_base + candidate * stride;
         // A null group's salt never matches key 0's, the only key it stores.
         if (stored[1] == key) {
           group = candidate;
@@ -276,29 +294,35 @@ void GroupTable::FindValues(uint32_t count, uint32_t* groups) {
     }
     groups[row] = group;
   }
+  hashes_.append_reserved(next - first);
+  group_rows_.append_reserved(uint64_t{next - first} * stride);
 }
 
-uint32_t GroupTable::Add(uint32_t row, uint64_t hash) {
+// Out of line, so the probe loops keep their values in registers.
+PERFETTO_NO_INLINE uint32_t GroupTable::Add(uint32_t row, uint64_t hash) {
   uint32_t group = size();
-  hashes_.push_back(hash);
-  group_rows_.push_back(static_cast<int64_t>(nulls_[row]));
-  for (const FlexVector<int64_t>& keys : keys_) {
-    group_rows_.push_back(keys[row]);
+  *hashes_.append_reserved(1) = hash;
+  int64_t* stored = group_rows_.append_reserved(stride_);
+  stored[0] = static_cast<int64_t>(nulls_[row]);
+  // With only one or two keys per group, vector code would only add checks.
+  PERFETTO_NO_VECTORIZE_LOOP
+  for (uint32_t k = 0; k < key_count_; ++k) {
+    stored[k + 1] = keys(k)[row];
   }
-  group_rows_.push_back_multiple(0, payload_words_);
+  std::fill_n(stored + key_count_ + 1, payload_words_, 0);
   return group;
 }
 
-uint64_t GroupTable::Hash(uint32_t row) const {
-  if (keys_.size() == 1 && !nulls_[row]) {
-    return base::MurmurHashValue(keys_[0][row]);
+PERFETTO_ALWAYS_INLINE uint64_t GroupTable::Hash(uint32_t row) const {
+  if (key_count_ == 1 && !nulls_[row]) {
+    return base::MurmurHashValue(keys(0)[row]);
   }
-  if (keys_.size() == 2 && !nulls_[row]) {
-    return base::MurmurHashCombine(keys_[0][row], keys_[1][row]);
+  if (key_count_ == 2 && !nulls_[row]) {
+    return base::MurmurHashCombine(keys(0)[row], keys(1)[row]);
   }
   base::MurmurHashCombiner hasher;
-  for (const FlexVector<int64_t>& keys : keys_) {
-    hasher.Combine(keys[row]);
+  for (uint32_t k = 0; k < key_count_; ++k) {
+    hasher.Combine(keys(k)[row]);
   }
   if (nulls_[row]) {
     hasher.Combine(nulls_[row]);
@@ -306,21 +330,21 @@ uint64_t GroupTable::Hash(uint32_t row) const {
   return hasher.digest();
 }
 
-bool GroupTable::Equal(const int64_t* stored_base,
-                       uint32_t group,
-                       uint32_t row) const {
+PERFETTO_ALWAYS_INLINE bool GroupTable::Equal(const int64_t* stored_base,
+                                              uint32_t group,
+                                              uint32_t row) const {
   const int64_t* stored = stored_base + uint64_t{group} * stride_;
   if (static_cast<uint64_t>(stored[0]) != nulls_[row]) {
     return false;
   }
-  switch (keys_.size()) {
+  switch (key_count_) {
     case 1:
-      return stored[1] == keys_[0][row];
+      return stored[1] == keys(0)[row];
     case 2:
-      return stored[1] == keys_[0][row] && stored[2] == keys_[1][row];
+      return stored[1] == keys(0)[row] && stored[2] == keys(1)[row];
     default:
-      for (uint32_t k = 0; k < keys_.size(); ++k) {
-        if (stored[k + 1] != keys_[k][row]) {
+      for (uint32_t k = 0; k < key_count_; ++k) {
+        if (stored[k + 1] != keys(k)[row]) {
           return false;
         }
       }
@@ -340,7 +364,7 @@ void GroupTable::Place(uint32_t group) {
 }
 
 // Doubles the slot count until at most two thirds of the slots are used.
-void GroupTable::Grow(uint32_t groups) {
+void GroupTable::Grow(uint32_t groups, OperatorState& owner) {
   uint64_t capacity = slots_.empty() ? 2 * kMaxBatchRows : slots_.size();
   while (uint64_t{groups} * 3 > capacity * 2) {
     capacity *= 2;
@@ -348,18 +372,10 @@ void GroupTable::Grow(uint32_t groups) {
   if (capacity == slots_.size()) {
     return;
   }
-  slots_.clear();
-  slots_.push_back_multiple(0, capacity);
+  slots_.assign(owner, capacity, 0);
   for (uint32_t group = 0; group < size(); ++group) {
     Place(group);
   }
-}
-
-void GroupTable::EndRun() {
-  Clear();
-  EndRunOf(&slots_);
-  EndRunOf(&hashes_);
-  EndRunOf(&group_rows_);
 }
 
 void GroupTable::Clear() {

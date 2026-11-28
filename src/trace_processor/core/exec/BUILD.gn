@@ -82,7 +82,6 @@ source_set("exec") {
     "row_cursor.h",
     "row_store.cc",
     "row_store.h",
-    "run_held.h",
     "run_vector.cc",
     "run_vector.h",
     "selection.cc",

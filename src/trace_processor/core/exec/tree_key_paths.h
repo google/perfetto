@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_KEY_PATHS_H_
 
 #include <cstdint>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"

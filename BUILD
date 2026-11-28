@@ -2715,7 +2715,6 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/row_cursor.h",
         "src/trace_processor/core/exec/row_store.cc",
         "src/trace_processor/core/exec/row_store.h",
-        "src/trace_processor/core/exec/run_held.h",
         "src/trace_processor/core/exec/run_vector.cc",
         "src/trace_processor/core/exec/run_vector.h",
         "src/trace_processor/core/exec/selection.cc",

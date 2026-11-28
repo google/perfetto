@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_ACCUMULATE_H_
 
 #include <cstdint>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"

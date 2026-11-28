@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -32,23 +33,30 @@ namespace {
 
 using testing::ElementsAre;
 
-// Returns the group numbers for a batch of `count` rows of `columns`.
-std::vector<uint32_t> Groups(GroupTable& table,
-                             std::vector<ColumnView> columns,
-                             uint32_t count) {
-  RowBatch batch;
-  std::vector<uint32_t> keys;
-  for (ColumnView& column : columns) {
-    keys.push_back(batch.column_count());
-    batch.AddBorrowedColumn(column);
+class GroupTableTest : public testing::Test {
+ protected:
+  // Returns the group numbers for a batch of `count` rows of `columns`.
+  std::vector<uint32_t> Groups(GroupTable& table,
+                               std::vector<ColumnView> columns,
+                               uint32_t count) {
+    RowBatch batch;
+    std::vector<uint32_t> keys;
+    for (ColumnView& column : columns) {
+      keys.push_back(batch.column_count());
+      batch.AddBorrowedColumn(column);
+    }
+    batch.SetRowCount(count);
+    std::vector<uint32_t> groups(count);
+    EXPECT_EQ(table.FindOrCreate(batch, keys, groups.data(), owner_),
+              std::nullopt);
+    return groups;
   }
-  batch.SetRowCount(count);
-  std::vector<uint32_t> groups(count);
-  EXPECT_EQ(table.FindOrCreate(batch, keys, groups.data()), std::nullopt);
-  return groups;
-}
 
-TEST(GroupTableTest, NumbersKeysInTheOrderFirstSeen) {
+  Context context_;
+  OperatorState& owner_ = *context_.Make<EmptyState>();
+};
+
+TEST_F(GroupTableTest, NumbersKeysInTheOrderFirstSeen) {
   GroupTable table;
   std::vector<int64_t> keys = {7, 3, 7, 9, 3};
   EXPECT_THAT(
@@ -67,7 +75,7 @@ TEST(GroupTableTest, NumbersKeysInTheOrderFirstSeen) {
 // Integers of different widths are equal if their values are. Nulls equal
 // each other but not zero. -0.0 is 0.0, as in SQLite. Strings
 // compare by id. A key of several columns matches only if all columns do.
-TEST(GroupTableTest, WhichKeysAgree) {
+TEST_F(GroupTableTest, WhichKeysAgree) {
   {
     GroupTable table;
     std::vector<int64_t> wide = {5, 6};
@@ -123,7 +131,7 @@ TEST(GroupTableTest, WhichKeysAgree) {
 
 // A batch whose key column has no nulls takes a fast path which skips the
 // null bits, relying on a null group's salt differing from that of key 0.
-TEST(GroupTableTest, ZeroAfterNullInEarlierBatch) {
+TEST_F(GroupTableTest, ZeroAfterNullInEarlierBatch) {
   GroupTable table;
   std::vector<int64_t> keys = {0, 5};
   BitVector valid = BitVector::CreateWithSize(2, true);
@@ -142,7 +150,7 @@ TEST(GroupTableTest, ZeroAfterNullInEarlierBatch) {
 
 // Nulls are read 64 rows at a time: those at the edges of a word and in a
 // partial last word are found.
-TEST(GroupTableTest, NullsAcrossWords) {
+TEST_F(GroupTableTest, NullsAcrossWords) {
   for (bool strings : {false, true}) {
     GroupTable table;
     constexpr uint32_t kCount = 130;
@@ -170,7 +178,7 @@ TEST(GroupTableTest, NullsAcrossWords) {
   }
 }
 
-TEST(GroupTableTest, GrowsPastManyGroups) {
+TEST_F(GroupTableTest, GrowsPastManyGroups) {
   GroupTable table;
   std::vector<int64_t> keys(2048);
   for (uint32_t batch = 0; batch < 16; ++batch) {

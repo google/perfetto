@@ -20,9 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -31,18 +29,16 @@
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-RowStore::RowStore() = default;
-RowStore::~RowStore() = default;
-
 base::Status RowStore::Append(const RowBatch& in, OperatorState& owner) {
   if (!has_shape_) {
-    SetShape(in, owner.context());
+    SetShape(in, owner);
   }
   if (!in.size()) {
     return base::OkStatus();
@@ -51,10 +47,10 @@ base::Status RowStore::Append(const RowBatch& in, OperatorState& owner) {
     return base::ErrStatus("row store: too many rows");
   }
   // The planner guarantees every batch of a step has the same columns.
-  PERFETTO_DCHECK(shape_.column_count() == in.column_count());
+  PERFETTO_DCHECK(shape_->column_count() == in.column_count());
 #if PERFETTO_DCHECK_IS_ON()
   for (uint32_t c = 0; c < in.column_count(); ++c) {
-    PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(shape_.column(c)),
+    PERFETTO_DCHECK(SameLogicalType(ColumnShape::Of(shape_->column(c)),
                                     ColumnShape::Of(in.column(c))));
   }
 #endif
@@ -63,36 +59,42 @@ base::Status RowStore::Append(const RowBatch& in, OperatorState& owner) {
     Keep(in, owner);
     return base::OkStatus();
   }
-  trimmed_.Project(in, held_columns_);
-  Keep(trimmed_, owner);
+  if (!trimmed_) {
+    trimmed_ = owner.context().TakeBatch(owner);
+  }
+  trimmed_->Project(in, held_columns_.span());
+  Keep(*trimmed_, owner);
   // Not to keep the batch's buffers until the next one.
-  trimmed_.Reset();
+  trimmed_->Reset();
   return base::OkStatus();
 }
 
-void RowStore::SetShape(const RowBatch& in, Context& context) {
-  shape_.CopyFrom(in);
+void RowStore::SetShape(const RowBatch& in, OperatorState& owner) {
+  if (!shape_) {
+    shape_ = owner.context().TakeBatch(owner);
+  }
+  shape_->CopyFrom(in);
   has_shape_ = true;
   held_columns_.clear();
-  stored_column_.assign(in.column_count(), kNotHeld);
+  stored_column_.assign(owner, in.column_count(), kNotHeld);
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     const ColumnView& column = in.column(c);
     if (c < unread_.size() && unread_[c] &&
         column.kind() != ColumnView::Kind::kVariant) {
       // Read back as nulls.
-      shape_.SetNullColumn(c, column.type(), context);
+      shape_->SetNullColumn(c, column.type(), owner.context());
       continue;
     }
-    stored_column_[c] = static_cast<uint32_t>(held_columns_.size());
-    held_columns_.push_back(c);
+    stored_column_[c] = held_columns_.size();
+    held_columns_.push_back(owner, c);
   }
 }
 
 void RowStore::Keep(const RowBatch& in, OperatorState& owner) {
   if (Shares(in)) {
     // Rows packed before come first.
-    Flush();
-    Hold(in);
+    Flush(owner);
+    Hold(in, owner);
     return;
   }
   packed_ = true;
@@ -104,7 +106,7 @@ void RowStore::Keep(const RowBatch& in, OperatorState& owner) {
     packing_.Append(part, owner);
     done += take;
     if (packing_.size() == kMaxBatchRows) {
-      Flush();
+      Flush(owner);
     }
   }
 }
@@ -124,16 +126,18 @@ bool RowStore::Shares(const RowBatch& in) {
   return !buffers;
 }
 
-void RowStore::Hold(const RowBatch& in) {
+void RowStore::Hold(const RowBatch& in, OperatorState& owner) {
   if (!held_) {
-    nullable_.clear();
-    nullable_.push_back_multiple(false, in.column_count());
-    sequence_.clear();
-    sequence_.push_back_multiple(false, in.column_count());
-    sources_.resize(in.column_count());
+    nullable_.assign(owner, in.column_count(), false);
+    sequence_.assign(owner, in.column_count(), false);
+    uint32_t had = sources_.size();
+    sources_.resize(owner, in.column_count());
+    for (uint32_t c = had; c < sources_.size(); ++c) {
+      sources_[c] = RunVector<GatherSource>();
+    }
   }
   if (held_ == batches_.size()) {
-    batches_.push_back(std::make_unique<RowBatch>());
+    batches_.push_back(owner, owner.context().TakeBatch(owner));
   }
   RowBatch& held = *batches_[held_];
   held.CopyFrom(in);
@@ -142,10 +146,10 @@ void RowStore::Hold(const RowBatch& in) {
     if (column.kind() == ColumnView::Kind::kSparse) {
       // Read only in place (see Place()): never gathered.
       holds_sparse_ = true;
-      sources_[c].push_back({nullptr, nullptr, 0});
+      sources_[c].push_back(owner, {nullptr, nullptr, 0});
       continue;
     }
-    sources_[c].push_back(GatherSource::Of(column));
+    sources_[c].push_back(owner, GatherSource::Of(column));
     if (column.validity()) {
       nullable_[c] = true;
     }
@@ -160,21 +164,21 @@ void RowStore::Hold(const RowBatch& in) {
     PERFETTO_DCHECK(held_ < 1u << (32 - kPlaceRowBits));
     const Selection& selection = in.selection();
     for (uint32_t i = 0; i < in.size(); ++i) {
-      places_.push_back((held_ << kPlaceRowBits) | selection[i]);
+      places_.push_back(owner, (held_ << kPlaceRowBits) | selection[i]);
     }
   }
   held_rows_ += in.size();
   ++held_;
-  ends_.push_back(held_rows_);
+  ends_.push_back(owner, held_rows_);
 }
 
-void RowStore::Flush() {
+void RowStore::Flush(OperatorState& owner) {
   if (!packing_.size()) {
     return;
   }
   RowBatch packed;
   packing_.Take(packed);
-  Hold(packed);
+  Hold(packed, owner);
 }
 
 void RowStore::Clear() {
@@ -186,7 +190,7 @@ void RowStore::Clear() {
   ends_.clear();
   dense_ = 0;
   places_.clear();
-  for (FlexVector<GatherSource>& sources : sources_) {
+  for (RunVector<GatherSource>& sources : sources_) {
     sources.clear();
   }
   nullable_.clear();
@@ -197,41 +201,25 @@ void RowStore::Clear() {
   for (uint32_t i = 0; i < views_.size(); ++i) {
     views_[i]->Reset();
   }
-  shape_.Reset();
+  if (shape_) {
+    shape_->Reset();
+  }
   has_shape_ = false;
   held_columns_.clear();
   stored_column_.clear();
   size_ = 0;
 }
 
-void RowStore::EndRun() {
-  Clear();
-  EndRunOf(&ends_);
-  EndRunOf(&places_);
-  EndRunOf(&nullable_);
-  EndRunOf(&sequence_);
-  for (FlexVector<GatherSource>& sources : sources_) {
-    EndRunOf(&sources);
-  }
-  // Temporary: its memory is the owner's, which the Context takes back.
-  packing_ = BatchBuffer();
-  // The batches kept for reuse take a few KB each.
-  size_t keep = kRunKeptBytes / sizeof(RowBatch);
-  if (batches_.size() > keep) {
-    batches_.resize(keep);
-  }
-  if (views_.size() > keep) {
-    views_.resize(keep);
-  }
-}
-
-uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) {
+uint32_t RowStore::View(RowBatch* out,
+                        uint32_t offset,
+                        uint32_t count,
+                        OperatorState& owner) {
   out->Reset();
   if (!count) {
     return 0;
   }
   PERFETTO_DCHECK(offset < size_);
-  Flush();
+  Flush(owner);
   uint32_t batch = Find(offset);
   uint32_t start = batch ? ends_[batch - 1] : 0;
   count = std::min(count, ends_[batch] - offset);
@@ -246,35 +234,37 @@ void RowStore::ViewHeld(const RowBatch& held, RowBatch* out) const {
     return;
   }
   out->Project(held, {});
-  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+  for (uint32_t c = 0; c < shape_->column_count(); ++c) {
     uint32_t stored = stored_column_[c];
     if (stored == kNotHeld) {
-      out->AddColumn(shape_.column(c), shape_.buffer(c));
+      out->AddColumn(shape_->column(c), shape_->buffer(c));
     } else {
       out->AddColumn(held.column(stored), held.buffer(stored));
     }
   }
 }
 
-bool RowStore::Place(base::Span<const uint32_t> rows, RowsInPlace* out) {
+bool RowStore::Place(base::Span<const uint32_t> rows,
+                     RowsInPlace* out,
+                     OperatorState& owner) {
   if (packed_ || packing_.size()) {
     return false;
   }
   out->batches.clear();
   for (uint32_t b = 0; b < held_; ++b) {
     if (!drops()) {
-      out->batches.push_back(batches_[b].get());
+      out->batches.push_back(owner, batches_[b]);
       continue;
     }
     if (views_.size() == b) {
-      views_.push_back(std::make_unique<RowBatch>());
+      views_.push_back(owner, owner.context().TakeBatch(owner));
     }
-    ViewHeld(*batches_[b], views_[b].get());
-    out->batches.push_back(views_[b].get());
+    ViewHeld(*batches_[b], views_[b]);
+    out->batches.push_back(owner, views_[b]);
   }
   auto count = static_cast<uint32_t>(rows.size());
-  out->batch.resize(count);
-  out->row.resize(count);
+  out->batch.resize(owner, count);
+  out->row.resize(owner, count);
   for (uint32_t r = 0; r < count; ++r) {
     PERFETTO_DCHECK(rows[r] < size_);
     uint32_t batch = Find(rows[r]);
@@ -287,7 +277,7 @@ bool RowStore::Place(base::Span<const uint32_t> rows, RowsInPlace* out) {
 uint32_t RowStore::Gather(RowBatch* out,
                           base::Span<const uint32_t> rows,
                           const Selection* kept,
-                          Context& context) {
+                          OperatorState& owner) {
   PERFETTO_DCHECK(!holds_sparse_);
   out->Reset();
   auto count =
@@ -295,7 +285,7 @@ uint32_t RowStore::Gather(RowBatch* out,
   if (!count) {
     return 0;
   }
-  Flush();
+  Flush(owner);
   if (!kept && ViewIfRun(out, rows.data(), count)) {
     return count;
   }
@@ -323,14 +313,14 @@ uint32_t RowStore::Gather(RowBatch* out,
     }
     places = found.data();
   }
-  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
-    const ColumnView& like = shape_.column(c);
+  for (uint32_t c = 0; c < shape_->column_count(); ++c) {
+    const ColumnView& like = shape_->column(c);
     uint32_t stored = stored_column_[c];
     if (stored == kNotHeld) {
-      out->AddColumn(like, shape_.buffer(c));
+      out->AddColumn(like, shape_->buffer(c));
       continue;
     }
-    ColumnBuffer buffer = context.TakeBuffer(ValueWidth(like));
+    ColumnBuffer buffer = owner.context().TakeBuffer(ValueWidth(like));
     ColumnChunk& chunk = buffer.chunk();
     chunk.Gather(like, sources_[stored].data(), places, kept_rows, kept_count,
                  count, nullable_[stored], sequence_[stored]);
@@ -358,18 +348,18 @@ bool RowStore::ViewIfRun(RowBatch* out, const uint32_t* rows, uint32_t count) {
 
 uint32_t RowStore::GatherInPlace(RowBatch* out,
                                  base::Span<const uint32_t> rows,
-                                 Context& context) {
+                                 OperatorState& owner) {
   auto count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
   if (!count) {
-    return Gather(out, rows, context);
+    return Gather(out, rows, owner);
   }
-  Flush();
+  Flush(owner);
   uint32_t batch = Find(rows[0]);
   bool run = true;
   for (uint32_t r = 1; r < count; ++r) {
     if (Find(rows[r]) != batch) {
-      return Gather(out, rows, context);
+      return Gather(out, rows, owner);
     }
     run &= rows[r] == rows[0] + r;
   }
@@ -379,10 +369,10 @@ uint32_t RowStore::GatherInPlace(RowBatch* out,
     // Viewed as a run, which readers take in one go.
     return ViewRun(out, batch, rows[0], count);
   }
-  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+  for (uint32_t c = 0; c < shape_->column_count(); ++c) {
     uint32_t stored = stored_column_[c];
     if (stored == kNotHeld) {
-      out->AddColumn(shape_.column(c), shape_.buffer(c));
+      out->AddColumn(shape_->column(c), shape_->buffer(c));
       continue;
     }
     out->AddColumn(held.column(stored), held.buffer(stored));
@@ -403,10 +393,10 @@ uint32_t RowStore::ViewRun(RowBatch* out,
                            uint32_t count) const {
   const RowBatch& held = *batches_[batch];
   uint32_t start = batch ? ends_[batch - 1] : 0;
-  for (uint32_t c = 0; c < shape_.column_count(); ++c) {
+  for (uint32_t c = 0; c < shape_->column_count(); ++c) {
     uint32_t stored = stored_column_[c];
     if (stored == kNotHeld) {
-      out->AddColumn(shape_.column(c), shape_.buffer(c));
+      out->AddColumn(shape_->column(c), shape_->buffer(c));
       continue;
     }
     ColumnView view = held.column(stored);

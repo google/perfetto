@@ -19,30 +19,26 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
-#include <utility>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 // Rows read where a RowStore holds them, in an order of its rows (see
-// RowStore::Place).
+// RowStore::Place). Plain data, held for one run of the state owning it.
 struct RowsInPlace {
   // Each batch held, with every column: those not held read as nulls.
-  std::vector<const RowBatch*> batches;
+  RunVector<const RowBatch*> batches;
   // By position, which of `batches` the row is in, and its batch row there.
-  FlexVector<uint32_t> batch;
-  FlexVector<uint32_t> row;
+  RunVector<uint32_t> batch;
+  RunVector<uint32_t> row;
 };
 
 // The rows a run holds on to, to hand back later: in runs, as they were held,
@@ -55,11 +51,11 @@ struct RowsInPlace {
 // The rows any other batch keeps are packed, a full batch at a time, into
 // buffers taken from the run's Context, so a few rows never keep whole
 // buffers alive.
+//
+// Plain data, held for one run of the state `owner` which contains it. Every
+// call which can hold more rows takes the owner (see RunVector).
 class RowStore {
  public:
-  RowStore();
-  ~RowStore();
-
   // Holds the rows `in` keeps. Every batch must have the same columns. Rows
   // packed are copied into buffers taken from the Context.
   base::Status Append(const RowBatch& in, OperatorState& owner);
@@ -68,22 +64,25 @@ class RowStore {
   uint32_t size() const { return size_; }
   // The first batch appended, for its columns' types, or null if there was
   // none.
-  const RowBatch* shape() const { return has_shape_ ? &shape_ : nullptr; }
+  const RowBatch* shape() const { return has_shape_ ? shape_ : nullptr; }
 
   // Points `out` at up to `count` rows from `offset` on, as they are held. A
   // run stops at the end of a batch held, so it can be shorter: returns how
   // many rows it has.
-  uint32_t View(RowBatch* out, uint32_t offset, uint32_t count);
+  uint32_t View(RowBatch* out,
+                uint32_t offset,
+                uint32_t count,
+                OperatorState& owner);
 
   // Fills `out` with up to kMaxBatchRows of `rows`, in that order and repeats
   // included. Returns how many. Rows held in one ascending run of one batch
   // are viewed where they are held; any others are copied into buffers taken
-  // from `context`. The work done is in proportion to the rows, however many
-  // batches are held.
+  // from the Context. The work done is in proportion to the rows, however
+  // many batches are held.
   uint32_t Gather(RowBatch* out,
                   base::Span<const uint32_t> rows,
-                  Context& context) {
-    return Gather(out, rows, nullptr, context);
+                  OperatorState& owner) {
+    return Gather(out, rows, nullptr, owner);
   }
 
   // Same as Gather(), but if `kept` isn't null, only the rows it selects are
@@ -91,41 +90,39 @@ class RowStore {
   uint32_t Gather(RowBatch* out,
                   base::Span<const uint32_t> rows,
                   const Selection* kept,
-                  Context& context);
+                  OperatorState& owner);
 
   // As Gather(), but rows held in one batch, in any order, are viewed where
   // they are held, with a selection putting them in order. `rows` must not
   // repeat, and the caller must not add a column laid out by position.
   uint32_t GatherInPlace(RowBatch* out,
                          base::Span<const uint32_t> rows,
-                         Context& context);
+                         OperatorState& owner);
 
   // Points `out` at `rows`, in that order, where they are held, so they are
   // read without being copied. Fails if any rows were packed, as packed
   // columns can differ in kind from those of the batches shared.
-  bool Place(base::Span<const uint32_t> rows, RowsInPlace* out);
+  bool Place(base::Span<const uint32_t> rows,
+             RowsInPlace* out,
+             OperatorState& owner);
 
   // Lets go of every row held.
   void Clear();
 
-  // Clear(), keeping only small allocations for the next run (see Held).
-  void EndRun();
-
   // By column of the batches appended, whether it is never read back: such
   // a column is not held, and reads back as nulls of its type. Variant
   // columns are always held. Applies from the next Append() after a Clear().
-  void SetUnread(base::Span<const bool> unread) {
-    unread_.assign(unread.begin(), unread.end());
-  }
+  // `unread` must outlive the store.
+  void SetUnread(base::Span<const bool> unread) { unread_ = unread; }
 
  private:
   static constexpr uint32_t kNotHeld = std::numeric_limits<uint32_t>::max();
 
   // Decides, from the first batch appended, which of its columns are held.
-  void SetShape(const RowBatch& in, Context& context);
+  void SetShape(const RowBatch& in, OperatorState& owner);
 
   // Whether a column is not held.
-  bool drops() const { return held_columns_.size() != shape_.column_count(); }
+  bool drops() const { return held_columns_.size() != shape_->column_count(); }
 
   // Holds the rows `in` keeps, of the columns held.
   void Keep(const RowBatch& in, OperatorState& owner);
@@ -134,10 +131,10 @@ class RowStore {
   static bool Shares(const RowBatch& in);
 
   // Holds `in` as it is, sharing its buffers.
-  void Hold(const RowBatch& in);
+  void Hold(const RowBatch& in, OperatorState& owner);
 
   // Holds the rows packed so far as one batch.
-  void Flush();
+  void Flush(OperatorState& owner);
 
   // Points `out` at `held`, with every column of the shape.
   void ViewHeld(const RowBatch& held, RowBatch* out) const;
@@ -168,47 +165,49 @@ class RowStore {
     return PlaceOf(row) & kPlaceRowMask;
   }
 
-  // The first `held_` are the batches held, the rest kept for reuse.
-  std::vector<std::unique_ptr<RowBatch>> batches_;
+  // The batches taken from the Context for this run. The first `held_` hold
+  // rows; the rest are kept for reuse.
+  RunVector<RowBatch*> batches_;
   uint32_t held_ = 0;
   // The rows in `batches_`: all but those still being packed.
   uint32_t held_rows_ = 0;
   // By batch held, the row after its last.
-  FlexVector<uint32_t> ends_;
+  RunVector<uint32_t> ends_;
   // Rows are stored in batches. While every batch is full and unfiltered, row
   // r is simply row r % kMaxBatchRows of batch r / kMaxBatchRows, so its
   // place equals r. `dense_` counts the rows from the start where that holds.
   // For the rows after them, `places_` records each row's place as it's
   // appended, so a lookup never has to search the batches.
   uint32_t dense_ = 0;
-  FlexVector<uint32_t> places_;
+  RunVector<uint32_t> places_;
   // By column, where each batch held has its values: what gathering reads,
   // recorded as each batch is held so no gather has to look at batches its
   // rows are not in.
-  std::vector<FlexVector<GatherSource>> sources_;
+  RunVector<RunVector<GatherSource>, RunKeep::kAll> sources_;
   // By column, whether any stored batch has nulls in it, and whether any has
   // it as a sequence (an id column with no stored values).
-  FlexVector<bool> nullable_;
-  FlexVector<bool> sequence_;
+  RunVector<bool> nullable_;
+  RunVector<bool> sequence_;
   // The rows being packed, until there are a batch's worth or a batch is
   // shared after them.
   BatchBuffer packing_;
-  // The columns of the first batch appended, even one keeping no rows: what
-  // each column holds. A column not held is nulls.
-  RowBatch shape_;
+  // What each column holds, taken from the first batch appended, even if that
+  // batch keeps no rows. A column which is not held reads back as nulls. Null
+  // until the first batch is appended.
+  RowBatch* shape_ = nullptr;
   bool has_shape_ = false;
-  std::vector<bool> unread_;
+  base::Span<const bool> unread_;
   // The columns held, and by column, where it is among them or kNotHeld.
-  std::vector<uint32_t> held_columns_;
-  std::vector<uint32_t> stored_column_;
+  RunVector<uint32_t> held_columns_;
+  RunVector<uint32_t> stored_column_;
   // Whether any rows were packed.
   bool packed_ = false;
   // Whether a column held is sparse, which only Place() can read.
   bool holds_sparse_ = false;
   // When columns are not held: each batch held, viewed with every column.
-  std::vector<std::unique_ptr<RowBatch>> views_;
+  RunVector<RowBatch*> views_;
   // Scratch: the columns held of a batch appended.
-  RowBatch trimmed_;
+  RowBatch* trimmed_ = nullptr;
   uint32_t size_ = 0;
 };
 

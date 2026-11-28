@@ -19,13 +19,11 @@
 
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/util/arena.h"
 
@@ -71,8 +69,8 @@ class Sort final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    Held<SortedRows> rows{this};
-    RunValue<uint32_t> emitted{this};
+    SortedRows rows;
+    uint32_t emitted = 0;
   };
 
   OperatorState* NewSinkState(Context&) const override;

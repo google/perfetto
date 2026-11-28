@@ -91,15 +91,20 @@ HashAggregate::HashAggregate(core::Arena& arena, HashAggregateSpec spec)
 OperatorState* HashAggregate::NewSinkState(Context& context) const {
   auto* state = context.Make<State>();
   state->groups.set_payload_words(state_words_);
-  state->seen.resize(functions_.size());
-  state->total.push_back_multiple(0, state_words_);
+  state->total = context.NewRunSpan<int64_t>(*state, state_words_);
+  // Set by the first batch of each run, before any is read.
+  state->key_types = context.NewSpan<StorageType>(spec_.key_columns.size());
+  state->seen = context.NewRunSpan<SeenBytes>(*state, functions_.size());
+  state->row_groups = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->input = context.NewSpan<AggregateInputLoader>(1).begin();
+  state->served_rows = context.NewSpan<uint32_t>(kMaxBatchRows);
   return state;
 }
 
 int64_t* HashAggregate::StateBase(State& s, uint64_t* stride) const {
   if (spec_.key_columns.empty()) {
     *stride = state_words_;
-    return s.total.data();
+    return s.total.begin();
   }
   *stride = s.groups.row_stride();
   return s.groups.payload(0);
@@ -118,23 +123,22 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
   // Find each row's group. Groups are numbered in the order first seen, so a
   // row starts a new group when its number equals the group count. With no
   // keys, every row is in the one group.
-  s.consumed = true;
   uint32_t* row_groups = nullptr;
   if (!spec_.key_columns.empty()) {
-    s.row_groups.resize(rows);
-    row_groups = s.row_groups.data();
+    row_groups = s.row_groups.begin();
     if (std::optional<uint32_t> bad =
-            s.groups.FindOrCreate(in, spec_.key_columns, row_groups)) {
+            s.groups.FindOrCreate(in, spec_.key_columns, row_groups, s)) {
       s.context().Fail(base::ErrStatus(
           "AGGREGATE: key %u must be a column holding one type", *bad + 1));
       return false;
     }
-    if (s.key_types.empty()) {
-      for (uint32_t column : spec_.key_columns) {
-        s.key_types.push_back(in.column(column).type());
+    if (!s.consumed) {
+      for (uint32_t k = 0; k < spec_.key_columns.size(); ++k) {
+        s.key_types[k] = in.column(spec_.key_columns[k]).type();
       }
     }
   }
+  s.consumed = true;
 
   uint64_t stride;
   int64_t* payloads = StateBase(s, &stride);
@@ -144,12 +148,12 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     AggregateInput input;
     input.rows = rows;
     if (function.reads_input()) {
-      s.input.Load(in.column(spec_.aggregates[a].column), in.selection(),
-                   nullptr, rows, &input);
+      s.input->Load(in.column(spec_.aggregates[a].column), in.selection(),
+                    nullptr, rows, &input);
     }
     GroupStates states{payloads + offsets_[a], stride};
     if (function.tracks_seen()) {
-      states.seen = s.seen[a].For(GroupCount(s), input.valid != nullptr);
+      states.seen = s.seen[a].For(GroupCount(s), input.valid != nullptr, s);
     }
     if (row_groups) {
       function.Update(input, row_groups, states, &overflow);
@@ -177,9 +181,8 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
   }
   // Output up to a full batch of groups.
   uint32_t count = std::min(kMaxBatchRows, groups - s.emitted);
-  s.served_rows.resize(count);
-  std::iota(s.served_rows.begin(), s.served_rows.end(), *s.emitted);
-  const uint32_t* rows = s.served_rows.data();
+  uint32_t* rows = s.served_rows.begin();
+  std::iota(rows, rows + count, s.emitted);
   for (uint32_t k = 0; k < spec_.key_columns.size(); ++k) {
     ColumnBuffer buffer = s.context().TakeBuffer(ValueWidth(s.key_types[k]));
     ColumnView view =
@@ -193,7 +196,7 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
     if (functions_[a]->tracks_seen()) {
       // Without keys there is always one group, even with no rows. In that
       // case it has no value.
-      states.seen = s.seen[a].For(groups, !s.consumed);
+      states.seen = s.seen[a].For(groups, !s.consumed, s);
     }
     ColumnBuffer buffer =
         FinalizeToBuffer(s.context(), *functions_[a], states, rows, count);

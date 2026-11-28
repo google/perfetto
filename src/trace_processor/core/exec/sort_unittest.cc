@@ -250,7 +250,7 @@ class SparseSource final : public Source {
                    valid_.PrefixPopcountFlexVector())) {}
 
   OperatorState* NewState(Context& context) const override {
-    return context.Make<State>();
+    return context.MakeRewound<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;

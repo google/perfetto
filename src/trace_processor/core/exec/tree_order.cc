@@ -29,9 +29,9 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
-#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -66,9 +66,9 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
   PERFETTO_DCHECK(IsFlat<Uint32>(in.column(node_column_)));
   PERFETTO_DCHECK(IsFlat<Uint32>(in.column(parent_column_)));
 
-  auto base = static_cast<uint32_t>(s.nodes.size());
-  s.nodes.resize(base + count);
-  s.parents.resize(base + count);
+  uint32_t base = s.nodes.size();
+  s.nodes.resize(s, uint64_t{base} + count);
+  s.parents.resize(s, uint64_t{base} + count);
   // Locals: the values written could otherwise alias them.
   const Selection& selection = in.selection();
   const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
@@ -96,7 +96,8 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     if (s.has_row.size() < nodes_seen) {
       // Grown ahead, as nodes are numbered densely and arrive nearly in order.
       s.has_row.resize(
-          std::max<uint64_t>(nodes_seen, s.has_row.size() * 3 / 2 + 64));
+          s, std::max<uint64_t>(nodes_seen, s.has_row.size() * 3 / 2 + 64),
+          false);
     }
     // TreeNumberNodes gives each row a different node.
     PERFETTO_DCHECK(!s.has_row.is_set(node));
@@ -158,7 +159,7 @@ bool TreeChildFirst::Sort(State& s) const {
   // A node is only reached through its parent, so this comes out parent
   // first; reversing it makes the post-order wanted.
   s.order.clear();
-  s.order.reserve(rows);
+  s.order.reserve(s, rows);
   FlexVector<uint32_t> pending;
   for (uint32_t row = 0; row < rows; ++row) {
     if (parents[row] == kNoNode) {
@@ -168,7 +169,7 @@ bool TreeChildFirst::Sort(State& s) const {
   while (!pending.empty()) {
     uint32_t node = pending.back();
     pending.pop_back();
-    s.order.push_back(row_of_node[node]);
+    s.order.push_back(s, row_of_node[node]);
     for (uint32_t i = begin[node], end = begin[node + 1]; i < end; ++i) {
       pending.push_back(children[i]);
     }
@@ -176,7 +177,7 @@ bool TreeChildFirst::Sort(State& s) const {
   if (s.order.size() != rows) {
     s.context().Fail(base::ErrStatus(
         "%s: the rows are not a tree, because %u of them are in a cycle",
-        kChildFirst, rows - static_cast<uint32_t>(s.order.size())));
+        kChildFirst, rows - s.order.size()));
     s.order.clear();
     return false;
   }
@@ -200,7 +201,7 @@ bool TreeChildFirst::Finalize(Breaker::State& state) const {
   if (s.parent_first) {
     // Reversing is all it takes to turn one tree order into the other.
     uint32_t rows = s.rows.size();
-    s.order.resize(rows);
+    s.order.resize(s, rows);
     PERFETTO_NO_VECTORIZE_LOOP
     for (uint32_t row = 0; row < rows; ++row) {
       s.order[row] = rows - 1 - row;
@@ -218,11 +219,11 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
   uint32_t count = std::min(kMaxBatchRows, s.rows.size() - s.emitted);
   if (s.order.empty()) {
     // A run never spans two chunks, so the store says how much it served.
-    count = s.rows.View(&out, s.emitted, count);
+    count = s.rows.View(&out, s.emitted, count, s);
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
-    count = s.rows.Gather(
-        &out, base::Span<const uint32_t>(begin, begin + count), s.context());
+    count = s.rows.Gather(&out,
+                          base::Span<const uint32_t>(begin, begin + count), s);
   }
   s.emitted += count;
   return true;
@@ -231,32 +232,17 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
 TreeParentFirst::TreeParentFirst(uint32_t node_column, uint32_t parent_column)
     : node_column_(node_column), parent_column_(parent_column) {}
 
-PERFETTO_NO_INLINE void TreeParentFirst::State::Nodes::Grow(uint32_t count) {
-  auto size = static_cast<uint32_t>(first_waiting.size());
+PERFETTO_NO_INLINE void TreeParentFirst::State::Nodes::Grow(
+    uint32_t count,
+    OperatorState& owner) {
+  uint32_t size = first_waiting.size();
   PERFETTO_DCHECK(count > size);
   // Nodes are numbered densely and arrive nearly in order, so grow ahead.
   uint32_t new_count = std::max(count, size + size / 2 + 64);
-  out.resize(new_count);
-  first_waiting.resize(new_count);
+  out.resize(owner, new_count, false);
+  first_waiting.resize(owner, new_count);
   std::fill(first_waiting.data() + size, first_waiting.data() + new_count,
             kNoNode);
-}
-
-void TreeParentFirst::State::Nodes::EndRun() {
-  EndRunOf(&out);
-  EndRunOf(&first_waiting);
-}
-
-void TreeParentFirst::State::Nodes::Clear() {
-  out.clear();
-  first_waiting.clear();
-}
-
-void TreeParentFirst::State::Waiting::EndRun() {
-  rows.EndRun();
-  EndRunOf(&node);
-  EndRunOf(&next_waiting);
-  let_go = 0;
 }
 
 void TreeParentFirst::State::Waiting::Clear() {
@@ -269,6 +255,9 @@ void TreeParentFirst::State::Waiting::Clear() {
 OperatorState* TreeParentFirst::NewState(Context& context) const {
   auto* state = context.Make<State>();
   state->held.rows.SetUnread(unread_);
+  state->held_batch = context.NewBatch(*state);
+  state->passing = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->holding = context.NewSpan<uint32_t>(kMaxBatchRows);
   return state;
 }
 
@@ -276,18 +265,18 @@ PERFETTO_NO_INLINE void TreeParentFirst::Release(uint32_t node,
                                                  State& s) const {
   for (uint32_t row = s.nodes.first_waiting[node]; row != kNoNode;
        row = s.held.next_waiting[row]) {
-    s.letting_go.push_back(row);
+    s.letting_go.push_back(s, row);
   }
   s.nodes.first_waiting[node] = kNoNode;
 }
 
 PERFETTO_NO_INLINE OpResult TreeParentFirst::LetGo(RowBatch& out,
                                                    State& s) const {
-  auto total = static_cast<uint32_t>(s.letting_go.size());
+  uint32_t total = s.letting_go.size();
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
   count = s.held.rows.Gather(
-      &out, base::Span<const uint32_t>(begin, begin + count), s.context());
+      &out, base::Span<const uint32_t>(begin, begin + count), s);
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;
@@ -318,8 +307,8 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   // it waits on its parent. Released rows only go out after the batch, so
   // they are not marked out yet: a row arriving under one of them in this
   // same batch has to wait too, or it would go out ahead of its parent.
-  s.passing.clear();
-  s.holding.clear();
+  uint32_t passing = 0;
+  uint32_t holding = 0;
   const Selection& selection = in.selection();
   const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
   const uint32_t* node_data = FlatData(in.column(node_column_));
@@ -335,28 +324,29 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
     }
     uint32_t needed = std::max(node, parent == kNoNode ? 0 : parent) + 1;
     if (needed > s.nodes.first_waiting.size()) {
-      s.nodes.Grow(needed);
+      s.nodes.Grow(needed, s);
     }
     if (parent != kNoNode && !s.nodes.out.is_set(parent)) {
       // The row it will be in `held` once the batch's held rows are copied.
-      auto row = static_cast<uint32_t>(s.held.node.size());
-      s.holding.push_back(i);
-      s.held.node.push_back(node);
-      s.held.next_waiting.push_back(s.nodes.first_waiting[parent]);
+      uint32_t row = s.held.node.size();
+      s.holding[holding++] = i;
+      s.held.node.push_back(s, node);
+      s.held.next_waiting.push_back(s, s.nodes.first_waiting[parent]);
       s.nodes.first_waiting[parent] = row;
       continue;
     }
-    s.passing.push_back(i);
+    s.passing[passing++] = i;
     s.nodes.out.set(node);
     if (s.nodes.first_waiting[node] != kNoNode) {
       Release(node, s);
     }
   }
 
-  if (!s.holding.empty()) {
-    s.held_batch.CopyFrom(in);
-    s.held_batch.mutable_selection().Keep(s.holding.span());
-    base::Status status = s.held.rows.Append(s.held_batch, s);
+  if (holding) {
+    s.held_batch->CopyFrom(in);
+    s.held_batch->mutable_selection().Keep(base::Span<const uint32_t>(
+        s.holding.begin(), s.holding.begin() + holding));
+    base::Status status = s.held.rows.Append(*s.held_batch, s);
     if (!status.ok()) {
       s.context().Fail(std::move(status));
       return OpResult::kError;
@@ -370,13 +360,14 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
     s.nodes.out.set(node);
     Release(node, s);
   }
-  s.held.let_go += static_cast<uint32_t>(s.letting_go.size());
+  s.held.let_go += s.letting_go.size();
 
-  if (s.passing.empty() && !s.letting_go.empty()) {
+  if (!passing && !s.letting_go.empty()) {
     return LetGo(out, s);
   }
   out.CopyFrom(in);
-  out.mutable_selection().Keep(s.passing.span());
+  out.mutable_selection().Keep(base::Span<const uint32_t>(
+      s.passing.begin(), s.passing.begin() + passing));
   return s.letting_go.empty() ? OpResult::kNeedMoreInput
                               : OpResult::kHaveMoreOutput;
 }

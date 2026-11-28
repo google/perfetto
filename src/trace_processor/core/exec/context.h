@@ -153,6 +153,28 @@ class Context {
     return MakeState<T>(false, std::forward<Args>(args)...);
   }
 
+  // Makes `size` value-initialized Ts for `owner`. Like the state's own values,
+  // they are restored at the end of each run to how they were when the state
+  // was made. For what a state holds per column, aggregate or step of the plan.
+  template <typename T>
+  core::ArenaSpan<T> NewRunSpan(OperatorState& owner, uint32_t size) {
+    static_assert(std::is_trivially_copyable_v<T> &&
+                  std::is_trivially_destructible_v<T>);
+    if (size == 0) {
+      return {};
+    }
+    uint64_t bytes = uint64_t{sizeof(T)} * size;
+    PERFETTO_CHECK(bytes <= UINT32_MAX);
+    core::ArenaSpan<T> span(
+        static_cast<T*>(AllocateSpan(static_cast<size_t>(bytes), alignof(T))),
+        size);
+    AddRunBytes(owner, span.begin(), static_cast<uint32_t>(bytes));
+    for (T& value : span) {
+      new (&value) T();
+    }
+    return span;
+  }
+
   // Allocates `size` uninitialized Ts which live as long as the state. Ending a
   // run leaves them alone, so they suit values set when the state is made, or
   // scratch for one call.
@@ -246,24 +268,15 @@ class Context {
   static void Delete(void* object) {
     delete static_cast<T*>(object);
   }
-  // Temporary: destroys a state which is not yet plain data.
-  template <typename T>
-  static void Destroy(void* object) {
-    static_cast<T*>(object)->~T();
-  }
 
   template <typename T, typename... Args>
   T* MakeState(bool restored, Args&&... args) {
     static_assert(std::is_base_of_v<OperatorState, T>);
+    static_assert(std::is_trivially_destructible_v<T>,
+                  "a state is plain data: what it holds is the context's");
     T* state = new (states_.Allocate(sizeof(T), alignof(T)))
         T(std::forward<Args>(args)...);
-    if constexpr (std::is_trivially_destructible_v<T>) {
-      AddState(state, sizeof(T), restored);
-    } else {
-      // Temporary: its Held<T> members end its runs, so its bytes are not.
-      AddOwned(state, &Destroy<T>);
-      AddState(state, sizeof(T), false);
-    }
+    AddState(state, sizeof(T), restored);
     return state;
   }
 
@@ -282,6 +295,7 @@ class Context {
   // lists kept whole.
   static void EndBlocks(Held& held);
   static void EndBatches(Held& held);
+  static void EndListedBlocks(Held& held, std::vector<uint8_t>* placed);
   // Whether `held` still needs ending at the end of each run, once this run
   // has ended.
   static bool Holds(const Held& held);

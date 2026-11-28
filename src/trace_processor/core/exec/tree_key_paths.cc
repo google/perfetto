@@ -20,40 +20,32 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-class KeyPathsState : public OperatorState {
- public:
-  explicit KeyPathsState(Context& c) : context(&c) {}
-
-  Context* context;
-
+struct KeyPathsState : OperatorState {
   // Numbers the distinct values of the key columns.
-  Held<GroupTable> values{this};
+  GroupTable values;
   // Numbers paths, by their parent's path and their number in `values`.
-  Held<base::FlatHashMap<uint64_t, uint32_t>> paths{this};
+  RunMap paths;
   // The path of every node seen.
-  Held<FlexVector<uint32_t>> node_paths{this};
+  RunVector<uint32_t> node_paths;
 
-  // Each row's number in `values`.
-  CallScratch<FlexVector<uint32_t>> row_values;
+  // Scratch for one call: each row's number in `values`.
+  core::ArenaSpan<uint32_t> row_values;
 };
 
 }  // namespace
@@ -61,7 +53,9 @@ class KeyPathsState : public OperatorState {
 TreeKeyPaths::TreeKeyPaths(TreeKeyPathsSpec spec) : spec_(spec) {}
 
 OperatorState* TreeKeyPaths::NewState(Context& context) const {
-  return context.Make<KeyPathsState>(context);
+  auto* state = context.Make<KeyPathsState>();
+  state->row_values = context.NewSpan<uint32_t>(kMaxBatchRows);
+  return state;
 }
 
 bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
@@ -69,17 +63,17 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
   const Selection& selection = batch.selection();
   uint32_t count = batch.size();
 
-  s.row_values.resize(count);
   if (std::optional<uint32_t> bad = s.values.FindOrCreate(
-          batch, spec_.key_columns, s.row_values.data())) {
-    s.context->Fail(base::ErrStatus(
+          batch, spec_.key_columns, s.row_values.begin(), s)) {
+    s.context().Fail(base::ErrStatus(
         "TREE KEY PATHS: key %u must be a column holding one type", *bad + 1));
     return false;
   }
 
-  ColumnBuffer path_buffer = s.context->TakeBuffer(sizeof(int64_t));
+  Context& context = s.context();
+  ColumnBuffer path_buffer = context.TakeBuffer(sizeof(int64_t));
   int64_t* path_values = path_buffer.chunk().Values<int64_t>();
-  ColumnBuffer parent_buffer = s.context->TakeBuffer(sizeof(int64_t));
+  ColumnBuffer parent_buffer = context.TakeBuffer(sizeof(int64_t));
   ColumnChunk& parent_chunk = parent_buffer.chunk();
   int64_t* parent_values = parent_chunk.Values<int64_t>();
   parent_chunk.SizeValidity();
@@ -95,7 +89,7 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
     max_node = std::max(max_node, node);
   }
   if (count > 0 && max_node >= s.node_paths.size()) {
-    s.node_paths.push_back_multiple(0, max_node + 1 - s.node_paths.size());
+    s.node_paths.push_back_multiple(s, 0, max_node + 1 - s.node_paths.size());
   }
   // Rows are parent first, so each row's parent already has its path.
   for (uint32_t row = 0; row < count; ++row) {
@@ -114,8 +108,7 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
       parent_values[batch_row] = parent_path;
       path_key |= (uint64_t{parent_path} + 1) << 32;
     }
-    auto next = static_cast<uint32_t>(s.paths.size());
-    uint32_t path = *s.paths.Insert(path_key, next).first;
+    uint32_t path = s.paths.FindOrInsert(s, path_key, s.paths.size());
     path_values[batch_row] = path;
     s.node_paths[node] = path;
   }

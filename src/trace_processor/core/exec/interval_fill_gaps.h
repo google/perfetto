@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <limits>
 #include <string_view>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"

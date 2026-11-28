@@ -26,6 +26,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -124,7 +125,6 @@ Context::~Context() {
         delete[] buffers.data;
       }
     }
-    delete static_cast<OperatorState*>(held.state)->registry_;
   }
   held_.clear();
   batches_.clear();
@@ -251,7 +251,7 @@ void Context::AddState(OperatorState* state, uint32_t size, bool restored) {
   if (restored) {
     // The fields of OperatorState itself never change, so they are not saved.
     static_assert(sizeof(OperatorState) ==
-                  2 * sizeof(void*) + 2 * sizeof(uint32_t));
+                  sizeof(void*) + 2 * sizeof(uint32_t));
     AddRunBytes(*state, reinterpret_cast<char*>(state) + sizeof(OperatorState),
                 size - static_cast<uint32_t>(sizeof(OperatorState)));
   }
@@ -290,8 +290,7 @@ void Context::SetHolds(OperatorState& state, bool holds) {
 bool Context::Holds(const Held& held) {
   return !held.bytes.empty() || !held.blocks.empty() ||
          !held.made_batches.empty() || !held.made_buffers.empty() ||
-         !held.pipelines.empty() ||
-         static_cast<const OperatorState*>(held.state)->registry_;
+         !held.pipelines.empty();
 }
 
 namespace {
@@ -306,25 +305,6 @@ RunHeader Ended(const RunHeader& header, RunKeep keep) {
 
 void Context::EndHeldRun(OperatorState& state) {
   Held& held = held_[state.id_];
-  // Temporary: what the state's Held<T> and RunValue<T> members hold.
-  if (state.registry_) {
-    for (const OperatorState::HeldValue& value : state.registry_->values) {
-      switch (value.size) {
-        case 1:
-          memcpy(value.where, &value.initial, 1);
-          break;
-        case 4:
-          memcpy(value.where, &value.initial, 4);
-          break;
-        default:
-          memcpy(value.where, &value.initial, 8);
-          break;
-      }
-    }
-    for (const OperatorState::HeldObject& object : state.registry_->held) {
-      object.end_run(object.where);
-    }
-  }
   for (uint32_t id : held.pipelines) {
     EndPipelineRun(id);
   }
@@ -401,6 +381,7 @@ void Context::EndBlocks(Held& held) {
   // it is restored from.
   auto state = reinterpret_cast<uintptr_t>(held.state);
   std::vector<uint8_t> placed(held.blocks.size(), 0);
+  bool lists = false;
   for (size_t i = 0; i < held.blocks.size(); ++i) {
     Held::Block& block = held.blocks[i];
     auto at = reinterpret_cast<uintptr_t>(block.header);
@@ -417,6 +398,7 @@ void Context::EndBlocks(Held& held) {
         small && (block.made || (at >= state && at < state + held.size)) &&
         block.header->data == block.data;
     placed[i] = static_cast<uint8_t>(keep_in_place);
+    lists |= keep_in_place && block.keep == RunKeep::kAll;
   }
   // A RunVector whose saved copy points at a block it no longer keeps is
   // restored empty.
@@ -436,6 +418,9 @@ void Context::EndBlocks(Held& held) {
         *block.header = ended;
       }
     }
+  }
+  if (lists) {
+    EndListedBlocks(held, &placed);
   }
   size_t live = 0;
   for (size_t i = 0; i < held.blocks.size(); ++i) {
@@ -457,6 +442,38 @@ void Context::EndBlocks(Held& held) {
   for (Held::Block& block : held.blocks) {
     if (!block.made || block.keep == RunKeep::kAllZeroed) {
       std::swap(block, held.blocks[held.busy++]);
+    }
+  }
+}
+
+void Context::EndListedBlocks(Held& held, std::vector<uint8_t>* placed) {
+  base::SmallVector<size_t, 4> lists;
+  for (size_t i = 0; i < held.blocks.size(); ++i) {
+    if ((*placed)[i] && held.blocks[i].keep == RunKeep::kAll) {
+      lists.emplace_back(i);
+    }
+  }
+  for (size_t l = 0; l < lists.size(); ++l) {
+    const Held::Block& outer = held.blocks[lists[l]];
+    auto from = reinterpret_cast<uintptr_t>(outer.data);
+    for (size_t i = 0; i < held.blocks.size(); ++i) {
+      Held::Block& inner = held.blocks[i];
+      auto at = reinterpret_cast<uintptr_t>(inner.header);
+      if ((*placed)[i] || at < from || at >= from + outer.bytes ||
+          inner.header->data != inner.data) {
+        continue;
+      }
+      if (inner.keep == RunKeep::kSmall && inner.bytes > kRunKeptBytes) {
+        // The block is freed, so the RunVector, which stays, must not point at
+        // it.
+        *inner.header = RunHeader{nullptr, 0, 0};
+        continue;
+      }
+      (*placed)[i] = 1;
+      *inner.header = Ended(*inner.header, inner.keep);
+      if (inner.keep == RunKeep::kAll) {
+        lists.emplace_back(i);
+      }
     }
   }
 }
