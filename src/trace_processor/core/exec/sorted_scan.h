@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_SORTED_SCAN_H_
 
 #include <cstdint>
-#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -111,7 +110,6 @@ class SortedScan final : public Source {
 
   struct State : OperatorState {
     RangeReader reader;
-    const Context* context = nullptr;
     bool searched = false;
   };
 

@@ -40,9 +40,9 @@ namespace perfetto::trace_processor::core::exec {
 RowStore::RowStore() = default;
 RowStore::~RowStore() = default;
 
-base::Status RowStore::Append(const RowBatch& in, Context& context) {
+base::Status RowStore::Append(const RowBatch& in, OperatorState& owner) {
   if (!has_shape_) {
-    SetShape(in, context);
+    SetShape(in, owner.context());
   }
   if (!in.size()) {
     return base::OkStatus();
@@ -60,11 +60,11 @@ base::Status RowStore::Append(const RowBatch& in, Context& context) {
 #endif
   size_ += in.size();
   if (!drops()) {
-    Keep(in, context);
+    Keep(in, owner);
     return base::OkStatus();
   }
   trimmed_.Project(in, held_columns_);
-  Keep(trimmed_, context);
+  Keep(trimmed_, owner);
   // Not to keep the batch's buffers until the next one.
   trimmed_.Reset();
   return base::OkStatus();
@@ -88,7 +88,7 @@ void RowStore::SetShape(const RowBatch& in, Context& context) {
   }
 }
 
-void RowStore::Keep(const RowBatch& in, Context& context) {
+void RowStore::Keep(const RowBatch& in, OperatorState& owner) {
   if (Shares(in)) {
     // Rows packed before come first.
     Flush();
@@ -101,7 +101,7 @@ void RowStore::Keep(const RowBatch& in, Context& context) {
     uint32_t take = std::min(in.size() - done, kMaxBatchRows - packing_.size());
     part.CopyFrom(in);
     part.mutable_selection().KeepRange(done, take);
-    packing_.Append(part, context);
+    packing_.Append(part, owner);
     done += take;
     if (packing_.size() == kMaxBatchRows) {
       Flush();
@@ -213,6 +213,8 @@ void RowStore::EndRun() {
   for (FlexVector<GatherSource>& sources : sources_) {
     EndRunOf(&sources);
   }
+  // Temporary: its memory is the owner's, which the Context takes back.
+  packing_ = BatchBuffer();
   // The batches kept for reuse take a few KB each.
   size_t keep = kRunKeptBytes / sizeof(RowBatch);
   if (batches_.size() > keep) {

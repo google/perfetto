@@ -120,9 +120,10 @@ base::Status LaneReader::Start(const RowBatch& in, GroupTable* shared) {
 }
 
 base::Status CollectedLanes::Collect(PipelineUse& input,
-                                     Context& context,
+                                     OperatorState& owner,
                                      GroupTable* shared,
                                      uint32_t limit) {
+  Context& context = owner.context();
   while (RowBatch* batch = input.Next(context)) {
     RETURN_IF_ERROR(reader_.Start(*batch, shared));
     LaneBatch lanes = reader_.batch();
@@ -146,7 +147,7 @@ base::Status CollectedLanes::Collect(PipelineUse& input,
                            first_row + row});
     }
     retained_.Project(*batch, input_->retained_columns);
-    RETURN_IF_ERROR(rows_.Append(retained_, context));
+    RETURN_IF_ERROR(rows_.Append(retained_, owner));
   }
   if (context.failed()) {
     return context.error();
@@ -199,16 +200,16 @@ void CollectedLanes::Clear() {
   rows_.Clear();
 }
 
-base::Status LaneKeys::Hold(const RowBatch& in, Context& context) {
+base::Status LaneKeys::Hold(const RowBatch& in, OperatorState& owner) {
   rows_.Clear();
   // The open lane's keys may be in buffers the previous batch has since
   // given back for reuse, so they were kept by Carry().
   if (carried_.size()) {
-    RETURN_IF_ERROR(rows_.Append(carried_, context));
+    RETURN_IF_ERROR(rows_.Append(carried_, owner));
   }
   first_ = rows_.size();
   retained_.Project(in, key_columns_);
-  return rows_.Append(retained_, context);
+  return rows_.Append(retained_, owner);
 }
 
 void LaneKeys::Carry(uint32_t handle) {

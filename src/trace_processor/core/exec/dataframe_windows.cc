@@ -18,8 +18,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <memory>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -122,30 +120,36 @@ const BitVector* GatherColumn(const ColumnView& view,
 
 }  // namespace
 
-DataframeWindows::DataframeWindows() = default;
-DataframeWindows::~DataframeWindows() = default;
-
-const uint32_t* DataframeWindows::PopcountOf(const dataframe::Column& column) {
+const uint32_t* DataframeWindows::PopcountOf(const dataframe::Column& column,
+                                             Context& context) {
   const auto& nulls = column.null_storage;
   if (nulls.nullability().Is<SparseNullWithPopcountAlways>()) {
     return nulls.unchecked_get<SparseNull>()
         .prefix_popcount_for_cell_get.data();
   }
-  popcounts_.push_back(nulls.GetNullBitVector().PrefixPopcount());
-  return popcounts_.back().data();
+  Slab<uint32_t> popcount = nulls.GetNullBitVector().PrefixPopcount();
+  core::ArenaSpan<uint32_t> kept =
+      context.NewSpan<uint32_t>(static_cast<uint32_t>(popcount.size()));
+  if (popcount.size()) {
+    memcpy(kept.begin(), popcount.data(), popcount.size() * sizeof(uint32_t));
+  }
+  return kept.begin();
 }
 
-void DataframeWindows::Init(
-    base::Span<const dataframe::Column* const> columns) {
-  PERFETTO_DCHECK(lent_.empty());
-  lent_.resize(columns.size());
-  buffers_.resize(columns.size());
-  for (uint32_t i = 0; i < columns.size(); ++i) {
+void DataframeWindows::Init(base::Span<const dataframe::Column* const> columns,
+                            OperatorState& owner) {
+  Context& context = owner.context();
+  count_ = static_cast<uint32_t>(columns.size());
+  lent_ = context.NewSpan<ColumnView>(count_).begin();
+  buffers_ = context.NewBuffers(count_);
+  gathered_ = nullptr;
+  gathered_buffers_ = nullptr;
+  for (uint32_t i = 0; i < count_; ++i) {
     const dataframe::Column& column = *columns[i];
     StorageType type = column.storage.type();
     const auto& nulls = column.null_storage;
     bool sparse = IsSparse(nulls);
-    const uint32_t* popcount = sparse ? PopcountOf(column) : nullptr;
+    const uint32_t* popcount = sparse ? PopcountOf(column, context) : nullptr;
     if (type.Is<Id>()) {
       // An id column stores no values: each is its row, or for a sparse one
       // its slot.
@@ -170,9 +174,11 @@ void DataframeWindows::Init(
 void DataframeWindows::Gather(base::Span<const uint32_t> rows,
                               Context& context,
                               RowBatch& out) {
-  gathered_.resize(lent_.size());
-  gathered_buffers_.resize(lent_.size());
-  for (uint32_t i = 0; i < lent_.size(); ++i) {
+  if (PERFETTO_UNLIKELY(!gathered_ && count_ != 0)) {
+    gathered_ = context.NewSpan<ColumnView>(count_).begin();
+    gathered_buffers_ = context.NewBuffers(count_);
+  }
+  for (uint32_t i = 0; i < count_; ++i) {
     const ColumnView& view = lent_[i];
     if (view.kind() == ColumnView::Kind::kSequence && !view.validity()) {
       // A non-null id's values are the rows themselves, which outlive the
@@ -192,12 +198,13 @@ void DataframeWindows::Gather(base::Span<const uint32_t> rows,
     gathered_[i] =
         ColumnView::Reference(view.type(), chunk.Values<uint8_t>(), kept);
   }
-  out.SetColumns(gathered_, gathered_buffers_);
+  out.SetColumns(gathered_, gathered_buffers_, count_);
   out.SetRowCount(static_cast<uint32_t>(rows.size()));
 }
 
-void RangeReader::Init(base::Span<const dataframe::Column* const> columns) {
-  windows_.Init(columns);
+void RangeReader::Init(base::Span<const dataframe::Column* const> columns,
+                       OperatorState& owner) {
+  windows_.Init(columns, owner);
 }
 
 bool RangeReader::ReadBackwards(RowBatch& out) {

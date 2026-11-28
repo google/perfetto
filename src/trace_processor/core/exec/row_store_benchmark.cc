@@ -65,11 +65,12 @@ void Run(benchmark::State& state,
   }
   // Before every batch, which hold its buffers.
   Context context;
+  OperatorState& owner = *context.Make<EmptyState>();
   RowStore store;
   RowBatch out;
   for (auto _ : state) {
     for (const RowBatch& batch : batches) {
-      benchmark::DoNotOptimize(store.Append(batch, context));
+      benchmark::DoNotOptimize(store.Append(batch, owner));
     }
     for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
       const uint32_t* begin = order.data() + at;

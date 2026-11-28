@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -29,7 +30,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -57,8 +58,8 @@ class Reverse final : public Breaker {
   uint32_t column_;
 
   struct State : Breaker::State {
-    Held<std::vector<int64_t>> values{this};
-    RunValue<uint32_t> served{this};
+    RunVector<int64_t> values;
+    uint32_t served{};
   };
 
   OperatorState* NewSinkState(Context& context) const override {
@@ -72,7 +73,7 @@ class Reverse final : public Breaker {
         s.context().Fail(base::ErrStatus("negative value"));
         return false;
       }
-      s.values.push_back(value);
+      s.values.push_back(s, value);
     }
     return true;
   }
@@ -83,7 +84,7 @@ class Reverse final : public Breaker {
   }
   bool Serve(RowBatch& out, Breaker::State& state) const override {
     State& s = state.Cast<State>();
-    auto rows = static_cast<uint32_t>(s.values.size());
+    uint32_t rows = s.values.size();
     if (s.served == rows) {
       return false;
     }
@@ -178,7 +179,7 @@ class Total final : public Sink {
   explicit Total(uint32_t* builds) : builds_(builds) {}
 
   struct Sum : OperatorState {
-    RunValue<int64_t> value{this, 0};
+    int64_t value = 0;
   };
 
   bool ConsumeBatch(const RowBatch& in, OperatorState& state) const override {
@@ -210,7 +211,6 @@ class WithTotal final : public Transform {
   explicit WithTotal(uint32_t total) : total_(total) {}
 
   struct State : OperatorState {
-    explicit State(uint32_t total) : use(this, total) {}
     PipelineUse use;
   };
 
@@ -223,7 +223,7 @@ class WithTotal final : public Transform {
     }
     ColumnBuffer buffer = s.context().TakeBuffer(sizeof(int64_t));
     int64_t* values = buffer.chunk().Values<int64_t>();
-    std::fill_n(values, kMaxBatchRows, *built->Cast<Total::Sum>().value);
+    std::fill_n(values, kMaxBatchRows, built->Cast<Total::Sum>().value);
     batch.SetColumn(1, ColumnView::Reference(StorageType{Int64{}}, values),
                     std::move(buffer));
     return true;
@@ -231,7 +231,9 @@ class WithTotal final : public Transform {
 
  private:
   OperatorState* NewState(Context& context) const override {
-    return context.Make<State>(total_);
+    auto* state = context.Make<State>();
+    state->use = PipelineUse(*state, total_);
+    return state;
   }
 
   uint32_t total_;
@@ -274,41 +276,39 @@ TEST(SinkTest, BuildsOnceARunWhenFirstRead) {
 }
 
 // A transform whose state counts how many times its run was ended.
-class CountEndRuns final : public Transform {
+class TrackBatchState final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  explicit CountEndRuns(uint32_t* ends) : ends_(ends) {}
-
-  struct Counter {
-    explicit Counter(uint32_t* e) : ends(e) {}
-    void EndRun() { ++*ends; }
-    uint32_t* ends;
-  };
+  explicit TrackBatchState(uint32_t** seen_ptr) : seen_ptr_(seen_ptr) {}
 
   struct State : OperatorState {
-    explicit State(uint32_t* ends) : counter(this, ends) {}
-    Held<Counter> counter;
+    uint32_t seen = 0;
   };
 
-  bool Process(RowBatch&, OperatorState&) const override { return true; }
+  bool Process(RowBatch&, OperatorState& state) const override {
+    ++state.Cast<State>().seen;
+    return true;
+  }
 
  private:
   OperatorState* NewState(Context& context) const override {
-    return context.Make<State>(ends_);
+    auto* state = context.Make<State>();
+    *seen_ptr_ = &state->seen;
+    return state;
   }
 
-  uint32_t* ends_;
+  uint32_t** seen_ptr_;
 };
 
 TEST(SinkTest, EndPipelineRunEndsHeldStepsBeforeExhaustion) {
   core::Arena arena;
-  uint32_t ends = 0;
+  uint32_t* seen = nullptr;
   ArraySource rows(arena, Sequence(kMaxBatchRows * 2));
   std::vector<Pipeline::Step> steps;
-  steps.push_back(arena.New<CountEndRuns>(&ends));
+  steps.push_back(arena.New<TrackBatchState>(&seen));
   Pipelines pipelines;
   uint32_t id = pipelines.Add(arena.New<Pipeline>(arena, rows, steps), nullptr);
 
@@ -317,16 +317,18 @@ TEST(SinkTest, EndPipelineRunEndsHeldStepsBeforeExhaustion) {
 
   // Pull one batch (leaving the pipeline mid-stream) and end its run early.
   ASSERT_NE(context.NextBatch(id), nullptr);
-  EXPECT_EQ(ends, 0u);
+  ASSERT_NE(seen, nullptr);
+  EXPECT_EQ(*seen, 1u);
   context.EndPipelineRun(id);
-  EXPECT_EQ(ends, 1u);
+  EXPECT_EQ(*seen, 0u);
 
-  // Starting a new run must not end the already-ended run a second time.
+  // Starting a new run runs from the restored state, and exhausting ends it.
   ASSERT_NE(context.NextBatch(id), nullptr);
-  EXPECT_EQ(ends, 1u);
-  while (context.NextBatch(id) != nullptr) {
-  }
-  EXPECT_EQ(ends, 2u);
+  EXPECT_EQ(*seen, 1u);
+  ASSERT_NE(context.NextBatch(id), nullptr);
+  EXPECT_EQ(*seen, 2u);
+  EXPECT_EQ(context.NextBatch(id), nullptr);
+  EXPECT_EQ(*seen, 0u);
 }
 
 }  // namespace

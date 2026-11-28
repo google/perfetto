@@ -129,12 +129,13 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   std::memcpy(values.data(), bits, sizeof(bits));
   std::vector<uint32_t> rows{1, 0, 1, 3};
   Context context;
+  OperatorState& owner = *context.Make<EmptyState>();
   RowBatch input, output;
   input.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Double{}}, values.data()));
   input.SetRowCount(4);
   RowStore store;
-  ASSERT_TRUE(store.Append(input, context).ok());
+  ASSERT_TRUE(store.Append(input, owner).ok());
   ASSERT_EQ(store.Gather(&output, base::Span<const uint32_t>(rows), context),
             4u);
   for (uint32_t i = 0; i < 4; ++i) {
@@ -147,6 +148,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
 
 TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
   Context context;
+  OperatorState& owner = *context.Make<EmptyState>();
   RowStore store;
   std::vector<int64_t> stable = test::Sequence(256);
   for (uint32_t batch = 0; batch < 2; ++batch) {
@@ -174,7 +176,7 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                               &chunk.validity, 1),
         local);
     in.SetRowCount(128);
-    ASSERT_TRUE(store.Append(in, context).ok());
+    ASSERT_TRUE(store.Append(in, owner).ok());
   }
   RowBatch retained;
   for (uint32_t count : {63u, 64u, 65u, kMaxBatchRows}) {
@@ -496,8 +498,8 @@ TEST(ExecutorContractTest, EmptiedLastBatchEndsTheRunWithoutAnotherPull) {
   }
 }
 
-// A step holding state for the run still has it ended when the rows end,
-// which takes the pull finding the end.
+// A step holding state for the run still has it ended when the rows end, by
+// the pull after the last batch, which does not pull the source.
 TEST(ExecutorContractTest, LastBatchStillEndsTheRunsOfHoldingSteps) {
   core::Arena arena;
   ContractSource source({{1}, {2, -1}}, false, true);
@@ -512,7 +514,7 @@ TEST(ExecutorContractTest, LastBatchStillEndsTheRunsOfHoldingSteps) {
   EXPECT_EQ(observed->seen->size(), 3u);
   EXPECT_FALSE(cursor.Next());
   EXPECT_TRUE(observed->seen->empty());
-  EXPECT_EQ(source.pulls, 3u);
+  EXPECT_EQ(source.pulls, 2u);
 }
 
 // Operators after the source are finished even when its last batch is marked.

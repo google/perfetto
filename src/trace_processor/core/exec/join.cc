@@ -178,7 +178,7 @@ bool JoinBuild::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
     }
     b.sequence = all;
   }
-  base::Status status = b.rows.Append(in, *b.context);
+  base::Status status = b.rows.Append(in, b);
   if (!status.ok()) {
     b.context->Fail(std::move(status));
     return false;
@@ -200,7 +200,7 @@ bool JoinBuild::FinalizeSink(OperatorState& state) const {
 // Join
 
 struct Join::State : OperatorState {
-  State(Context& c, uint32_t build) : context(&c), build_use(this, build) {}
+  explicit State(Context& c) : context(&c) {}
 
   Context* context;
   PipelineUse build_use;
@@ -221,7 +221,9 @@ void Join::DescribeColumns(StepColumns* out) const {
 }
 
 OperatorState* Join::NewState(Context& context) const {
-  return context.Make<State>(context, spec_.build);
+  auto* state = context.Make<State>(context);
+  state->build_use = PipelineUse(*state, spec_.build);
+  return state;
 }
 
 OpResult Join::Execute(const RowBatch& in,

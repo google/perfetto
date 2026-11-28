@@ -121,11 +121,7 @@ struct GraphTree::State : OperatorState {
     void EndRun() { static_cast<util::GraphTree&>(*this) = {}; }
   };
 
-  State(Context& c, const GraphTreeSpec& spec)
-      : context(&c),
-        nodes(this, spec.nodes),
-        edges(this, spec.edges),
-        seeds(this, spec.seeds) {}
+  explicit State(Context& c) : context(&c) {}
 
   Context* context;
   // The inputs, streamed in through the run's Context.
@@ -156,7 +152,11 @@ struct GraphTree::State : OperatorState {
 GraphTree::GraphTree(GraphTreeSpec spec) : spec_(spec) {}
 
 OperatorState* GraphTree::NewState(Context& context) const {
-  return context.Make<State>(context, spec_);
+  auto* state = context.Make<State>(context);
+  state->nodes = PipelineUse(*state, spec_.nodes);
+  state->edges = PipelineUse(*state, spec_.edges);
+  state->seeds = PipelineUse(*state, spec_.seeds);
+  return state;
 }
 
 void GraphTree::Rewind(OperatorState&) const {}
@@ -176,7 +176,7 @@ base::Status GraphTree::Build(State& s) const {
       }
     }
     s.retained.Project(*batch, spec_.retained_columns);
-    RETURN_IF_ERROR(s.rows.Append(s.retained, *s.context));
+    RETURN_IF_ERROR(s.rows.Append(s.retained, s));
   }
   if (s.context->failed()) {
     return s.context->error();

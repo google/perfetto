@@ -20,11 +20,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -39,7 +37,6 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -57,9 +54,9 @@ struct Register {
   const void* data = nullptr;
   const BitVector* validity = nullptr;
   uint32_t start = 0;
-  // The storage the register is in, null if it borrows storage which
-  // outlives the run.
-  ColumnBuffer buffer;
+  // The buffer the register is in: one of its evaluator's, or the batch's.
+  // Null if it borrows storage which outlives the run.
+  const ColumnBuffer* buffer = nullptr;
 
   template <typename T>
   const T* Values() const {
@@ -352,25 +349,70 @@ struct GlobPattern {
   bool remember = true;
 };
 
-// Runs one program over batches, keeping a register per step.
+// Runs one program over batches, keeping a register per step. Plain data, held
+// in a run span of the state `owner`, so each run starts with no constants
+// filled in.
 class Evaluator {
  public:
-  Evaluator(const Compute::Program& program,
-            Context& context,
-            const StringPool* pool)
-      : program_(&program), context_(&context), pool_(pool) {
-    regs_.resize(program.steps.size());
-    globs_.reserve(program.patterns.size());
-    for (std::string_view pattern : program.patterns) {
-      globs_.push_back(std::make_unique<GlobPattern>(pattern));
+  void Init(const Compute::Program& program,
+            OperatorState& owner,
+            const StringPool* pool) {
+    Context& context = owner.context();
+    auto steps = static_cast<uint32_t>(program.steps.size());
+    program_ = &program;
+    context_ = &context;
+    pool_ = pool;
+    regs_ = context.NewSpan<Register>(steps).begin();
+    constants_ = context.NewSpan<Register>(steps).begin();
+    // Slot `steps` holds the last step's result buffer, separate from the
+    // batch's own buffers which adding columns can move.
+    buffers_ = context.NewBuffers(owner, steps + 1);
+    constant_buffers_ = context.NewBuffers(steps);
+    globs_ = context
+                 .NewSpan<GlobPattern*>(
+                     static_cast<uint32_t>(program.patterns.size()))
+                 .begin();
+    for (uint32_t i = 0; i < program.patterns.size(); ++i) {
+      globs_[i] = context.Own<GlobPattern>(program.patterns[i]);
     }
-    constants_.resize(program.steps.size());
-    for (uint32_t i = 0; i < program.steps.size(); ++i) {
-      const ExprStep& step = program.steps[i];
+    InitConstants();
+  }
+
+  // Computes every step for `batch`. Returns false if the program failed, after
+  // reporting why to the Context.
+  bool Run(const RowBatch& batch) {
+    rows_ = batch.row_count();
+    for (uint32_t i = 0; i < program_->steps.size(); ++i) {
+      regs_[i] = Register();
+      slot_ = &buffers_[i];
+      if (!RunStep(program_->steps[i], batch, regs_[i])) {
+        context_->Fail(base::ErrStatus("integer overflow"));
+        return false;
+      }
+    }
+    const Register& last = result();
+    buffers_[program_->steps.size()] =
+        last.buffer ? *last.buffer : ColumnBuffer();
+    return true;
+  }
+
+  const Register& result() const { return regs_[program_->steps.size() - 1]; }
+  const ColumnBuffer& result_buffer() const {
+    return buffers_[program_->steps.size()];
+  }
+  ExprType result_type() const { return program_->steps.back().type; }
+
+ private:
+  // Fills the register of each constant step once when the state is made.
+  void InitConstants() {
+    for (uint32_t i = 0; i < program_->steps.size(); ++i) {
+      const ExprStep& step = program_->steps[i];
       if (step.op != Op::kConstant && step.op != Op::kNull) {
         continue;
       }
       Register& out = constants_[i];
+      out = Register();
+      slot_ = &constant_buffers_[i];
       if (step.type == ExprType::kDouble) {
         Fill(Alloc<double>(out), step.double_value);
       } else if (step.type == ExprType::kString) {
@@ -384,49 +426,24 @@ class Evaluator {
       }
     }
   }
-
-  // Computes every step for `batch`. Returns false if the program failed, after
-  // reporting why to the Context.
-  bool Run(const RowBatch& batch) {
-    rows_ = batch.row_count();
-    for (uint32_t i = 0; i < program_->steps.size(); ++i) {
-      regs_[i] = Register();
-      if (!RunStep(program_->steps[i], batch, regs_[i])) {
-        context_->Fail(base::ErrStatus("integer overflow"));
-        return false;
-      }
-    }
-    return true;
-  }
-
-  const Register& result() const { return regs_.back(); }
-
-  // Ends a run (see Held): the registers let go of their buffers.
-  void EndRun() {
-    for (Register& reg : regs_) {
-      reg = Register();
-    }
-  }
-  ExprType result_type() const { return program_->steps.back().type; }
-
- private:
   // A buffer for `out` to hold its values in, with no validity yet.
   template <typename T>
   T* Alloc(Register& out) {
     return static_cast<T*>(AllocBuffer(out, sizeof(T)));
   }
   PERFETTO_NO_INLINE void* AllocBuffer(Register& out, uint32_t width) {
-    out.buffer = context_->TakeBuffer(width);
+    *slot_ = context_->TakeBuffer(width);
+    out.buffer = slot_;
     out.validity = nullptr;
     out.start = 0;
-    uint8_t* values = out.buffer.chunk().Values<uint8_t>();
+    uint8_t* values = slot_->chunk().Values<uint8_t>();
     out.data = values;
     return values;
   }
 
   // The register's own validity, sized for any batch. Call after Alloc.
   static BitVector* AllocValidity(Register& out) {
-    BitVector& validity = out.buffer.chunk().validity;
+    BitVector& validity = out.buffer->chunk().validity;
     if (validity.size() != kMaxBatchRows) {
       validity.resize(kMaxBatchRows);
     }
@@ -494,7 +511,7 @@ class Evaluator {
       out.data = column.data();
       out.validity = column.validity();
       out.start = column.start();
-      out.buffer = buffer;
+      out.buffer = &buffer;
       return;
     }
     int64_t* o = Alloc<int64_t>(out);
@@ -773,20 +790,27 @@ class Evaluator {
     PERFETTO_FATAL("For GCC");
   }
 
-  const Compute::Program* program_;
-  Context* context_;
-  const StringPool* pool_;
-  // By pattern of the program. Behind pointers so nothing moves them.
-  std::vector<std::unique_ptr<GlobPattern>> globs_;
-  std::vector<Register> regs_;
-  // By step, the register of each constant step, filled for every row once.
-  std::vector<Register> constants_;
+  const Compute::Program* program_ = nullptr;
+  Context* context_ = nullptr;
+  const StringPool* pool_ = nullptr;
+  // One per pattern of the program, owned by the Context.
+  GlobPattern** globs_ = nullptr;
+  // Per step: its register, which is scratch for one call, and the buffer the
+  // register is in.
+  Register* regs_ = nullptr;
+  ColumnBuffer* buffers_ = nullptr;
+  // Per step: the register of each constant step, filled once when the state
+  // is made, and the buffer it is in.
+  Register* constants_ = nullptr;
+  ColumnBuffer* constant_buffers_ = nullptr;
+  // Where the step being run allocates its buffer.
+  ColumnBuffer* slot_ = nullptr;
   // The number of rows of the batch being run.
   uint32_t rows_ = 0;
 };
 
 struct ComputeState : OperatorState {
-  Held<RunEach<Evaluator>> evaluators{this};
+  core::ArenaSpan<Evaluator> evaluators;
 };
 
 }  // namespace
@@ -819,28 +843,29 @@ Compute::Compute(core::Arena& arena,
 }
 
 OperatorState* Compute::NewState(Context& context) const {
-  auto* state = context.Make<ComputeState>();
-  state->evaluators.reserve(programs_.size());
-  for (const Program& program : programs_) {
-    state->evaluators.emplace_back(program, context, pool_);
+  auto* state = context.MakeRewound<ComputeState>();
+  state->evaluators = context.NewSpan<Evaluator>(programs_.size());
+  for (uint32_t i = 0; i < programs_.size(); ++i) {
+    new (&state->evaluators[i]) Evaluator();
+    state->evaluators[i].Init(programs_[i], *state, pool_);
   }
   return state;
 }
 
 bool Compute::Process(RowBatch& batch, OperatorState& state) const {
   auto& s = state.Cast<ComputeState>();
-  for (auto& evaluator : s.evaluators) {
+  for (Evaluator& evaluator : s.evaluators) {
     if (!evaluator.Run(batch)) {
       return false;
     }
   }
   // Added only once all have run: each reads the batch as it came.
-  for (auto& evaluator : s.evaluators) {
+  for (const Evaluator& evaluator : s.evaluators) {
     const Register& result = evaluator.result();
     batch.AddColumn(
         ColumnView::Reference(StorageFor(evaluator.result_type()), result.data,
                               result.validity, result.start),
-        result.buffer);
+        evaluator.result_buffer());
   }
   return true;
 }

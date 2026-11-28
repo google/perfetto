@@ -245,7 +245,7 @@ class BatchesSource final : public Source {
     size_t next = 0;
   };
   OperatorState* NewState(Context& context) const override {
-    return context.Make<State>();
+    return context.MakeRewound<State>();
   }
   std::vector<const RowBatch*> batches_;
 };

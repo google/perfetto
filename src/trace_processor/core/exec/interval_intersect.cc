@@ -230,7 +230,7 @@ OperatorState* IntervalIntersect::NewState(Context& context) const {
   state->scratch.gather_rows.resize(count);
   for (const CollectedInputSpec& operand : operands_) {
     state->operand_inputs.push_back(
-        std::make_unique<PipelineUse>(state, operand.pipeline));
+        std::make_unique<PipelineUse>(*state, operand.pipeline));
   }
   return state;
 }
@@ -249,8 +249,8 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
                            ? std::numeric_limits<uint32_t>::max()
                            : s.group_table.size();
-      base::Status status = s.lanes[i]->Collect(
-          *s.operand_inputs[i], *s.context, &s.group_table, limit);
+      base::Status status =
+          s.lanes[i]->Collect(*s.operand_inputs[i], s, &s.group_table, limit);
       if (!status.ok()) {
         s.context->Fail(std::move(status));
         return false;

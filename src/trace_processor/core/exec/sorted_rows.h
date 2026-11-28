@@ -52,18 +52,18 @@ class SortedRows {
   // Stores the rows of `in` and their values for `keys`. Pass the same
   // `keys` and `pool` for every batch. A key can be a string column only if
   // `pool`, holding its strings, is given. Fails if a key is neither, or if
-  // its type changes. Rows packed are copied into buffers from `context` (see
-  // RowStore).
+  // its type changes. Rows packed are copied into buffers from the Context
+  // (see RowStore).
   base::Status Append(const RowBatch& in,
                       base::Span<const SortKey> keys,
                       const StringPool* pool,
-                      Context& context);
+                      OperatorState& owner);
   // As Append(), with the rows' keys at `laid_out` as LayOutKeys() lays them
   // out, which saves doing so again.
   base::Status AppendLaidOut(const RowBatch& in,
                              base::Span<const SortKey> keys,
                              const StringPool* pool,
-                             Context& context,
+                             OperatorState& owner,
                              const uint8_t* laid_out);
   uint32_t size() const { return rows_.size(); }
 
@@ -135,7 +135,7 @@ class SortedRows {
   base::Status Store(const RowBatch& in,
                      base::Span<const SortKey> keys,
                      const StringPool* pool,
-                     Context& context,
+                     OperatorState& owner,
                      const uint8_t* laid_out);
 
   std::vector<KeyType> types_;

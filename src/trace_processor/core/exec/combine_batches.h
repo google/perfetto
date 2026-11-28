@@ -22,7 +22,6 @@
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -52,7 +51,7 @@ class CombineBatches final : public Operator {
  private:
   struct State : OperatorState {
     // The buffered rows.
-    Held<BatchBuffer> buffered{this};
+    BatchBuffer buffered;
   };
 
   OperatorState* NewState(Context&) const override;

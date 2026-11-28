@@ -23,7 +23,6 @@
 namespace perfetto::trace_processor::core::exec {
 
 CombineBatches::CombineBatches() = default;
-
 OperatorState* CombineBatches::NewState(Context& context) const {
   return context.Make<State>();
 }
@@ -44,7 +43,7 @@ OpResult CombineBatches::Execute(const RowBatch& in,
       return OpResult::kNeedMoreInput;
     }
   }
-  s.buffered.Append(in, s.context());
+  s.buffered.Append(in, s);
   if (s.buffered.size() >= kTargetBatchRows) {
     s.buffered.Take(out);
   } else {

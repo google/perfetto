@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DATAFRAME_SCAN_H_
 
 #include <cstdint>
-#include <vector>
 
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/context.h"

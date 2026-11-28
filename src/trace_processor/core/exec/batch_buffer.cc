@@ -17,10 +17,19 @@
 #include "src/trace_processor/core/exec/batch_buffer.h"
 
 #include <cstdint>
+#include <utility>
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/core/exec/buffer_pool.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/selection.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-void BatchBuffer::Append(const RowBatch& in, Context& context) {
+void BatchBuffer::Append(const RowBatch& in, OperatorState& owner) {
   if (!in.size())
     return;
   uint32_t before = size_, total = before + in.size();
@@ -36,17 +45,22 @@ void BatchBuffer::Append(const RowBatch& in, Context& context) {
     }
 #endif
   } else {
-    columns_.resize(in.column_count());
+    columns_.resize(owner, in.column_count());
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      columns_[c].view = in.column(c);
+      columns_[c] = {in.column(c), false};
+    }
+    if (in.column_count() > packed_capacity_) {
+      packed_ = owner.context().TakeBuffers(owner, in.column_count());
+      packed_capacity_ = in.column_count();
     }
   }
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     Column& column = columns_[c];
-    if (!column.packed) {
-      column.packed = context.TakeBuffer(ValueWidth(in.column(c)));
+    ColumnBuffer& packed = packed_[c];
+    if (!packed) {
+      packed = owner.context().TakeBuffer(ValueWidth(in.column(c)));
     }
-    column.packed.chunk().CopyFrom(in, c, before);
+    packed.chunk().CopyFrom(in, c, before);
     column.nullable |= in.column(c).validity() != nullptr;
   }
   size_ = total;
@@ -54,14 +68,23 @@ void BatchBuffer::Append(const RowBatch& in, Context& context) {
 
 void BatchBuffer::Take(RowBatch& out) {
   out.Reset();
-  for (Column& column : columns_) {
+  for (uint32_t c = 0; c < columns_.size(); ++c) {
+    const Column& column = columns_[c];
     // Viewed before the buffer is moved: arguments may be evaluated in any
     // order.
-    ColumnView view = column.packed.chunk().View(column.view, column.nullable);
-    out.AddColumn(view, std::move(column.packed));
+    ColumnView view = packed_[c].chunk().View(column.view, column.nullable);
+    out.AddColumn(view, std::move(packed_[c]));
   }
   out.SetRowCount(size_);
   Clear();
+}
+
+void BatchBuffer::Clear() {
+  size_ = 0;
+  for (uint32_t c = 0; c < columns_.size(); ++c) {
+    packed_[c] = ColumnBuffer();
+  }
+  columns_.clear();
 }
 
 }  // namespace perfetto::trace_processor::core::exec

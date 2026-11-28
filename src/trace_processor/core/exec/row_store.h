@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -60,8 +61,8 @@ class RowStore {
   ~RowStore();
 
   // Holds the rows `in` keeps. Every batch must have the same columns. Rows
-  // packed are copied into buffers taken from `context`.
-  base::Status Append(const RowBatch& in, Context& context);
+  // packed are copied into buffers taken from the Context.
+  base::Status Append(const RowBatch& in, OperatorState& owner);
 
   // How many rows are held.
   uint32_t size() const { return size_; }
@@ -127,7 +128,7 @@ class RowStore {
   bool drops() const { return held_columns_.size() != shape_.column_count(); }
 
   // Holds the rows `in` keeps, of the columns held.
-  void Keep(const RowBatch& in, Context& context);
+  void Keep(const RowBatch& in, OperatorState& owner);
 
   // Whether `in` is held by sharing its buffers rather than packed.
   static bool Shares(const RowBatch& in);

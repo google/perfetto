@@ -44,7 +44,7 @@ class OneRowBatches final : public Source {
   explicit OneRowBatches(uint32_t batches) : batches_(batches) {}
 
   OperatorState* NewState(Context& context) const override {
-    return context.Make<State>();
+    return context.MakeRewound<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;

@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -64,37 +63,46 @@ Pipeline::Pipeline(core::Arena& arena,
   }
 }
 OperatorState* Pipeline::NewState(Context& context) const {
-  auto* state = context.Make<State>();
+  auto* state = context.MakeRewound<State>();
   state->source = &source_;
   state->source_state = source_.MakeState(context);
-  // Built at its size, the vector needs no code to grow.
-  state->starts = std::vector<State::Start>(segments_.size());
+  state->starts = context.NewSpan<State::Start>(segments_.size());
+  state->output = context.NewBatch();
   MakeStepStates(*state);
-  state->output_links = &state->starts[last_segment_].links;
+  state->output_links = state->starts[last_segment_].links;
   state->flags = plan_flags_;
   return state;
 }
 
 void Pipeline::MakeStepStates(State& s) const {
   Context& context = s.context();
-  s.operators.reserve(steps_.size());
-  for (const Step& step : steps_) {
-    const Transform* const* transform = std::get_if<const Transform*>(&step);
-    s.operators.push_back(
-        transform
-            ? (*transform)->MakeState(context)
-            : base::unchecked_get<const Operator*>(step)->MakeState(context));
+  s.operators = context.NewSpan<OperatorState*>(steps_.size());
+  for (uint32_t i = 0; i < steps_.size(); ++i) {
+    const Transform* const* transform =
+        std::get_if<const Transform*>(&steps_[i]);
+    s.operators[i] =
+        transform ? (*transform)->MakeState(context)
+                  : base::unchecked_get<const Operator*>(steps_[i])->MakeState(
+                        context);
   }
   for (uint32_t seg = 0; seg < segments_.size(); ++seg) {
     const Segment& segment = segments_[seg];
     State::Start& start = s.starts[seg];
-    start.states.push_back(
-        segment.start < 0 ? s.source_state
-                          : s.operators[static_cast<uint32_t>(segment.start)]);
+    start = State::Start();
+    uint32_t transforms = segment.end - segment.first;
+    start.links = context.NewSpan<State::Link>(transforms);
+    start.states = context.NewSpan<OperatorState*>(transforms + 1);
+    start.states[0] = segment.start < 0
+                          ? s.source_state
+                          : s.operators[static_cast<uint32_t>(segment.start)];
     for (uint32_t t = segment.first; t < segment.end; ++t) {
-      start.links.push_back(
-          {base::unchecked_get<const Transform*>(steps_[t]), s.operators[t]});
-      start.states.push_back(s.operators[t]);
+      start.links[t - segment.first] = {
+          base::unchecked_get<const Transform*>(steps_[t]), s.operators[t]};
+      start.states[t - segment.first + 1] = s.operators[t];
+    }
+    if (seg) {
+      start.input = context.NewBatch();
+      start.out = context.NewBatch();
     }
   }
 }
@@ -130,10 +138,13 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
   RowBatch* batch;
   if (!(flags & State::kSegmented)) {
     // Holding nothing, the run ends with its source: nothing to stop.
-    if (PERFETTO_UNLIKELY(flags & State::kSourceDone)) {
+    if (PERFETTO_UNLIKELY(flags & (State::kSourceDone | State::kLastServed))) {
+      if (!(flags & State::kSourceDone)) {
+        SourceDone(s);
+      }
       return nullptr;
     }
-    batch = s.source->Next(s.output, *s.source_state);
+    batch = s.source->Next(*s.output, *s.source_state);
     if (PERFETTO_UNLIKELY(!batch)) {
       SourceDone(s);
       return nullptr;
@@ -145,7 +156,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
       return nullptr;
     }
   }
-  for (const State::Link& link : *s.output_links) {
+  for (const State::Link& link : s.output_links) {
     if (PERFETTO_UNLIKELY(!link.op->Process(*batch, *link.state))) {
       StepFailed(s);
       return nullptr;
@@ -153,25 +164,23 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::Next(OperatorState& state) const {
     // A batch with no rows left has nothing for later transforms to do.
     if (PERFETTO_UNLIKELY(!batch->size())) {
       // Nor is there a next batch to pull, if the source said this was its
-      // last and nothing needs its run ended.
-      if (batch->last() && !(flags & State::kSegmented) &&
-          !s.context().holding()) {
+      // last.
+      if (batch->last() && !(flags & State::kSegmented)) {
         SourceDone(s);
         return nullptr;
       }
       return NextSlow(s);
     }
   }
-  // Whatever holds state must see the pull which finds the end.
-  if (PERFETTO_UNLIKELY(s.context().holding())) {
-    batch->SetLast(false);
+  if (PERFETTO_UNLIKELY(batch->last())) {
+    LastServed(s, *batch);
   }
   return batch;
 }
 
 PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
   auto last = static_cast<uint32_t>(segments_.size() - 1);
-  RowBatch* batch = SegmentNext(last, s.output, s);
+  RowBatch* batch = SegmentNext(last, *s.output, s);
   if (!batch) {
     Stop(s);
   } else {
@@ -185,7 +194,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
 PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::SegmentNext(uint32_t segment,
                                                        RowBatch& scratch,
                                                        State& s) const {
-  const std::vector<State::Link>& links = s.starts[segment].links;
+  core::ArenaSpan<State::Link> links = s.starts[segment].links;
   for (;;) {
     RowBatch* batch;
     if (PERFETTO_LIKELY(segment == 0 && !(s.flags & State::kAttention))) {
@@ -257,7 +266,7 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
     }
     bool has_input = start.continuation;
     if (!has_input && !start.input_done) {
-      start.current = SegmentNext(segment - 1, start.input, s);
+      start.current = SegmentNext(segment - 1, *start.input, s);
       if (start.current) {
         has_input = true;
       } else if (s.flags & (State::kStopped | State::kFailed)) {
@@ -266,10 +275,10 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
         start.input_done = true;
       }
     }
-    start.out.Reset();
+    start.out->Reset();
     OpResult result = has_input
-                          ? op.Execute(*start.current, start.out, op_state)
-                          : op.Finish(start.out, op_state);
+                          ? op.Execute(*start.current, *start.out, op_state)
+                          : op.Finish(*start.out, op_state);
     if (result == OpResult::kError) {
       StepFailed(s);
       return nullptr;
@@ -279,8 +288,8 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
         (!has_input && result != OpResult::kHaveMoreOutput)) {
       start.finished = true;
     }
-    if (start.out.size()) {
-      return &start.out;
+    if (start.out->size()) {
+      return start.out;
     }
     if (start.finished) {
       EndUpTo(segment, s);
@@ -312,6 +321,19 @@ PERFETTO_NO_INLINE void Pipeline::Stop(State& state) const {
     start.current = nullptr;
   }
   state.flags |= State::kStopped;
+}
+
+PERFETTO_NO_INLINE void Pipeline::LastServed(State& s, RowBatch& batch) {
+  // Operators may still output rows once their input ends.
+  if (s.flags & State::kSegmented) {
+    batch.SetLast(false);
+    return;
+  }
+  s.flags |= State::kLastServed;
+  // Whatever holds state needs the next pull, which ends its run.
+  if (s.context().holding()) {
+    batch.SetLast(false);
+  }
 }
 
 PERFETTO_NO_INLINE void Pipeline::SourceDone(State& s) const {
@@ -354,5 +376,4 @@ const RowsInPlace* Pipeline::InPlace(const OperatorState& state) const {
   return last.start_op->InPlace(
       *s.operators[static_cast<uint32_t>(last.start)]);
 }
-
 }  // namespace perfetto::trace_processor::core::exec

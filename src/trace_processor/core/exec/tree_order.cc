@@ -112,7 +112,7 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     s.has_row.set(node);
   }
   s.nodes_seen = nodes_seen;
-  base::Status status = s.rows.Append(in, s.context());
+  base::Status status = s.rows.Append(in, s);
   if (!status.ok()) {
     s.context().Fail(std::move(status));
     return false;
@@ -356,7 +356,7 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   if (!s.holding.empty()) {
     s.held_batch.CopyFrom(in);
     s.held_batch.mutable_selection().Keep(s.holding.span());
-    base::Status status = s.held.rows.Append(s.held_batch, s.context());
+    base::Status status = s.held.rows.Append(s.held_batch, s);
     if (!status.ok()) {
       s.context().Fail(std::move(status));
       return OpResult::kError;

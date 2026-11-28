@@ -115,22 +115,22 @@ std::optional<SortedRows::KeyType> SortedRows::GetKeyType(
 base::Status SortedRows::Append(const RowBatch& in,
                                 base::Span<const SortKey> keys,
                                 const StringPool* pool,
-                                Context& context) {
-  return Store(in, keys, pool, context, nullptr);
+                                OperatorState& owner) {
+  return Store(in, keys, pool, owner, nullptr);
 }
 
 base::Status SortedRows::AppendLaidOut(const RowBatch& in,
                                        base::Span<const SortKey> keys,
                                        const StringPool* pool,
-                                       Context& context,
+                                       OperatorState& owner,
                                        const uint8_t* laid_out) {
-  return Store(in, keys, pool, context, laid_out);
+  return Store(in, keys, pool, owner, laid_out);
 }
 
 base::Status SortedRows::Store(const RowBatch& in,
                                base::Span<const SortKey> keys,
                                const StringPool* pool,
-                               Context& context,
+                               OperatorState& owner,
                                const uint8_t* laid_out) {
   if (in.size() == 0) {
     return base::OkStatus();
@@ -150,7 +150,7 @@ base::Status SortedRows::Store(const RowBatch& in,
                     &strings_[k].present, &ranks_);
     }
   }
-  return rows_.Append(in, context);
+  return rows_.Append(in, owner);
 }
 
 base::Status SortedRows::CheckKeys(const RowBatch& in,

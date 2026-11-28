@@ -28,6 +28,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/exec/buffer_pool.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -39,11 +40,6 @@
 // ends.
 
 namespace perfetto::trace_processor::core::exec {
-
-// Storage of up to this many bytes is kept across runs, so a pipeline run
-// over and over on small inputs allocates nothing after its first run.
-// Anything larger is given back as soon as the run ends.
-inline constexpr uint64_t kRunKeptBytes = 64 * 1024;
 
 template <typename T>
 void EndRunOf(FlexVector<T>* v) {

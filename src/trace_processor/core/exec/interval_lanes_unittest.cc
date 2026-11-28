@@ -139,14 +139,15 @@ TEST(LaneReaderTest, NumbersLanes) {
 // A lane's keys stay readable after the next batch is held if carried.
 TEST(LaneKeysTest, CarriesTheOpenLane) {
   Context context;
+  OperatorState& owner = *context.Make<EmptyState>();
   std::vector<uint32_t> key_columns = {2};
   LaneKeys keys(key_columns);
   RowBatch first = Batch(context, {0, 0}, {1, 1}, {7, 3}, {0, 1});
-  ASSERT_TRUE(keys.Hold(first, context).ok());
+  ASSERT_TRUE(keys.Hold(first, owner).ok());
   uint32_t open = keys.Of(1);
   keys.Carry(open);
   RowBatch second = Batch(context, {0}, {1}, {9}, {2});
-  ASSERT_TRUE(keys.Hold(second, context).ok());
+  ASSERT_TRUE(keys.Hold(second, owner).ok());
   std::vector<uint32_t> handles = {LaneKeys::kCarried, keys.Of(0)};
   RowBatch out;
   keys.Gather(&out, handles, context);

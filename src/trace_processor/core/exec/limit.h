@@ -22,7 +22,6 @@
 
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -52,8 +51,8 @@ class Limit final : public Operator {
 
   struct State : OperatorState {
     // How many rows of the offset are dropped, and how many are kept.
-    RunValue<uint32_t> skipped{this};
-    RunValue<uint32_t> kept{this};
+    uint32_t skipped = 0;
+    uint32_t kept = 0;
   };
 
   OperatorState* NewState(Context&) const override;

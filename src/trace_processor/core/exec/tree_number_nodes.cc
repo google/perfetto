@@ -27,7 +27,6 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -81,8 +80,7 @@ void SequenceKeys(const ColumnView& column,
 base::Status ReadKeys(const ColumnView& column,
                       const Selection& selection,
                       bool nullable,
-                      FlexVector<Variant>* out) {
-  Variant* keys = out->data();
+                      Variant* keys) {
   uint32_t count = selection.size();
   // Locals: the keys written could otherwise alias them.
   uint32_t start = column.start();
@@ -171,9 +169,9 @@ TreeNumberNodes::TreeNumberNodes(uint32_t id_column, uint32_t parent_column)
     : id_column_(id_column), parent_column_(parent_column) {}
 
 OperatorState* TreeNumberNodes::NewState(Context& context) const {
-  auto* state = context.Make<State>(context);
-  state->ids = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
-  state->parents = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
+  auto* state = context.Make<State>();
+  state->ids = context.NewSpan<Variant>(kMaxBatchRows);
+  state->parents = context.NewSpan<Variant>(kMaxBatchRows);
   return state;
 }
 
@@ -182,18 +180,17 @@ bool TreeNumberNodes::IsDenseForTesting(const OperatorState& state) const {
 }
 
 uint32_t TreeNumberNodes::Number(State& s, const Variant& id) const {
-  Key key = id.type == Variant::Type::kString
-                ? Key{id.AsString().raw_id(), true}
-                : Key{id.AsInt64(), false};
+  bool is_string = id.type == Variant::Type::kString;
+  int64_t value = is_string ? id.AsString().raw_id() : id.AsInt64();
   if (s.dense) {
-    if (!key.is_string) {
+    if (!is_string) {
       // Every integer id below `numbered` was handed out in order.
-      if (key.value >= 0 && static_cast<uint64_t>(key.value) < s.numbered) {
-        return static_cast<uint32_t>(key.value);
+      if (value >= 0 && static_cast<uint64_t>(value) < s.numbered) {
+        return static_cast<uint32_t>(value);
       }
-      if (key.value == static_cast<int64_t>(s.numbered)) {
+      if (value == static_cast<int64_t>(s.numbered)) {
         if (s.numbered == kNoNode) {
-          s.context->Fail(base::ErrStatus(
+          s.context().Fail(base::ErrStatus(
               "TREE NUMBER NODES: the relation has too many nodes"));
           return kNoNode;
         }
@@ -202,20 +199,22 @@ uint32_t TreeNumberNodes::Number(State& s, const Variant& id) const {
     }
     // Not dense after all, so record the numbering identity had implied.
     s.dense = false;
-    for (uint32_t n = 0, numbered = s.numbered; n < numbered; ++n) {
-      s.numbers.Insert(Key{static_cast<int64_t>(n), false}, n);
+    for (uint32_t n = 0; n < s.numbered; ++n) {
+      s.numbers.Insert(s, n, n);
     }
   }
-  if (uint32_t* existing = s.numbers.Find(key); existing) {
+  auto key = static_cast<uint64_t>(value);
+  RunMap& numbers = is_string ? s.string_numbers : s.numbers;
+  if (const uint32_t* existing = numbers.Find(key)) {
     return *existing;
   }
   if (s.numbered == kNoNode) {
-    s.context->Fail(
+    s.context().Fail(
         base::ErrStatus("TREE NUMBER NODES: the relation has too many nodes"));
     return kNoNode;
   }
   uint32_t assigned = s.numbered++;
-  s.numbers.Insert(key, assigned);
+  numbers.Insert(s, key, assigned);
   return assigned;
 }
 
@@ -234,8 +233,8 @@ bool TreeNumberNodes::NumberInOrder(const RowBatch& in,
   }
   s.numbered = start + count;
   // A parent numbered ahead of its row must not be marked as seen.
-  s.has_row.resize(start);
-  s.has_row.resize(s.numbered, true);
+  s.has_row.resize(s, start, false);
+  s.has_row.resize(s, s.numbered, true);
   return true;
 }
 
@@ -244,31 +243,33 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
                                   Numbers& output,
                                   State& s) const {
   const Selection& selection = in.selection();
+  Context& context = s.context();
   base::Status status =
-      ReadKeys(in.column(id_column_), selection, false, &s.ids);
+      ReadKeys(in.column(id_column_), selection, false, s.ids.begin());
   if (status.ok()) {
-    status = ReadKeys(in.column(parent_column_), selection, true, &s.parents);
+    status =
+        ReadKeys(in.column(parent_column_), selection, true, s.parents.begin());
   }
   if (!status.ok()) {
-    s.context->Fail(std::move(status));
+    context.Fail(std::move(status));
     return false;
   }
   // Locals: Number() and the numbers written could otherwise change them.
   const uint16_t* indices = selection.prefix() ? nullptr : selection.indices();
-  const Variant* ids = s.ids.data();
-  const Variant* parents = s.parents.data();
+  const Variant* ids = s.ids.begin();
+  const Variant* parents = s.parents.begin();
   uint32_t* nodes = output.nodes;
   uint32_t* parent_nodes = output.parent_nodes;
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t node = Number(s, ids[i]);
-    if (s.context->failed()) {
+    if (context.failed()) {
       return false;
     }
     if (s.has_row.size() <= node) {
-      s.has_row.resize(node + 1);
+      s.has_row.resize(s, uint64_t{node} + 1, false);
     }
     if (s.has_row.is_set(node)) {
-      s.context->Fail(base::ErrStatus(
+      context.Fail(base::ErrStatus(
           "TREE NUMBER NODES: more than one row has the same id"));
       return false;
     }
@@ -281,7 +282,7 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
       continue;
     }
     parent_nodes[row] = Number(s, parents[i]);
-    if (s.context->failed()) {
+    if (context.failed()) {
       return false;
     }
   }
@@ -291,8 +292,8 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
 bool TreeNumberNodes::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
   uint32_t count = batch.size();
-  ColumnBuffer nodes = s.context->TakeBuffer(sizeof(uint32_t));
-  ColumnBuffer parent_nodes = s.context->TakeBuffer(sizeof(uint32_t));
+  ColumnBuffer nodes = s.context().TakeBuffer(sizeof(uint32_t));
+  ColumnBuffer parent_nodes = s.context().TakeBuffer(sizeof(uint32_t));
   Numbers output{nodes.chunk().Values<uint32_t>(),
                  parent_nodes.chunk().Values<uint32_t>()};
   bool in_order = s.dense && NumberInOrder(batch, count, output, s);

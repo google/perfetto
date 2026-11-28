@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <utility>
-#include <vector>
 
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -35,8 +34,8 @@ DataframeScan::DataframeScan(core::ArenaSpan<const dataframe::Column*> columns,
     : columns_(columns), row_count_(row_count), direction_(direction) {}
 
 OperatorState* DataframeScan::NewState(Context& context) const {
-  auto* state = context.Make<State>();
-  state->reader.Init(columns_);
+  auto* state = context.MakeRewound<State>();
+  state->reader.Init(columns_, *state);
   state->reader.Start({0, row_count_}, direction_);
   return state;
 }

@@ -112,7 +112,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   // keys in place until all rows have been consumed.
   if (!s.input_pending) {
     if (keyed_) {
-      base::Status status = s.keys.Hold(in, *s.context);
+      base::Status status = s.keys.Hold(in, s);
       if (!status.ok()) {
         s.context->Fail(std::move(status));
       }

@@ -23,7 +23,6 @@
 #include <numeric>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -440,13 +439,16 @@ Filter::Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool)
 }
 
 OperatorState* Filter::NewState(Context& context) const {
-  return context.Make<State>();
+  auto* state = context.MakeRewound<State>();
+  state->rows = context.NewSpan<uint32_t>(kMaxBatchRows);
+  state->sparse_values = context.NewSpan<uint64_t>(kMaxBatchRows);
+  return state;
 }
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
   const Selection& selection = batch.selection();
-  Rows r{s.rows.data(), selection.size(), selection.prefix()};
+  Rows r{s.rows.begin(), selection.size(), selection.prefix()};
   if (PERFETTO_UNLIKELY(r.count == 0 || conditions_.empty())) {
     return true;
   }
@@ -473,7 +475,7 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       if (PERFETTO_UNLIKELY(cast.validity != CastFilterValueResult::kValid ||
                             column.kind() != ColumnView::Kind::kFlat ||
                             nulls_first)) {
-        r = ApplySlow(column, c.op, cast, *pool_, s.sparse_values.data(), r);
+        r = ApplySlow(column, c.op, cast, *pool_, s.sparse_values.begin(), r);
       } else {
         CompareFn fn = kCompareTable[c.op.index()][column.type().index()];
         PERFETTO_DCHECK(fn != nullptr);

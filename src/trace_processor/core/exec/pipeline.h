@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/span.h"
@@ -92,6 +91,8 @@ class Pipeline final : public Source {
       // Set once a step has failed. The Context holds the reason.
       kFailed = 2,
       kSourceDone = 4,
+      // The source's last batch has been served: the next pull ends the run.
+      kLastServed = 16,
       // The rest are the plan's, set again when a run starts.
       // Operators follow the source.
       kSegmented = 8,
@@ -108,14 +109,14 @@ class Pipeline final : public Source {
 
     // The segments starting with an operator, by segment.
     struct Start {
-      std::vector<Link> links;
+      core::ArenaSpan<Link> links;
       // The states whose runs end with this segment's: first the source's or
       // the operator's, then the transforms'.
-      std::vector<OperatorState*> states;
-      RowBatch input;
+      core::ArenaSpan<OperatorState*> states;
+      RowBatch* input = nullptr;
       // Kept across continuations.
       RowBatch* current = nullptr;
-      RowBatch out;
+      RowBatch* out = nullptr;
       bool continuation = false;
       bool input_done = false;
       bool finished = false;
@@ -128,18 +129,18 @@ class Pipeline final : public Source {
     const Source* source = nullptr;
     OperatorState* source_state = nullptr;
     // The last segment's transforms, whichever segment that is.
-    const std::vector<Link>* output_links = nullptr;
+    core::ArenaSpan<Link> output_links;
 
     // Each step's state, by step, made once.
-    std::vector<OperatorState*> operators;
+    core::ArenaSpan<OperatorState*> operators;
     // One per segment. The first, the source's, uses only its links and states.
-    std::vector<Start> starts;
+    core::ArenaSpan<Start> starts;
     uint64_t run = 0;
     // How many segments, from the first, have had their runs ended.
     uint32_t ended_segments = 0;
 
     // The batch returned to the caller.
-    RowBatch output;
+    RowBatch* output = nullptr;
   };
 
   OperatorState* NewState(Context&) const override;
@@ -160,6 +161,8 @@ class Pipeline final : public Source {
   // The source has no batches left: records why, and ends its run and those
   // of the first segment's transforms.
   void SourceDone(State&) const;
+  // `batch`, about to be served, is the source's last.
+  static void LastServed(State&, RowBatch& batch);
   // Nothing more comes out of `segment`, nor of any segment before it: ends
   // the run of the source and of every step up to its end, once a run.
   PERFETTO_ALWAYS_INLINE void EndUpTo(uint32_t segment, State& s) const {

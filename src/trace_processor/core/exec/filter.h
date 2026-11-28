@@ -17,18 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_FILTER_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/arena.h"
 
@@ -74,12 +71,13 @@ class Filter final : public Transform {
  private:
   friend class PipelineFormatter;
 
+  // Scratch for one call.
   struct State : OperatorState {
     // The batch rows still kept, increasing.
-    CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;
+    core::ArenaSpan<uint32_t> rows;
     // By batch row, the values of a sparse column or a sequence at the rows
     // kept.
-    CallScratch<std::array<uint64_t, kMaxBatchRows>> sparse_values;
+    core::ArenaSpan<uint64_t> sparse_values;
   };
 
   OperatorState* NewState(Context&) const override;

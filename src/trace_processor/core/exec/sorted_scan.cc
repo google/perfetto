@@ -20,7 +20,6 @@
 #include <optional>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -93,9 +92,8 @@ SortedScan::SortedScan(core::Arena& arena,
       direction_(direction) {}
 
 OperatorState* SortedScan::NewState(Context& context) const {
-  auto* state = context.Make<State>();
-  state->reader.Init(columns_);
-  state->context = &context;
+  auto* state = context.MakeRewound<State>();
+  state->reader.Init(columns_, *state);
   return state;
 }
 
@@ -167,7 +165,7 @@ Range SortedSearches::FindIdEq(const Context& context, Range rows) const {
 bool SortedScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   if (PERFETTO_UNLIKELY(!s.searched)) {
-    s.reader.Start(searches_.Find(*s.context, {0, row_count_}), direction_);
+    s.reader.Start(searches_.Find(s.context(), {0, row_count_}), direction_);
     s.searched = true;
   }
   return s.reader.Read(out);

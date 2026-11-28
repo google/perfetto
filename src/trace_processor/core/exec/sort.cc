@@ -34,7 +34,7 @@ OperatorState* Sort::NewSinkState(Context& context) const {
 
 bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
-  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool, s.context());
+  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool, s);
   if (!status.ok()) {
     s.context().Fail(base::ErrStatus("SORT: %s", status.c_message()));
     return false;

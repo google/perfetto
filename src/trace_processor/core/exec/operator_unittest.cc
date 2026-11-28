@@ -27,7 +27,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/run_held.h"
+#include "src/trace_processor/core/exec/run_vector.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/arena.h"
@@ -105,7 +105,7 @@ class Twice final : public Operator {
 
  private:
   struct State : OperatorState {
-    RunValue<bool> again{this, false};
+    bool again = false;
   };
 };
 
@@ -251,7 +251,7 @@ class Trailer final : public Operator {
 
  private:
   struct State : OperatorState {
-    RunValue<uint32_t> let_go{this};
+    uint32_t let_go{};
   };
 
   int64_t first_;
@@ -266,7 +266,7 @@ class Recording final : public Operator {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  explicit Recording(const std::vector<uint32_t>** seen) : seen_(seen) {}
+  explicit Recording(const RunVector<uint32_t>** seen) : seen_(seen) {}
 
   OperatorState* NewState(Context& context) const override {
     auto state = context.Make<State>();
@@ -278,7 +278,7 @@ class Recording final : public Operator {
                    OperatorState& state) const override {
     State& s = state.Cast<State>();
     for (uint32_t i = 0; i < in.size(); ++i) {
-      s.seen.push_back(in.Value<uint32_t>(0, i));
+      s.seen.push_back(s, in.Value<uint32_t>(0, i));
     }
     out.CopyFrom(in);
     return OpResult::kNeedMoreInput;
@@ -286,10 +286,10 @@ class Recording final : public Operator {
 
  private:
   struct State : OperatorState {
-    Held<std::vector<uint32_t>> seen{this};
+    RunVector<uint32_t> seen;
   };
 
-  const std::vector<uint32_t>** seen_;
+  const RunVector<uint32_t>** seen_;
 };
 
 // What a step holds for a run is let go as soon as nothing more comes out of
@@ -297,7 +297,7 @@ class Recording final : public Operator {
 TEST(StateTest, AStepsRunEndsWithItsStream) {
   core::Arena arena;
   ArraySource source(arena, {10, 20});
-  const std::vector<uint32_t>* seen = nullptr;
+  const RunVector<uint32_t>* seen = nullptr;
   std::vector<Pipeline::Step> ops;
   ops.push_back(arena.New<Recording>(&seen));
   ops.push_back(arena.New<Trailer>(99, 2u));

@@ -67,13 +67,13 @@ bool TopK::Consume(const RowBatch& in, Breaker::State& state) const {
 base::Status TopK::Add(const RowBatch& in, State& s) const {
   if (s.has_cutoff) {
     const RowBatch& passed = BeforeCutoff(in, s);
-    base::Status status = s.rows->AppendLaidOut(passed, spec_.keys, spec_.pool,
-                                                s.context(), s.keys.data());
+    base::Status status =
+        s.rows->AppendLaidOut(passed, spec_.keys, spec_.pool, s, s.keys.data());
     // Not to keep the batch's buffers until the next one.
     s.passed.Reset();
     RETURN_IF_ERROR(status);
   } else {
-    RETURN_IF_ERROR(s.rows->Append(in, spec_.keys, spec_.pool, s.context()));
+    RETURN_IF_ERROR(s.rows->Append(in, spec_.keys, spec_.pool, s));
   }
   if (s.rows->size() >=
       uint64_t{spec_.count} + std::max(spec_.count, kMaxBatchRows)) {
@@ -154,8 +154,7 @@ base::Status TopK::Prune(State& s) const {
   RowBatch first;
   for (uint32_t at = 0; at < spec_.count;) {
     at += rows.GatherInPlace(&first, at, s.context());
-    RETURN_IF_ERROR(
-        s.spare->Append(first, spec_.keys, spec_.pool, s.context()));
+    RETURN_IF_ERROR(s.spare->Append(first, spec_.keys, spec_.pool, s));
   }
   rows.Clear();
   s.rows.swap(s.spare);

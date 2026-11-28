@@ -55,7 +55,6 @@ void EndRunOf<IntervalGaps>(IntervalGaps* gaps) {
 struct IntervalFillGaps::State : OperatorState {
   State(const IntervalFillGapsSpec& spec, Context& c)
       : context(&c),
-        background_input(this, spec.background.pipeline),
         background(this,
                    spec.background,
                    IntervalInputName{kName, "the background"}),
@@ -145,7 +144,9 @@ IntervalFillGaps::IntervalFillGaps(core::Arena& arena,
 }
 
 OperatorState* IntervalFillGaps::NewState(Context& context) const {
-  return context.Make<State>(spec_, context);
+  auto* state = context.Make<State>(spec_, context);
+  state->background_input = PipelineUse(*state, spec_.background.pipeline);
+  return state;
 }
 
 bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
@@ -160,7 +161,7 @@ bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
 }
 
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
-  RETURN_IF_ERROR(s.background.Collect(s.background_input, *s.context,
+  RETURN_IF_ERROR(s.background.Collect(s.background_input, s,
                                        shared_ ? &s.lanes : nullptr,
                                        std::numeric_limits<uint32_t>::max()));
   for (uint32_t i = 0; i < s.background.size(); ++i) {
@@ -202,7 +203,7 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
   RETURN_IF_ERROR(s.input.Start(in, shared_ ? &s.lanes : nullptr));
   LaneBatch lanes = s.input.batch();
   if (broadcast_) {
-    RETURN_IF_ERROR(s.keys.Hold(in, *s.context));
+    RETURN_IF_ERROR(s.keys.Hold(in, s));
     // The open lane's keys are now carried.
     s.lane_key = LaneKeys::kCarried;
     s.gaps.set_lane(s.lane_key);
