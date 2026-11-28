@@ -30,6 +30,13 @@ namespace perfetto::trace_redaction {
 base::Status VerifyIntegrity::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context*) const {
+  if (PERFETTO_UNLIKELY(packet.has_compressed_packets() ||
+                        packet.has_zstd_compressed_packets())) {
+    return base::ErrStatus(
+        "VerifyIntegrity: compressed packets found; decompress the trace "
+        "first.");
+  }
+
   // App-uid and uid-less packets are filtered or dropped during Transform
   // (FilterUntrustedAppPackets, PruneMissingUidPackets, app_packet_mask); skip
   // system payload checks here so an app cannot fail the whole trace.
@@ -87,9 +94,11 @@ base::Status VerifyIntegrity::OnFtraceEvents(
 
   // Every ftrace event bundle should have a CPU field. This is necessary for
   // switch/waking redaction to work.
-  if (PERFETTO_UNLIKELY(!events.has_cpu())) {
+  if (PERFETTO_UNLIKELY(!events.has_cpu() ||
+                        events.cpu() >= SystemInfo::kMaxCpus)) {
     return base::ErrStatus(
-        "VerifyIntegrity: missing field (FtraceEventBundle::kCpu).");
+        "VerifyIntegrity: missing or out-of-range field "
+        "(FtraceEventBundle::kCpu).");
   }
 
   // Any ftrace errors should cause the trace to be dropped:

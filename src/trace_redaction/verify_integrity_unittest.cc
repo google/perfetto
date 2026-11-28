@@ -356,4 +356,20 @@ TEST_F(VerifyIntegrityUnitTest, SkipsChecksForAppPackets) {
   ASSERT_OK(Verify(packet));
 }
 
+TEST_F(VerifyIntegrityUnitTest, RejectsCompressedPackets) {
+  protos::gen::TracePacket packet;
+  packet.set_trusted_uid(kValid);
+  packet.set_compressed_packets("xyz");
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleCpuOutOfRange) {
+  protos::gen::TracePacket packet;
+  packet.set_trusted_uid(kValid);
+  packet.mutable_ftrace_events()->set_cpu(SystemInfo::kMaxCpus);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
 }  // namespace perfetto::trace_redaction

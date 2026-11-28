@@ -154,6 +154,14 @@ base::Status ConcreteRedactorPass::Collect(Context* context,
     }
   }
 
+  if (PERFETTO_UNLIKELY(reject_trailing_bytes_ &&
+                        trace_decoder.bytes_left() != 0)) {
+    return base::ErrStatus(
+        "ConcreteRedactorPass: trace has %zu trailing bytes that are not valid "
+        "packets (truncated or corrupt trace).",
+        trace_decoder.bytes_left());
+  }
+
   for (const auto& collector : collectors_) {
     RETURN_IF_ERROR(collector->End(context));
   }
@@ -309,6 +317,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
 
   // Pass 1:
   auto* pass1 = redactor->add_pass();
+  pass1->set_reject_trailing_bytes(true);
 
   // VerifyIntegrity breaks the CollectPrimitive pattern. Instead of writing to
   // the context, its job is to read trace packets and return errors if any

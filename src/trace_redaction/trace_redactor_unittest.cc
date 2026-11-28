@@ -31,6 +31,7 @@
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
+#include "protos/perfetto/trace/ps/process_stats.gen.h"
 #include "protos/perfetto/trace/ps/process_tree.gen.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -1533,6 +1534,102 @@ TEST(TraceRedactorTest, DynamicPassSkippedWhenEmptyAndRunsWhenPopulated) {
     }
     EXPECT_THAT(timestamps, testing::ElementsAre(10u, 100u, 200u));
   }
+}
+
+TEST(TraceRedactorTest, CompressedPacketsFail) {
+  protos::gen::Trace trace;
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    auto* pkg = pkt->mutable_packages_list()->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(10234);
+  }
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    pkt->set_timestamp(10);
+    auto* proc = pkt->mutable_process_tree()->add_processes();
+    proc->set_pid(100);
+    proc->set_uid(10234);
+  }
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    pkt->set_compressed_packets("xyz");
+  }
+
+  auto redactor = TraceRedactor::CreateInstance(TraceRedactor::Config());
+  Context context;
+  context.package_name = "com.example.app";
+  std::string output;
+  auto status =
+      redactor->RedactBuffer(trace.SerializeAsString(), &output, &context);
+  ASSERT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), testing::HasSubstr("compressed"));
+}
+
+TEST(TraceRedactorTest, TruncatedTraceFails) {
+  protos::gen::Trace trace;
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    auto* pkg = pkt->mutable_packages_list()->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(10234);
+  }
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    pkt->set_timestamp(10);
+    auto* proc = pkt->mutable_process_tree()->add_processes();
+    proc->set_pid(100);
+    proc->set_uid(10234);
+  }
+
+  std::string serialized = trace.SerializeAsString();
+  serialized.resize(serialized.size() - 5);
+
+  auto redactor = TraceRedactor::CreateInstance(TraceRedactor::Config());
+  Context context;
+  context.package_name = "com.example.app";
+  std::string output;
+  auto status = redactor->RedactBuffer(serialized, &output, &context);
+  ASSERT_FALSE(status.ok());
+  EXPECT_THAT(status.message(), testing::HasSubstr("trailing bytes"));
+}
+
+TEST(TraceRedactorTest, MalformedSystemProcessStatsMissingPidFails) {
+  protos::gen::Trace trace;
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    auto* pkg = pkt->mutable_packages_list()->add_packages();
+    pkg->set_name("com.example.app");
+    pkg->set_uid(10234);
+  }
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    pkt->set_timestamp(10);
+    auto* proc = pkt->mutable_process_tree()->add_processes();
+    proc->set_pid(100);
+    proc->set_uid(10234);
+  }
+  {
+    auto* pkt = trace.add_packet();
+    pkt->set_trusted_uid(Context::kTracedProbesUid);
+    pkt->set_timestamp(20);
+    pkt->mutable_process_stats()->add_processes();  // Missing pid.
+  }
+
+  auto redactor = TraceRedactor::CreateInstance(TraceRedactor::Config());
+  Context context;
+  context.package_name = "com.example.app";
+  std::string output;
+  EXPECT_FALSE(
+      redactor->RedactBuffer(trace.SerializeAsString(), &output, &context)
+          .ok());
 }
 
 }  // namespace perfetto::trace_redaction

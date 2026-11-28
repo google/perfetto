@@ -155,6 +155,8 @@ struct HeapDumpSequence {
 
 class SystemInfo {
  public:
+  static constexpr uint32_t kMaxCpus = 4096;
+
   int32_t AllocateSynthThread() { return ++next_synth_thread_; }
 
   uint32_t ReserveCpu(uint32_t cpu) {
