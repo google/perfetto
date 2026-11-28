@@ -19,11 +19,13 @@
 
 #include <memory>
 
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/protozero/field.h"
 
 #include "src/protovm/error_handling.h"
 #include "src/protovm/executor.h"
 #include "src/protovm/parser.h"
+#include "src/protovm/program.h"
 
 namespace perfetto {
 namespace protovm {
@@ -37,38 +39,37 @@ namespace protovm {
 // Overview of the VM's architecture and interactions:
 //
 //
-//         ***********
-//         *         *
-//         * Program *
-//         *         *
-//         ***********
-//              │
-//              │
-//              │
-//          ┌───┴──┐            ┌────────┐
-//          │      │            │        │
-//          │Parser├────────────┤Executor│
-//          │      │            │        │
-//          └──────┘            └─┬────┬─┘
-//                                │    │
-//                          ┌─────┘    └─────┐
-//                          │                │
-//                          │                │
-//                      ┌───┴────┐       ┌───┴────┐
-//                      │        │       │        │
-//                      │RoCursor│       │RwProto │
-//                      │        │       │::Cursor│
-//                      └────┬───┘       │        │
-//                           │           └───┬────┘
-//                           │               │
-//                           │               │
-//                           │               │
-//                      *********      ***************
-//                      *       *      *             *
-//                      * Patch *      * Incremental *
-//                      *       *      *    state    *
-//                      *********      *             *
-//                                     ***************
+//   ***********
+//   *         *
+//   * Program *
+//   *         *
+//   ***********
+//        │
+//        │
+//    ┌───┴───┐      ┌──────┐         ┌────────┐
+//    │Program│      │      │         │        │
+//    │Decoder├──────┤Parser├─────────┤Executor│
+//    |       |      │      │         │        │
+//    └───────┘      └──────┘         └─┬────┬─┘
+//                                      │    │
+//                                ┌─────┘    └─────┐
+//                                │                │
+//                                │                │
+//                            ┌───┴────┐       ┌───┴────┐
+//                            │        │       │        │
+//                            │RoCursor│       │RwProto │
+//                            │        │       │::Cursor│
+//                            └────┬───┘       │        │
+//                                 │           └───┬────┘
+//                                 │               │
+//                                 │               │
+//                                 │               │
+//                            *********      ***************
+//                            *       *      *             *
+//                            * Patch *      * Incremental *
+//                            *       *      *    state    *
+//                            *********      *             *
+//                                           ***************
 //
 //  ┌─┐
 //  │ │  VM's component
@@ -78,6 +79,10 @@ namespace protovm {
 //  * *  Data
 //  ***
 //
+//
+// ProgramDecoder: Decodes the serialized proto program once at VM
+//                 initialization into a flat, compact in-memory representation
+//                 for fast interpretation by the Parser.
 //
 // Parser: Understands the instructions semantic and controls the program flow.
 //         It delegates to the Executor operations like navigating through the
@@ -101,25 +106,23 @@ namespace protovm {
 //                  fields.
 class Vm {
  public:
-  Vm(protozero::ConstBytes program,
-     size_t memory_limit_bytes,
-     protozero::ConstBytes initial_incremental_state = {nullptr, 0});
+  static base::StatusOr<std::unique_ptr<Vm>> Create(
+      protozero::ConstBytes proto_program,
+      size_t memory_limit_bytes,
+      protozero::ConstBytes initial_incremental_state = {nullptr, 0});
   StatusOr<void> ApplyPatch(protozero::ConstBytes packet);
   void SerializeIncrementalState(protozero::Message*) const;
-  std::string SerializeProgram() const;
+  const std::string& SerializeProgram() const;
   std::unique_ptr<Vm> CloneReadOnly() const;
   uint64_t GetMemoryUsageBytes() const;
 
  private:
   struct ReadWriteState {
-    ReadWriteState(std::string& program,
+    ReadWriteState(const Program* program,
                    size_t memory_limit_bytes,
                    protozero::ConstBytes initial_incremental_state)
         : executor{},
-          parser{protozero::ConstBytes{
-                     reinterpret_cast<const uint8_t*>(program.data()),
-                     program.size()},
-                 &executor},
+          parser{program, &executor},
           allocator{memory_limit_bytes},
           incremental_state{&allocator} {
       if (initial_incremental_state.data) {
@@ -140,17 +143,20 @@ class Vm {
     std::string serialized_incremental_state;
   };
 
+  Vm(protozero::ConstBytes proto_program,
+     Program decoded_program,
+     size_t memory_limit_bytes,
+     protozero::ConstBytes initial_incremental_state);
+
   // Constructor used to produce read-only copies of the ProtoVm.
   // Private to avoid unintended copies. It should be used only for
   // CloneReadOnly().
   Vm(const Vm&);
 
-  // Constructor used only for cloning
-  explicit Vm(std::string incremental_state);
-
   std::string SerializeIncrementalStateAsString() const;
 
-  std::string owned_program_;
+  std::string proto_program_;
+  Program decoded_program_;
   std::variant<ReadWriteState, ReadOnlyState> state_;
 };
 

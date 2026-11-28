@@ -20,21 +20,18 @@
 #include <cstdint>
 #include <optional>
 
-#include "protos/perfetto/protovm/vm_program.pbzero.h"
-
 #include "src/protovm/error_handling.h"
+#include "src/protovm/program.h"
 #include "src/protovm/ro_cursor.h"
 #include "src/protovm/rw_proto.h"
 
 namespace perfetto {
 namespace protovm {
 
-using CursorEnum = perfetto::protos::pbzero::VmCursorEnum;
-
 struct Cursors {
   RoCursor src;
   RwProto::Cursor dst;
-  CursorEnum selected{CursorEnum::VM_CURSOR_UNSPECIFIED};
+  CursorSelection selected{CursorSelection::kUnspecified};
   bool create_if_not_exist{false};
 
   // Used internally by Parser to detect illegal "del" operations.
