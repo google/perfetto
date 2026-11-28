@@ -41,6 +41,8 @@ class GraphicsEventModule : public ProtoImporterModule {
 
   void ParseField(const ParseFieldArgs& args) override;
 
+  void OnEventsFullyExtracted() override;
+
  private:
   // Parses the GpuCounterDescriptor portion of a GpuCounterEvent (if present)
   // at tokenization time: interns the counter tracks and inserts the counter

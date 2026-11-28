@@ -95,3 +95,10 @@ Keep the SQL and kernel ids available so the user can audit.
   render-stage category); compute counters = `gpu_counter_group.group_id = 6`
   (the `GpuCounterGroup` COMPUTE value), matched per `ugpu` over the kernel
   window. (The two "compute" magic numbers, 2 and 6, are different enums.)
+- Dispatch engine stages by cross-vendor class: `gpu_slice.standard_stage` in
+  `STANDARD_STAGE_COMPUTE`, `STANDARD_STAGE_RAY_TRACING`,
+  `STANDARD_STAGE_ACCELERATION_STRUCTURE`, `STANDARD_STAGE_NEURAL`; child
+  stages link to their parent with `gpu_slice.parent_stage_id`.
+- Counter metadata: `gpu_counter_track` columns `counter_id`,
+  `short_description`, `value_type`, `standard_counter`; track args
+  `derivation.formula` and `derivation.source_counter_ids`.

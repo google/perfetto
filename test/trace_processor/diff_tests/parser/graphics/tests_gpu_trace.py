@@ -14,9 +14,28 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, TextProto, Zip
 from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
+
+
+def _encode_varint(value: int) -> bytes:
+  encoded = bytearray()
+  while value >= 0x80:
+    encoded.append((value & 0x7F) | 0x80)
+    value >>= 7
+  encoded.append(value)
+  return bytes(encoded)
+
+
+def _varint_field(field_number: int, value: int) -> bytes:
+  return _encode_varint(field_number << 3) + _encode_varint(value)
+
+
+def _bytes_field(field_number: int, payload: bytes) -> bytes:
+  return (_encode_varint((field_number << 3) | 2) +
+          _encode_varint(len(payload)) + payload)
+
 
 # vkSetDebugUtilsObjectNameEXT history of framebuffer handle 4096 on two
 # devices: named, renamed twice at the same timestamp, cleared with an empty
@@ -360,7 +379,10 @@ class GraphicsGpuTrace(TestSuite):
               'render_subpasses',
               'render_stage_category',
               'render_stage_name',
-              'upid'
+              'upid',
+              'standard_stage',
+              'parent_stage_id',
+              'render_pass_instance_id'
             )
           ) args USING (arg_set_id)
           ORDER BY ts;
@@ -1309,4 +1331,325 @@ class GraphicsGpuTrace(TestSuite):
           "track_name","track_type","ts","value"
           "gpufreq","gpu_frequency",1000,1500000.000000
           "gpufreq","gpu_frequency",2000,2100000.000000
+        '''))
+
+  # VALUE_TYPE_UNSPECIFIED, STANDARD_COUNTER_UNSPECIFIED, and unset fields map
+  # to NULL.
+  def test_gpu_counter_spec_metadata(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counter_spec_metadata.textproto'),
+        query='''
+          SELECT
+            counter_id,
+            name,
+            unit,
+            short_description,
+            value_type,
+            standard_counter
+          FROM gpu_counter_track
+          ORDER BY counter_id;
+        ''',
+        out=Csv('''
+          "counter_id","name","unit","short_description","value_type","standard_counter"
+          1,"GPU Active Cycles","Cycle","Active cycles","VALUE_TYPE_INCREMENTAL_SUM","STANDARD_COUNTER_GPU_ACTIVE_CYCLES"
+          2,"ALU Active Cycles","Cycle","ALU cycles","VALUE_TYPE_INCREMENTAL_SUM","[NULL]"
+          3,"ALU Utilization","%","ALU util","VALUE_TYPE_PERCENT","STANDARD_COUNTER_ALU_UTILIZATION"
+          4,"Memory Read Bandwidth","B/s","Read bandwidth","VALUE_TYPE_PER_TIME_RATE","STANDARD_COUNTER_MEMORY_READ_BANDWIDTH"
+          5,"Shader Core Active Cycles","Cycle","Shader core cycles","VALUE_TYPE_INCREMENTAL_SUM","[NULL]"
+          6,"Unspecified Counter Enums","[NULL]","[NULL]","[NULL]","[NULL]"
+        '''))
+
+  # The formula is exposed as text. The source counter ids resolve to tracks
+  # through gpu_counter_track.counter_id. An opaque formula has no source
+  # counters.
+  def test_gpu_counter_derivation_args(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counter_spec_metadata.textproto'),
+        query='''
+          SELECT
+            derived.counter_id,
+            derived.name,
+            extract_arg(derived.source_arg_set_id, 'derivation.formula')
+              AS formula,
+            source_arg.key AS source_key,
+            source_arg.int_value AS source_counter_id,
+            source.name AS source_name
+          FROM gpu_counter_track AS derived
+          LEFT JOIN args AS source_arg
+            ON source_arg.arg_set_id = derived.source_arg_set_id
+            AND source_arg.flat_key = 'derivation.source_counter_ids'
+          LEFT JOIN gpu_counter_track AS source
+            ON source.counter_id = source_arg.int_value
+          ORDER BY derived.counter_id, source_arg.key;
+        ''',
+        out=Csv('''
+          "counter_id","name","formula","source_key","source_counter_id","source_name"
+          1,"GPU Active Cycles","[NULL]","[NULL]","[NULL]","[NULL]"
+          2,"ALU Active Cycles","[NULL]","[NULL]","[NULL]","[NULL]"
+          3,"ALU Utilization","100.0 * ($2 / $5)","derivation.source_counter_ids[0]",2,"ALU Active Cycles"
+          3,"ALU Utilization","100.0 * ($2 / $5)","derivation.source_counter_ids[1]",5,"Shader Core Active Cycles"
+          4,"Memory Read Bandwidth","OPAQUE","[NULL]","[NULL]","[NULL]"
+          5,"Shader Core Active Cycles","[NULL]","[NULL]","[NULL]","[NULL]"
+          6,"Unspecified Counter Enums","[NULL]","[NULL]","[NULL]","[NULL]"
+        '''))
+
+  # A trace whose counter specs set none of the new fields. Only counter_id,
+  # which every spec has, is filled.
+  def test_gpu_counter_spec_legacy(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counter_specs.textproto'),
+        query='''
+          SELECT
+            counter_id,
+            name,
+            unit,
+            short_description,
+            value_type,
+            standard_counter,
+            extract_arg(source_arg_set_id, 'derivation.formula') AS formula,
+            (
+              SELECT COUNT(*)
+              FROM args
+              WHERE args.arg_set_id = source_arg_set_id
+                AND args.flat_key = 'derivation.source_counter_ids'
+            ) AS source_counter_count
+          FROM gpu_counter_track
+          ORDER BY counter_id;
+        ''',
+        out=Csv('''
+          "counter_id","name","unit","short_description","value_type","standard_counter","formula","source_counter_count"
+          1,"GPU Frequency","/s","[NULL]","[NULL]","[NULL]","[NULL]",0
+          2,"Fragments / vertex","Fragment/Vertex","[NULL]","[NULL]","[NULL]","[NULL]",0
+          3,"Fragment / Second","Pixel/s","[NULL]","[NULL]","[NULL]","[NULL]",0
+          4,"Triangle Acceleration","Triangle/ms:ms","[NULL]","[NULL]","[NULL]","[NULL]",0
+        '''))
+
+  # One stage for each StandardStage value, and a last stage whose
+  # specification does not set standard_stage. Both STANDARD_STAGE_UNSPECIFIED
+  # and an unset field map to NULL.
+  def test_gpu_render_stage_standard_stage(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_render_stage_standard_stage.textproto'),
+        query='''
+          SELECT ts, name, standard_stage
+          FROM gpu_slice
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+          "ts","name","standard_stage"
+          100,"unspecified","[NULL]"
+          200,"binning","STANDARD_STAGE_BINNING"
+          300,"render","STANDARD_STAGE_RENDER"
+          400,"compute","STANDARD_STAGE_COMPUTE"
+          500,"ray_tracing","STANDARD_STAGE_RAY_TRACING"
+          600,"acceleration_structure","STANDARD_STAGE_ACCELERATION_STRUCTURE"
+          700,"neural","STANDARD_STAGE_NEURAL"
+          800,"transfer","STANDARD_STAGE_TRANSFER"
+          900,"clear","STANDARD_STAGE_CLEAR"
+          1000,"resolve","STANDARD_STAGE_RESOLVE"
+          1100,"blit","STANDARD_STAGE_BLIT"
+          1200,"present","STANDARD_STAGE_PRESENT"
+          1300,"driver_internal","STANDARD_STAGE_DRIVER_INTERNAL"
+          1400,"other","STANDARD_STAGE_OTHER"
+          1500,"custom","STANDARD_STAGE_CUSTOM"
+          1600,"unset","[NULL]"
+        '''))
+
+  # A render pass wrapper with a binning and a render child, a compute stage
+  # with a vendor child, a stage whose parent_event_id matches no stage in
+  # the trace, a child and parent pair at the same timestamp where the packet
+  # of the child comes first, and a self-parenting stage.
+  def test_gpu_render_stage_parent(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_render_stage_parent.textproto'),
+        query='''
+          SELECT
+            stage.ts,
+            stage.dur,
+            stage.name,
+            stage.standard_stage,
+            parent.name AS parent_name,
+            parent.standard_stage AS parent_standard_stage,
+            extract_arg(stage.arg_set_id, 'event_id') AS event_id_arg,
+            extract_arg(stage.arg_set_id, 'parent_event_id')
+              AS parent_event_id_arg
+          FROM gpu_slice AS stage
+          LEFT JOIN gpu_slice AS parent
+            ON stage.parent_stage_id = parent.id
+          ORDER BY stage.ts, stage.id;
+        ''',
+        out=Csv('''
+          "ts","dur","name","standard_stage","parent_name","parent_standard_stage","event_id_arg","parent_event_id_arg"
+          100,100,"render pass","STANDARD_STAGE_CUSTOM","[NULL]","[NULL]","[NULL]","[NULL]"
+          100,40,"binning","STANDARD_STAGE_BINNING","render pass","STANDARD_STAGE_CUSTOM","[NULL]","[NULL]"
+          140,60,"render","STANDARD_STAGE_RENDER","render pass","STANDARD_STAGE_CUSTOM","[NULL]","[NULL]"
+          300,50,"compute","STANDARD_STAGE_COMPUTE","[NULL]","[NULL]","[NULL]","[NULL]"
+          310,20,"vendor step","STANDARD_STAGE_CUSTOM","compute","STANDARD_STAGE_COMPUTE","[NULL]","[NULL]"
+          400,10,"compute","STANDARD_STAGE_COMPUTE","[NULL]","[NULL]","[NULL]","[NULL]"
+          500,30,"binning","STANDARD_STAGE_BINNING","render pass","STANDARD_STAGE_CUSTOM","[NULL]","[NULL]"
+          500,80,"render pass","STANDARD_STAGE_CUSTOM","[NULL]","[NULL]","[NULL]","[NULL]"
+          600,15,"compute","STANDARD_STAGE_COMPUTE","[NULL]","[NULL]","[NULL]","[NULL]"
+        '''))
+
+  # Two submissions repeat the same render pass instance id and the same
+  # command instance ids. The submission id tells them apart and joins each
+  # stage to its vkQueueSubmit slice. The last stage has the render pass
+  # instance id 0, which is a valid value.
+  def test_gpu_render_stage_instance_ids(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_render_stage_instance_ids.textproto'),
+        query='''
+          SELECT
+            submit.ts AS submit_ts,
+            stage.submission_id,
+            stage.ts,
+            stage.name,
+            stage.render_pass_instance_id,
+            extract_arg(stage.arg_set_id, 'correlation_id') AS correlation_id,
+            command.key AS command_key,
+            command.int_value AS command_instance_id
+          FROM gpu_slice AS stage
+          JOIN gpu_slice AS submit
+            ON submit.name = 'vkQueueSubmit'
+            AND submit.submission_id = stage.submission_id
+          LEFT JOIN args AS command
+            ON command.arg_set_id = stage.arg_set_id
+            AND command.flat_key = 'command_instance_id'
+          WHERE stage.name != 'vkQueueSubmit'
+          ORDER BY stage.ts, command.key;
+        ''',
+        out=Csv('''
+          "submit_ts","submission_id","ts","name","render_pass_instance_id","correlation_id","command_key","command_instance_id"
+          1000,1,1100,"binning",1,"rp:#1","[NULL]","[NULL]"
+          1000,1,1200,"render",1,"rp:#1","[NULL]","[NULL]"
+          1000,1,1300,"compute","[NULL]","[NULL]","command_instance_id[0]",1
+          1000,1,1400,"transfer","[NULL]","[NULL]","command_instance_id[0]",2
+          1000,1,1400,"transfer","[NULL]","[NULL]","command_instance_id[1]",3
+          2000,2,2100,"binning",1,"rp:#1","[NULL]","[NULL]"
+          2000,2,2200,"render",1,"rp:#1","[NULL]","[NULL]"
+          2000,2,2300,"compute","[NULL]","[NULL]","command_instance_id[0]",1
+          2000,2,2400,"transfer","[NULL]","[NULL]","command_instance_id[0]",2
+          2000,2,2400,"transfer","[NULL]","[NULL]","command_instance_id[1]",3
+          2000,2,2500,"binning",0,"[NULL]","[NULL]","[NULL]"
+        '''))
+
+  # Unknown wire enum values on GpuCounterSpec.{value_type, standard_counter}
+  # and InternedGpuRenderStageSpecification.standard_stage map to NULL.
+  def test_gpu_unknown_wire_enums(self):
+    unknown_counter_spec = (
+        _varint_field(1, 1) + _bytes_field(2, b'Unknown Counter Enums') +
+        _varint_field(13, 999) + _varint_field(15, 999))
+    known_counter_spec = (
+        _varint_field(1, 2) + _bytes_field(2, b'Known Counter Enums') +
+        _varint_field(13, 1) + _varint_field(15, 1))
+    counter_descriptor = (
+        _bytes_field(1, unknown_counter_spec) +
+        _bytes_field(1, known_counter_spec))
+    counter_packet = (
+        _varint_field(8, 0) + _varint_field(10, 1) +
+        _bytes_field(52, _bytes_field(1, counter_descriptor)))
+
+    queue_spec = _varint_field(1, 1) + _bytes_field(2, b'queue')
+    unknown_stage_spec = (
+        _varint_field(1, 2) + _bytes_field(2, b'unknown_stage') +
+        _varint_field(5, 999))
+    known_stage_spec = (
+        _varint_field(1, 3) + _bytes_field(2, b'known_stage') +
+        _varint_field(5, 2))
+    interned_data = (
+        _bytes_field(24, queue_spec) + _bytes_field(24, unknown_stage_spec) +
+        _bytes_field(24, known_stage_spec))
+    interned_packet = (
+        _varint_field(8, 0) + _varint_field(10, 1) +
+        _bytes_field(12, interned_data) + _varint_field(13, 1))
+
+    unknown_stage_event = (
+        _varint_field(1, 1) + _varint_field(2, 10) + _varint_field(13, 1) +
+        _varint_field(14, 2))
+    unknown_stage_packet = (
+        _varint_field(8, 100) + _varint_field(10, 1) + _varint_field(13, 2) +
+        _bytes_field(53, unknown_stage_event))
+
+    known_stage_event = (
+        _varint_field(1, 2) + _varint_field(2, 10) + _varint_field(13, 1) +
+        _varint_field(14, 3))
+    known_stage_packet = (
+        _varint_field(8, 200) + _varint_field(10, 1) + _varint_field(13, 2) +
+        _bytes_field(53, known_stage_event))
+
+    trace_bytes = (
+        _bytes_field(1, counter_packet) + _bytes_field(1, interned_packet) +
+        _bytes_field(1, unknown_stage_packet) +
+        _bytes_field(1, known_stage_packet))
+    return DiffTestBlueprint(
+        trace=Zip({'trace.pftrace': trace_bytes}),
+        query='''
+          SELECT
+            'counter_track' AS kind,
+            name,
+            value_type,
+            standard_counter,
+            NULL AS standard_stage
+          FROM gpu_counter_track
+          UNION ALL
+          SELECT
+            'render_stage' AS kind,
+            name,
+            NULL AS value_type,
+            NULL AS standard_counter,
+            standard_stage
+          FROM gpu_slice
+          ORDER BY kind, name;
+        ''',
+        out=Csv('''
+          "kind","name","value_type","standard_counter","standard_stage"
+          "counter_track","Known Counter Enums","VALUE_TYPE_INCREMENTAL_SUM","STANDARD_COUNTER_GPU_ACTIVE_CYCLES","[NULL]"
+          "counter_track","Unknown Counter Enums","[NULL]","[NULL]","[NULL]"
+          "render_stage","known_stage","[NULL]","[NULL]","STANDARD_STAGE_RENDER"
+          "render_stage","unknown_stage","[NULL]","[NULL]","[NULL]"
+        '''))
+
+  # A truncated varint in packed GpuRenderStageEvent.command_instance_id keeps
+  # the decoded prefix and increments stats.gpu_render_stage_parser_errors.
+  def test_gpu_render_stage_malformed_command_instance_id(self):
+    queue_spec = _varint_field(1, 1) + _bytes_field(2, b'queue')
+    compute_spec = (
+        _varint_field(1, 2) + _bytes_field(2, b'compute') + _varint_field(5, 3))
+    interned_packet = (
+        _varint_field(8, 0) + _varint_field(10, 1) + _bytes_field(
+            12,
+            _bytes_field(24, queue_spec) + _bytes_field(24, compute_spec)) +
+        _varint_field(13, 1))
+
+    stage_event = (
+        _varint_field(1, 1) + _varint_field(2, 10) + _varint_field(13, 1) +
+        _varint_field(14, 2) + _bytes_field(24, b'\x07\x80'))
+    stage_packet = (
+        _varint_field(8, 100) + _varint_field(10, 1) + _varint_field(13, 2) +
+        _bytes_field(53, stage_event))
+
+    trace_bytes = (
+        _bytes_field(1, interned_packet) + _bytes_field(1, stage_packet))
+    return DiffTestBlueprint(
+        trace=Zip({'trace.pftrace': trace_bytes}),
+        query='''
+          SELECT
+            stage.ts,
+            stage.name,
+            command.key AS command_key,
+            command.int_value AS command_instance_id,
+            (
+              SELECT value
+              FROM stats
+              WHERE name = 'gpu_render_stage_parser_errors'
+            ) AS parser_errors
+          FROM gpu_slice AS stage
+          LEFT JOIN args AS command
+            ON command.arg_set_id = stage.arg_set_id
+            AND command.flat_key = 'command_instance_id'
+          ORDER BY stage.ts, command.key;
+        ''',
+        out=Csv('''
+          "ts","name","command_key","command_instance_id","parser_errors"
+          100,"compute","command_instance_id[0]",7,1
         '''))

@@ -36,11 +36,11 @@ SELECT
     s.name
   ) AS kernel
 FROM gpu_slice AS s
-JOIN gpu_track AS t
-  ON s.track_id = t.id
+JOIN gpu_track AS t ON s.track_id = t.id
 WHERE
   s.render_stage_category = 2
-  AND s.dur > 0;
+  AND s.dur > 0
+  AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM';
 
 CREATE PERFETTO TABLE _kernel_counters AS
 SELECT k.id AS kernel_id, ct.name AS counter_name, AVG(c.value) AS avg_v

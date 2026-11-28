@@ -1,0 +1,176 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    gpu_specifications {
+      iid: 1
+      name: "queue"
+    }
+    gpu_specifications {
+      iid: 2
+      name: "binning"
+      standard_stage: STANDARD_STAGE_BINNING
+    }
+    gpu_specifications {
+      iid: 3
+      name: "render"
+      standard_stage: STANDARD_STAGE_RENDER
+    }
+    gpu_specifications {
+      iid: 4
+      name: "compute"
+      standard_stage: STANDARD_STAGE_COMPUTE
+    }
+    gpu_specifications {
+      iid: 5
+      name: "transfer"
+      standard_stage: STANDARD_STAGE_TRANSFER
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  vulkan_api_event {
+    vk_queue_submit {
+      duration_ns: 10
+      pid: 42
+      tid: 42
+      vk_queue: 1
+      submission_id: 1
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1100
+  gpu_render_stage_event {
+    event_id: 1
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 2
+    submission_id: 1
+    render_pass_instance_id: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1200
+  gpu_render_stage_event {
+    event_id: 2
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 3
+    submission_id: 1
+    render_pass_instance_id: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1300
+  gpu_render_stage_event {
+    event_id: 3
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 4
+    submission_id: 1
+    command_instance_id: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1400
+  gpu_render_stage_event {
+    event_id: 4
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 5
+    submission_id: 1
+    command_instance_id: 2
+    command_instance_id: 3
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  vulkan_api_event {
+    vk_queue_submit {
+      duration_ns: 10
+      pid: 42
+      tid: 42
+      vk_queue: 1
+      submission_id: 2
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2100
+  gpu_render_stage_event {
+    event_id: 5
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 2
+    submission_id: 2
+    render_pass_instance_id: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2200
+  gpu_render_stage_event {
+    event_id: 6
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 3
+    submission_id: 2
+    render_pass_instance_id: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2300
+  gpu_render_stage_event {
+    event_id: 7
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 4
+    submission_id: 2
+    command_instance_id: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2400
+  gpu_render_stage_event {
+    event_id: 8
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 5
+    submission_id: 2
+    command_instance_id: 2
+    command_instance_id: 3
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2500
+  gpu_render_stage_event {
+    event_id: 9
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 2
+    submission_id: 2
+    render_pass_instance_id: 0
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}

@@ -1,0 +1,66 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
+    counter_descriptor {
+      specs {
+        counter_id: 1
+        name: "GPU Active Cycles"
+        description: "Clock cycles in which the GPU was active"
+        short_description: "Active cycles"
+        numerator_units: CYCLE
+        value_type: VALUE_TYPE_INCREMENTAL_SUM
+        standard_counter: STANDARD_COUNTER_GPU_ACTIVE_CYCLES
+      }
+      specs {
+        counter_id: 2
+        name: "ALU Active Cycles"
+        description: "Clock cycles in which the arithmetic units were active"
+        short_description: "ALU cycles"
+        numerator_units: CYCLE
+        value_type: VALUE_TYPE_INCREMENTAL_SUM
+      }
+      specs {
+        counter_id: 3
+        name: "ALU Utilization"
+        description: "Share of the shader core active cycles that the arithmetic units used"
+        short_description: "ALU util"
+        numerator_units: PERCENT
+        value_type: VALUE_TYPE_PERCENT
+        derivation {
+          formula: "100.0 * ($2 / $5)"
+          source_counter_ids: 2
+          source_counter_ids: 5
+        }
+        standard_counter: STANDARD_COUNTER_ALU_UTILIZATION
+      }
+      specs {
+        counter_id: 4
+        name: "Memory Read Bandwidth"
+        description: "Bytes that the GPU read from memory per second"
+        short_description: "Read bandwidth"
+        numerator_units: BYTE
+        denominator_units: SECOND
+        value_type: VALUE_TYPE_PER_TIME_RATE
+        derivation {
+          formula: "OPAQUE"
+        }
+        standard_counter: STANDARD_COUNTER_MEMORY_READ_BANDWIDTH
+      }
+      specs {
+        counter_id: 5
+        name: "Shader Core Active Cycles"
+        description: "Clock cycles in which the shader cores were active"
+        short_description: "Shader core cycles"
+        numerator_units: CYCLE
+        value_type: VALUE_TYPE_INCREMENTAL_SUM
+      }
+      specs {
+        counter_id: 6
+        name: "Unspecified Counter Enums"
+        value_type: VALUE_TYPE_UNSPECIFIED
+        standard_counter: STANDARD_COUNTER_UNSPECIFIED
+      }
+    }
+  }
+}

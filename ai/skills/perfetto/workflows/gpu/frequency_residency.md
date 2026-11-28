@@ -78,7 +78,8 @@ Run this before any open-ended exploration. It produces the headline verdict.
         SELECT s.ts, s.dur,
                IFNULL(EXTRACT_ARG(t.dimension_arg_set_id, 'ugpu'), 0) AS ugpu
         FROM gpu_slice AS s JOIN gpu_track AS t ON s.track_id = t.id
-        WHERE s.dur > 0), (ugpu));
+        WHERE s.dur > 0
+          AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'), (ugpu));
 
     SELECT b.ugpu AS gpu, f.freq_khz / 1000 AS freq_mhz,
            SUM(ii.dur) AS busy_at_freq_ns,
@@ -168,7 +169,8 @@ Run this before any open-ended exploration. It produces the headline verdict.
         SELECT s.ts, s.dur,
                IFNULL(EXTRACT_ARG(t.dimension_arg_set_id, 'ugpu'), 0) AS ugpu
         FROM gpu_slice AS s JOIN gpu_track AS t ON s.track_id = t.id
-        WHERE s.dur > 0), (ugpu));
+        WHERE s.dur > 0
+          AND s.standard_stage IS NOT 'STANDARD_STAGE_CUSTOM'), (ugpu));
 
     CREATE PERFETTO TABLE _fmax AS
       SELECT ugpu, MAX(freq_khz) AS fmax_khz FROM _gpu_freq GROUP BY ugpu;
@@ -242,5 +244,8 @@ simply absent from Phase 1 — say so rather than implying it ran at peak.
 - GPU data sources: <https://perfetto.dev/docs/data-sources/gpu>
 - Canonical frequency track: `gpu_counter_track` where `name = 'gpufreq'`
   (type `gpu_frequency`, kHz); stdlib analog `android.gpu.frequency`.
+- Cycle counter: `gpu_counter_track` where
+  `standard_counter = 'STANDARD_COUNTER_GPU_ACTIVE_CYCLES'` (unit `Cycle`), one
+  track per `ugpu`.
 - Interval helpers: stdlib `counters.intervals`, `intervals.overlap`,
   `intervals.intersect`.

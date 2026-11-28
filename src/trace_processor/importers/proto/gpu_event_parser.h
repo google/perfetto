@@ -114,6 +114,8 @@ class GpuEventParser {
 
   void ParseGpuMemTotalEvent(int64_t, ConstBytes);
 
+  void OnEventsFullyExtracted();
+
  private:
   StringId GetFullStageName(
       PacketSequenceStateGeneration* sequence_state,
@@ -132,6 +134,11 @@ class GpuEventParser {
   StringId FormatCounterUnit(
       const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
           spec);
+  // Adds the formula and the source counter ids of a
+  // GpuCounterSpec.Derivation as args. The formula is stored as text and is
+  // not evaluated.
+  void ParseCounterDerivation(protozero::ConstBytes bytes,
+                              ArgsInserter* inserter);
   // Pushes a counter sample for a GPU counter, handling both the
   // backwards-looking and forwards-looking conventions (see
   // GpuCounterSpec.ValueDirection).
@@ -165,6 +172,14 @@ class GpuEventParser {
   base::FlatHashMap<TrackId, std::optional<tables::CounterTable::Id>>
       gpu_counter_last_id_;
 
+  // For GpuCounterSpec
+  const StringId counter_id_id_;
+  const StringId short_description_id_;
+  const StringId value_type_id_;
+  const StringId standard_counter_id_;
+  const StringId derivation_formula_id_;
+  const StringId derivation_source_counter_ids_id_;
+
   // For GpuRenderStageEvent
   struct HwQueueInfo {
     StringId name;
@@ -183,6 +198,17 @@ class GpuEventParser {
   const StringId workgroup_z_id_;
   const StringId description_id_;
   const StringId correlation_id_;
+  const StringId standard_stage_id_;
+  const StringId parent_stage_id_id_;
+  const StringId render_pass_instance_id_id_;
+  const StringId command_instance_id_id_;
+  struct PendingParentStage {
+    SliceId slice_id;
+    uint64_t parent_event_id;
+    ArgsTracker::CompactArgSet args;
+  };
+  base::FlatHashMap<uint64_t, SliceId> render_stage_event_id_to_slice_id_;
+  std::vector<PendingParentStage> pending_parent_stages_;
   std::vector<std::optional<HwQueueInfo>> gpu_hw_queue_ids_;
   base::FlatHashMap<uint64_t, bool> gpu_hw_queue_ids_name_to_set_;
 
