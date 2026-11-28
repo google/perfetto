@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {EVIDENCE_PROMPT} from './evidence';
+
 /**
  * The assistant plugin's application system prompt. Kept stable (it sits at the
  * front of the cache-stable prefix) and deliberately small. A per-model system
@@ -64,4 +66,6 @@ Guidance:
   \`\`\`datagrid fenced block so it renders as an interactive DataGrid. Use
   regular markdown tables for informational or key-value summaries.
 - Be concise. Trace data is the source of truth; cite concrete numbers.
+
+${EVIDENCE_PROMPT}
 `.trim();

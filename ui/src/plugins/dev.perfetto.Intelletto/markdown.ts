@@ -18,12 +18,49 @@ import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../components/widgets/datagrid/datagrid_schema';
 import type {Row} from '../../trace_processor/query_result';
 import {CodeSnippet} from '../../widgets/code_snippet';
+import {evidenceLabel, evidenceTooltip, parseEvidence} from './evidence';
 
 type Token = ReturnType<MarkdownIt['parse']>[number];
 
 // A plain number, e.g. "42", "-1.5", "1e6". Cells matching this become numbers
 // so they sort numerically in the grid.
 const NUMBER_RE = /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+
+/**
+ * Teach a markdown-it instance to render [[...]] evidence citations (see
+ * evidence.ts) as chips. A chip is a <button> carrying the raw citation in
+ * data-evidence; the chat panel handles clicks on it via event delegation.
+ * Malformed citations are left as plain text.
+ */
+export function installEvidenceChips(md: MarkdownIt): MarkdownIt {
+  md.inline.ruler.before('link', 'evidence', (state, silent) => {
+    const src = state.src;
+    const pos = state.pos;
+    if (!src.startsWith('[[', pos)) return false;
+    const end = src.indexOf(']]', pos + 2);
+    if (end === -1) return false;
+    const raw = src.slice(pos + 2, end);
+    if (parseEvidence(raw) === undefined) return false;
+    if (!silent) {
+      const token = state.push('evidence', '', 0);
+      token.content = raw;
+    }
+    state.pos = end + 2;
+    return true;
+  });
+  md.renderer.rules.evidence = (tokens, idx) => {
+    const raw = tokens[idx]?.content ?? '';
+    const ev = parseEvidence(raw);
+    if (ev === undefined) return md.utils.escapeHtml(`[[${raw}]]`);
+    const esc = md.utils.escapeHtml;
+    return (
+      `<button type="button" class="pf-intelletto__chip pf-intelletto__chip--${ev.kind}" ` +
+      `data-evidence="${esc(raw)}" title="${esc(evidenceTooltip(ev))}">` +
+      `${esc(evidenceLabel(ev))}</button>`
+    );
+  };
+  return md;
+}
 
 /**
  * Render markdown, replacing top-level ```datagrid fenced blocks (containing a
@@ -76,7 +113,7 @@ function tryRenderDataGrid(
     (t, j) => j > openIdx && t.type === 'table_close' && t.level === 0,
   );
   if (closeIdx === -1) return undefined;
-  return renderTable(inner.slice(openIdx, closeIdx + 1));
+  return renderTable(md, inner.slice(openIdx, closeIdx + 1));
 }
 
 function renderCodeBlock(tok: Token): m.Children {
@@ -88,7 +125,8 @@ function renderCodeBlock(tok: Token): m.Children {
   });
 }
 
-// Plain text of an inline token: text and inline code, markup dropped.
+// Plain text of an inline token: text and inline code, markup dropped. Used
+// for table headers.
 function inlineText(tok: Token): string {
   return (tok.children ?? [])
     .filter((c) => c.type === 'text' || c.type === 'code_inline')
@@ -96,7 +134,7 @@ function inlineText(tok: Token): string {
     .join('');
 }
 
-function renderTable(tokens: readonly Token[]): m.Children {
+function renderTable(md: MarkdownIt, tokens: readonly Token[]): m.Children {
   const headers: string[] = [];
   const cells: string[][] = [];
   let inHead = false;
@@ -115,7 +153,9 @@ function renderTable(tokens: readonly Token[]): m.Children {
         if (inHead) {
           headers.push(inlineText(tok));
         } else {
-          cells[cells.length - 1]?.push(inlineText(tok));
+          // Keep the cell's raw markdown so text cells can render inline
+          // formatting and evidence chips.
+          cells[cells.length - 1]?.push(tok.content);
         }
         break;
     }
@@ -132,6 +172,12 @@ function renderTable(tokens: readonly Token[]): m.Children {
       title: headers[i] || key,
       titleString: headers[i] || key,
       columnType: numeric[i] ? 'quantitative' : 'text',
+      ...(numeric[i]
+        ? {}
+        : {
+            cellRenderer: (v: unknown) =>
+              m.trust(md.renderInline(typeof v === 'string' ? v : '')),
+          }),
     };
   });
   const rows: Row[] = cells.map((r) => {

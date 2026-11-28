@@ -31,7 +31,8 @@ import type {ModelDetails, ModelPath} from '../dev.perfetto.Llm/gateway';
 import './chat_panel.scss';
 import type {ChatLine} from './chat_session';
 import type {ContextItem} from './context';
-import {renderMarkdown} from './markdown';
+import {type Evidence, parseEvidence} from './evidence';
+import {installEvidenceChips, renderMarkdown} from './markdown';
 import {PromptBox} from './prompt_box';
 
 // Summary of a conversation for the conversation list/switcher.
@@ -51,6 +52,8 @@ export interface ChatPanelAttrs {
   readonly onCancel: () => void;
   // Provided when the trailing error line can be retried in place.
   readonly onRetry?: () => void;
+  // Callback for when the user clicks an evidence chip in a message.
+  readonly onEvidence?: (ev: Evidence) => void;
 
   // Conversation state
   readonly conversation: readonly ChatLine[];
@@ -87,7 +90,9 @@ export interface ChatPanelAttrs {
 export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
   // Explicitly disable raw HTML and external image rendering so untrusted
   // model output cannot inject markup or trigger outbound image requests.
-  private readonly md = markdownit({html: false}).disable('image');
+  private readonly md = installEvidenceChips(
+    markdownit({html: false}).disable('image'),
+  );
   // Whether the conversation was scrolled to (near) the bottom as of the last
   // render. We only auto-scroll on update when this holds, so new content keeps
   // the view pinned to the bottom but a user who has scrolled up to read is
@@ -107,7 +112,11 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
         // text (e.g. to copy part of the transcript).
         onclick: (e: MouseEvent) => {
           const target = e.target as HTMLElement;
-          if (target.closest('input, textarea, select, button, a, summary')) {
+          if (
+            target.closest(
+              'input, textarea, select, button, a, summary, [data-evidence]',
+            )
+          ) {
             return;
           }
           const selection = window.getSelection();
@@ -176,6 +185,18 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                 m('b.pf-intelletto__msg-role', labels[msg.role]),
                 m(
                   'span.pf-intelletto__msg-text',
+                  {
+                    // Evidence chips are plain HTML from markdown-it (or
+                    // DataGrid cells), so handle their clicks by delegation.
+                    onclick: (e: MouseEvent) => {
+                      const chip = (e.target as HTMLElement).closest(
+                        '[data-evidence]',
+                      );
+                      if (!(chip instanceof HTMLElement)) return;
+                      const ev = parseEvidence(chip.dataset.evidence ?? '');
+                      if (ev !== undefined) attrs.onEvidence?.(ev);
+                    },
+                  },
                   renderMarkdown(this.md, msg.text),
                 ),
                 showRetry &&
