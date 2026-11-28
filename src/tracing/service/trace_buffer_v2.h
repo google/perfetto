@@ -111,9 +111,10 @@ struct TBChunk {
   uint16_t payload_avail = 0;
 
   // SharedMemoryABI chunk flags, with additional bits set by TraceBufferV2:
-  // kChunkIncomplete (0x80) for scraped chunks and kChunkLossBefore (0x40) for
-  // a gap before an SMB v2 chunk. These additional bits never come from
-  // the producer.
+  // kChunkIncomplete (0x80) for scraped chunks, kChunkLossBefore (0x40) for
+  // a gap before an SMB v2 chunk and kChunkWriterAbortAfter (0x20) for a
+  // packet the writer dropped at the end of an SMB v1 chunk. These additional
+  // bits never come from the producer.
   uint8_t flags = 0;
 
   // This is used for (D)CHECKS to verify the integrity of the chunk.
