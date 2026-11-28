@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/expand.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -114,6 +115,7 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
   DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
                      ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
+  ops.push_back(std::make_unique<Expand>(std::vector<uint32_t>{1}));
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   Pipeline pipeline(scan, std::move(ops));
   Run(state, pipeline, rows, nullptr);
@@ -127,6 +129,7 @@ void BM_TreeParentFirst(benchmark::State& state) {
   DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
                      ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
+  ops.push_back(std::make_unique<Expand>(std::vector<uint32_t>{1}));
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
   Pipeline pipeline(scan, std::move(ops));
@@ -141,6 +144,7 @@ void BM_TreeChildFirst(benchmark::State& state) {
   DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
                      ReadDirection::kForwards);
   std::vector<Pipeline::Step> ops;
+  ops.push_back(std::make_unique<Expand>(std::vector<uint32_t>{1}));
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   // A plan ends the pipeline in the breaker, and serves it to the next.
   Pipelines pipelines;

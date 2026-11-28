@@ -89,14 +89,15 @@ struct ColumnChunk {
   // `sources` into row r of this chunk. Rows below `count` that aren't in
   // `kept` are left unspecified. All sources have the type of `like`, so the
   // value width is dispatched on once. `nullable` says whether any source has
-  // nulls.
+  // nulls, and `sequence` whether any is a sequence.
   void Gather(const ColumnView& like,
               const GatherSource* sources,
               const uint32_t* places,
               const uint16_t* kept,
               uint32_t kept_count,
               uint32_t count,
-              bool nullable);
+              bool nullable,
+              bool sequence);
 
   // Copies the first `count` of `data`, present where `present` says if not
   // null, into this chunk, and views them.

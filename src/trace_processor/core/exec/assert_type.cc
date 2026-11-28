@@ -131,6 +131,19 @@ bool WidenAs(const ColumnView& column,
   return true;
 }
 
+// WidenAs() for the first `count` rows of a flat column with no nulls. It's a
+// plain cast loop, which vectorizes.
+template <typename From>
+PERFETTO_NO_INLINE void WidenPrefix(const ColumnView& column,
+                                    uint32_t count,
+                                    int64_t* out) {
+  const From* in = static_cast<const From*>(column.data()) + column.start();
+  PERFETTO_VECTORIZE_LOOP_ONCE
+  for (uint32_t i = 0; i < count; ++i) {
+    out[i] = in[i];
+  }
+}
+
 // The variant counterpart of WidenAs: a row is null when its cell is.
 template <typename To, typename Convert>
 bool Fill(const ColumnView& column,
@@ -186,6 +199,17 @@ bool AssertType::Widen(const ColumnView& column,
   StorageType from = column.type();
   if (type_.Is<Int64>()) {
     PERFETTO_DCHECK((from.IsAnyOf<base::TypeSet<Id, Uint32, Int32>>()));
+    if (!column.validity() && column.kind() == ColumnView::Kind::kFlat) {
+      // No row is null, so widen every row, selected or not. That's one loop
+      // that vectorizes, instead of a row at a time through the selection.
+      uint32_t rows = selection.prefix() ? selection.size() : selection.rows();
+      if (from.Is<Int32>()) {
+        WidenPrefix<int32_t>(column, rows, chunk.Values<int64_t>());
+      } else {
+        WidenPrefix<uint32_t>(column, rows, chunk.Values<int64_t>());
+      }
+      return true;
+    }
     if (from.Is<Int32>()) {
       return WidenAs<int32_t>(column, selection, Cast<int32_t, int64_t>,
                               chunk.Values<int64_t>(), &chunk.validity);

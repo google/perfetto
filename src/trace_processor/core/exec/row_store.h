@@ -183,8 +183,10 @@ class RowStore {
   // recorded as each batch is held so no gather has to look at batches its
   // rows are not in.
   std::vector<FlexVector<GatherSource>> sources_;
-  // By column, whether any batch held has nulls in it.
+  // By column, whether any stored batch has nulls in it, and whether any has
+  // it as a sequence (an id column with no stored values).
   FlexVector<bool> nullable_;
+  FlexVector<bool> sequence_;
   // The rows being packed, until there are a batch's worth or a batch is
   // shared after them.
   BatchBuffer packing_;
