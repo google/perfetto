@@ -204,4 +204,46 @@ TEST_F(BroadphasePacketFilterTest, DropsFtraceEvent) {
   ASSERT_FALSE(packet.ftrace_events().event().at(0).has_print());
 }
 
+TEST_F(BroadphasePacketFilterTest, LeavesAllowedPacketUntouched) {
+  builder_.set_trusted_uid(9999);
+  builder_.mutable_process_tree();
+  auto buffer = builder_.SerializeAsString();
+  auto original = buffer;
+
+  context_.packet_mask.set(protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+  context_.packet_mask.set(
+      protos::pbzero::TracePacket::kProcessTreeFieldNumber);
+
+  ASSERT_OK(transform_.Transform(context_, &buffer));
+  ASSERT_EQ(buffer, original);
+}
+
+TEST_F(BroadphasePacketFilterTest, DropsDisallowedFieldsAlongsideAllowedOnes) {
+  builder_.set_trusted_uid(9999);
+  builder_.mutable_process_tree();
+  builder_.mutable_ftrace_events()->set_cpu(1);
+  auto buffer = builder_.SerializeAsString();
+
+  context_.packet_mask.set(protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+  context_.packet_mask.set(
+      protos::pbzero::TracePacket::kProcessTreeFieldNumber);
+
+  ASSERT_OK(transform_.Transform(context_, &buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(buffer));
+  ASSERT_TRUE(packet.has_process_tree());
+  ASSERT_FALSE(packet.has_ftrace_events());
+}
+
+// The ftrace mask is only required when ftrace events are allowed.
+TEST_F(BroadphasePacketFilterTest, EmptyFtraceMaskAllowedWithoutFtrace) {
+  builder_.set_trusted_uid(9999);
+  auto buffer = builder_.SerializeAsString();
+
+  context_.packet_mask.set(protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+
+  ASSERT_OK(transform_.Transform(context_, &buffer));
+}
+
 }  // namespace perfetto::trace_redaction
