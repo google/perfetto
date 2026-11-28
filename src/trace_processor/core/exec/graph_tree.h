@@ -24,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -36,7 +37,7 @@ struct GraphTreeSpec {
   // The plan pipeline streaming them in (see Pipelines).
   uint32_t nodes = 0;
   uint32_t node_column = 0;
-  std::vector<uint32_t> retained_columns;
+  core::ArenaSpan<uint32_t> retained_columns;
 
   // The edges, from the node in `source_column` to the node in
   // `target_column`, both Int64.
@@ -71,13 +72,12 @@ struct GraphTreeSpec {
 // for a root, then two Uint32 columns numbering the rows out from zero, of the
 // row and of its parent's row, kNoNode for a root. The numbers are what the
 // tree operators read, as though from TreeNumberNodes.
-class GraphTree : public Source {
+class GraphTree final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
   explicit GraphTree(GraphTreeSpec);
-  ~GraphTree() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;

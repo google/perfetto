@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -79,14 +80,15 @@ ColumnView WriteKeys(const GroupTable& groups,
 
 }  // namespace
 
-HashAggregate::HashAggregate(HashAggregateSpec spec) : spec_(std::move(spec)) {
-  for (const AggregateCall& call : spec_.aggregates) {
-    functions_.push_back(MakeAggregateFunction(call.function));
-    offsets_.push_back(state_words_);
-    state_words_ += functions_.back()->state_words();
+HashAggregate::HashAggregate(core::Arena& arena, HashAggregateSpec spec)
+    : spec_(spec),
+      functions_(MakeAggregateFunctions(arena, spec.aggregates)),
+      offsets_(arena.NewSpan<uint32_t>(functions_.size())) {
+  for (uint32_t a = 0; a < functions_.size(); ++a) {
+    offsets_[a] = state_words_;
+    state_words_ += functions_[a]->state_words();
   }
 }
-HashAggregate::~HashAggregate() = default;
 HashAggregate::State::~State() = default;
 
 std::unique_ptr<Breaker::State> HashAggregate::CreateState() const {

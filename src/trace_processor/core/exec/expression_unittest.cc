@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -125,13 +126,14 @@ class ExpressionTest : public ::testing::Test {
   std::vector<std::optional<T>> Run(ExprProgram program) {
     std::vector<ExprProgram> programs;
     programs.push_back(std::move(program));
-    Compute compute(std::move(programs), &pool_);
+    Compute compute(arena_, programs, &pool_);
     auto state = compute.MakeState(context_);
     RowBatch out;
     EXPECT_TRUE(test::ProcessCopy(compute, batch_, out, *state));
     return test::ReadNullableColumn<T>(out, out.column_count() - 1);
   }
 
+  core::Arena arena_;
   Context context_;
   StringPool pool_;
   int64_t numbers_[5] = {10, 20, 0, 40, 50};
@@ -167,7 +169,7 @@ TEST_F(ExpressionTest, OverflowFails) {
   b.Binary(Op::kMul, b.Column(1), b.Int(std::numeric_limits<int64_t>::max()));
   std::vector<ExprProgram> programs;
   programs.push_back(b.Take());
-  Compute compute(std::move(programs), &pool_);
+  Compute compute(arena_, programs, &pool_);
   auto state = compute.MakeState(context_);
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(compute, batch_, out, *state));

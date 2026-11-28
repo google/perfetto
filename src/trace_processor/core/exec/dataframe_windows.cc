@@ -136,7 +136,7 @@ const uint32_t* DataframeWindows::PopcountOf(const dataframe::Column& column) {
 }
 
 void DataframeWindows::Init(
-    const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+    base::Span<const dataframe::Column* const> columns) {
   PERFETTO_DCHECK(lent_.empty());
   lent_.resize(columns.size());
   buffers_.resize(columns.size());
@@ -196,8 +196,7 @@ void DataframeWindows::Gather(base::Span<const uint32_t> rows,
   out.SetRowCount(static_cast<uint32_t>(rows.size()));
 }
 
-void RangeReader::Init(
-    const std::vector<std::shared_ptr<const dataframe::Column>>& columns) {
+void RangeReader::Init(base::Span<const dataframe::Column* const> columns) {
   windows_.Init(columns);
 }
 

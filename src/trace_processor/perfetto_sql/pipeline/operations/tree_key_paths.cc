@@ -109,11 +109,8 @@ void TreeKeyPaths::Lower(Lowering* c, const PlanNode& node) const {
   const OutputProperties::Tree& tree = *c->QueryRows().tree;
   ex::TreeKeyPathsSpec spec{c->QueryPosition(tree.node_number),
                             c->QueryPosition(tree.parent_number),
-                            {}};
-  for (ColumnId key : keys_) {
-    spec.key_columns.push_back(c->QueryPosition(key));
-  }
-  c->AddOperator(std::make_unique<ex::TreeKeyPaths>(std::move(spec)));
+                            c->QueryPositions(keys_)};
+  c->AddOperator(c->arena().New<ex::TreeKeyPaths>(spec));
 }
 
 const OperationRegistration& TreeKeyPaths::registration() const {

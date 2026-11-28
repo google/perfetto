@@ -26,37 +26,45 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
 constexpr size_t kTransformStep =
-    base::variant_index<Pipeline::Step, std::unique_ptr<Transform>>();
+    base::variant_index<Pipeline::Step, const Transform*>();
 
 }  // namespace
 
-Pipeline::Pipeline(const Source& source, std::vector<Step> steps)
-    : source_(source), steps_(std::move(steps)) {
-  segments_.push_back({-1, nullptr, 0, 0});
+Pipeline::Pipeline(core::Arena& arena,
+                   const Source& source,
+                   base::Span<const Step> steps)
+    : source_(source), steps_(arena.CopySpan<Step>(steps)) {
+  uint32_t operators = 0;
+  for (const Step& step : steps_) {
+    operators += step.index() != kTransformStep;
+  }
+  segments_ = arena.NewSpan<Segment>(operators + 1);
+  segments_[0] = {-1, nullptr, 0, 0};
+  uint32_t last = 0;
   for (uint32_t i = 0; i < steps_.size(); ++i) {
     if (steps_[i].index() == kTransformStep) {
-      segments_.back().end = i + 1;
+      segments_[last].end = i + 1;
       continue;
     }
-    const Operator* op =
-        base::unchecked_get<std::unique_ptr<Operator>>(steps_[i]).get();
-    segments_.push_back({static_cast<int32_t>(i), op, i + 1, i + 1});
+    const Operator* op = base::unchecked_get<const Operator*>(steps_[i]);
+    segments_[++last] = {static_cast<int32_t>(i), op, i + 1, i + 1};
   }
-  last_segment_ = static_cast<uint32_t>(segments_.size() - 1);
-  if (segments_.size() > 1) {
+  last_segment_ = last;
+  if (last > 0) {
     plan_flags_ |= State::kSegmented;
   }
 }
-Pipeline::~Pipeline() = default;
 Pipeline::State::~State() = default;
 
 std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
@@ -78,20 +86,18 @@ std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
 void Pipeline::MakeStepStates(State& s) const {
   s.operators.reserve(steps_.size());
   for (const Step& step : steps_) {
-    const auto* transform = std::get_if<std::unique_ptr<Transform>>(&step);
+    const Transform* const* transform = std::get_if<const Transform*>(&step);
     s.operators.push_back(
-        transform
-            ? (*transform)->MakeState(*s.context)
-            : base::unchecked_get<std::unique_ptr<Operator>>(step)->MakeState(
-                  *s.context));
+        transform ? (*transform)->MakeState(*s.context)
+                  : base::unchecked_get<const Operator*>(step)->MakeState(
+                        *s.context));
   }
-  for (size_t seg = 0; seg < segments_.size(); ++seg) {
+  for (uint32_t seg = 0; seg < segments_.size(); ++seg) {
     const Segment& segment = segments_[seg];
     auto& links = seg == 0 ? s.source_links : s.starts[seg].links;
     for (uint32_t t = segment.first; t < segment.end; ++t) {
-      links.push_back(
-          {base::unchecked_get<std::unique_ptr<Transform>>(steps_[t]).get(),
-           s.operators[t].get()});
+      links.push_back({base::unchecked_get<const Transform*>(steps_[t]),
+                       s.operators[t].get()});
     }
   }
   s.source_holds = s.source_state->holds();
@@ -106,7 +112,7 @@ void Pipeline::MakeStepStates(State& s) const {
       s.holds_any = true;
     }
   };
-  for (size_t seg = 0; seg < segments_.size(); ++seg) {
+  for (uint32_t seg = 0; seg < segments_.size(); ++seg) {
     const Segment& segment = segments_[seg];
     if (segment.start < 0) {
       add(*s.source_state, &s.held[seg]);

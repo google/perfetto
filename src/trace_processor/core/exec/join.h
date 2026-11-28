@@ -19,12 +19,12 @@
 
 #include <cstdint>
 #include <memory>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -39,8 +39,7 @@ class JoinBuild final : public Sink {
 
   // `key` is the column holding the Int64 join keys. `unread[c]` is true for
   // each column the join doesn't output; those columns aren't stored.
-  JoinBuild(uint32_t key, std::vector<bool> unread);
-  ~JoinBuild() override;
+  JoinBuild(uint32_t key, core::ArenaSpan<bool> unread);
 
   std::unique_ptr<OperatorState> MakeSinkState(Context&) const override;
   base::Status ConsumeBatch(const RowBatch& in,
@@ -52,7 +51,7 @@ class JoinBuild final : public Sink {
   struct Built;
 
   uint32_t key_;
-  std::vector<bool> unread_;
+  core::ArenaSpan<bool> unread_;
 };
 
 struct JoinSpec {
@@ -69,7 +68,7 @@ struct JoinSpec {
   uint32_t probe_key;
   // Which of the plan's pipelines ends in the JoinBuild.
   uint32_t build;
-  std::vector<Output> outputs;
+  core::ArenaSpan<Output> outputs;
 };
 
 // Joins each input row to the build row with the same key (see JoinBuild) and
@@ -83,7 +82,6 @@ class Join final : public Operator {
   const void* type() const override { return &kType; }
 
   explicit Join(JoinSpec spec);
-  ~Join() override;
 
   void DescribeColumns(StepColumns* out) const override;
   std::unique_ptr<OperatorState> MakeState(Context&) const override;

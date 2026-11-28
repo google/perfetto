@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_scan.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -50,18 +51,18 @@ class IndexScan final : public Source {
 
   // = on one of the index's columns, given in index order.
   struct Equality {
-    std::shared_ptr<const dataframe::Column> column;
+    const dataframe::Column* column = nullptr;
     // Index into the run's params.
     uint32_t param = 0;
   };
 
-  // `pool` must outlive the scan.
-  IndexScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
+  // `pool` and `index`'s permutation must outlive the scan.
+  IndexScan(core::Arena& arena,
+            core::ArenaSpan<const dataframe::Column*> columns,
             const dataframe::Index& index,
-            std::vector<Equality> equalities,
-            std::vector<SortedSearches::Search> searches,
+            core::ArenaSpan<Equality> equalities,
+            core::ArenaSpan<SortedSearches::Search> searches,
             const StringPool* pool);
-  ~IndexScan() override;
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
@@ -85,9 +86,9 @@ class IndexScan final : public Source {
 
   base::Span<const uint32_t> Find(State& s) const;
 
-  std::vector<std::shared_ptr<const dataframe::Column>> columns_;
-  std::shared_ptr<std::vector<uint32_t>> permutation_;
-  std::vector<Equality> equalities_;
+  core::ArenaSpan<const dataframe::Column*> columns_;
+  const std::vector<uint32_t>* permutation_;
+  core::ArenaSpan<Equality> equalities_;
   SortedSearches searches_;
   const StringPool* pool_;
   // Whether the equalities cover every column of the index. The entries of one

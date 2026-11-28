@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -166,16 +167,17 @@ Result Accumulate(const std::vector<int64_t>& parent,
                   bool up,
                   std::vector<uint32_t> order = {},
                   bool already_ordered = false) {
+  core::Arena arena;
   RowSource source(parent, value, chunk_rows, std::move(order));
   // Ids become node numbers before anything else sees them.
   std::vector<Pipeline::Step> number;
-  number.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  TreeAccumulateSpec spec{3, 4, {Sum(2)}};
+  number.push_back(arena.New<TreeNumberNodes>(0u, 1u));
+  TreeAccumulateSpec spec{3, 4, test::InArena<AggregateCall>(arena, {Sum(2)})};
   std::vector<Pipeline::Step> accumulate;
   if (up) {
-    accumulate.push_back(std::make_unique<TreeAccumulateUp>(spec));
+    accumulate.push_back(arena.New<TreeAccumulateUp>(arena, spec));
   } else {
-    accumulate.push_back(std::make_unique<TreeAccumulateDown>(spec));
+    accumulate.push_back(arena.New<TreeAccumulateDown>(arena, spec));
   }
   Result result;
   result.totals.assign(parent.size(), 0);
@@ -190,20 +192,19 @@ Result Accumulate(const std::vector<int64_t>& parent,
   base::Status status;
   if (up && !already_ordered) {
     // Child first holds every row, so ends the pipeline numbering them.
-    test::AfterBreaker run(source, std::move(number),
-                           std::make_unique<TreeChildFirst>(3u, 4u),
-                           std::move(accumulate));
+    test::AfterBreaker run(arena, source, number,
+                           arena.New<TreeChildFirst>(3u, 4u), accumulate);
     status = run.Drain(read);
   } else {
     std::vector<Pipeline::Step> ops = std::move(number);
     if (!already_ordered) {
-      ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+      ops.push_back(arena.New<TreeParentFirst>(3u, 4u));
     }
     for (auto& step : accumulate) {
-      ops.push_back(std::move(step));
+      ops.push_back(step);
     }
     Context context;
-    Pipeline pipeline(source, std::move(ops));
+    Pipeline pipeline(arena, source, ops);
     std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
     RowBatch batch;
     while (pipeline.GetData(batch, *state)) {
@@ -246,6 +247,7 @@ RowBatch Batch(const std::vector<uint32_t>& nodes,
 }
 
 TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
+  core::Arena arena;
   // Rows are child first for up and parent first for down.
   std::vector<uint32_t> up_nodes = {1, 0};
   std::vector<uint32_t> up_parents = {0, kNoNode};
@@ -255,14 +257,16 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
   Context context;
   RowBatch out;
 
-  TreeAccumulateDown down({0, 1, {Sum(2)}});
+  TreeAccumulateDown down(
+      arena, {0, 1, test::InArena<AggregateCall>(arena, {Sum(2)})});
   std::unique_ptr<OperatorState> down_state = down.MakeState(context);
   RowBatch in = Batch(down_nodes, down_parents, values);
   EXPECT_FALSE(test::ProcessCopy(down, in, out, *down_state));
   EXPECT_THAT(down.status(*down_state).message(),
               testing::HasSubstr("overflow"));
 
-  TreeAccumulateUp up({0, 1, {Sum(2)}});
+  TreeAccumulateUp up(arena,
+                      {0, 1, test::InArena<AggregateCall>(arena, {Sum(2)})});
   std::unique_ptr<OperatorState> up_state = up.MakeState(context);
   in = Batch(up_nodes, up_parents, values);
   EXPECT_FALSE(test::ProcessCopy(up, in, out, *up_state));
@@ -274,6 +278,7 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
 }
 
 TEST(TreeAccumulateTest, NullsAreSkipped) {
+  core::Arena arena;
   // A root with no value and two children, in both directions. An aggregate
   // over only nulls is null.
   AggregateCall min{AggregateCall::Function::kMin, 2};
@@ -285,7 +290,8 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
   up_valid.set(0);
   up_valid.set(1);
   Context context;
-  TreeAccumulateUp up({0, 1, {min, max}});
+  TreeAccumulateUp up(arena,
+                      {0, 1, test::InArena<AggregateCall>(arena, {min, max})});
   std::unique_ptr<OperatorState> up_state = up.MakeState(context);
   RowBatch out;
   RowBatch in = Batch(up_nodes, up_parents, up_values, &up_valid);
@@ -300,7 +306,8 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
   BitVector down_valid = BitVector::CreateWithSize(3);
   down_valid.set(1);
   down_valid.set(2);
-  TreeAccumulateDown down({0, 1, {min, max, Sum(2)}});
+  TreeAccumulateDown down(
+      arena, {0, 1, test::InArena<AggregateCall>(arena, {min, max, Sum(2)})});
   std::unique_ptr<OperatorState> down_state = down.MakeState(context);
   in = Batch(down_nodes, down_parents, down_values, &down_valid);
   ASSERT_TRUE(test::ProcessCopy(down, in, out, *down_state));
@@ -313,6 +320,7 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
 }
 
 TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
+  core::Arena arena;
   // Children with values, then a root with none.
   std::vector<uint32_t> children = {1, 2};
   std::vector<uint32_t> to_root = {0, 0};
@@ -322,7 +330,8 @@ TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
   std::vector<int64_t> root_value = {99};
   BitVector none = BitVector::CreateWithSize(1);
   Context context;
-  TreeAccumulateUp op({0, 1, {Sum(2)}});
+  TreeAccumulateUp op(arena,
+                      {0, 1, test::InArena<AggregateCall>(arena, {Sum(2)})});
   std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   RowBatch first = Batch(children, to_root, child_values);

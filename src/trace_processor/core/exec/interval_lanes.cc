@@ -205,7 +205,7 @@ base::Status LaneKeys::Hold(const RowBatch& in, Context& context) {
     RETURN_IF_ERROR(rows_.Append(carried_, context));
   }
   first_ = rows_.size();
-  retained_.Project(in, *key_columns_);
+  retained_.Project(in, key_columns_);
   return rows_.Append(retained_, context);
 }
 

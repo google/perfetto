@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -43,7 +44,7 @@ namespace perfetto::trace_processor::core::exec {
 // of no width is a point: it meets an interval holding the instant it sits at
 // and another point at the same instant. A row holding no timestamp or no
 // duration has no bounds to meet anything over, so it covers nothing.
-class IntervalIntersect : public Source {
+class IntervalIntersect final : public Source {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
@@ -51,8 +52,7 @@ class IntervalIntersect : public Source {
   // Each operand is read in full before any region is found, and their keys
   // are compared pairwise, in order. Every operand's source must outlive
   // this. Two are the fewest which can have a region in common.
-  explicit IntervalIntersect(std::vector<CollectedInputSpec>);
-  ~IntervalIntersect() override;
+  explicit IntervalIntersect(core::ArenaSpan<CollectedInputSpec>);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
@@ -62,7 +62,7 @@ class IntervalIntersect : public Source {
  private:
   friend class PipelineFormatter;
 
-  std::vector<CollectedInputSpec> operands_;
+  core::ArenaSpan<CollectedInputSpec> operands_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

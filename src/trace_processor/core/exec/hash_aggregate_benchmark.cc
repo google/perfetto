@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 // GROUP BY one Int64 key with one to four aggregates. Most queries use one to
@@ -86,10 +87,16 @@ void Run(benchmark::State& state,
     }
     batch.SetRowCount(kMaxBatchRows);
   }
+  core::Arena arena;
+  std::vector<uint32_t> keys;
+  if (keyed) {
+    keys.push_back(0);
+  }
   test::BreakerRun run(
-      batches, std::make_unique<HashAggregate>(HashAggregateSpec{
-                   keyed ? std::vector<uint32_t>{0} : std::vector<uint32_t>{},
-                   std::move(calls)}));
+      arena, batches,
+      arena.New<HashAggregate>(
+          arena, HashAggregateSpec{arena.CopySpan<uint32_t>(keys),
+                                   arena.CopySpan<AggregateCall>(calls)}));
   for (auto _ : state) {
     benchmark::DoNotOptimize(run.Run());
   }

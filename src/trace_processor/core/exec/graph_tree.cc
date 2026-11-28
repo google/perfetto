@@ -160,9 +160,7 @@ struct GraphTree::State : OperatorState {
 
 GraphTree::State::~State() = default;
 
-GraphTree::GraphTree(GraphTreeSpec spec) : spec_(std::move(spec)) {}
-
-GraphTree::~GraphTree() = default;
+GraphTree::GraphTree(GraphTreeSpec spec) : spec_(spec) {}
 
 std::unique_ptr<OperatorState> GraphTree::MakeState(Context& context) const {
   return std::make_unique<State>(context, spec_);

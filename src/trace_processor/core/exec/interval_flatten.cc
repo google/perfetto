@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/heap.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -74,18 +75,19 @@ const uint32_t* GroupsUpTo(FlexVector<uint32_t>& groups, uint32_t count) {
 
 }  // namespace
 
-IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
-    : spec_(std::move(spec)), keyed_(!spec_.lanes.key_columns.empty()) {
+IntervalFlatten::IntervalFlatten(core::Arena& arena, IntervalFlattenSpec spec)
+    : spec_(spec),
+      keyed_(!spec_.lanes.key_columns.empty()),
+      functions_(MakeAggregateFunctions(arena, spec.aggregates)),
+      offsets_(arena.NewSpan<uint32_t>(functions_.size())) {
   subtract_ = true;
-  for (const AggregateCall& call : spec_.aggregates) {
-    functions_.push_back(MakeAggregateFunction(call.function));
-    subtract_ &= functions_.back()->can_subtract();
-    offsets_.push_back(stride_);
-    stride_ += functions_.back()->state_words();
+  for (uint32_t i = 0; i < functions_.size(); ++i) {
+    subtract_ &= functions_[i]->can_subtract();
+    offsets_[i] = stride_;
+    stride_ += functions_[i]->state_words();
   }
 }
 
-IntervalFlatten::~IntervalFlatten() = default;
 IntervalFlatten::State::~State() = default;
 
 std::unique_ptr<OperatorState> IntervalFlatten::MakeState(

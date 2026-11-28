@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -95,7 +96,8 @@ std::vector<int64_t> KeptIn(const RowBatch& batch,
                             StorageType type,
                             std::vector<Value> list,
                             const StringPool& pool) {
-  Filter filter({{0, In{}, 0}}, &pool);
+  core::Arena arena;
+  Filter filter(test::InArena<Filter::Condition>(arena, {{0, In{}, 0}}), &pool);
   Context context;
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
   List fetcher;
@@ -164,12 +166,12 @@ class FilterTest : public ::testing::Test {
     }
   }
 
-  static std::vector<Filter::Condition> Conditions(const std::vector<On>& on) {
+  core::ArenaSpan<Filter::Condition> Conditions(const std::vector<On>& on) {
     std::vector<Filter::Condition> conditions;
     for (const On& c : on) {
       conditions.push_back({c.column, c.op, c.index});
     }
-    return conditions;
+    return test::InArena(arena_, conditions);
   }
 
   // The values of `n` in the rows of `in` every condition keeps.
@@ -188,6 +190,7 @@ class FilterTest : public ::testing::Test {
     return test::ReadColumn<int64_t>(batch, 0);
   }
 
+  core::Arena arena_;
   StringPool pool_;
   int64_t numbers_[5] = {10, 20, 0, 40, 50};
   BitVector validity_ = BitVector::CreateWithSize(5);
@@ -350,8 +353,9 @@ TEST_F(FilterTest, RunsAgainWithANewPattern) {
 // A sequence holds the row each value is stored at, from where the window
 // starts, and is compared as any Uint32 column is.
 TEST(FilterIdTest, ComparesIdsByWhereTheyAre) {
+  core::Arena arena;
   StringPool pool;
-  Filter filter({{0, Ge{}, 0}}, &pool);
+  Filter filter(test::InArena<Filter::Condition>(arena, {{0, Ge{}, 0}}), &pool);
   Context context;
   std::unique_ptr<OperatorState> state = filter.MakeState(context);
   Values fetcher;
@@ -415,13 +419,14 @@ TEST(FilterInTest, KeepsTheRowsWhoseValueIsListed) {
 // IS [NOT] NULL also reads a column carrying a type per row, from where its
 // window starts.
 TEST(FilterNullTest, ReadsVariantColumns) {
+  core::Arena arena;
   StringPool pool;
   Variant variants[] = {Variant::Int64(9), Variant::Null(), Variant::Int64(1),
                         Variant::String(pool.InternString("a")),
                         Variant::Null()};
   int64_t numbers[] = {10, 20, 30, 40};
   auto kept = [&](Op op) {
-    Filter filter({{0, op}}, &pool);
+    Filter filter(test::InArena<Filter::Condition>(arena, {{0, op}}), &pool);
     Context context;
     std::unique_ptr<OperatorState> state = filter.MakeState(context);
     RowBatch batch;
@@ -439,6 +444,7 @@ TEST(FilterNullTest, ReadsVariantColumns) {
 // A nullable flat column is compared before its nulls are dropped, so a null
 // row whose slot holds a matching value must still be dropped.
 TEST(FilterNullTest, DenseNullDropsMatchingNullSlots) {
+  core::Arena arena;
   StringPool pool;
   StringPool::Id a = pool.InternString("a");
   StringPool::Id b = pool.InternString("b");
@@ -451,7 +457,7 @@ TEST(FilterNullTest, DenseNullDropsMatchingNullSlots) {
   validity.clear(3);
 
   auto run = [&](ColumnView col, StorageType type, Op op, Value v) {
-    Filter filter({{0, op, 0}}, &pool);
+    Filter filter(test::InArena<Filter::Condition>(arena, {{0, op, 0}}), &pool);
     Context context;
     std::unique_ptr<OperatorState> state = filter.MakeState(context);
     Values fetcher;

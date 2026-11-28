@@ -40,6 +40,7 @@
 #include "src/trace_processor/core/exec/top_k.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
@@ -52,7 +53,7 @@ void Describe(const LoweredStep& step, ex::StepColumns* out) {
 // Whether `step` holds or rebuilds the batches it is given, so is not run on
 // them in place.
 bool Holds(const LoweredStep& step) {
-  return !std::holds_alternative<std::unique_ptr<ex::Transform>>(step);
+  return !std::holds_alternative<ex::Transform*>(step);
 }
 
 // Puts an Expand in front of each step which needs a `sparse` column of the
@@ -64,6 +65,7 @@ bool Holds(const LoweredStep& step) {
 void PlaceExpands(std::vector<uint32_t> sparse,
                   const std::vector<uint32_t>* outputs,
                   LoweringContext::SparseOutputs mode,
+                  core::Arena& arena,
                   std::vector<LoweredStep>* steps) {
   if (sparse.empty()) {
     return;
@@ -92,7 +94,8 @@ void PlaceExpands(std::vector<uint32_t> sparse,
       }
     }
     if (!expand.empty()) {
-      placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
+      placed.emplace_back(
+          arena.New<ex::Expand>(arena.CopySpan<uint32_t>(expand)));
     }
     placed.push_back(std::move(step));
   }
@@ -108,7 +111,8 @@ void PlaceExpands(std::vector<uint32_t> sparse,
     }
   }
   if (!expand.empty()) {
-    placed.emplace_back(std::make_unique<ex::Expand>(std::move(expand)));
+    placed.emplace_back(
+        arena.New<ex::Expand>(arena.CopySpan<uint32_t>(expand)));
   }
   *steps = std::move(placed);
 }
@@ -119,6 +123,7 @@ void PlaceExpands(std::vector<uint32_t> sparse,
 // null if any may be.
 void SetUnreadColumns(uint32_t source_columns,
                       const std::vector<uint32_t>* outputs,
+                      core::Arena& arena,
                       std::vector<LoweredStep>* steps) {
   // By step, how it uses columns, and how many its input has.
   std::vector<ex::StepColumns> columns(steps->size());
@@ -151,15 +156,14 @@ void SetUnreadColumns(uint32_t source_columns,
       read[column] = true;
     }
     if (Holds(held) && keeps_all) {
-      std::vector<bool> unread(widths[i]);
+      core::ArenaSpan<bool> unread = arena.NewSpan<bool>(widths[i]);
       for (uint32_t c = 0; c < widths[i]; ++c) {
         unread[c] = !read[c];
       }
-      if (auto* op = std::get_if<std::unique_ptr<ex::Operator>>(&held)) {
-        (*op)->SetUnreadColumns(std::move(unread));
+      if (auto* op = std::get_if<ex::Operator*>(&held)) {
+        (*op)->SetUnreadColumns(unread);
       } else {
-        std::get<std::unique_ptr<ex::Breaker>>(held)->SetUnreadColumns(
-            std::move(unread));
+        std::get<ex::Breaker*>(held)->SetUnreadColumns(unread);
       }
     }
     for (uint32_t column : step.reads) {
@@ -248,63 +252,64 @@ std::optional<uint32_t> Lowering::QuerySortKeep() const {
       .keep;
 }
 
-void Lowering::Apply(const input_step::Sort& step) {
-  std::vector<ex::SortKey> keys;
-  for (const SortKey& key : step.keys) {
-    keys.push_back({QueryPosition(key.column), key.descending});
+core::ArenaSpan<ex::SortKey> Lowering::QuerySortKeys(
+    const std::vector<SortKey>& keys) const {
+  auto lowered =
+      arena().NewSpan<ex::SortKey>(static_cast<uint32_t>(keys.size()));
+  for (uint32_t i = 0; i < keys.size(); ++i) {
+    lowered[i] = {QueryPosition(keys[i].column), keys[i].descending};
   }
+  return lowered;
+}
+
+void Lowering::Apply(const input_step::Sort& step) {
+  core::ArenaSpan<ex::SortKey> keys = QuerySortKeys(step.keys);
   if (step.combine_first) {
-    AddOperator(std::make_unique<ex::CombineBatches>());
+    AddOperator(arena().New<ex::CombineBatches>());
   }
   if (step.keep) {
-    AddOperator(std::make_unique<ex::TopK>(
-        ex::TopKSpec{std::move(keys), context().pool, *step.keep}));
+    AddOperator(
+        arena().New<ex::TopK>(ex::TopKSpec{keys, context().pool, *step.keep}));
     return;
   }
-  AddOperator(std::make_unique<ex::Sort>(
-      ex::SortSpec{std::move(keys), context().pool}));
+  AddOperator(arena().New<ex::Sort>(ex::SortSpec{keys, context().pool}));
 }
 
 void Lowering::Apply(const input_step::Group& step) {
-  ex::GroupedSortSpec spec;
-  for (ColumnId key : step.keys) {
-    spec.groups.push_back(QueryPosition(key));
-  }
-  for (const SortKey& key : step.sorted_by) {
-    spec.keys.push_back({QueryPosition(key.column), key.descending});
-  }
+  ex::GroupedSortSpec spec{QueryPositions(step.keys),
+                           QuerySortKeys(step.sorted_by)};
   if (step.combine_first) {
-    AddOperator(std::make_unique<ex::CombineBatches>());
+    AddOperator(arena().New<ex::CombineBatches>());
   }
-  AddOperator(std::make_unique<ex::GroupedSort>(std::move(spec)));
+  AddOperator(arena().New<ex::GroupedSort>(spec));
 }
 
 void Lowering::Apply(const input_step::NumberTree& step) {
-  AddOperator(std::make_unique<ex::TreeNumberNodes>(
-      QueryPosition(step.node), QueryPosition(step.parent)));
+  AddOperator(arena().New<ex::TreeNumberNodes>(QueryPosition(step.node),
+                                               QueryPosition(step.parent)));
 }
 
 void Lowering::Apply(const input_step::WalkTree& step) {
   if (step.combine_first) {
-    AddOperator(std::make_unique<ex::CombineBatches>());
+    AddOperator(arena().New<ex::CombineBatches>());
   }
   uint32_t node = QueryPosition(step.node_number);
   uint32_t parent = QueryPosition(step.parent_number);
   if (step.direction == TreeDirection::kUp) {
-    AddOperator(std::make_unique<ex::TreeChildFirst>(node, parent));
+    AddOperator(arena().New<ex::TreeChildFirst>(node, parent));
   } else {
-    AddOperator(std::make_unique<ex::TreeParentFirst>(node, parent));
+    AddOperator(arena().New<ex::TreeParentFirst>(node, parent));
   }
 }
 
 void Lowering::Apply(const input_step::CombineBatches&) {
-  AddOperator(std::make_unique<ex::CombineBatches>());
+  AddOperator(arena().New<ex::CombineBatches>());
 }
 
 void Lowering::Apply(const input_step::Convert& step) {
   uint32_t position = QueryPosition(step.column);
   if (step.all_null) {
-    AddOperator(std::make_unique<ex::NullColumn>(position, step.type));
+    AddOperator(arena().New<ex::NullColumn>(position, step.type));
     return;
   }
   ex::AssertTypeTarget target = core::String{};
@@ -314,9 +319,10 @@ void Lowering::Apply(const input_step::Convert& step) {
     target = core::Double{};
   }
   PERFETTO_DCHECK(target.Is<core::String>() == step.type.Is<core::String>());
-  AddOperator(std::make_unique<ex::AssertType>(
+  AddOperator(arena().New<ex::AssertType>(
       position, target,
-      plan().names().text(plan().columns()[step.column].name)));
+      arena().CopyString(
+          plan().names().text(plan().columns()[step.column].name))));
 }
 
 core::exec::IntervalLaneSpec Lowering::QueryIntervalLanes(
@@ -329,31 +335,21 @@ core::exec::IntervalLaneSpec Lowering::QueryIntervalLanes(
   }
   spec.ts_column = QueryPosition(ts);
   spec.dur_column = QueryPosition(dur);
-  for (ColumnId key : keys) {
-    spec.key_columns.push_back(QueryPosition(key));
-  }
+  spec.key_columns = QueryPositions(keys);
   return spec;
 }
 
-void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
+void Lowering::SetSource(const core::exec::Source* source) {
   PERFETTO_DCHECK(!input_);
-  input_ = std::move(source);
+  input_ = source;
 }
 
 void Lowering::SetSparseColumns(std::vector<uint32_t> columns) {
   sparse_columns_ = std::move(columns);
 }
 
-void Lowering::AddOperator(std::unique_ptr<ex::Transform> step) {
-  operators_.emplace_back(std::move(step));
-}
-
-void Lowering::AddOperator(std::unique_ptr<ex::Operator> step) {
-  operators_.emplace_back(std::move(step));
-}
-
-void Lowering::AddOperator(std::unique_ptr<ex::Breaker> step) {
-  operators_.emplace_back(std::move(step));
+void Lowering::AddOperator(LoweredStep operation) {
+  operators_.push_back(operation);
 }
 
 Lowering& Lowering::AddSidePipeline() {
@@ -361,10 +357,8 @@ Lowering& Lowering::AddSidePipeline() {
   return *plan_->lowerings_.back();
 }
 
-uint32_t Lowering::FinishSide(std::unique_ptr<ex::Sink> sink) {
-  Built built = Build(nullptr);
-  return plan_->out_->pipelines_.Add(
-      std::move(built.input), std::move(built.pipeline), std::move(sink));
+uint32_t Lowering::FinishSide(const ex::Sink* sink) {
+  return plan_->out_->pipelines_.Add(Build(nullptr), sink);
 }
 
 std::optional<uint32_t> Lowering::TakeParam(const PlanNode& node,
@@ -395,6 +389,15 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
   return *position;
 }
 
+core::ArenaSpan<uint32_t> Lowering::QueryPositions(
+    const std::vector<ColumnId>& ids) const {
+  auto positions = arena().NewSpan<uint32_t>(static_cast<uint32_t>(ids.size()));
+  for (uint32_t i = 0; i < ids.size(); ++i) {
+    positions[i] = QueryPosition(ids[i]);
+  }
+  return positions;
+}
+
 const LogicalPlan& Lowering::plan() const {
   return plan_->plan();
 }
@@ -407,43 +410,60 @@ const Bindings::Dataframe& Lowering::QueryDataframe(
   return *dataframe;
 }
 
-Lowering::Built Lowering::Build(const std::vector<uint32_t>* outputs) {
+core::Arena& Lowering::arena() const {
+  return plan_->out_->arena_;
+}
+
+core::ArenaSpan<const core::dataframe::Column*> Lowering::KeepColumns(
+    const std::vector<std::shared_ptr<const core::dataframe::Column>>&
+        columns) {
+  auto kept = arena().NewSpan<const core::dataframe::Column*>(
+      static_cast<uint32_t>(columns.size()));
+  for (uint32_t i = 0; i < columns.size(); ++i) {
+    kept[i] = columns[i].get();
+    KeepAlive(columns[i]);
+  }
+  return kept;
+}
+
+void Lowering::KeepAlive(std::shared_ptr<const void> object) {
+  plan_->out_->kept_alive_.push_back(std::move(object));
+}
+
+const ex::Pipeline* Lowering::Build(const std::vector<uint32_t>* outputs) {
   // Chosen first: a sort serving in place keeps sparse columns unexpanded.
   if (outputs && !operators_.empty() &&
       context().sorted_outputs == LoweringContext::SortedOutputs::kInPlace) {
-    auto* last = std::get_if<std::unique_ptr<ex::Breaker>>(&operators_.back());
+    auto* last = std::get_if<ex::Breaker*>(&operators_.back());
     if (last && (*last)->Is<ex::Sort>()) {
-      static_cast<ex::Sort&>(**last).ServeInPlace();
+      static_cast<ex::Sort*>(*last)->ServeInPlace();
     }
   }
   PlaceExpands(std::move(sparse_columns_), outputs, context().sparse_outputs,
-               &operators_);
-  SetUnreadColumns(*source_columns_, outputs, &operators_);
+               arena(), &operators_);
+  SetUnreadColumns(*source_columns_, outputs, arena(), &operators_);
   // Cut at each breaker, which the pipeline so far ends in.
   ex::Pipelines& pipelines = plan_->out_->pipelines_;
-  std::unique_ptr<ex::Source> input = std::move(input_);
+  const ex::Source* input = input_;
   std::vector<ex::Pipeline::Step> steps;
-  for (LoweredStep& step : operators_) {
-    if (auto* t = std::get_if<std::unique_ptr<ex::Transform>>(&step)) {
-      steps.emplace_back(std::move(*t));
+  for (LoweredStep step : operators_) {
+    if (auto* t = std::get_if<ex::Transform*>(&step)) {
+      steps.emplace_back(*t);
       continue;
     }
-    if (auto* op = std::get_if<std::unique_ptr<ex::Operator>>(&step)) {
-      steps.emplace_back(std::move(*op));
+    if (auto* op = std::get_if<ex::Operator*>(&step)) {
+      steps.emplace_back(*op);
       continue;
     }
-    auto pipeline = std::make_unique<ex::Pipeline>(*input, std::move(steps));
+    const ex::Pipeline* pipeline =
+        arena().New<ex::Pipeline>(arena(), *input, steps);
     steps.clear();
-    std::unique_ptr<ex::Breaker> breaker =
-        std::move(std::get<std::unique_ptr<ex::Breaker>>(step));
-    const ex::Breaker& served = *breaker;
-    uint32_t id = pipelines.Add(std::move(input), std::move(pipeline),
-                                std::move(breaker));
-    input = std::make_unique<ex::Served>(id, served);
+    ex::Breaker* breaker = std::get<ex::Breaker*>(step);
+    uint32_t id = pipelines.Add(pipeline, breaker);
+    input = arena().New<ex::Served>(id, *breaker);
   }
   operators_.clear();
-  auto pipeline = std::make_unique<ex::Pipeline>(*input, std::move(steps));
-  return {std::move(input), std::move(pipeline)};
+  return arena().New<ex::Pipeline>(arena(), *input, steps);
 }
 
 PlanLowering::PlanLowering(BoundPlan* bound, const LoweringContext& context)
@@ -464,9 +484,7 @@ std::unique_ptr<PhysicalPlan> PlanLowering::Finish() {
     out_->columns_.push_back(
         {plan().names().text(column.name), outputs.back()});
   }
-  Lowering::Built built = lowering.Build(&outputs);
-  out_->input_ = std::move(built.input);
-  out_->pipeline_ = std::move(built.pipeline);
+  out_->pipeline_ = lowering.Build(&outputs);
   return std::move(out_);
 }
 

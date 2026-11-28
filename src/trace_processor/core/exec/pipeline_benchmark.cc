@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // What a pipeline costs by itself: one-row batches through steps which do
 // nothing, so the time is the executor's, not any operator's.
@@ -95,11 +96,12 @@ void Run(benchmark::State& state) {
   auto steps_count = static_cast<uint32_t>(state.range(0));
   auto batches = static_cast<uint32_t>(state.range(1));
   OneRowBatches source(batches);
+  core::Arena arena;
   std::vector<Pipeline::Step> steps;
   for (uint32_t i = 0; i < steps_count; ++i) {
-    steps.push_back(std::make_unique<Step>());
+    steps.push_back(arena.New<Step>());
   }
-  Pipeline pipeline(source, std::move(steps));
+  Pipeline pipeline(arena, source, steps);
   RowCursor cursor(pipeline);
   for (auto _ : state) {
     uint64_t rows = 0;

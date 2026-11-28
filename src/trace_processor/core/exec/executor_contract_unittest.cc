@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -368,6 +369,7 @@ std::vector<int64_t> ReadAll(RowCursor& cursor) {
 class ExecutorBoundaryContractTest : public testing::TestWithParam<uint32_t> {};
 
 TEST_P(ExecutorBoundaryContractTest, FilteringIsIndependentOfBatchBoundaries) {
+  core::Arena arena;
   std::vector<int64_t> expected;
   std::vector<std::vector<int64_t>> chunks(2);  // initial empty output
   for (uint32_t i = 0; i < 4103; ++i) {
@@ -383,8 +385,8 @@ TEST_P(ExecutorBoundaryContractTest, FilteringIsIndependentOfBatchBoundaries) {
   chunks.emplace_back();
   ContractSource source(std::move(chunks));
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<ContractFilter>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(arena.New<ContractFilter>());
+  Pipeline pipeline(arena, source, ops);
   RowCursor cursor(pipeline);
   for (uint32_t run = 0; run < 2; ++run) {
     std::vector<int64_t> actual;
@@ -400,8 +402,9 @@ INSTANTIATE_TEST_SUITE_P(BatchSizes,
                          testing::Values(1u, 2u, 7u, 127u, 2048u));
 
 TEST(ExecutorContractTest, EmptySourceBatchesAreNotEofWithoutOperators) {
+  core::Arena arena;
   ContractSource source({{}, {11}, {}, {22}, {}});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(arena, source, {});
   RowCursor cursor(pipeline);
   std::vector<int64_t> actual;
   for (bool more = cursor.Open(); more && !cursor.eof(); more = cursor.Next())
@@ -411,12 +414,13 @@ TEST(ExecutorContractTest, EmptySourceBatchesAreNotEofWithoutOperators) {
 }
 
 TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
+  core::Arena arena;
   ContractSource source({{-1, -2}, {9, 10}, {11}});
-  auto filter = std::make_unique<ContractFilter>();
-  auto* observed = filter.get();
+  auto filter = arena.New<ContractFilter>();
+  auto* observed = filter;
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::move(filter));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(filter);
+  Pipeline pipeline(arena, source, ops);
   {
     RowCursor cursor(pipeline);
     ASSERT_TRUE(cursor.Open());
@@ -430,12 +434,13 @@ TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
 }
 
 TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
+  core::Arena arena;
   ContractSource source({{11}}, true);
-  auto probe = std::make_unique<FinishProbe>();
-  auto* observed = probe.get();
+  auto probe = arena.New<FinishProbe>();
+  auto* observed = probe;
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(probe);
+  Pipeline pipeline(arena, source, ops);
   RowCursor cursor(pipeline);
   ASSERT_TRUE(cursor.Open());
   EXPECT_EQ(cursor.Value<int64_t>(0), 11);
@@ -449,12 +454,13 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
 
 // A plan known to return no rows still finishes its operators, every run.
 TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
+  core::Arena arena;
   EmptySource source;
   std::vector<Pipeline::Step> ops;
-  auto probe = std::make_unique<FinishProbe>();
-  FinishProbe* observed = probe.get();
-  ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops));
+  auto probe = arena.New<FinishProbe>();
+  FinishProbe* observed = probe;
+  ops.push_back(probe);
+  Pipeline pipeline(arena, source, ops);
   RowCursor cursor(pipeline);
   for (uint32_t run = 1; run <= 2; ++run) {
     EXPECT_FALSE(cursor.Open());
@@ -465,8 +471,9 @@ TEST(ExecutorContractTest, EmptySourceFinishesOperators) {
 
 // A batch marked last ends the run without another pull, every run.
 TEST(ExecutorContractTest, LastBatchEndsTheRunWithoutAnotherPull) {
+  core::Arena arena;
   ContractSource source({{1, 2}, {3}}, false, true);
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(arena, source, {});
   RowCursor cursor(pipeline);
   for (uint32_t run = 1; run <= 2; ++run) {
     EXPECT_THAT(ReadAll(cursor), ElementsAre(1, 2, 3));
@@ -478,10 +485,11 @@ TEST(ExecutorContractTest, LastBatchEndsTheRunWithoutAnotherPull) {
 
 // So does a last batch a transform keeps no rows of.
 TEST(ExecutorContractTest, EmptiedLastBatchEndsTheRunWithoutAnotherPull) {
+  core::Arena arena;
   ContractSource source({{1}, {-1, -2}}, false, true);
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::make_unique<KeepNonNegative>(false));
-  Pipeline pipeline(source, std::move(steps));
+  steps.push_back(arena.New<KeepNonNegative>(false));
+  Pipeline pipeline(arena, source, steps);
   RowCursor cursor(pipeline);
   for (uint32_t run = 1; run <= 2; ++run) {
     EXPECT_THAT(ReadAll(cursor), ElementsAre(1));
@@ -493,12 +501,12 @@ TEST(ExecutorContractTest, EmptiedLastBatchEndsTheRunWithoutAnotherPull) {
 // A step holding state for the run still has it ended when the rows end,
 // which takes the pull finding the end.
 TEST(ExecutorContractTest, LastBatchStillEndsTheRunsOfHoldingSteps) {
+  core::Arena arena;
   ContractSource source({{1}, {2, -1}}, false, true);
-  auto keep = std::make_unique<KeepNonNegative>(true);
-  const KeepNonNegative* observed = keep.get();
+  auto* observed = arena.New<KeepNonNegative>(true);
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::move(keep));
-  Pipeline pipeline(source, std::move(steps));
+  steps.push_back(observed);
+  Pipeline pipeline(arena, source, steps);
   RowCursor cursor(pipeline);
   ASSERT_TRUE(cursor.Open());
   ASSERT_TRUE(cursor.Next());
@@ -511,12 +519,12 @@ TEST(ExecutorContractTest, LastBatchStillEndsTheRunsOfHoldingSteps) {
 
 // Operators after the source are finished even when its last batch is marked.
 TEST(ExecutorContractTest, LastBatchStillFinishesOperators) {
+  core::Arena arena;
   ContractSource source({{1}, {2}}, false, true);
-  auto probe = std::make_unique<FinishProbe>();
-  FinishProbe* observed = probe.get();
+  auto* observed = arena.New<FinishProbe>();
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(observed);
+  Pipeline pipeline(arena, source, ops);
   RowCursor cursor(pipeline);
   for (uint32_t run = 1; run <= 2; ++run) {
     EXPECT_THAT(ReadAll(cursor), ElementsAre(1, 2));
@@ -525,10 +533,11 @@ TEST(ExecutorContractTest, LastBatchStillFinishesOperators) {
 }
 
 TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
+  core::Arena arena;
   ContractSource source({{}, {1}, {2}, {3}, {4}, {5}});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<CombineBatches>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(arena.New<CombineBatches>());
+  Pipeline pipeline(arena, source, ops);
   Context context;
   auto state = pipeline.MakeState(context);
   RowBatch out;

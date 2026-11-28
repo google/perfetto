@@ -30,6 +30,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -133,14 +134,10 @@ OutputProperties AggregateStage::Derive(DeriveContext& c) const {
 
 void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
-  ex::HashAggregateSpec spec;
-  for (ColumnId key : keys_) {
-    spec.key_columns.push_back(c->QueryPosition(key));
-  }
-  for (const Aggregate& agg : aggregates_) {
-    spec.aggregates.push_back(LowerAggregate(c, agg));
-  }
-  c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
+  core::Arena& arena = c->arena();
+  c->AddOperator(arena.New<ex::HashAggregate>(
+      arena, ex::HashAggregateSpec{c->QueryPositions(keys_),
+                                   LowerAggregates(c, aggregates_)}));
 }
 
 const OperationRegistration& AggregateStage::registration() const {

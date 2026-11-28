@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -41,7 +42,8 @@ using ::testing::IsEmpty;
 
 // Runs batches of one Int64 column through a Distinct over it.
 struct Batches {
-  Batches() : op({0}), state(op.MakeState(context)) {}
+  Batches()
+      : op(test::InArena<uint32_t>(arena, {0})), state(op.MakeState(context)) {}
 
   // The values kept from `values`, in order.
   std::vector<int64_t> Process(std::vector<int64_t> values) {
@@ -55,6 +57,7 @@ struct Batches {
     return test::ReadColumn<int64_t>(out, 0);
   }
 
+  core::Arena arena;
   Context context;
   Distinct op;
   std::unique_ptr<OperatorState> state;
@@ -76,6 +79,7 @@ TEST(DistinctTest, ValuesSeenInEarlierBatchesAreDropped) {
 }
 
 TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
+  core::Arena arena;
   StringPool pool;
   StringPool::Id a = pool.InternString("a");
   StringPool::Id b = pool.InternString("b");
@@ -89,7 +93,7 @@ TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
   in.SetRowCount(5);
 
   Context context;
-  Distinct op({0, 1});
+  Distinct op(test::InArena<uint32_t>(arena, {0, 1}));
   std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -100,6 +104,7 @@ TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
 // As in SQL's DISTINCT, nulls equal each other but not zero, and 0.0 equals
 // -0.0.
 TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
+  core::Arena arena;
   std::vector<double> values = {0.0, 0.0, -0.0, 1.5, 0.0};
   BitVector valid = BitVector::CreateWithSize(5);
   valid.set(1);
@@ -111,7 +116,7 @@ TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
   in.SetRowCount(5);
 
   Context context;
-  Distinct op({0});
+  Distinct op(test::InArena<uint32_t>(arena, {0}));
   std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -121,6 +126,7 @@ TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
 
 // A batch whose earlier steps dropped rows is read through its selection.
 TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
+  core::Arena arena;
   std::vector<int64_t> values = {7, 1, 7, 2, 1};
   RowBatch in;
   in.AddBorrowedColumn(
@@ -131,7 +137,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
       base::Span<const uint32_t>(kept.data(), kept.data() + kept.size()));
 
   Context context;
-  Distinct op({0});
+  Distinct op(test::InArena<uint32_t>(arena, {0}));
   std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -139,6 +145,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
 }
 
 TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
+  core::Arena arena;
   std::vector<int64_t> ints = {1};
   std::vector<double> doubles = {1.0};
   RowBatch of_ints;
@@ -151,7 +158,7 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
   of_doubles.SetRowCount(1);
 
   Context context;
-  Distinct op({0});
+  Distinct op(test::InArena<uint32_t>(arena, {0}));
   std::unique_ptr<OperatorState> state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, of_ints, out, *state));

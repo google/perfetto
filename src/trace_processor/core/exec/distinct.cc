@@ -27,15 +27,13 @@
 #include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-Distinct::Distinct(std::vector<uint32_t> columns)
-    : columns_(std::move(columns)) {
+Distinct::Distinct(core::ArenaSpan<uint32_t> columns) : columns_(columns) {
   PERFETTO_CHECK(!columns_.empty() && columns_.size() <= kMaxColumns);
 }
-
-Distinct::~Distinct() = default;
 
 Distinct::State::~State() = default;
 

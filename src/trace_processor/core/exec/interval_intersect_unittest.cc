@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -104,12 +105,14 @@ TableSource::State::~State() = default;
 // An operand whose ts and dur are its first two columns, the rest being
 // whatever the table carries along. Every column is retained.
 struct Operand {
-  explicit Operand(const TableSource& table) : source(&table) {
+  Operand(core::Arena& arena, const TableSource& table) : source(&table) {
     spec.lanes.ts_column = 0;
     spec.lanes.dur_column = 1;
+    std::vector<uint32_t> retained;
     for (uint32_t c = 0; c < table.columns(); ++c) {
-      spec.retained_columns.push_back(c);
+      retained.push_back(c);
     }
+    spec.retained_columns = test::InArena(arena, retained);
   }
   const TableSource* source;
   CollectedInputSpec spec;
@@ -142,14 +145,16 @@ Table Collect(const IntervalIntersect& intersect,
 }
 
 // Streams each operand in, as lowering plans them, and intersects them.
-Table Intersect(std::vector<Operand> operands, base::Status* status) {
+Table Intersect(core::Arena& arena,
+                std::vector<Operand> operands,
+                base::Status* status) {
   Pipelines pipelines;
   std::vector<CollectedInputSpec> specs;
   for (const Operand& operand : operands) {
     specs.push_back(operand.spec);
-    specs.back().pipeline = test::AddStream(pipelines, *operand.source);
+    specs.back().pipeline = test::AddStream(arena, pipelines, *operand.source);
   }
-  IntervalIntersect intersect(std::move(specs));
+  IntervalIntersect intersect(test::InArena(arena, specs));
   Context context;
   context.SetPipelines(&pipelines);
   std::unique_ptr<OperatorState> state = intersect.MakeState(context);
@@ -157,17 +162,19 @@ Table Intersect(std::vector<Operand> operands, base::Status* status) {
 }
 
 TEST(IntervalIntersectTest, TwoOperandsMeetOverTheirSharedSpan) {
+  core::Arena arena;
   // a: [0, 30)        [40, 50)
   // b:    [10, 20) [35, 45)
   TableSource a({{0, 30, 0}, {40, 10, 1}}, 8);
   TableSource b({{10, 10, 0}, {35, 10, 1}}, 8);
 
-  EXPECT_THAT(Intersect({Operand(a), Operand(b)}, nullptr),
+  EXPECT_THAT(Intersect(arena, {Operand(arena, a), Operand(arena, b)}, nullptr),
               ElementsAre(Row{10, 10, 0, 30, 0, 10, 10, 0},
                           Row{40, 5, 40, 10, 1, 35, 10, 1}));
 }
 
 TEST(IntervalIntersectTest, MoreRegionsThanABatchHolds) {
+  core::Arena arena;
   // Each operand is read in many chunks and the regions come back in more
   // batches than one.
   constexpr uint32_t kRows = kMaxBatchRows + 100;
@@ -180,7 +187,8 @@ TEST(IntervalIntersectTest, MoreRegionsThanABatchHolds) {
   TableSource source_a(std::move(a), 64);
   TableSource source_b(std::move(b), 64);
 
-  Table rows = Intersect({Operand(source_a), Operand(source_b)}, nullptr);
+  Table rows = Intersect(
+      arena, {Operand(arena, source_a), Operand(arena, source_b)}, nullptr);
   // Every row of a but the last meets the row of b starting inside it, and
   // every row of b but the last meets the row of a which follows.
   ASSERT_EQ(rows.size(), 2 * kRows - 1);

@@ -20,13 +20,16 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -111,9 +114,16 @@ class Compute final : public Transform {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns* out) const override;
 
+  // An ExprProgram, copied into the plan's Arena.
+  struct Program {
+    core::ArenaSpan<ExprStep> steps;
+    core::ArenaSpan<std::string_view> patterns;
+  };
+
   // `pool` holds the strings the programs read, and must outlive this.
-  Compute(std::vector<ExprProgram> programs, const StringPool* pool);
-  ~Compute() override;
+  Compute(core::Arena& arena,
+          base::Span<const ExprProgram> programs,
+          const StringPool* pool);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
@@ -122,7 +132,7 @@ class Compute final : public Transform {
  private:
   friend class PipelineFormatter;
 
-  std::vector<ExprProgram> programs_;
+  core::ArenaSpan<Program> programs_;
   const StringPool* pool_;
 };
 

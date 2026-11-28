@@ -38,6 +38,7 @@
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -78,7 +79,7 @@ class DataframeScanTest : public ::testing::Test {
         sparse.push_back(c);
       }
     }
-    Expand expand(std::move(sparse));
+    Expand expand(test::InArena(arena_, sparse));
     std::unique_ptr<OperatorState> state = expand.MakeState(context_);
     ASSERT_TRUE(expand.Process(batch, *state));
   }
@@ -95,6 +96,7 @@ class DataframeScanTest : public ::testing::Test {
     return out;
   }
 
+  core::Arena arena_;
   Context context_;
   StringPool pool_;
 };
@@ -137,8 +139,9 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
   df.Finalize();
 
   DataframeScan scan(
-      {df.shared_column(0), df.shared_column(1), df.shared_column(2),
-       df.shared_column(3), df.shared_column(4), df.shared_column(5)},
+      test::ColumnsInArena(arena_, {df.shared_column(0), df.shared_column(1),
+                                    df.shared_column(2), df.shared_column(3),
+                                    df.shared_column(4), df.shared_column(5)}),
       df.row_count(), ReadDirection::kForwards);
   std::unique_ptr<OperatorState> state = scan.MakeState(context_);
   RowBatch batch;
@@ -169,8 +172,9 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
                          std::optional<std::monostate>{std::monostate{}});
   sparse.Finalize();
 
-  DataframeScan sparse_scan({sparse.shared_column(0)}, sparse.row_count(),
-                            ReadDirection::kForwards);
+  DataframeScan sparse_scan(
+      test::ColumnsInArena(arena_, {sparse.shared_column(0)}),
+      sparse.row_count(), ReadDirection::kForwards);
   std::unique_ptr<OperatorState> sparse_state = sparse_scan.MakeState(context_);
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
@@ -189,8 +193,9 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
                         std::optional<std::monostate>{std::monostate{}});
   dense.Finalize();
 
-  DataframeScan dense_scan({dense.shared_column(0)}, dense.row_count(),
-                           ReadDirection::kForwards);
+  DataframeScan dense_scan(
+      test::ColumnsInArena(arena_, {dense.shared_column(0)}), dense.row_count(),
+      ReadDirection::kForwards);
   std::unique_ptr<OperatorState> dense_state = dense_scan.MakeState(context_);
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
   EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
@@ -220,8 +225,12 @@ TEST_F(DataframeScanTest, IndexScanCopiesScatteredRowsIntoOneBatch) {
   ASSERT_TRUE(df.column(1).null_storage.nullability().Is<SparseNull>() ||
               df.column(1).null_storage.nullability().Is<DenseNull>());
 
-  IndexScan scan({df.shared_column(0), df.shared_column(1)}, df.indexes()[0],
-                 {{df.shared_column(0), 0}}, {}, &pool_);
+  IndexScan scan(
+      arena_,
+      test::ColumnsInArena(arena_, {df.shared_column(0), df.shared_column(1)}),
+      df.indexes()[0],
+      test::InArena<IndexScan::Equality>(arena_, {{&df.column(0), 0}}), {},
+      &pool_);
   Context context;
   std::unique_ptr<OperatorState> state = scan.MakeState(context);
   ParamValue param;
@@ -253,8 +262,8 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
     expected.push_back(values[i]);
   }
   dataframe::Dataframe df = Build(values, present);
-  DataframeScan scan({df.shared_column(0)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(test::ColumnsInArena(arena_, {df.shared_column(0)}),
+                     df.row_count(), ReadDirection::kForwards);
   EXPECT_EQ(Drain(scan, 0), expected);
 }
 
@@ -268,8 +277,8 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
     present[i] = (i < kMaxBatchRows) ? i % 2 == 0 : i % 2 != 0;
   }
   auto df = Build(values, present);
-  DataframeScan scan({df.shared_column(0)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(test::ColumnsInArena(arena_, {df.shared_column(0)}),
+                     df.row_count(), ReadDirection::kForwards);
   auto state = scan.MakeState(context_);
   RowBatch output, retained;
   ASSERT_TRUE(scan.GetData(output, *state));

@@ -46,6 +46,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/util/sort.h"
 
@@ -216,12 +217,11 @@ void NarrowKey(const std::vector<CollectedLanes::Lane>& groups,
 
 }  // namespace
 
-IntervalIntersect::IntervalIntersect(std::vector<CollectedInputSpec> operands)
-    : operands_(std::move(operands)) {
+IntervalIntersect::IntervalIntersect(
+    core::ArenaSpan<CollectedInputSpec> operands)
+    : operands_(operands) {
   PERFETTO_CHECK(operands_.size() >= 2);
 }
-
-IntervalIntersect::~IntervalIntersect() = default;
 
 std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
     Context& context) const {

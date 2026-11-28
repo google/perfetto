@@ -52,17 +52,26 @@ void AddAggregateNeeds(const std::vector<Aggregate>& aggregates,
   }
 }
 
-core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate& agg) {
-  core::exec::AggregateCall call;
-  call.function = agg.function;
-  if (agg.reads_column()) {
-    // TODO(lalitm): Replace this with numeric normalization and support
-    // Double totals. With dynamically typed input, a Double in a later batch
-    // may require promoting earlier Int64 values. Picking one numeric type
-    // for the whole column may then need a breaker that buffers the input.
-    call.column = c->QueryPosition(agg.column);
+core::ArenaSpan<core::exec::AggregateCall> LowerAggregates(
+    Lowering* c,
+    const std::vector<Aggregate>& aggregates) {
+  auto calls = c->arena().NewSpan<core::exec::AggregateCall>(
+      static_cast<uint32_t>(aggregates.size()));
+  for (uint32_t i = 0; i < aggregates.size(); ++i) {
+    const Aggregate& agg = aggregates[i];
+    core::exec::AggregateCall call;
+    call.function = agg.function;
+    if (agg.reads_column()) {
+      // TODO(lalitm): Replace this with numeric normalization and support
+      // Double totals. With dynamically typed input, a Double in a later
+      // batch may require promoting earlier Int64 values. Picking one numeric
+      // type for the whole column may then need a breaker that buffers the
+      // input.
+      call.column = c->QueryPosition(agg.column);
+    }
+    calls[i] = call;
   }
-  return call;
+  return calls;
 }
 
 void SerializeAggregates(PlanCodec& c, std::vector<Aggregate>* aggregates) {

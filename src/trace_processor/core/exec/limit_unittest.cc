@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -32,10 +33,11 @@ namespace {
 
 using testing::ElementsAre;
 
-std::vector<Pipeline::Step> Limited(std::optional<uint32_t> limit,
+std::vector<Pipeline::Step> Limited(core::Arena& arena,
+                                    std::optional<uint32_t> limit,
                                     uint32_t offset) {
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::make_unique<Limit>(limit, offset));
+  steps.push_back(arena.New<Limit>(limit, offset));
   return steps;
 }
 
@@ -49,8 +51,10 @@ std::vector<int64_t> Read(RowCursor& cursor) {
 
 // The rows kept span batches, and each run counts from the first row.
 TEST(LimitTest, KeepsTheRowsAfterTheOffset) {
-  test::ArraySource source(test::Sequence(5000));
-  Pipeline pipeline(source, Limited(2000, 2047));
+  core::Arena arena;
+  test::ArraySource source(arena, test::Sequence(5000));
+  std::vector<Pipeline::Step> steps = Limited(arena, 2000, 2047);
+  const Pipeline& pipeline = *arena.New<Pipeline>(arena, source, steps);
   RowCursor cursor(pipeline);
   for (uint32_t run = 0; run < 2; ++run) {
     std::vector<int64_t> values = Read(cursor);
@@ -64,13 +68,16 @@ TEST(LimitTest, KeepsTheRowsAfterTheOffset) {
 // Once it has its rows, nothing more is read: the source fails if asked for
 // a second batch.
 TEST(LimitTest, StopsReadingOnceItHasItsRows) {
+  core::Arena arena;
   test::FailingSource source;
-  Pipeline enough(source, Limited(2, 0));
+  std::vector<Pipeline::Step> two = Limited(arena, 2, 0);
+  const Pipeline& enough = *arena.New<Pipeline>(arena, source, two);
   RowCursor first(enough);
   EXPECT_THAT(Read(first), ElementsAre(1, 2));
   EXPECT_TRUE(first.status().ok());
 
-  Pipeline more(source, Limited(3, 0));
+  std::vector<Pipeline::Step> three = Limited(arena, 3, 0);
+  const Pipeline& more = *arena.New<Pipeline>(arena, source, three);
   RowCursor second(more);
   Read(second);
   EXPECT_FALSE(second.status().ok());

@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/param_value.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -54,16 +55,16 @@ bool StoresNoValueForNulls(const dataframe::Column& column) {
 
 }  // namespace
 
-IndexScan::IndexScan(
-    std::vector<std::shared_ptr<const dataframe::Column>> columns,
-    const dataframe::Index& index,
-    std::vector<Equality> equalities,
-    std::vector<SortedSearches::Search> searches,
-    const StringPool* pool)
-    : columns_(std::move(columns)),
-      permutation_(index.permutation_vector()),
-      equalities_(std::move(equalities)),
-      searches_(std::move(searches), pool),
+IndexScan::IndexScan(core::Arena& arena,
+                     core::ArenaSpan<const dataframe::Column*> columns,
+                     const dataframe::Index& index,
+                     core::ArenaSpan<Equality> equalities,
+                     core::ArenaSpan<SortedSearches::Search> searches,
+                     const StringPool* pool)
+    : columns_(columns),
+      permutation_(index.permutation_vector().get()),
+      equalities_(equalities),
+      searches_(arena, searches, pool),
       pool_(pool),
       whole_key_(equalities_.size() == index.columns().size()) {
   PERFETTO_CHECK(equalities_.size() <= index.columns().size());
@@ -72,7 +73,6 @@ IndexScan::IndexScan(
   }
 }
 
-IndexScan::~IndexScan() = default;
 IndexScan::State::~State() = default;
 
 std::unique_ptr<OperatorState> IndexScan::MakeState(Context& context) const {

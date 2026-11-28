@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -56,17 +57,18 @@ RowBatch Batch(Context& context,
   return batch;
 }
 
-IntervalLaneSpec Spec() {
+IntervalLaneSpec Spec(core::Arena& arena) {
   IntervalLaneSpec spec;
   spec.ts_column = 0;
   spec.dur_column = 1;
-  spec.key_columns = {2};
+  spec.key_columns = test::InArena<uint32_t>(arena, {2});
   spec.group_column = 3;
   return spec;
 }
 
 TEST(LaneBatchTest, ReadsEachKindOfRow) {
-  IntervalLaneSpec spec = Spec();
+  core::Arena arena;
+  IntervalLaneSpec spec = Spec(arena);
   Context context;
   RowBatch batch =
       Batch(context, {10, 0, 5, 10, std::numeric_limits<int64_t>::max()},
@@ -111,7 +113,8 @@ std::vector<uint32_t> Lanes(LaneReader& reader,
 // inputs sharing a table agree on each key's number, also for a lane spanning
 // two batches.
 TEST(LaneReaderTest, NumbersLanes) {
-  IntervalLaneSpec spec = Spec();
+  core::Arena arena;
+  IntervalLaneSpec spec = Spec(arena);
   Context context;
   RowBatch own = Batch(context, {0, 0}, {1, 1}, {7, 3}, {0, 1});
   LaneBatch lanes(own, spec);

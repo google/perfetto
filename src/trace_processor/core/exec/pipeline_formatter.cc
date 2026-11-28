@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/span.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
@@ -89,7 +90,7 @@ std::string Column(uint32_t position) {
   return "#" + std::to_string(position);
 }
 
-std::string Columns(const std::vector<uint32_t>& positions) {
+std::string Columns(base::Span<const uint32_t> positions) {
   std::string out;
   for (uint32_t position : positions) {
     out += (out.empty() ? "" : ", ") + Column(position);
@@ -98,10 +99,10 @@ std::string Columns(const std::vector<uint32_t>& positions) {
 }
 
 // The columns a step holding rows does not hold, if any.
-std::string Unread(const std::vector<bool>& unread) {
+std::string Unread(base::Span<const bool> unread) {
   std::vector<uint32_t> positions;
   for (uint32_t c = 0; c < unread.size(); ++c) {
-    if (unread[c]) {
+    if (unread.b[c]) {
       positions.push_back(c);
     }
   }
@@ -117,7 +118,7 @@ std::string Lanes(const IntervalLaneSpec& lanes) {
   return out;
 }
 
-std::string Keys(const std::vector<SortKey>& keys) {
+std::string Keys(base::Span<const SortKey> keys) {
   std::string out;
   for (const SortKey& key : keys) {
     out += (out.empty() ? "" : ", ") + Column(key.column) +
@@ -126,7 +127,7 @@ std::string Keys(const std::vector<SortKey>& keys) {
   return out;
 }
 
-std::string Aggregates(const std::vector<AggregateCall>& calls) {
+std::string Aggregates(base::Span<const AggregateCall> calls) {
   std::string out;
   for (const AggregateCall& call : calls) {
     std::string arg = Column(call.column);
@@ -170,7 +171,7 @@ std::string TypeName(const StorageType& type) {
 }
 
 // Prints step `i` of `program` as an expression.
-std::string StepString(const ExprProgram& program, uint32_t i) {
+std::string StepString(const Compute::Program& program, uint32_t i) {
   using ExprOp = ExprStep::Op;
   const ExprStep& step = program.steps[i];
   auto binary = [&](const char* op) {
@@ -221,7 +222,7 @@ std::string StepString(const ExprProgram& program, uint32_t i) {
              ")";
     case ExprOp::kGlob:
       return "(" + StepString(program, step.a) + " GLOB '" +
-             program.patterns[step.b] + "')";
+             std::string(program.patterns[step.b]) + "')";
     case ExprOp::kIsNull:
       return "(" + StepString(program, step.a) + " IS NULL)";
     case ExprOp::kIsNotNull:
@@ -250,11 +251,10 @@ std::string PipelineFormatter::Format(const Pipeline& pipeline,
   }
   for (const Pipeline::Step& step : pipeline.steps()) {
     out += " | ";
-    if (const auto* transform =
-            std::get_if<std::unique_ptr<Transform>>(&step)) {
+    if (const auto* transform = std::get_if<const Transform*>(&step)) {
       out += TransformString(**transform);
     } else {
-      out += OperatorString(*std::get<std::unique_ptr<Operator>>(step));
+      out += OperatorString(*std::get<const Operator*>(step));
     }
   }
   return out;
@@ -285,7 +285,7 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   if (source.Is<IntervalIntersect>()) {
     const auto& isect = static_cast<const IntervalIntersect&>(source);
     std::string out = "IntervalIntersect(";
-    for (size_t i = 0; i < isect.operands_.size(); ++i) {
+    for (uint32_t i = 0; i < isect.operands_.size(); ++i) {
       out += (i == 0 ? "" : "; ") + Lanes(isect.operands_[i].lanes);
     }
     return out + ")";
@@ -324,7 +324,7 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
   if (transform.Is<Compute>()) {
     const auto& compute = static_cast<const Compute&>(transform);
     std::string out;
-    for (const ExprProgram& program : compute.programs_) {
+    for (const Compute::Program& program : compute.programs_) {
       out +=
           (out.empty() ? "" : ", ") +
           StepString(program, static_cast<uint32_t>(program.steps.size() - 1));

@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -183,7 +184,6 @@ inline void OperatorState::EndRuns(const Registry& registry) {
 // Produces the batches a plan runs over.
 class Source {
  public:
-  virtual ~Source();
   Source(const Source&) = delete;
   Source& operator=(const Source&) = delete;
 
@@ -209,9 +209,7 @@ class Source {
   virtual void Rewind(OperatorState& state) const = 0;
 
   // After GetData() returns false, distinguishes exhaustion from failure.
-  virtual base::Status status(const OperatorState&) const {
-    return base::OkStatus();
-  }
+  virtual base::Status status(const OperatorState&) const;
 
   // Set when the batches served are read in place: each then holds only a
   // row count, its rows being the next of these. Valid until the run ends.
@@ -234,6 +232,8 @@ class Source {
 
  protected:
   Source() = default;
+  // Made in the plan's Arena, which frees memory without calling destructors.
+  ~Source() = default;
 };
 
 // Ends the run of `state` (see Held) and starts `source` again from its
@@ -248,7 +248,6 @@ inline void Restart(const Source& source, OperatorState& state) {
 // holds rows back, so a pipeline runs it with nothing copied or buffered.
 class Transform {
  public:
-  virtual ~Transform();
   Transform(const Transform&) = delete;
   Transform& operator=(const Transform&) = delete;
 
@@ -264,9 +263,7 @@ class Transform {
   virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
 
   // Why Process() returned false.
-  virtual base::Status status(const OperatorState&) const {
-    return base::OkStatus();
-  }
+  virtual base::Status status(const OperatorState&) const;
 
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
@@ -280,6 +277,8 @@ class Transform {
 
  protected:
   Transform() = default;
+  // Made in the plan's Arena, which frees memory without calling destructors.
+  ~Transform() = default;
 };
 
 enum class OpResult : uint8_t {
@@ -305,7 +304,6 @@ enum class OpResult : uint8_t {
 // Finish().
 class Operator {
  public:
-  virtual ~Operator();
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
 
@@ -315,7 +313,7 @@ class Operator {
   // Tells an operator which holds rows which columns of its input no later
   // step reads, by column, so it need not hold them. Called by the planner
   // before the plan runs; an operator holding nothing ignores it.
-  virtual void SetUnreadColumns(std::vector<bool>) {}
+  virtual void SetUnreadColumns(core::ArenaSpan<bool>) {}
 
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
@@ -335,9 +333,7 @@ class Operator {
   }
 
   // Why Execute() or Finish() returned kError.
-  virtual base::Status status(const OperatorState&) const {
-    return base::OkStatus();
-  }
+  virtual base::Status status(const OperatorState&) const;
 
   // As Source::InPlace(), for the batches Finish() outputs.
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
@@ -356,6 +352,8 @@ class Operator {
 
  protected:
   Operator() = default;
+  // Made in the plan's Arena, which frees memory without calling destructors.
+  ~Operator() = default;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

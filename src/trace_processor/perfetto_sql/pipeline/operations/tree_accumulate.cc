@@ -31,6 +31,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -150,16 +151,14 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerInput(node, 0);
   const OutputProperties::Tree& tree = *c->QueryRows().tree;
   // One operator folds every aggregate, appending their columns in order.
+  core::Arena& arena = c->arena();
   ex::TreeAccumulateSpec spec{c->QueryPosition(tree.node_number),
                               c->QueryPosition(tree.parent_number),
-                              {}};
-  for (const Aggregate& agg : acc.aggregates_) {
-    spec.aggregates.push_back(LowerAggregate(c, agg));
-  }
+                              LowerAggregates(c, acc.aggregates_)};
   if (acc.direction_ == TreeDirection::kUp) {
-    c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(std::move(spec)));
+    c->AddOperator(arena.New<ex::TreeAccumulateUp>(arena, spec));
   } else {
-    c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(std::move(spec)));
+    c->AddOperator(arena.New<ex::TreeAccumulateDown>(arena, spec));
   }
 }
 

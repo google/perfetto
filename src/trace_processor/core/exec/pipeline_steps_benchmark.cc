@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_key_paths.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // What each step costs run through a pipeline, as a plan runs it: over many
 // rows, where the step's own work dominates, and over one row, where what the
@@ -86,38 +87,38 @@ dataframe::Dataframe BuildTree(uint32_t rows,
 }
 
 // Runs the steps `make` builds over a scan of the tree read in `direction`,
-// every run, then `breaker` if given, as the sink of that pipeline, served by
-// the source of the next as a plan runs it.
+// every run, then `make_breaker` if given, as the sink of that pipeline,
+// served by the source of the next as a plan runs it.
 template <typename MakeSteps>
 void Run(benchmark::State& state,
          bool child_first,
          ReadDirection direction,
          MakeSteps make,
-         std::unique_ptr<Breaker> breaker) {
+         const Breaker* (*make_breaker)(core::Arena&)) {
   // Before every batch and state, which hold its buffers.
   Context context;
   Pipelines pipelines;
+  core::Arena arena;
   auto rows = static_cast<uint32_t>(state.range(0));
   StringPool pool;
   dataframe::Dataframe df = BuildTree(rows, child_first, &pool);
-  DataframeScan scan({df.shared_column(kId), df.shared_column(kParent),
-                      df.shared_column(kValue), df.shared_column(kSmall)},
+  DataframeScan scan(arena.CopySpan<const dataframe::Column*>(
+                         {&df.column(kId), &df.column(kParent),
+                          &df.column(kValue), &df.column(kSmall)}),
                      df.row_count(), direction);
   // The scan lends parent_id sparse: lay it out before the steps, as lowering
   // would.
-  std::vector<Pipeline::Step> steps = make();
+  std::vector<Pipeline::Step> steps = make(arena);
+  const Breaker* breaker = make_breaker ? make_breaker(arena) : nullptr;
   if (!steps.empty() || breaker) {
     steps.insert(steps.begin(),
-                 std::make_unique<Expand>(std::vector<uint32_t>{kParent}));
+                 arena.New<Expand>(arena.CopySpan<uint32_t>({kParent})));
   }
-  auto first = std::make_unique<Pipeline>(scan, std::move(steps));
-  std::unique_ptr<Source> pipeline;
+  const Pipeline* first = arena.New<Pipeline>(arena, scan, steps);
+  const Source* pipeline = first;
   if (breaker) {
-    const Breaker& served = *breaker;
-    uint32_t id = pipelines.Add(nullptr, std::move(first), std::move(breaker));
-    pipeline = std::make_unique<Served>(id, served);
-  } else {
-    pipeline = std::move(first);
+    uint32_t id = pipelines.Add(first, breaker);
+    pipeline = arena.New<Served>(id, *breaker);
   }
   context.SetPipelines(&pipelines);
   std::unique_ptr<OperatorState> run = pipeline->MakeState(context);
@@ -141,7 +142,7 @@ void Sizes(benchmark::internal::Benchmark* b) {
 void BM_StepsScanOnly(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] { return std::vector<Pipeline::Step>(); }, nullptr);
+      [](core::Arena&) { return std::vector<Pipeline::Step>(); }, nullptr);
 }
 BENCHMARK(BM_StepsScanOnly)->Apply(Sizes);
 
@@ -149,7 +150,7 @@ BENCHMARK(BM_StepsScanOnly)->Apply(Sizes);
 void BM_StepsScanBackwards(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kBackwards,
-      [] { return std::vector<Pipeline::Step>(); }, nullptr);
+      [](core::Arena&) { return std::vector<Pipeline::Step>(); }, nullptr);
 }
 BENCHMARK(BM_StepsScanBackwards)->Apply(Sizes);
 
@@ -157,17 +158,20 @@ BENCHMARK(BM_StepsScanBackwards)->Apply(Sizes);
 void BM_StepsSortDescending(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] { return std::vector<Pipeline::Step>(); },
-      std::make_unique<Sort>(SortSpec{{{kId, true}}}));
+      [](core::Arena&) { return std::vector<Pipeline::Step>(); },
+      [](core::Arena& arena) -> const Breaker* {
+        return arena.New<Sort>(
+            SortSpec{arena.CopySpan<SortKey>({{kId, true}})});
+      });
 }
 BENCHMARK(BM_StepsSortDescending)->Apply(Sizes);
 
 void BM_StepsTreeNumberNodes(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
+        steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
         return steps;
       },
       nullptr);
@@ -177,11 +181,14 @@ BENCHMARK(BM_StepsTreeNumberNodes)->Apply(Sizes);
 void BM_StepsTreeAccumulateDown(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeAccumulateDown>(TreeAccumulateSpec{
-            kNode, kParentNode, {{AggregateCall::Function::kSum, kValue}}}));
+        steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+        steps.push_back(arena.New<TreeAccumulateDown>(
+            arena, TreeAccumulateSpec{
+                       kNode, kParentNode,
+                       arena.CopySpan<AggregateCall>(
+                           {{AggregateCall::Function::kSum, kValue}})}));
         return steps;
       },
       nullptr);
@@ -191,11 +198,14 @@ BENCHMARK(BM_StepsTreeAccumulateDown)->Apply(Sizes);
 void BM_StepsTreeAccumulateUp(benchmark::State& state) {
   Run(
       state, true, ReadDirection::kForwards,
-      [] {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeAccumulateUp>(TreeAccumulateSpec{
-            kNode, kParentNode, {{AggregateCall::Function::kSum, kValue}}}));
+        steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+        steps.push_back(arena.New<TreeAccumulateUp>(
+            arena, TreeAccumulateSpec{
+                       kNode, kParentNode,
+                       arena.CopySpan<AggregateCall>(
+                           {{AggregateCall::Function::kSum, kValue}})}));
         return steps;
       },
       nullptr);
@@ -205,11 +215,11 @@ BENCHMARK(BM_StepsTreeAccumulateUp)->Apply(Sizes);
 void BM_StepsTreeKeyPaths(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-        steps.push_back(std::make_unique<TreeKeyPaths>(
-            TreeKeyPathsSpec{kNode, kParentNode, {kValue}}));
+        steps.push_back(arena.New<TreeNumberNodes>(kId, kParent));
+        steps.push_back(arena.New<TreeKeyPaths>(TreeKeyPathsSpec{
+            kNode, kParentNode, arena.CopySpan<uint32_t>({kValue})}));
         return steps;
       },
       nullptr);
@@ -220,10 +230,10 @@ BENCHMARK(BM_StepsTreeKeyPaths)->Apply(Sizes);
 void BM_StepsAssertTypeAsIs(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<AssertType>(
-            kValue, AssertTypeTarget(Int64{}), "value"));
+        steps.push_back(
+            arena.New<AssertType>(kValue, AssertTypeTarget(Int64{}), "value"));
         return steps;
       },
       nullptr);
@@ -234,10 +244,10 @@ BENCHMARK(BM_StepsAssertTypeAsIs)->Apply(Sizes);
 void BM_StepsAssertTypeWiden(benchmark::State& state) {
   Run(
       state, false, ReadDirection::kForwards,
-      [] {
+      [](core::Arena& arena) {
         std::vector<Pipeline::Step> steps;
-        steps.push_back(std::make_unique<AssertType>(
-            kSmall, AssertTypeTarget(Int64{}), "small"));
+        steps.push_back(
+            arena.New<AssertType>(kSmall, AssertTypeTarget(Int64{}), "small"));
         return steps;
       },
       nullptr);

@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -71,8 +72,10 @@ void RunTreeNumberNodes(benchmark::State& state,
                         const dataframe::Dataframe& df) {
   // Before every batch and state, which hold its buffers.
   Context context;
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  core::Arena arena;
+  DataframeScan scan(
+      arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   TreeNumberNodes op(0, 1);
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
@@ -106,13 +109,15 @@ dataframe::Dataframe BuildIdColumn(uint32_t rows, StringPool* pool) {
 
 // The cost of the scan alone, to compare the operator against.
 void BM_TreeNumberNodesScanOnly(benchmark::State& state) {
+  core::Arena arena;
   // Before every batch and state, which hold its buffers.
   Context context;
   StringPool pool;
   dataframe::Dataframe df =
       BuildIdColumn(static_cast<uint32_t>(state.range(0)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(
+      arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   RowBatch in;
   for (auto _ : state) {

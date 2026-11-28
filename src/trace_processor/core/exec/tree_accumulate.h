@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -33,7 +34,7 @@ namespace perfetto::trace_processor::core::exec {
 struct TreeAccumulateSpec {
   uint32_t node_column = 0;
   uint32_t parent_column = 1;
-  std::vector<AggregateCall> aggregates;
+  core::ArenaSpan<AggregateCall> aggregates;
 };
 
 // Aggregates each node's row with the rows of everything below it.
@@ -52,8 +53,7 @@ class TreeAccumulateUp final : public Transform {
     out->added = static_cast<uint32_t>(spec_.aggregates.size());
   }
 
-  explicit TreeAccumulateUp(TreeAccumulateSpec);
-  ~TreeAccumulateUp() override;
+  TreeAccumulateUp(core::Arena&, TreeAccumulateSpec);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
@@ -63,7 +63,7 @@ class TreeAccumulateUp final : public Transform {
   friend class PipelineFormatter;
 
   TreeAccumulateSpec spec_;
-  std::vector<std::unique_ptr<AggregateFunction>> functions_;
+  core::ArenaSpan<const AggregateFunction*> functions_;
 };
 
 // Aggregates each node's row with the rows of everything above it.
@@ -81,8 +81,7 @@ class TreeAccumulateDown final : public Transform {
     out->added = static_cast<uint32_t>(spec_.aggregates.size());
   }
 
-  explicit TreeAccumulateDown(TreeAccumulateSpec);
-  ~TreeAccumulateDown() override;
+  TreeAccumulateDown(core::Arena&, TreeAccumulateSpec);
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
@@ -92,7 +91,7 @@ class TreeAccumulateDown final : public Transform {
   friend class PipelineFormatter;
 
   TreeAccumulateSpec spec_;
-  std::vector<std::unique_ptr<AggregateFunction>> functions_;
+  core::ArenaSpan<const AggregateFunction*> functions_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

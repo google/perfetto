@@ -18,7 +18,7 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
+#include <string_view>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
@@ -68,20 +68,20 @@ const char* Name(StorageType type) {
 }
 
 // Errors, built out of line so the loops which find them stay small.
-PERFETTO_NO_INLINE bool NotExact(const std::string& name,
-                                 base::Status* status) {
+PERFETTO_NO_INLINE bool NotExact(std::string_view name, base::Status* status) {
   *status = base::ErrStatus(
-      "column '%s' holds an integer which a float cannot represent exactly",
-      name.c_str());
+      "column '%.*s' holds an integer which a float cannot represent exactly",
+      static_cast<int>(name.size()), name.data());
   return false;
 }
-PERFETTO_NO_INLINE bool WrongType(const std::string& name,
+PERFETTO_NO_INLINE bool WrongType(std::string_view name,
                                   const char* verb,
                                   const char* is,
                                   StorageType want,
                                   base::Status* status) {
-  *status = base::ErrStatus("column '%s' %s %s, not %s", name.c_str(), verb, is,
-                            Name(want));
+  *status = base::ErrStatus("column '%.*s' %s %s, not %s",
+                            static_cast<int>(name.size()), name.data(), verb,
+                            is, Name(want));
   return false;
 }
 
@@ -175,12 +175,10 @@ bool Fill(const ColumnView& column,
 
 }  // namespace
 
-AssertType::AssertType(uint32_t column, AssertTypeTarget type, std::string name)
-    : column_(column),
-      type_(type.Upcast<StorageType>()),
-      name_(std::move(name)) {}
-
-AssertType::~AssertType() = default;
+AssertType::AssertType(uint32_t column,
+                       AssertTypeTarget type,
+                       std::string_view name)
+    : column_(column), type_(type.Upcast<StorageType>()), name_(name) {}
 
 AssertType::State::~State() = default;
 
@@ -322,7 +320,6 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
 NullColumn::NullColumn(uint32_t column, StorageType type)
     : column_(column), type_(type) {}
 
-NullColumn::~NullColumn() = default;
 NullColumn::State::~State() = default;
 
 std::unique_ptr<OperatorState> NullColumn::MakeState(Context& context) const {

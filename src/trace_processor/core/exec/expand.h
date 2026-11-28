@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -35,8 +36,7 @@ class Expand final : public Transform {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  explicit Expand(std::vector<uint32_t> columns);
-  ~Expand() override;
+  explicit Expand(core::ArenaSpan<uint32_t> columns);
 
   void DescribeColumns(StepColumns* out) const override;
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
@@ -51,7 +51,7 @@ class Expand final : public Transform {
     Context* context;
   };
 
-  std::vector<uint32_t> columns_;
+  core::ArenaSpan<uint32_t> columns_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

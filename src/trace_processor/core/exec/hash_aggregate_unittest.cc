@@ -28,6 +28,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -45,12 +46,13 @@ using Columns = std::vector<std::vector<std::optional<int64_t>>>;
 // Runs `spec` over `batches`, ending a pipeline in it as a plan does. Returns
 // each column of the one batch it outputs, none if it failed, with how it
 // ended in `status`.
-Columns Aggregate(HashAggregateSpec spec,
+Columns Aggregate(core::Arena& arena,
+                  HashAggregateSpec spec,
                   std::vector<const RowBatch*> batches,
                   base::Status* status = nullptr) {
   test::BatchesSource source(std::move(batches));
-  test::AfterBreaker run(source, {},
-                         std::make_unique<HashAggregate>(std::move(spec)));
+  test::AfterBreaker run(arena, source, {},
+                         arena.New<HashAggregate>(arena, spec));
   Columns out;
   base::Status ended = run.Drain([&](const RowBatch& batch) {
     EXPECT_TRUE(out.empty());
@@ -67,6 +69,7 @@ Columns Aggregate(HashAggregateSpec spec,
 }
 
 TEST(HashAggregateTest, FoldsGroupsInTheOrderFirstSeen) {
+  core::Arena arena;
   // Two batches of (key, value). In the second, both columns are nullable.
   std::vector<int64_t> keys = {3, 1, 3, 2, 0, 1, 0};
   std::vector<int64_t> values = {10, 20, 30, 40, 50, 60, 70};
@@ -85,9 +88,12 @@ TEST(HashAggregateTest, FoldsGroupsInTheOrderFirstSeen) {
         StorageType{Int64{}}, values.data(), &value_valid, at));
     in[i].SetRowCount(i == 0 ? 4 : 3);
   }
-  Columns out =
-      Aggregate(HashAggregateSpec{{0}, {{F::kCountStar, 0}, {F::kSum, 1}}},
-                {&in[0], &in[1]});
+  Columns out = Aggregate(
+      arena,
+      HashAggregateSpec{test::InArena<uint32_t>(arena, {0}),
+                        test::InArena<AggregateCall>(
+                            arena, {{F::kCountStar, 0}, {F::kSum, 1}})},
+      {&in[0], &in[1]});
   // Groups 3, 1, 2 and null. A sum of only nulls is null.
   EXPECT_THAT(out[0], ElementsAre(3, 1, 2, std::nullopt));
   EXPECT_THAT(out[1], ElementsAre(2, 2, 1, 2));
@@ -95,9 +101,12 @@ TEST(HashAggregateTest, FoldsGroupsInTheOrderFirstSeen) {
 }
 
 TEST(HashAggregateTest, NoKeysIsOneGroupEvenWithoutRows) {
-  HashAggregateSpec spec{{}, {{F::kCountStar, 0}, {F::kSum, 0}}};
+  core::Arena arena;
+  HashAggregateSpec spec{
+      {},
+      test::InArena<AggregateCall>(arena, {{F::kCountStar, 0}, {F::kSum, 0}})};
   // With no rows, COUNT is 0 and SUM is null.
-  Columns out = Aggregate(spec, {});
+  Columns out = Aggregate(arena, spec, {});
   EXPECT_THAT(out[0], ElementsAre(0));
   EXPECT_THAT(out[1], ElementsAre(std::nullopt));
 
@@ -106,12 +115,13 @@ TEST(HashAggregateTest, NoKeysIsOneGroupEvenWithoutRows) {
   in.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, values.data()));
   in.SetRowCount(3);
-  out = Aggregate(spec, {&in});
+  out = Aggregate(arena, spec, {&in});
   EXPECT_THAT(out[0], ElementsAre(3));
   EXPECT_THAT(out[1], ElementsAre(15));
 }
 
 TEST(HashAggregateTest, NoKeysFoldsEachBatchAtOnce) {
+  core::Arena arena;
   // Two batches of one nullable column, with rows 1 and 5 null.
   constexpr int64_t kHalf = std::numeric_limits<int64_t>::max() / 2;
   std::vector<int64_t> values = {-7, 5, kHalf, 0, -kHalf, 9, 3};
@@ -125,13 +135,15 @@ TEST(HashAggregateTest, NoKeysFoldsEachBatchAtOnce) {
         ColumnView::Reference(StorageType{Int64{}}, values.data(), &valid, at));
     in[i].SetRowCount(i == 0 ? 4 : 3);
   }
-  Columns out = Aggregate(HashAggregateSpec{{},
-                                            {{F::kCountStar, 0},
-                                             {F::kCount, 0},
-                                             {F::kSum, 0},
-                                             {F::kMin, 0},
-                                             {F::kMax, 0}}},
-                          {&in[0], &in[1]});
+  Columns out = Aggregate(
+      arena,
+      HashAggregateSpec{{},
+                        test::InArena<AggregateCall>(arena, {{F::kCountStar, 0},
+                                                             {F::kCount, 0},
+                                                             {F::kSum, 0},
+                                                             {F::kMin, 0},
+                                                             {F::kMax, 0}})},
+      {&in[0], &in[1]});
   EXPECT_THAT(out[0], ElementsAre(7));
   EXPECT_THAT(out[1], ElementsAre(5));
   EXPECT_THAT(out[2], ElementsAre(-4));
@@ -140,6 +152,7 @@ TEST(HashAggregateTest, NoKeysFoldsEachBatchAtOnce) {
 }
 
 TEST(HashAggregateTest, NoKeysSumFailsPastInt64) {
+  core::Arena arena;
   // The least Int64 fits; one less doesn't.
   std::vector<int64_t> least = {std::numeric_limits<int64_t>::min(), 0};
   std::vector<int64_t> one = {-1};
@@ -150,11 +163,12 @@ TEST(HashAggregateTest, NoKeysSumFailsPastInt64) {
   in[1].AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, one.data()));
   in[1].SetRowCount(1);
-  HashAggregateSpec spec{{}, {{F::kSum, 0}}};
+  HashAggregateSpec spec{{},
+                         test::InArena<AggregateCall>(arena, {{F::kSum, 0}})};
   base::Status status;
-  Aggregate(spec, {&in[0]}, &status);
+  Aggregate(arena, spec, {&in[0]}, &status);
   EXPECT_TRUE(status.ok());
-  Aggregate(spec, {&in[0], &in[1]}, &status);
+  Aggregate(arena, spec, {&in[0], &in[1]}, &status);
   EXPECT_FALSE(status.ok());
 }
 

@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
 
@@ -234,6 +235,7 @@ inline constexpr auto kCallsiteShaped = dataframe::CreateTypedDataframeSpec(
 // operator hands back the row numbers and never builds a map, however many
 // batches it takes.
 TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
+  core::Arena arena;
   StringPool pool;
   dataframe::Dataframe df =
       dataframe::Dataframe::CreateFromTypedSpec(kCallsiteShaped, &pool);
@@ -247,12 +249,13 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
   }
   df.Finalize();
 
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
-                     ReadDirection::kForwards);
+  DataframeScan scan(
+      test::ColumnsInArena(arena, {df.shared_column(0), df.shared_column(1)}),
+      df.row_count(), ReadDirection::kForwards);
   Context context;
   std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   // The scan lends the nullable parents sparse, so they are laid out first.
-  Expand expand({1});
+  Expand expand(test::InArena<uint32_t>(arena, {1}));
   std::unique_ptr<OperatorState> expand_state = expand.MakeState(context);
   TreeNumberNodes op(0, 1);
   std::unique_ptr<OperatorState> state = op.MakeState(context);

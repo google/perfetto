@@ -24,7 +24,6 @@
 namespace perfetto::trace_processor::core::exec {
 
 EmptySource::EmptySource() = default;
-EmptySource::~EmptySource() = default;
 
 std::unique_ptr<OperatorState> EmptySource::MakeState(Context&) const {
   return std::make_unique<OperatorState>();

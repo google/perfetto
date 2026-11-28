@@ -27,6 +27,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/span.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -178,7 +179,7 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
 
 std::optional<uint32_t> GroupTable::FindOrCreate(
     const RowBatch& batch,
-    const std::vector<uint32_t>& columns,
+    base::Span<const uint32_t> columns,
     uint32_t* groups) {
   return FindOrCreate(batch, batch.selection(), columns, groups);
 }
@@ -186,7 +187,7 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
 std::optional<uint32_t> GroupTable::FindOrCreate(
     const RowBatch& batch,
     const Selection& rows,
-    const std::vector<uint32_t>& columns,
+    base::Span<const uint32_t> columns,
     uint32_t* groups) {
   // Nulls are stored as one bit per column in a 64-bit word.
   PERFETTO_CHECK(columns.size() <= 64);

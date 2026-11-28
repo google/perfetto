@@ -26,18 +26,15 @@
 #include "src/trace_processor/core/exec/dataframe_windows.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-DataframeScan::DataframeScan(
-    std::vector<std::shared_ptr<const dataframe::Column>> columns,
-    uint32_t row_count,
-    ReadDirection direction)
-    : columns_(std::move(columns)),
-      row_count_(row_count),
-      direction_(direction) {}
+DataframeScan::DataframeScan(core::ArenaSpan<const dataframe::Column*> columns,
+                             uint32_t row_count,
+                             ReadDirection direction)
+    : columns_(columns), row_count_(row_count), direction_(direction) {}
 
-DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
 
 std::unique_ptr<OperatorState> DataframeScan::MakeState(Context&) const {

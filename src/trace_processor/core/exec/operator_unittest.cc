@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -116,12 +117,13 @@ class Twice final : public Operator {
 Twice::State::~State() = default;
 
 TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
-  ArraySource source(Sequence(17));
+  core::Arena arena;
+  ArraySource source(arena, Sequence(17));
   std::vector<Pipeline::Step> ops;
   for (int i = 0; i < 3; ++i) {
-    ops.push_back(std::make_unique<DropOddRows>());
+    ops.push_back(arena.New<DropOddRows>());
   }
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(arena, source, ops);
 
   // Keeping every second row three times leaves every eighth. The third
   // operator narrows a selection the batch already composed, in place.
@@ -130,8 +132,9 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
 
 // Reads every row of every batch, and reads them all again when reopened.
 TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
-  ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  Pipeline pipeline(source, {});
+  core::Arena arena;
+  ArraySource source(arena, Sequence(kMaxBatchRows * 2 + 7));
+  Pipeline pipeline(arena, source, {});
 
   for (int run = 0; run < 2; ++run) {
     std::vector<uint32_t> rows = Drain(pipeline);
@@ -204,8 +207,9 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 // A cursor is at eof until it is opened. Once it reports eof, advancing again
 // must still report eof.
 TEST(SinkTest, EofStaysEof) {
-  ArraySource source({1, 2});
-  Pipeline pipeline(source, {});
+  core::Arena arena;
+  ArraySource source(arena, {1, 2});
+  Pipeline pipeline(arena, source, {});
   RowCursor cursor(pipeline);
   EXPECT_TRUE(cursor.eof());
   cursor.Open();
@@ -305,12 +309,13 @@ class Recording final : public Operator {
 // What a step holds for a run is let go as soon as nothing more comes out of
 // the step, before the steps above it are done, and every run starts empty.
 TEST(StateTest, AStepsRunEndsWithItsStream) {
-  ArraySource source({10, 20});
+  core::Arena arena;
+  ArraySource source(arena, {10, 20});
   const std::vector<uint32_t>* seen = nullptr;
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Recording>(&seen));
-  ops.push_back(std::make_unique<Trailer>(99, 2));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(arena.New<Recording>(&seen));
+  ops.push_back(arena.New<Trailer>(99, 2u));
+  Pipeline pipeline(arena, source, ops);
   Context context;
   std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
   for (uint32_t run = 0; run < 2; ++run) {
@@ -335,11 +340,12 @@ TEST(StateTest, AStepsRunEndsWithItsStream) {
 // The deepest operator with more output is drained before the one above it is
 // called again.
 TEST(OperatorTest, FanOutNestsInnermostFirst) {
-  ArraySource source({10, 20});
+  core::Arena arena;
+  ArraySource source(arena, {10, 20});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Twice>());
-  ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(arena.New<Twice>());
+  ops.push_back(arena.New<Twice>());
+  Pipeline pipeline(arena, source, ops);
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
@@ -347,11 +353,12 @@ TEST(OperatorTest, FanOutNestsInnermostFirst) {
 // What an operator lets go at the end is pushed through the operators above
 // it, fan-out included.
 TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
-  ArraySource source({10, 20});
+  core::Arena arena;
+  ArraySource source(arena, {10, 20});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Trailer>(99, 1));
-  ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(arena.New<Trailer>(99, 1u));
+  ops.push_back(arena.New<Twice>());
+  Pipeline pipeline(arena, source, ops);
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
 }
@@ -359,11 +366,12 @@ TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
 // An operator is only finished once everything below it has been, so the
 // rows the lower one lets go reach it as ordinary input first.
 TEST(FinishTest, OperatorsAreFinishedBottomUp) {
-  ArraySource source({10});
+  core::Arena arena;
+  ArraySource source(arena, {10});
   std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Trailer>(7, 1));
-  ops.push_back(std::make_unique<Trailer>(8, 1));
-  Pipeline pipeline(source, std::move(ops));
+  ops.push_back(arena.New<Trailer>(7, 1u));
+  ops.push_back(arena.New<Trailer>(8, 1u));
+  Pipeline pipeline(arena, source, ops);
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
 }
@@ -403,12 +411,13 @@ class DropOddRowsInPlace final : public Transform {
 DropOddRowsInPlace::State::~State() = default;
 
 TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
-  ArraySource source({10, 20, 30, 40, 50});
-  auto drop = std::make_unique<DropOddRowsInPlace>();
-  const DropOddRowsInPlace* transform = drop.get();
+  core::Arena arena;
+  ArraySource source(arena, {10, 20, 30, 40, 50});
+  auto drop = arena.New<DropOddRowsInPlace>();
+  const DropOddRowsInPlace* transform = drop;
   std::vector<Pipeline::Step> steps;
-  steps.push_back(std::move(drop));
-  Pipeline pipeline(source, std::move(steps));
+  steps.push_back(drop);
+  Pipeline pipeline(arena, source, steps);
 
   Context context;
   auto state = pipeline.MakeState(context);

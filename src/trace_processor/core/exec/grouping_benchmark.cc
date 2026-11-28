@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 // Groups rows by each kind of key the executor supports. The number of
@@ -51,6 +52,7 @@ enum Shape : int64_t {
 // Arguments: key kind, number of distinct keys, 1 if keys are clustered in
 // runs and 0 if shuffled, and number of full input batches.
 void BM_GroupBy(benchmark::State& state) {
+  core::Arena arena;
   auto shape = static_cast<Shape>(state.range(0));
   auto distinct = static_cast<uint32_t>(state.range(1));
   bool clustered = state.range(2) != 0;
@@ -111,8 +113,9 @@ void BM_GroupBy(benchmark::State& state) {
   keys = shape == kTwoInt64 ? std::vector<uint32_t>{0, 1}
                             : std::vector<uint32_t>{0};
 
-  test::BreakerRun run(
-      batches, std::make_unique<GroupedSort>(GroupedSortSpec{keys, {}}));
+  test::BreakerRun run(arena, batches,
+                       arena.New<GroupedSort>(GroupedSortSpec{
+                           arena.CopySpan<uint32_t>(keys), {}}));
   for (auto _ : state) {
     benchmark::DoNotOptimize(run.Run());
   }

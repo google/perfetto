@@ -18,13 +18,13 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BREAKER_H_
 
 #include <memory>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -42,13 +42,11 @@ class Breaker : public Sink {
     Held<base::Status> status{this};
   };
 
-  ~Breaker() override;
-
   // Which of its input's columns it reads and keeps (see StepColumns).
   virtual void DescribeColumns(StepColumns* out) const = 0;
 
   // Same as Operator::SetUnreadColumns().
-  virtual void SetUnreadColumns(std::vector<bool>) {}
+  virtual void SetUnreadColumns(core::ArenaSpan<bool>) {}
 
   // As Source::InPlace(), for the batches Serve() outputs.
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
@@ -64,6 +62,7 @@ class Breaker : public Sink {
 
  protected:
   Breaker() = default;
+  ~Breaker() = default;
 
  private:
   friend class Served;

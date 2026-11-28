@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/arena.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -97,13 +98,12 @@ void ExpandColumn(const ColumnView& view,
 
 }  // namespace
 
-Expand::Expand(std::vector<uint32_t> columns) : columns_(std::move(columns)) {}
+Expand::Expand(core::ArenaSpan<uint32_t> columns) : columns_(columns) {}
 
-Expand::~Expand() = default;
 Expand::State::~State() = default;
 
 void Expand::DescribeColumns(StepColumns* out) const {
-  out->reads = columns_;
+  out->reads.assign(columns_.begin(), columns_.end());
 }
 
 std::unique_ptr<OperatorState> Expand::MakeState(Context& context) const {

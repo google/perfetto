@@ -36,7 +36,6 @@ class EmptySource final : public Source {
   const void* type() const override { return &kType; }
 
   EmptySource();
-  ~EmptySource() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState&) const override;

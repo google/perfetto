@@ -50,7 +50,6 @@ const uint32_t* FlatData(const ColumnView& column) {
 TreeChildFirst::TreeChildFirst(uint32_t node_column, uint32_t parent_column)
     : node_column_(node_column), parent_column_(parent_column) {}
 
-TreeChildFirst::~TreeChildFirst() = default;
 TreeChildFirst::State::~State() = default;
 
 std::unique_ptr<Breaker::State> TreeChildFirst::CreateState() const {
@@ -229,7 +228,6 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
 TreeParentFirst::TreeParentFirst(uint32_t node_column, uint32_t parent_column)
     : node_column_(node_column), parent_column_(parent_column) {}
 
-TreeParentFirst::~TreeParentFirst() = default;
 TreeParentFirst::State::~State() = default;
 
 PERFETTO_NO_INLINE void TreeParentFirst::State::Nodes::Grow(uint32_t count) {

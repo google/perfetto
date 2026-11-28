@@ -38,6 +38,7 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
+#include "src/trace_processor/core/util/arena.h"
 
 // The input stage shared by the interval operators. Each reads one or more
 // interval inputs: rows with a ts and dur, grouped into lanes by PER columns
@@ -55,7 +56,7 @@ class Source;
 struct IntervalLaneSpec {
   uint32_t ts_column = 0;
   uint32_t dur_column = 0;
-  std::vector<uint32_t> key_columns;
+  core::ArenaSpan<uint32_t> key_columns;
   uint32_t group_column = 0;
   // Whether a dur of -1 is an interval which never ends.
   bool forever = false;
@@ -79,7 +80,7 @@ struct CollectedInputSpec {
   // The plan pipeline streaming it in (see Pipelines).
   uint32_t pipeline = 0;
   IntervalLaneSpec lanes;
-  std::vector<uint32_t> retained_columns;
+  core::ArenaSpan<uint32_t> retained_columns;
 };
 
 // An interval input, as named in error messages: "<op>: <input> has ...".
@@ -288,8 +289,8 @@ class LaneKeys {
   static constexpr uint32_t kCarried = 0;
 
   // `key_columns` must outlive this.
-  explicit LaneKeys(const std::vector<uint32_t>& key_columns)
-      : key_columns_(&key_columns) {}
+  explicit LaneKeys(base::Span<const uint32_t> key_columns)
+      : key_columns_(key_columns) {}
 
   // Holds the keys of every row of `in`, after those carried by Carry().
   // Handles from before are invalid. Keys packed are held in buffers from
@@ -311,7 +312,7 @@ class LaneKeys {
   void EndRun();
 
  private:
-  const std::vector<uint32_t>* key_columns_;
+  base::Span<const uint32_t> key_columns_;
   RowStore rows_;
   RowBatch retained_;
   RowBatch carried_;

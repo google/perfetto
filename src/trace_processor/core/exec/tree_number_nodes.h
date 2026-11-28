@@ -58,7 +58,6 @@ class TreeNumberNodes final : public Transform {
   }
 
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
-  ~TreeNumberNodes() override;
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
