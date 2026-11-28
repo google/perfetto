@@ -55,6 +55,8 @@ export const HDE_STATE_SCHEMA = z
     instanceTabs: z.array(INSTANCE_TAB_SCHEMA).optional(),
     // Filter / pivot / view state of the main Flamegraph tab.
     flamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
+    // The dump the main Flamegraph tab is compared with.
+    baselineDump: DUMP_REF_SCHEMA.optional(),
     // Filter / pivot / view state of the Callstack tab.
     callstackPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   })

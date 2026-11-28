@@ -21,6 +21,7 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
+import {DurationWidget} from '../../components/widgets/duration';
 import type {NavState, NavView} from './nav_state';
 import type {HeapDump} from './types';
 import {OverviewView} from './views/overview_view';
@@ -114,6 +115,11 @@ function buildTabs(
         trace,
         upid: activeDump.upid,
         ts: activeDump.ts,
+        dumps: session.dumps,
+        baselineDump: session.baselineDump,
+        onBaselineDumpChange: session.setBaselineDump.bind(session),
+        processLabel,
+        dumpLabel: (d) => dumpLabel(session, d),
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState.bind(session),
         onShowObjects: (pathHashes, isDominator) =>
@@ -275,17 +281,24 @@ function processLabel(d: HeapDump): string {
   return d.pid !== null ? `${name} (pid ${d.pid})` : name;
 }
 
+function dumpLabel(session: HeapDumpExplorerSession, d: HeapDump): string {
+  const offset = Time.diff(d.ts, session.trace.traceInfo.start);
+  return `${processLabel(d)} — ${formatDuration(session.trace, offset)}`;
+}
+
 function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
   const allDumps = session.dumps;
   const active = session.activeDump;
   if (allDumps.length <= 1 || active === null) return null;
 
+  const offset = Time.diff(active.ts, session.trace.traceInfo.start);
   return m(
     '.pf-hde-dump-selector',
     m('span.pf-hde-dump-selector__label', 'Heap dump:'),
     m(
       PopupMenu,
       {
+        fitContent: true,
         trigger: m(Button, {
           label: processLabel(active),
           icon: 'memory',
@@ -295,14 +308,14 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
         }),
       },
       allDumps.map((d) => {
-        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
         return m(MenuItem, {
-          label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
+          label: dumpLabel(session, d),
           active: d === active,
           onclick: () => session.selectDump(d),
         });
       }),
     ),
+    m(DurationWidget, {trace: session.trace, dur: offset}),
   );
 }
 

@@ -143,6 +143,7 @@ export class HeapDumpExplorerSession {
         s.flamegraphTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
+        s.baselineDump = undefined;
         s.callstackPanelState = undefined;
       });
     }
@@ -165,6 +166,7 @@ export class HeapDumpExplorerSession {
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
+      s.baselineDump = undefined;
       s.callstackPanelState = undefined;
     });
   }
@@ -379,6 +381,29 @@ export class HeapDumpExplorerSession {
     });
   }
 
+  // The dump the main Flamegraph tab is compared with, if any.
+  get baselineDump(): HeapDump | undefined {
+    const ref = this.storage.get().baselineDump;
+    if (ref === undefined) return undefined;
+    const dump = this._dumps.find(
+      (d) => d.upid === ref.upid && d.ts === BigInt(ref.ts),
+    );
+    // A link can name the active dump, which can't be compared with itself.
+    return dump === this.activeDump ? undefined : dump;
+  }
+
+  setBaselineDump(dump: HeapDump | undefined): void {
+    this.edit((s) => {
+      s.baselineDump =
+        dump === undefined
+          ? undefined
+          : {upid: dump.upid, ts: dump.ts.toString()};
+      if (dump !== undefined) {
+        s.flamegraphPanelState = withoutPathHashPivot(s.flamegraphPanelState);
+      }
+    });
+  }
+
   get callstackPanelState(): TreeExplorerState | undefined {
     return this.storage.get().callstackPanelState;
   }
@@ -397,6 +422,8 @@ export class HeapDumpExplorerSession {
     label: string,
     isDominator: boolean,
   ): void {
+    // A path hash names a node of the active dump only.
+    this.setBaselineDump(undefined);
     this.setFlamegraphPanelState({
       selectedMetricId: isDominator
         ? METRIC_DOMINATED_OBJECT_SIZE
@@ -412,6 +439,20 @@ export class HeapDumpExplorerSession {
     });
     this.navigate('flamegraph');
   }
+}
+
+// A path hash names a node of the active dump only, so a pivot at one (see
+// openFlamegraphPivotedAt) matches nothing once another dump is shown too.
+function withoutPathHashPivot(
+  state: TreeExplorerState | undefined,
+): TreeExplorerState | undefined {
+  if (
+    state?.view.kind !== 'PIVOT' ||
+    !/^\/\^-?\d+\$\/$/.test(state.view.pivot)
+  ) {
+    return state;
+  }
+  return {...state, view: {kind: 'TOP_DOWN'}};
 }
 
 function makeHref(sub: string | undefined): string {
