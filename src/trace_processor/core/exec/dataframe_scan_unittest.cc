@@ -225,7 +225,8 @@ TEST_F(DataframeScanTest, IndexScanCopiesScatteredRowsIntoOneBatch) {
   Context context;
   std::unique_ptr<OperatorState> state = scan.MakeState(context);
   ParamValue param;
-  param.value = filter::CastFilterValueResult::Valid(kBig + 7);
+  param.validity = filter::CastFilterValueResult::kValid;
+  param.value = kBig + 7;
   context.SetParams(base::Span<const ParamValue>(&param, &param + 1));
 
   RowBatch batch;
