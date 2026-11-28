@@ -46,11 +46,14 @@
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/prune_perf_events.h"
+#include "src/trace_redaction/prune_shell_packets.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/reduce_threads_in_process_trees.h"
 #include "src/trace_redaction/scrub_process_stats.h"
+#include "src/trace_redaction/scrub_service_event.h"
+#include "src/trace_redaction/scrub_trigger.h"
 #include "src/trace_redaction/timeline_validation.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/verify_integrity.h"
@@ -390,6 +393,10 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
     primitive->emplace_filter<ConnectedToPackage>();
   }
 
+  // Scrub other apps' identities from session-level trigger and service events.
+  pass1->emplace_transform<ScrubTrigger>();
+  pass1->emplace_transform<ScrubServiceEvent>();
+
   // Redacts all switch and waking events. This should use the same modifier and
   // filter as the process events (see below).
   {
@@ -449,6 +456,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   // remove empty messages.
   {
     pass1->emplace_transform<DropEmptyFtraceEvents>();
+    pass1->emplace_transform<PruneShellPackets>();
   }
 
   // Pass 2: Merge process trees into a single deduplicated process tree packet
