@@ -21,9 +21,11 @@
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/heap_dump_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -32,6 +34,7 @@ namespace {
 
 using TracePacket = protos::pbzero::TracePacket;
 
+constexpr char kTargetPackage[] = "com.example.target";
 constexpr int32_t kTargetUid = 10146;
 constexpr int32_t kTracedProbesUid = 9999;
 
@@ -45,9 +48,10 @@ class AllowSynchronizationMarker final : public PacketFilter {
 class PruneMissingUidPacketsTest : public testing::Test {
  protected:
   void SetUp() override {
-    context_.package_name = "com.example.target";
+    context_.package_name = kTargetPackage;
     context_.package_uid = kTargetUid;
     context_.normalize_uid = true;
+    transform_.emplace_allow<AllowTargetDeobfuscationMapping>();
   }
 
   Context context_;
@@ -55,9 +59,8 @@ class PruneMissingUidPacketsTest : public testing::Test {
 };
 
 TEST_F(PruneMissingUidPacketsTest, DropsAllUidLessPacketsWhenAllowlistIsEmpty) {
-  constexpr uint8_t kSync[] = {1, 2, 3, 4};
   protozero::HeapBuffered<TracePacket> packet;
-  packet->set_synchronization_marker(kSync, sizeof(kSync));
+  packet->set_deobfuscation_mapping()->set_package_name(kTargetPackage);
   std::string bytes = packet.SerializeAsString();
 
   ASSERT_OK(PruneMissingUidPackets().Transform(context_, &bytes));
@@ -82,6 +85,57 @@ TEST_F(PruneMissingUidPacketsTest, KeepsPacketAcceptedByAnyAllowlistFilter) {
   ASSERT_OK(transform_.Transform(context_, &tree_bytes));
   EXPECT_TRUE(tree_bytes.empty());
   EXPECT_EQ(context_.stats.missing_uid_packets_dropped, 1u);
+}
+
+TEST_F(PruneMissingUidPacketsTest, KeepsTargetMapping) {
+  protozero::HeapBuffered<TracePacket> packet;
+  packet->set_deobfuscation_mapping()->set_package_name(kTargetPackage);
+  std::string bytes = packet.SerializeAsString();
+  std::string original = bytes;
+
+  ASSERT_OK(transform_.Transform(context_, &bytes));
+  EXPECT_EQ(bytes, original);
+}
+
+TEST_F(PruneMissingUidPacketsTest, DropsOtherMapping) {
+  protozero::HeapBuffered<TracePacket> packet;
+  packet->set_deobfuscation_mapping()->set_package_name("com.example.other");
+  std::string bytes = packet.SerializeAsString();
+
+  ASSERT_OK(transform_.Transform(context_, &bytes));
+  EXPECT_TRUE(bytes.empty());
+}
+
+TEST_F(PruneMissingUidPacketsTest, DropsMixedPacket) {
+  protozero::HeapBuffered<TracePacket> packet;
+  packet->set_deobfuscation_mapping()->set_package_name(kTargetPackage);
+  packet->set_process_tree();
+  std::string bytes = packet.SerializeAsString();
+
+  ASSERT_OK(transform_.Transform(context_, &bytes));
+  EXPECT_TRUE(bytes.empty());
+}
+
+// A second mapping in the same packet must not ride along with the target's.
+TEST_F(PruneMissingUidPacketsTest, DropsTwoMappings) {
+  protozero::HeapBuffered<TracePacket> packet;
+  packet->set_deobfuscation_mapping()->set_package_name(kTargetPackage);
+  packet->set_deobfuscation_mapping()->set_package_name("com.example.other");
+  std::string bytes = packet.SerializeAsString();
+
+  ASSERT_OK(transform_.Transform(context_, &bytes));
+  EXPECT_TRUE(bytes.empty());
+}
+
+TEST_F(PruneMissingUidPacketsTest, DropsTwoNames) {
+  protozero::HeapBuffered<TracePacket> packet;
+  auto* mapping = packet->set_deobfuscation_mapping();
+  mapping->set_package_name(kTargetPackage);
+  mapping->set_package_name("com.example.other");
+  std::string bytes = packet.SerializeAsString();
+
+  ASSERT_OK(transform_.Transform(context_, &bytes));
+  EXPECT_TRUE(bytes.empty());
 }
 
 TEST_F(PruneMissingUidPacketsTest, IgnoresUidPackets) {

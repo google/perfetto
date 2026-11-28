@@ -222,6 +222,8 @@ class TraceRedactor {
     bool verify = true;
   };
 
+  // Creates the unified trace redactor handling system traces, Java heap dump
+  // traces, and combined traces.
   static std::unique_ptr<TraceRedactor> CreateInstance(const Config& config);
 
  private:

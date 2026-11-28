@@ -17,6 +17,7 @@
 #include "src/trace_redaction/populate_allow_lists.h"
 
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/heap_dump_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -56,13 +57,22 @@ void AllowProcessAndPackageTables(Context::TracePacketMask* packet_mask) {
   packet_mask->set(TracePacket::kProcessTreeFieldNumber);
 }
 
+// Java heap dump payloads (gated by FilterUntrustedAppPackets,
+// PruneMissingUidPackets and PruneHeapDumps).
+void AllowHeapDumpPayloads(Context::TracePacketMask* packet_mask) {
+  packet_mask->set(kHeapGraphFieldNumber);
+  packet_mask->set(TracePacket::kArtProcessMetadataFieldNumber);
+  packet_mask->set(TracePacket::kDeobfuscationMappingFieldNumber);
+}
+
 }  // namespace
 
 base::Status PopulateAllowlists::Build(Context* context) const {
-  // App-uid packets (`WriterType::kApp`) may only carry non-data fields (plus
-  // explicitly allowlisted app payloads), never spoofed system payloads.
+  // App-uid packets (`WriterType::kApp`) may only carry non-data fields and
+  // heap dump payloads, never spoofed system payloads.
   auto* app_packet_mask = &context->app_packet_mask;
   AllowTracePacketNonDataFields(app_packet_mask);
+  AllowHeapDumpPayloads(app_packet_mask);
 
   // System packet mask includes everything allowed on app packets, plus session
   // metadata, attribution tables, and system-trace payloads.

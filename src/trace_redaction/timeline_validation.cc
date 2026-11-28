@@ -19,7 +19,8 @@
 namespace perfetto::trace_redaction {
 
 base::Status TimelineValidation::Validate(const Context& context) const {
-  if (!context.timeline || context.timeline->empty()) {
+  if (!context.timeline ||
+      (context.timeline->empty() && context.heap_dump_sequences.empty())) {
     return base::ErrStatus(
         "TraceRedactor: No process timeline found. Are sched_free or process "
         "stats data sources missing");
