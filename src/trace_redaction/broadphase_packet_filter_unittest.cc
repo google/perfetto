@@ -246,4 +246,26 @@ TEST_F(BroadphasePacketFilterTest, EmptyFtraceMaskAllowedWithoutFtrace) {
   ASSERT_OK(transform_.Transform(context_, &buffer));
 }
 
+TEST_F(BroadphasePacketFilterTest, UsesAppMaskForAppPackets) {
+  builder_.set_trusted_uid(10146);
+  builder_.set_timestamp(123);
+  builder_.mutable_process_tree();
+  auto buffer = builder_.SerializeAsString();
+
+  context_.app_packet_mask.set(
+      protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+  context_.app_packet_mask.set(
+      protos::pbzero::TracePacket::kTimestampFieldNumber);
+  context_.packet_mask = context_.app_packet_mask;
+  context_.packet_mask.set(
+      protos::pbzero::TracePacket::kProcessTreeFieldNumber);
+
+  ASSERT_OK(transform_.Transform(context_, &buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(buffer));
+  ASSERT_EQ(packet.timestamp(), 123u);
+  ASSERT_FALSE(packet.has_process_tree());
+}
+
 }  // namespace perfetto::trace_redaction

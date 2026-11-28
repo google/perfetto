@@ -56,7 +56,12 @@ base::Status BroadphasePacketFilter::Transform(const Context& context,
     return base::ErrStatus("FilterTracePacketFields: missing packet.");
   }
 
-  const auto& mask = context.packet_mask;
+  const bool use_app_mask =
+      context.app_packet_mask.any() &&
+      GetWriterType(protos::pbzero::TracePacket::Decoder(*packet)) ==
+          WriterType::kApp;
+  const auto& mask =
+      use_app_mask ? context.app_packet_mask : context.packet_mask;
 
   if (PERFETTO_UNLIKELY(
           mask.test(protos::pbzero::TracePacket::kFtraceEventsFieldNumber) &&

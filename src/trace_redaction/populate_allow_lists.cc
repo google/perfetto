@@ -24,48 +24,63 @@
 #include "protos/third_party/android/frameworks/native/tracing/frameworks_native_trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
+namespace {
+
+using TracePacket = protos::pbzero::TracePacket;
+
+// Top-level fields outside `TracePacket`'s `oneof data` (timestamps, uids,
+// sequence ids, etc.).
+void AllowTracePacketNonDataFields(Context::TracePacketMask* packet_mask) {
+  for (uint32_t id : kTracePacketNonDataFields) {
+    packet_mask->set(id);
+  }
+}
+
+// Device and tracing-session metadata.
+void AllowSessionMetadata(Context::TracePacketMask* packet_mask) {
+  packet_mask->set(TracePacket::kClockSnapshotFieldNumber);
+  packet_mask->set(TracePacket::kServiceEventFieldNumber);
+  packet_mask->set(TracePacket::kSynchronizationMarkerFieldNumber);
+  packet_mask->set(TracePacket::kSystemInfoFieldNumber);
+  packet_mask->set(TracePacket::kTraceConfigFieldNumber);
+  packet_mask->set(TracePacket::kTraceStatsFieldNumber);
+  packet_mask->set(TracePacket::kTraceUuidFieldNumber);
+  packet_mask->set(TracePacket::kTriggerFieldNumber);
+}
+
+// Per-package and per-process attribution tables (narrow-phase transforms prune
+// rows to the target package).
+void AllowProcessAndPackageTables(Context::TracePacketMask* packet_mask) {
+  packet_mask->set(TracePacket::kPackagesListFieldNumber);
+  packet_mask->set(TracePacket::kProcessStatsFieldNumber);
+  packet_mask->set(TracePacket::kProcessTreeFieldNumber);
+}
+
+}  // namespace
 
 base::Status PopulateAllowlists::Build(Context* context) const {
-  auto& packet_mask = context->packet_mask;
+  // App-uid packets (`WriterType::kApp`) may only carry non-data fields (plus
+  // explicitly allowlisted app payloads), never spoofed system payloads.
+  auto* app_packet_mask = &context->app_packet_mask;
+  AllowTracePacketNonDataFields(app_packet_mask);
 
-  // Top-level fields - fields outside of the "oneof data" field.
-  packet_mask.set(
-      protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber);
-  packet_mask.set(
-      protos::pbzero::TracePacket::kIncrementalStateClearedFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kInternedDataFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kMachineIdFieldNumber);
-  packet_mask.set(
-      protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kSequenceFlagsFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTimestampClockIdFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTimestampFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTracePacketDefaultsFieldNumber);
-  packet_mask.set(
-      protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTrustedPidFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTrustedUidFieldNumber);
+  // System packet mask includes everything allowed on app packets, plus session
+  // metadata, attribution tables, and system-trace payloads.
+  auto* system_packet_mask = &context->packet_mask;
+  *system_packet_mask = *app_packet_mask;
+  AllowSessionMetadata(system_packet_mask);
+  AllowProcessAndPackageTables(system_packet_mask);
 
-  // Trace packet data (one-of field) - Every field here should also be modified
-  // by message-focused transform.
-  packet_mask.set(com::android::internal::pbzero::FrameworksNativeTracePacket::
-                      kFrameTimelineEventFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kClockSnapshotFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kCpuInfoFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kFtraceEventsFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kInitialDisplayStateFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kPackagesListFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kProcessStatsFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kProcessTreeFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kServiceEventFieldNumber);
-  packet_mask.set(
-      protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kSysStatsFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kSystemInfoFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTraceConfigFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTraceStatsFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kTriggerFieldNumber);
-  packet_mask.set(protos::pbzero::TracePacket::kPerfSampleFieldNumber);
+  // System-trace payloads (every field here must also be handled by a
+  // message-focused transform).
+  system_packet_mask->set(
+      com::android::internal::pbzero::FrameworksNativeTracePacket::
+          kFrameTimelineEventFieldNumber);
+  system_packet_mask->set(TracePacket::kCpuInfoFieldNumber);
+  system_packet_mask->set(TracePacket::kFtraceEventsFieldNumber);
+  system_packet_mask->set(TracePacket::kInitialDisplayStateFieldNumber);
+  system_packet_mask->set(TracePacket::kPerfSampleFieldNumber);
+  system_packet_mask->set(TracePacket::kSysStatsFieldNumber);
 
   // FTRACE EVENT NOTES
   //
