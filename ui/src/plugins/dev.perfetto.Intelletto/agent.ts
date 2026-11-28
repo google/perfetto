@@ -15,11 +15,19 @@
 import {z} from 'zod';
 import type {LlmGateway, ModelPath} from '../dev.perfetto.Llm/gateway';
 import type {
+  ErrorKind,
   Message,
   ToolCall,
   ToolDef,
   ToolResult,
 } from '../dev.perfetto.Llm/protocol';
+import {
+  DEFAULT_MAX_COMPACTION_TOKENS,
+  canCompactHistory,
+  compactHistory,
+  compactionTriggerTokens,
+  splitHistoryForCompaction,
+} from './compaction';
 import type {ToolRegistry} from './tools';
 
 // Hard bound on tool-use rounds per user turn. Stops a misbehaving model from
@@ -47,6 +55,10 @@ export type AgentEvent =
       readonly outputTokens?: number;
       readonly totalTokens?: number;
     }
+  // Emitted before and after automatic conversation compaction summarizes
+  // older history to stay within the model's context window.
+  | {readonly type: 'compacting'}
+  | {readonly type: 'compacted'; readonly summary: string}
   // A user-facing error (backend failure, iteration cap, no model configured).
   // Distinct from a tool error, which is fed back to the model, not surfaced.
   | {readonly type: 'error'; readonly message: string};
@@ -55,6 +67,9 @@ export class Agent {
   // The full conversation history (system prompt aside). Owned here because LLM
   // endpoints are stateless and we resend it every request.
   private history: Message[] = [];
+  // Token count reported by the most recent model call, used to trigger
+  // proactive compaction before the context window fills up.
+  private lastTotalTokens?: number;
 
   /**
    * @param gateway - The LLM gateway used to drive the model.
@@ -74,6 +89,8 @@ export class Agent {
     private readonly tools: ToolRegistry | (() => ToolRegistry),
     private readonly systemPrompt: string | (() => string),
     private readonly eagerTools: boolean = true,
+    private readonly maxCompactionTokens:
+      number | (() => number) = DEFAULT_MAX_COMPACTION_TOKENS,
   ) {}
 
   private getTools(): ToolRegistry {
@@ -86,8 +103,15 @@ export class Agent {
       : this.systemPrompt;
   }
 
+  private getMaxCompactionTokens(): number {
+    return typeof this.maxCompactionTokens === 'function'
+      ? this.maxCompactionTokens()
+      : this.maxCompactionTokens;
+  }
+
   reset(): void {
     this.history = [];
+    this.lastTotalTokens = undefined;
   }
 
   /** The full conversation history, e.g. for persisting the conversation. */
@@ -96,8 +120,9 @@ export class Agent {
   }
 
   /** Replace the conversation history, e.g. when restoring a conversation. */
-  setHistory(history: readonly Message[]): void {
+  setHistory(history: readonly Message[], totalTokens?: number): void {
     this.history = [...history];
+    this.lastTotalTokens = totalTokens;
   }
 
   /**
@@ -107,6 +132,55 @@ export class Agent {
   canRetry(): boolean {
     const last = this.history[this.history.length - 1];
     return last?.role === 'user' || last?.role === 'tool-result';
+  }
+
+  /**
+   * True when history has enough content to be manually compacted (and isn't
+   * already a freshly compacted summary with no subsequent turns).
+   */
+  canCompact(): boolean {
+    return canCompactHistory(this.history);
+  }
+
+  /**
+   * Manually compact the conversation history using `model`.
+   *
+   * @yields 'compacting', followed by 'compacted' on success or 'error' on
+   *     failure.
+   */
+  async *compact(
+    model: ModelPath,
+    signal?: AbortSignal,
+  ): AsyncGenerator<AgentEvent, void, void> {
+    if (!this.canCompact()) return;
+    const abortSignal = signal ?? new AbortController().signal;
+    const contextWindow = this.getContextWindow(model);
+    yield {type: 'compacting'};
+    try {
+      const compacted = await compactHistory(
+        this.gateway,
+        model,
+        this.history,
+        contextWindow,
+        abortSignal,
+        {mode: 'manual'},
+      );
+      if (abortSignal.aborted) return;
+      if (compacted === undefined) {
+        yield {type: 'error', message: 'Failed to compact conversation.'};
+        return;
+      }
+      this.history = compacted.history;
+      this.lastTotalTokens = undefined;
+      yield {type: 'compacted', summary: compacted.summary};
+    } catch (e) {
+      if (!abortSignal.aborted) {
+        yield {
+          type: 'error',
+          message: `Failed to compact conversation: ${e}`,
+        };
+      }
+    }
   }
 
   /**
@@ -181,52 +255,99 @@ export class Agent {
         this.history.push({role: 'user', text: followUp});
       }
 
-      const toolDefs = this.buildToolDefs(loaded);
-      const calls: ToolCall[] = [];
-      let turnText = '';
-      let backendError: string | undefined;
-
-      for await (const evt of this.gateway.createStream(
-        model,
-        {
-          systemPrompt: this.getSystemPrompt(),
-          messages: this.history,
-          tools: toolDefs,
-        },
-        abortSignal,
-      )) {
-        switch (evt.type) {
-          case 'text':
-            turnText += evt.text;
-            yield {type: 'text', text: evt.text};
-            break;
-          case 'thought':
-            yield {type: 'thought', text: evt.text};
-            break;
-          case 'tool-call':
-            calls.push(evt.call);
-            yield {
-              type: 'toolcall',
-              name: evt.call.name,
-              args: evt.call.args,
-            };
-            break;
-          case 'usage':
-            yield {type: 'usage', ...evt.usage};
-            break;
-          case 'stop':
-            if (evt.reason === 'error') {
-              backendError = evt.error?.message ?? 'Unknown backend error';
-            }
-            break;
-        }
+      const contextWindow = this.getContextWindow(model);
+      const triggerTokens = compactionTriggerTokens(
+        contextWindow,
+        this.getMaxCompactionTokens(),
+      );
+      let attemptedCompactThisIter = false;
+      if (
+        triggerTokens !== undefined &&
+        this.lastTotalTokens !== undefined &&
+        this.lastTotalTokens >= triggerTokens
+      ) {
+        attemptedCompactThisIter = true;
+        yield* this.tryCompact(model, contextWindow, abortSignal);
+        if (signal?.aborted) return;
       }
 
-      if (signal?.aborted) return;
+      const toolDefs = this.buildToolDefs(loaded);
+      let calls: ToolCall[] = [];
+      let turnText = '';
 
-      if (backendError !== undefined) {
-        yield {type: 'error', message: backendError};
-        return;
+      while (true) {
+        calls = [];
+        turnText = '';
+        let backendError:
+          {readonly kind: ErrorKind; readonly message: string} | undefined;
+
+        for await (const evt of this.gateway.createStream(
+          model,
+          {
+            systemPrompt: this.getSystemPrompt(),
+            messages: this.history,
+            tools: toolDefs,
+          },
+          abortSignal,
+        )) {
+          switch (evt.type) {
+            case 'text':
+              turnText += evt.text;
+              yield {type: 'text', text: evt.text};
+              break;
+            case 'thought':
+              yield {type: 'thought', text: evt.text};
+              break;
+            case 'tool-call':
+              calls.push(evt.call);
+              yield {
+                type: 'toolcall',
+                name: evt.call.name,
+                args: evt.call.args,
+              };
+              break;
+            case 'usage': {
+              const tokens = evt.usage.totalTokens ?? evt.usage.inputTokens;
+              if (tokens !== undefined) {
+                this.lastTotalTokens = tokens;
+              }
+              yield {type: 'usage', ...evt.usage};
+              break;
+            }
+            case 'stop':
+              if (evt.reason === 'error') {
+                backendError = {
+                  kind: evt.error?.kind ?? 'unknown',
+                  message: evt.error?.message ?? 'Unknown backend error',
+                };
+              }
+              break;
+          }
+        }
+
+        if (signal?.aborted) return;
+
+        if (backendError !== undefined) {
+          // Reactive fallback: if the backend rejected the prompt as too long
+          // (e.g. contextWindow wasn't configured or a single tool result
+          // pushed us over 100%), compact once and retry this round in place.
+          if (
+            backendError.kind === 'context-length' &&
+            !attemptedCompactThisIter
+          ) {
+            attemptedCompactThisIter = true;
+            const compacted = yield* this.tryCompact(
+              model,
+              contextWindow,
+              abortSignal,
+            );
+            if (signal?.aborted) return;
+            if (compacted) continue;
+          }
+          yield {type: 'error', message: backendError.message};
+          return;
+        }
+        break;
       }
 
       // Record the model's turn (text and/or tool calls) in the history.
@@ -262,6 +383,44 @@ export class Agent {
         `Stopped after ${MAX_ITERATIONS} tool-use rounds without a ` +
         `final answer. Try narrowing the question.`,
     };
+  }
+
+  private getContextWindow(model: ModelPath): number | undefined {
+    return this.gateway
+      .listModels()
+      .find(
+        (m) =>
+          m.provider.id === model.providerId && m.model.id === model.modelId,
+      )?.model.contextWindow;
+  }
+
+  private async *tryCompact(
+    model: ModelPath,
+    contextWindow: number | undefined,
+    signal: AbortSignal,
+  ): AsyncGenerator<AgentEvent, boolean, void> {
+    if (splitHistoryForCompaction(this.history) === undefined) {
+      return false;
+    }
+    yield {type: 'compacting'};
+    try {
+      const compacted = await compactHistory(
+        this.gateway,
+        model,
+        this.history,
+        contextWindow,
+        signal,
+      );
+      if (signal.aborted || compacted === undefined) {
+        return false;
+      }
+      this.history = compacted.history;
+      this.lastTotalTokens = undefined;
+      yield {type: 'compacted', summary: compacted.summary};
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // Execute one tool call. The meta-tools (list_tools / more_tools) are handled

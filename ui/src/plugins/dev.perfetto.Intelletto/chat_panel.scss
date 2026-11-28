@@ -266,6 +266,51 @@
     }
   }
 
+  &__compaction {
+    width: 100%;
+    margin: 8px 0 12px;
+    font-size: 0.82em;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__compaction-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1;
+      border-top: 1px dashed var(--pf-color-border);
+    }
+
+    &:hover .pf-intelletto__compaction-label {
+      color: var(--pf-color-text);
+    }
+  }
+
+  &__compaction-label {
+    white-space: nowrap;
+  }
+
+  &__compaction-body {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 8px;
+    background-color: var(--pf-color-background-secondary);
+    color: var(--pf-color-text);
+    line-height: 1.45;
+  }
+
   &__tool-summary {
     cursor: pointer;
     user-select: none;

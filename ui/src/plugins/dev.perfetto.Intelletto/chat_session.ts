@@ -25,7 +25,8 @@ const CANCELLED_TEXT = '(turn cancelled)';
 /** A single line in the conversation transcript. */
 export interface ChatLine {
   /** Which kind of line this is; drives how it renders. */
-  role: 'ai' | 'user' | 'error' | 'thought' | 'toolcall' | 'spacer';
+  role:
+    'ai' | 'user' | 'error' | 'thought' | 'toolcall' | 'compaction' | 'spacer';
   /** The line's text content (e.g. message body, or tool name for toolcalls). */
   text: string;
   /**
@@ -53,6 +54,8 @@ export class ChatSession {
   lines: ChatLine[] = [];
   /** True while a turn is in flight. */
   loading = false;
+  /** True while older conversation history is being compacted. */
+  compacting = false;
   /** Total tokens reported by the most recent turn, if any. */
   totalTokens?: number;
 
@@ -122,8 +125,15 @@ export class ChatSession {
     systemPrompt: string | (() => string),
     private readonly store: ConversationStore,
     init: {readonly stored: StoredConversation} | {readonly model?: ModelPath},
+    maxCompactionTokens?: number | (() => number),
   ) {
-    this.agent = new Agent(gateway, tools, systemPrompt);
+    this.agent = new Agent(
+      gateway,
+      tools,
+      systemPrompt,
+      true,
+      maxCompactionTokens,
+    );
     if ('stored' in init) {
       const {stored} = init;
       this.id = stored.id;
@@ -132,7 +142,7 @@ export class ChatSession {
       this.customTitle = stored.customTitle;
       this.lines = stored.lines.map((l) => ({...l}));
       this.totalTokens = stored.totalTokens;
-      this.agent.setHistory(stored.history);
+      this.agent.setHistory(stored.history, stored.totalTokens);
     } else {
       this.id = uuidv4();
       this.createdAt = Date.now();
@@ -201,6 +211,69 @@ export class ChatSession {
     }
 
     await this.drainTurns(text, model);
+  }
+
+  /**
+   * True when the conversation has history worth manually compacting and no
+   * turn is currently in flight.
+   */
+  get canCompact(): boolean {
+    return !this.loading && this.agent.canCompact();
+  }
+
+  /**
+   * Manually summarize the conversation history using `model` so subsequent
+   * turns use less of the context window. No-op while a turn is running or
+   * when there is nothing to compact.
+   */
+  async compact(model: ModelPath): Promise<void> {
+    if (!this.canCompact) return;
+
+    this.model = model;
+    const abort = new AbortController();
+    this.abort = abort;
+    this.loading = true;
+    this.compacting = true;
+    m.redraw();
+
+    try {
+      for await (const evt of this.agent.compact(model, abort.signal)) {
+        switch (evt.type) {
+          case 'compacting':
+            this.compacting = true;
+            break;
+          case 'compacted':
+            this.compacting = false;
+            this.totalTokens = undefined;
+            this.lines.push({role: 'compaction', text: evt.summary});
+            this.save();
+            break;
+          case 'error':
+            this.compacting = false;
+            this.lines.push({
+              role: 'error',
+              text: evt.message || 'Unknown error',
+            });
+            break;
+        }
+        m.redraw();
+      }
+    } catch (e) {
+      if (!abort.signal.aborted) {
+        this.lines.push({role: 'error', text: `Something went wrong: ${e}`});
+      }
+    } finally {
+      this.loading = false;
+      this.compacting = false;
+      this.abort = undefined;
+      this.save();
+      m.redraw();
+    }
+
+    const next = this.pendingFollowUps.shift();
+    if (next !== undefined) {
+      await this.drainTurns(next, model);
+    }
   }
 
   /**
@@ -319,6 +392,9 @@ export class ChatSession {
               dequeueFollowUp,
             );
       for await (const evt of stream) {
+        if (evt.type !== 'compacting') {
+          this.compacting = false;
+        }
         switch (evt.type) {
           case 'text':
             this.appendAi(evt.text);
@@ -355,6 +431,14 @@ export class ChatSession {
               this.totalTokens = evt.totalTokens;
             }
             break;
+          case 'compacting':
+            this.compacting = true;
+            break;
+          case 'compacted':
+            this.totalTokens = undefined;
+            this.lines.push({role: 'compaction', text: evt.summary});
+            this.save();
+            break;
           case 'error':
             this.lines.push({
               role: 'error',
@@ -371,6 +455,7 @@ export class ChatSession {
       }
     } finally {
       this.loading = false;
+      this.compacting = false;
       this.abort = undefined;
       this.save();
       m.redraw();

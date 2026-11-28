@@ -47,6 +47,7 @@ export interface ConversationSummary {
 export interface ChatPanelAttrs {
   // Status
   readonly isAgentRunning: boolean;
+  readonly isCompacting?: boolean;
   readonly isLoadingSkills: boolean;
   readonly totalTokens?: number;
   readonly onCancel: () => void;
@@ -62,6 +63,7 @@ export interface ChatPanelAttrs {
   readonly activeConversationId?: string;
   readonly onOpenConversation: (id: string) => void;
   readonly onNewConversation: () => void;
+  readonly onCompactConversation?: () => void;
   readonly onRenameConversation?: (name: string) => void;
   readonly onDeleteConversation?: (id: string) => void;
 
@@ -168,12 +170,16 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           : attrs.conversation.map((msg, i) => {
               if (msg.text === '' && msg.role !== 'spacer') return null;
               if (msg.role === 'toolcall') return this.renderToolCall(msg);
+              if (msg.role === 'compaction') {
+                return this.renderCompaction(msg, attrs);
+              }
               const labels: Record<ChatLine['role'], string> = {
                 ai: 'Intelletto',
                 user: 'You',
                 error: 'Error',
                 toolcall: 'Tool',
                 thought: 'Thought',
+                compaction: '',
                 spacer: '',
               };
               const showRetry =
@@ -188,14 +194,8 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
                   {
                     // Evidence chips are plain HTML from markdown-it (or
                     // DataGrid cells), so handle their clicks by delegation.
-                    onclick: (e: MouseEvent) => {
-                      const chip = (e.target as HTMLElement).closest(
-                        '[data-evidence]',
-                      );
-                      if (!(chip instanceof HTMLElement)) return;
-                      const ev = parseEvidence(chip.dataset.evidence ?? '');
-                      if (ev !== undefined) attrs.onEvidence?.(ev);
-                    },
+                    onclick: (e: MouseEvent) =>
+                      this.handleEvidenceClick(e, attrs),
                   },
                   renderMarkdown(this.md, msg.text),
                 ),
@@ -217,7 +217,11 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           m(
             '.pf-intelletto__working',
             m(Spinner, {easing: true}),
-            attrs.isAgentRunning ? 'Working...' : 'Loading skills...',
+            attrs.isCompacting === true
+              ? 'Compacting conversation...'
+              : attrs.isAgentRunning
+                ? 'Working...'
+                : 'Loading skills...',
           ),
       ),
       m(
@@ -325,6 +329,16 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           )
         : m('span.pf-intelletto__header-spacer'),
       m(Button, {
+        icon: 'compress',
+        title: 'Compact conversation',
+        disabled:
+          attrs.isAgentRunning || attrs.onCompactConversation === undefined,
+        onclick: () => {
+          this.conversationsOpen = false;
+          attrs.onCompactConversation?.();
+        },
+      }),
+      m(Button, {
         icon: 'edit',
         title: 'Rename conversation',
         disabled:
@@ -397,6 +411,30 @@ export class ChatPanel implements m.ClassComponent<ChatPanelAttrs> {
           `${excluded ? '☐' : '☑'} ${c.label}`,
         );
       }),
+    );
+  }
+
+  private handleEvidenceClick(e: MouseEvent, attrs: ChatPanelAttrs): void {
+    const chip = (e.target as HTMLElement).closest('[data-evidence]');
+    if (!(chip instanceof HTMLElement)) return;
+    const ev = parseEvidence(chip.dataset.evidence ?? '');
+    if (ev !== undefined) attrs.onEvidence?.(ev);
+  }
+
+  // A collapsible notice inserted in the transcript whenever older history is
+  // automatically summarized to stay within the model's context window.
+  private renderCompaction(msg: ChatLine, attrs: ChatPanelAttrs): m.Children {
+    return m(
+      'details.pf-intelletto__compaction',
+      m(
+        'summary.pf-intelletto__compaction-summary',
+        m('span.pf-intelletto__compaction-label', 'Conversation compacted'),
+      ),
+      m(
+        '.pf-intelletto__compaction-body',
+        {onclick: (e: MouseEvent) => this.handleEvidenceClick(e, attrs)},
+        renderMarkdown(this.md, msg.text),
+      ),
     );
   }
 
