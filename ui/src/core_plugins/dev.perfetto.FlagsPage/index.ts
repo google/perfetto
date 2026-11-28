@@ -19,6 +19,13 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import {FlagsPage} from './flags_page';
 import {PluginsPage} from './plugins_page';
 
+// Both pages list every plugin, so they wait for the lazily loaded ones.
+function whenAllPluginsLoaded(app: AppImpl, render: () => m.Children) {
+  if (app.plugins.lazyPluginsLoaded) return render();
+  app.plugins.loadLazyPlugins().then(() => m.redraw());
+  return undefined;
+}
+
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.FlagsPage';
 
@@ -26,7 +33,8 @@ export default class implements PerfettoPlugin {
     // Flags page
     app.pages.registerPage({
       route: '/flags',
-      render: (subpage) => m(FlagsPage, {subpage}),
+      render: (subpage) =>
+        whenAllPluginsLoaded(app, () => m(FlagsPage, {subpage})),
     });
     app.sidebar.addMenuItem({
       section: 'settings',
@@ -39,7 +47,8 @@ export default class implements PerfettoPlugin {
     // Plugins page
     app.pages.registerPage({
       route: '/plugins',
-      render: (subpage) => m(PluginsPage, {subpage}),
+      render: (subpage) =>
+        whenAllPluginsLoaded(app, () => m(PluginsPage, {subpage})),
     });
     app.sidebar.addMenuItem({
       section: 'settings',

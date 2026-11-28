@@ -27,7 +27,6 @@ import type {
   ModelPath,
 } from '../dev.perfetto.Llm/gateway';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
-import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
 import type {
   ContextProviderRegistration,
   IntellettoToolRegistrar,
@@ -36,7 +35,6 @@ import type {
 import {ChatPanel} from './chat_panel';
 import {ChatSession} from './chat_session';
 import {ConversationStore} from './conversation_store';
-import {registerDataExplorerTools} from './data_explorer_tools';
 import {
   ContextRegistry,
   registerAppContextProviders,
@@ -67,11 +65,7 @@ export default class IntellettoPlugin
     'gateway and an LLM protocol plugin. Other plugins can register their own ' +
     'tools via getPlugin(IntellettoPlugin).registerTool().';
   static readonly status: PluginStatus = 'experimental';
-  static readonly dependencies = [
-    LlmPlugin,
-    QueryPagePlugin,
-    DataExplorerPlugin,
-  ];
+  static readonly dependencies = [LlmPlugin, QueryPagePlugin];
 
   // App-scoped persisted setting: the user's last-selected model for the
   // assistant. Headless (hidden from settings page) — changed via the sidebar
@@ -348,8 +342,13 @@ export default class IntellettoPlugin
 
   /** Register trace-scoped tools (Data Explorer, WebMCP) for a loaded trace. */
   async onTraceLoad(trace: Trace): Promise<void> {
-    // Pull in the Data Explorer graph tools and selected-node context.
-    registerDataExplorerTools(this.tools, this.context, trace);
+    // Pull in the Data Explorer graph tools and selected-node context. Data
+    // Explorer isn't a dependency so it can load after startup; it comes
+    // before this plugin in load order.
+    if (trace.plugins.isPluginEnabled('dev.perfetto.DataExplorer')) {
+      const {registerDataExplorerTools} = await import('./data_explorer_tools');
+      registerDataExplorerTools(this.tools, this.context, trace);
+    }
 
     // Register tools with Chrome's experimental WebMCP API so external agents
     // (e.g. Chrome's built-in AI agent, MCP inspector extensions) can discover

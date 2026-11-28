@@ -16,7 +16,11 @@ import './styles.scss';
 import m from 'mithril';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
-import {WidgetsPage} from './widgets_page';
+import {lazyComponent} from '../../widgets/lazy_component';
+
+const WidgetsPage = lazyComponent(() =>
+  import('./widgets_page').then((mod) => mod.WidgetsPage),
+);
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.WidgetsPage';

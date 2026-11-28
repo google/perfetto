@@ -17,7 +17,12 @@ import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {SearchBenchmarkPage} from './search_benchmark_page';
-import {SearchResultsTab} from './search_results_tab';
+import {lazyComponent} from '../../widgets/lazy_component';
+
+// The results table is large, and only shown after a search.
+const SearchResultsTab = lazyComponent(() =>
+  import('./search_results_tab').then((mod) => mod.SearchResultsTab),
+);
 import {featureFlags} from '../../core/feature_flags';
 
 const BENCHMARK_PAGE_FLAG = featureFlags.register({

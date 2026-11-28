@@ -84,7 +84,7 @@ export function validateColumnName(name: string): void {
 // ---------------------------------------------------------------------------
 
 // Re-export EChartBrushEndParams for use by other chart modules.
-export {type EChartBrushEndParams} from './echart_view';
+export type {EChartBrushEndParams} from './echart_view';
 
 /**
  * Extract the numeric brush range from an ECharts brushEnd event.

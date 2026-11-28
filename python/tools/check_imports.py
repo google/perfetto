@@ -106,6 +106,10 @@ DEPS_ALLOWLIST = [
     ('/trace_processor/wasm_modules', '/gen/trace_processor*'),
     ('/trace_processor/sql_utils/*', '/trace_processor/*'),
     ('/protos/index', '/gen/protos'),
+    # Intelletto imports Data Explorer on trace load rather than declaring it
+    # a dependency, so Data Explorer stays out of the startup bundle.
+    ('/plugins/dev.perfetto.Intelletto/data_explorer_tools',
+     '/plugins/dev.perfetto.DataExplorer/*'),
 
     # ------ Technical debt that needs cleaning up below this point ------
     # TODO(stevegolton): Remove these once we extract core types out of

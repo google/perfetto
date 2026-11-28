@@ -14,6 +14,8 @@
 
 import type {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
 
+export {plugins} from '../virtual/plugin_barrel';
+
 // Helper for plugin "barrel" modules built on top of Vite's import.meta.glob.
 //
 // IMPORTANT: the import.meta.glob() call itself MUST live at the call site with
@@ -51,10 +53,6 @@ export function collectPluginBarrel(
 // and re-evaluates when a dir is added or removed, so there's nothing to keep
 // in sync by hand. The literal pattern + options are required by Vite's static
 // analysis; the ordering and cast are factored into collectPluginBarrel.
-
-export const plugins = collectPluginBarrel(
-  import.meta.glob('../plugins/*/index.ts', {eager: true, import: 'default'}),
-);
 
 export const corePlugins = collectPluginBarrel(
   import.meta.glob('../core_plugins/*/index.ts', {

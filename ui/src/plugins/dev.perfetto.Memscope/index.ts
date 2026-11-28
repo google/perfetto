@@ -21,10 +21,18 @@ import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 import HeapDumpExplorerPlugin from '../com.android.HeapDumpExplorer';
-import {ConnectionPage} from './views/connection';
+import {lazyComponent} from '../../widgets/lazy_component';
+
+const ConnectionPage = lazyComponent(() =>
+  import('./views/connection').then((mod) => mod.ConnectionPage),
+);
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
-import {MemoryOverviewPage} from './views/landing_page/memory_overview_page';
+const MemoryOverviewPage = lazyComponent(() =>
+  import('./views/landing_page/memory_overview_page').then(
+    (mod) => mod.MemoryOverviewPage,
+  ),
+);
 import {NUM} from '../../trace_processor/query_result';
 import {EmptyState} from '../../widgets/empty_state';
 import type {MemoryOverviewTab} from './views/landing_page/proc_mem_overview';

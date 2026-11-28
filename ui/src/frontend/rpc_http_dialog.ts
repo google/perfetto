@@ -13,15 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import protos from '../protos';
+import type protos from '../protos';
 import {ensureExists} from '../base/assert';
 import {VERSION} from '../virtual/version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
 
-const CURRENT_API_VERSION =
-  protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
+// Set once a trace processor answers, which is when protos are first loaded.
+let CURRENT_API_VERSION = 0;
 
 function getPromptMessage(tpStatus: protos.StatusResult): string {
   return `Trace Processor detected on ${HttpRpcEngine.hostAndPort} with:
@@ -156,6 +156,9 @@ export async function checkHttpRpcConnection(): Promise<void> {
     return;
   }
   const tpStatus = ensureExists(state.status);
+  const {default: protos} = await import('../protos');
+  CURRENT_API_VERSION =
+    protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
   function forceWasm() {
     AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';

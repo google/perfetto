@@ -17,13 +17,22 @@ import m from 'mithril';
 import {z} from 'zod';
 import {runQueryForQueryTable} from '../../components/query_table/queries';
 import {QueryResultsTab} from './query_result_tab';
-import {type ResultsData, ResultsTable} from './results_table';
+import type {ResultsData} from './results_table';
 import {undoCommonChatAppReplacements} from '../../base/string_utils';
 import type {App} from '../../public/app';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
-import {QueryPage, type QueryEditorTab} from './query_page';
+import type {QueryEditorTab} from './query_page';
+import {lazyComponent} from '../../widgets/lazy_component';
+
+// The editor and results table are large, and only shown once a trace loads.
+const QueryPage = lazyComponent(() =>
+  import('./query_page').then((mod) => mod.QueryPage),
+);
+const ResultsTable = lazyComponent(() =>
+  import('./results_table').then((mod) => mod.ResultsTable),
+);
 import type {Extension} from '@codemirror/state';
 import {queryHistoryStorage} from '../../components/widgets/query_history';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
