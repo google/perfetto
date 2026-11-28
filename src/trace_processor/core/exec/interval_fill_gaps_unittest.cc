@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -54,8 +53,8 @@ class RowsSource final : public Source {
     }
   }
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;
@@ -189,14 +188,14 @@ std::vector<Row> RunFill(
     OpResult result;
     do {
       result = op.Execute(in, out, state);
-      EXPECT_NE(result, OpResult::kError) << op.status(state).message();
+      EXPECT_NE(result, OpResult::kError) << state.context().error().message();
       collect();
     } while (result == OpResult::kHaveMoreOutput);
   }
   OpResult result;
   do {
     result = op.Finish(out, state);
-    EXPECT_NE(result, OpResult::kError) << op.status(state).message();
+    EXPECT_NE(result, OpResult::kError) << state.context().error().message();
     collect();
   } while (result == OpResult::kHaveMoreOutput);
   std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
@@ -236,7 +235,7 @@ TEST(IntervalFillGapsTest, FillsEveryLaneAcrossBatches) {
   auto state = op.MakeState(fill.context());
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
-    state->EndRun();
+    test::EndRun(*state);
     EXPECT_EQ(RunFill(fill.context(), op, *state, input, chunk), expected);
   }
 }

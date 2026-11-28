@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -72,7 +71,7 @@ struct Numbered {
 
   Context context;
   TreeNumberNodes op;
-  std::unique_ptr<OperatorState> state;
+  OperatorState* state;
   std::vector<T> ids_;
   std::vector<T> parents_;
   BitVector validity_;
@@ -128,7 +127,7 @@ TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
   StringPool::Id string = pool.InternString("id");
   Context context;
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
   std::vector<Variant> ids = {Variant::Int64(string.raw_id()),
                               Variant::String(string)};
   std::vector<Variant> parents = {Variant::Null(), Variant::Null()};
@@ -167,7 +166,7 @@ struct Scanned {
 
   Context context;
   TreeNumberNodes op;
-  std::unique_ptr<OperatorState> state;
+  OperatorState* state;
   std::vector<uint32_t> parents_;
   BitVector validity_;
   RowBatch out;
@@ -176,7 +175,7 @@ struct Scanned {
 TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
   Numbered<int64_t> run(StorageType{Int64{}}, {1, 1}, {0, 0}, {false, false});
   EXPECT_FALSE(run.Process());
-  EXPECT_THAT(run.op.status(*run.state).message(),
+  EXPECT_THAT(run.state->context().error().message(),
               testing::HasSubstr("same id"));
 
   // A repeated id in a later batch is detected even when ids so far were
@@ -184,7 +183,7 @@ TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
   Scanned scanned({0, 0}, {false, true});
   ASSERT_TRUE(scanned.Process(0, 2));
   EXPECT_FALSE(scanned.Process(1, 1));
-  EXPECT_THAT(scanned.op.status(*scanned.state).message(),
+  EXPECT_THAT(scanned.state->context().error().message(),
               testing::HasSubstr("same id"));
 }
 
@@ -253,12 +252,12 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
       test::ColumnsInArena(arena, {df.shared_column(0), df.shared_column(1)}),
       df.row_count(), ReadDirection::kForwards);
   Context context;
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
+  OperatorState* scan_state = scan.MakeState(context);
   // The scan lends the nullable parents sparse, so they are laid out first.
   Expand expand(test::InArena<uint32_t>(arena, {1}));
-  std::unique_ptr<OperatorState> expand_state = expand.MakeState(context);
+  OperatorState* expand_state = expand.MakeState(context);
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
 
   RowBatch in;
   RowBatch out;

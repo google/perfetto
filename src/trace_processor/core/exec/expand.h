@@ -18,8 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_EXPAND_H_
 
 #include <cstdint>
-#include <memory>
-#include <vector>
 
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -39,17 +37,10 @@ class Expand final : public Transform {
   explicit Expand(core::ArenaSpan<uint32_t> columns);
 
   void DescribeColumns(StepColumns* out) const override;
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
-
-  struct State : OperatorState {
-    explicit State(Context& c) : context(&c) {}
-    ~State() override;
-    Context* context;
-  };
 
   core::ArenaSpan<uint32_t> columns_;
 };

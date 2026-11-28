@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "src/trace_processor/core/common/storage_types.h"
@@ -53,8 +52,8 @@ class Intervals final : public Source {
       key_.push_back(int64_t{i % 64});
     }
   }
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;

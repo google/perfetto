@@ -31,24 +31,32 @@ using testing::IsEmpty;
 
 constexpr Ts kForever = std::numeric_limits<int64_t>::max();
 
+// Keeps the gaps found.
+struct Found {
+  void operator()(const IntervalGaps::Gap& gap) const { gaps->push_back(gap); }
+  std::vector<IntervalGaps::Gap>* gaps;
+};
+
 // Each gap as (start, end, id, lane), and clears them.
-std::vector<std::tuple<Ts, Ts, uint32_t, uint32_t>> Take(IntervalGaps& gaps) {
+std::vector<std::tuple<Ts, Ts, uint32_t, uint32_t>> Take(
+    std::vector<IntervalGaps::Gap>& found) {
   std::vector<std::tuple<Ts, Ts, uint32_t, uint32_t>> out;
-  for (const IntervalGaps::Gap& gap : gaps.gaps()) {
+  for (const IntervalGaps::Gap& gap : found) {
     out.emplace_back(gap.start, gap.end, gap.id, gap.lane);
   }
-  gaps.gaps().clear();
+  found.clear();
   return out;
 }
 
 TEST(IntervalGapsTest, FillsAroundCoveringIntervals) {
   std::vector<Interval> background = {{0, 100, 7}};
   IntervalGaps gaps;
-  gaps.StartLane(0, background);
-  gaps.Cover(10, 20);
-  gaps.Cover(50, 60);
-  gaps.EndLane();
-  EXPECT_THAT(Take(gaps),
+  std::vector<IntervalGaps::Gap> found;
+  gaps.StartLane(0, background, Found{&found});
+  gaps.Cover(10, 20, Found{&found});
+  gaps.Cover(50, 60, Found{&found});
+  gaps.EndLane(Found{&found});
+  EXPECT_THAT(Take(found),
               ElementsAre(std::make_tuple(Ts{0}, Ts{10}, 7u, 0u),
                           std::make_tuple(Ts{20}, Ts{50}, 7u, 0u),
                           std::make_tuple(Ts{60}, Ts{100}, 7u, 0u)));
@@ -58,12 +66,13 @@ TEST(IntervalGapsTest, FillsAroundCoveringIntervals) {
 TEST(IntervalGapsTest, OverlappingCoverLeavesNoGap) {
   std::vector<Interval> background = {{0, 100, 0}};
   IntervalGaps gaps;
-  gaps.StartLane(0, background);
-  gaps.Cover(10, 40);
-  gaps.Cover(15, 20);
-  gaps.Cover(30, 50);
-  gaps.EndLane();
-  EXPECT_THAT(Take(gaps),
+  std::vector<IntervalGaps::Gap> found;
+  gaps.StartLane(0, background, Found{&found});
+  gaps.Cover(10, 40, Found{&found});
+  gaps.Cover(15, 20, Found{&found});
+  gaps.Cover(30, 50, Found{&found});
+  gaps.EndLane(Found{&found});
+  EXPECT_THAT(Take(found),
               ElementsAre(std::make_tuple(Ts{0}, Ts{10}, 0u, 0u),
                           std::make_tuple(Ts{50}, Ts{100}, 0u, 0u)));
 }
@@ -72,12 +81,14 @@ TEST(IntervalGapsTest, OverlappingCoverLeavesNoGap) {
 TEST(IntervalGapsTest, GapsStayWithinBackgroundIntervals) {
   std::vector<Interval> background = {{0, 10, 0}, {20, 30, 1}, {40, 50, 2}};
   IntervalGaps gaps;
-  gaps.StartLane(0, background);
-  gaps.Cover(5, 25);
-  gaps.EndLane();
-  EXPECT_THAT(Take(gaps), ElementsAre(std::make_tuple(Ts{0}, Ts{5}, 0u, 0u),
-                                      std::make_tuple(Ts{25}, Ts{30}, 1u, 0u),
-                                      std::make_tuple(Ts{40}, Ts{50}, 2u, 0u)));
+  std::vector<IntervalGaps::Gap> found;
+  gaps.StartLane(0, background, Found{&found});
+  gaps.Cover(5, 25, Found{&found});
+  gaps.EndLane(Found{&found});
+  EXPECT_THAT(Take(found),
+              ElementsAre(std::make_tuple(Ts{0}, Ts{5}, 0u, 0u),
+                          std::make_tuple(Ts{25}, Ts{30}, 1u, 0u),
+                          std::make_tuple(Ts{40}, Ts{50}, 2u, 0u)));
 }
 
 // A zero-width interval covers nothing, and one which never ends covers the
@@ -85,11 +96,12 @@ TEST(IntervalGapsTest, GapsStayWithinBackgroundIntervals) {
 TEST(IntervalGapsTest, PointsAndForever) {
   std::vector<Interval> background = {{0, 100, 0}};
   IntervalGaps gaps;
-  gaps.StartLane(0, background);
-  gaps.Cover(30, 30);
-  gaps.Cover(60, kForever);
-  gaps.EndLane();
-  EXPECT_THAT(Take(gaps), ElementsAre(std::make_tuple(Ts{0}, Ts{60}, 0u, 0u)));
+  std::vector<IntervalGaps::Gap> found;
+  gaps.StartLane(0, background, Found{&found});
+  gaps.Cover(30, 30, Found{&found});
+  gaps.Cover(60, kForever, Found{&found});
+  gaps.EndLane(Found{&found});
+  EXPECT_THAT(Take(found), ElementsAre(std::make_tuple(Ts{0}, Ts{60}, 0u, 0u)));
 }
 
 // Starting a lane ends the previous one, and a lane with no covering
@@ -98,16 +110,17 @@ TEST(IntervalGapsTest, LanesAreIndependent) {
   std::vector<Interval> first = {{0, 10, 0}};
   std::vector<Interval> second = {{5, 15, 1}};
   IntervalGaps gaps;
-  gaps.StartLane(3, first);
-  gaps.Cover(0, 4);
-  gaps.StartLane(4, second);
-  gaps.EndLane();
-  gaps.StartLane(5, {});
-  gaps.Cover(0, 10);
-  gaps.EndLane();
-  EXPECT_THAT(Take(gaps), ElementsAre(std::make_tuple(Ts{4}, Ts{10}, 0u, 3u),
-                                      std::make_tuple(Ts{5}, Ts{15}, 1u, 4u)));
-  EXPECT_THAT(Take(gaps), IsEmpty());
+  std::vector<IntervalGaps::Gap> found;
+  gaps.StartLane(3, first, Found{&found});
+  gaps.Cover(0, 4, Found{&found});
+  gaps.StartLane(4, second, Found{&found});
+  gaps.EndLane(Found{&found});
+  gaps.StartLane(5, {}, Found{&found});
+  gaps.Cover(0, 10, Found{&found});
+  gaps.EndLane(Found{&found});
+  EXPECT_THAT(Take(found), ElementsAre(std::make_tuple(Ts{4}, Ts{10}, 0u, 3u),
+                                       std::make_tuple(Ts{5}, Ts{15}, 1u, 4u)));
+  EXPECT_THAT(Take(found), IsEmpty());
 }
 
 }  // namespace

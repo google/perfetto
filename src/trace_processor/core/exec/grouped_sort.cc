@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <optional>
 #include <utility>
 
@@ -32,10 +31,8 @@
 namespace perfetto::trace_processor::core::exec {
 
 GroupedSort::GroupedSort(GroupedSortSpec spec) : spec_(spec) {}
-GroupedSort::State::~State() = default;
-
-std::unique_ptr<Breaker::State> GroupedSort::CreateState() const {
-  auto state = std::make_unique<State>();
+OperatorState* GroupedSort::NewSinkState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows.SetUnread(unread_);
   return state;
 }
@@ -51,13 +48,13 @@ bool GroupedSort::Consume(const RowBatch& in, Breaker::State& state) const {
   if (std::optional<uint32_t> bad =
           s.group_table.FindOrCreate(in, spec_.groups, s.groups.data() + at)) {
     s.groups.resize(at);
-    s.status = base::ErrStatus(
-        "GROUPED SORT: group %u must be a column holding one type", *bad + 1);
+    s.context().Fail(base::ErrStatus(
+        "GROUPED SORT: group %u must be a column holding one type", *bad + 1));
     return false;
   }
-  base::Status status = s.rows.Append(in, spec_.keys, nullptr, *s.context);
+  base::Status status = s.rows.Append(in, spec_.keys, nullptr, s.context());
   if (!status.ok()) {
-    s.status = base::ErrStatus("GROUPED SORT: %s", status.c_message());
+    s.context().Fail(base::ErrStatus("GROUPED SORT: %s", status.c_message()));
     return false;
   }
   return true;
@@ -114,9 +111,9 @@ bool GroupedSort::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows.size()) {
     return false;
   }
-  uint32_t count = s.rows.Gather(&out, s.emitted, *s.context);
+  uint32_t count = s.rows.Gather(&out, s.emitted, s.context());
   // In a buffer of its own, as the state can go before the batch does.
-  ColumnBuffer buffer = s.context->TakeBuffer(sizeof(uint32_t));
+  ColumnBuffer buffer = s.context().TakeBuffer(sizeof(uint32_t));
   auto* groups = buffer.chunk().Values<uint32_t>();
   memcpy(groups, s.ordered_groups.data() + s.emitted,
          uint64_t{count} * sizeof(uint32_t));

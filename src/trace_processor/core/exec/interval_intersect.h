@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_INTERVAL_INTERSECT_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -54,13 +53,13 @@ class IntervalIntersect final : public Source {
   // this. Two are the fewest which can have a region in common.
   explicit IntervalIntersect(core::ArenaSpan<CollectedInputSpec>);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
+
+  OperatorState* NewState(Context&) const override;
 
   core::ArenaSpan<CollectedInputSpec> operands_;
 };

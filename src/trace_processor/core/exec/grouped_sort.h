@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_GROUPED_SORT_H_
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -74,8 +73,6 @@ class GroupedSort final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     // The rows, as they arrive, and the group of each.
     Held<SortedRows> rows{this};
     Held<GroupTable> group_table{this};
@@ -92,7 +89,7 @@ class GroupedSort final : public Breaker {
     RunValue<uint32_t> emitted{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;

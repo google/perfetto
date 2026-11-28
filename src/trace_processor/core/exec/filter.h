@@ -20,7 +20,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -70,23 +69,20 @@ class Filter final : public Transform {
   // `pool` holds the strings of the columns, and must outlive the filter.
   Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    explicit State(const Context& c) : context(&c) {}
-    ~State() override;
-    // Where the run's params are.
-    const Context* context;
     // The batch rows still kept, increasing.
     CallScratch<std::array<uint32_t, kMaxBatchRows>> rows;
     // By batch row, the values of a sparse column or a sequence at the rows
     // kept.
     CallScratch<std::array<uint64_t, kMaxBatchRows>> sparse_values;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   core::ArenaSpan<Condition> conditions_;
   const StringPool* pool_;

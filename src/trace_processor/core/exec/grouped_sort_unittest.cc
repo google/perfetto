@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/grouped_sort.h"
 
 #include <cstdint>
-#include <memory>
 #include <random>
 #include <utility>
 #include <vector>

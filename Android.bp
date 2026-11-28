@@ -18313,6 +18313,7 @@ filegroup {
         "src/trace_processor/core/exec/assert_type_unittest.cc",
         "src/trace_processor/core/exec/breaker_unittest.cc",
         "src/trace_processor/core/exec/buffer_pool_unittest.cc",
+        "src/trace_processor/core/exec/context_unittest.cc",
         "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
         "src/trace_processor/core/exec/distinct_unittest.cc",
         "src/trace_processor/core/exec/executor_contract_unittest.cc",

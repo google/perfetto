@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -91,10 +90,8 @@ class IntervalFillGaps final : public Operator {
 
   IntervalFillGaps(core::Arena&, IntervalFillGapsSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
@@ -110,6 +107,7 @@ class IntervalFillGaps final : public Operator {
   };
 
   // Reads the background on first call. Returns false on error.
+  OperatorState* NewState(Context&) const override;
   bool EnsureBackgroundRead(State&) const;
   base::Status ReadBackground(State&) const;
 

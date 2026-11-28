@@ -18,7 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
+#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -50,10 +50,8 @@ const uint32_t* FlatData(const ColumnView& column) {
 TreeChildFirst::TreeChildFirst(uint32_t node_column, uint32_t parent_column)
     : node_column_(node_column), parent_column_(parent_column) {}
 
-TreeChildFirst::State::~State() = default;
-
-std::unique_ptr<Breaker::State> TreeChildFirst::CreateState() const {
-  auto state = std::make_unique<State>();
+OperatorState* TreeChildFirst::NewSinkState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows.SetUnread(unread_);
   return state;
 }
@@ -87,7 +85,8 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     parents[i] = parent;
     if (node == parent) {
       s.nodes_seen = nodes_seen;
-      s.status = base::ErrStatus("%s: a node is its own parent", kChildFirst);
+      s.context().Fail(
+          base::ErrStatus("%s: a node is its own parent", kChildFirst));
       return false;
     }
     nodes_seen = std::max(nodes_seen, node + 1);
@@ -113,8 +112,12 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
     s.has_row.set(node);
   }
   s.nodes_seen = nodes_seen;
-  s.status = s.rows.Append(in, *s.context);
-  return s.status.ok();
+  base::Status status = s.rows.Append(in, s.context());
+  if (!status.ok()) {
+    s.context().Fail(std::move(status));
+    return false;
+  }
+  return true;
 }
 
 bool TreeChildFirst::Sort(State& s) const {
@@ -171,9 +174,9 @@ bool TreeChildFirst::Sort(State& s) const {
     }
   }
   if (s.order.size() != rows) {
-    s.status = base::ErrStatus(
+    s.context().Fail(base::ErrStatus(
         "%s: the rows are not a tree, because %u of them are in a cycle",
-        kChildFirst, rows - static_cast<uint32_t>(s.order.size()));
+        kChildFirst, rows - static_cast<uint32_t>(s.order.size())));
     s.order.clear();
     return false;
   }
@@ -184,9 +187,9 @@ bool TreeChildFirst::Sort(State& s) const {
 bool TreeChildFirst::Finalize(Breaker::State& state) const {
   State& s = state.Cast<State>();
   if (s.has_row.CountSetBits() != s.nodes_seen) {
-    s.status = base::ErrStatus(
+    s.context().Fail(base::ErrStatus(
         "%s: a row names a parent which is not itself a row in the input",
-        kChildFirst);
+        kChildFirst));
     return false;
   }
   if (s.child_first) {
@@ -219,7 +222,7 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
     count = s.rows.Gather(
-        &out, base::Span<const uint32_t>(begin, begin + count), *s.context);
+        &out, base::Span<const uint32_t>(begin, begin + count), s.context());
   }
   s.emitted += count;
   return true;
@@ -227,8 +230,6 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
 
 TreeParentFirst::TreeParentFirst(uint32_t node_column, uint32_t parent_column)
     : node_column_(node_column), parent_column_(parent_column) {}
-
-TreeParentFirst::State::~State() = default;
 
 PERFETTO_NO_INLINE void TreeParentFirst::State::Nodes::Grow(uint32_t count) {
   auto size = static_cast<uint32_t>(first_waiting.size());
@@ -265,16 +266,10 @@ void TreeParentFirst::State::Waiting::Clear() {
   let_go = 0;
 }
 
-std::unique_ptr<OperatorState> TreeParentFirst::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<State>();
-  state->context = &context;
+OperatorState* TreeParentFirst::NewState(Context& context) const {
+  auto* state = context.Make<State>();
   state->held.rows.SetUnread(unread_);
   return state;
-}
-
-base::Status TreeParentFirst::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
 }
 
 PERFETTO_NO_INLINE void TreeParentFirst::Release(uint32_t node,
@@ -292,7 +287,7 @@ PERFETTO_NO_INLINE OpResult TreeParentFirst::LetGo(RowBatch& out,
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
   count = s.held.rows.Gather(
-      &out, base::Span<const uint32_t>(begin, begin + count), *s.context);
+      &out, base::Span<const uint32_t>(begin, begin + count), s.context());
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;
@@ -334,7 +329,8 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
     uint32_t node = node_data[index];
     uint32_t parent = parent_data[index];
     if (node == parent) {
-      s.status = base::ErrStatus("%s: a node is its own parent", kParentFirst);
+      s.context().Fail(
+          base::ErrStatus("%s: a node is its own parent", kParentFirst));
       return OpResult::kError;
     }
     uint32_t needed = std::max(node, parent == kNoNode ? 0 : parent) + 1;
@@ -360,8 +356,9 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
   if (!s.holding.empty()) {
     s.held_batch.CopyFrom(in);
     s.held_batch.mutable_selection().Keep(s.holding.span());
-    s.status = s.held.rows.Append(s.held_batch, *s.context);
-    if (!s.status.ok()) {
+    base::Status status = s.held.rows.Append(s.held_batch, s.context());
+    if (!status.ok()) {
+      s.context().Fail(std::move(status));
       return OpResult::kError;
     }
   }
@@ -400,15 +397,15 @@ OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
   }
   for (uint32_t node = 0; node < s.nodes.first_waiting.size(); ++node) {
     if (s.nodes.first_waiting[node] != kNoNode) {
-      s.status = base::ErrStatus(
+      s.context().Fail(base::ErrStatus(
           "%s: a row names a parent which is not itself a row in the input",
-          kParentFirst);
+          kParentFirst));
       return OpResult::kError;
     }
   }
-  s.status = base::ErrStatus(
+  s.context().Fail(base::ErrStatus(
       "%s: the rows are not a tree, because %u of them are in a cycle",
-      kParentFirst, stuck);
+      kParentFirst, stuck));
   return OpResult::kError;
 }
 

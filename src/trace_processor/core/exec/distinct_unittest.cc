@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/distinct.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <vector>
 
@@ -53,14 +52,14 @@ struct Batches {
         ColumnView::Reference(StorageType{Int64{}}, batches.back().data()));
     in.SetRowCount(static_cast<uint32_t>(batches.back().size()));
     EXPECT_TRUE(test::ProcessCopy(op, in, out, *state))
-        << op.status(*state).message();
+        << state->context().error().message();
     return test::ReadColumn<int64_t>(out, 0);
   }
 
   core::Arena arena;
   Context context;
   Distinct op;
-  std::unique_ptr<OperatorState> state;
+  OperatorState* state;
   // Kept alive, as the batches borrow them.
   std::vector<std::vector<int64_t>> batches;
   RowBatch out;
@@ -94,7 +93,7 @@ TEST(DistinctTest, RowsAreEqualOnlyIfEveryColumnIs) {
 
   Context context;
   Distinct op(test::InArena<uint32_t>(arena, {0, 1}));
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 1, 2));
@@ -117,7 +116,7 @@ TEST(DistinctTest, NullsAreOneValueAndZeroesAreEqual) {
 
   Context context;
   Distinct op(test::InArena<uint32_t>(arena, {0}));
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadNullableColumn<double>(out, 0),
@@ -138,7 +137,7 @@ TEST(DistinctTest, OnlyTheRowsKeptAreRead) {
 
   Context context;
   Distinct op(test::InArena<uint32_t>(arena, {0}));
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2));
@@ -159,20 +158,20 @@ TEST(DistinctTest, AColumnChangingKindFailsTheRun) {
 
   Context context;
   Distinct op(test::InArena<uint32_t>(arena, {0}));
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, of_ints, out, *state));
   EXPECT_FALSE(test::ProcessCopy(op, of_doubles, out, *state));
-  EXPECT_THAT(op.status(*state).message(),
+  EXPECT_THAT(state->context().error().message(),
               HasSubstr("DISTINCT: key 1 must be a column holding one type"));
 
   // A new run starts with nothing seen.
-  state->EndRun();
-  EXPECT_TRUE(op.status(*state).ok());
+  test::EndRun(*state);
+  EXPECT_TRUE(state->context().error().ok());
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 0u);
-  state->EndRun();
+  test::EndRun(*state);
   ASSERT_TRUE(test::ProcessCopy(op, of_doubles, out, *state));
   EXPECT_EQ(out.size(), 1u);
 }

@@ -17,14 +17,12 @@
 #include "src/trace_processor/core/exec/join.h"
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -140,8 +138,6 @@ void AddNullColumns(const JoinSpec& spec,
 // JoinBuild
 
 struct JoinBuild::Built : OperatorState {
-  ~Built() override;
-
   Context* context = nullptr;
   Held<RowStore> rows{this};
   // The first build key, and whether each key so far is one more than the
@@ -150,21 +146,17 @@ struct JoinBuild::Built : OperatorState {
   RunValue<bool> sequence{this, true};
 };
 
-JoinBuild::Built::~Built() = default;
-
 JoinBuild::JoinBuild(uint32_t key, core::ArenaSpan<bool> unread)
     : key_(key), unread_(unread) {}
 
-std::unique_ptr<OperatorState> JoinBuild::MakeSinkState(
-    Context& context) const {
-  auto built = std::make_unique<Built>();
+OperatorState* JoinBuild::NewSinkState(Context& context) const {
+  auto* built = context.Make<Built>();
   built->context = &context;
   built->rows.SetUnread(unread_);
   return built;
 }
 
-base::Status JoinBuild::ConsumeBatch(const RowBatch& in,
-                                     OperatorState& state) const {
+bool JoinBuild::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
   Built& b = state.Cast<Built>();
   if (b.sequence && in.size()) {
     // Like pipitdb's consecutive(), but not vectorized: the build side is
@@ -186,27 +178,32 @@ base::Status JoinBuild::ConsumeBatch(const RowBatch& in,
     }
     b.sequence = all;
   }
-  return b.rows.Append(in, *b.context);
+  base::Status status = b.rows.Append(in, *b.context);
+  if (!status.ok()) {
+    b.context->Fail(std::move(status));
+    return false;
+  }
+  return true;
 }
 
-base::Status JoinBuild::FinalizeSink(OperatorState& state) const {
-  if (!state.Cast<Built>().sequence) {
-    return base::ErrStatus(
+bool JoinBuild::FinalizeSink(OperatorState& state) const {
+  Built& b = state.Cast<Built>();
+  if (!b.sequence) {
+    b.context->Fail(base::ErrStatus(
         "JOIN: only a right side whose keys are a sequence, such as a "
-        "table's ids, is supported yet");
+        "table's ids, is supported yet"));
+    return false;
   }
-  return base::OkStatus();
+  return true;
 }
 
 // Join
 
 struct Join::State : OperatorState {
   State(Context& c, uint32_t build) : context(&c), build_use(this, build) {}
-  ~State() override;
 
   Context* context;
   PipelineUse build_use;
-  Held<base::Status> status{this};
   Held<RowBatch> gathered{this};
   // Set for a left join when some rows didn't match. The next call outputs
   // those rows, reading `paired` from this call.
@@ -214,8 +211,6 @@ struct Join::State : OperatorState {
   // For each input row, its build row or kNoBuildRow.
   uint32_t paired[kMaxBatchRows];
 };
-
-Join::State::~State() = default;
 
 Join::Join(JoinSpec spec) : spec_(spec) {}
 
@@ -225,24 +220,19 @@ void Join::DescribeColumns(StepColumns* out) const {
   out->reads = {spec_.probe_key};
 }
 
-std::unique_ptr<OperatorState> Join::MakeState(Context& context) const {
-  return std::make_unique<State>(context, spec_.build);
-}
-
-base::Status Join::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
+OperatorState* Join::NewState(Context& context) const {
+  return context.Make<State>(context, spec_.build);
 }
 
 OpResult Join::Execute(const RowBatch& in,
                        RowBatch& out,
                        OperatorState& state) const {
   State& s = state.Cast<State>();
-  base::StatusOr<OperatorState*> built = s.build_use.Built(*s.context);
-  if (!built.ok()) {
-    s.status = std::move(built).status();
+  OperatorState* built = s.build_use.Built(*s.context);
+  if (!built) {
     return OpResult::kError;
   }
-  auto& b = (*built)->Cast<JoinBuild::Built>();
+  auto& b = built->Cast<JoinBuild::Built>();
   out.CopyFrom(in);
   if (s.unmatched) {
     OutputMissed(b, out, s);
@@ -251,7 +241,7 @@ OpResult Join::Execute(const RowBatch& in,
   const ColumnView& key = in.column(spec_.probe_key);
   if (key.kind() != ColumnView::Kind::kSequence &&
       !key.type().IsAnyOf<IntegerType>()) {
-    s.status = base::ErrStatus("JOIN: the key is not an integer");
+    s.context->Fail(base::ErrStatus("JOIN: the key is not an integer"));
     return OpResult::kError;
   }
   OutputMatched(in, b, out, s);

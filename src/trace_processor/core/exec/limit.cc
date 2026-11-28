@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 
 #include "src/trace_processor/core/exec/operator.h"
@@ -30,10 +29,8 @@ namespace perfetto::trace_processor::core::exec {
 Limit::Limit(std::optional<uint32_t> limit, uint32_t offset)
     : limit_(limit), offset_(offset) {}
 
-Limit::State::~State() = default;
-
-std::unique_ptr<OperatorState> Limit::MakeState(Context&) const {
-  return std::make_unique<State>();
+OperatorState* Limit::NewState(Context& context) const {
+  return context.Make<State>();
 }
 
 OpResult Limit::Execute(const RowBatch& in,

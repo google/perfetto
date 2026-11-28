@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/distinct.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -35,14 +34,8 @@ Distinct::Distinct(core::ArenaSpan<uint32_t> columns) : columns_(columns) {
   PERFETTO_CHECK(!columns_.empty() && columns_.size() <= kMaxColumns);
 }
 
-Distinct::State::~State() = default;
-
-std::unique_ptr<OperatorState> Distinct::MakeState(Context&) const {
-  return std::make_unique<State>();
-}
-
-base::Status Distinct::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
+OperatorState* Distinct::NewState(Context& context) const {
+  return context.Make<State>();
 }
 
 bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
@@ -55,8 +48,8 @@ bool Distinct::Process(RowBatch& batch, OperatorState& state) const {
   uint32_t next = s.keys.size();
   if (std::optional<uint32_t> bad =
           s.keys.FindOrCreate(batch, columns_, s.row_keys.data())) {
-    s.status = base::ErrStatus(
-        "DISTINCT: key %u must be a column holding one type", *bad + 1);
+    s.context().Fail(base::ErrStatus(
+        "DISTINCT: key %u must be a column holding one type", *bad + 1));
     return false;
   }
   if (s.keys.size() == next + count) {

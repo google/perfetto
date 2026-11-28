@@ -93,15 +93,11 @@ struct Regions {
 
 class IntersectState : public OperatorState {
  public:
-  ~IntersectState() override;
-
   // Each operand, streamed in through the run's Context.
   std::vector<std::unique_ptr<PipelineUse>> operand_inputs;
   // What the bounds of the regions served are written in, which no operand
   // owns.
   Context* context = nullptr;
-
-  Held<base::Status> status{this};
 
   // The operands' intervals, read in full.
   // Shared by all operands, so a key has the same number in each of them.
@@ -146,8 +142,6 @@ class IntersectState : public OperatorState {
   };
   Held<Scratch> scratch{this};
 };
-
-IntersectState::~IntersectState() = default;
 
 // Narrows the regions of one key. If every operand is non-overlapping, runs a
 // fast k-pointer sweep. Otherwise, narrows through operands pairwise, smallest
@@ -223,9 +217,8 @@ IntervalIntersect::IntervalIntersect(
   PERFETTO_CHECK(operands_.size() >= 2);
 }
 
-std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<IntersectState>();
+OperatorState* IntervalIntersect::NewState(Context& context) const {
+  auto* state = context.Make<IntersectState>();
   state->context = &context;
   auto count = static_cast<uint32_t>(operands_.size());
   for (uint32_t i = 0; i < count; ++i) {
@@ -237,13 +230,9 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
   state->scratch.gather_rows.resize(count);
   for (const CollectedInputSpec& operand : operands_) {
     state->operand_inputs.push_back(
-        std::make_unique<PipelineUse>(state.get(), operand.pipeline));
+        std::make_unique<PipelineUse>(state, operand.pipeline));
   }
   return state;
-}
-
-base::Status IntervalIntersect::status(const OperatorState& state) const {
-  return state.Cast<const IntersectState>().status;
 }
 
 void IntervalIntersect::Rewind(OperatorState&) const {}
@@ -260,9 +249,10 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
                            ? std::numeric_limits<uint32_t>::max()
                            : s.group_table.size();
-      s.status = s.lanes[i]->Collect(*s.operand_inputs[i], *s.context,
-                                     &s.group_table, limit);
-      if (!s.status.ok()) {
+      base::Status status = s.lanes[i]->Collect(
+          *s.operand_inputs[i], *s.context, &s.group_table, limit);
+      if (!status.ok()) {
+        s.context->Fail(std::move(status));
         return false;
       }
     }

@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -173,7 +172,7 @@ TEST_F(ExpressionTest, OverflowFails) {
   auto state = compute.MakeState(context_);
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(compute, batch_, out, *state));
-  EXPECT_THAT(compute.status(*state).message(), HasSubstr("overflow"));
+  EXPECT_THAT(state->context().error().message(), HasSubstr("overflow"));
 }
 
 // The null row holds a value which would overflow, but has no value to

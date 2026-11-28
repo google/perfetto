@@ -19,10 +19,8 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <utility>
 
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -59,9 +57,7 @@ class TreeNumberNodes final : public Transform {
 
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
   // Whether every id seen so far was already its own node number.
   bool IsDenseForTesting(const OperatorState&) const;
@@ -88,11 +84,8 @@ class TreeNumberNodes final : public Transform {
   };
   struct State : OperatorState {
     explicit State(Context& c) : context(&c) {}
-    ~State() override;
     // What the numbers are written in.
     Context* context;
-
-    Held<base::Status> status{this};
 
     // The number of each id seen.
     // While the ids arriving are 0, 1, 2, ... they are already node numbers,
@@ -108,6 +101,8 @@ class TreeNumberNodes final : public Transform {
     CallScratch<FlexVector<Variant>> ids;
     CallScratch<FlexVector<Variant>> parents;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   // Numbers a batch of a table scanned in row order whose parents all point
   // back, or returns false having changed nothing.

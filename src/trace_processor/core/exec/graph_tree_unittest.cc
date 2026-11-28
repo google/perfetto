@@ -51,8 +51,8 @@ class ColumnsSource final : public Source {
   explicit ColumnsSource(std::vector<Column> columns, uint32_t chunk_rows = 3)
       : columns_(std::move(columns)), chunk_rows_(chunk_rows) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -85,7 +85,6 @@ class ColumnsSource final : public Source {
 
  private:
   struct State : OperatorState {
-    ~State() override;
     Context* context = nullptr;
     uint32_t offset = 0;
   };
@@ -93,8 +92,6 @@ class ColumnsSource final : public Source {
   std::vector<Column> columns_;
   uint32_t chunk_rows_;
 };
-
-ColumnsSource::State::~State() = default;
 
 // A row out: the node's id and payload, its parent's id, and the row numbers.
 struct Row {
@@ -186,9 +183,10 @@ class GraphTreeTest : public ::testing::Test {
       }
     }
     if (status) {
-      *status = tree.status(state);
+      *status = state.context().error();
     } else {
-      EXPECT_TRUE(tree.status(state).ok()) << tree.status(state).message();
+      EXPECT_TRUE(state.context().error().ok())
+          << state.context().error().message();
     }
     return rows;
   }

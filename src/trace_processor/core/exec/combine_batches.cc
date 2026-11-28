@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/core/exec/combine_batches.h"
 
-#include <memory>
-
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -25,11 +23,9 @@
 namespace perfetto::trace_processor::core::exec {
 
 CombineBatches::CombineBatches() = default;
-CombineBatches::State::~State() = default;
 
-std::unique_ptr<OperatorState> CombineBatches::MakeState(
-    Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* CombineBatches::NewState(Context& context) const {
+  return context.Make<State>();
 }
 
 OpResult CombineBatches::Execute(const RowBatch& in,
@@ -48,7 +44,7 @@ OpResult CombineBatches::Execute(const RowBatch& in,
       return OpResult::kNeedMoreInput;
     }
   }
-  s.buffered.Append(in, *s.context);
+  s.buffered.Append(in, s.context());
   if (s.buffered.size() >= kTargetBatchRows) {
     s.buffered.Take(out);
   } else {

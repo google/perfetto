@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_KEY_PATHS_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -55,12 +54,12 @@ class TreeKeyPaths final : public Transform {
 
   explicit TreeKeyPaths(TreeKeyPathsSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
+
+  OperatorState* NewState(Context&) const override;
 
   TreeKeyPathsSpec spec_;
 };

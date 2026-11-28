@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -43,11 +42,8 @@ namespace {
 class KeyPathsState : public OperatorState {
  public:
   explicit KeyPathsState(Context& c) : context(&c) {}
-  ~KeyPathsState() override;
 
   Context* context;
-
-  Held<base::Status> status{this};
 
   // Numbers the distinct values of the key columns.
   Held<GroupTable> values{this};
@@ -60,18 +56,12 @@ class KeyPathsState : public OperatorState {
   CallScratch<FlexVector<uint32_t>> row_values;
 };
 
-KeyPathsState::~KeyPathsState() = default;
-
 }  // namespace
 
 TreeKeyPaths::TreeKeyPaths(TreeKeyPathsSpec spec) : spec_(spec) {}
 
-std::unique_ptr<OperatorState> TreeKeyPaths::MakeState(Context& context) const {
-  return std::make_unique<KeyPathsState>(context);
-}
-
-base::Status TreeKeyPaths::status(const OperatorState& state) const {
-  return state.Cast<const KeyPathsState>().status;
+OperatorState* TreeKeyPaths::NewState(Context& context) const {
+  return context.Make<KeyPathsState>(context);
 }
 
 bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
@@ -82,8 +72,8 @@ bool TreeKeyPaths::Process(RowBatch& batch, OperatorState& state) const {
   s.row_values.resize(count);
   if (std::optional<uint32_t> bad = s.values.FindOrCreate(
           batch, spec_.key_columns, s.row_values.data())) {
-    s.status = base::ErrStatus(
-        "TREE KEY PATHS: key %u must be a column holding one type", *bad + 1);
+    s.context->Fail(base::ErrStatus(
+        "TREE KEY PATHS: key %u must be a column holding one type", *bad + 1));
     return false;
   }
 

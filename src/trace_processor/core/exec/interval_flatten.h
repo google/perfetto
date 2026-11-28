@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_INTERVAL_FLATTEN_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -64,10 +63,8 @@ class IntervalFlatten final : public Operator {
 
   IntervalFlatten(core::Arena&, IntervalFlattenSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
@@ -89,7 +86,6 @@ class IntervalFlatten final : public Operator {
   struct State : OperatorState {
     explicit State(const IntervalLaneSpec& lanes)
         : keys(this, lanes.key_columns) {}
-    ~State() override;
 
     // Every aggregate's states: the tree's first nodes are there from the
     // start of every run, and zeroed as used.
@@ -105,8 +101,6 @@ class IntervalFlatten final : public Operator {
     Context* context = nullptr;
     // Words of state a group.
     uint32_t stride = 0;
-
-    Held<base::Status> status{this};
 
     // Where the input is up to.
     // The first unconsumed row when Execute yields a full output batch.
@@ -172,6 +166,8 @@ class IntervalFlatten final : public Operator {
     CallScratch<FlexVector<GroupMerge>> pushes;
     CallScratch<FlexVector<uint32_t>> groups;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   void AddInterval(State&, uint32_t row, int64_t start, int64_t end) const;
   uint32_t TakeSlot(State&) const;

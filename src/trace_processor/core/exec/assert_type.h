@@ -18,10 +18,8 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ASSERT_TYPE_H_
 
 #include <cstdint>
-#include <memory>
 #include <string_view>
 
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
@@ -29,7 +27,6 @@
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -53,22 +50,12 @@ class AssertType final : public Transform {
 
   AssertType(uint32_t column, AssertTypeTarget type, std::string_view name);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
 
-  struct State : OperatorState {
-    explicit State(Context& c) : context(&c) {}
-    ~State() override;
-    // What the converted column is written in.
-    Context* context;
-    Held<base::Status> status{this};
-  };
-
-  bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;
+  bool Widen(const ColumnView&, const Selection&, ColumnChunk&, Context&) const;
 
   uint32_t column_;
   // One of AssertTypeTarget's types, as a StorageType, which is what a column
@@ -92,17 +79,10 @@ class NullColumn final : public Transform {
 
   NullColumn(uint32_t column, StorageType type);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
-
-  struct State : OperatorState {
-    explicit State(Context& c) : context(&c) {}
-    ~State() override;
-    Context* context;
-  };
 
   uint32_t column_;
   StorageType type_;

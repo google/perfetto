@@ -20,7 +20,6 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <variant>
 
@@ -76,18 +75,18 @@ void RunTreeNumberNodes(benchmark::State& state,
   DataframeScan scan(
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
+  OperatorState* scan_state = scan.MakeState(context);
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
+  OperatorState* op_state = op.MakeState(context);
   RowBatch in;
   RowBatch out;
   for (auto _ : state) {
     scan.Rewind(*scan_state);
-    op_state->EndRun();
+    op_state->context().EndRun(*op_state);
     while (scan.GetData(in, *scan_state)) {
       out.CopyFrom(in);
       if (!op.Process(out, *op_state)) {
-        state.SkipWithError(op.status(*op_state).c_message());
+        state.SkipWithError(op_state->context().error().c_message());
         return;
       }
       benchmark::DoNotOptimize(out.column(3).data());
@@ -118,7 +117,7 @@ void BM_TreeNumberNodesScanOnly(benchmark::State& state) {
   DataframeScan scan(
       arena.CopySpan<const dataframe::Column*>({&df.column(0), &df.column(1)}),
       df.row_count(), ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
+  OperatorState* scan_state = scan.MakeState(context);
   RowBatch in;
   for (auto _ : state) {
     scan.Rewind(*scan_state);

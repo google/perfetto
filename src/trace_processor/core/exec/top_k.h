@@ -70,8 +70,6 @@ class TopK final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     // The rows held. Pruning appends the first of them to `spare`, which
     // then takes over.
     Held<std::unique_ptr<SortedRows>> rows{this};
@@ -91,7 +89,7 @@ class TopK final : public Breaker {
     RunValue<uint32_t> emitted{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;

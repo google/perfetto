@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_COMBINE_BATCHES_H_
 
 #include <cstdint>
-#include <memory>
 
 #include "src/trace_processor/core/exec/batch_buffer.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -45,7 +44,6 @@ class CombineBatches final : public Operator {
 
   CombineBatches();
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -53,15 +51,11 @@ class CombineBatches final : public Operator {
 
  private:
   struct State : OperatorState {
-    explicit State(Context& c) : context(&c) {}
-    ~State() override;
-
-    // Provides the buffers combined rows are copied into.
-    Context* context;
-
     // The buffered rows.
     Held<BatchBuffer> buffered{this};
   };
+
+  OperatorState* NewState(Context&) const override;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -38,10 +38,8 @@
 namespace perfetto::trace_processor::core::exec {
 
 TopK::TopK(TopKSpec spec) : spec_(spec) {}
-TopK::State::~State() = default;
-
-std::unique_ptr<Breaker::State> TopK::CreateState() const {
-  auto state = std::make_unique<State>();
+OperatorState* TopK::NewSinkState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows = std::make_unique<SortedRows>();
   state->spare = std::make_unique<SortedRows>();
   state->rows->SetUnread(unread_);
@@ -60,7 +58,7 @@ bool TopK::Consume(const RowBatch& in, Breaker::State& state) const {
     status = Add(in, s);
   }
   if (!status.ok()) {
-    s.status = base::ErrStatus("SORT: %s", status.c_message());
+    s.context().Fail(base::ErrStatus("SORT: %s", status.c_message()));
     return false;
   }
   return true;
@@ -70,12 +68,12 @@ base::Status TopK::Add(const RowBatch& in, State& s) const {
   if (s.has_cutoff) {
     const RowBatch& passed = BeforeCutoff(in, s);
     base::Status status = s.rows->AppendLaidOut(passed, spec_.keys, spec_.pool,
-                                                *s.context, s.keys.data());
+                                                s.context(), s.keys.data());
     // Not to keep the batch's buffers until the next one.
     s.passed.Reset();
     RETURN_IF_ERROR(status);
   } else {
-    RETURN_IF_ERROR(s.rows->Append(in, spec_.keys, spec_.pool, *s.context));
+    RETURN_IF_ERROR(s.rows->Append(in, spec_.keys, spec_.pool, s.context()));
   }
   if (s.rows->size() >=
       uint64_t{spec_.count} + std::max(spec_.count, kMaxBatchRows)) {
@@ -155,8 +153,9 @@ base::Status TopK::Prune(State& s) const {
   rows.order().resize(spec_.count);
   RowBatch first;
   for (uint32_t at = 0; at < spec_.count;) {
-    at += rows.GatherInPlace(&first, at, *s.context);
-    RETURN_IF_ERROR(s.spare->Append(first, spec_.keys, spec_.pool, *s.context));
+    at += rows.GatherInPlace(&first, at, s.context());
+    RETURN_IF_ERROR(
+        s.spare->Append(first, spec_.keys, spec_.pool, s.context()));
   }
   rows.Clear();
   s.rows.swap(s.spare);
@@ -191,7 +190,7 @@ bool TopK::Serve(RowBatch& out, Breaker::State& state) const {
   if (s.emitted == s.rows->order().size()) {
     return false;
   }
-  s.emitted += s.rows->GatherInPlace(&out, s.emitted, *s.context);
+  s.emitted += s.rows->GatherInPlace(&out, s.emitted, s.context());
   return true;
 }
 

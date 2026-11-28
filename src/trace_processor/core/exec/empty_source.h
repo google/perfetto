@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_EMPTY_SOURCE_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_EMPTY_SOURCE_H_
 
-#include <memory>
-
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -37,9 +35,11 @@ class EmptySource final : public Source {
 
   EmptySource();
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch& out, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
+
+ private:
+  OperatorState* NewState(Context&) const override;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

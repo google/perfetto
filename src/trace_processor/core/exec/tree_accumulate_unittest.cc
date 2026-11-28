@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>
@@ -71,8 +70,8 @@ class RowSource final : public Source {
     }
   }
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -82,28 +81,32 @@ class RowSource final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
+    std::vector<int64_t> ids;
+    std::vector<int64_t> parents;
+    std::vector<int64_t> values;
+    BitVector validity;
     auto total = static_cast<uint32_t>(parents_.size());
     if (s.offset == total) {
       return false;
     }
     uint32_t count = std::min(chunk_rows_, total - s.offset);
-    s.ids.resize(count);
-    s.parents.resize(count);
-    s.values.resize(count);
-    s.validity = BitVector::CreateWithSize(count);
+    ids.resize(count);
+    parents.resize(count);
+    values.resize(count);
+    validity = BitVector::CreateWithSize(count);
     for (uint32_t i = 0; i < count; ++i) {
       uint32_t row = order_[s.offset + i];
-      s.ids[i] = row;
-      s.values[i] = values_[row];
-      s.parents[i] = parents_[row] < 0 ? 0 : parents_[row];
+      ids[i] = row;
+      values[i] = values_[row];
+      parents[i] = parents_[row] < 0 ? 0 : parents_[row];
       if (parents_[row] >= 0) {
-        s.validity.set(i);
+        validity.set(i);
       }
     }
     out.Reset();
-    test::AddCopy(*s.context, s.ids, nullptr, &out);
-    test::AddCopy(*s.context, s.parents, &s.validity, &out);
-    test::AddCopy(*s.context, s.values, nullptr, &out);
+    test::AddCopy(*s.context, ids, nullptr, &out);
+    test::AddCopy(*s.context, parents, &validity, &out);
+    test::AddCopy(*s.context, values, nullptr, &out);
     out.SetRowCount(count);
     s.offset += count;
     return true;
@@ -111,13 +114,8 @@ class RowSource final : public Source {
 
  private:
   struct State : OperatorState {
-    ~State() override;
     Context* context = nullptr;
     uint32_t offset = 0;
-    std::vector<int64_t> ids;
-    std::vector<int64_t> parents;
-    std::vector<int64_t> values;
-    BitVector validity;
   };
 
   std::vector<int64_t> parents_;
@@ -125,8 +123,6 @@ class RowSource final : public Source {
   uint32_t chunk_rows_;
   std::vector<uint32_t> order_;
 };
-
-RowSource::State::~State() = default;
 
 // The two folds written out directly: up sums everything below a node, down
 // sums everything above it.
@@ -205,12 +201,12 @@ Result Accumulate(const std::vector<int64_t>& parent,
     }
     Context context;
     Pipeline pipeline(arena, source, ops);
-    std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
+    OperatorState* state = pipeline.MakeState(context);
     RowBatch batch;
     while (pipeline.GetData(batch, *state)) {
       read(batch);
     }
-    status = pipeline.status(*state);
+    status = state->context().error();
   }
   EXPECT_TRUE(status.ok()) << status.message();
   return result;
@@ -259,22 +255,23 @@ TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
 
   TreeAccumulateDown down(
       arena, {0, 1, test::InArena<AggregateCall>(arena, {Sum(2)})});
-  std::unique_ptr<OperatorState> down_state = down.MakeState(context);
+  OperatorState* down_state = down.MakeState(context);
   RowBatch in = Batch(down_nodes, down_parents, values);
   EXPECT_FALSE(test::ProcessCopy(down, in, out, *down_state));
-  EXPECT_THAT(down.status(*down_state).message(),
+  EXPECT_THAT(down_state->context().error().message(),
               testing::HasSubstr("overflow"));
 
   TreeAccumulateUp up(arena,
                       {0, 1, test::InArena<AggregateCall>(arena, {Sum(2)})});
-  std::unique_ptr<OperatorState> up_state = up.MakeState(context);
+  OperatorState* up_state = up.MakeState(context);
   in = Batch(up_nodes, up_parents, values);
   EXPECT_FALSE(test::ProcessCopy(up, in, out, *up_state));
-  EXPECT_THAT(up.status(*up_state).message(), testing::HasSubstr("overflow"));
+  EXPECT_THAT(up_state->context().error().message(),
+              testing::HasSubstr("overflow"));
   values[0] = 1;
-  up_state->EndRun();
+  test::EndRun(*up_state);
   EXPECT_TRUE(test::ProcessCopy(up, in, out, *up_state));
-  EXPECT_TRUE(up.status(*up_state).ok());
+  EXPECT_TRUE(up_state->context().error().ok());
 }
 
 TEST(TreeAccumulateTest, NullsAreSkipped) {
@@ -292,7 +289,7 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
   Context context;
   TreeAccumulateUp up(arena,
                       {0, 1, test::InArena<AggregateCall>(arena, {min, max})});
-  std::unique_ptr<OperatorState> up_state = up.MakeState(context);
+  OperatorState* up_state = up.MakeState(context);
   RowBatch out;
   RowBatch in = Batch(up_nodes, up_parents, up_values, &up_valid);
   ASSERT_TRUE(test::ProcessCopy(up, in, out, *up_state));
@@ -308,7 +305,7 @@ TEST(TreeAccumulateTest, NullsAreSkipped) {
   down_valid.set(2);
   TreeAccumulateDown down(
       arena, {0, 1, test::InArena<AggregateCall>(arena, {min, max, Sum(2)})});
-  std::unique_ptr<OperatorState> down_state = down.MakeState(context);
+  OperatorState* down_state = down.MakeState(context);
   in = Batch(down_nodes, down_parents, down_values, &down_valid);
   ASSERT_TRUE(test::ProcessCopy(down, in, out, *down_state));
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
@@ -332,7 +329,7 @@ TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
   Context context;
   TreeAccumulateUp op(arena,
                       {0, 1, test::InArena<AggregateCall>(arena, {Sum(2)})});
-  std::unique_ptr<OperatorState> state = op.MakeState(context);
+  OperatorState* state = op.MakeState(context);
   RowBatch out;
   RowBatch first = Batch(children, to_root, child_values);
   ASSERT_TRUE(test::ProcessCopy(op, first, out, *state));

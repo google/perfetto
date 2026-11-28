@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/span.h"
@@ -31,7 +30,8 @@ namespace perfetto::trace_processor::core {
 // Finds the parts of each lane's background that the lane's covering
 // intervals leave uncovered. A lane's covering intervals arrive sorted by
 // start, so each gap is found as soon as an interval starts beyond all
-// earlier ones.
+// earlier ones. Each gap is passed to `add`, so the caller decides where to
+// keep it.
 class IntervalGaps {
  public:
   // An uncovered part of background interval `id`, in lane `lane`.
@@ -44,8 +44,11 @@ class IntervalGaps {
 
   // Starts lane `lane`, whose background is sorted by start, with no two
   // intervals of width overlapping. Ends the current lane first.
-  void StartLane(uint32_t lane, base::Span<const Interval> background) {
-    EndLane();
+  template <typename Add>
+  void StartLane(uint32_t lane,
+                 base::Span<const Interval> background,
+                 Add add) {
+    EndLane(add);
     in_lane_ = true;
     lane_ = lane;
     covered_ = 0;
@@ -54,19 +57,21 @@ class IntervalGaps {
   }
 
   // Covers [start, end) in the current lane. Starts must not decrease.
-  void Cover(Ts start, Ts end) {
+  template <typename Add>
+  void Cover(Ts start, Ts end, Add add) {
     PERFETTO_DCHECK(in_lane_);
     if (start == end) {
       return;
     }
-    FillTo(start);
+    FillTo(start, add);
     covered_ = std::max(covered_, end);
   }
 
   // Ends the current lane, if any. The rest of its background is a gap.
-  void EndLane() {
+  template <typename Add>
+  void EndLane(Add add) {
     if (in_lane_) {
-      FillTo(std::numeric_limits<Ts>::max());
+      FillTo(std::numeric_limits<Ts>::max(), add);
       in_lane_ = false;
     }
   }
@@ -74,26 +79,13 @@ class IntervalGaps {
   // Changes the number the current lane's later gaps are given.
   void set_lane(uint32_t lane) { lane_ = lane; }
 
-  void Clear() {
-    in_lane_ = false;
-    gaps_.clear();
-  }
-
-  // Clear(), letting go of the gaps' storage.
-  void EndRun() {
-    in_lane_ = false;
-    std::vector<Gap>().swap(gaps_);
-  }
-
   bool in_lane() const { return in_lane_; }
-
-  // The gaps found, in the order found. The caller removes those it uses.
-  std::vector<Gap>& gaps() { return gaps_; }
 
  private:
   // Adds the gaps before `to`. Everything between `covered_` and `to` is
   // uncovered, since covering intervals arrive sorted by start.
-  void FillTo(Ts to) {
+  template <typename Add>
+  void FillTo(Ts to, Add add) {
     for (; next_ != end_; ++next_) {
       if (next_->start >= to) {
         return;
@@ -101,7 +93,7 @@ class IntervalGaps {
       Ts start = std::max(next_->start, covered_);
       Ts end = std::min(next_->end, to);
       if (start < end) {
-        gaps_.push_back({start, end, next_->id, lane_});
+        add(Gap{start, end, next_->id, lane_});
       }
       if (next_->end > to) {
         return;
@@ -116,7 +108,6 @@ class IntervalGaps {
   // The current lane's background not yet passed.
   const Interval* next_ = nullptr;
   const Interval* end_ = nullptr;
-  std::vector<Gap> gaps_;
 };
 
 }  // namespace perfetto::trace_processor::core

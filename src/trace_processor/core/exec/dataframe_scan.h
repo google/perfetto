@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DATAFRAME_SCAN_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "src/trace_processor/core/dataframe/types.h"
@@ -57,7 +56,6 @@ class DataframeScan final : public Source {
                 uint32_t row_count,
                 ReadDirection direction);
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -65,9 +63,10 @@ class DataframeScan final : public Source {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    ~State() override;
     RangeReader reader;
   };
+
+  OperatorState* NewState(Context& context) const override;
 
   core::ArenaSpan<const dataframe::Column*> columns_;
   uint32_t row_count_;

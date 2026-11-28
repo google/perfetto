@@ -39,9 +39,13 @@ struct GrownFlexVector {
   uint64_t capacity;
 };
 
+// The capacity a vector of `capacity` elements grows to: at least
+// `min_capacity`, and at least FlexVector::kGrowthFactor times larger. Trace
+// processor's own growable vectors all use it, so they grow alike.
+uint64_t GrownCapacity(uint64_t capacity, uint64_t min_capacity);
+
 // Grows the FlexVector allocation `data`, which holds `capacity` elements of
-// `width` bytes aligned to `align`. The new capacity is at least `min_capacity`
-// and at least FlexVector::kGrowthFactor times the old one. Copies the first
+// `width` bytes aligned to `align`, to GrownCapacity(). Copies the first
 // `used_bytes` and frees the old allocation. Not a template, so every
 // FlexVector shares one copy of this code.
 GrownFlexVector GrowFlexVector(void* data,

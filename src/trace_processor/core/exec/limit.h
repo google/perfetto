@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_LIMIT_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 
 #include "src/trace_processor/core/exec/operator.h"
@@ -44,7 +43,6 @@ class Limit final : public Operator {
   // No `limit` keeps every row after the offset.
   Limit(std::optional<uint32_t> limit, uint32_t offset);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -53,13 +51,12 @@ class Limit final : public Operator {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    State() = default;
-    ~State() override;
-
     // How many rows of the offset are dropped, and how many are kept.
     RunValue<uint32_t> skipped{this};
     RunValue<uint32_t> kept{this};
   };
+
+  OperatorState* NewState(Context&) const override;
 
   std::optional<uint32_t> limit_;
   uint32_t offset_;

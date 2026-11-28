@@ -16,37 +16,19 @@
 
 #include "src/trace_processor/core/exec/breaker.h"
 
-#include <memory>
-
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-Breaker::State::~State() = default;
-
-std::unique_ptr<OperatorState> Breaker::MakeSinkState(Context& context) const {
-  std::unique_ptr<State> state = CreateState();
-  state->context = &context;
-  return state;
+bool Breaker::ConsumeBatch(const RowBatch& in, OperatorState& state) const {
+  auto& s = state.Cast<State>();
+  return !s.context().failed() && Consume(in, s);
 }
 
-base::Status Breaker::ConsumeBatch(const RowBatch& in,
-                                   OperatorState& state) const {
+bool Breaker::FinalizeSink(OperatorState& state) const {
   auto& s = state.Cast<State>();
-  if (s.status.ok() && Consume(in, s)) {
-    return base::OkStatus();
-  }
-  return s.status;
-}
-
-base::Status Breaker::FinalizeSink(OperatorState& state) const {
-  auto& s = state.Cast<State>();
-  if (Finalize(s)) {
-    return base::OkStatus();
-  }
-  return s.status;
+  return !s.context().failed() && Finalize(s);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

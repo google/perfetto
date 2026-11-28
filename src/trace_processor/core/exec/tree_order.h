@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_TREE_ORDER_H_
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -66,8 +65,6 @@ class TreeChildFirst final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     // The rows, as they arrive.
     Held<RowStore> rows{this};
     // The node and parent of each row in order of arrival: what a sort needs.
@@ -88,7 +85,7 @@ class TreeChildFirst final : public Breaker {
     RunValue<uint32_t> emitted{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
@@ -128,20 +125,15 @@ class TreeParentFirst final : public Operator {
 
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
-  base::Status status(const OperatorState& state) const override;
 
  private:
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    State() = default;
-    ~State() override;
-
     // What is known about each node number.
     struct Nodes {
       // The node's row is out, or is on its way out in `letting_go`.
@@ -171,11 +163,6 @@ class TreeParentFirst final : public Operator {
       void EndRun();
     };
 
-    // What rows let go are gathered into.
-    Context* context = nullptr;
-
-    Held<base::Status> status{this};
-
     // The nodes, and the rows waiting on them.
     Held<Nodes> nodes{this};
     Held<Waiting> held{this};
@@ -193,6 +180,8 @@ class TreeParentFirst final : public Operator {
     CallScratch<FlexVector<uint32_t>> passing;
     CallScratch<FlexVector<uint32_t>> holding;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   // Moves every row waiting on `node` to `letting_go`.
   void Release(uint32_t node, State&) const;

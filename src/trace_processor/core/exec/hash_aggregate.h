@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "src/trace_processor/core/common/storage_types.h"
@@ -66,8 +65,6 @@ class HashAggregate final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     // With no keys, the aggregate state of the single group: zero again once
     // a run ends.
     struct Total : FlexVector<int64_t> {
@@ -95,7 +92,7 @@ class HashAggregate final : public Breaker {
     CallScratch<FlexVector<uint32_t>> served_rows;
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;

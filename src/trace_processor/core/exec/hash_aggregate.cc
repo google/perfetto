@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <numeric>
 #include <optional>
 #include <utility>
@@ -89,10 +88,8 @@ HashAggregate::HashAggregate(core::Arena& arena, HashAggregateSpec spec)
     state_words_ += functions_[a]->state_words();
   }
 }
-HashAggregate::State::~State() = default;
-
-std::unique_ptr<Breaker::State> HashAggregate::CreateState() const {
-  auto state = std::make_unique<State>();
+OperatorState* HashAggregate::NewSinkState(Context& context) const {
+  auto* state = context.Make<State>();
   state->groups.set_payload_words(state_words_);
   state->seen.resize(functions_.size());
   state->total.push_back_multiple(0, state_words_);
@@ -128,8 +125,8 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     row_groups = s.row_groups.data();
     if (std::optional<uint32_t> bad =
             s.groups.FindOrCreate(in, spec_.key_columns, row_groups)) {
-      s.status = base::ErrStatus(
-          "AGGREGATE: key %u must be a column holding one type", *bad + 1);
+      s.context().Fail(base::ErrStatus(
+          "AGGREGATE: key %u must be a column holding one type", *bad + 1));
       return false;
     }
     if (s.key_types.empty()) {
@@ -161,7 +158,7 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     }
   }
   if (overflow) {
-    s.status = base::ErrStatus("AGGREGATE: integer overflow");
+    s.context().Fail(base::ErrStatus("AGGREGATE: integer overflow"));
     return false;
   }
 
@@ -184,7 +181,7 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
   std::iota(s.served_rows.begin(), s.served_rows.end(), *s.emitted);
   const uint32_t* rows = s.served_rows.data();
   for (uint32_t k = 0; k < spec_.key_columns.size(); ++k) {
-    ColumnBuffer buffer = s.context->TakeBuffer(ValueWidth(s.key_types[k]));
+    ColumnBuffer buffer = s.context().TakeBuffer(ValueWidth(s.key_types[k]));
     ColumnView view =
         WriteKeys(s.groups, k, s.emitted, count, s.key_types[k], buffer);
     out.AddColumn(view, std::move(buffer));
@@ -199,7 +196,7 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
       states.seen = s.seen[a].For(groups, !s.consumed);
     }
     ColumnBuffer buffer =
-        FinalizeToBuffer(*s.context, *functions_[a], states, rows, count);
+        FinalizeToBuffer(s.context(), *functions_[a], states, rows, count);
     // Take the view before moving the buffer, since argument evaluation order
     // is unspecified.
     ColumnView view = ResultView(buffer);

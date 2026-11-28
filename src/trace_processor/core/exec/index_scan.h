@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_INDEX_SCAN_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/ext/base/span.h"
@@ -64,7 +63,6 @@ class IndexScan final : public Source {
             core::ArenaSpan<SortedSearches::Search> searches,
             const StringPool* pool);
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -72,7 +70,6 @@ class IndexScan final : public Source {
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    ~State() override;
     RowListReader reader;
     const Context* context = nullptr;
     // By equality: prefix popcounts of sparse null columns.
@@ -83,6 +80,8 @@ class IndexScan final : public Source {
     Held<std::vector<uint32_t>> in_range{this};
     bool searched = false;
   };
+
+  OperatorState* NewState(Context& context) const override;
 
   base::Span<const uint32_t> Find(State& s) const;
 

@@ -35,13 +35,19 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/arena.h"
-#include "src/trace_processor/core/util/flex_vector.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec::test {
+
+// Ends the run of `state` and clears any failure, as a consumer restarting it
+// does (see Restart()).
+inline void EndRun(OperatorState& state) {
+  state.context().ClearError();
+  state.context().EndRun(state);
+}
 
 // Copies `values` into `arena`, the way operators hold lists.
 template <typename T>
@@ -121,8 +127,8 @@ class ArraySource final : public Source {
   ArraySource(core::Arena& arena, const std::vector<int64_t>& values)
       : values_(InArena(arena, values)) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;
@@ -176,8 +182,8 @@ class FailingSource final : public Source {
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = false;
@@ -185,6 +191,7 @@ class FailingSource final : public Source {
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
     if (s.emitted) {
+      s.context().Fail(base::ErrStatus("input broke"));
       return false;
     }
     out.Reset();
@@ -193,10 +200,6 @@ class FailingSource final : public Source {
     out.SetRowCount(2);
     s.emitted = true;
     return true;
-  }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().emitted ? base::ErrStatus("input broke")
-                                             : base::OkStatus();
   }
 
  private:
@@ -225,9 +228,6 @@ class BatchesSource final : public Source {
   explicit BatchesSource(std::vector<const RowBatch*> batches)
       : batches_(std::move(batches)) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
-  }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;
   }
@@ -244,6 +244,9 @@ class BatchesSource final : public Source {
   struct State : OperatorState {
     size_t next = 0;
   };
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
+  }
   std::vector<const RowBatch*> batches_;
 };
 
@@ -271,18 +274,23 @@ class AfterBreaker {
   // Every batch it outputs, read by `read`, and how the run ended.
   template <typename Read>
   base::Status Drain(Read read) {
-    std::unique_ptr<OperatorState> state = pipeline_->MakeState(context_);
+    if (!state_) {
+      state_ = pipeline_->MakeState(context_);
+    } else {
+      Restart(*pipeline_, *state_);
+    }
     RowBatch batch;
-    while (pipeline_->GetData(batch, *state)) {
+    while (pipeline_->GetData(batch, *state_)) {
       read(batch);
     }
-    return pipeline_->status(*state);
+    return context_.error();
   }
 
  private:
   Pipelines pipelines_;
   const Pipeline* pipeline_;
   Context context_;
+  OperatorState* state_ = nullptr;
 };
 
 // Runs `breaker` over copies of `batches`, which must outlive it, each time
@@ -319,7 +327,7 @@ class BreakerRun {
 
   BatchesSource source_;
   AfterBreaker run_;
-  std::unique_ptr<OperatorState> state_;
+  OperatorState* state_;
   RowBatch out_;
 };
 

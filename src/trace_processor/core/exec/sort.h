@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_SORT_H_
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -26,6 +25,7 @@
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/util/arena.h"
 
@@ -71,13 +71,11 @@ class Sort final : public Breaker {
   friend class PipelineFormatter;
 
   struct State : Breaker::State {
-    ~State() override;
-
     Held<SortedRows> rows{this};
     RunValue<uint32_t> emitted{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
+  OperatorState* NewSinkState(Context&) const override;
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;

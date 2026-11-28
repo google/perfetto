@@ -148,7 +148,9 @@ base::Status CollectedLanes::Collect(PipelineUse& input,
     retained_.Project(*batch, input_->retained_columns);
     RETURN_IF_ERROR(rows_.Append(retained_, context));
   }
-  RETURN_IF_ERROR(input.status());
+  if (context.failed()) {
+    return context.error();
+  }
   by_number_.clear();
   by_number_.reserve(ranges_.size());
   for (uint32_t i = 0; i < ranges_.size(); ++i) {

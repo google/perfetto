@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/sorted_scan.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -93,10 +92,8 @@ SortedScan::SortedScan(core::Arena& arena,
       searches_(arena, searches, pool),
       direction_(direction) {}
 
-SortedScan::State::~State() = default;
-
-std::unique_ptr<OperatorState> SortedScan::MakeState(Context& context) const {
-  auto state = std::make_unique<State>();
+OperatorState* SortedScan::NewState(Context& context) const {
+  auto* state = context.Make<State>();
   state->reader.Init(columns_);
   state->context = &context;
   return state;

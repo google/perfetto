@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_GRAPH_TREE_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -79,15 +78,15 @@ class GraphTree final : public Source {
 
   explicit GraphTree(GraphTreeSpec);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
 
   struct State;
+
+  OperatorState* NewState(Context&) const override;
 
   // Reads every input and builds the tree, in the order its rows go out.
   base::Status Build(State&) const;

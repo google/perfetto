@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 #include <cstdint>
-#include <memory>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -171,18 +170,11 @@ bool ParentsInOrder(const ColumnView& ids,
 TreeNumberNodes::TreeNumberNodes(uint32_t id_column, uint32_t parent_column)
     : id_column_(id_column), parent_column_(parent_column) {}
 
-TreeNumberNodes::State::~State() = default;
-
-std::unique_ptr<OperatorState> TreeNumberNodes::MakeState(
-    Context& context) const {
-  auto state = std::make_unique<State>(context);
+OperatorState* TreeNumberNodes::NewState(Context& context) const {
+  auto* state = context.Make<State>(context);
   state->ids = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
   state->parents = FlexVector<Variant>::CreateWithSize(kMaxBatchRows);
   return state;
-}
-
-base::Status TreeNumberNodes::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
 }
 
 bool TreeNumberNodes::IsDenseForTesting(const OperatorState& state) const {
@@ -201,8 +193,8 @@ uint32_t TreeNumberNodes::Number(State& s, const Variant& id) const {
       }
       if (key.value == static_cast<int64_t>(s.numbered)) {
         if (s.numbered == kNoNode) {
-          s.status = base::ErrStatus(
-              "TREE NUMBER NODES: the relation has too many nodes");
+          s.context->Fail(base::ErrStatus(
+              "TREE NUMBER NODES: the relation has too many nodes"));
           return kNoNode;
         }
         return s.numbered++;
@@ -218,8 +210,8 @@ uint32_t TreeNumberNodes::Number(State& s, const Variant& id) const {
     return *existing;
   }
   if (s.numbered == kNoNode) {
-    s.status =
-        base::ErrStatus("TREE NUMBER NODES: the relation has too many nodes");
+    s.context->Fail(
+        base::ErrStatus("TREE NUMBER NODES: the relation has too many nodes"));
     return kNoNode;
   }
   uint32_t assigned = s.numbered++;
@@ -258,7 +250,7 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
     status = ReadKeys(in.column(parent_column_), selection, true, &s.parents);
   }
   if (!status.ok()) {
-    s.status = status;
+    s.context->Fail(std::move(status));
     return false;
   }
   // Locals: Number() and the numbers written could otherwise change them.
@@ -269,15 +261,15 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
   uint32_t* parent_nodes = output.parent_nodes;
   for (uint32_t i = 0; i < count; ++i) {
     uint32_t node = Number(s, ids[i]);
-    if (!s.status.ok()) {
+    if (s.context->failed()) {
       return false;
     }
     if (s.has_row.size() <= node) {
       s.has_row.resize(node + 1);
     }
     if (s.has_row.is_set(node)) {
-      s.status = base::ErrStatus(
-          "TREE NUMBER NODES: more than one row has the same id");
+      s.context->Fail(base::ErrStatus(
+          "TREE NUMBER NODES: more than one row has the same id"));
       return false;
     }
     s.has_row.set(node);
@@ -289,7 +281,7 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
       continue;
     }
     parent_nodes[row] = Number(s, parents[i]);
-    if (!s.status.ok()) {
+    if (s.context->failed()) {
       return false;
     }
   }

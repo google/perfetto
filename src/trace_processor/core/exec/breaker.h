@@ -17,12 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BREAKER_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BREAKER_H_
 
-#include <memory>
-
-#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/run_held.h"
 #include "src/trace_processor/core/exec/sink.h"
 #include "src/trace_processor/core/util/arena.h"
 
@@ -33,14 +29,7 @@ namespace perfetto::trace_processor::core::exec {
 // served by the source of the next (see Served).
 class Breaker : public Sink {
  public:
-  struct State : OperatorState {
-    State() = default;
-    ~State() override;
-
-    // What the columns served are filled in.
-    Context* context = nullptr;
-    Held<base::Status> status{this};
-  };
+  struct State : OperatorState {};
 
   // Which of its input's columns it reads and keeps (see StepColumns).
   virtual void DescribeColumns(StepColumns* out) const = 0;
@@ -55,10 +44,8 @@ class Breaker : public Sink {
 
   // Sink.
   bool IsBreaker() const final { return true; }
-  std::unique_ptr<OperatorState> MakeSinkState(Context&) const final;
-  base::Status ConsumeBatch(const RowBatch& in,
-                            OperatorState& state) const final;
-  base::Status FinalizeSink(OperatorState& state) const final;
+  bool ConsumeBatch(const RowBatch& in, OperatorState& state) const final;
+  bool FinalizeSink(OperatorState& state) const final;
 
  protected:
   Breaker() = default;
@@ -67,11 +54,8 @@ class Breaker : public Sink {
  private:
   friend class Served;
 
-  // Creates the state for the buffered data.
-  virtual std::unique_ptr<State> CreateState() const = 0;
-
   // Each batch of the input goes into Consume(), then Finalize() runs once.
-  // Both return false on failure, having set the status.
+  // Both return false on failure, after reporting why (see Context::Fail()).
   virtual bool Consume(const RowBatch& in, State& state) const = 0;
   virtual bool Finalize(State& state) const = 0;
 

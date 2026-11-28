@@ -18,12 +18,10 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -59,20 +57,19 @@ class Reverse final : public Breaker {
   uint32_t column_;
 
   struct State : Breaker::State {
-    ~State() override;
     Held<std::vector<int64_t>> values{this};
     RunValue<uint32_t> served{this};
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override {
-    return std::make_unique<State>();
+  OperatorState* NewSinkState(Context& context) const override {
+    return context.Make<State>();
   }
   bool Consume(const RowBatch& in, Breaker::State& state) const override {
     State& s = state.Cast<State>();
     for (uint32_t row = 0; row < in.size(); ++row) {
       int64_t value = in.Value<int64_t>(column_, row);
       if (value < 0) {
-        s.status = base::ErrStatus("negative value");
+        s.context().Fail(base::ErrStatus("negative value"));
         return false;
       }
       s.values.push_back(value);
@@ -93,7 +90,7 @@ class Reverse final : public Breaker {
     uint32_t count = std::min(kMaxBatchRows, rows - s.served);
     out.Reset();
     // In a buffer, as the state can go before the batch does.
-    ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
+    ColumnBuffer buffer = s.context().TakeBuffer(sizeof(int64_t));
     int64_t* values = buffer.chunk().Values<int64_t>();
     std::copy_n(s.values.data() + s.served, count, values);
     out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values),
@@ -103,8 +100,6 @@ class Reverse final : public Breaker {
     return true;
   }
 };
-
-Reverse::State::~State() = default;
 
 std::vector<int64_t> DrainValues(const Source& source,
                                  const Pipelines& pipelines) {
@@ -183,31 +178,28 @@ class Total final : public Sink {
   explicit Total(uint32_t* builds) : builds_(builds) {}
 
   struct Sum : OperatorState {
-    ~Sum() override;
     RunValue<int64_t> value{this, 0};
   };
 
-  std::unique_ptr<OperatorState> MakeSinkState(Context&) const override {
-    return std::make_unique<Sum>();
-  }
-  base::Status ConsumeBatch(const RowBatch& in,
-                            OperatorState& state) const override {
+  bool ConsumeBatch(const RowBatch& in, OperatorState& state) const override {
     Sum& sum = state.Cast<Sum>();
     for (uint32_t row = 0; row < in.size(); ++row) {
       sum.value += in.Value<int64_t>(1, row);
     }
-    return base::OkStatus();
+    return true;
   }
-  base::Status FinalizeSink(OperatorState&) const override {
+  bool FinalizeSink(OperatorState&) const override {
     ++*builds_;
-    return base::OkStatus();
+    return true;
   }
 
  private:
+  OperatorState* NewSinkState(Context& context) const override {
+    return context.Make<Sum>();
+  }
+
   uint32_t* builds_;
 };
-
-Total::Sum::~Sum() = default;
 
 // Replaces column 1 of each batch with sink `total`'s sum.
 class WithTotal final : public Transform {
@@ -218,40 +210,32 @@ class WithTotal final : public Transform {
   explicit WithTotal(uint32_t total) : total_(total) {}
 
   struct State : OperatorState {
-    State(Context& c, uint32_t total) : context(&c), use(this, total) {}
-    ~State() override;
-    Context* context;
+    explicit State(uint32_t total) : use(this, total) {}
     PipelineUse use;
-    base::Status status;
   };
 
   void DescribeColumns(StepColumns* out) const override { out->reads = {1}; }
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    return std::make_unique<State>(context, total_);
-  }
   bool Process(RowBatch& batch, OperatorState& state) const override {
     State& s = state.Cast<State>();
-    base::StatusOr<OperatorState*> built = s.use.Built(*s.context);
-    if (!built.ok()) {
-      s.status = built.status();
+    OperatorState* built = s.use.Built(s.context());
+    if (!built) {
       return false;
     }
-    ColumnBuffer buffer = s.context->TakeBuffer(sizeof(int64_t));
+    ColumnBuffer buffer = s.context().TakeBuffer(sizeof(int64_t));
     int64_t* values = buffer.chunk().Values<int64_t>();
-    std::fill_n(values, kMaxBatchRows, *(*built)->Cast<Total::Sum>().value);
+    std::fill_n(values, kMaxBatchRows, *built->Cast<Total::Sum>().value);
     batch.SetColumn(1, ColumnView::Reference(StorageType{Int64{}}, values),
                     std::move(buffer));
     return true;
   }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().status;
-  }
 
  private:
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>(total_);
+  }
+
   uint32_t total_;
 };
-
-WithTotal::State::~State() = default;
 
 TEST(SinkTest, BuildsOnceARunWhenFirstRead) {
   core::Arena arena;
@@ -306,20 +290,18 @@ class CountEndRuns final : public Transform {
 
   struct State : OperatorState {
     explicit State(uint32_t* ends) : counter(this, ends) {}
-    ~State() override;
     Held<Counter> counter;
   };
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>(ends_);
-  }
   bool Process(RowBatch&, OperatorState&) const override { return true; }
 
  private:
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>(ends_);
+  }
+
   uint32_t* ends_;
 };
-
-CountEndRuns::State::~State() = default;
 
 TEST(SinkTest, EndPipelineRunEndsHeldStepsBeforeExhaustion) {
   core::Arena arena;

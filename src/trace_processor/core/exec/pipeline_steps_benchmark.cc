@@ -17,7 +17,6 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -121,7 +120,7 @@ void Run(benchmark::State& state,
     pipeline = arena.New<Served>(id, *breaker);
   }
   context.SetPipelines(&pipelines);
-  std::unique_ptr<OperatorState> run = pipeline->MakeState(context);
+  OperatorState* run = pipeline->MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {
     Restart(*pipeline, *run);
@@ -129,8 +128,8 @@ void Run(benchmark::State& state,
       benchmark::DoNotOptimize(batch->size());
     }
   }
-  if (!pipeline->status(*run).ok()) {
-    state.SkipWithError(pipeline->status(*run).c_message());
+  if (!run->context().error().ok()) {
+    state.SkipWithError(run->context().error().c_message());
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

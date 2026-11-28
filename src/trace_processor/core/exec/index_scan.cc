@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -73,10 +72,8 @@ IndexScan::IndexScan(core::Arena& arena,
   }
 }
 
-IndexScan::State::~State() = default;
-
-std::unique_ptr<OperatorState> IndexScan::MakeState(Context& context) const {
-  auto state = std::make_unique<State>();
+OperatorState* IndexScan::NewState(Context& context) const {
+  auto* state = context.Make<State>();
   state->reader.Init(columns_, &context);
   state->context = &context;
   state->popcounts.resize(equalities_.size());

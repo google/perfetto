@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>
@@ -92,15 +91,15 @@ void Run(benchmark::State& state,
   // Before every batch and state, which hold its buffers.
   Context context;
   context.SetPipelines(pipelines);
-  std::unique_ptr<OperatorState> run = source.MakeState(context);
+  OperatorState* run = source.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     Restart(source, *run);
     while (source.GetData(out, *run)) {
       benchmark::DoNotOptimize(out.column(2).data());
     }
-    if (!source.status(*run).ok()) {
-      state.SkipWithError(source.status(*run).c_message());
+    if (!run->context().error().ok()) {
+      state.SkipWithError(run->context().error().c_message());
       return;
     }
   }

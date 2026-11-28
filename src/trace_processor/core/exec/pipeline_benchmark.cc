@@ -19,7 +19,6 @@
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -44,8 +43,8 @@ class OneRowBatches final : public Source {
 
   explicit OneRowBatches(uint32_t batches) : batches_(batches) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;

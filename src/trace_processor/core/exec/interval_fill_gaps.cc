@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -47,6 +46,12 @@ constexpr char kName[] = "INTERVAL FILL GAPS";
 
 }  // namespace
 
+// Temporary: a held IntervalGaps starts each run anew.
+template <>
+void EndRunOf<IntervalGaps>(IntervalGaps* gaps) {
+  *gaps = IntervalGaps();
+}
+
 struct IntervalFillGaps::State : OperatorState {
   State(const IntervalFillGapsSpec& spec, Context& c)
       : context(&c),
@@ -56,13 +61,11 @@ struct IntervalFillGaps::State : OperatorState {
                    IntervalInputName{kName, "the background"}),
         input(this, spec.input, IntervalInputName{kName, "the input"}),
         keys(this, spec.input.key_columns) {}
-  ~State() override;
 
   Context* context;
   // The background, streamed in through the run's Context.
   PipelineUse background_input;
 
-  Held<base::Status> status{this};
   // Numbers lanes by key on both sides, if both have PER columns.
   Held<GroupTable> lanes{this};
 
@@ -82,6 +85,8 @@ struct IntervalFillGaps::State : OperatorState {
   // The current input lane.
   RunValue<uint32_t> lane{this};
   Held<IntervalGaps> gaps{this};
+  // The gaps found, in the order found.
+  Held<std::vector<IntervalGaps::Gap>> found{this};
 
   // The fillers served.
   // The shape of each output's input column, from the first input batch:
@@ -98,7 +103,15 @@ struct IntervalFillGaps::State : OperatorState {
   CallScratch<std::vector<uint32_t>> rows;
 };
 
-IntervalFillGaps::State::~State() = default;
+namespace {
+
+// Stores each gap which a state's IntervalGaps finds.
+struct KeepGap {
+  void operator()(const IntervalGaps::Gap& gap) const { gaps->push_back(gap); }
+  std::vector<IntervalGaps::Gap>* gaps;
+};
+
+}  // namespace
 
 IntervalFillGaps::IntervalFillGaps(core::Arena& arena,
                                    IntervalFillGapsSpec spec)
@@ -131,21 +144,19 @@ IntervalFillGaps::IntervalFillGaps(core::Arena& arena,
   }
 }
 
-std::unique_ptr<OperatorState> IntervalFillGaps::MakeState(
-    Context& context) const {
-  return std::make_unique<State>(spec_, context);
-}
-
-base::Status IntervalFillGaps::status(const OperatorState& state) const {
-  return state.Cast<const State>().status;
+OperatorState* IntervalFillGaps::NewState(Context& context) const {
+  return context.Make<State>(spec_, context);
 }
 
 bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
   if (!s.background_read) {
-    s.status = ReadBackground(s);
+    base::Status status = ReadBackground(s);
+    if (!status.ok()) {
+      s.context->Fail(std::move(status));
+    }
     s.background_read = true;
   }
-  return s.status.ok();
+  return !s.context->failed();
 }
 
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
@@ -184,7 +195,7 @@ void IntervalFillGaps::StartLane(uint32_t lane, uint32_t row, State& s) const {
     s.visited[*i] = true;
     background = s.background.lane(*i).intervals;
   }
-  s.gaps.StartLane(tag, background);
+  s.gaps.StartLane(tag, background, KeepGap{&s.found});
 }
 
 base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
@@ -211,7 +222,8 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
       }
       return lanes.Error(result, {kName, "the input"});
     }
-    s.gaps.Cover(static_cast<Ts>(start), static_cast<Ts>(end));
+    s.gaps.Cover(static_cast<Ts>(start), static_cast<Ts>(end),
+                 KeepGap{&s.found});
   }
   if (broadcast_ && s.gaps.in_lane()) {
     s.keys.Carry(s.lane_key);
@@ -231,8 +243,9 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
   if (!EnsureBackgroundRead(s)) {
     return OpResult::kError;
   }
-  s.status = Cover(in, s);
-  if (!s.status.ok()) {
+  base::Status status = Cover(in, s);
+  if (!status.ok()) {
+    s.context->Fail(std::move(status));
     return OpResult::kError;
   }
   if (s.shapes.empty()) {
@@ -241,7 +254,7 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
     }
   }
   out.Project(in, input_columns_);
-  s.serving = !s.gaps.gaps().empty();
+  s.serving = !s.found.empty();
   return s.serving ? OpResult::kHaveMoreOutput : OpResult::kNeedMoreInput;
 }
 
@@ -252,24 +265,25 @@ OpResult IntervalFillGaps::Finish(RowBatch& out, OperatorState& state) const {
     return OpResult::kError;
   }
   if (!s.finished) {
-    s.gaps.EndLane();
+    KeepGap keep{&s.found};
+    s.gaps.EndLane(keep);
     // Background lanes with no input are filled completely.
     for (uint32_t i = 0; i < s.visited.size() && !broadcast_; ++i) {
       if (!s.visited[i]) {
-        s.gaps.StartLane(0, s.background.lane(i).intervals);
-        s.gaps.EndLane();
+        s.gaps.StartLane(0, s.background.lane(i).intervals, keep);
+        s.gaps.EndLane(keep);
       }
     }
     s.finished = true;
   }
-  if (s.gaps.gaps().empty()) {
+  if (s.found.empty()) {
     return OpResult::kNeedMoreInput;
   }
   return ServeFillers(out, s);
 }
 
 OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
-  std::vector<IntervalGaps::Gap>& gaps = s.gaps.gaps();
+  std::vector<IntervalGaps::Gap>& gaps = s.found;
   auto count = static_cast<uint32_t>(
       std::min<size_t>(gaps.size() - s.served, kMaxBatchRows));
   const IntervalGaps::Gap* fillers = gaps.data() + s.served;
@@ -309,11 +323,11 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
         // differ between the input and the background.
         if (!s.shapes.empty() &&
             !SameLogicalType(ColumnShape::Of(column), s.shapes[i])) {
-          s.status = base::ErrStatus(
+          s.context->Fail(base::ErrStatus(
               "%s: column '%.*s' holds a different type in the background than "
               "in the input",
               kName, static_cast<int>(spec_.outputs[i].name.size()),
-              spec_.outputs[i].name.data());
+              spec_.outputs[i].name.data()));
           return OpResult::kError;
         }
         out.AddColumn(column, s.gathered.buffer(filler.index));

@@ -18,26 +18,16 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-OperatorState::~OperatorState() = default;
-
-void OperatorState::EndHeldRuns() {
-  EndRuns(*held_);
-}
-
-void OperatorState::AddHeld(void* where, void (*end_run)(void*)) {
-  registry().held.push_back({where, end_run});
-}
-
 // Defined out of line so that each class's vtable is emitted in one object
 // file.
-base::Status Source::status(const OperatorState&) const {
-  return base::OkStatus();
+RowBatch* Source::Next(RowBatch& scratch, OperatorState& state) const {
+  return GetData(scratch, state) ? &scratch : nullptr;
 }
-base::Status Transform::status(const OperatorState&) const {
-  return base::OkStatus();
+OperatorState* Transform::NewState(Context& context) const {
+  return context.Make<EmptyState>();
 }
-base::Status Operator::status(const OperatorState&) const {
-  return base::OkStatus();
+OperatorState* Operator::NewState(Context& context) const {
+  return context.Make<EmptyState>();
 }
 
 }  // namespace perfetto::trace_processor::core::exec

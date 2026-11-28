@@ -48,22 +48,32 @@ struct StringSortKey {
 }  // namespace
 
 void StringRanks::Rank(const StringPool& pool) {
-  // Initially do *not* default initialize the array for performance.
-  std::unique_ptr<StringSortToken[]> ids_to_sort(
-      new StringSortToken[ranks_.size()]);
-  std::unique_ptr<StringSortToken[]> scratch(
-      new StringSortToken[ranks_.size()]);
+  std::unique_ptr<StringPool::Id[]> ids(new StringPool::Id[ranks_.size()]);
   uint32_t i = 0;
   for (auto it = ranks_.GetIterator(); it; ++it) {
-    ids_to_sort[i++] = StringSortToken{View(pool, it.key()), it.key()};
+    ids[i++] = it.key();
   }
-  auto* sorted =
-      MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + ranks_.size(),
-                   scratch.get(), StringSortKey{});
+  Sort(pool, ids.get(), ranks_.size());
   for (uint32_t rank = 0; rank < ranks_.size(); ++rank) {
-    uint32_t* it = ranks_.Find(sorted[rank].id);
+    uint32_t* it = ranks_.Find(ids[rank]);
     PERFETTO_DCHECK(it);
     *it = rank;
+  }
+}
+
+void StringRanks::Sort(const StringPool& pool,
+                       StringPool::Id* ids,
+                       size_t count) {
+  // Initially do *not* default initialize the array for performance.
+  std::unique_ptr<StringSortToken[]> tokens(new StringSortToken[count]);
+  std::unique_ptr<StringSortToken[]> scratch(new StringSortToken[count]);
+  for (size_t i = 0; i < count; ++i) {
+    tokens[i] = StringSortToken{View(pool, ids[i]), ids[i]};
+  }
+  auto* sorted = MsdRadixSort(tokens.get(), tokens.get() + count, scratch.get(),
+                              StringSortKey{});
+  for (size_t i = 0; i < count; ++i) {
+    ids[i] = sorted[i].id;
   }
 }
 

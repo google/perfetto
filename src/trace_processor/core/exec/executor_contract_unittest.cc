@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <optional>
 #include <random>
 #include <utility>
@@ -234,8 +233,8 @@ class ContractSource final : public Source {
     size_t next = 0;
     bool failed = false;
   };
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().next = 0;
@@ -246,7 +245,9 @@ class ContractSource final : public Source {
     auto& s = state.Cast<State>();
     out.Reset();
     if (s.next == chunks_.size()) {
-      s.failed = fail_;
+      if (fail_) {
+        s.context().Fail(base::ErrStatus("source failed"));
+      }
       return false;
     }
     const auto& values = chunks_[s.next++];
@@ -255,10 +256,6 @@ class ContractSource final : public Source {
     out.SetRowCount(static_cast<uint32_t>(values.size()));
     out.SetLast(mark_last_ && s.next == chunks_.size());
     return true;
-  }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().failed ? base::ErrStatus("source failed")
-                                            : base::OkStatus();
   }
   mutable uint32_t pulls = 0;
 
@@ -275,23 +272,24 @@ class ContractFilter final : public Operator {
   void DescribeColumns(StepColumns*) const override {}
 
   struct State : OperatorState {
-    std::vector<uint32_t> selected;
+    uint32_t selected[kMaxBatchRows];
   };
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override {
-    auto& rows = state.Cast<State>().selected;
-    rows.clear();
+    uint32_t* rows = state.Cast<State>().selected;
+    uint32_t count = 0;
     for (uint32_t i = 0; i < in.size(); ++i) {
       ++evaluated;
       if (in.Value<int64_t>(0, i) >= 0)
-        rows.push_back(i);
+        rows[count++] = i;
     }
     out.CopyFrom(in);
-    out.mutable_selection().Keep(rows);
+    out.mutable_selection().Keep(
+        base::Span<const uint32_t>(rows, rows + count));
     return OpResult::kNeedMoreInput;
   }
   mutable uint32_t evaluated = 0;
@@ -331,10 +329,10 @@ class KeepNonNegative final : public Transform {
     std::vector<uint32_t> selected;
     std::optional<Held<std::vector<int64_t>>> seen;
   };
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto* state = context.Make<State>();
     if (hold_) {
-      state->seen.emplace(state.get());
+      state->seen.emplace(state);
       seen = &*state->seen;
     }
     return state;
@@ -544,7 +542,7 @@ TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
   ASSERT_TRUE(pipeline.GetData(out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3, 4, 5));
   EXPECT_FALSE(pipeline.GetData(out, *state));
-  EXPECT_TRUE(pipeline.status(*state).ok());
+  EXPECT_TRUE(state->context().error().ok());
 }
 
 }  // namespace

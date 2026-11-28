@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <memory>
 #include <numeric>
 #include <type_traits>
 #include <utility>
@@ -440,10 +439,8 @@ Filter::Filter(core::ArenaSpan<Condition> conditions, const StringPool* pool)
   }
 }
 
-Filter::State::~State() = default;
-
-std::unique_ptr<OperatorState> Filter::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
+OperatorState* Filter::NewState(Context& context) const {
+  return context.Make<State>();
 }
 
 bool Filter::Process(RowBatch& batch, OperatorState& state) const {
@@ -456,14 +453,15 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
   if (PERFETTO_UNLIKELY(!r.contiguous)) {
     UnpackSelection(selection.indices(), r.count, r.rows);
   }
-  const ParamValue* values = s.context->params().b;
+  const Context& context = s.context();
+  const ParamValue* values = context.params().b;
   for (const Condition& c : conditions_) {
     const ColumnView& column = batch.column(c.column);
     if (PERFETTO_UNLIKELY(c.op.IsAnyOf<NullOp>())) {
       r = KeepNulls(column, c.op.Is<IsNull>(), r);
     } else {
       PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
-      PERFETTO_DCHECK(c.param < s.context->params().size());
+      PERFETTO_DCHECK(c.param < context.params().size());
       const ParamValue& cast = values[c.param];
       // A dense nullable flat column's null slots hold values, so a number
       // or a string id is compared on every row, and the nulls are dropped

@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -51,14 +50,11 @@ class AccumulateState : public OperatorState {
       stride += function->state_words();
     }
   }
-  ~AccumulateState() override;
 
   // What each batch's columns are written in.
   Context* context;
   // Words of state per node.
   uint32_t stride = 0;
-
-  Held<base::Status> status{this};
 
   // The aggregates' state of every node seen.
   // By node, `stride` words apart: each aggregate's state in turn.
@@ -77,8 +73,6 @@ class AccumulateState : public OperatorState {
   CallScratch<FlexVector<int64_t>> values;
   CallScratch<BitVector> valid;
 };
-
-AccumulateState::~AccumulateState() = default;
 
 // The column's values at the rows kept, laid out flat, gathering once unless
 // the rows kept are the first ones.
@@ -178,7 +172,7 @@ bool Accumulate(const TreeAccumulateSpec& spec,
         std::move(buffer));
   }
   if (overflow) {
-    s.status = base::ErrStatus("TREE ACCUMULATE: integer overflow");
+    s.context->Fail(base::ErrStatus("TREE ACCUMULATE: integer overflow"));
     return false;
   }
   return true;
@@ -193,20 +187,11 @@ TreeAccumulateDown::TreeAccumulateDown(core::Arena& arena,
                                        TreeAccumulateSpec spec)
     : spec_(spec), functions_(MakeAggregateFunctions(arena, spec.aggregates)) {}
 
-std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState(
-    Context& context) const {
-  return std::make_unique<AccumulateState>(context, functions_);
+OperatorState* TreeAccumulateUp::NewState(Context& context) const {
+  return context.Make<AccumulateState>(context, functions_);
 }
-std::unique_ptr<OperatorState> TreeAccumulateDown::MakeState(
-    Context& context) const {
-  return std::make_unique<AccumulateState>(context, functions_);
-}
-
-base::Status TreeAccumulateUp::status(const OperatorState& state) const {
-  return state.Cast<const AccumulateState>().status;
-}
-base::Status TreeAccumulateDown::status(const OperatorState& state) const {
-  return state.Cast<const AccumulateState>().status;
+OperatorState* TreeAccumulateDown::NewState(Context& context) const {
+  return context.Make<AccumulateState>(context, functions_);
 }
 
 bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {

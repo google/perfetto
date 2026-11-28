@@ -15,7 +15,6 @@
  */
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -49,8 +48,8 @@ class DropOddRows final : public Operator {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
 
   OpResult Execute(const RowBatch& in,
@@ -69,12 +68,9 @@ class DropOddRows final : public Operator {
 
  private:
   struct State : OperatorState {
-    ~State() override;
     uint32_t selected[kMaxBatchRows];
   };
 };
-
-DropOddRows::State::~State() = default;
 
 // Reads a pipeline a row at a time, the way a consumer would.
 std::vector<uint32_t> Drain(const Pipeline& pipeline) {
@@ -94,8 +90,8 @@ class Twice final : public Operator {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
 
   OpResult Execute(const RowBatch& in,
@@ -109,12 +105,9 @@ class Twice final : public Operator {
 
  private:
   struct State : OperatorState {
-    ~State() override;
     RunValue<bool> again{this, false};
   };
 };
-
-Twice::State::~State() = default;
 
 TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   core::Arena arena;
@@ -161,8 +154,8 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
                   const std::vector<int64_t>* computed)
         : payload_(payload), computed_(computed) {}
 
-    std::unique_ptr<OperatorState> MakeState(Context&) const override {
-      return std::make_unique<State>();
+    OperatorState* NewState(Context& context) const override {
+      return context.Make<State>();
     }
     void Rewind(OperatorState& state) const override {
       state.Cast<State>().done = false;
@@ -231,8 +224,8 @@ class Trailer final : public Operator {
 
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
@@ -243,7 +236,7 @@ class Trailer final : public Operator {
   OpResult Finish(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
     if (first_ < 0) {
-      s.status = base::ErrStatus("trailer broke");
+      s.context().Fail(base::ErrStatus("trailer broke"));
       return OpResult::kError;
     }
     out.Reset();
@@ -255,22 +248,15 @@ class Trailer final : public Operator {
     return ++s.let_go == count_ ? OpResult::kNeedMoreInput
                                 : OpResult::kHaveMoreOutput;
   }
-  base::Status status(const OperatorState& state) const override {
-    return state.Cast<const State>().status;
-  }
 
  private:
   struct State : OperatorState {
-    ~State() override;
     RunValue<uint32_t> let_go{this};
-    Held<base::Status> status{this};
   };
 
   int64_t first_;
   uint32_t count_;
 };
-
-Trailer::State::~State() = default;
 
 // Passes every batch through, holding the rows it has seen for the run in
 // a vector `seen` points at.
@@ -282,8 +268,8 @@ class Recording final : public Operator {
 
   explicit Recording(const std::vector<uint32_t>** seen) : seen_(seen) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto state = context.Make<State>();
     *seen_ = &state->seen;
     return state;
   }
@@ -317,7 +303,7 @@ TEST(StateTest, AStepsRunEndsWithItsStream) {
   ops.push_back(arena.New<Trailer>(99, 2u));
   Pipeline pipeline(arena, source, ops);
   Context context;
-  std::unique_ptr<OperatorState> state = pipeline.MakeState(context);
+  OperatorState* state = pipeline.MakeState(context);
   for (uint32_t run = 0; run < 2; ++run) {
     if (run) {
       Restart(pipeline, *state);
@@ -383,8 +369,8 @@ class DropOddRowsInPlace final : public Transform {
   const void* type() const override { return &kType; }
   void DescribeColumns(StepColumns*) const override {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
 
   bool Process(RowBatch& batch, OperatorState& state) const override {
@@ -403,12 +389,9 @@ class DropOddRowsInPlace final : public Transform {
 
  private:
   struct State : OperatorState {
-    ~State() override;
     uint32_t selected[kMaxBatchRows];
   };
 };
-
-DropOddRowsInPlace::State::~State() = default;
 
 TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   core::Arena arena;

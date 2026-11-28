@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -35,10 +34,8 @@ DataframeScan::DataframeScan(core::ArenaSpan<const dataframe::Column*> columns,
                              ReadDirection direction)
     : columns_(columns), row_count_(row_count), direction_(direction) {}
 
-DataframeScan::State::~State() = default;
-
-std::unique_ptr<OperatorState> DataframeScan::MakeState(Context&) const {
-  auto state = std::make_unique<State>();
+OperatorState* DataframeScan::NewState(Context& context) const {
+  auto* state = context.Make<State>();
   state->reader.Init(columns_);
   state->reader.Start({0, row_count_}, direction_);
   return state;

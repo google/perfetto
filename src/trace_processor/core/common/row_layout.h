@@ -55,17 +55,25 @@ class RowLayout {
 
   // Lays out `columns` instead, reusing the storage already allocated.
   void Assign(const std::vector<Column>& columns) {
-    slots_.clear();
-    stride_ = 0;
-    for (const Column& column : columns) {
-      slots_.push_back({static_cast<uint16_t>(stride_), 0, column.nullable,
-                        column.descending});
-      stride_ += (column.nullable ? 1u : 0u) + ValueSize(column.type);
+    slots_.resize(columns.size());
+    stride_ = LayOut(columns.data(), columns.size(), slots_.data());
+  }
+
+  // Lays out `count` columns: writes the slot of each to `slots` and returns
+  // the stride.
+  static uint32_t LayOut(const Column* columns, size_t count, Slot* slots) {
+    uint32_t stride = 0;
+    for (size_t i = 0; i < count; ++i) {
+      const Column& column = columns[i];
+      slots[i] = {static_cast<uint16_t>(stride), 0, column.nullable,
+                  column.descending};
+      stride += (column.nullable ? 1u : 0u) + ValueSize(column.type);
     }
-    PERFETTO_CHECK(stride_ <= std::numeric_limits<uint16_t>::max());
-    for (Slot& slot : slots_) {
-      slot.stride = static_cast<uint16_t>(stride_);
+    PERFETTO_CHECK(stride <= std::numeric_limits<uint16_t>::max());
+    for (size_t i = 0; i < count; ++i) {
+      slots[i].stride = static_cast<uint16_t>(stride);
     }
+    return stride;
   }
 
   uint32_t stride() const { return stride_; }

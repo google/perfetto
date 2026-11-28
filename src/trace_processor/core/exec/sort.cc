@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 
 #include "perfetto/base/status.h"
@@ -27,19 +26,17 @@
 namespace perfetto::trace_processor::core::exec {
 
 Sort::Sort(SortSpec spec) : spec_(spec) {}
-Sort::State::~State() = default;
-
-std::unique_ptr<Breaker::State> Sort::CreateState() const {
-  auto state = std::make_unique<State>();
+OperatorState* Sort::NewSinkState(Context& context) const {
+  auto* state = context.Make<State>();
   state->rows.SetUnread(unread_);
   return state;
 }
 
 bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
-  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool, *s.context);
+  base::Status status = s.rows.Append(in, spec_.keys, spec_.pool, s.context());
   if (!status.ok()) {
-    s.status = base::ErrStatus("SORT: %s", status.c_message());
+    s.context().Fail(base::ErrStatus("SORT: %s", status.c_message()));
     return false;
   }
   return true;
@@ -69,7 +66,7 @@ bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
     s.emitted += count;
     return true;
   }
-  s.emitted += s.rows.GatherInPlace(&out, s.emitted, *s.context);
+  s.emitted += s.rows.GatherInPlace(&out, s.emitted, s.context());
   return true;
 }
 

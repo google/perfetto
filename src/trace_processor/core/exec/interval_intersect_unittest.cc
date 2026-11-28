@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -56,8 +55,8 @@ class TableSource final : public Source {
 
   uint32_t columns() const { return columns_; }
 
-  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
-    auto state = std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    auto state = context.Make<State>();
     state->context = &context;
     return state;
   }
@@ -67,20 +66,21 @@ class TableSource final : public Source {
 
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
+    std::vector<std::vector<int64_t>> columns;
     auto total = static_cast<uint32_t>(rows_.size());
     if (s.offset == total) {
       return false;
     }
     uint32_t count = std::min(chunk_rows_, total - s.offset);
-    s.columns.assign(columns_, std::vector<int64_t>(count));
+    columns.assign(columns_, std::vector<int64_t>(count));
     for (uint32_t row = 0; row < count; ++row) {
       for (uint32_t c = 0; c < columns_; ++c) {
-        s.columns[c][row] = rows_[s.offset + row][c];
+        columns[c][row] = rows_[s.offset + row][c];
       }
     }
     out.Reset();
     for (uint32_t c = 0; c < columns_; ++c) {
-      test::AddCopy(*s.context, s.columns[c], nullptr, &out);
+      test::AddCopy(*s.context, columns[c], nullptr, &out);
     }
     out.SetRowCount(count);
     s.offset += count;
@@ -90,17 +90,13 @@ class TableSource final : public Source {
  private:
   struct State : OperatorState {
     Context* context = nullptr;
-    ~State() override;
     uint32_t offset = 0;
-    std::vector<std::vector<int64_t>> columns;
   };
 
   Table rows_;
   uint32_t columns_;
   uint32_t chunk_rows_;
 };
-
-TableSource::State::~State() = default;
 
 // An operand whose ts and dur are its first two columns, the rest being
 // whatever the table carries along. Every column is retained.
@@ -135,10 +131,10 @@ Table Collect(const IntervalIntersect& intersect,
     }
   }
   if (status) {
-    *status = intersect.status(state);
+    *status = state.context().error();
   } else {
-    EXPECT_TRUE(intersect.status(state).ok())
-        << intersect.status(state).message();
+    EXPECT_TRUE(state.context().error().ok())
+        << state.context().error().message();
   }
   std::sort(rows.begin(), rows.end());
   return rows;
@@ -157,7 +153,7 @@ Table Intersect(core::Arena& arena,
   IntervalIntersect intersect(test::InArena(arena, specs));
   Context context;
   context.SetPipelines(&pipelines);
-  std::unique_ptr<OperatorState> state = intersect.MakeState(context);
+  OperatorState* state = intersect.MakeState(context);
   return Collect(intersect, *state, status);
 }
 

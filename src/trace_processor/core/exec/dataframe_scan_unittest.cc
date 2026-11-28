@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -80,12 +79,12 @@ class DataframeScanTest : public ::testing::Test {
       }
     }
     Expand expand(test::InArena(arena_, sparse));
-    std::unique_ptr<OperatorState> state = expand.MakeState(context_);
+    OperatorState* state = expand.MakeState(context_);
     ASSERT_TRUE(expand.Process(batch, *state));
   }
 
   std::vector<int64_t> Drain(const DataframeScan& scan, uint32_t column) {
-    std::unique_ptr<OperatorState> state = scan.MakeState(context_);
+    OperatorState* state = scan.MakeState(context_);
     RowBatch batch;
     std::vector<int64_t> out;
     while (scan.GetData(batch, *state)) {
@@ -143,7 +142,7 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
                                     df.shared_column(2), df.shared_column(3),
                                     df.shared_column(4), df.shared_column(5)}),
       df.row_count(), ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> state = scan.MakeState(context_);
+  OperatorState* state = scan.MakeState(context_);
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
   EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
@@ -175,7 +174,7 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   DataframeScan sparse_scan(
       test::ColumnsInArena(arena_, {sparse.shared_column(0)}),
       sparse.row_count(), ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> sparse_state = sparse_scan.MakeState(context_);
+  OperatorState* sparse_state = sparse_scan.MakeState(context_);
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
   EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSparse);
@@ -196,7 +195,7 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   DataframeScan dense_scan(
       test::ColumnsInArena(arena_, {dense.shared_column(0)}), dense.row_count(),
       ReadDirection::kForwards);
-  std::unique_ptr<OperatorState> dense_state = dense_scan.MakeState(context_);
+  OperatorState* dense_state = dense_scan.MakeState(context_);
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
   EXPECT_EQ(batch.column(0).kind(), ColumnView::Kind::kSequence);
   EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
@@ -232,7 +231,7 @@ TEST_F(DataframeScanTest, IndexScanCopiesScatteredRowsIntoOneBatch) {
       test::InArena<IndexScan::Equality>(arena_, {{&df.column(0), 0}}), {},
       &pool_);
   Context context;
-  std::unique_ptr<OperatorState> state = scan.MakeState(context);
+  OperatorState* state = scan.MakeState(context);
   ParamValue param;
   param.validity = filter::CastFilterValueResult::kValid;
   param.value = kBig + 7;
@@ -289,7 +288,7 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   ExpandSparse(output);
   EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
   output.Reset();
-  state.reset();
+  test::EndRun(*state);
   EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
 }
 

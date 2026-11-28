@@ -19,11 +19,12 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -36,10 +37,13 @@ namespace perfetto::trace_processor::core::exec {
 
 Context::Context() = default;
 
-Context::Slot::Slot() = default;
-Context::Slot::~Slot() = default;
-
 Context::~Context() {
+  for (const Owned& owned : owned_) {
+    owned.destroy(owned.object);
+  }
+  for (OperatorState* state : held_) {
+    delete state->registry_;
+  }
   nulls_ = ColumnBuffer();
 }
 
@@ -72,58 +76,52 @@ Context::Slot& Context::Start(uint32_t id) {
       slot.state = entry.sink->MakeSinkState(*this);
     }
   } else {
-    Restart(*entry.pipeline, *slot.pipeline);
+    entry.pipeline->Rewind(*slot.pipeline);
   }
   slot.running = true;
   return slot;
 }
 
-base::StatusOr<OperatorState*> Context::BuildSink(uint32_t id) {
+OperatorState* Context::BuildSink(uint32_t id) {
   if (slots_[id].built) {
-    return slots_[id].state.get();
+    return slots_[id].state;
   }
   Slot& slot = Start(id);
   const Pipelines::Entry& entry = (*pipelines_)[id];
   const Pipeline& pipeline = *entry.pipeline;
   const Sink& sink = *entry.sink;
-  base::Status status;
+  bool ok = true;
   while (RowBatch* batch = pipeline.Next(*slot.pipeline)) {
-    status = sink.ConsumeBatch(*batch, *slot.state);
-    if (!status.ok()) {
+    if (!sink.ConsumeBatch(*batch, *slot.state)) {
+      ok = false;
       break;
     }
   }
-  if (status.ok()) {
-    status = pipeline.status(*slot.pipeline);
+  if (ok && failed()) {
+    ok = false;
   }
-  if (status.ok()) {
-    status = sink.FinalizeSink(*slot.state);
+  if (ok && !sink.FinalizeSink(*slot.state)) {
+    ok = false;
   }
-  if (!status.ok()) {
+  if (!ok) {
+    if (!failed()) {
+      Fail(base::ErrStatus("sink failed without saying why"));
+    }
     EndPipelineRun(id);
-    return status;
+    return nullptr;
   }
   slot.built = true;
-  return slot.state.get();
+  return slot.state;
 }
 
 OperatorState* Context::IfBuilt(uint32_t id) const {
-  return slots_[id].built ? slots_[id].state.get() : nullptr;
+  return slots_[id].built ? slots_[id].state : nullptr;
 }
 
 RowBatch* Context::NextBatch(uint32_t id) {
   Slot& slot = slots_[id].running ? slots_[id] : Start(id);
   const Pipelines::Entry& entry = (*pipelines_)[id];
   return entry.pipeline->Next(*slot.pipeline);
-}
-
-base::Status Context::PipelineStatus(uint32_t id) const {
-  const Slot& slot = slots_[id];
-  if (!slot.pipeline) {
-    return base::OkStatus();
-  }
-  const Pipelines::Entry& entry = (*pipelines_)[id];
-  return entry.pipeline->status(*slot.pipeline);
 }
 
 void Context::EndPipelineRun(uint32_t id) {
@@ -133,9 +131,55 @@ void Context::EndPipelineRun(uint32_t id) {
   }
   slot.running = false;
   slot.built = false;
-  slot.pipeline->EndRun();
+  (*pipelines_)[id].pipeline->EndRun(*slot.pipeline);
   if (slot.state) {
-    slot.state->EndRun();
+    EndRun(*slot.state);
+  }
+}
+
+void Context::Fail(base::Status status) {
+  if (error_.ok()) {
+    error_ = std::move(status);
+  }
+}
+
+void Context::AddState(OperatorState* state) {
+  state->context_ = this;
+  state->id_ = static_cast<uint32_t>(held_.size());
+  held_.push_back(state);
+}
+
+void Context::AddOwned(void* object, void (*destroy)(void*)) {
+  owned_.push_back({object, destroy});
+}
+
+OperatorState* Context::Made(OperatorState* state) {
+  SetHolds(*state, state->registry_ != nullptr);
+  return state;
+}
+
+void Context::SetHolds(OperatorState& state, bool holds) {
+  holding_ += static_cast<uint32_t>(holds) - state.holds_;
+  state.holds_ = holds;
+}
+
+void Context::EndHeldRun(OperatorState& state) {
+  const OperatorState::Registry& registry = *state.registry_;
+  for (const OperatorState::HeldValue& value : registry.values) {
+    switch (value.size) {
+      case 1:
+        memcpy(value.where, &value.initial, 1);
+        break;
+      case 4:
+        memcpy(value.where, &value.initial, 4);
+        break;
+      default:
+        memcpy(value.where, &value.initial, 8);
+        break;
+    }
+  }
+  for (const OperatorState::HeldObject& held : registry.held) {
+    held.end_run(held.where);
   }
 }
 

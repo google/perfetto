@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_DISTINCT_H_
 
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -52,19 +51,12 @@ class Distinct final : public Transform {
 
   explicit Distinct(core::ArenaSpan<uint32_t> columns);
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
-  base::Status status(const OperatorState&) const override;
 
  private:
   friend class PipelineFormatter;
 
   struct State : OperatorState {
-    State() = default;
-    ~State() override;
-
-    Held<base::Status> status{this};
-
     // Every key seen so far, numbered in the order first seen.
     Held<GroupTable> keys{this};
 
@@ -73,6 +65,8 @@ class Distinct final : public Transform {
     CallScratch<FlexVector<uint32_t>> row_keys;
     CallScratch<FlexVector<uint32_t>> kept;
   };
+
+  OperatorState* NewState(Context&) const override;
 
   core::ArenaSpan<uint32_t> columns_;
 };

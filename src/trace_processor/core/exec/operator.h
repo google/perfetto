@@ -18,11 +18,9 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_OPERATOR_H_
 
 #include <cstdint>
-#include <cstring>
-#include <memory>
 #include <vector>
 
-#include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/util/arena.h"
 
@@ -65,31 +63,32 @@ struct StepColumns {
 //  1. A plan is const once lowering ends: Sources, Transforms and Operators
 //     hold no values, and nothing the planner sets changes during a run.
 //  2. Whatever a step needs only during one call is not kept past it.
-//  3. Whatever a step keeps across calls is either set when its state is
-//     made and never changed, scratch for one call kept for its capacity
-//     (CallScratch<T>), or held for the run (Held<T> or RunValue<T>, see
-//     run_held.h). The executor ends the run of everything
-//     held when the step's stream ends: the step has served its last batch,
-//     or no more will be pulled from it, and again before a source is
-//     restarted (see Restart()). A step never clears its own state; a source
-//     only restarts its read position in Rewind(). A rewound state behaves
-//     exactly as a new one does.
-//  4. A batch a step outputs never points into its state: its columns are in
+//  3. Each state is made by the run's Context (Context::Make()) in the step's
+//     NewState(), and lives as long as the Context. Whatever it keeps across
+//     calls is set when the state is made and never changed, is scratch for one
+//     call kept for its capacity (CallScratch<T>), or is held for the run
+//     (Held<T> or RunValue<T>, see run_held.h).
+//  4. The executor ends a state's run when the step's stream ends, meaning the
+//     step has served its last batch or no more will be pulled from it, and
+//     again before a source is restarted (see Restart()). Ending a run works
+//     the same way for every state (Context::EndRun()). A step never clears its
+//     own state; a source only resets its read position in Rewind(). A rewound
+//     state behaves exactly like a new one.
+//  5. A step which fails reports why with Context::Fail(), then returns
+//     failure.
+//  6. A batch a step outputs never points into its state: its columns are in
 //     buffers from the run's Context, or borrow storage which outlives the
 //     run (see RowBatch). So a state's run can end while batches it output
 //     are still being read.
-//  5. Batches are not changed once output. A step changing one works on its
+//  7. Batches are not changed once output. A step changing one works on its
 //     own RowBatch, onto the same buffers.
-//  6. Rows read after the step which produced them has finished are held by
+//  8. Rows read after the step which produced them has finished are held by
 //     the run, never in a step's state.
 //
 // A plan can be run more than once or concurrently, but it and its borrowed
 // dependencies must outlive each run.
 class OperatorState {
  public:
-  OperatorState() = default;
-  virtual ~OperatorState();
-
   OperatorState(const OperatorState&) = delete;
   OperatorState& operator=(const OperatorState&) = delete;
 
@@ -103,20 +102,16 @@ class OperatorState {
     return static_cast<const T&>(*this);
   }
 
-  // Ends the run of everything the state holds (see Held). Called by the
-  // executor, never by the step.
-  void EndRun() {
-    if (held_) {
-      EndHeldRuns();
-    }
-  }
+  // The run's Context, which made the state.
+  Context& context() const { return *context_; }
 
-  // Whether the state holds anything for a run, which is settled once it is
-  // made.
-  bool holds() const { return held_ != nullptr; }
+ protected:
+  OperatorState() = default;
+  // Not virtual: the Context destroys each state as the type it made.
+  ~OperatorState() = default;
 
  private:
-  friend class Pipeline;
+  friend class Context;
   friend class PipelineUse;
   template <typename T>
   friend class RunValue;
@@ -136,50 +131,42 @@ class OperatorState {
     uint64_t initial;
     uint32_t size;
   };
-  // Everything the state holds for a run. Behind a pointer, made on the
-  // first registration, so a state holding nothing stays small.
+  // Everything the state holds for a run, made on the first registration and
+  // freed by the Context.
   struct Registry {
     std::vector<HeldObject> held;
     std::vector<HeldValue> values;
-    std::vector<base::Status*> statuses;
   };
 
   Registry& registry() {
-    if (!held_) {
-      held_ = std::make_unique<Registry>();
+    if (!registry_) {
+      registry_ = new Registry();
     }
-    return *held_;
+    return *registry_;
   }
-  void EndHeldRuns();
-  void AddHeld(void* where, void (*end_run)(void*));
-  static void EndRuns(const Registry& registry);
+  void AddHeld(void* where, void (*end_run)(void*)) {
+    registry().held.push_back({where, end_run});
+  }
 
-  std::unique_ptr<Registry> held_;
+  Context* context_ = nullptr;
+  // The index of this state in its Context.
+  uint32_t id_ = 0;
+  // Whether the Context has anything to do when this state's run ends. It is 32
+  // bits wide so that the class has no padding in which a derived state's
+  // members could be laid out.
+  uint32_t holds_ = 0;
+  // Temporary: what the state's Held<T> and RunValue<T> members hold.
+  Registry* registry_ = nullptr;
 };
 
-inline void OperatorState::EndRuns(const Registry& registry) {
-  for (const HeldValue& value : registry.values) {
-    switch (value.size) {
-      case 1:
-        memcpy(value.where, &value.initial, 1);
-        break;
-      case 4:
-        memcpy(value.where, &value.initial, 4);
-        break;
-      default:
-        memcpy(value.where, &value.initial, 8);
-        break;
-    }
-  }
-  for (base::Status* status : registry.statuses) {
-    if (!status->ok()) {
-      *status = base::OkStatus();
-    }
-  }
-  for (const HeldObject& held : registry.held) {
-    held.end_run(held.where);
+inline void Context::EndRun(OperatorState& state) {
+  if (state.holds_) {
+    EndHeldRun(state);
   }
 }
+
+// The state of a step which keeps nothing.
+struct EmptyState final : OperatorState {};
 
 // Produces the batches a plan runs over.
 class Source {
@@ -187,10 +174,12 @@ class Source {
   Source(const Source&) = delete;
   Source& operator=(const Source&) = delete;
 
-  // A source wrapping another source creates that source's state too, so one
+  // A source wrapping another source makes that source's state too, so one
   // call builds the whole chain. Any column a run fills for a batch comes from
   // `context`, which outlives the state.
-  virtual std::unique_ptr<OperatorState> MakeState(Context& context) const = 0;
+  OperatorState* MakeState(Context& context) const {
+    return context.Made(NewState(context));
+  }
 
   // Fills `out` and returns true, or returns false when no batches are left.
   // A column it computes is in a buffer from the run's Context; one it
@@ -201,15 +190,10 @@ class Source {
   // The next batch, or null when none are left: `scratch` filled by
   // GetData(), unless the source has a batch of its own. Valid until the next
   // call.
-  virtual RowBatch* Next(RowBatch& scratch, OperatorState& state) const {
-    return GetData(scratch, state) ? &scratch : nullptr;
-  }
+  virtual RowBatch* Next(RowBatch& scratch, OperatorState& state) const;
 
   // Restarts from the first batch.
   virtual void Rewind(OperatorState& state) const = 0;
-
-  // After GetData() returns false, distinguishes exhaustion from failure.
-  virtual base::Status status(const OperatorState&) const;
 
   // Set when the batches served are read in place: each then holds only a
   // row count, its rows being the next of these. Valid until the run ends.
@@ -234,13 +218,18 @@ class Source {
   Source() = default;
   // Made in the plan's Arena, which frees memory without calling destructors.
   ~Source() = default;
+
+  // The state, made with Context::Make().
+  virtual OperatorState* NewState(Context& context) const = 0;
 };
 
-// Ends the run of `state` (see Held) and starts `source` again from its
-// first batch. How every consumer restarts a source, so that nothing the last
-// run held survives into the next.
+// Ends the run of `state` (see OperatorState), clears any failure, and starts
+// `source` again from its first batch. Every consumer restarts a source this
+// way, so nothing the last run held survives into the next.
 inline void Restart(const Source& source, OperatorState& state) {
-  state.EndRun();
+  Context& context = state.context();
+  context.ClearError();
+  context.EndRun(state);
   source.Rewind(state);
 }
 
@@ -255,15 +244,12 @@ class Transform {
   // every column (StepColumns::Keeps::kAll).
   virtual void DescribeColumns(StepColumns* out) const = 0;
 
-  virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
-    return std::make_unique<OperatorState>();
+  OperatorState* MakeState(Context& context) const {
+    return context.Made(NewState(context));
   }
 
-  // False on failure, with status() saying why.
+  // Returns false on failure, after reporting why with Context::Fail().
   virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
-
-  // Why Process() returned false.
-  virtual base::Status status(const OperatorState&) const;
 
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
@@ -279,6 +265,9 @@ class Transform {
   Transform() = default;
   // Made in the plan's Arena, which frees memory without calling destructors.
   ~Transform() = default;
+
+  // The state, made with Context::Make().
+  virtual OperatorState* NewState(Context& context) const;
 };
 
 enum class OpResult : uint8_t {
@@ -291,7 +280,7 @@ enum class OpResult : uint8_t {
   // `out` holds the last of the operator's output. It takes no more input,
   // Finish() is not called, and the steps before it are not pulled again.
   kFinished,
-  // The operator failed; status() says why.
+  // The operator failed, and reported why with Context::Fail().
   kError,
 };
 
@@ -315,8 +304,8 @@ class Operator {
   // before the plan runs; an operator holding nothing ignores it.
   virtual void SetUnreadColumns(core::ArenaSpan<bool>) {}
 
-  virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
-    return std::make_unique<OperatorState>();
+  OperatorState* MakeState(Context& context) const {
+    return context.Made(NewState(context));
   }
 
   virtual OpResult Execute(const RowBatch& in,
@@ -332,14 +321,10 @@ class Operator {
     return OpResult::kNeedMoreInput;
   }
 
-  // Why Execute() or Finish() returned kError.
-  virtual base::Status status(const OperatorState&) const;
-
   // As Source::InPlace(), for the batches Finish() outputs.
   virtual const RowsInPlace* InPlace(const OperatorState&) const {
     return nullptr;
   }
-
   // Identifies the concrete class. Each class has a `static constexpr char
   // kType` and returns its address.
   virtual const void* type() const = 0;
@@ -354,6 +339,9 @@ class Operator {
   Operator() = default;
   // Made in the plan's Arena, which frees memory without calling destructors.
   ~Operator() = default;
+
+  // The state, made with Context::Make().
+  virtual OperatorState* NewState(Context& context) const;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

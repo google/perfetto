@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -250,8 +249,8 @@ class SparseSource final : public Source {
                    valid_.clear(4),
                    valid_.PrefixPopcountFlexVector())) {}
 
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
+  OperatorState* NewState(Context& context) const override {
+    return context.Make<State>();
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().emitted = 0;

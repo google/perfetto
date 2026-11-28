@@ -19,9 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/common/filter_kernels.h"
@@ -100,18 +98,12 @@ void ExpandColumn(const ColumnView& view,
 
 Expand::Expand(core::ArenaSpan<uint32_t> columns) : columns_(columns) {}
 
-Expand::State::~State() = default;
-
 void Expand::DescribeColumns(StepColumns* out) const {
   out->reads.assign(columns_.begin(), columns_.end());
 }
 
-std::unique_ptr<OperatorState> Expand::MakeState(Context& context) const {
-  return std::make_unique<State>(context);
-}
-
 bool Expand::Process(RowBatch& batch, OperatorState& state) const {
-  Context& context = *state.Cast<State>().context;
+  Context& context = state.context();
   for (uint32_t column : columns_) {
     ColumnView view = batch.column(column);
     PERFETTO_DCHECK(view.kind() == ColumnView::Kind::kSparse);
