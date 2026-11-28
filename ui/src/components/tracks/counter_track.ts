@@ -648,7 +648,13 @@ export class CounterTrack implements TrackRenderer {
 
     const tsRel = data.timestampsRel[left];
     const lastDisplayValue = data.lastDisplayValuesF64[left];
-    if (tsRel === undefined || lastDisplayValue === undefined) return undefined;
+    if (
+      tsRel === undefined ||
+      lastDisplayValue === undefined ||
+      Number.isNaN(lastDisplayValue)
+    ) {
+      return undefined;
+    }
 
     return {
       tsRel,
@@ -976,12 +982,15 @@ export class CounterTrack implements TrackRenderer {
 
     if (signal.isCancelled) throw TASK_CANCELLED;
 
-    const cols = queryRes.decodeColumns({
-      tsRel: NUM,
-      minDisplayValue: NUM,
-      maxDisplayValue: NUM,
-      lastDisplayValue: NUM,
-    });
+    const cols = queryRes.decodeColumns(
+      {
+        tsRel: NUM,
+        minDisplayValue: NUM,
+        maxDisplayValue: NUM,
+        lastDisplayValue: NUM,
+      },
+      {nullAsNaN: true},
+    );
     const tsRelCol = cols.tsRel;
     const minCol = cols.minDisplayValue;
     const maxCol = cols.maxDisplayValue;

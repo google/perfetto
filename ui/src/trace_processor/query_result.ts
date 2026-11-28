@@ -79,7 +79,7 @@ export const UNKNOWN = {} as const;
 
 // One decoded column produced by QueryResult.decodeColumns(). The runtime type
 // depends on the requested column type:
-//  - NUM       -> Float64Array
+//  - NUM       -> Float64Array (NULL cells decode as NaN when nullAsNaN is set)
 //  - LONG      -> BigInt64Array
 //  - NUM_NULL  -> Array<number | null>
 //  - LONG_NULL -> Array<bigint | null>
@@ -107,6 +107,12 @@ export type DecodeColumnType<V> = V extends typeof NUM
 export type ColumnarResultFor<T extends SpecType> = {
   readonly [K in keyof T]: DecodeColumnType<T[K]>;
 };
+
+export interface DecodeColumnsOptions {
+  // When true, NULL cells in NUM columns decode as NaN in the returned
+  // Float64Array instead of throwing a QueryError. Defaults to false.
+  readonly nullAsNaN?: boolean;
+}
 
 export interface ColumnarResult {
   readonly [columnName: string]: ColumnarColumn;
@@ -557,10 +563,16 @@ function throwOnIncompatibleCell(
   colName: string,
   rowOffset: number,
   errorInfo: QueryErrorInfo,
+  allowNullNum = false,
 ): void {
   for (let i = start + col; i < end; i += numColumns) {
     const actualType = bytes[i] as CellType;
-    if (isCompatible(actualType, expType)) continue;
+    if (
+      isCompatible(actualType, expType) ||
+      (allowNullNum && expType === NUM && actualType === CellType.CELL_NULL)
+    ) {
+      continue;
+    }
     let err;
     if (actualType === CellType.CELL_NULL) {
       err =
@@ -625,9 +637,13 @@ export interface QueryResult {
   //
   // Cell types are validated up-front per batch (same checks and same errors
   // as iter()): a mismatch between the spec and the actual query result types,
-  // including NULL cells for the non-nullable spec types (NUM/LONG/STR),
-  // throws a QueryError.
-  decodeColumns<T extends SpecType>(spec: T): ColumnarResultFor<T>;
+  // including NULL cells for the non-nullable spec types (NUM/LONG/STR/BLOB),
+  // throws a QueryError unless {nullAsNaN: true} is passed (which decodes NULL
+  // cells in NUM columns as NaN in the returned Float64Array).
+  decodeColumns<T extends SpecType>(
+    spec: T,
+    options?: DecodeColumnsOptions,
+  ): ColumnarResultFor<T>;
 
   // Like iter() for queries that expect only one row. It embeds the valid()
   // check (i.e. throws if no rows are available) and returns directly the
@@ -788,7 +804,11 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     return impl as {} as RowIterator<T>;
   }
 
-  decodeColumns<T extends SpecType>(spec: T): ColumnarResultFor<T> {
+  decodeColumns<T extends SpecType>(
+    spec: T,
+    options?: DecodeColumnsOptions,
+  ): ColumnarResultFor<T> {
+    const nullAsNaN = options?.nullAsNaN === true;
     const colNames = this.columnNames;
     const numColumns = colNames.length;
     const total = this._numRows;
@@ -875,8 +895,8 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
       // batch building per-column cell-type bitmasks; the spec compatibility
       // check then only runs once per column. On mismatch this throws the
       // same QueryError that iter() would (same message format), including
-      // NULL cells for the non-nullable spec types (NUM/LONG/STR), which
-      // previously decoded as sentinels (NaN / 0n).
+      // NULL cells for the non-nullable spec types unless nullAsNaN is enabled
+      // (which allows NULL cells on NUM columns and decodes them as NaN).
       const seen = new Uint32Array(numColumns);
       const maxCellType = scanCellTypeMasks(
         bytes,
@@ -891,7 +911,12 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
       for (let c = 0; c < numColumns; c++) {
         const expType = specValues[c];
         if (expType === undefined) continue;
-        if (trustMasks && isMaskCompatible(seen[c]!, expType)) continue;
+        // c < numColumns, matching seen.length and colNames.length.
+        const colMask =
+          nullAsNaN && expType === NUM
+            ? seen[c]! & ~(1 << CellType.CELL_NULL)
+            : seen[c]!;
+        if (trustMasks && isMaskCompatible(colMask, expType)) continue;
         // Slow path: throws, naming the first offending row and column.
         throwOnIncompatibleCell(
           bytes,
@@ -903,6 +928,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           colNames[c]!,
           row, // Rows already decoded from earlier batches.
           this._errorInfo,
+          nullAsNaN,
         );
       }
 
@@ -951,12 +977,11 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
               break;
             }
             case CellType.CELL_NULL:
-              // The validation pre-pass above rejects NULLs for the
-              // non-nullable spec types, so this is normally only reachable
-              // for nullable columns (which store null). The sentinel stores
-              // below are defensive: they can only run for batches containing
-              // out-of-range cell types, where the switch default below throws
-              // on the invalid cell anyway.
+              // NUM decodes NULL cells as NaN in the Float64Array, and
+              // nullable specs store null. The validation pre-pass above
+              // rejects NULLs for LONG/STR/BLOB, so the Kind.Long store below
+              // is defensive (only reachable for batches with out-of-range
+              // cell types, where the switch default below throws anyway).
               if (kind === Kind.Num) {
                 (dests[c] as Float64Array)[row] = NaN;
               } else if (kind === Kind.Long) {
@@ -1545,8 +1570,8 @@ class WaitableQueryResultImpl
   iter<T extends SpecType>(spec: T) {
     return this.impl.iter(spec);
   }
-  decodeColumns<T extends SpecType>(spec: T) {
-    return this.impl.decodeColumns(spec);
+  decodeColumns<T extends SpecType>(spec: T, options?: DecodeColumnsOptions) {
+    return this.impl.decodeColumns(spec, options);
   }
   firstRow<T extends SpecType>(spec: T) {
     return this.impl.firstRow(spec);

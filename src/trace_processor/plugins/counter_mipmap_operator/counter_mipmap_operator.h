@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PLUGINS_COUNTER_MIPMAP_OPERATOR_COUNTER_MIPMAP_OPERATOR_H_
 
 #include <sqlite3.h>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -58,6 +59,12 @@ struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
   };
   struct Agg {
     Counter operator()(const Counter& a, const Counter& b) {
+      if (std::isnan(a.min)) {
+        return b;
+      }
+      if (std::isnan(b.min)) {
+        return a;
+      }
       Counter res;
       res.min = b.min < a.min ? b.min : a.min;
       res.max = b.max > a.max ? b.max : a.max;

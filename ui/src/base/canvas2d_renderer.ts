@@ -260,18 +260,16 @@ export class Canvas2DRenderer implements Renderer {
         if (physX >= clip.right) break;
       }
 
-      const y = ty(ys[i]!);
-      const minY = ty(minYs[i]!);
-      const maxY = ty(maxYs[i]!);
-      const fill = fillAlpha[i]!;
-
-      // If fillAlpha is close to zero, don't draw anything at all
-      if (fill >= 0.01) {
-        const width = nextX - x;
-        const height = baselineY - y;
-        ctx.globalAlpha = fill;
-        ctx.fillRect(x, y, width, height);
-      }
+      const rawY = ys[i];
+      const rawMinY = minYs[i];
+      const rawMaxY = maxYs[i];
+      const hasY = rawY !== undefined && !Number.isNaN(rawY);
+      const hasRange =
+        rawMinY !== undefined &&
+        rawMaxY !== undefined &&
+        !Number.isNaN(rawMinY) &&
+        !Number.isNaN(rawMaxY);
+      if (!hasY && !hasRange) continue;
 
       // Draws a sideways T (range indicator) at the transition x:
       //
@@ -280,10 +278,28 @@ export class Canvas2DRenderer implements Renderer {
       //     y +-------+ (nextX, y)
       //       |
       //  minY +  (Bottom of range)
-      ctx.moveTo(x, maxY);
-      ctx.lineTo(x, minY);
-      ctx.moveTo(x, y);
-      ctx.lineTo(nextX, y);
+      if (hasY) {
+        const y = ty(rawY);
+        const fill = fillAlpha[i] ?? 0;
+
+        // If fillAlpha is close to zero, don't draw anything at all
+        if (fill >= 0.01) {
+          const width = nextX - x;
+          const height = baselineY - y;
+          ctx.globalAlpha = fill;
+          ctx.fillRect(x, y, width, height);
+        }
+
+        if (hasRange) {
+          ctx.moveTo(x, ty(rawMaxY));
+          ctx.lineTo(x, ty(rawMinY));
+        }
+        ctx.moveTo(x, y);
+        ctx.lineTo(nextX, y);
+      } else if (hasRange) {
+        ctx.moveTo(x, ty(rawMaxY));
+        ctx.lineTo(x, ty(rawMinY));
+      }
     }
 
     ctx.globalAlpha = 1.0;
