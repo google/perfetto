@@ -20,6 +20,8 @@ namespace perfetto::trace_redaction {
 
 PidFilter::~PidFilter() = default;
 
+PacketFilter::~PacketFilter() = default;
+
 bool ConnectedToPackage::Includes(const Context& context,
                                   uint64_t ts,
                                   int32_t pid) const {

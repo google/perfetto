@@ -69,6 +69,20 @@ inline bool IsShellPacketField(uint32_t field_id) {
   return false;
 }
 
+// Classifies a packet by who wrote it, using the trusted_uid stamped by traced.
+enum class WriterType {
+  // trusted_uid <= Context::kMaxTrustedUid.
+  kSystem,
+
+  // trusted_uid > Context::kMaxTrustedUid.
+  kApp,
+
+  // No trusted_uid (e.g. appended to the trace after collection).
+  kMissingUid,
+};
+
+// GetWriterType() is defined after Context (it needs kMaxTrustedUid).
+
 class SystemInfo {
  public:
   int32_t AllocateSynthThread() { return ++next_synth_thread_; }
@@ -442,6 +456,7 @@ class Context {
   // TransformPrimitive::Transform takes `const Context&`).
   struct Stats {
     uint32_t untrusted_app_packets_dropped = 0;
+    uint32_t missing_uid_packets_dropped = 0;
   };
   mutable Stats stats;
 };
@@ -514,6 +529,15 @@ class ValidatorPrimitive {
   // Checks the context and returns an error status if validation fails.
   virtual base::Status Validate(const Context& context) const = 0;
 };
+
+inline WriterType GetWriterType(
+    const protos::pbzero::TracePacket::Decoder& packet) {
+  if (PERFETTO_UNLIKELY(!packet.has_trusted_uid())) {
+    return WriterType::kMissingUid;
+  }
+  return packet.trusted_uid() > Context::kMaxTrustedUid ? WriterType::kApp
+                                                        : WriterType::kSystem;
+}
 
 }  // namespace perfetto::trace_redaction
 

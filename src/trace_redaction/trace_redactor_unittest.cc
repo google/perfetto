@@ -449,6 +449,7 @@ TEST(TraceRedactorTest, MAYBE_RedactTrace_IsolatesMultiUserInstances) {
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(20);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* pA = pt->add_processes();
@@ -466,6 +467,7 @@ TEST(TraceRedactorTest, MAYBE_RedactTrace_IsolatesMultiUserInstances) {
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(30);
+    packet->set_trusted_uid(9999);
     auto* bundle = packet->mutable_ftrace_events();
     bundle->set_cpu(0);
 
@@ -522,7 +524,6 @@ TEST(TraceRedactorTest, MAYBE_RedactTrace_IsolatesMultiUserInstances) {
       static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor::Config config;
-  config.verify = false;
   auto redactor = TraceRedactor::CreateInstance(config);
 
   Context context;
@@ -629,6 +630,7 @@ TEST(TraceRedactorTest,
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(20);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* pA = pt->add_processes();
@@ -646,6 +648,7 @@ TEST(TraceRedactorTest,
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(30);
+    packet->set_trusted_uid(9999);
     auto* bundle = packet->mutable_ftrace_events();
     bundle->set_cpu(0);
 
@@ -702,7 +705,6 @@ TEST(TraceRedactorTest,
       static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor::Config config;
-  config.verify = false;
   auto redactor = TraceRedactor::CreateInstance(config);
 
   Context context;
@@ -810,6 +812,7 @@ TEST(TraceRedactorTest, MAYBE_RedactTrace_SecondaryUserAboveTen) {
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(20);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* pC = pt->add_processes();
@@ -827,6 +830,7 @@ TEST(TraceRedactorTest, MAYBE_RedactTrace_SecondaryUserAboveTen) {
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(30);
+    packet->set_trusted_uid(9999);
     auto* bundle = packet->mutable_ftrace_events();
     bundle->set_cpu(0);
 
@@ -883,7 +887,6 @@ TEST(TraceRedactorTest, MAYBE_RedactTrace_SecondaryUserAboveTen) {
       static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor::Config config;
-  config.verify = false;
   auto redactor = TraceRedactor::CreateInstance(config);
 
   Context context;
@@ -999,6 +1002,7 @@ TEST(TraceRedactorTest,
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(20);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* pA = pt->add_processes();
@@ -1021,6 +1025,7 @@ TEST(TraceRedactorTest,
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(30);
+    packet->set_trusted_uid(9999);
     auto* bundle = packet->mutable_ftrace_events();
     bundle->set_cpu(0);
 
@@ -1094,7 +1099,6 @@ TEST(TraceRedactorTest,
       static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor::Config config;
-  config.verify = false;
   auto redactor = TraceRedactor::CreateInstance(config);
 
   Context context;
@@ -1223,6 +1227,7 @@ TEST(
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(10);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* pB = pt->add_processes();
@@ -1247,6 +1252,7 @@ TEST(
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(25);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* pC = pt->add_processes();
@@ -1259,6 +1265,7 @@ TEST(
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(30);
+    packet->set_trusted_uid(9999);
     auto* bundle = packet->mutable_ftrace_events();
     bundle->set_cpu(0);
 
@@ -1287,7 +1294,6 @@ TEST(
       static_cast<ssize_t>(serialized.size()));
 
   TraceRedactor::Config config;
-  config.verify = false;
   auto redactor = TraceRedactor::CreateInstance(config);
 
   Context context;
@@ -1363,6 +1369,7 @@ TEST(TraceRedactorTest, MAYBE_RedactsOomScoreAdjUpdateEvents) {
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(20);
+    packet->set_trusted_uid(9999);
     auto* pt = packet->mutable_process_tree();
 
     auto* sys_proc = pt->add_processes();
@@ -1386,6 +1393,7 @@ TEST(TraceRedactorTest, MAYBE_RedactsOomScoreAdjUpdateEvents) {
   {
     auto* packet = trace.add_packet();
     packet->set_timestamp(30);
+    packet->set_trusted_uid(9999);
     auto* bundle = packet->mutable_ftrace_events();
     bundle->set_cpu(0);
 

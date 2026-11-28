@@ -15,6 +15,7 @@
  */
 
 #include <cstdint>
+#include <string>
 
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -37,6 +38,13 @@ class FtraceEventFilter {
   virtual ~FtraceEventFilter();
   virtual bool Includes(const Context& context,
                         protozero::Field event) const = 0;
+};
+
+class PacketFilter {
+ public:
+  virtual ~PacketFilter();
+  virtual bool Includes(const Context& context,
+                        const std::string& packet) const = 0;
 };
 
 class ConnectedToPackage : public PidFilter {
