@@ -1077,7 +1077,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     node: TreeExplorerNode,
     withDetails: boolean,
   ): string {
-    const {nodes, unfilteredCumulativeValue} = ensureExists(this.attrs.data);
+    const {nodes, unfilteredCumulativeValue, diff} = ensureExists(
+      this.attrs.data,
+    );
     const metric = ensureExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
@@ -1151,27 +1153,53 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     lines.push('|' + headers.map(() => '------').join('|') + '|');
 
     for (const entry of stack) {
-      const cumulative = displaySize(entry.cumulativeValue, metric.unit);
-      const cumulativePercent = displayPercentage(
-        entry.cumulativeValue,
-        unfilteredCumulativeValue,
-      );
-      const self = displaySize(entry.selfValue, metric.unit);
-      const selfPercent = displayPercentage(
-        entry.selfValue,
-        unfilteredCumulativeValue,
-      );
-
       const cols = [entry.name];
       for (const key of unaggKeys) {
         cols.push(entry.properties.get(key)?.value ?? '');
       }
-      cols.push(
-        `${cumulative} (${cumulativePercent})`,
-        `${self} (${selfPercent})`,
-      );
+      if (diff !== undefined) {
+        cols.push(
+          displayDiff(
+            entry.baselineCumulativeValue ?? 0,
+            entry.cumulativeValue,
+            metric.unit,
+          ),
+          displayDiff(
+            entry.baselineSelfValue ?? 0,
+            entry.selfValue,
+            metric.unit,
+          ),
+        );
+      } else {
+        const cumulative = displaySize(entry.cumulativeValue, metric.unit);
+        const cumulativePercent = displayPercentage(
+          entry.cumulativeValue,
+          unfilteredCumulativeValue,
+        );
+        const self = displaySize(entry.selfValue, metric.unit);
+        const selfPercent = displayPercentage(
+          entry.selfValue,
+          unfilteredCumulativeValue,
+        );
+        cols.push(
+          `${cumulative} (${cumulativePercent})`,
+          `${self} (${selfPercent})`,
+        );
+      }
       for (const key of aggKeys) {
-        cols.push(entry.properties.get(key)?.value ?? '');
+        const prop = entry.properties.get(key);
+        if (
+          diff !== undefined &&
+          prop?.baselineValue !== undefined &&
+          !Number.isNaN(Number(prop.value)) &&
+          !Number.isNaN(Number(prop.baselineValue))
+        ) {
+          cols.push(
+            displayDiff(Number(prop.baselineValue), Number(prop.value), ''),
+          );
+        } else {
+          cols.push(prop?.value ?? '');
+        }
       }
       lines.push('| ' + cols.join(' | ') + ' |');
     }
