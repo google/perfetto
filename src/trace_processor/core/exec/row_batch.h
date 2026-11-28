@@ -111,6 +111,11 @@ class RowBatch {
     const ColumnBuffer& nulls = context.NullBuffer();
     AddColumn(NullView(type, nulls), nulls);
   }
+  // Adds a column where every row is null. It has the kind and type of `like`,
+  // or the type `fallback` if `like` is null.
+  void AddNullColumnLike(const ColumnShape* like,
+                         StorageType fallback,
+                         Context& context);
   // Replaces all columns with `views`. `buffers[i]` is the buffer of
   // `views[i]`, or null if it borrows its storage. Nothing is copied, so the
   // caller must keep both alive and unchanged until the batch is next filled.

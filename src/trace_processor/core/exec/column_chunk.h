@@ -50,6 +50,13 @@ inline uint32_t ValueWidth(const ColumnView& view) {
                                                    : ValueWidth(view.type());
 }
 
+// Where a row lives in a store of batches, packed into one uint32: the batch
+// index in the high bits and the row within the batch in the low
+// kPlaceRowBits.
+inline constexpr uint32_t kPlaceRowBits = 11;
+inline constexpr uint32_t kPlaceRowMask = (1u << kPlaceRowBits) - 1;
+static_assert(kMaxBatchRows == (1u << kPlaceRowBits));
+
 // Where one batch's values of a column are, as a ColumnView has them, flat
 // enough to be copied into an array: row `row` of the batch is the value and
 // the bit at `start + row`.
@@ -78,14 +85,16 @@ struct ColumnChunk {
   // `offset`, preserving value bits and nulls.
   void CopyFrom(const RowBatch& batch, uint32_t column, uint32_t offset);
 
-  // Copies, for each i below `count`, batch row rows[i] of
-  // sources[batches[i]] into this chunk at i. The sources hold the type of
-  // `like`, a view of any of them, which is dispatched on once. `nullable` is
-  // whether any of the sources has nulls.
+  // For each row r in `kept`, copies the value stored at `places[r]` in
+  // `sources` into row r of this chunk. Rows below `count` that aren't in
+  // `kept` are left unspecified. All sources have the type of `like`, so the
+  // value width is dispatched on once. `nullable` says whether any source has
+  // nulls.
   void Gather(const ColumnView& like,
               const GatherSource* sources,
-              const uint32_t* batches,
-              const uint32_t* rows,
+              const uint32_t* places,
+              const uint16_t* kept,
+              uint32_t kept_count,
               uint32_t count,
               bool nullable);
 

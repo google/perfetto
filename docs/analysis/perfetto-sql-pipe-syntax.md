@@ -404,6 +404,32 @@ Diagram(
   keeps every row and a negative offset skips none.
 - Keeps all columns and aliases.
 
+### `JOIN` {#join}
+
+Adds to each row the columns of the row of another relation whose key
+matches:
+
+```railroad
+Diagram(
+  Optional(Choice(0, Terminal('INNER'), Terminal('LEFT'))), Terminal('JOIN'),
+  NonTerminal('source'),
+  Choice(0,
+    Sequence(Terminal('ON'), NonTerminal('column'), Terminal('='),
+             NonTerminal('column')),
+    Sequence(Terminal('USING'), Terminal('('), NonTerminal('column'),
+             Terminal(')'))))
+```
+
+- `ON` names one column of each side, which must be equal. `USING` names a
+  column both sides have, and keeps only the input's.
+- The right side's keys must be a sequence, as a table's ids are: each one
+  more than the one before. Any other right side fails when the pipeline
+  runs. Keys are read as integers.
+- An inner join drops rows without a match, and a left join keeps them, with
+  nulls for the right side's columns.
+- Outputs the input's columns, then the right side's. The rows have no known
+  order. The right side's alias, if it has one, qualifies its columns.
+
 ### `INTERVAL FLATTEN` {#interval-flatten}
 
 Splits overlapping intervals into segments and aggregates the rows active in

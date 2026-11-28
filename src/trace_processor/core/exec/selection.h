@@ -77,6 +77,11 @@ class Selection {
   // Keeps the batch rows `rows`, which are kept already, in the order given.
   void Reorder(base::Span<const uint32_t> rows);
 
+  // Narrows the selection to rows where `values[row] == value` (if `equal`)
+  // or `values[row] != value` (if not). `values` has one entry per batch
+  // row.
+  void KeepMatching(const uint32_t* values, uint32_t value, bool equal);
+
   // Keeps `count` of the rows kept, from the `first`.
   void KeepRange(uint32_t first, uint32_t count);
 

@@ -793,15 +793,6 @@ TEST_F(PerfettoSqlParserTest, StagesNotSupportedYet) {
     const char* name;
   };
   for (const Case& c : std::initializer_list<Case>{
-           {"JOIN t USING (a)", "JOIN"},
-           {"JOIN t AS x USING (a, b)", "JOIN"},
-           {"LEFT JOIN (SELECT 1 AS a) AS x ON x.a = s.a", "JOIN"},
-           {"LEFT OUTER JOIN t ON TRUE", "JOIN"},
-           {"INNER JOIN (FROM t |> DISTINCT) AS x USING (a)", "JOIN"},
-           {"RIGHT JOIN t USING (a)", "JOIN"},
-           {"FULL OUTER JOIN t USING (a)", "JOIN"},
-           {"CROSS JOIN t ON TRUE", "JOIN"},
-           {"NATURAL JOIN t USING (a)", "JOIN"},
            {"INTERVAL MERGE OVERLAPPING AGGREGATE COUNT(*) AS n",
             "INTERVAL MERGE"},
            {"INTERVAL MERGE OVERLAPPING PER a, b AGGREGATE COUNT(*) AS n",
@@ -866,7 +857,7 @@ TEST_F(PerfettoSqlParserTest, JoinNeedsOnOrUsing) {
     std::string sql =
         std::string("FROM (SELECT 1 AS a) AS s |> ") + stage + " |> DISTINCT";
     EXPECT_THAT(Parse(SqlSource::FromExecuteQuery(sql)).status().message(),
-                HasSubstr("JOIN needs ON or USING"))
+                HasSubstr("ON or USING"))
         << sql;
   }
 }

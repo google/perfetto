@@ -268,10 +268,12 @@ class Lowering {
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
 
-  // Finishes this side pipeline and returns its id, which the step reading
-  // it streams it in by through the run's Context (see
-  // core::exec::PipelineUse). Nothing can be added to it afterwards.
-  uint32_t FinishSide();
+  // Finishes this side pipeline and returns its id. If `sink` isn't null the
+  // pipeline ends in it; otherwise its rows are streamed. The step that reads
+  // the pipeline uses the id to find it through the run's Context (see
+  // core::exec::PipelineUse). Nothing can be added to the pipeline after
+  // this.
+  uint32_t FinishSide(std::unique_ptr<core::exec::Sink> sink = nullptr);
 
   // Moves the value condition `condition` of `node` tests with into the plan,
   // if it has one, and returns its index into the run's params (see

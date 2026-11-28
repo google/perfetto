@@ -94,27 +94,30 @@ void WriteValidity(Valid valid,
   }
 }
 
-// Copies, for each i below `count`, batch row rows[i] of sources[batches[i]]
-// to `dest` at i. Each value is `kWidth` bytes. The arguments are not read
-// through a closure, which the bytes written could alias.
+// For each row r in `kept`, copies the value stored at `places[r]` in
+// `sources` to row r of `dest`. Each value is `kWidth` bytes. This is a
+// function rather than a lambda: through a closure, the compiler would assume
+// the bytes written could alias the arguments and reload them every row.
 template <uint32_t kWidth>
 void GatherValues(const GatherSource* sources,
-                  const uint32_t* batches,
-                  const uint32_t* rows,
-                  uint32_t count,
+                  const uint32_t* places,
+                  const uint16_t* kept,
+                  uint32_t kept_count,
                   uint8_t* dest) {
-  for (uint32_t i = 0; i < count; ++i) {
-    const GatherSource& source = sources[batches[i]];
-    uint32_t index = source.start + rows[i];
+  for (uint32_t i = 0; i < kept_count; ++i) {
+    uint32_t r = kept[i];
+    uint32_t place = places[r];
+    const GatherSource& source = sources[place >> kPlaceRowBits];
+    uint32_t index = source.start + (place & kPlaceRowMask);
     if constexpr (kWidth == sizeof(uint32_t)) {
       // A sequence has no storage: its value is where it would be stored.
       // Only Id columns are sequences.
       if (PERFETTO_UNLIKELY(!source.data)) {
-        memcpy(dest + i * kWidth, &index, kWidth);
+        memcpy(dest + r * kWidth, &index, kWidth);
         continue;
       }
     }
-    memcpy(dest + i * kWidth,
+    memcpy(dest + r * kWidth,
            static_cast<const uint8_t*>(source.data) + uint64_t{index} * kWidth,
            kWidth);
   }
@@ -168,13 +171,14 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
 
 void ColumnChunk::Gather(const ColumnView& like,
                          const GatherSource* sources,
-                         const uint32_t* batches,
-                         const uint32_t* rows,
+                         const uint32_t* places,
+                         const uint16_t* kept,
+                         uint32_t kept_count,
                          uint32_t count,
                          bool nullable) {
   PERFETTO_DCHECK(uint64_t{ValueWidth(like)} * kMaxBatchRows <= storage.size());
   DispatchOnWidth(like, [&](auto width) {
-    GatherValues<decltype(width)::value>(sources, batches, rows, count,
+    GatherValues<decltype(width)::value>(sources, places, kept, kept_count,
                                          Values<uint8_t>());
   });
 
@@ -183,13 +187,15 @@ void ColumnChunk::Gather(const ColumnView& like,
     validity.FillBits(0, count, true);
     return;
   }
-  WriteValidity(
-      [&](uint32_t i) {
-        const GatherSource& source = sources[batches[i]];
-        return !source.validity ||
-               source.validity->is_set(source.start + rows[i]);
-      },
-      count, 0, validity);
+  validity.FillBits(0, count, false);
+  for (uint32_t i = 0; i < kept_count; ++i) {
+    uint32_t place = places[kept[i]];
+    const GatherSource& source = sources[place >> kPlaceRowBits];
+    if (!source.validity ||
+        source.validity->is_set(source.start + (place & kPlaceRowMask))) {
+      validity.set(kept[i]);
+    }
+  }
 }
 
 void ColumnChunk::GrowValidity() {
