@@ -26,6 +26,8 @@ import {
   createDefaultTreeExplorerState,
   metricId,
   type TreeExplorerAddableMetric,
+  type TreeExplorerData,
+  type TreeExplorerDiff,
   type TreeExplorerDisplayMode,
   type TreeExplorerNodeIconFn,
   type TreeExplorerNodeTooltipRenderer,
@@ -37,6 +39,8 @@ import {
   TreeExplorerFlatView,
   TreeExplorerTreeView,
   buildFlatExportString,
+  computeFlatDiff,
+  computeFlatFunctions,
 } from './tree_explorer_table_views';
 import {Tabs} from '../widgets/tabs';
 
@@ -87,6 +91,9 @@ export interface TreeExplorerPanelAttrs {
 // panel.
 export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttrs> {
   private highlightPattern = '';
+  private cachedDiffData?: TreeExplorerData;
+  private cachedDiffMode?: TreeExplorerDisplayMode;
+  private cachedLegendDiff?: TreeExplorerDiff;
 
   view({attrs}: m.CVnode<TreeExplorerPanelAttrs>): m.Children {
     const {fetcher, state = createDefaultTreeExplorerState(fetcher.metrics)} =
@@ -142,11 +149,11 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
                       );
                 },
           exportFileBaseName:
-            displayMode === 'flat'
+            (displayMode === 'flat'
               ? 'functions'
               : displayMode === 'tree'
                 ? 'call_tree'
-                : 'flamegraph',
+                : 'flamegraph') + (data?.diff !== undefined ? '_diff' : ''),
           extraDownloadItems: attrs.extraDownloadItems,
         }),
         children,
@@ -168,6 +175,18 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
         ),
       );
 
+    if (this.cachedDiffData !== data || this.cachedDiffMode !== displayMode) {
+      this.cachedDiffData = data;
+      this.cachedDiffMode = displayMode;
+      this.cachedLegendDiff =
+        data?.diff === undefined
+          ? undefined
+          : displayMode === 'flat'
+            ? computeFlatDiff(data.diff, computeFlatFunctions(data))
+            : data.diff;
+    }
+    const legendDiff = this.cachedLegendDiff;
+
     return m(
       '.pf-tree-explorer',
       m(Tabs, {
@@ -180,9 +199,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
           });
         },
         rightContent:
-          displayMode === 'flamegraph' &&
-          data?.diff !== undefined &&
-          renderDiffLegend(data.diff, unit),
+          legendDiff !== undefined && renderDiffLegend(legendDiff, unit),
         tabs: [
           {
             key: 'flamegraph',
