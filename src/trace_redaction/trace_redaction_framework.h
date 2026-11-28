@@ -250,6 +250,14 @@ class Context {
                          : u == *package_uid;
   }
 
+  // Returns true if the packet was written by an app uid other than the
+  // target.
+  bool IsOtherAppPacket(
+      const protos::pbzero::TracePacket::Decoder& packet) const {
+    return packet.has_trusted_uid() && packet.trusted_uid() > kMaxTrustedUid &&
+           !IsTargetUid(packet.trusted_uid());
+  }
+
   // The timestamp when tracing started, collected from TracingServiceEvent.
   // This is used to avoid merging events across the start of tracing, which
   // can result in events being dropped during parsing.
@@ -429,6 +437,13 @@ class Context {
         first_snapshot_start;
   };
   TimelineBackdating timeline_backdating;
+
+  // Transform-phase counters (`mutable` on Context because
+  // TransformPrimitive::Transform takes `const Context&`).
+  struct Stats {
+    uint32_t untrusted_app_packets_dropped = 0;
+  };
+  mutable Stats stats;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The
