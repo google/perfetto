@@ -101,11 +101,11 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
     const Search& s = searches_[i];
     PERFETTO_DCHECK(s.param < context.params().size());
     const ParamValue& cast = values[s.param];
-    if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+    if (cast.validity == CastFilterValueResult::kNoneMatch) {
       range.e = range.b;
       break;
     }
-    if (cast.value.validity == CastFilterValueResult::kAllMatch) {
+    if (cast.validity == CastFilterValueResult::kAllMatch) {
       continue;
     }
     const dataframe::Column& column = *s.column;
@@ -122,17 +122,17 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
           // `value` points into `text`, and goes stale if the value is moved.
           range = filter::SearchSorted(
               sorted.column, sorted.op,
-              CastFilterValueResult::Value(cast.text.c_str()), range);
+              CastFilterValueResult::Value(cast.text().c_str()), range);
         } else {
-          range = filter::SearchSorted(sorted.column, sorted.op,
-                                       cast.value.value, range);
+          range =
+              filter::SearchSorted(sorted.column, sorted.op, cast.value, range);
         }
         break;
       }
       case Search::Kind::kSetIdEq:
-        filter::SetIdSortedEqualRange(
-            column.storage.unchecked_data<Uint32>(),
-            base::unchecked_get<uint32_t>(cast.value.value), range);
+        filter::SetIdSortedEqualRange(column.storage.unchecked_data<Uint32>(),
+                                      base::unchecked_get<uint32_t>(cast.value),
+                                      range);
         break;
       case Search::Kind::kSmallValueEq: {
         const auto& small =
@@ -140,7 +140,7 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
                 .unchecked_get<dataframe::SpecializedStorage::SmallValueEq>();
         filter::SmallValueEqualRange(
             small.bit_vector, small.prefix_popcount.data(),
-            base::unchecked_get<uint32_t>(cast.value.value), range);
+            base::unchecked_get<uint32_t>(cast.value), range);
         break;
       }
     }
@@ -151,10 +151,9 @@ Range SortedSearches::FindAll(const Context& context, Range rows) const {
 Range SortedSearches::FindIdEq(const Context& context, Range rows) const {
   Range range = rows;
   const ParamValue& cast = context.params().b[searches_[0].param];
-  if (PERFETTO_LIKELY(cast.value.validity == CastFilterValueResult::kValid)) {
-    filter::IdEqualRange(base::unchecked_get<uint32_t>(cast.value.value),
-                         range);
-  } else if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+  if (PERFETTO_LIKELY(cast.validity == CastFilterValueResult::kValid)) {
+    filter::IdEqualRange(base::unchecked_get<uint32_t>(cast.value), range);
+  } else if (cast.validity == CastFilterValueResult::kNoneMatch) {
     range.e = range.b;
   }
   return range;

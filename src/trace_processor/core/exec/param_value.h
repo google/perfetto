@@ -64,33 +64,57 @@ struct GlobMatch {
 // allocates, and nothing dispatches on the column's type or the comparison,
 // which matters when each run looks up one row.
 struct ParamValue {
-  filter::CastFilterValueResult value =
-      filter::CastFilterValueResult::NoneMatch();
+  // What only string ordering, REGEXP, GLOB and IN need, allocated on first
+  // use so that the params of every other comparison stay small.
+  struct Extra {
+    // For a string compared by order: its text, which `value` points to. Its
+    // buffer is reused, so only a string longer than any before allocates.
+    std::string text;
+    // For REGEXP: the pattern, compiled once a run rather than once a batch.
+    std::optional<base::Regex> regex;
+    // For IN: the list's values, while `validity` says whether any can match.
+    // Its allocations are reused from run to run.
+    filter::CastFilterValueListResult::Ptr list;
+    // For a GLOB literal with wildcards (see AttachGlob).
+    std::unique_ptr<GlobMatch> glob;
+  };
+
+  Extra& EnsureExtra() {
+    if (!extra) {
+      extra = std::make_unique<Extra>();
+    }
+    return *extra;
+  }
+
+  const std::string& text() const { return extra->text; }
+  const base::Regex& regex() const { return *extra->regex; }
+  const filter::CastFilterValueListResult& list() const { return *extra->list; }
+  GlobMatch* glob() const { return extra ? extra->glob.get() : nullptr; }
+
+  // The value, read only while `validity` is kValid.
+  filter::CastFilterValueResult::Value value =
+      filter::CastFilterValueResult::Id{0};
+  filter::CastFilterValueResult::Validity validity =
+      filter::CastFilterValueResult::kNoneMatch;
   // For a string compared by = or !=: the string's id in the pool.
   StringPool::Id string_id = StringPool::Id::Null();
-  // For a string compared by order: its text, which `value` points to. Its
-  // buffer is reused, so only a string longer than any before allocates.
-  std::string text;
-  // For REGEXP: the pattern, compiled once a run rather than once a batch.
-  std::optional<base::Regex> regex;
-  // For IN: the list's values, while `value` says whether any can match. Its
-  // allocations are reused from run to run.
-  filter::CastFilterValueListResult::Ptr list;
-  // For a GLOB literal with wildcards (see AttachGlob).
-  std::unique_ptr<GlobMatch> glob;
+  std::unique_ptr<Extra> extra;
 };
+static_assert(sizeof(ParamValue) <= 32);
 
 // Gives `value`, a GLOB literal just cast, its GlobMatch, so that it is
 // matched against the pool once however many runs read it. A pattern without
 // wildcards still compares string ids, and needs none.
 inline void AttachGlob(ParamValue* value) {
-  value->glob.reset();
-  if (value->value.validity != filter::CastFilterValueResult::kValid) {
+  if (value->extra) {
+    value->extra->glob.reset();
+  }
+  if (value->validity != filter::CastFilterValueResult::kValid) {
     return;
   }
-  auto glob = std::make_unique<GlobMatch>(base::StringView(value->text));
+  auto glob = std::make_unique<GlobMatch>(base::StringView(value->text()));
   if (!glob->matcher.IsEquality()) {
-    value->glob = std::move(glob);
+    value->EnsureExtra().glob = std::move(glob);
   }
 }
 
@@ -104,12 +128,17 @@ void CastParamFor(Fetcher& fetcher,
                   NonNullOp op,
                   const StringPool&,
                   ParamValue* out) {
-  out->value = filter::CastFilterValue<T>(index, fetcher, op);
+  filter::CastFilterValueResult res =
+      filter::CastFilterValue<T>(index, fetcher, op);
+  out->validity = res.validity;
+  if (PERFETTO_LIKELY(res.validity == filter::CastFilterValueResult::kValid)) {
+    out->value = res.value;
+  }
 }
 
 // Casts a string compared by = (kEq) or != to its id in `pool`, leaving
-// `value.value` unset. Apart from the casts for ordering, GLOB and REGEXP,
-// which would give every lookup their stack frame.
+// `value` unset. Apart from the casts for ordering, GLOB and REGEXP, which
+// would give every lookup their stack frame.
 template <bool kEq, typename Fetcher>
 void CastStringEqParam(Fetcher& fetcher,
                        uint32_t index,
@@ -121,12 +150,12 @@ void CastStringEqParam(Fetcher& fetcher,
     const char* text = fetcher.GetStringValue(index);
     std::optional<StringPool::Id> id = pool.GetId(base::StringView(text));
     if (PERFETTO_LIKELY(id.has_value())) {
-      out->value.validity = filter::CastFilterValueResult::kValid;
+      out->validity = filter::CastFilterValueResult::kValid;
       out->string_id = *id;
     } else {
       // A string no row holds equals none of them, and differs from all.
-      out->value.validity = kEq ? filter::CastFilterValueResult::kNoneMatch
-                                : filter::CastFilterValueResult::kAllMatch;
+      out->validity = kEq ? filter::CastFilterValueResult::kNoneMatch
+                          : filter::CastFilterValueResult::kAllMatch;
     }
     return;
   }
@@ -134,9 +163,9 @@ void CastStringEqParam(Fetcher& fetcher,
   // equals no string and differs from all.
   PERFETTO_DCHECK(type == Fetcher::kNull || type == Fetcher::kInt64 ||
                   type == Fetcher::kDouble);
-  out->value.validity = type == Fetcher::kNull || kEq
-                            ? filter::CastFilterValueResult::kNoneMatch
-                            : filter::CastFilterValueResult::kAllMatch;
+  out->validity = type == Fetcher::kNull || kEq
+                      ? filter::CastFilterValueResult::kNoneMatch
+                      : filter::CastFilterValueResult::kAllMatch;
 }
 
 // Casts a string compared by order, GLOB or REGEXP into `out`.
@@ -146,21 +175,24 @@ void CastStringOtherParam(Fetcher& fetcher,
                           NonNullOp op,
                           const StringPool&,
                           ParamValue* out) {
-  out->value = filter::CastFilterValue<String>(index, fetcher, op);
-  if (out->value.validity != filter::CastFilterValueResult::kValid) {
+  filter::CastFilterValueResult res =
+      filter::CastFilterValue<String>(index, fetcher, op);
+  out->validity = res.validity;
+  if (res.validity != filter::CastFilterValueResult::kValid) {
     return;
   }
-  out->text.assign(base::unchecked_get<const char*>(out->value.value));
-  out->value.value = out->text.c_str();
+  ParamValue::Extra& extra = out->EnsureExtra();
+  extra.text.assign(base::unchecked_get<const char*>(res.value));
+  out->value = extra.text.c_str();
   if (op.Is<Regex>()) {
     // As the interpreter does, a pattern which does not compile matches
     // nothing.
-    base::StatusOr<base::Regex> regex = base::Regex::Create(out->text);
+    base::StatusOr<base::Regex> regex = base::Regex::Create(extra.text);
     if (!regex.ok()) {
-      out->value = filter::CastFilterValueResult::NoneMatch();
+      out->validity = filter::CastFilterValueResult::kNoneMatch;
       return;
     }
-    out->regex = std::move(*regex);
+    extra.regex = std::move(*regex);
   }
 }
 
@@ -172,7 +204,7 @@ void CastParamListFor(Fetcher& fetcher,
                       NonNullOp op,
                       const StringPool& pool,
                       ParamValue* out) {
-  auto& list = out->list;
+  auto& list = out->EnsureExtra().list;
   if (!list) {
     list = std::make_unique<filter::CastFilterValueListResult>();
     list->Init<T>();
@@ -180,7 +212,7 @@ void CastParamListFor(Fetcher& fetcher,
     list->Clear<T>();
   }
   filter::CastFilterValueList<T>(index, fetcher, op, &pool, *list);
-  out->value.validity = list->validity;
+  out->validity = list->validity;
 }
 
 }  // namespace internal
