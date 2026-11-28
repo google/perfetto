@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_REDACTION_FIND_PACKAGE_UID_H_
 #define SRC_TRACE_REDACTION_FIND_PACKAGE_UID_H_
 
+#include <cstdint>
+#include <optional>
+
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -40,12 +43,21 @@ namespace perfetto::trace_redaction {
 // resolved by the end of the trace, this primitive returns an error status.
 class FindPackageUid final : public CollectPrimitive {
  public:
+  // When set, only package lists from packets whose trusted_uid equals `uid`
+  // are used (e.g. Context::kTracedProbesUid in heap dump mode).
+  void set_attribution_writer_uid(int32_t uid) {
+    attribution_writer_uid_ = uid;
+  }
+
   base::Status Begin(Context*) const override;
 
   base::Status Collect(const protos::pbzero::TracePacket::Decoder& packet,
                        Context* context) const override;
 
   base::Status End(Context*) const override;
+
+ private:
+  std::optional<int32_t> attribution_writer_uid_;
 };
 
 }  // namespace perfetto::trace_redaction

@@ -391,4 +391,35 @@ TEST_F(CollectTimelineEventsBackdateTest, PairsStartWithEarliestSnapshot) {
   ASSERT_TRUE(context_.timeline->PidConnectsToUid(kTimeC * 3, kPid, 10200));
 }
 
+TEST_F(CollectTimelineEventsBackdateTest, IgnoresTraceClockFromApps) {
+  CollectTraceClock(protos::gen::BUILTIN_CLOCK_MONOTONIC,
+                    /*trusted_uid=*/10200);
+  CollectProcessTree(9999);
+  ASSERT_OK(collector_.End(&context_));
+
+  // Still back-dated to the process start, not to 0.
+  ASSERT_TRUE(context_.timeline->GetOpeningEvent(kTimeB, kPid));
+  ASSERT_FALSE(context_.timeline->GetOpeningEvent(kTimeA, kPid));
+}
+
+TEST(CollectTimelineEventsAttributionTest, IgnoresOtherWriters) {
+  Context context;
+  CollectTimelineEvents collector;
+  collector.set_timeline_writer_uid(9999);
+  ASSERT_OK(collector.Begin(&context));
+
+  protos::gen::TracePacket packet;
+  packet.set_trusted_uid(10200);  // An app, not traced_probes.
+  packet.set_timestamp(kTimeA);
+  auto* process = packet.mutable_process_tree()->add_processes();
+  process->set_pid(kPid);
+  process->set_uid(10146);
+  auto buffer = packet.SerializeAsString();
+  ASSERT_OK(collector.Collect(protos::pbzero::TracePacket::Decoder(buffer),
+                              &context));
+  ASSERT_OK(collector.End(&context));
+
+  ASSERT_TRUE(context.timeline->empty());
+}
+
 }  // namespace perfetto::trace_redaction

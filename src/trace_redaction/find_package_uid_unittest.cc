@@ -386,4 +386,30 @@ TEST(FindPackageUidTest, AcceptsMaxNormalizedUidInPackageList) {
   ASSERT_TRUE(context.normalize_uid);
 }
 
+TEST(FindPackageUidAttributionTest, IgnoresPackageListsFromOtherWriters) {
+  Context context;
+  context.package_name = "com.example.target";
+
+  FindPackageUid find;
+  find.set_attribution_writer_uid(9999);
+  ASSERT_OK(find.Begin(&context));
+
+  auto collect = [&](int32_t trusted_uid, int32_t uid) {
+    protos::gen::TracePacket packet;
+    packet.set_trusted_uid(trusted_uid);
+    auto* info = packet.mutable_packages_list()->add_packages();
+    info->set_name("com.example.target");
+    info->set_uid(static_cast<uint64_t>(uid));
+    auto buffer = packet.SerializeAsString();
+    return find.Collect(protos::pbzero::TracePacket::Decoder(buffer), &context);
+  };
+
+  ASSERT_OK(collect(10200, 10200));  // Spoofed by an app: ignored.
+  ASSERT_OK(collect(9999, 10146));   // traced_probes.
+  ASSERT_OK(find.End(&context));
+
+  ASSERT_TRUE(context.package_uid.has_value());
+  ASSERT_EQ(*context.package_uid, 10146u);
+}
+
 }  // namespace perfetto::trace_redaction

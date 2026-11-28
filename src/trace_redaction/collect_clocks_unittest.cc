@@ -19,6 +19,7 @@
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -45,6 +46,7 @@ class CollectClocksTest : public testing::Test {
                                     uint32_t clock_id) {
     auto* packet_defaults = trace_packet.mutable_trace_packet_defaults();
 
+    trace_packet.set_trusted_uid(Context::kTracedProbesUid);
     trace_packet.set_trusted_packet_sequence_id(trusted_seq_id);
 
     packet_defaults->set_timestamp_clock_id(clock_id);
@@ -72,6 +74,7 @@ TEST_F(CollectClocksTest, CollectsClocksAndConvertsPerfToTraceTs) {
   packets_.push_back(trace_defaults_packet);
 
   protos::gen::TracePacket clock_snapshot_packet;
+  clock_snapshot_packet.set_trusted_uid(Context::kTracedProbesUid);
 
   auto* clock_snapshot = clock_snapshot_packet.mutable_clock_snapshot();
   clock_snapshot->set_primary_trace_clock(
@@ -143,6 +146,7 @@ TEST_F(CollectClocksTest, CollectsClocksMultiSequence) {
   packets_.push_back(trace_defaults_packet_seq_2);
 
   protos::gen::TracePacket clock_snapshot_packet;
+  clock_snapshot_packet.set_trusted_uid(Context::kTracedProbesUid);
 
   auto* clock_snapshot = clock_snapshot_packet.mutable_clock_snapshot();
   clock_snapshot->set_primary_trace_clock(
@@ -192,6 +196,33 @@ TEST_F(CollectClocksTest, CollectsClocksMultiSequence) {
       context_.clock_converter.ConvertToTrace(clock_id.value(), 1000);
   ASSERT_OK(trace_ts_2);
   ASSERT_EQ(trace_ts_2.value(), 300u);  // 1000 - 800 + 100
+}
+
+TEST_F(CollectClocksTest, IgnoresNonSystemPackets) {
+  // App-written packet with a non-BOOTTIME primary clock and a malformed clock
+  // entry (missing timestamp) must be ignored rather than failing or changing
+  // the trace clock.
+  protos::gen::TracePacket app_packet;
+  app_packet.set_trusted_uid(10200);
+  auto* app_snapshot = app_packet.mutable_clock_snapshot();
+  app_snapshot->set_primary_trace_clock(protos::gen::BUILTIN_CLOCK_MONOTONIC);
+  app_snapshot->add_clocks()->set_clock_id(
+      protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+  packets_.push_back(app_packet);
+
+  // Uid-less packet must also be ignored.
+  protos::gen::TracePacket uidless_packet;
+  uidless_packet.mutable_clock_snapshot()->set_primary_trace_clock(
+      protos::gen::BUILTIN_CLOCK_MONOTONIC);
+  packets_.push_back(uidless_packet);
+
+  ASSERT_OK(Collect());
+  base::StatusOr<ClockId> primary_clock_id =
+      context_.clock_converter.GetTraceClock();
+  ASSERT_OK(primary_clock_id);
+  ASSERT_EQ(
+      primary_clock_id.value(),
+      ClockId::Machine(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME));
 }
 
 }  // namespace perfetto::trace_redaction

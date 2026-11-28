@@ -316,11 +316,17 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   }
 
   // Add all collectors.
-  pass1->emplace_collect<FindPackageUid>();
+  // Attribution (package uid, pid -> uid) only trusts traced_probes, so
+  // packets written by apps can never change which pids belong to the target.
+  pass1->emplace_collect<FindPackageUid>()->set_attribution_writer_uid(
+      Context::kTracedProbesUid);
   pass1->emplace_collect<CollectClocks>();
   pass1->emplace_collect<CollectSystemInfo>();
-  pass1->emplace_collect<CollectTimelineEvents>()->set_backdate_first_open(
-      true);
+  {
+    auto* timeline = pass1->emplace_collect<CollectTimelineEvents>();
+    timeline->set_timeline_writer_uid(Context::kTracedProbesUid);
+    timeline->set_backdate_first_open(true);
+  }
   pass1->emplace_collect<CollectFrameCookies>();
 
   // Add all validators.

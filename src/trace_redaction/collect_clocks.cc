@@ -37,6 +37,12 @@ namespace perfetto::trace_redaction {
 base::Status CollectClocks::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
+  // Clock snapshots (traced) and packet defaults (traced_perf) only come from
+  // system writers; ignore app and uid-less packets so untrusted writers cannot
+  // alter clock state or fail collection.
+  if (GetWriterType(packet) != WriterType::kSystem) {
+    return base::OkStatus();
+  }
   if (packet.has_clock_snapshot()) {
     RETURN_IF_ERROR(ParseClockSnapshot(packet, context));
   } else if (packet.has_trace_packet_defaults()) {

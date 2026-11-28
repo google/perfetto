@@ -50,17 +50,19 @@ class VerifyIntegrityUnitTest : public testing::Test {
   }
 };
 
-TEST_F(VerifyIntegrityUnitTest, InvalidPacketNoUid) {
+// Packets without a trusted_uid or written by an app uid are filtered/dropped
+// during Transform rather than failing VerifyIntegrity.
+TEST_F(VerifyIntegrityUnitTest, PacketWithoutUidAllowed) {
   protos::gen::TracePacket packet;
-  ASSERT_FALSE(Verify(packet).ok());
+  ASSERT_OK(Verify(packet));
 }
 
-TEST_F(VerifyIntegrityUnitTest, InvalidPacketInvalidUid) {
+TEST_F(VerifyIntegrityUnitTest, AppUidPacketAllowed) {
   protos::gen::TracePacket packet;
 
   packet.set_trusted_uid(kInvalidUid);
 
-  ASSERT_FALSE(Verify(packet).ok());
+  ASSERT_OK(Verify(packet));
 }
 
 TEST_F(VerifyIntegrityUnitTest, ValidPacketSystemUid) {
@@ -340,6 +342,16 @@ TEST_F(VerifyIntegrityUnitTest, ValidPacketProcessStats) {
   // When the packet has a process tree, the packet must have a timestamp.
   packet.mutable_process_stats();
   packet.set_timestamp(kSomeTime);
+
+  ASSERT_OK(Verify(packet));
+}
+
+// Payload checks only apply to system packets: a malformed packet written by an
+// app must not fail the whole trace.
+TEST_F(VerifyIntegrityUnitTest, SkipsChecksForAppPackets) {
+  protos::gen::TracePacket packet;
+  packet.set_trusted_uid(kInvalidUid);
+  packet.mutable_process_tree();  // Missing timestamp.
 
   ASSERT_OK(Verify(packet));
 }

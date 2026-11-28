@@ -29,6 +29,8 @@ namespace perfetto::trace_redaction {
 
 class CollectSystemInfoTest : public testing::Test {
  protected:
+  void SetUp() override { packet_.set_trusted_uid(Context::kTracedProbesUid); }
+
   base::Status Collect() {
     auto buffer = packet_.SerializeAsString();
     protos::pbzero::TracePacket::Decoder decoder(buffer);
@@ -108,6 +110,18 @@ TEST_F(CollectSystemInfoTest, ExtractsTracingStartedTimestamp) {
   ASSERT_OK(Collect());
   ASSERT_TRUE(context_.tracing_started_ts.has_value());
   ASSERT_EQ(*context_.tracing_started_ts, 123456789u);
+}
+
+TEST_F(CollectSystemInfoTest, IgnoresAppPackets) {
+  packet_.set_trusted_uid(10146);
+  AppendFtraceEvent(7, 8);
+
+  ASSERT_OK(Collect());
+  ASSERT_EQ(context_.system_info->cpu_count(), 0u);
+
+  BuildSyntheticThreads build;
+  ASSERT_OK(build.Build(&context_));
+  ASSERT_EQ(context_.synthetic_process, nullptr);
 }
 
 }  // namespace perfetto::trace_redaction
