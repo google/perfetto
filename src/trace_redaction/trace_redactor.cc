@@ -42,6 +42,7 @@
 #include "src/trace_redaction/merge_process_tree.h"
 #include "src/trace_redaction/merge_synthetic_sched.h"
 #include "src/trace_redaction/merge_threads.h"
+#include "src/trace_redaction/package_validation.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/prune_perf_events.h"
@@ -316,6 +317,7 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
   pass1->emplace_collect<CollectFrameCookies>();
 
   // Add all validators.
+  pass1->emplace_validator<PackageValidation>();
   pass1->emplace_validator<TimelineValidation>();
 
   // Add all builders.
