@@ -155,7 +155,7 @@ Rows Compare(const ColumnView& column,
   // alternative. A string compared by = or != is cast to its id instead.
   if constexpr (!std::is_same_v<T, String> ||
                 (!std::is_same_v<O, Eq> && !std::is_same_v<O, Ne>)) {
-    PERFETTO_DCHECK(cast.value.value.index() == StorageType::GetTypeIndex<T>());
+    PERFETTO_DCHECK(cast.value.index() == StorageType::GetTypeIndex<T>());
   }
   if (r.contiguous) {
     // The rows are a run, so the values are read in order with no list.
@@ -177,7 +177,7 @@ Rows Compare(const ColumnView& column,
           StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
       const auto* data = static_cast<const M*>(column.data()) + column.start();
       // A local, not to be reloaded after every row written.
-      M value = base::unchecked_get<M>(cast.value.value);
+      M value = base::unchecked_get<M>(cast.value);
       r.count = static_cast<uint32_t>(
           filter::FilterRange(
               data, 0, r.count, r.rows, value,
@@ -195,7 +195,7 @@ Rows Compare(const ColumnView& column,
   uint32_t* kept;
   if constexpr (std::is_same_v<T, String>) {
     if constexpr (std::is_same_v<O, Glob>) {
-      if (GlobMatch* glob = cast.glob.get()) {
+      if (GlobMatch* glob = cast.glob()) {
         return KeepGlobMatches(column, *glob, pool, r);
       }
     }
@@ -209,16 +209,16 @@ Rows Compare(const ColumnView& column,
       kept = filter::Filter(reinterpret_cast<const uint32_t*>(data), begin, end,
                             begin, cast.string_id.raw_id(), Cmp());
     } else if constexpr (std::is_same_v<O, Regex>) {
-      kept = filter::StringFilterRegex(&pool, data, *cast.regex, begin, end,
+      kept = filter::StringFilterRegex(&pool, data, cast.regex(), begin, end,
                                        begin);
     } else {
       kept = filter::FilterStringCompare<O>(&pool, data, begin, end, begin,
-                                            cast.text.c_str());
+                                            cast.text().c_str());
     }
   } else {
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
     const auto* data = static_cast<const M*>(column.data()) + column.start();
-    M value = base::unchecked_get<M>(cast.value.value);
+    M value = base::unchecked_get<M>(cast.value);
     kept =
         filter::Filter(data, begin, end, begin, value,
                        filter::comparators::IntegerOrDoubleComparator<M, O>());
@@ -242,7 +242,7 @@ Rows KeepIn(const ColumnView& column,
   }
   base::Span<uint32_t> rows(r.rows, r.rows + r.count);
   base::Span<uint32_t> dest = rows;
-  filter::NonIndexedFilterInScan<T>(*cast.list, data, column.start(), rows,
+  filter::NonIndexedFilterInScan<T>(cast.list(), data, column.start(), rows,
                                     dest);
   r.count = static_cast<uint32_t>(dest.size());
   return r;
@@ -402,14 +402,14 @@ PERFETTO_NO_INLINE Rows ApplySlow(const ColumnView& lent,
                                   const StringPool& pool,
                                   uint64_t* sparse_values,
                                   Rows r) {
-  if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+  if (cast.validity == CastFilterValueResult::kNoneMatch) {
     r.count = 0;
     return r;
   }
   if (lent.kind() == ColumnView::Kind::kVariant || lent.validity() != nullptr) {
     r = KeepNulls(lent, /*nulls=*/false, r);
   }
-  if (cast.value.validity != CastFilterValueResult::kValid || r.count == 0) {
+  if (cast.validity != CastFilterValueResult::kValid || r.count == 0) {
     return r;
   }
   ColumnView column = lent;
@@ -472,9 +472,9 @@ bool Filter::Process(RowBatch& batch, OperatorState& state) const {
       bool nulls_first = column.validity() != nullptr &&
                          column.type().Is<String>() && !c.op.Is<Eq>() &&
                          !c.op.Is<Ne>();
-      if (PERFETTO_UNLIKELY(
-              cast.value.validity != CastFilterValueResult::kValid ||
-              column.kind() != ColumnView::Kind::kFlat || nulls_first)) {
+      if (PERFETTO_UNLIKELY(cast.validity != CastFilterValueResult::kValid ||
+                            column.kind() != ColumnView::Kind::kFlat ||
+                            nulls_first)) {
         r = ApplySlow(column, c.op, cast, *pool_, s.sparse_values.data(), r);
       } else {
         CompareFn fn = kCompareTable[c.op.index()][column.type().index()];

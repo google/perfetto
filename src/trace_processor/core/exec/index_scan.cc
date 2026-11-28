@@ -108,11 +108,11 @@ base::Span<const uint32_t> IndexScan::Find(State& s) const {
     const Equality& eq = equalities_[i];
     PERFETTO_DCHECK(eq.param < s.context->params().size());
     const ParamValue& cast = values[eq.param];
-    if (cast.value.validity == CastFilterValueResult::kNoneMatch) {
+    if (cast.validity == CastFilterValueResult::kNoneMatch) {
       entries.e = entries.b;
       break;
     }
-    if (cast.value.validity == CastFilterValueResult::kAllMatch) {
+    if (cast.validity == CastFilterValueResult::kAllMatch) {
       one_key = false;
       continue;
     }
@@ -124,7 +124,7 @@ base::Span<const uint32_t> IndexScan::Find(State& s) const {
           CastFilterValueResult::Value(pool_->Get(cast.string_id).c_str()),
           entries);
     } else {
-      entries = filter::SearchIndexEqual(column, cast.value.value, entries);
+      entries = filter::SearchIndexEqual(column, cast.value, entries);
     }
   }
   if (searches_.empty() || entries.empty()) {
